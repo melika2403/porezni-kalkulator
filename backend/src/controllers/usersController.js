@@ -4,31 +4,55 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function validateUserPayload(body) {
+function isAdmin(req) {
+  return req.user?.role === "admin";
+}
+
+function validateUserUpdatePayload(body) {
   const { firstName, lastName, phone, address, role } = body ?? {};
 
-  if (!isNonEmptyString(firstName))
-    return { ok: false, message: "firstName is required" };
-  if (!isNonEmptyString(lastName))
-    return { ok: false, message: "lastName is required" };
-  if (!isNonEmptyString(phone))
-    return { ok: false, message: "phone is required" };
-  if (!isNonEmptyString(role))
-    return { ok: false, message: "role is required" };
-  if (address != null && typeof address !== "string") {
-    return { ok: false, message: "address must be a string" };
+  const data = {};
+
+  if (firstName != null) {
+    if (!isNonEmptyString(firstName)) {
+      return { ok: false, message: "firstName must be a non-empty string" };
+    }
+    data.firstName = firstName.trim();
   }
 
-  return {
-    ok: true,
-    value: {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      phone: phone.trim(),
-      address: typeof address === "string" ? address.trim() : null,
-      role: role.trim(),
-    },
-  };
+  if (lastName != null) {
+    if (!isNonEmptyString(lastName)) {
+      return { ok: false, message: "lastName must be a non-empty string" };
+    }
+    data.lastName = lastName.trim();
+  }
+
+  if (phone != null) {
+    if (!isNonEmptyString(phone)) {
+      return { ok: false, message: "phone must be a non-empty string" };
+    }
+    data.phone = phone.trim();
+  }
+
+  if (address !== undefined) {
+    if (address != null && typeof address !== "string") {
+      return { ok: false, message: "address must be a string" };
+    }
+    data.address = typeof address === "string" ? address.trim() : null;
+  }
+
+  if (role != null) {
+    if (!isNonEmptyString(role)) {
+      return { ok: false, message: "role must be a non-empty string" };
+    }
+    data.role = role.trim();
+  }
+
+  if (Object.keys(data).length === 0) {
+    return { ok: false, message: "No fields to update" };
+  }
+
+  return { ok: true, value: data };
 }
 
 async function list(req, res) {
@@ -42,26 +66,15 @@ async function getById(req, res) {
     return res.status(400).json({ ok: false, error: "Invalid id" });
   }
 
+  if (!isAdmin(req) && req.user?.id !== id) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+
   const user = await userRepository.getUserById(id);
   if (!user)
     return res.status(404).json({ ok: false, error: "User not found" });
 
   res.status(200).json({ ok: true, data: user });
-}
-
-async function create(req, res) {
-  const validation = validateUserPayload(req.body);
-  if (!validation.ok) {
-    return res.status(400).json({ ok: false, error: validation.message });
-  }
-
-  try {
-    const user = await userRepository.createUser(validation.value);
-    res.status(201).json({ ok: true, data: user });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ ok: false, error: message });
-  }
 }
 
 async function update(req, res) {
@@ -70,9 +83,20 @@ async function update(req, res) {
     return res.status(400).json({ ok: false, error: "Invalid id" });
   }
 
-  const validation = validateUserPayload(req.body);
+  if (!isAdmin(req) && req.user?.id !== id) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+
+  const validation = validateUserUpdatePayload(req.body);
   if (!validation.ok) {
     return res.status(400).json({ ok: false, error: validation.message });
+  }
+
+  if (!isAdmin(req)) {
+    delete validation.value.role;
+    if (Object.keys(validation.value).length === 0) {
+      return res.status(400).json({ ok: false, error: "No fields to update" });
+    }
   }
 
   try {
@@ -81,6 +105,9 @@ async function update(req, res) {
       return res.status(404).json({ ok: false, error: "User not found" });
     res.status(200).json({ ok: true, data: user });
   } catch (error) {
+    if (error && typeof error === "object" && error.code === "P2002") {
+      return res.status(409).json({ ok: false, error: "DUPLICATE_VALUE" });
+    }
     const message = error instanceof Error ? error.message : String(error);
     res.status(500).json({ ok: false, error: message });
   }
@@ -106,7 +133,6 @@ async function remove(req, res) {
 module.exports = {
   list,
   getById,
-  create,
   update,
   remove,
 };

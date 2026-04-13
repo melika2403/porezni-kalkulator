@@ -2,8 +2,10 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 
 const prisma = require("./prisma");
+const authRoutes = require("./routes/authRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 
 const app = express();
@@ -14,9 +16,13 @@ const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
 app.use(
   cors({
     origin: corsOrigin,
+    credentials: true,
   }),
 );
 app.use(express.json());
+app.use(cookieParser());
+
+app.use("/api/auth", authRoutes);
 
 app.use("/api/users", usersRoutes);
 
