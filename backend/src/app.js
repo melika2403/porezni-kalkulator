@@ -3,7 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 
-const db = require("./db");
+const prisma = require("./prisma");
+const usersRoutes = require("./routes/usersRoutes");
 
 const app = express();
 
@@ -17,6 +18,8 @@ app.use(
 );
 app.use(express.json());
 
+app.use("/api/users", usersRoutes);
+
 app.get("/api/health", (_req, res) => {
   res
     .status(200)
@@ -25,7 +28,7 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/db/health", async (_req, res) => {
   try {
-    await db.ping();
+    await prisma.$queryRaw`SELECT 1`;
     res
       .status(200)
       .json({ ok: true, db: "mysql", time: new Date().toISOString() });
