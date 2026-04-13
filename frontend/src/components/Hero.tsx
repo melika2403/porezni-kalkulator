@@ -8,7 +8,7 @@ export default function Hero() {
         <div className={styles.eyebrow}>Napravljeno za BiH poduzetnike</div>
         <h1 className={styles.h1}>
           Porezne obaveze,<br />
-          <em>riješene za minute.</em>
+          <em>riješene za minut.</em>
         </h1>
         <p className={styles.sub}>
           SPR-1053, GPD-1051, obračun plata, PDV, stalna sredstva i ugovori —
