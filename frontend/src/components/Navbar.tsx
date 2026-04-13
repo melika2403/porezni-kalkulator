@@ -1,106 +1,36 @@
-"use client";
-import { useState } from "react";
-import Link from "next/link";
+'use client';
+
+import Link from 'next/link';
+import styles from './Navbar.module.css';
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
-
   return (
-    <nav className="navbar">
-      <div className="container">
-        <div className="logo">MyApp</div>
-
-        <div className={`menu ${open ? "active" : ""}`}>
-          <Link href="/">Home</Link>
-          <Link href="/about">About</Link>
-          <Link href="/services">Services</Link>
-          <Link href="/contact">Contact</Link>
+    <nav className={styles.nav}>
+      <Link href="/" className={styles.logo}>
+        <div className={styles.logoMark}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8">
+            <rect x="3" y="3" width="8" height="8" rx="1" />
+            <rect x="13" y="3" width="8" height="8" rx="1" />
+            <rect x="3" y="13" width="8" height="8" rx="1" />
+            <path d="M13 17h8M17 13v8" />
+          </svg>
         </div>
+        <span className={styles.logoText}>
+          Porezni <span>Kalkulator</span>
+        </span>
+      </Link>
 
-        <div className="hamburger" onClick={() => setOpen(!open)}>
-          <span />
-          <span />
-          <span />
-        </div>
+      <div className={styles.links}>
+        <Link href="#funkcije">Funkcije</Link>
+        <Link href="#cijene">Cijene</Link>
+        <Link href="#kako">Kako radi</Link>
+        <Link href="#faq">FAQ</Link>
       </div>
 
-      <style jsx>{`
-        .navbar {
-          width: 100%;
-          background: #111;
-          color: white;
-          position: sticky;
-          top: 0;
-          z-index: 1000;
-        }
-
-        .container {
-          max-width: 1200px;
-          margin: auto;
-          padding: 15px 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .logo {
-          font-size: 1.5rem;
-          font-weight: bold;
-        }
-
-        .menu {
-          display: flex;
-          gap: 20px;
-        }
-
-        .menu a {
-          color: white;
-          text-decoration: none;
-          transition: 0.3s;
-        }
-
-        .menu a:hover {
-          color: #00bcd4;
-        }
-
-        .hamburger {
-          display: none;
-          flex-direction: column;
-          cursor: pointer;
-        }
-
-        .hamburger span {
-          width: 25px;
-          height: 3px;
-          background: white;
-          margin: 4px 0;
-          display: block;
-        }
-
-        /* MOBILE */
-        @media (max-width: 768px) {
-          .menu {
-            position: absolute;
-            top: 60px;
-            left: 0;
-            width: 100%;
-            background: #111;
-            flex-direction: column;
-            align-items: center;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-          }
-
-          .menu.active {
-            max-height: 300px;
-          }
-
-          .hamburger {
-            display: flex;
-          }
-        }
-      `}</style>
+      <div className={styles.actions}>
+        <Link href="/prijava" className={styles.btnGhost}>Prijavi se</Link>
+        <Link href="/registracija" className={styles.btnPrimary}>Registruj se</Link>
+      </div>
     </nav>
   );
 }
