@@ -1,15 +1,12 @@
-import Navbar from 'src/components/Navbar';
-import Hero from 'src/components/Hero';
-import Features from 'src/components/Features';
-import Pricing from 'src/components/Pricing';
-import HowItWorks from 'src/components/HowItWorks';
-import Faq from 'src/components/Faq';
-import Footer from 'src/components/Footer';
+import Hero from "src/components/Hero/Hero";
+import Features from "src/components/Features/Features";
+import Pricing from "src/components/Pricing/Pricing";
+import HowItWorks from "src/components/HowItWorks/HowItWorks";
+import Faq from "src/components/Faq/Faq";
 
 export default function HomePage() {
   return (
     <>
-      <Navbar />
       <main>
         <Hero />
         <Features />
@@ -17,7 +14,6 @@ export default function HomePage() {
         <HowItWorks />
         <Faq />
       </main>
-      <Footer />
     </>
   );
 }
