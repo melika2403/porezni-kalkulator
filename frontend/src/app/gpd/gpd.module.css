@@ -1,0 +1,442 @@
+.page {
+  padding: 3rem 2rem 5rem;
+  max-width: 860px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+.header {
+  margin-bottom: 2.5rem;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 0.5rem;
+}
+
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--mid);
+  font-weight: 300;
+}
+
+/* ── Section card ── */
+.section {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.2rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionTitle em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+/* ── Form grid ── */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+}
+
+.fieldFull {
+  grid-column: 1 / -1;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  letter-spacing: 0.03em;
+}
+
+.fieldInput {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  width: 100%;
+}
+
+.fieldInput:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.fieldInput::placeholder {
+  color: var(--mid);
+  opacity: 0.6;
+}
+
+/* ── Checkbox ── */
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.checkRow input[type="checkbox"] {
+  accent-color: var(--sage);
+  width: 16px;
+  height: 16px;
+}
+
+.checkLabel {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ── Income table (Dio 2) ── */
+.incomeTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.incomeTable thead th {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.incomeTable thead th:first-child {
+  width: 40px;
+  text-align: center;
+}
+
+.incomeTable thead th:nth-child(3),
+.incomeTable thead th:nth-child(4) {
+  width: 160px;
+  text-align: right;
+}
+
+.incomeTable tbody td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+  font-size: 0.88rem;
+}
+
+.incomeTable tbody td:first-child {
+  text-align: center;
+  font-weight: 500;
+  color: var(--mid);
+  font-size: 0.8rem;
+}
+
+.incomeTable tbody td:nth-child(3),
+.incomeTable tbody td:nth-child(4) {
+  text-align: right;
+}
+
+.rowInput {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  width: 140px;
+  text-align: right;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.rowInput:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+/* ── Totals row ── */
+.totalRow td {
+  font-weight: 500;
+  border-top: 2px solid var(--border);
+  border-bottom: none !important;
+  padding-top: 0.75rem;
+}
+
+.summaryRow td {
+  font-size: 0.88rem;
+  color: var(--ink);
+  padding: 0.5rem 0.5rem;
+  border-bottom: none !important;
+}
+
+.summaryValue {
+  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.lossValue {
+  color: var(--accent);
+}
+
+.profitValue {
+  color: var(--sage);
+}
+
+/* ── Deductions table (Dio 3) ── */
+.deductionTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.deductionTable thead th {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.deductionTable thead th:first-child {
+  width: 40px;
+  text-align: center;
+}
+
+.deductionTable thead th:last-child {
+  width: 180px;
+  text-align: right;
+}
+
+.deductionTable tbody td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+  font-size: 0.88rem;
+}
+
+.deductionTable tbody td:first-child {
+  text-align: center;
+  font-weight: 500;
+  color: var(--mid);
+  font-size: 0.8rem;
+}
+
+.deductionTable tbody td:last-child {
+  text-align: right;
+}
+
+/* ── Calculation rows (Dio 4) ── */
+.calcTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.calcTable thead th {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.calcTable thead th:first-child {
+  width: 40px;
+  text-align: center;
+}
+
+.calcTable thead th:last-child {
+  width: 180px;
+  text-align: right;
+}
+
+.calcTable tbody td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+  font-size: 0.88rem;
+}
+
+.calcTable tbody td:first-child {
+  text-align: center;
+  font-weight: 500;
+  color: var(--mid);
+  font-size: 0.8rem;
+}
+
+.calcTable tbody td:last-child {
+  text-align: right;
+}
+
+.autoValue {
+  font-weight: 500;
+  font-size: 0.88rem;
+  color: var(--ink);
+  padding: 0.45rem 0.6rem;
+  display: inline-block;
+}
+
+.resultRow td {
+  border-top: 2px solid var(--sage);
+  font-weight: 500;
+}
+
+.resultPositive {
+  color: var(--accent);
+}
+
+.resultNegative {
+  color: var(--sage);
+}
+
+/* ── Radio / checkbox group for row 32 ── */
+.radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.radioRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.radioRow input[type="radio"] {
+  accent-color: var(--sage);
+  width: 16px;
+  height: 16px;
+}
+
+.radioLabel {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.accountInput {
+  margin-top: 0.5rem;
+  margin-left: 1.5rem;
+}
+
+/* ── Izjava (Dio 5) ── */
+.izjavaText {
+  font-size: 0.88rem;
+  color: var(--mid);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+.dateField {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dateLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ── Export button ── */
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.exportBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.75rem 2rem;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--sage);
+  color: var(--white);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.exportBtn:hover {
+  background: var(--sage-light);
+}
+
+.exportBtn:active {
+  transform: scale(0.97);
+}
+
+.exportBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .page {
+    padding: 2rem 1rem 4rem;
+  }
+
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding: 1.25rem;
+  }
+
+  .rowInput {
+    width: 100px;
+  }
+
+  .incomeTable thead th:nth-child(3),
+  .incomeTable thead th:nth-child(4) {
+    width: 110px;
+  }
+}
