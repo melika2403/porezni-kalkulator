@@ -16,6 +16,15 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## GPD-1051 PDF (identičan obrazac)
+
+Ruta `/gpd` pri kliku na "Preuzmi PDF" prvo pokušava popuniti **template PDF** da bi rezultat izgledao identično originalnom obrascu.
+
+- Dodaj prazni/originalni obrazac ovdje: `public/templates/GPD-1051.pdf`
+- (Opcionalno) Ako želiš da imena/adrese sa čćđšž budu ispravno upisana u PDF, dodaj TTF font ovdje: `public/fonts/DejaVuSans.ttf`
+
+Ako template ne postoji, aplikacija će privremeno koristiti postojeći `jsPDF` fallback (layout neće biti identičan).
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
