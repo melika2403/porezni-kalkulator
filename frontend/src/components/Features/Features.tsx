@@ -76,8 +76,8 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    title: 'Prijave radnika',
-    desc: 'Unos i evidencija svih radnika s automatskim ispisom prijavnih obrazaca u PDF formatu.',
+    title: 'Prijave / odjave radnika',
+    desc: 'Unos i evidencija radnika s automatskim ispisom JS3100 obrasca i ostalih prijavnih obrazaca u PDF formatu.',
     badge: 'pro',
     iconColor: 'dark',
     icon: (
@@ -88,8 +88,8 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    title: 'Ugovori o radu',
-    desc: 'Automatska izrada ugovora o radu na osnovu unesenih podataka o radniku. Ispis i preuzimanje u jednom kliku.',
+    title: 'Ugovori o djelu',
+    desc: 'Izrada ugovora o djelu s automatskim obračunom troškova, poreza i doprinosa na honorar.',
     badge: 'pro',
     iconColor: 'dark',
     icon: (
@@ -100,9 +100,21 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    title: 'Ugovori o djelu',
-    desc: 'Izrada ugovora o djelu s automatskim obračunom troškova, poreza i doprinosa na honorar.',
+    title: 'Ostali ugovori',
+    desc: 'Izrada ugovora o zakupu, kupoprodajnih ugovora i ostalih poslovnih ugovora prilagođenih vašim potrebama.',
     badge: 'pro',
+    iconColor: 'dark',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Ugovor o pozajmici',
+    desc: 'Izrada standardnog ugovora o pozajmici, s mogućnošću prilagođavanju uvjeta i prema vašim potrebama.',
+    badge: 'free',
     iconColor: 'dark',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -134,6 +146,15 @@ export default function Features() {
             </div>
             <div className={styles.cellTitle}>{f.title}</div>
             <div className={styles.cellDesc}>{f.desc}</div>
+            <button type="button" className={styles.startButton}>
+              Kreni
+              <span className={styles.startArrow} aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="2" y1="8" x2="12" y2="8" />
+                  <polyline points="8 4 12 8 8 12" />
+                </svg>
+              </span>
+            </button>
             <span className={`${styles.badge} ${styles[`badge_${f.badge}`]}`}>
               {BADGE_LABELS[f.badge]}
             </span>
@@ -141,5 +162,7 @@ export default function Features() {
         ))}
       </div>
     </section>
+
+    
   );
 }
