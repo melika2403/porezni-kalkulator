@@ -1,0 +1,188 @@
+import { PDFDocument } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+
+/* ── Types ── */
+
+export interface SprData {
+  // Dio 1 — Podaci o poreznom obvezniku
+  jmbOsobni: string; // 13 digits
+  fullName: string;
+  address: string;
+
+  // Dio 2 — Podaci o djelatnosti
+  jibJmb: string; // 13 digits JIB/JMB djelatnosti
+  periodFrom: string; // ddMMyyyy (8 chars)
+  periodTo: string; // ddMMyyyy (8 chars)
+  contactChanged: boolean;
+  businessName: string;
+  businessAddress: string;
+  activityType: string; // šifra i naziv djelatnosti
+
+  // Dio 3 — Prihodi (rows 11-16)
+  row11Cash: number; // U gotovini shodno poslovnim knjigama
+  row12InKind: number; // U naturi
+  row13GoodsServices: number; // U stvarima i uslugama shodno poslovnim knjigama
+  row14OtherIncome: number; // Ostali prihodi
+  row15BookValueAssets: number; // Knjigovodstvena vrijednost rasknjiženih stalnih sredstava
+  row16TotalIncome: number; // UKUPNO prihodi (computed)
+
+  // Dio 4 — Rashodi (rows 17-24)
+  row17Materials: number; // Nabavna vrijednost prodane robe, utroš. mat. i dr.
+  row18GrossWages: number; // Bruto plaće
+  row19Contributions: number; // Doprinosi na plaću
+  row20OtherExpenses: number; // Ostali rashodi shodno poslovnim knjigama
+  row21GoodsServicesValue: number; // Vrijednost uloženih ekonomskih dobara i usluga
+  row22Depreciation: number; // Amortizacija
+  row23BookValueAssets: number; // Knjigovodstvena vrijednost rasknjiženih stalnih sredstava
+  row24TotalExpenses: number; // UKUPNO rashodi (computed)
+
+  // Dio 5 — Utvrđivanje dohotka (rows 25-29)
+  row25Income: number; // Prihodi (red 16) — computed
+  row26Expenses: number; // Rashodi (red 24) — computed
+  row27Adjustments: number; // Porezne korekcije (+/-)
+  row28NetIncome: number; // Dohodak iz djelatnosti (25 - 26 +/- 27) — computed
+  row29PersonalDeduction: number; // Lični odbitak
+  signAdjustment: "+" | "-" | ""; // da li je korekcija + ili -
+
+  // Izjava
+  dateSigned: string;
+}
+
+/* ── Helpers ── */
+
+const km = (n: number) => (n === 0 ? "" : n.toFixed(2));
+
+function setTextField(
+  form: ReturnType<PDFDocument["getForm"]>,
+  name: string,
+  value: string,
+  font: Awaited<ReturnType<PDFDocument["embedFont"]>>,
+  fontSize?: number
+) {
+  try {
+    const field = form.getTextField(name);
+    if (fontSize !== undefined) {
+      field.setFontSize(fontSize);
+    }
+    field.setText(value || undefined);
+    field.updateAppearances(font);
+  } catch {
+    console.warn(`[SPR] Field "${name}" not found in template`);
+  }
+}
+
+function setCheckBox(
+  form: ReturnType<PDFDocument["getForm"]>,
+  name: string,
+  checked: boolean
+) {
+  try {
+    const field = form.getCheckBox(name);
+    if (checked) field.check();
+    else field.uncheck();
+  } catch {
+    console.warn(`[SPR] Checkbox "${name}" not found in template`);
+  }
+}
+
+/* ── Main export ── */
+
+export async function fillSprTemplate(data: SprData): Promise<Uint8Array> {
+  const [templateBytes, fontBytes] = await Promise.all([
+    fetch("/templates/SPR-1053.pdf").then((r) => r.arrayBuffer()),
+    fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),
+  ]);
+
+  const doc = await PDFDocument.load(templateBytes);
+  doc.registerFontkit(fontkit);
+  const font = await doc.embedFont(fontBytes);
+
+  const form = doc.getForm();
+
+  const set = (name: string, value: string, fontSize?: number) =>
+    setTextField(form, name, value, font, fontSize);
+
+  const check = (name: string, checked: boolean) =>
+    setCheckBox(form, name, checked);
+
+  /* ── Page 1 header — comb fields ── */
+  set("undefined", data.jmbOsobni, 8); // JMB osobni (comb 13)
+  set("undefined_2", data.jibJmb, 8); // JIB/JMB djelatnosti (comb 13)
+  set("Text2.0", data.periodFrom, 7); // Period od (comb 8, ddMMyyyy)
+  set("Text2.1", data.periodTo, 7); // Period do (comb 8, ddMMyyyy)
+  check("toggle_1", data.contactChanged);
+
+  /* ── Dio 1 — Podaci o poreznom obvezniku ── */
+  set("2 Prezime i ime", data.fullName, 9);
+  set("3 Adresa", data.address, 8);
+
+  /* ── Dio 2 — Podaci o djelatnosti ── */
+  set("8 Naziv", data.businessName, 8);
+  set("9 Adresa", data.businessAddress, 8);
+  set("10 Vrsta djelatnosti šifra naziv", data.activityType, 8);
+
+  /* ── Dio 3 — Prihodi (rows 11-16) ── */
+  set("c IznosU gotovini shodno poslovnim knjigama", km(data.row11Cash), 8);
+  set("fill_2", km(data.row12InKind), 8);
+  set(
+    "c IznosU stvarima i uslugama shodno poslovnim knjigama",
+    km(data.row13GoodsServices),
+    8
+  );
+  set("fill_4", km(data.row14OtherIncome), 8);
+  set("fill_5", km(data.row15BookValueAssets), 8);
+  set(
+    "c IznosPrihodi ukupno zbir redova od 11 do 15",
+    km(data.row16TotalIncome),
+    8
+  );
+
+  /* ── Dio 4 — Rashodi (rows 17-24) ── */
+  set("fill_7", km(data.row17Materials), 8);
+  set("fill_8", km(data.row18GrossWages), 8);
+  set("fill_9", km(data.row19Contributions), 8);
+  set(
+    "c IznosOstali rashodi shodno poslovnim knjigama",
+    km(data.row20OtherExpenses),
+    8
+  );
+  set(
+    "c IznosVrijednost uloženih ekonomskih dobara i usluga",
+    km(data.row21GoodsServicesValue),
+    8
+  );
+  set("c IznosAmortizacija", km(data.row22Depreciation), 8);
+  set(
+    "c IznosKnjigovodstvena vrijednost rasknjiženih stalnih sredstava",
+    km(data.row23BookValueAssets),
+    8
+  );
+  set(
+    "c IznosRashodi ukupno zbir redova od 17  do 23",
+    km(data.row24TotalExpenses),
+    8
+  );
+
+  /* ── Dio 5 — Utvrđivanje dohotka (page 2, rows 25-29) ── */
+  set("c IznosPrihodi red 16", km(data.row25Income), 8);
+  set("c IznosRashodi red 24", km(data.row26Expenses), 8);
+  set("fill_3", km(Math.abs(data.row27Adjustments)), 8);
+  set(
+    "c IznosDohodak iz djelatnosti red 25  26  27",
+    km(data.row28NetIncome),
+    8
+  );
+  set("fill_5_2", km(data.row29PersonalDeduction), 8);
+
+  // +/- sign for row 27 adjustment
+  set("Text1", data.signAdjustment, 8);
+
+  /* ── Izjava ── */
+  set("Datum", data.dateSigned, 9);
+
+  /* ── Re-render all field appearances with the custom font, then flatten ── */
+  form.updateFieldAppearances(font);
+  form.flatten();
+
+  return doc.save();
+}
