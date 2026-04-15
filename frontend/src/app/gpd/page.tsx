@@ -89,6 +89,20 @@ const num = (v: string) => {
 
 const fmt = (n: number) => n.toFixed(2);
 
+const getTodayIsoString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isoToFormatted = (isoDate: string): string => {
+  if (!isoDate) return "";
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+};
+
 /* ── Component ── */
 
 export default function GpdForm() {
@@ -131,7 +145,7 @@ export default function GpdForm() {
     bankAccount: "",
   });
 
-  const [dateSigned, setDateSigned] = useState("");
+  const [dateSigned, setDateSigned] = useState(() => getTodayIsoString());
 
   /* ── Computed values ── */
 
@@ -256,7 +270,7 @@ export default function GpdForm() {
       bankAccount: refundOption.bankAccount,
 
       // Dio 5
-      dateSigned,
+      dateSigned: isoToFormatted(dateSigned),
     };
 
     const pdfBytes = await fillGpdTemplate(data);
@@ -929,9 +943,7 @@ export default function GpdForm() {
             value={dateSigned}
             onInvalid={(e) => {
               const el = e.currentTarget;
-              el.setCustomValidity(
-                el.validity.valueMissing ? "Odaberite datum." : "",
-              );
+              el.setCustomValidity(el.validity.valueMissing ? "Odaberite datum." : "");
             }}
             onInput={(e) => e.currentTarget.setCustomValidity("")}
             onChange={(e) => setDateSigned(e.target.value)}

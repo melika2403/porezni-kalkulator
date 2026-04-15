@@ -12,6 +12,30 @@ const num = (v: string) => {
 
 const fmt = (n: number) => n.toFixed(2);
 
+const getTodayIsoString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isoToFormatted = (isoDate: string): string => {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length !== 3) return "";
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
+};
+
+const isoToCompact = (isoDate: string): string => {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length !== 3) return "";
+  const [year, month, day] = parts;
+  return `${day}${month}${year}`;
+};
+
 /* ── Component ── */
 
 export default function SprForm() {
@@ -62,7 +86,7 @@ export default function SprForm() {
     row29: "", // Lični odbitak
   });
 
-  const [dateSigned, setDateSigned] = useState("");
+  const [dateSigned, setDateSigned] = useState(() => getTodayIsoString());
 
   /* ── Computed values ── */
 
@@ -105,8 +129,8 @@ export default function SprForm() {
       address: personal.address,
 
       jibJmb: business.jibJmb,
-      periodFrom: business.periodFrom,
-      periodTo: business.periodTo,
+      periodFrom: isoToCompact(business.periodFrom),
+      periodTo: isoToCompact(business.periodTo),
       contactChanged: business.contactChanged,
       businessName: business.name,
       businessAddress: business.address,
@@ -135,7 +159,7 @@ export default function SprForm() {
       row29PersonalDeduction: num(adjustments.row29),
       signAdjustment: adjustments.sign,
 
-      dateSigned,
+      dateSigned: isoToFormatted(dateSigned),
     };
 
     const pdfBytes = await fillSprTemplate(data);
@@ -152,7 +176,7 @@ export default function SprForm() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `SPR-1053_${business.periodFrom || "XXXXXXXX"}.pdf`;
+    a.download = `SPR-1053_${isoToCompact(business.periodFrom) || "XXXXXXXX"}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
   }, [personal, business, income, expenses, adjustments, dateSigned, computed]);
@@ -175,7 +199,8 @@ export default function SprForm() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac SPR-1053</div>
         <h1 className={styles.h1}>
-          Specifikacija za utvrđivanje dohotka od <em>samostalne djelatnosti</em>
+          Specifikacija za utvrđivanje dohotka od{" "}
+          <em>samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
           Popunite podatke i preuzmite popunjeni obrazac u PDF formatu.
@@ -189,10 +214,9 @@ export default function SprForm() {
         </h2>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>1) JMB *</label>
+            <label className={styles.fieldLabel}>1) JMB</label>
             <input
               className={styles.fieldInput}
-              required
               maxLength={13}
               minLength={13}
               inputMode="numeric"
@@ -203,10 +227,7 @@ export default function SprForm() {
                 const el = e.currentTarget;
                 if (el.validity.valueMissing)
                   el.setCustomValidity("Unesite JMB.");
-                else if (
-                  el.validity.patternMismatch ||
-                  el.validity.tooShort
-                )
+                else if (el.validity.patternMismatch || el.validity.tooShort)
                   el.setCustomValidity("JMB mora imati tačno 13 cifara.");
                 else el.setCustomValidity("Neispravan unos.");
               }}
@@ -218,10 +239,9 @@ export default function SprForm() {
           </div>
           <div className={styles.fieldGroup} />
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>2) Prezime i ime *</label>
+            <label className={styles.fieldLabel}>2) Prezime i ime</label>
             <input
               className={styles.fieldInput}
-              required
               placeholder="Prezime i ime"
               value={personal.fullName}
               onInvalid={(e) => {
@@ -237,10 +257,9 @@ export default function SprForm() {
             />
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>3) Adresa *</label>
+            <label className={styles.fieldLabel}>3) Adresa</label>
             <input
               className={styles.fieldInput}
-              required
               placeholder="Ulica, broj, grad, poštanski broj"
               value={personal.address}
               onInvalid={(e) => {
@@ -265,10 +284,9 @@ export default function SprForm() {
         </h2>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>4) JIB/JMB djelatnosti *</label>
+            <label className={styles.fieldLabel}>4) JIB/JMB djelatnosti</label>
             <input
               className={styles.fieldInput}
-              required
               maxLength={13}
               minLength={13}
               inputMode="numeric"
@@ -279,10 +297,7 @@ export default function SprForm() {
                 const el = e.currentTarget;
                 if (el.validity.valueMissing)
                   el.setCustomValidity("Unesite JIB/JMB.");
-                else if (
-                  el.validity.patternMismatch ||
-                  el.validity.tooShort
-                )
+                else if (el.validity.patternMismatch || el.validity.tooShort)
                   el.setCustomValidity("JIB/JMB mora imati tačno 13 cifara.");
                 else el.setCustomValidity("Neispravan unos.");
               }}
@@ -294,22 +309,18 @@ export default function SprForm() {
           </div>
           <div className={styles.fieldGroup} />
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>5) Period od *</label>
+            <label className={styles.fieldLabel}>5) Period od</label>
             <input
               className={styles.fieldInput}
-              required
-              maxLength={8}
-              minLength={8}
-              inputMode="numeric"
-              pattern="\d{8}"
-              placeholder="ddMMyyyy (npr. 01012025)"
+              type="date"
               value={business.periodFrom}
               onInvalid={(e) => {
                 const el = e.currentTarget;
-                if (el.validity.valueMissing)
-                  el.setCustomValidity("Unesite početni datum perioda.");
-                else
-                  el.setCustomValidity("Format: ddMMyyyy (8 cifara).");
+                el.setCustomValidity(
+                  el.validity.valueMissing
+                    ? "Unesite početni datum perioda."
+                    : "",
+                );
               }}
               onInput={(e) => e.currentTarget.setCustomValidity("")}
               onChange={(e) =>
@@ -318,22 +329,18 @@ export default function SprForm() {
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>6) Period do *</label>
+            <label className={styles.fieldLabel}>6) Period do</label>
             <input
               className={styles.fieldInput}
-              required
-              maxLength={8}
-              minLength={8}
-              inputMode="numeric"
-              pattern="\d{8}"
-              placeholder="ddMMyyyy (npr. 31122025)"
+              type="date"
               value={business.periodTo}
               onInvalid={(e) => {
                 const el = e.currentTarget;
-                if (el.validity.valueMissing)
-                  el.setCustomValidity("Unesite krajnji datum perioda.");
-                else
-                  el.setCustomValidity("Format: ddMMyyyy (8 cifara).");
+                el.setCustomValidity(
+                  el.validity.valueMissing
+                    ? "Unesite krajnji datum perioda."
+                    : "",
+                );
               }}
               onInput={(e) => e.currentTarget.setCustomValidity("")}
               onChange={(e) =>
@@ -342,10 +349,9 @@ export default function SprForm() {
             />
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>8) Naziv djelatnosti *</label>
+            <label className={styles.fieldLabel}>8) Naziv djelatnosti</label>
             <input
               className={styles.fieldInput}
-              required
               placeholder="Naziv poslovne djelatnosti"
               value={business.name}
               onInvalid={(e) => {
@@ -362,19 +368,16 @@ export default function SprForm() {
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>
-              9) Adresa poslovne djelatnosti *
+              9) Adresa poslovne djelatnosti
             </label>
             <input
               className={styles.fieldInput}
-              required
               placeholder="Adresa obavljanja djelatnosti"
               value={business.address}
               onInvalid={(e) => {
                 const el = e.currentTarget;
                 el.setCustomValidity(
-                  el.validity.valueMissing
-                    ? "Unesite adresu djelatnosti."
-                    : "",
+                  el.validity.valueMissing ? "Unesite adresu djelatnosti." : "",
                 );
               }}
               onInput={(e) => e.currentTarget.setCustomValidity("")}
@@ -385,11 +388,10 @@ export default function SprForm() {
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>
-              10) Vrsta djelatnosti — šifra i naziv *
+              10) Vrsta djelatnosti — šifra i naziv
             </label>
             <input
               className={styles.fieldInput}
-              required
               placeholder="Npr. 47.11 - Trgovina na malo"
               value={business.activityType}
               onInvalid={(e) => {
@@ -558,9 +560,9 @@ export default function SprForm() {
             <tr>
               <td>17</td>
               <td>
-                Nabavna vrijednost robe i/ili materijala shodno poslovnim knjigama sa
-uračunatim PDV-om, a za obveznike koji su registrirani PDV obveznici, bez
-PDV-a
+                Nabavna vrijednost robe i/ili materijala shodno poslovnim
+                knjigama sa uračunatim PDV-om, a za obveznike koji su
+                registrirani PDV obveznici, bez PDV-a
               </td>
               <td>
                 <input
@@ -595,7 +597,10 @@ PDV-a
             </tr>
             <tr>
               <td>19</td>
-              <td>Plaćeni doprinosi prema osnovici za poslodavca i na teret poslodavca</td>
+              <td>
+                Plaćeni doprinosi prema osnovici za poslodavca i na teret
+                poslodavca
+              </td>
               <td>
                 <input
                   className={styles.rowInput}
@@ -726,7 +731,13 @@ PDV-a
             <tr>
               <td>27</td>
               <td>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
                   Rashodi koje nije moguće odbiti (čl. 15 Zakona)
                 </div>
               </td>
@@ -746,20 +757,19 @@ PDV-a
             </tr>
             <tr className={styles.resultRow}>
               <td>28</td>
+              <td>Dohodak iz djelatnosti (25 − 26 + 27)</td>
               <td>
-                Dohodak iz djelatnosti (25 − 26 + 27)
-              </td>
-              <td>
-                <span
-                  className={`${styles.autoValue} ${styles.profitValue}`}
-                >
+                <span className={`${styles.autoValue} ${styles.profitValue}`}>
                   {fmt(computed.netIncome)} KM
                 </span>
               </td>
             </tr>
             <tr>
               <td>29</td>
-              <td>Mjesečni iznos akontacije poreza na dohodak ((red 28. x 0,1) / __mjeseci)</td>
+              <td>
+                Mjesečni iznos akontacije poreza na dohodak ((red 28. x 0,1) /
+                __mjeseci)
+              </td>
               <td>
                 <input
                   className={styles.rowInput}
@@ -806,6 +816,7 @@ PDV-a
             onChange={(e) => setDateSigned(e.target.value)}
           />
         </div>
+        <div className={styles.fieldHint}>Format: dd/mm/gggg</div>
       </section>
 
       {/* ── Export ── */}
