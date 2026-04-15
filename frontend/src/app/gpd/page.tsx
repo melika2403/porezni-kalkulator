@@ -288,7 +288,7 @@ export default function GpdForm() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac GPD-1051</div>
         <h1 className={styles.h1}>
-          Godišnja prijava poreza <em>na dohodak</em>
+          Godišnja prijava <em>poreza na dohodak</em>
         </h1>
         <p className={styles.subtitle}>
           Popunite podatke i preuzmite popunjeni obrazac u PDF formatu.

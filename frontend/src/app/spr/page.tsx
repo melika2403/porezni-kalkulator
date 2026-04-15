@@ -175,7 +175,7 @@ export default function SprForm() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac SPR-1053</div>
         <h1 className={styles.h1}>
-          Specifikacija za utvrđivanje dohotka <em>od samostalne djelatnosti</em>
+          Specifikacija za utvrđivanje dohotka od <em>samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
           Popunite podatke i preuzmite popunjeni obrazac u PDF formatu.
@@ -460,7 +460,7 @@ export default function SprForm() {
             </tr>
             <tr>
               <td>12</td>
-              <td>U naturi</td>
+              <td>Preko bankovnog računa shodno poslovnim knjigama</td>
               <td>
                 <input
                   className={styles.rowInput}
@@ -494,7 +494,7 @@ export default function SprForm() {
             </tr>
             <tr>
               <td>14</td>
-              <td>Ostali prihodi</td>
+              <td>Izuzimanja ekonomskih dobara (čl. 14. stav 4. Zakona)</td>
               <td>
                 <input
                   className={styles.rowInput}
@@ -511,7 +511,7 @@ export default function SprForm() {
             </tr>
             <tr>
               <td>15</td>
-              <td>Knjigovodstvena vrijednost rasknjiženih stalnih sredstava</td>
+              <td>Izuzimanja usluga (čl. 14. stav 4. Zakona)</td>
               <td>
                 <input
                   className={styles.rowInput}
@@ -528,7 +528,7 @@ export default function SprForm() {
             </tr>
             <tr className={styles.totalRow}>
               <td>16</td>
-              <td>Prihodi ukupno (zbir redova 11 do 15)</td>
+              <td>Prihodi ukupno (zbir redova 11. do 15.)</td>
               <td>
                 <span
                   className={`${styles.summaryValue} ${styles.profitValue}`}
@@ -558,7 +558,9 @@ export default function SprForm() {
             <tr>
               <td>17</td>
               <td>
-                Nabavna vrijednost prodane robe, utrošenog materijala i dr.
+                Nabavna vrijednost robe i/ili materijala shodno poslovnim knjigama sa
+uračunatim PDV-om, a za obveznike koji su registrirani PDV obveznici, bez
+PDV-a
               </td>
               <td>
                 <input
@@ -576,7 +578,7 @@ export default function SprForm() {
             </tr>
             <tr>
               <td>18</td>
-              <td>Bruto plaće</td>
+              <td>Bruto plaće zaposlenika shodno poslovnim knjigama</td>
               <td>
                 <input
                   className={styles.rowInput}
@@ -593,7 +595,7 @@ export default function SprForm() {
             </tr>
             <tr>
               <td>19</td>
-              <td>Doprinosi na plaću</td>
+              <td>Plaćeni doprinosi prema osnovici za poslodavca i na teret poslodavca</td>
               <td>
                 <input
                   className={styles.rowInput}
@@ -725,22 +727,7 @@ export default function SprForm() {
               <td>27</td>
               <td>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  Porezne korekcije
-                  <select
-                    className={styles.fieldInput}
-                    style={{ width: 60, padding: "0.3rem" }}
-                    value={adjustments.sign}
-                    onChange={(e) =>
-                      setAdjustments((s) => ({
-                        ...s,
-                        sign: e.target.value as "+" | "-" | "",
-                      }))
-                    }
-                  >
-                    <option value="">±</option>
-                    <option value="+">+</option>
-                    <option value="-">−</option>
-                  </select>
+                  Rashodi koje nije moguće odbiti (čl. 15 Zakona)
                 </div>
               </td>
               <td>
@@ -760,7 +747,7 @@ export default function SprForm() {
             <tr className={styles.resultRow}>
               <td>28</td>
               <td>
-                Dohodak iz djelatnosti (25 − 26 ± 27)
+                Dohodak iz djelatnosti (25 − 26 + 27)
               </td>
               <td>
                 <span
@@ -772,7 +759,7 @@ export default function SprForm() {
             </tr>
             <tr>
               <td>29</td>
-              <td>Lični odbitak</td>
+              <td>Mjesečni iznos akontacije poreza na dohodak ((red 28. x 0,1) / __mjeseci)</td>
               <td>
                 <input
                   className={styles.rowInput}

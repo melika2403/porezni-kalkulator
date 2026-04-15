@@ -215,3 +215,11 @@
   line-height: 1.6;
   margin-bottom: 10px;
 }
+
+.startLink {
+  margin-top: 1.4rem;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}

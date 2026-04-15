@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import styles from './Features.module.css';
 
 type Badge = 'free' | 'reg' | 'pro';
@@ -8,6 +9,7 @@ interface Feature {
   badge: Badge;
   iconColor: 'sage' | 'accent' | 'dark';
   icon: React.ReactNode;
+  dest: string;
 }
 
 const BADGE_LABELS: Record<Badge, string> = {
@@ -30,6 +32,7 @@ const FEATURES: Feature[] = [
         <path d="M3 9h18M9 21V9" />
       </svg>
     ),
+    dest:"/spr"
   },
   {
     title: 'GPD-1051 obrazac',
@@ -42,6 +45,7 @@ const FEATURES: Feature[] = [
         <path d="M3 9h18M9 21V9" />
       </svg>
     ),
+    dest:"/gpd"
   },
   {
     title: 'ZO3 obrazac',
@@ -54,6 +58,7 @@ const FEATURES: Feature[] = [
         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
       </svg>
     ),
+    dest:"/zo3"
   },
   {
     title: 'Ugovor o pozajmici',
@@ -66,6 +71,7 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
       </svg>
     ),
+    dest:"/pozajmica"
   },
   // ── Registration ─────────────────────────────────────
   {
@@ -78,6 +84,7 @@ const FEATURES: Feature[] = [
         <path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z" />
       </svg>
     ),
+    dest:"/stalna-sredstva"
   },
   {
     title: 'Šihterica — Evidencija radnog vremena',
@@ -91,6 +98,7 @@ const FEATURES: Feature[] = [
         <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
       </svg>
     ),
+    dest:"/sihterica"
   },
   // ── Pro ──────────────────────────────────────────────
   {
@@ -104,6 +112,7 @@ const FEATURES: Feature[] = [
         <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
       </svg>
     ),
+    dest:"/prijave-radnika"
   },
   {
     title: 'Ugovori o djelu',
@@ -116,6 +125,7 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
       </svg>
     ),
+    dest:"/ugovori-o-djelu"
   },
   {
     title: 'Ostali ugovori',
@@ -128,6 +138,7 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
       </svg>
     ),
+    dest:"/ostali-ugovori"
   },
 ];
 
@@ -135,6 +146,7 @@ interface QuickTool {
   title: string;
   desc: string;
   icon: React.ReactNode;
+  dest: string;
 }
 
 const QUICK_TOOLS: QuickTool[] = [
@@ -147,6 +159,7 @@ const QUICK_TOOLS: QuickTool[] = [
         <path d="M12 6v6l4 2" />
       </svg>
     ),
+    dest: "/preracun-neto-bruto"
   },
   {
     title: 'PDV kalkulator',
@@ -156,6 +169,7 @@ const QUICK_TOOLS: QuickTool[] = [
         <path d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" />
       </svg>
     ),
+    dest: "/pdv-kalkulator"
   },
 ];
 
@@ -180,8 +194,9 @@ export default function Features() {
             </div>
             <div className={styles.cellTitle}>{f.title}</div>
             <div className={styles.cellDesc}>{f.desc}</div>
+            <Link href={f.dest} className={styles.startLink}>
             <button type="button" className={styles.startButton}>
-              Kreni
+                Kreni
               <span className={styles.startArrow} aria-hidden="true">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="2" y1="8" x2="12" y2="8" />
@@ -189,6 +204,7 @@ export default function Features() {
                 </svg>
               </span>
             </button>
+            </Link>
             <span className={`${styles.badge} ${styles[`badge_${f.badge}`]}`}>
               {BADGE_LABELS[f.badge]}
             </span>
@@ -207,6 +223,7 @@ export default function Features() {
               <div className={`${styles.icon} ${styles.icon_sage}`}>{t.icon}</div>
               <div className={styles.quickToolTitle}>{t.title}</div>
               <div className={styles.quickToolDesc}>{t.desc}</div>
+              <Link href={t.dest} className={styles.startLink}>
               <button type="button" className={styles.startButton}>
                 Kreni
                 <span className={styles.startArrow} aria-hidden="true">
@@ -216,6 +233,7 @@ export default function Features() {
                   </svg>
                 </span>
               </button>
+              </Link>
               <span className={`${styles.badge} ${styles.badge_free}`}>
                 {BADGE_LABELS.free}
               </span>
