@@ -36,6 +36,17 @@ const isoToCompact = (isoDate: string): string => {
   return `${day}${month}${year}`;
 };
 
+function monthsBetween(start: string, end: string) {
+  if (!start || !end) return 1;
+  const d1 = new Date(start);
+  const d2 = new Date(end);
+  return (
+    (d2.getFullYear() - d1.getFullYear()) * 12 +
+    (d2.getMonth() - d1.getMonth()) +
+    1
+  );
+}
+
 /* ── Component ── */
 
 export default function SprForm() {
@@ -114,8 +125,12 @@ export default function SprForm() {
     const adjSigned = adjustments.sign === "-" ? -adj : adj;
     const netIncome = Math.max(totalIncome - totalExpenses + adjSigned, 0);
 
-    return { totalIncome, totalExpenses, netIncome };
-  }, [income, expenses, adjustments]);
+    // Row 29 — lični odbitak
+    const months = monthsBetween(business.periodFrom, business.periodTo);
+    const row29 = months > 0 ? (netIncome * 0.1) / months : 0;
+
+    return { totalIncome, totalExpenses, netIncome, row29 };
+  }, [income, expenses, adjustments, business]);
 
   /* ── PDF Export ── */
 
@@ -771,17 +786,9 @@ export default function SprForm() {
                 __mjeseci)
               </td>
               <td>
-                <input
-                  className={styles.rowInput}
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={adjustments.row29}
-                  onChange={(e) =>
-                    setAdjustments((s) => ({ ...s, row29: e.target.value }))
-                  }
-                />
+                <span className={styles.autoValue}>
+                  {fmt(computed.row29)} KM
+                </span>
               </td>
             </tr>
           </tbody>
