@@ -10,19 +10,28 @@ export default function Hero() {
           Porezne obaveze,<br />
           <em>riješene za minut.</em>
         </h1>
-        <p className={styles.sub}>
-          SPR-1053, GPD-1051, obračun plata, PDV, stalna sredstva i ugovori —
-          sve na jednom mjestu. Bez excela, bez gužve.
+        <div className={styles.features}>
+          {FEATURE_PILLS.map((f) => (
+            <span key={f} className={styles.pill}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              {f}
+            </span>
+          ))}
+        </div>
+        <p className={styles.tagline}>
+          Sve na jednom mjestu. Bez excela, bez gužve.
         </p>
         <div className={styles.actions}>
-          <Link href="/registracija" className={`${styles.btn} ${styles.btnPrimary}`}>
+          <Link href="#funkcije" className={`${styles.btn} ${styles.btnPrimary}`}>
             Počni besplatno
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 8h10M9 4l4 4-4 4" />
             </svg>
           </Link>
-          <Link href="#funkcije" className={`${styles.btn} ${styles.btnOutline}`}>
-            Pogledaj funkcije
+          <Link href="#kako" className={`${styles.btn} ${styles.btnOutline}`}>
+            Kako radi?
           </Link>
         </div>
         <p className={styles.note}>
@@ -30,26 +39,12 @@ export default function Hero() {
         </p>
       </section>
 
-      <div className={styles.strip}>
-        {STRIP_ITEMS.map((item) => (
-          <div key={item.label} className={styles.stripItem}>
-            <div className={`${styles.stripDot} ${styles[item.dotClass]}`} />
-            <div className={styles.stripLabel}>
-              <strong>{item.tier}</strong>
-              {item.label}
-            </div>
-          </div>
-        ))}
-      </div>
     </>
   );
 }
 
-const STRIP_ITEMS = [
-  { tier: 'Besplatno',    label: 'SPR-1053 i GPD-1051',    dotClass: 'dotFree' },
-  { tier: 'Besplatno',    label: 'Preračun neto/bruto',     dotClass: 'dotFree' },
-  { tier: 'Besplatno',    label: 'PDV kalkulator',          dotClass: 'dotFree' },
-  { tier: 'Registracija', label: 'Stalna sredstva',         dotClass: 'dotReg'  },
-  { tier: 'Registracija', label: 'Historija podataka',      dotClass: 'dotReg'  },
-  { tier: 'Pretplata',    label: 'Ugovori i prijave',       dotClass: 'dotPro'  },
+const FEATURE_PILLS = [
+  'SPR-1053', 'GPD-1051', 'Neto/bruto plate', 'PDV kalkulator',
+  'Stalna sredstva', 'ZO3 obrazac', 'Šihterica', 'Ugovori',
 ];
+

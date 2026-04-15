@@ -59,14 +59,36 @@
   color: var(--sage);
 }
 
-.sub {
-  font-size: clamp(1rem, 2vw, 1.15rem);
-  color: var(--mid);
-  max-width: 520px;
-  margin-bottom: 2.5rem;
-  font-weight: 300;
-  line-height: 1.7;
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 600px;
+  margin-bottom: 1rem;
   animation: fadeUp 0.5s 0.2s ease both;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--sage-pale);
+  color: var(--sage);
+  border: 1px solid rgba(58,92,66,0.18);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 12px;
+  letter-spacing: 0.01em;
+}
+
+.tagline {
+  font-size: 13px;
+  color: var(--mid);
+  font-weight: 400;
+  margin-bottom: 2.5rem;
+  animation: fadeUp 0.5s 0.25s ease both;
 }
 
 .actions {
@@ -122,47 +144,3 @@
   color: var(--ink);
 }
 
-/* ── Strip ── */
-.strip {
-  display: flex;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-}
-
-.stripItem {
-  flex: 1;
-  min-width: 160px;
-  padding: 1.25rem 1.5rem;
-  border-right: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.stripItem:last-child {
-  border-right: none;
-}
-
-.stripDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.dotFree  { background: var(--sage); }
-.dotReg   { background: var(--accent); }
-.dotPro   { background: var(--ink); }
-
-.stripLabel {
-  font-size: 13px;
-  color: var(--mid);
-  line-height: 1.4;
-}
-
-.stripLabel strong {
-  display: block;
-  color: var(--ink);
-  font-size: 14px;
-}
