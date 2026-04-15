@@ -9,28 +9,37 @@ const INCOME_ROWS = [
   {
     no: 8,
     label:
-      "Dohodak od nesamostalne djelatnosti i/ili dohodak članova predstavničkih organa vlasti",
+      "Dohodak od nesamostalne djelatnosti i/ili dohodak članova predstavničkih organa vlasti (Unijeti ukupan iznos iz kolone 11, godišnjeg-ih izvještaja o ukupnim isplaćenim plaćama i drugim ličnim primanjima (obrazac GIP-1022)  i priložiti primjerak izvještaja od svakog poslodavca ",
     lossEnabled: false,
   },
-  { no: 9, label: "Dohodak od samostalne djelatnosti", lossEnabled: true },
+  {
+    no: 9,
+    label:
+      "Dohodak od samostalne djelatnosti (Unijeti ukupan iznos iz reda 28 specifikacije za utvrđivanje dohotka od samostalne djelatnosti (obrazac SPR-1053))",
+    lossEnabled: true,
+  },
   {
     no: 10,
-    label: "Dohodak od poljoprivrede i šumarstva",
+    label:
+      "Dohodak od poljoprivrede i šumarstva (Unijeti ukupan iznos iz reda 28 specifikacije za utvrđivanje dohotka od samostalne djelatnosti - obrazac SPR-1053) ",
     lossEnabled: true,
   },
   {
     no: 11,
-    label: "Dohodak od iznajmljivanja imovine",
+    label:
+      "Dohodak od iznajmljivanja imovine (čl. 20. st. 1. tč. 1. i 3. i stav 5. Zakona) /Unijeti ukupan iznos iz reda 18 pregleda prihoda i rashoda od iznajmljivanja nepokretne imovine - obrazac PRIM 1054. U slučaju da se obveznik opredijelio za rashode u paušalnom iznosu uz godišnju prijavu priložiti ugovor o iznajmljivanju / ",
     lossEnabled: true,
   },
   {
     no: 12,
-    label: "Dohodak od vremenski ograničenog ustupanja prava",
+    label:
+      "Dohodak od vremenski ograničenog ustupanja prava (član 21. stav 2.)  / Uz godišnju prijavu priložiti ugovor o vremenski ograničenom ustupanju imovinskih prava / ",
     lossEnabled: true,
   },
   {
     no: 13,
-    label: "Dohodak od drugih samostalnih djelatnosti",
+    label:
+      "Dohodak od drugih samostalnih djelatnosti koje nisu navedene ovdje / veza sa obrascima AUG-1031 (kolona 13) i  ASD-1032 (kolona 10 )/ ",
     lossEnabled: true,
   },
   { no: 14, label: "Poslovni gubitak iz ranijih godina", lossEnabled: true },
@@ -302,10 +311,9 @@ export default function GpdForm() {
         </h2>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>1) JMB *</label>
+            <label className={styles.fieldLabel}>1) JMB</label>
             <input
               className={styles.fieldInput}
-              required
               maxLength={13}
               minLength={13}
               inputMode="numeric"
@@ -333,14 +341,13 @@ export default function GpdForm() {
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>5) Porezni period *</label>
+            <label className={styles.fieldLabel}>5) Porezni period</label>
             <div
               style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
             >
               <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>20</span>
               <input
                 className={styles.fieldInput}
-                required
                 maxLength={2}
                 minLength={2}
                 inputMode="numeric"
@@ -370,10 +377,9 @@ export default function GpdForm() {
             </div>
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>2) Prezime i ime *</label>
+            <label className={styles.fieldLabel}>2) Prezime i ime</label>
             <input
               className={styles.fieldInput}
-              required
               placeholder="Prezime i ime"
               value={personal.fullName}
               onInvalid={(e) => {
@@ -389,10 +395,9 @@ export default function GpdForm() {
             />
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>3) Adresa *</label>
+            <label className={styles.fieldLabel}>3) Adresa</label>
             <input
               className={styles.fieldInput}
-              required
               placeholder="Ulica, broj, grad, poštanski broj"
               value={personal.address}
               onInvalid={(e) => {
@@ -408,12 +413,11 @@ export default function GpdForm() {
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>6) Telefon *</label>
+            <label className={styles.fieldLabel}>6) Telefon</label>
             <input
               className={styles.fieldInput}
               type="tel"
-              required
-              placeholder="+387 ..."
+              placeholder="+387 61 111 111"
               value={personal.phone}
               onInvalid={(e) => {
                 const el = e.currentTarget;
@@ -428,11 +432,10 @@ export default function GpdForm() {
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>7) E-mail *</label>
+            <label className={styles.fieldLabel}>7) E-mail </label>
             <input
               className={styles.fieldInput}
               type="email"
-              required
               placeholder="email@primjer.ba"
               value={personal.email}
               onInvalid={(e) => {
@@ -612,7 +615,7 @@ export default function GpdForm() {
               <td>19</td>
               <td>
                 Uvećanje ličnih odbitaka za iznos troškova zdravstvenih usluga i
-                nabavku lijekova
+                nabavku lijekova (priložiti validnu dokumentaciju)
               </td>
               <td>
                 <input
@@ -632,7 +635,7 @@ export default function GpdForm() {
               <td>20</td>
               <td>
                 Uvećanje ličnih odbitaka za iznos kamate plaćene na stambeni
-                kredit
+                kredit (priložiti validnu dokumentaciju)
               </td>
               <td>
                 <input
@@ -677,7 +680,10 @@ export default function GpdForm() {
           <tbody>
             <tr>
               <td>22</td>
-              <td>Ukupni gubitak za godinu (iz reda 16)</td>
+              <td>
+                Ukupni gubitak za godinu ( ukoliko je u dijelu 2 red 16, kolona
+                c unesen gubitak ){" "}
+              </td>
               <td>
                 <span className={styles.autoValue}>
                   {fmt(computed.totalLossYear)}
@@ -686,7 +692,10 @@ export default function GpdForm() {
             </tr>
             <tr>
               <td>23</td>
-              <td>Ukupan dohodak za godinu (iz reda 17)</td>
+              <td>
+                Ukupan dohodak za godinu ( ukoliko je u dijelu 2 red 17, kolona
+                d unesen dohodak ){" "}
+              </td>
               <td>
                 <span className={styles.autoValue}>
                   {fmt(computed.totalIncomeYear)}
@@ -695,7 +704,7 @@ export default function GpdForm() {
             </tr>
             <tr>
               <td>24</td>
-              <td>Ukupni odbici (iz reda 21)</td>
+              <td>Ukupni odbici (u dijelu 3 red 21) </td>
               <td>
                 <span className={styles.autoValue}>
                   {fmt(computed.totalDeductionsCalc)}
@@ -722,7 +731,7 @@ export default function GpdForm() {
             </tr>
             <tr>
               <td>27</td>
-              <td>Umanjenje poreza po čl. 35 st. 3 i čl. 47 Zakona</td>
+              <td>Umanjenje poreza po članu 35. stav 3. i članu 47. Zakona </td>
               <td>
                 <input
                   className={styles.rowInput}
