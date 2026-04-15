@@ -34,7 +34,7 @@ const PLANS: Plan[] = [
       'Stalna sredstva i amortizacija',
       'Historija GPD podataka po godinama',
       'Pohrana podataka obrta u SPR-u',
-      'Izvoz u Excel / PDF',
+      'Izvoz u Docx / PDF',
     ],
     cta: 'Registruj se besplatno',
     ctaStyle: 'white',
@@ -42,7 +42,7 @@ const PLANS: Plan[] = [
   },
   {
     tier: 'Pro pretplata',
-    price: '49 KM',
+    price: '99 KM',
     period: 'godišnje / po korisniku',
     features: [
       'Sve iz prethodnih planova',
