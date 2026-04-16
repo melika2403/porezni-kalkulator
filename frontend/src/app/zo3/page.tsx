@@ -1,5 +1,5 @@
 // sections
-import SprForm from "src/sections/spr/Spr";
+import Zo3Form from "src/sections/zo3/Zo3";
 
 // ----------------------------------------------------------------------
 
@@ -7,6 +7,6 @@ export const metadata = {
   title: "ZO3 obrazac - Porezni kalkulator",
 };
 
-export default function MaintenancePage() {
-  return <SprForm />;
+export default function Zo3Page() {
+  return <Zo3Form />;
 }
