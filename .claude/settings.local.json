@@ -8,7 +8,15 @@
       "Bash(node -e ':*)",
       "Bash(npm uninstall:*)",
       "Bash(taskkill /PID 16912 /F)",
-      "Bash(MSYS_NO_PATHCONV=1 taskkill //PID 16912 //F)"
+      "Bash(MSYS_NO_PATHCONV=1 taskkill //PID 16912 //F)",
+      "Read(//c/Users/Korisnik/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/5c37d512-d6f1-4230-8ffb-fdedab2b9f63/3a81c905-8e97-418f-9393-42465fdb0acd/skills/docx/**)",
+      "Bash(pandoc --track-changes=all \"C:\\\\Users\\\\Korisnik\\\\Downloads\\\\U  G  O  V  O  R.docx\" -o output.md)",
+      "Bash(python scripts/office/unpack.py \"C:\\\\Users\\\\Korisnik\\\\Downloads\\\\U  G  O  V  O  R.docx\" unpacked_ugovor/)",
+      "Bash(pip install:*)",
+      "Bash(python -c ':*)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator/frontend/src/app/ugovor-o-pozajmici\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator/frontend/src/sections/ugovor-o-pozajmici\")",
+      "Bash(npx tsc:*)"
     ]
   }
 }
