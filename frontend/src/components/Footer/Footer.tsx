@@ -10,7 +10,7 @@ export default function Footer() {
         <Link href="/privatnost">Privatnost</Link>
         <Link href="/kontakt">Kontakt</Link>
       </div>
-      <div className={styles.copy}>© 2025 Porezni Kalkulator. Sva prava zadržana.</div>
+      <div className={styles.copy}>© 2026 Porezni Kalkulator. Sva prava zadržana.</div>
     </footer>
   );
 }
