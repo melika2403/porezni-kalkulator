@@ -320,7 +320,9 @@ export default function UgovorOPozajmici() {
 
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>Ugovorene strane u svemu prihvataju odredbe ovog ugovora</label>
+            <label className={styles.fieldLabel}>
+              Ugovorene strane u svemu prihvataju odredbe ovog ugovora
+            </label>
 
             <select
               className={styles.fieldInput}
@@ -387,8 +389,8 @@ export default function UgovorOPozajmici() {
             <label className={styles.fieldLabel}>Kopije po strani</label>
             <select
               className={styles.fieldInput}
-              value={form.brojPrimjeraka}
-              onChange={(e) => set("brojPrimjeraka", e.target.value)}
+              value={form.kopijePoPrimjerku}
+              onChange={(e) => set("kopijePoPrimjerku", e.target.value)}
             >
               {PRIMJERCI_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>
