@@ -1,0 +1,332 @@
+.page {
+  padding: 3rem 2rem 5rem;
+  max-width: 760px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+/* ── Header ── */
+.header { margin-bottom: 2.5rem; }
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 0.5rem;
+}
+
+.h1 em { font-style: italic; color: var(--sage); }
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--mid);
+  font-weight: 300;
+}
+
+/* ── Mode toggle ── */
+.toggleWrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.toggleBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 1.1rem 1.4rem;
+  background: var(--paper);
+  border: none;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--mid);
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toggleBtn svg {
+  width: 18px;
+  height: 18px;
+  margin-bottom: 4px;
+  color: var(--mid);
+  transition: color 0.15s;
+}
+
+.toggleBtn:hover { background: white; color: var(--ink); }
+.toggleActive { background: var(--sage-pale) !important; color: var(--sage) !important; }
+.toggleActive svg { color: var(--sage) !important; }
+
+.toggleHint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--mid);
+}
+.toggleActive .toggleHint { color: var(--sage); opacity: 0.8; }
+
+/* ── Card ── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+}
+
+/* ── Input ── */
+.inputSection { margin-bottom: 1.5rem; }
+
+.inputLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.inputWrap { position: relative; }
+
+.input {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  padding: 0.75rem 3.5rem 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  letter-spacing: -0.02em;
+}
+
+.input:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.input::placeholder { color: var(--mid); opacity: 0.4; }
+
+.inputSuffix {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--mid);
+  pointer-events: none;
+}
+
+/* ── Settings ── */
+.settings {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.settingGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.settingLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mid);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.settingInput {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 120px;
+}
+
+.settingInput:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.settingNote {
+  font-size: 12px;
+  color: var(--mid);
+  line-height: 1.5;
+  font-weight: 300;
+}
+
+.settingNote strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ── Results ── */
+.results { display: flex; flex-direction: column; gap: 0; }
+
+.summaryBand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mid);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.summaryBand span:last-child {
+  font-family: "DM Serif Display", serif;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+/* ── Groups ── */
+.group { margin-bottom: 1rem; }
+
+.groupTitle {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.4rem 0;
+  font-size: 13px;
+}
+
+.rowName { color: var(--ink); }
+
+.rowPct {
+  font-size: 11px;
+  color: var(--mid);
+  min-width: 36px;
+  text-align: right;
+}
+
+.rowVal {
+  font-family: "DM Serif Display", serif;
+  font-size: 14px;
+  color: var(--ink);
+  min-width: 110px;
+  text-align: right;
+}
+
+.rowSubtotal {
+  border-top: 1px solid var(--border);
+  margin-top: 0.2rem;
+  padding-top: 0.5rem;
+  font-weight: 500;
+}
+
+.rowSubtotal .rowVal {
+  color: var(--accent);
+}
+
+/* ── Net band ── */
+.netBand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--sage-pale);
+  border: 1px solid rgba(58,92,66,0.2);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.netLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sage);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.netValue {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  color: var(--sage);
+  letter-spacing: -0.02em;
+}
+
+/* ── Total cost band ── */
+.totalBand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 2px solid var(--border);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.totalLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.totalValue {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+
+/* ── Placeholder ── */
+.placeholder {
+  padding-top: 1.5rem;
+  font-size: 13px;
+  color: var(--mid);
+  text-align: center;
+  font-weight: 300;
+}
+
+/* ── Responsive ── */
+@media (max-width: 560px) {
+  .page { padding: 2rem 1rem 4rem; }
+  .toggleWrap { grid-template-columns: 1fr; }
+  .settings { flex-wrap: wrap; }
+  .card { padding: 1.25rem; }
+  .rowVal { min-width: 90px; }
+}
