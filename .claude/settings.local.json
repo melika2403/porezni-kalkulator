@@ -6,7 +6,9 @@
       "Bash(cmd.exe /c \"taskkill /F /IM node.exe\")",
       "mcp__Claude_Preview__preview_start",
       "Bash(node -e ':*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(taskkill /PID 16912 /F)",
+      "Bash(MSYS_NO_PATHCONV=1 taskkill //PID 16912 //F)"
     ]
   }
 }

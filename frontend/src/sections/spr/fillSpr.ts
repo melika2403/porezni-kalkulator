@@ -50,7 +50,10 @@ export interface SprData {
 
 /* ── Helpers ── */
 
-const km = (n: number) => (n === 0 ? "" : n.toFixed(2));
+const km = (n: number) =>
+  n === 0
+    ? ""
+    : n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function setTextField(
   form: ReturnType<PDFDocument["getForm"]>,
@@ -88,19 +91,24 @@ function setCheckBox(
 /* ── Main export ── */
 
 export async function fillSprTemplate(data: SprData): Promise<Uint8Array> {
-  const [templateBytes, fontBytes] = await Promise.all([
+  const [templateBytes, fontBytes, boldFontBytes] = await Promise.all([
     fetch("/templates/SPR-1053.pdf").then((r) => r.arrayBuffer()),
     fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),
+    fetch("/templates/arialbd.ttf").then((r) => r.arrayBuffer()),
   ]);
 
   const doc = await PDFDocument.load(templateBytes);
   doc.registerFontkit(fontkit);
   const font = await doc.embedFont(fontBytes);
+  const boldFont = await doc.embedFont(boldFontBytes);
 
   const form = doc.getForm();
 
   const set = (name: string, value: string, fontSize?: number) =>
     setTextField(form, name, value, font, fontSize);
+
+  const setBold = (name: string, value: string, fontSize?: number) =>
+    setTextField(form, name, value, boldFont, fontSize);
 
   const check = (name: string, checked: boolean) =>
     setCheckBox(form, name, checked);
@@ -122,57 +130,57 @@ export async function fillSprTemplate(data: SprData): Promise<Uint8Array> {
   set("10 Vrsta djelatnosti šifra naziv", data.activityType, 8);
 
   /* ── Dio 3 — Prihodi (rows 11-16) ── */
-  set("c IznosU gotovini shodno poslovnim knjigama", km(data.row11Cash), 8);
-  set("fill_2", km(data.row12InKind), 8);
-  set(
+  setBold("c IznosU gotovini shodno poslovnim knjigama", km(data.row11Cash), 9);
+  setBold("fill_2", km(data.row12InKind), 9);
+  setBold(
     "c IznosU stvarima i uslugama shodno poslovnim knjigama",
     km(data.row13GoodsServices),
-    8
+    9
   );
-  set("fill_4", km(data.row14OtherIncome), 8);
-  set("fill_5", km(data.row15BookValueAssets), 8);
-  set(
+  setBold("fill_4", km(data.row14OtherIncome), 9);
+  setBold("fill_5", km(data.row15BookValueAssets), 9);
+  setBold(
     "c IznosPrihodi ukupno zbir redova od 11 do 15",
     km(data.row16TotalIncome),
-    8
+    9
   );
 
   /* ── Dio 4 — Rashodi (rows 17-24) ── */
-  set("fill_7", km(data.row17Materials), 8);
-  set("fill_8", km(data.row18GrossWages), 8);
-  set("fill_9", km(data.row19Contributions), 8);
-  set(
+  setBold("fill_7", km(data.row17Materials), 9);
+  setBold("fill_8", km(data.row18GrossWages), 9);
+  setBold("fill_9", km(data.row19Contributions), 9);
+  setBold(
     "c IznosOstali rashodi shodno poslovnim knjigama",
     km(data.row20OtherExpenses),
-    8
+    9
   );
-  set(
+  setBold(
     "c IznosVrijednost uloženih ekonomskih dobara i usluga",
     km(data.row21GoodsServicesValue),
-    8
+    9
   );
-  set("c IznosAmortizacija", km(data.row22Depreciation), 8);
-  set(
+  setBold("c IznosAmortizacija", km(data.row22Depreciation), 9);
+  setBold(
     "c IznosKnjigovodstvena vrijednost rasknjiženih stalnih sredstava",
     km(data.row23BookValueAssets),
-    8
+    9
   );
-  set(
+  setBold(
     "c IznosRashodi ukupno zbir redova od 17  do 23",
     km(data.row24TotalExpenses),
-    8
+    9
   );
 
   /* ── Dio 5 — Utvrđivanje dohotka (page 2, rows 25-29) ── */
-  set("c IznosPrihodi red 16", km(data.row25Income), 8);
-  set("c IznosRashodi red 24", km(data.row26Expenses), 8);
-  set("fill_3", km(Math.abs(data.row27Adjustments)), 8);
-  set(
+  setBold("c IznosPrihodi red 16", km(data.row25Income), 9);
+  setBold("c IznosRashodi red 24", km(data.row26Expenses), 9);
+  setBold("fill_3", km(Math.abs(data.row27Adjustments)), 9);
+  setBold(
     "c IznosDohodak iz djelatnosti red 25  26  27",
     km(data.row28NetIncome),
-    8
+    9
   );
-  set("fill_5_2", km(data.row29PersonalDeduction), 8);
+  setBold("fill_5_2", km(data.row29PersonalDeduction), 9);
 
   // +/- sign for row 27 adjustment
   set("Text1", data.signAdjustment, 8);
