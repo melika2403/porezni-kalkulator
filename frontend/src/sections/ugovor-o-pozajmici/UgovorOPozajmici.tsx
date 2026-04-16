@@ -320,7 +320,7 @@ export default function UgovorOPozajmici() {
 
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>Napomena</label>
+            <label className={styles.fieldLabel}>Ugovorene strane u svemu prihvataju odredbe ovog ugovora</label>
 
             <select
               className={styles.fieldInput}
