@@ -118,6 +118,20 @@ const POSLOVNICE: Record<string, string[]> = {
 
 /* ── Helpers ── */
 
+const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
+  if (e.key !== "Enter") return;
+  const target = e.target as HTMLElement;
+  if (target.tagName === "TEXTAREA" || target.tagName === "BUTTON") return;
+  e.preventDefault();
+  const focusable = Array.from(
+    e.currentTarget.querySelectorAll<HTMLElement>(
+      "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])",
+    ),
+  );
+  const idx = focusable.indexOf(target);
+  if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1].focus();
+};
+
 const getTodayIsoString = () => {
   const today = new Date();
   const year = today.getFullYear();
@@ -172,13 +186,16 @@ export default function Zo3Form() {
     ulicaBroj: "",
     brojPoste: "",
     zanimanje: "",
+    zamanjanjeKod: "",
     datumStupanja: "",
     drzavljanstvo: "",
     radnoVrijeme: "",
     osnovOsiguranja: "",
+    osnovOsiguranjaKod: "",
     datumPrestanka: "",
     datumPromjene: "",
     vrstaPromjene: "",
+    vrstaPromjeneKod: "",
   });
 
   /* ── Članovi porodice ── */
@@ -234,13 +251,16 @@ export default function Zo3Form() {
       ulicaBroj: insured.ulicaBroj,
       brojPoste: insured.brojPoste,
       zanimanje: insured.zanimanje,
+      zamanjanjeKod: insured.zamanjanjeKod,
       datumStupanja: isoToCompact(insured.datumStupanja),
       drzavljanstvo: insured.drzavljanstvo,
       radnoVrijemeRadno: insured.radnoVrijeme,
       osnovOsiguranja: insured.osnovOsiguranja,
+      osnovOsiguranjaKod: insured.osnovOsiguranjaKod,
       datumPrestanka: isoToCompact(insured.datumPrestanka),
       datumPromjene: isoToCompact(insured.datumPromjene),
       vrstaPromjene: insured.vrstaPromjene,
+      vrstaPromjeneKod: insured.vrstaPromjeneKod,
 
       familyMembers: familyMembers.filter(
         (m) => m.jmbg || m.fullName || m.srodstvo,
@@ -292,7 +312,7 @@ export default function Zo3Form() {
   /* ── Render ── */
 
   return (
-    <form ref={formRef} className={styles.page} onSubmit={onSubmit}>
+    <form ref={formRef} className={styles.page} onSubmit={onSubmit} onKeyDown={onEnterNext}>
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.label}>Obrazac ZO 3</div>
@@ -552,10 +572,22 @@ export default function Zo3Form() {
             <label className={styles.fieldLabel}>11) Zanimanje</label>
             <input
               className={styles.fieldInput}
-              placeholder="Zanimanje"
+              placeholder="Naziv zanimanja"
               value={insured.zanimanje}
               onChange={(e) =>
                 setInsured((s) => ({ ...s, zanimanje: e.target.value }))
+              }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>11) Zanimanje — šifra</label>
+            <input
+              className={styles.fieldInput}
+              placeholder="0000"
+              inputMode="numeric"
+              value={insured.zamanjanjeKod}
+              onChange={(e) =>
+                setInsured((s) => ({ ...s, zamanjanjeKod: e.target.value }))
               }
             />
           </div>
@@ -601,10 +633,27 @@ export default function Zo3Form() {
             <label className={styles.fieldLabel}>15) Osnov osiguranja</label>
             <input
               className={styles.fieldInput}
-              placeholder="Osnov osiguranja"
+              placeholder="Naziv osnova osiguranja"
               value={insured.osnovOsiguranja}
               onChange={(e) =>
                 setInsured((s) => ({ ...s, osnovOsiguranja: e.target.value }))
+              }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>
+              15) Osnov osiguranja — šifra
+            </label>
+            <input
+              className={styles.fieldInput}
+              placeholder="00"
+              inputMode="numeric"
+              value={insured.osnovOsiguranjaKod}
+              onChange={(e) =>
+                setInsured((s) => ({
+                  ...s,
+                  osnovOsiguranjaKod: e.target.value,
+                }))
               }
             />
           </div>
@@ -636,10 +685,27 @@ export default function Zo3Form() {
             <label className={styles.fieldLabel}>18) Vrsta promjene</label>
             <input
               className={styles.fieldInput}
-              placeholder="Vrsta promjene"
+              placeholder="Naziv vrste promjene"
               value={insured.vrstaPromjene}
               onChange={(e) =>
                 setInsured((s) => ({ ...s, vrstaPromjene: e.target.value }))
+              }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>
+              18) Vrsta promjene — šifra
+            </label>
+            <input
+              className={styles.fieldInput}
+              placeholder="00"
+              inputMode="numeric"
+              value={insured.vrstaPromjeneKod}
+              onChange={(e) =>
+                setInsured((s) => ({
+                  ...s,
+                  vrstaPromjeneKod: e.target.value,
+                }))
               }
             />
           </div>
@@ -687,7 +753,7 @@ export default function Zo3Form() {
                 <td>
                   <input
                     className={styles.familyInput}
-                    placeholder="Npr. mama, tata, dijete..."
+                    placeholder="Npr. supružnik, otac, kćerka..."
                     value={m.srodstvo}
                     onChange={(e) =>
                       updateFamily(i, "srodstvo", e.target.value)
@@ -751,6 +817,12 @@ export default function Zo3Form() {
           Preuzmi PDF
         </button>
       </div>
+      <p
+        className={styles.izjavaText}
+        style={{ textAlign: "center", marginTop: "2rem" }}
+      >
+        Napomena: Preporučuje se štampanje obrazca u dva primjerka.
+      </p>
     </form>
   );
 }

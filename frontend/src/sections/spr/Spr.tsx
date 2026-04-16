@@ -10,6 +10,32 @@ const num = (v: string) => {
   return isNaN(n) ? 0 : n;
 };
 
+const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
+  if (e.key !== "Enter") return;
+  const target = e.target as HTMLElement;
+  if (target.tagName === "TEXTAREA" || target.tagName === "BUTTON") return;
+  e.preventDefault();
+  const focusable = Array.from(
+    e.currentTarget.querySelectorAll<HTMLElement>(
+      "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])",
+    ),
+  );
+  const idx = focusable.indexOf(target);
+  if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1].focus();
+};
+
+const fmtInput = (raw: string): string => {
+  const stripped = raw.replace(/\./g, "");
+  const commaIdx = stripped.indexOf(",");
+  const intPart =
+    commaIdx >= 0
+      ? stripped.slice(0, commaIdx).replace(/\D/g, "")
+      : stripped.replace(/\D/g, "");
+  const decPart = commaIdx >= 0 ? stripped.slice(commaIdx) : "";
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return formatted + decPart;
+};
+
 const fmt = (n: number) =>
   n.toLocaleString("de-DE", {
     minimumFractionDigits: 2,
@@ -213,7 +239,7 @@ export default function SprForm() {
   /* ── Render ── */
 
   return (
-    <form ref={formRef} className={styles.page} onSubmit={onSubmit}>
+    <form ref={formRef} className={styles.page} onSubmit={onSubmit} onKeyDown={onEnterNext}>
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.label}>Obrazac SPR-1053</div>
@@ -473,7 +499,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row11}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row11: e.target.value }))
+                    setIncome((s) => ({ ...s, row11: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -489,7 +515,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row12}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row12: e.target.value }))
+                    setIncome((s) => ({ ...s, row12: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -505,7 +531,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row13}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row13: e.target.value }))
+                    setIncome((s) => ({ ...s, row13: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -521,7 +547,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row14}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row14: e.target.value }))
+                    setIncome((s) => ({ ...s, row14: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -537,7 +563,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row15}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row15: e.target.value }))
+                    setIncome((s) => ({ ...s, row15: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -586,7 +612,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row17}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row17: e.target.value }))
+                    setExpenses((s) => ({ ...s, row17: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -602,7 +628,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row18}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row18: e.target.value }))
+                    setExpenses((s) => ({ ...s, row18: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -621,7 +647,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row19}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row19: e.target.value }))
+                    setExpenses((s) => ({ ...s, row19: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -637,7 +663,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row20}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row20: e.target.value }))
+                    setExpenses((s) => ({ ...s, row20: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -653,7 +679,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row21}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row21: e.target.value }))
+                    setExpenses((s) => ({ ...s, row21: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -669,7 +695,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row22}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row22: e.target.value }))
+                    setExpenses((s) => ({ ...s, row22: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -685,7 +711,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row23}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row23: e.target.value }))
+                    setExpenses((s) => ({ ...s, row23: fmtInput(e.target.value) }))
                   }
                 />
               </td>
@@ -756,7 +782,7 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={adjustments.row27}
                   onChange={(e) =>
-                    setAdjustments((s) => ({ ...s, row27: e.target.value }))
+                    setAdjustments((s) => ({ ...s, row27: fmtInput(e.target.value) }))
                   }
                 />
               </td>

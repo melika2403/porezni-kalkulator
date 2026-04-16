@@ -11,38 +11,49 @@ const INCOME_ROWS = [
     label:
       "Dohodak od nesamostalne djelatnosti i/ili dohodak članova predstavničkih organa vlasti (Unijeti ukupan iznos iz kolone 11, godišnjeg-ih izvještaja o ukupnim isplaćenim plaćama i drugim ličnim primanjima (obrazac GIP-1022)  i priložiti primjerak izvještaja od svakog poslodavca ",
     lossEnabled: false,
+    incomeEnabled: true,
   },
   {
     no: 9,
     label:
       "Dohodak od samostalne djelatnosti (Unijeti ukupan iznos iz reda 28 specifikacije za utvrđivanje dohotka od samostalne djelatnosti (obrazac SPR-1053))",
     lossEnabled: true,
+    incomeEnabled: true,
   },
   {
     no: 10,
     label:
       "Dohodak od poljoprivrede i šumarstva (Unijeti ukupan iznos iz reda 28 specifikacije za utvrđivanje dohotka od samostalne djelatnosti - obrazac SPR-1053) ",
     lossEnabled: true,
+    incomeEnabled: true,
   },
   {
     no: 11,
     label:
       "Dohodak od iznajmljivanja imovine (čl. 20. st. 1. tč. 1. i 3. i stav 5. Zakona) /Unijeti ukupan iznos iz reda 18 pregleda prihoda i rashoda od iznajmljivanja nepokretne imovine - obrazac PRIM 1054. U slučaju da se obveznik opredijelio za rashode u paušalnom iznosu uz godišnju prijavu priložiti ugovor o iznajmljivanju / ",
     lossEnabled: true,
+    incomeEnabled: true,
   },
   {
     no: 12,
     label:
       "Dohodak od vremenski ograničenog ustupanja prava (član 21. stav 2.)  / Uz godišnju prijavu priložiti ugovor o vremenski ograničenom ustupanju imovinskih prava / ",
     lossEnabled: true,
+    incomeEnabled: true,
   },
   {
     no: 13,
     label:
       "Dohodak od drugih samostalnih djelatnosti koje nisu navedene ovdje / veza sa obrascima AUG-1031 (kolona 13) i  ASD-1032 (kolona 10 )/ ",
     lossEnabled: true,
+    incomeEnabled: true,
   },
-  { no: 14, label: "Poslovni gubitak iz ranijih godina", lossEnabled: true },
+  {
+    no: 14,
+    label: "Poslovni gubitak iz ranijih godina",
+    lossEnabled: true,
+    incomeEnabled: false,
+  },
 ];
 
 /* ── Types ── */
@@ -85,6 +96,32 @@ interface RefundOption {
 const num = (v: string) => {
   const n = parseFloat(v.replace(/\./g, "").replace(",", "."));
   return isNaN(n) ? 0 : n;
+};
+
+const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
+  if (e.key !== "Enter") return;
+  const target = e.target as HTMLElement;
+  if (target.tagName === "TEXTAREA" || target.tagName === "BUTTON") return;
+  e.preventDefault();
+  const focusable = Array.from(
+    e.currentTarget.querySelectorAll<HTMLElement>(
+      "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])",
+    ),
+  );
+  const idx = focusable.indexOf(target);
+  if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1].focus();
+};
+
+const fmtInput = (raw: string): string => {
+  const stripped = raw.replace(/\./g, "");
+  const commaIdx = stripped.indexOf(",");
+  const intPart =
+    commaIdx >= 0
+      ? stripped.slice(0, commaIdx).replace(/\D/g, "")
+      : stripped.replace(/\D/g, "");
+  const decPart = commaIdx >= 0 ? stripped.slice(commaIdx) : "";
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return formatted + decPart;
 };
 
 const fmt = (n: number) =>
@@ -318,7 +355,7 @@ export default function GpdForm() {
   /* ── Render ── */
 
   return (
-    <form ref={formRef} className={styles.page} onSubmit={onSubmit}>
+    <form ref={formRef} className={styles.page} onSubmit={onSubmit} onKeyDown={onEnterNext}>
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.label}>Obrazac GPD-1051</div>
@@ -530,7 +567,7 @@ export default function GpdForm() {
                         placeholder="0,00"
                         value={rows[r.no]?.loss ?? ""}
                         onChange={(e) =>
-                          updateRow(r.no, "loss", e.target.value)
+                          updateRow(r.no, "loss", fmtInput(e.target.value))
                         }
                       />
                     ) : (
@@ -540,16 +577,22 @@ export default function GpdForm() {
                     )}
                   </td>
                   <td>
-                    <input
-                      className={styles.rowInput}
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0,00"
-                      value={rows[r.no]?.profit ?? ""}
-                      onChange={(e) =>
-                        updateRow(r.no, "profit", e.target.value)
-                      }
-                    />
+                    {r.incomeEnabled ? (
+                      <input
+                        className={styles.rowInput}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={rows[r.no]?.profit ?? ""}
+                        onChange={(e) =>
+                          updateRow(r.no, "profit", fmtInput(e.target.value))
+                        }
+                      />
+                    ) : (
+                      <span style={{ color: "var(--mid)", fontSize: "0.8rem" }}>
+                        —
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -629,7 +672,10 @@ export default function GpdForm() {
                   placeholder="0,00"
                   value={deductions.personal}
                   onChange={(e) =>
-                    setDeductions((s) => ({ ...s, personal: e.target.value }))
+                    setDeductions((s) => ({
+                      ...s,
+                      personal: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -648,7 +694,10 @@ export default function GpdForm() {
                   placeholder="0,00"
                   value={deductions.health}
                   onChange={(e) =>
-                    setDeductions((s) => ({ ...s, health: e.target.value }))
+                    setDeductions((s) => ({
+                      ...s,
+                      health: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -667,7 +716,10 @@ export default function GpdForm() {
                   placeholder="0,00"
                   value={deductions.mortgage}
                   onChange={(e) =>
-                    setDeductions((s) => ({ ...s, mortgage: e.target.value }))
+                    setDeductions((s) => ({
+                      ...s,
+                      mortgage: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -761,7 +813,10 @@ export default function GpdForm() {
                   placeholder="0,00"
                   value={taxCalc.reduction}
                   onChange={(e) =>
-                    setTaxCalc((s) => ({ ...s, reduction: e.target.value }))
+                    setTaxCalc((s) => ({
+                      ...s,
+                      reduction: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -779,7 +834,7 @@ export default function GpdForm() {
                   onChange={(e) =>
                     setTaxCalc((s) => ({
                       ...s,
-                      withholdingTax: e.target.value,
+                      withholdingTax: fmtInput(e.target.value),
                     }))
                   }
                 />
@@ -798,7 +853,7 @@ export default function GpdForm() {
                   onChange={(e) =>
                     setTaxCalc((s) => ({
                       ...s,
-                      advancePayments: e.target.value,
+                      advancePayments: fmtInput(e.target.value),
                     }))
                   }
                 />
@@ -817,7 +872,10 @@ export default function GpdForm() {
                   placeholder="0,00"
                   value={taxCalc.foreignTax}
                   onChange={(e) =>
-                    setTaxCalc((s) => ({ ...s, foreignTax: e.target.value }))
+                    setTaxCalc((s) => ({
+                      ...s,
+                      foreignTax: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -859,6 +917,7 @@ export default function GpdForm() {
                 name="refund"
                 id="opt-advance"
                 required={needsRefundOption}
+                disabled={!needsRefundOption}
                 ref={refundRequiredRef}
                 checked={refundOption.choice === "advance"}
                 onInvalid={(e) => {
@@ -880,6 +939,7 @@ export default function GpdForm() {
               <input
                 type="radio"
                 name="refund"
+                disabled={!needsRefundOption}
                 id="opt-refund"
                 checked={refundOption.choice === "refund"}
                 onChange={() => {
@@ -971,6 +1031,12 @@ export default function GpdForm() {
           Preuzmi PDF
         </button>
       </div>
+      <p
+        className={styles.izjavaText}
+        style={{ textAlign: "center", marginTop: "2rem" }}
+      >
+        Napomena: Preporučuje se štampanje obrazca u dva primjerka.
+      </p>
     </form>
   );
 }
