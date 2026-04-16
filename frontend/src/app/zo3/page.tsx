@@ -1,12 +1,12 @@
 // sections
-import GpdForm from "src/sections/gpd/Gpd";
+import SprForm from "src/sections/spr/Spr";
 
 // ----------------------------------------------------------------------
 
 export const metadata = {
-  title: "GPD obrazac - Porezni kalkulator",
+  title: "ZO3 obrazac - Porezni kalkulator",
 };
 
 export default function MaintenancePage() {
-  return <GpdForm />;
+  return <SprForm />;
 }
