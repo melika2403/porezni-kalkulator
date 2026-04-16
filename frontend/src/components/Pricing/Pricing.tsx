@@ -1,4 +1,7 @@
+'use client';
+import { useState } from 'react';
 import styles from './Pricing.module.css';
+import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
 
 interface Plan {
   tier: string;
@@ -8,6 +11,7 @@ interface Plan {
   cta: string;
   ctaStyle: 'outline' | 'white' | 'dark';
   featured?: boolean;
+  action: 'scroll' | 'soon';
 }
 
 const PLANS: Plan[] = [
@@ -24,6 +28,7 @@ const PLANS: Plan[] = [
     ],
     cta: 'Počni odmah',
     ctaStyle: 'outline',
+    action: 'scroll',
   },
   {
     tier: 'Registracija',
@@ -39,10 +44,11 @@ const PLANS: Plan[] = [
     cta: 'Registruj se besplatno',
     ctaStyle: 'white',
     featured: true,
+    action: 'soon',
   },
   {
     tier: 'Pro pretplata',
-    price: '99 KM',
+    price: '--,-- KM',
     period: 'godišnje / po korisniku',
     features: [
       'Sve iz prethodnih planova',
@@ -53,42 +59,60 @@ const PLANS: Plan[] = [
     ],
     cta: 'Pretplati se',
     ctaStyle: 'dark',
+    action: 'soon',
   },
 ];
 
 export default function Pricing() {
-  return (
-    <section id="cijene" className={styles.section}>
-      <div className={styles.inner}>
-        <div className={styles.label}>Planovi i cijene</div>
-        <h2 className={styles.h2}>
-          Transparentne cijene,<br /><em>bez iznenađenja</em>
-        </h2>
-        <p className={styles.intro}>Počnite besplatno. Nadogradite kada vam zatreba više.</p>
+  const [showModal, setShowModal] = useState(false);
 
-        <div className={styles.grid}>
-          {PLANS.map((plan) => (
-            <div
-              key={plan.tier}
-              className={`${styles.card} ${plan.featured ? styles.featured : ''}`}
-            >
-              {plan.featured && <div className={styles.popularTag}>Najpopularnije</div>}
-              <div className={styles.tier}>{plan.tier}</div>
-              <div className={styles.price}>{plan.price}</div>
-              <div className={styles.period}>{plan.period}</div>
-              <div className={styles.divider} />
-              <ul className={styles.features}>
-                {plan.features.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-              </ul>
-              <button className={`${styles.cta} ${styles[plan.ctaStyle]}`}>
-                {plan.cta}
-              </button>
-            </div>
-          ))}
+  const handleCta = (action: Plan['action']) => {
+    if (action === 'scroll') {
+      document.getElementById('funkcije')?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      setShowModal(true);
+    }
+  };
+
+  return (
+    <>
+      <section id="cijene" className={styles.section}>
+        <div className={styles.inner}>
+          <div className={styles.label}>Planovi i cijene</div>
+          <h2 className={styles.h2}>
+            Transparentne cijene,<br /><em>bez iznenađenja</em>
+          </h2>
+          <p className={styles.intro}>Počnite besplatno. Nadogradite kada vam zatreba više.</p>
+
+          <div className={styles.grid}>
+            {PLANS.map((plan) => (
+              <div
+                key={plan.tier}
+                className={`${styles.card} ${plan.featured ? styles.featured : ''}`}
+              >
+                {plan.featured && <div className={styles.popularTag}>Najpopularnije</div>}
+                <div className={styles.tier}>{plan.tier}</div>
+                <div className={styles.price}>{plan.price}</div>
+                <div className={styles.period}>{plan.period}</div>
+                <div className={styles.divider} />
+                <ul className={styles.features}>
+                  {plan.features.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+                <button
+                  className={`${styles.cta} ${styles[plan.ctaStyle]}`}
+                  onClick={() => handleCta(plan.action)}
+                >
+                  {plan.cta}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      {showModal && <ComingSoonModal onClose={() => setShowModal(false)} />}
+    </>
   );
 }
