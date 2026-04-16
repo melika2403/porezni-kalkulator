@@ -1,5 +1,9 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import styles from './Features.module.css';
+import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
 
 type Badge = 'free' | 'reg' | 'pro';
 
@@ -10,6 +14,7 @@ interface Feature {
   iconColor: 'sage' | 'accent' | 'dark';
   icon: React.ReactNode;
   dest: string;
+  soon?: boolean;
 }
 
 const BADGE_LABELS: Record<Badge, string> = {
@@ -18,7 +23,6 @@ const BADGE_LABELS: Record<Badge, string> = {
   pro:  'Godišnja pretplata',
 };
 
-// Sorted: free → reg → pro
 const FEATURES: Feature[] = [
   // ── Free ────────────────────────────────────────────
   {
@@ -32,7 +36,7 @@ const FEATURES: Feature[] = [
         <path d="M3 9h18M9 21V9" />
       </svg>
     ),
-    dest:"/spr"
+    dest: '/spr',
   },
   {
     title: 'GPD-1051 obrazac',
@@ -45,7 +49,7 @@ const FEATURES: Feature[] = [
         <path d="M3 9h18M9 21V9" />
       </svg>
     ),
-    dest:"/gpd"
+    dest: '/gpd',
   },
   {
     title: 'ZO3 obrazac',
@@ -58,7 +62,7 @@ const FEATURES: Feature[] = [
         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
       </svg>
     ),
-    dest:"/zo3"
+    dest: '/zo3',
   },
   {
     title: 'Ugovor o pozajmici',
@@ -71,7 +75,7 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
       </svg>
     ),
-    dest:"/pozajmica"
+    dest: '/pozajmica',
   },
   // ── Registration ─────────────────────────────────────
   {
@@ -84,7 +88,8 @@ const FEATURES: Feature[] = [
         <path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z" />
       </svg>
     ),
-    dest:"/stalna-sredstva"
+    dest: '/stalna-sredstva',
+    soon: true,
   },
   {
     title: 'Šihterica — Evidencija radnog vremena',
@@ -98,7 +103,8 @@ const FEATURES: Feature[] = [
         <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
       </svg>
     ),
-    dest:"/sihterica"
+    dest: '/sihterica',
+    soon: true,
   },
   // ── Pro ──────────────────────────────────────────────
   {
@@ -112,7 +118,8 @@ const FEATURES: Feature[] = [
         <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
       </svg>
     ),
-    dest:"/prijave-radnika"
+    dest: '/prijave-radnika',
+    soon: true,
   },
   {
     title: 'Ugovori o djelu',
@@ -125,7 +132,8 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
       </svg>
     ),
-    dest:"/ugovori-o-djelu"
+    dest: '/ugovori-o-djelu',
+    soon: true,
   },
   {
     title: 'Ostali ugovori',
@@ -138,7 +146,8 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
       </svg>
     ),
-    dest:"/ostali-ugovori"
+    dest: '/ostali-ugovori',
+    soon: true,
   },
 ];
 
@@ -159,7 +168,7 @@ const QUICK_TOOLS: QuickTool[] = [
         <path d="M12 6v6l4 2" />
       </svg>
     ),
-    dest: "/preracun-neto-bruto"
+    dest: '/preracun-neto-bruto',
   },
   {
     title: 'PDV kalkulator',
@@ -169,80 +178,91 @@ const QUICK_TOOLS: QuickTool[] = [
         <path d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" />
       </svg>
     ),
-    dest: "/pdv-kalkulator"
+    dest: '/pdv-kalkulator',
   },
 ];
 
+const ArrowIcon = () => (
+  <span className={styles.startArrow} aria-hidden="true">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="2" y1="8" x2="12" y2="8" />
+      <polyline points="8 4 12 8 8 12" />
+    </svg>
+  </span>
+);
+
 export default function Features() {
+  const [showModal, setShowModal] = useState(false);
+
   return (
-    <section id="funkcije" className={styles.section}>
-      <div className={styles.header}>
-        <div className={styles.label}>Što dobijate</div>
-        <h2 className={styles.h2}>
-          Sve što vam treba<br /><em>na jednom ekranu</em>
-        </h2>
-        <p className={styles.intro}>
-          Od jednostavnog preračuna plate do kompletnih obrazaca i ugovora za radnike.
-        </p>
-      </div>
-
-      <div className={styles.grid}>
-        {FEATURES.map((f) => (
-          <div key={f.title} className={styles.cell}>
-            <div className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}>
-              {f.icon}
-            </div>
-            <div className={styles.cellTitle}>{f.title}</div>
-            <div className={styles.cellDesc}>{f.desc}</div>
-            <Link href={f.dest} className={styles.startLink}>
-            <button type="button" className={styles.startButton}>
-                Kreni
-              <span className={styles.startArrow} aria-hidden="true">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="2" y1="8" x2="12" y2="8" />
-                  <polyline points="8 4 12 8 8 12" />
-                </svg>
-              </span>
-            </button>
-            </Link>
-            <span className={`${styles.badge} ${styles[`badge_${f.badge}`]}`}>
-              {BADGE_LABELS[f.badge]}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className={styles.quickToolsSection}>
-        <div className={styles.quickToolsHeader}>
-          <span className={styles.quickToolsLabel}>Brzi kalkulatori</span>
-          <span className={styles.quickToolsSubLabel}>Besplatno, bez registracije</span>
+    <>
+      <section id="funkcije" className={styles.section}>
+        <div className={styles.header}>
+          <div className={styles.label}>Što dobijate</div>
+          <h2 className={styles.h2}>
+            Sve što vam treba<br /><em>na jednom ekranu</em>
+          </h2>
+          <p className={styles.intro}>
+            Od jednostavnog preračuna plate do kompletnih obrazaca i ugovora za radnike.
+          </p>
         </div>
-        <div className={styles.quickToolsRow}>
-          {QUICK_TOOLS.map((t) => (
-            <div key={t.title} className={styles.quickTool}>
-              <div className={`${styles.icon} ${styles.icon_sage}`}>{t.icon}</div>
-              <div className={styles.quickToolTitle}>{t.title}</div>
-              <div className={styles.quickToolDesc}>{t.desc}</div>
-              <Link href={t.dest} className={styles.startLink}>
-              <button type="button" className={styles.startButton}>
-                Kreni
-                <span className={styles.startArrow} aria-hidden="true">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="2" y1="8" x2="12" y2="8" />
-                    <polyline points="8 4 12 8 8 12" />
-                  </svg>
-                </span>
-              </button>
-              </Link>
-              <span className={`${styles.badge} ${styles.badge_free}`}>
-                {BADGE_LABELS.free}
+
+        <div className={styles.grid}>
+          {FEATURES.map((f) => (
+            <div key={f.title} className={styles.cell}>
+              <div className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}>
+                {f.icon}
+              </div>
+              <div className={styles.cellTitle}>{f.title}</div>
+              <div className={styles.cellDesc}>{f.desc}</div>
+              {f.soon ? (
+                <button
+                  type="button"
+                  className={styles.startButton}
+                  onClick={() => setShowModal(true)}
+                >
+                  Kreni <ArrowIcon />
+                </button>
+              ) : (
+                <Link href={f.dest} className={styles.startLink}>
+                  <button type="button" className={styles.startButton}>
+                    Kreni <ArrowIcon />
+                  </button>
+                </Link>
+              )}
+              <span className={`${styles.badge} ${styles[`badge_${f.badge}`]}`}>
+                {BADGE_LABELS[f.badge]}
               </span>
             </div>
           ))}
         </div>
-      </div>
-    </section>
 
-    
+        <div className={styles.quickToolsSection}>
+          <div className={styles.quickToolsHeader}>
+            <span className={styles.quickToolsLabel}>Brzi kalkulatori</span>
+            <span className={styles.quickToolsSubLabel}>Besplatno, bez registracije</span>
+          </div>
+          <div className={styles.quickToolsRow}>
+            {QUICK_TOOLS.map((t) => (
+              <div key={t.title} className={styles.quickTool}>
+                <div className={`${styles.icon} ${styles.icon_sage}`}>{t.icon}</div>
+                <div className={styles.quickToolTitle}>{t.title}</div>
+                <div className={styles.quickToolDesc}>{t.desc}</div>
+                <Link href={t.dest} className={styles.startLink}>
+                  <button type="button" className={styles.startButton}>
+                    Kreni <ArrowIcon />
+                  </button>
+                </Link>
+                <span className={`${styles.badge} ${styles.badge_free}`}>
+                  {BADGE_LABELS.free}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {showModal && <ComingSoonModal onClose={() => setShowModal(false)} />}
+    </>
   );
 }
