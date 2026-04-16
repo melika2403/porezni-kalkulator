@@ -18,7 +18,7 @@ export default function ComingSoonModal({ onClose }: Props) {
         <div className={styles.label}>Uskoro</div>
         <h3 className={styles.title}>Dolazi uskoro</h3>
         <p className={styles.desc}>
-          Ova funkcionalnost je trenutno u razvoju.
+          Ova funkcija je trenutno u razvoju.
           Pratite nas za najave kada bude dostupna.
         </p>
         <button className={styles.btn} onClick={onClose}>

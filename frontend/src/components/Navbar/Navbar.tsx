@@ -2,11 +2,16 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import styles from './Navbar.module.css';
 import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
 
 export default function Navbar() {
   const [showModal, setShowModal] = useState(false);
+  const pathname = usePathname();
+  const isHome = pathname === '/';
+
+  const sectionHref = (id: string) => isHome ? `#${id}` : `/#${id}`;
 
   return (
     <>
@@ -26,10 +31,10 @@ export default function Navbar() {
         </Link>
 
         <div className={styles.links}>
-          <Link href="#funkcije">Funkcije</Link>
-          <Link href="#cijene">Cijene</Link>
-          <Link href="#kako">Kako radi</Link>
-          <Link href="#faq">FAQ</Link>
+          <Link href={sectionHref('funkcije')}>Funkcije</Link>
+          <Link href={sectionHref('cijene')}>Cijene</Link>
+          <Link href={sectionHref('kako')}>Kako radi</Link>
+          <Link href={sectionHref('faq')}>FAQ</Link>
         </div>
 
         <div className={styles.actions}>

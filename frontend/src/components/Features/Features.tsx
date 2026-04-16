@@ -1,5 +1,9 @@
-import Link from "next/link";
-import styles from "./Features.module.css";
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import styles from './Features.module.css';
+import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
 
 type Badge = "free" | "reg" | "pro";
 
@@ -10,6 +14,7 @@ interface Feature {
   iconColor: "sage" | "accent" | "dark";
   icon: React.ReactNode;
   dest: string;
+  soon?: boolean;
 }
 
 const BADGE_LABELS: Record<Badge, string> = {
@@ -18,7 +23,6 @@ const BADGE_LABELS: Record<Badge, string> = {
   pro: "Godišnja pretplata",
 };
 
-// Sorted: free → reg → pro
 const FEATURES: Feature[] = [
   // ── Free ────────────────────────────────────────────
   {
