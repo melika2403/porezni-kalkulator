@@ -152,7 +152,7 @@ interface QuickTool {
 const QUICK_TOOLS: QuickTool[] = [
   {
     title: 'Preračun neto / bruto plate',
-    desc: 'Unesite neto ili bruto iznos — odmah dobijate sve doprinose, poreze i prireze prema kantonalnim stopama.',
+    desc: 'Unesite neto ili bruto iznos — odmah dobijate sve doprinose, poreze i ukupni trošak za poslodavca.',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
         <circle cx="12" cy="12" r="9" />
@@ -163,7 +163,7 @@ const QUICK_TOOLS: QuickTool[] = [
   },
   {
     title: 'PDV kalkulator',
-    desc: 'Brzi preračun PDV-a u oba smjera — iz cijene bez PDV-a ili iz maloprodajne cijene s PDV-om.',
+    desc: 'Brzi preračun PDV-a u oba smjera — iz cijene bez PDV-a ili iz maloprodajne cijene s PDV-om. Prikaz u KM ili u EUR.',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" />

@@ -14,7 +14,7 @@ const STEPS = [
   {
     num: "03",
     title: "Preuzmite ili ispišite",
-    desc: "Popunjeni obrazac, ugovor ili obračun je spreman za ispis ili preuzimanje u PDF/Excel formatu.",
+    desc: "Popunjeni obrazac, ugovor ili obračun je spreman za ispis ili preuzimanje u PDF/word formatu.",
   },
   {
     num: "04",

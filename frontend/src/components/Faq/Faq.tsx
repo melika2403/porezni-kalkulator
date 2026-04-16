@@ -21,8 +21,8 @@ const FAQS = [
     a: 'Pretplata se naplaćuje jednom godišnje i daje vam pristup svim premium funkcijama — prijave radnika, ugovori o radu i ugovori o djelu. Možete otkazati u bilo kom trenutku.',
   },
   {
-    q: 'Da li mogu koristiti aplikaciju za više obrta?',
-    a: 'Trenutno je svaki korisnički nalog vezan za jedan obrt. Podrška za više obrta po nalogu je u planu za buduće verzije.',
+    q: 'Da li mogu koristiti aplikaciju za više firmi/obrta?',
+    a: 'Trenutno je svaki korisnički nalog vezan za jednu firmu/obrt. Podrška za više firmi/obrta po nalogu je u planu za buduće verzije.',
   },
 ];
 
