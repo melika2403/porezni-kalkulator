@@ -102,6 +102,12 @@
   background: var(--sage-light);
 }
 
+.userChip {
+  font-size: 13px;
+  color: var(--mid);
+  padding: 6px 10px;
+}
+
 @media (max-width: 640px) {
   .nav {
     padding: 0 1rem;

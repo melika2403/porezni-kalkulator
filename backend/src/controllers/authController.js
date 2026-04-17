@@ -2,6 +2,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const prisma = require("../prisma");
+const googleAuth = require("../auth/googleAuth");
+
+const GOOGLE_STATE_COOKIE = "g_oauth_state";
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -16,7 +19,7 @@ function getJwtSecret() {
 }
 
 function getJwtExpiresIn() {
-  return process.env.JWT_EXPIRES_IN || "1h";
+  return process.env.JWT_EXPIRES_IN || "7d";
 }
 
 function setAuthCookie(res, token) {
@@ -26,7 +29,7 @@ function setAuthCookie(res, token) {
     secure: isProd,
     sameSite: "lax",
     path: "/",
-    maxAge: 1000 * 60 * 60, // 1h (keep in sync with default JWT_EXPIRES_IN)
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days (keep in sync with default JWT_EXPIRES_IN)
   });
 }
 
@@ -88,7 +91,7 @@ async function register(req, res) {
         lastName: lastName.trim(),
         phone: phone.trim(),
         address: typeof address === "string" ? address.trim() : null,
-        role: "user",
+        role: "USER",
       },
       select: publicUserSelect(),
     });
@@ -177,9 +180,112 @@ async function me(req, res) {
   return res.status(200).json({ ok: true, data: user });
 }
 
+function signJwtForUser(user) {
+  const secret = getJwtSecret();
+  return jwt.sign({ role: user.role }, secret, {
+    subject: String(user.id),
+    expiresIn: getJwtExpiresIn(),
+  });
+}
+
+async function googleStart(_req, res) {
+  try {
+    const state = googleAuth.createStateToken();
+    const isProd = process.env.NODE_ENV === "production";
+    res.cookie(GOOGLE_STATE_COOKIE, state, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 10 * 60 * 1000, // 10 min
+    });
+    const url = googleAuth.buildAuthUrl(state);
+    return res.redirect(url);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
+}
+
+function redirectToFrontend(res, path) {
+  const frontend = process.env.FRONTEND_URL || "http://localhost:3000";
+  return res.redirect(`${frontend}${path}`);
+}
+
+async function googleCallback(req, res) {
+  const { code, state, error: googleError } = req.query ?? {};
+  const cookieState = req.cookies?.[GOOGLE_STATE_COOKIE];
+  res.clearCookie(GOOGLE_STATE_COOKIE, { path: "/" });
+
+  if (googleError) {
+    return redirectToFrontend(res, "/prijava?error=google_denied");
+  }
+  if (
+    typeof code !== "string" ||
+    typeof state !== "string" ||
+    !cookieState ||
+    state !== cookieState
+  ) {
+    return redirectToFrontend(res, "/prijava?error=invalid_state");
+  }
+
+  try {
+    const tokens = await googleAuth.exchangeCodeForToken(code);
+    const profile = await googleAuth.fetchUserInfo(tokens.access_token);
+
+    if (!profile.sub || !profile.email_verified) {
+      return redirectToFrontend(res, "/prijava?error=email_not_verified");
+    }
+
+    const email = String(profile.email).toLowerCase();
+    const firstName = profile.given_name || profile.name || "Korisnik";
+    const lastName = profile.family_name || "";
+
+    let user = await prisma.user.findUnique({
+      where: { googleId: profile.sub },
+      select: publicUserSelect(),
+    });
+
+    if (!user) {
+      const existingByEmail = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingByEmail) {
+        user = await prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: { googleId: profile.sub },
+          select: publicUserSelect(),
+        });
+      } else {
+        user = await prisma.user.create({
+          data: {
+            email,
+            googleId: profile.sub,
+            firstName,
+            lastName,
+            role: "USER",
+          },
+          select: publicUserSelect(),
+        });
+      }
+    }
+
+    const token = signJwtForUser(user);
+    setAuthCookie(res, token);
+    return redirectToFrontend(res, "/");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("googleCallback error:", message);
+    return redirectToFrontend(res, "/prijava?error=google_failed");
+  }
+}
+
 module.exports = {
   register,
   login,
   logout,
   me,
+  googleStart,
+  googleCallback,
 };
