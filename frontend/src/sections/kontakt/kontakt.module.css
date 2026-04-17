@@ -1,0 +1,235 @@
+.page {
+  padding: 3rem 2rem 6rem;
+  max-width: 900px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+/* ── Header ── */
+.header {
+  margin-bottom: 3rem;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 0.75rem;
+}
+
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.lead {
+  font-size: 1rem;
+  color: var(--mid);
+  font-weight: 300;
+  line-height: 1.6;
+  max-width: 520px;
+}
+
+/* ── Grid ── */
+.grid {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+/* ── Info cards ── */
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.infoCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--paper);
+}
+
+.infoIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background: var(--sage-pale);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sage);
+}
+
+.infoIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.infoTitle {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  margin-bottom: 0.3rem;
+}
+
+.infoValue {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 400;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+a.infoValue {
+  color: var(--sage);
+  transition: opacity 0.15s;
+}
+
+a.infoValue:hover {
+  opacity: 0.75;
+}
+
+/* ── Form ── */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input,
+.textarea {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--mid);
+  opacity: 0.5;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 140px;
+}
+
+/* ── Submit ── */
+.submit {
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0.85rem 2rem;
+  background: var(--sage);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s;
+  align-self: flex-start;
+}
+
+.submit:hover {
+  opacity: 0.88;
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Messages ── */
+.successMsg {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 13px;
+  color: var(--sage);
+  background: var(--sage-pale);
+  border: 1px solid rgba(58, 92, 66, 0.2);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.successMsg svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.errorMsg {
+  font-size: 13px;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 680px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .page {
+    padding: 2rem 1rem 4rem;
+  }
+
+  .form {
+    padding: 1.25rem;
+  }
+}

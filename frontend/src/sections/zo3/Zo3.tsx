@@ -2,6 +2,7 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import styles from "./zo3.module.css";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
+import DateInput from "src/components/DateInput/DateInput";
 
 /* ── Constants ── */
 
@@ -285,7 +286,7 @@ export default function Zo3Form() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ZO3_${insured.prezime || "obrazac"}.pdf`;
+    a.download = `ZO3_obrazac${insured.prezime ? `_${insured.prezime}` : ""}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
   }, [
@@ -437,9 +438,11 @@ export default function Zo3Form() {
             <input
               className={styles.fieldInput}
               placeholder="Registarski broj"
+              inputMode="numeric"
+              maxLength={10}
               value={employer.regBroj}
               onChange={(e) =>
-                setEmployer((s) => ({ ...s, regBroj: e.target.value }))
+                setEmployer((s) => ({ ...s, regBroj: e.target.value.replace(/\D/g, "").slice(0, 10) }))
               }
             />
           </div>
@@ -447,7 +450,7 @@ export default function Zo3Form() {
             <label className={styles.fieldLabel}>3) Šifra djelatnosti</label>
             <input
               className={styles.fieldInput}
-              placeholder="Šifra djelatnosti"
+              placeholder="Npr. 69.20"
               value={employer.sifraDjelatnosti}
               onChange={(e) =>
                 setEmployer((s) => ({
@@ -562,9 +565,10 @@ export default function Zo3Form() {
               className={styles.fieldInput}
               placeholder="Poštanski broj"
               inputMode="numeric"
+              maxLength={5}
               value={insured.brojPoste}
               onChange={(e) =>
-                setInsured((s) => ({ ...s, brojPoste: e.target.value }))
+                setInsured((s) => ({ ...s, brojPoste: e.target.value.replace(/\D/g, "").slice(0, 5) }))
               }
             />
           </div>
@@ -585,9 +589,10 @@ export default function Zo3Form() {
               className={styles.fieldInput}
               placeholder="0000"
               inputMode="numeric"
+              maxLength={4}
               value={insured.zamanjanjeKod}
               onChange={(e) =>
-                setInsured((s) => ({ ...s, zamanjanjeKod: e.target.value }))
+                setInsured((s) => ({ ...s, zamanjanjeKod: e.target.value.replace(/\D/g, "").slice(0, 4) }))
               }
             />
           </div>
@@ -595,12 +600,11 @@ export default function Zo3Form() {
             <label className={styles.fieldLabel}>
               12) Datum stupanja na rad
             </label>
-            <input
+            <DateInput
               className={styles.fieldInput}
-              type="date"
               value={insured.datumStupanja}
-              onChange={(e) =>
-                setInsured((s) => ({ ...s, datumStupanja: e.target.value }))
+              onValueChange={(iso) =>
+                setInsured((s) => ({ ...s, datumStupanja: iso }))
               }
             />
           </div>
@@ -661,23 +665,21 @@ export default function Zo3Form() {
             <label className={styles.fieldLabel}>
               16) Datum prestanka rada
             </label>
-            <input
+            <DateInput
               className={styles.fieldInput}
-              type="date"
               value={insured.datumPrestanka}
-              onChange={(e) =>
-                setInsured((s) => ({ ...s, datumPrestanka: e.target.value }))
+              onValueChange={(iso) =>
+                setInsured((s) => ({ ...s, datumPrestanka: iso }))
               }
             />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>17) Datum promjene</label>
-            <input
+            <DateInput
               className={styles.fieldInput}
-              type="date"
               value={insured.datumPromjene}
-              onChange={(e) =>
-                setInsured((s) => ({ ...s, datumPromjene: e.target.value }))
+              onValueChange={(iso) =>
+                setInsured((s) => ({ ...s, datumPromjene: iso }))
               }
             />
           </div>
@@ -792,11 +794,10 @@ export default function Zo3Form() {
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Dana (datum)</label>
-            <input
+            <DateInput
               className={styles.fieldInput}
-              type="date"
               value={datum}
-              onChange={(e) => setDatum(e.target.value)}
+              onValueChange={setDatum}
             />
           </div>
         </div>
@@ -822,6 +823,9 @@ export default function Zo3Form() {
         style={{ textAlign: "center", marginTop: "2rem" }}
       >
         Napomena: Preporučuje se štampanje obrazca u dva primjerka.
+      </p>
+      <p className={styles.dataNapomena}>
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
     </form>
   );

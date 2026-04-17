@@ -1,22 +1,74 @@
 .footer {
   border-top: 1px solid var(--border);
-  padding: 3rem 2.5rem;
+  padding: 3rem 2.5rem 2rem;
+}
+
+/* ── Top row ── */
+.top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+}
+
+/* ── Brand block ── */
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .logo {
   font-family: 'DM Serif Display', serif;
-  font-size: 16px;
-  color: var(--mid);
+  font-size: 17px;
+  color: var(--ink);
 }
 
+.tagline {
+  font-size: 13px;
+  color: var(--mid);
+  font-weight: 300;
+  margin: 0;
+}
+
+/* ── Social icons ── */
+.social {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.socialLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--mid);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.socialLink svg {
+  width: 16px;
+  height: 16px;
+}
+
+.socialLink:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--white);
+}
+
+/* ── Nav links ── */
 .links {
   display: flex;
-  gap: 1.5rem;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-end;
 }
 
 .links a {
@@ -30,14 +82,33 @@
   color: var(--ink);
 }
 
+/* ── Bottom row ── */
+.bottom {
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+}
+
 .copy {
   font-size: 12px;
   color: var(--mid);
+  opacity: 0.6;
 }
 
-@media (max-width: 640px) {
+/* ── Responsive ── */
+@media (max-width: 560px) {
   .footer {
+    padding: 2.5rem 1.25rem 1.5rem;
+  }
+
+  .top {
     flex-direction: column;
+    gap: 2rem;
+  }
+
+  .links {
     align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
   }
 }

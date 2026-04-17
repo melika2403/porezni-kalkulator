@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: "Porezni Kalkulator BiH — SPR, GPD, Obračun plate, PDV",
+    default: "Porezni Kalkulator BiH — SPR, GPD, ZO3, Ugovor o pozajmici, Obračun plate, PDV",
     template: "%s | Porezni Kalkulator BiH",
   },
 
@@ -232,7 +232,7 @@ export const metadata: Metadata = {
     locale: "bs_BA",
     url: SITE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Porezni Kalkulator BiH — SPR, GPD, Obračun plate, PDV",
+    title: "Porezni Kalkulator BiH — SPR, GPD, ZO3, Ugovor o pozajmici, Obračun plate, PDV",
     description:
       "SPR-1053 · GPD-1051 · ZO3 · PDV kalkulator · Obračun plate · Stalna sredstva · Šihterica · Ugovori — besplatni porezni alati za poduzetnike u BiH.",
     images: [
@@ -247,7 +247,7 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "Porezni Kalkulator BiH — SPR, GPD, Obračun plate, PDV",
+    title: "Porezni Kalkulator BiH — SPR, GPD, ZO3, Ugovor o pozajmici, Obračun plate, PDV",
     description:
       "Besplatni porezni kalkulator za poduzetnike u BiH. SPR-1053, GPD-1051, PDV, obračun plate i više.",
     images: ["/og-image.png"],
