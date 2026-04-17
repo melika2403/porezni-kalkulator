@@ -3,6 +3,13 @@ import { useState } from "react";
 import styles from "./ugovor.module.css";
 import type { UgovorData } from "./generateDocx";
 import { useEffect } from "react";
+import DateInput from "src/components/DateInput/DateInput";
+
+const isoToDisplay = (iso: string) => {
+  if (!iso || !iso.includes("-")) return iso;
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}.`;
+};
 
 type NapomenaTip = "odricanje" | "spor";
 
@@ -79,7 +86,7 @@ export default function UgovorOPozajmici() {
     setLoadingDocx(true);
     try {
       const { generateDocx } = await import("./generateDocx");
-      const blob = await generateDocx(form);
+      const blob = await generateDocx({ ...form, datum: isoToDisplay(form.datum) });
       downloadBlob(blob, "Ugovor-o-pozajmici.docx");
     } finally {
       setLoadingDocx(false);
@@ -90,7 +97,7 @@ export default function UgovorOPozajmici() {
     setLoadingPdf(true);
     try {
       const { generatePdf } = await import("./generatePdf");
-      const blob = await generatePdf(form);
+      const blob = await generatePdf({ ...form, datum: isoToDisplay(form.datum) });
       downloadBlob(blob, "Ugovor-o-pozajmici.pdf");
     } finally {
       setLoadingPdf(false);
@@ -127,20 +134,19 @@ export default function UgovorOPozajmici() {
           </select>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Datum zaključenja</label>
-            <input
-              type="date"
+            <DateInput
               className={styles.fieldInput}
               value={form.datum}
-              onChange={(e) => set("datum", e.target.value)}
+              onValueChange={(iso) => set("datum", iso)}
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Mjesto zaključenja</label>
+            <label className={styles.fieldLabel}>Ugovor se zaključuje u</label>
             <input
               className={styles.fieldInput}
               value={form.mjesto}
               onChange={(e) => set("mjesto", e.target.value)}
-              placeholder="Sarajevo"
+              placeholder="Sarajevu"
             />
           </div>
         </div>
@@ -244,7 +250,7 @@ export default function UgovorOPozajmici() {
         </h2>
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-            <label className={styles.fieldLabel}>Zajam/pozajmica se daje</label>
+            <label className={styles.fieldLabel}>Zajam/pozajmica se daje {form.vrsta.replace(/j$/, "")}</label>
             <input
               className={styles.fieldInput}
               value={form.uvjetiDavanja}
@@ -271,7 +277,7 @@ export default function UgovorOPozajmici() {
         </h2>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Broj žiro računa</label>
+            <label className={styles.fieldLabel}>Broj žiro računa na koji se uplaćuje pozajmica</label>
             <input
               className={styles.fieldInput}
               inputMode="numeric"
@@ -442,6 +448,9 @@ export default function UgovorOPozajmici() {
           {loadingPdf ? "Generisanje..." : "Sačuvaj kao PDF"}
         </button>
       </div>
+      <p className={styles.dataNapomena}>
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja dokumenta uvijek provjerite tačnost podataka.
+      </p>
     </main>
   );
 }

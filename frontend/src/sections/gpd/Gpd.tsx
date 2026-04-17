@@ -2,6 +2,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import styles from "./gpd.module.css";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
+import DateInput from "src/components/DateInput/DateInput";
 
 /* ── Row definitions ── */
 
@@ -998,20 +999,11 @@ export default function GpdForm() {
         </p>
         <div className={styles.dateField}>
           <span className={styles.dateLabel}>Datum: *</span>
-          <input
+          <DateInput
             className={styles.fieldInput}
-            type="date"
-            required
-            style={{ maxWidth: 200 }}
             value={dateSigned}
-            onInvalid={(e) => {
-              const el = e.currentTarget;
-              el.setCustomValidity(
-                el.validity.valueMissing ? "Odaberite datum." : "",
-              );
-            }}
-            onInput={(e) => e.currentTarget.setCustomValidity("")}
-            onChange={(e) => setDateSigned(e.target.value)}
+            onValueChange={setDateSigned}
+            required
           />
         </div>
       </section>
@@ -1036,6 +1028,9 @@ export default function GpdForm() {
         style={{ textAlign: "center", marginTop: "2rem" }}
       >
         Napomena: Preporučuje se štampanje obrazca u dva primjerka.
+      </p>
+      <p className={styles.dataNapomena}>
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
     </form>
   );

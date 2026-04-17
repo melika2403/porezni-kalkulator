@@ -260,9 +260,12 @@ export async function generatePdf(data: UgovorData): Promise<Blob> {
   drawParagraph(
     ctx,
     [
-      {
-        text: `Zajam-pozajmica se daje ${vrsta} ${uvjetiDavanja}. Svrha pozajmice je ${svrha}`,
-      },
+      { text: "Zajam-pozajmica se daje " },
+      { text: vrsta.replace(/j$/, ""), bold: true },
+      { text: " " },
+      { text: uvjetiDavanja, bold: true },
+      { text: ". Svrha pozajmice je " },
+      { text: svrha, bold: true },
     ],
     11,
     "left",
@@ -307,9 +310,9 @@ export async function generatePdf(data: UgovorData): Promise<Blob> {
   drawParagraph(
     ctx,
     [
-      {
-        text: `Ugovorene strane u svemu prihvataju odredbe ovog ugovora ${napomene}.`,
-      },
+      { text: "Ugovorene strane u svemu prihvataju odredbe ovog ugovora " },
+      { text: napomene, bold: true },
+      { text: "." },
     ],
     11,
     "left",
@@ -321,64 +324,71 @@ export async function generatePdf(data: UgovorData): Promise<Blob> {
   drawParagraph(
     ctx,
     [
-      {
-        text: `Ovaj ugovor sačinjen je u ${brojPrimjeraka}, od kojih svaka ugovorena strana zadržava po ${kopijePoPrimjerku}.`,
-      },
+      { text: "Ovaj ugovor sačinjen je u " },
+      { text: brojPrimjeraka, bold: true },
+      { text: ", od kojih svaka ugovorena strana zadržava po " },
+      { text: kopijePoPrimjerku, bold: true },
+      { text: "." },
     ],
     11,
     "left",
     30,
   );
 
-  // Signature block
-  const sigY = ctx.y;
-  const colLeft = MARGIN_L + 20;
-  const colRight = PAGE_W / 2 + 20;
+  // Signature block — each element centered in its column
+  const leftCenter = MARGIN_L + (PAGE_W / 2 - MARGIN_L) / 2;
+  const rightCenter = PAGE_W / 2 + (PAGE_W - MARGIN_R - PAGE_W / 2) / 2;
 
-  page.drawText("Z A J M O D A V A C", {
-    x: colLeft,
-    y: sigY,
-    size: 11,
-    font: fontBold,
-    color: rgb(0, 0, 0),
-  });
-  page.drawText("Z A J M O P R I M A C", {
-    x: colRight,
-    y: sigY,
-    size: 11,
-    font: fontBold,
-    color: rgb(0, 0, 0),
-  });
+  const sigSize = 11;
+  const lineText = "_________________________";
 
-  ctx.y -= 18;
-  page.drawText("_______________________", {
-    x: colLeft,
+  const leftLabelText = "Z A J M O D A V A C";
+  const rightLabelText = "Z A J M O P R I M A C";
+
+  page.drawText(leftLabelText, {
+    x: leftCenter - fontBold.widthOfTextAtSize(leftLabelText, sigSize) / 2,
     y: ctx.y,
-    size: 11,
+    size: sigSize,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+  page.drawText(rightLabelText, {
+    x: rightCenter - fontBold.widthOfTextAtSize(rightLabelText, sigSize) / 2,
+    y: ctx.y,
+    size: sigSize,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+
+  ctx.y -= 52; // space for handwritten signature
+  page.drawText(lineText, {
+    x: leftCenter - font.widthOfTextAtSize(lineText, sigSize) / 2,
+    y: ctx.y,
+    size: sigSize,
     font,
     color: rgb(0, 0, 0),
   });
-  page.drawText("_______________________________", {
-    x: colRight,
+  page.drawText(lineText, {
+    x: rightCenter - font.widthOfTextAtSize(lineText, sigSize) / 2,
     y: ctx.y,
-    size: 11,
+    size: sigSize,
     font,
     color: rgb(0, 0, 0),
   });
 
   ctx.y -= 16;
   page.drawText(zajmodavac, {
-    x: colLeft,
+    x: leftCenter - fontBold.widthOfTextAtSize(zajmodavac, 10) / 2,
     y: ctx.y,
     size: 10,
-    font,
+    font: fontBold,
     color: rgb(0, 0, 0),
   });
   page.drawText(zajmoprimac, {
-    x: colRight,
+    x: rightCenter - fontBold.widthOfTextAtSize(zajmoprimac, 10) / 2,
     y: ctx.y,
     size: 10,
-    font,
+    font: fontBold,
     color: rgb(0, 0, 0),
   });
 

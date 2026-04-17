@@ -72,7 +72,7 @@ function setTextField(
 
 export async function fillZo3Template(data: Zo3Data): Promise<Uint8Array> {
   const [templateBytes, fontBytes, boldFontBytes] = await Promise.all([
-    fetch("/templates/ZO3.pdf").then((r) => r.arrayBuffer()),
+    fetch("/templates/ZO3_obrazac.pdf").then((r) => r.arrayBuffer()),
     fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),
     fetch("/templates/arialbd.ttf").then((r) => r.arrayBuffer()),
   ]);
@@ -111,53 +111,53 @@ export async function fillZo3Template(data: Zo3Data): Promise<Uint8Array> {
     });
   }
   // fill_1 is the field after "Poslovnica - Područni ured"
-  setBold("fill_1", data.poslovnica, 9);
+  setBold("fill_1", data.poslovnica, 10);
 
   /* ── Naziv i sjedište obveznika uplate doprinosa ── */
   setBold(
     "NAZIV I SJEDIŠTE OBVEZNIKA UPLATE DOPRINOSA",
     data.nazivObveznika,
-    9,
+    10,
   );
-  setBold("jedinstveni", data.jib, 8); // 1) JIB
-  setBold("REG", data.regBroj, 8); // 2) Registarski broj
-  setBold("šifra", data.sifraDjelatnosti, 8); // 3) Šifra djelatnosti
-  setBold("radno vrijeme", data.radnoVrijemeObveznika, 8); // 4) Radno vrijeme obveznika (y=593)
+  setBold("jedinstveni", data.jib, 9); // 1) JIB
+  setBold("REG", data.regBroj, 9); // 2) Registarski broj
+  setBold("šifra", data.sifraDjelatnosti, 9); // 3) Šifra djelatnosti
+  setBold("radno vrijeme", data.radnoVrijemeObveznika, 9); // 4) Radno vrijeme obveznika (y=593)
 
   /* ── Podaci o osiguraniku ── */
-  setBold("JMBG", data.jmbg, 8); // 5) JMBG
-  setBold("Prezime", data.prezime, 10); // 6) Prezime
-  setBold("Ime", data.ime, 10); // 7) Ime
-  setBold("fill_6", data.djevojackoPrezime, 10); // 8) Djevojačko prezime
-  setBold("Ulica i broj prebivališta", data.ulicaBroj, 9); // 9) Ulica i broj
-  setBold("broj pošte", data.brojPoste, 8); // 10) Broj pošte
-  setBold("Zanimanje", data.zanimanje, 9); // 11) Zanimanje (text, y=444)
-  setBold("zanimanje", data.zamanjanjeKod, 8); // 11) Zanimanje (comb, y=444)
-  setBold("datum stupanja", data.datumStupanja, 8); // 12) Datum stupanja na rad
+  setBold("JMBG", data.jmbg, 9); // 5) JMBG
+  setBold("Prezime", data.prezime, 11); // 6) Prezime
+  setBold("Ime", data.ime, 11); // 7) Ime
+  setBold("fill_6", data.djevojackoPrezime, 11); // 8) Djevojačko prezime
+  setBold("Ulica i broj prebivališta", data.ulicaBroj, 10); // 9) Ulica i broj
+  setBold("broj pošte", data.brojPoste, 9); // 10) Broj pošte
+  setBold("Zanimanje", data.zanimanje, 10); // 11) Zanimanje (text, y=444)
+  setBold("zanimanje", data.zamanjanjeKod, 9); // 11) Zanimanje (comb, y=444)
+  setBold("datum stupanja", data.datumStupanja, 9); // 12) Datum stupanja na rad
 
-  setBold("Državljanstvo", data.drzavljanstvo, 9); // 13) Državljanstvo (text, y=404)
-  setBold("dr", data.drzavljanstvo, 8); // 13) Državljanstvo (comb, y=406)
-  setBold("Radno vrijeme radno  tjedno", data.radnoVrijemeRadno, 9); // 14) Radno vrijeme (text, y=387)
-  setBold("radno vrijeme t", data.radnoVrijemeRadno, 8); // 14) Radno vrijeme (comb, y=387)
-  setBold("Osnov osiguranja", data.osnovOsiguranja, 9); // 15) Osnov osiguranja (text, y=370)
-  setBold("oo", data.osnovOsiguranjaKod, 8); // 15) Osnov osiguranja (comb, y=371)
-  setBold("datum pr", data.datumPrestanka, 8); // 16) Datum prestanka rada
-  setBold("datum pro", data.datumPromjene, 8); // 17) Datum promjene
-  setBold("Vrsta promjene", data.vrstaPromjene, 9); // 18) Vrsta promjene (text, y=352)
-  setBold("VP", data.vrstaPromjeneKod, 8); // 18) Vrsta promjene (comb, y=354)
+  setBold("Državljanstvo", data.drzavljanstvo, 10); // 13) Državljanstvo (text, y=404)
+  setBold("dr", data.drzavljanstvo, 9); // 13) Državljanstvo (comb, y=406)
+  setBold("Radno vrijeme radno  tjedno", data.radnoVrijemeRadno, 10); // 14) Radno vrijeme (text, y=387)
+  setBold("radno vrijeme t", data.radnoVrijemeRadno, 9); // 14) Radno vrijeme (comb, y=387)
+  setBold("Osnov osiguranja", data.osnovOsiguranja, 10); // 15) Osnov osiguranja (text, y=370)
+  setBold("oo", data.osnovOsiguranjaKod, 9); // 15) Osnov osiguranja (comb, y=371)
+  setBold("datum pr", data.datumPrestanka, 9); // 16) Datum prestanka rada
+  setBold("datum pro", data.datumPromjene, 9); // 17) Datum promjene
+  setBold("Vrsta promjene", data.vrstaPromjene, 10); // 18) Vrsta promjene (text, y=352)
+  setBold("VP", data.vrstaPromjeneKod, 9); // 18) Vrsta promjene (comb, y=354)
 
   /* ── Članovi porodice (rows 19-28) ── */
   for (let i = 0; i < Math.min(data.familyMembers.length, 10); i++) {
     const m = data.familyMembers[i];
-    setBold(`JMBG ${19 + i}`, m.jmbg, 8);
-    setBold(`Prezime i ime ${i + 1}`, m.fullName, 9);
-    setBold(`Srodstvo ${i + 1}`, m.srodstvo, 9);
+    setBold(`JMBG ${19 + i}`, m.jmbg, 9);
+    setBold(`Prezime i ime ${i + 1}`, m.fullName, 10);
+    setBold(`Srodstvo ${i + 1}`, m.srodstvo, 10);
   }
 
   /* ── Footer ── */
-  setBold("Napomena", data.napomena, 9);
-  setBold("U", data.mjesto, 10);
-  setBold("Dana", data.datum, 10);
+  setBold("Napomena", data.napomena, 10);
+  setBold("U", data.mjesto, 11);
+  setBold("Dana", data.datum, 11);
 
   /* ── Re-render all field appearances with the custom font, then flatten ── */
   form.updateFieldAppearances(boldFont);

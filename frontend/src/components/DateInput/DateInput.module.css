@@ -1,0 +1,54 @@
+.wrap {
+  position: relative;
+  width: 100%;
+}
+
+/* The text input fills the wrap; extra right padding makes room for the button */
+.textInput {
+  padding-right: 2.5rem !important;
+  width: 100%;
+}
+
+/* Hidden native date picker — in DOM but invisible so showPicker() works */
+.hiddenPicker {
+  position: absolute;
+  right: 2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
+}
+
+/* Calendar icon button */
+.calBtn {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--mid);
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  padding: 0;
+}
+
+.calBtn:hover {
+  color: var(--sage);
+  background: var(--sage-pale);
+}
+
+.calBtn svg {
+  width: 15px;
+  height: 15px;
+}

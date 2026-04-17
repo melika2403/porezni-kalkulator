@@ -2,6 +2,7 @@
 import { useMemo, useState, useCallback, useRef } from "react";
 import styles from "./spr.module.css";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
+import DateInput from "src/components/DateInput/DateInput";
 
 /* ── Helpers ── */
 
@@ -355,41 +356,21 @@ export default function SprForm() {
           <div className={styles.fieldGroup} />
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) Period od</label>
-            <input
+            <DateInput
               className={styles.fieldInput}
-              type="date"
               value={business.periodFrom}
-              onInvalid={(e) => {
-                const el = e.currentTarget;
-                el.setCustomValidity(
-                  el.validity.valueMissing
-                    ? "Unesite početni datum perioda."
-                    : "",
-                );
-              }}
-              onInput={(e) => e.currentTarget.setCustomValidity("")}
-              onChange={(e) =>
-                setBusiness((s) => ({ ...s, periodFrom: e.target.value }))
+              onValueChange={(iso) =>
+                setBusiness((s) => ({ ...s, periodFrom: iso }))
               }
             />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>6) Period do</label>
-            <input
+            <DateInput
               className={styles.fieldInput}
-              type="date"
               value={business.periodTo}
-              onInvalid={(e) => {
-                const el = e.currentTarget;
-                el.setCustomValidity(
-                  el.validity.valueMissing
-                    ? "Unesite krajnji datum perioda."
-                    : "",
-                );
-              }}
-              onInput={(e) => e.currentTarget.setCustomValidity("")}
-              onChange={(e) =>
-                setBusiness((s) => ({ ...s, periodTo: e.target.value }))
+              onValueChange={(iso) =>
+                setBusiness((s) => ({ ...s, periodTo: iso }))
               }
             />
           </div>
@@ -824,23 +805,13 @@ export default function SprForm() {
         </p>
         <div className={styles.dateField}>
           <span className={styles.dateLabel}>Datum: *</span>
-          <input
+          <DateInput
             className={styles.fieldInput}
-            type="date"
-            required
-            style={{ maxWidth: 200 }}
             value={dateSigned}
-            onInvalid={(e) => {
-              const el = e.currentTarget;
-              el.setCustomValidity(
-                el.validity.valueMissing ? "Odaberite datum." : "",
-              );
-            }}
-            onInput={(e) => e.currentTarget.setCustomValidity("")}
-            onChange={(e) => setDateSigned(e.target.value)}
+            onValueChange={setDateSigned}
+            required
           />
         </div>
-        <div className={styles.fieldHint}>Format: dd/mm/gggg</div>
       </section>
 
       {/* ── Export ── */}
@@ -858,6 +829,9 @@ export default function SprForm() {
           Preuzmi PDF
         </button>
       </div>
+      <p className={styles.dataNapomena}>
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+      </p>
     </form>
   );
 }
