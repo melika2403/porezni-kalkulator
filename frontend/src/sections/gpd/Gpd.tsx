@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import Link from "next/link";
 import styles from "./gpd.module.css";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
 import DateInput from "src/components/DateInput/DateInput";
@@ -111,6 +112,17 @@ const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
   );
   const idx = focusable.indexOf(target);
   if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1].focus();
+};
+
+const formatBankAccount = (value: string): string => {
+  const digits = value.replace(/\D/g, "").slice(0, 16);
+  const parts = [
+    digits.slice(0, 3),
+    digits.slice(3, 6),
+    digits.slice(6, 14),
+    digits.slice(14, 16),
+  ].filter(Boolean);
+  return parts.join("-");
 };
 
 const fmtInput = (raw: string): string => {
@@ -372,6 +384,10 @@ export default function GpdForm() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           Dio 1 — Podaci o <em>poreznom obvezniku</em>
+          <Link href="/gpd/upute" className={styles.helpLink} title="Otvorite upute za popunjavanje GPD obrasca">
+            <span className={styles.helpLinkText}>Kako popuniti?</span>
+            <span className={styles.helpBtn}>?</span>
+          </Link>
         </h2>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
@@ -962,7 +978,8 @@ export default function GpdForm() {
                 <input
                   className={styles.fieldInput}
                   style={{ maxWidth: 300 }}
-                  placeholder="npr. 1234567890123456"
+                  placeholder="XXX-XXX-XXXXXXXX-XX"
+                  inputMode="numeric"
                   required
                   value={refundOption.bankAccount}
                   onInvalid={(e) => {
@@ -977,7 +994,7 @@ export default function GpdForm() {
                   onChange={(e) =>
                     setRefundOption((s) => ({
                       ...s,
-                      bankAccount: e.target.value,
+                      bankAccount: formatBankAccount(e.target.value),
                     }))
                   }
                 />

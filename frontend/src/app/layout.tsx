@@ -10,12 +10,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: "Porezni Kalkulator BiH — SPR, GPD, ZO3, Ugovor o pozajmici, Obračun plate, PDV",
+    default: "Porezni Kalkulator BiH — SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
     template: "%s | Porezni Kalkulator BiH",
   },
 
   description:
-    "SPR-1053 · GPD-1051 · ZO3 obrazac · PDV kalkulator · Obračun neto/bruto plate · Stalna sredstva i amortizacija · Šihterica · Ugovori o djelu i pozajmici — besplatni porezni alati za poduzetnike u BiH. Bez excela, bez gužve.",
+    "SPR-1053 · GPD-1051 · ZO3 obrazac · AMS-1035 · PDV kalkulator · Obračun neto/bruto plate · Stalna sredstva i amortizacija · Šihterica · Ugovori o djelu i pozajmici — besplatni porezni alati za poduzetnike u BiH. Bez excela, bez gužve.",
 
   keywords: [
     // ── Obrasci ──
@@ -118,6 +118,45 @@ export const metadata: Metadata = {
     "Kako preračunati PDV BiH",
     "Kako preračunati PDV Bosna",
 
+
+    // ── AMS-1035 ──
+    "AMS-1035",
+    "AMS-1035 obrazac",
+    "AMS-1035 BiH",
+    "AMS-1035 FBiH",
+    "AMS-1035 online",
+    "AMS-1035 PDF",
+    "AMS obrazac popuni online",
+    "akontacija poreza po odbitku",
+    "akontacija poreza po odbitku FBiH",
+    "akontacija poreza FBiH inostranstvo",
+    "porez na prihod iz inostranstva BiH",
+    "porez na prihod iz inostranstva FBiH",
+    "prihod iz inostranstva freelancer BiH",
+    "freelancer porez BiH",
+    "freelancer porez FBiH",
+    "freelancer porezna prijava BiH",
+    "normirani rashodi BiH",
+    "20% rashodi freelancer BiH",
+    "30% autorske naknade BiH",
+    "autorske naknade porez BiH",
+    "druge samostalne djelatnosti prihod inostranstvo",
+    "akontacija poreza prihod inostranstvo FBiH",
+    "kako ispuniti AMS-1035 obrazac BiH",
+    "kako ispuniti AMS-1035 obrazac online BiH",
+    "kako ispuniti AMS-1035 obrazac online Bosna",
+    "kako popuniti AMS-1035 obrazac BiH",
+    "kako popuniti AMS-1035 obrazac online BiH",
+    "kako popuniti AMS-1035 obrazac online Bosna",
+    "ams obrazac full sa uplatnicama BiH",
+    "ams obrazac full sa uplatnicama online BiH",
+    "ams obrazac full sa uplatnicama online Bosna",
+    "ams obrazac uplatnice za porez",
+    "ams obrazac uplatnice za porez online BiH",
+    "ams obrazac uplatnice za porez online Bosna",
+    "ams obrazac ispuna uplatnica",
+    "ams obrazac ispuna uplatnica online BiH",
+    "ams obrazac ispuna uplatnica online Bosna",
 
     // ── Stalna sredstva ──
     "stalna sredstva amortizacija",
@@ -232,9 +271,9 @@ export const metadata: Metadata = {
     locale: "bs_BA",
     url: SITE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Porezni Kalkulator BiH — SPR, GPD, ZO3, Ugovor o pozajmici, Obračun plate, PDV",
+    title: "Porezni Kalkulator BiH — SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
     description:
-      "SPR-1053 · GPD-1051 · ZO3 · PDV kalkulator · Obračun plate · Stalna sredstva · Šihterica · Ugovori — besplatni porezni alati za poduzetnike u BiH.",
+      "SPR-1053 · GPD-1051 · ZO3 · AMS-1035 · PDV kalkulator · Obračun plate · Stalna sredstva · Šihterica · Ugovori — besplatni porezni alati za poduzetnike u BiH.",
     images: [
       {
         url: "/og-image.png",
@@ -247,9 +286,9 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "Porezni Kalkulator BiH — SPR, GPD, ZO3, Ugovor o pozajmici, Obračun plate, PDV",
+    title: "Porezni Kalkulator BiH — SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
     description:
-      "Besplatni porezni kalkulator za poduzetnike u BiH. SPR-1053, GPD-1051, PDV, obračun plate i više.",
+      "Besplatni porezni kalkulator za poduzetnike u BiH. SPR-1053, GPD-1051, AMS-1035, PDV, obračun plate i više.",
     images: ["/og-image.png"],
   },
 };

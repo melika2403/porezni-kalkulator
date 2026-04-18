@@ -126,109 +126,109 @@ export async function fillGpdTemplate(data: GpdData): Promise<Uint8Array> {
     setCheckBox(form, name, checked);
 
   /* ── Page 1 header ── */
-  set("Text14", "0101", 8);   // period from
-  set("Text2", "3112", 8);    // period to
+  setBold("Text14", "0101", 9);   // period from
+  setBold("Text2", "3112", 9);    // period to
 
   /* ── Dio 1 — Podaci o poreznom obvezniku ── */
-  set("1 JMB", data.jmb, 9);
-  set("2 Prezime i ime", data.fullName, 9);
-  set("20", data.taxYear, 9);
-  set("3 Adresa", data.address, 8);
-  set("6 Telefon", data.phone, 8);
-  set("7 email", data.email, 8);
+  setBold("1 JMB", data.jmb, 10);
+  setBold("2 Prezime i ime", data.fullName, 10);
+  setBold("20", data.taxYear, 10);
+  setBold("3 Adresa", data.address, 9);
+  setBold("6 Telefon", data.phone, 9);
+  setBold("7 email", data.email, 9);
   check("toggle_11", data.contactChanged);
 
   /* ── Dio 2 — Prijava prihoda ── */
 
   // Row 8 — only profit (no loss for nesamostalna djelatnost)
-  setBold("d Iznos dobitiRow1", km(data.row8Profit), 9);
+  setBold("d Iznos dobitiRow1", km(data.row8Profit), 10);
 
   // Row 9
-  setBold("fill_14", km(data.row9Loss), 9);
-  setBold("fill_2", km(data.row9Profit), 9);
+  setBold("fill_14", km(data.row9Loss), 10);
+  setBold("fill_2", km(data.row9Profit), 10);
 
   // Row 10
-  setBold("fill_15", km(data.row10Loss), 9);
-  setBold("fill_3", km(data.row10Profit), 9);
+  setBold("fill_15", km(data.row10Loss), 10);
+  setBold("fill_3", km(data.row10Profit), 10);
 
   // Row 11
-  setBold("fill_16", km(data.row11Loss), 9);
-  setBold("fill_4", km(data.row11Profit), 9);
+  setBold("fill_16", km(data.row11Loss), 10);
+  setBold("fill_4", km(data.row11Profit), 10);
 
   // Row 12
-  setBold("fill_17", km(data.row12Loss), 9);
-  setBold("fill_5", km(data.row12Profit), 9);
+  setBold("fill_17", km(data.row12Loss), 10);
+  setBold("fill_5", km(data.row12Profit), 10);
 
   // Row 13
   setBold(
     "Dohodak od drugih samostalnih djelatnosti koje nisu navedene ovdje  veza sa obrascima AUG1031 kolona 13 i  ASD1032 kolona 10",
     km(data.row13Loss),
-    9
+    10
   );
   setBold(
     "d Iznos dobitiDohodak od drugih samostalnih djelatnosti koje nisu navedene ovdje  veza sa obrascima AUG1031 kolona 13 i  ASD1032 kolona 10",
     km(data.row13Profit),
-    9
+    10
   );
 
   // Row 14 — only loss
-  setBold("Poslovni gubitak iz ranijih godina", km(data.row14Loss), 9);
+  setBold("Poslovni gubitak iz ranijih godina", km(data.row14Loss), 10);
 
   // Row 15 — totals
   setBold(
     "Unijeti ukupan iznos kolone c sabrati redove od 9 do 14 Unijeti ukupan iznos kolone d sabrati redove od 8 do 13",
     km(data.row15Loss),
-    9
+    10
   );
   setBold(
     "d Iznos dobitiUnijeti ukupan iznos kolone c sabrati redove od 9 do 14 Unijeti ukupan iznos kolone d sabrati redove od 8 do 13",
     km(data.row15Profit),
-    9
+    10
   );
 
   // Row 16 — net loss
-  setBold("fill_21", km(data.row16NetLoss), 9);
+  setBold("fill_21", km(data.row16NetLoss), 10);
 
   // Row 17 — net profit
-  setBold("undefined", km(data.row17NetProfit), 9);
+  setBold("undefined", km(data.row17NetProfit), 10);
 
   /* ── Dio 3 — Lični odbici ── */
-  setBold("fill_9", km(data.row18Personal), 9);
-  setBold("fill_10", km(data.row19Health), 9);
-  setBold("fill_11", km(data.row20Mortgage), 9);
-  setBold("c IznosUkupni odbici sabrati redove od 18 do 20", km(data.row21TotalDeductions), 9);
+  setBold("fill_9", km(data.row18Personal), 10);
+  setBold("fill_10", km(data.row19Health), 10);
+  setBold("fill_11", km(data.row20Mortgage), 10);
+  setBold("c IznosUkupni odbici sabrati redove od 18 do 20", km(data.row21TotalDeductions), 10);
 
   /* ── Page 2 header ── */
-  set("Prezime i ime", data.fullName, 8);
-  set("JIBJMB", data.jmb, 9);
-  set("Porezna godina", data.taxYear, 9);
+  setBold("Prezime i ime", data.fullName, 9);
+  setBold("JIBJMB", data.jmb, 10);
+  setBold("Porezna godina", data.taxYear, 10);
 
   /* ── Dio 4 — Obračun porezne obaveze ── */
   setBold(
     "c IznosUkupni gubitak za godinu  ukoliko je u dijelu 2  red 16 kolona c unesen gubitak",
     km(data.row22Loss),
-    9
+    10
   );
   setBold(
     "c IznosUkupan dohodak za godinu  ukoliko je u dijelu 2  red 17 kolona d unesen dohodak",
     km(data.row23Income),
-    9
+    10
   );
-  setBold("c IznosUkupni odbici u dijelu 3 red 21", km(data.row24Deductions), 9);
+  setBold("c IznosUkupni odbici u dijelu 3 red 21", km(data.row24Deductions), 10);
   setBold(
     "c IznosOsnovica poreza na dohodak  red 23  22  24",
     km(data.row25TaxBase),
-    9
+    10
   );
-  setBold("c IznosIznos porezne obaveze red 25 x 01", km(data.row26Tax), 9);
-  setBold("fill_6", km(data.row27Reduction), 9);
-  setBold("c IznosPorez po odbitku", km(data.row28Withholding), 9);
-  setBold("fill_8", km(data.row29Advance), 9);
-  setBold("fill_9_2", km(data.row30Foreign), 9);
+  setBold("c IznosIznos porezne obaveze red 25 x 01", km(data.row26Tax), 10);
+  setBold("fill_6", km(data.row27Reduction), 10);
+  setBold("c IznosPorez po odbitku", km(data.row28Withholding), 10);
+  setBold("fill_8", km(data.row29Advance), 10);
+  setBold("fill_9_2", km(data.row30Foreign), 10);
   setBold(
     "c IznosRazlika poreza za doplatu  za povrat  26 27 28 29 30",
     km(data.row31Difference),
-    9
+    10
   );
 
   /* ── Row 32 — refund options ── */
@@ -238,14 +238,14 @@ export async function fillGpdTemplate(data: GpdData): Promise<Uint8Array> {
     data.refundChoice === "refund"
   );
   if (data.refundChoice === "refund" && data.bankAccount) {
-    set("fill_11_2", data.bankAccount, 9);
+    setBold("fill_11_2", data.bankAccount, 10);
   }
 
   /* ── Dio 5 — Izjava ── */
-  set("Datum", data.dateSigned, 9);
+  setBold("Datum", data.dateSigned, 10);
 
   /* ── Re-render all field appearances with the custom font, then flatten ── */
-  form.updateFieldAppearances(font);
+  form.updateFieldAppearances(boldFont);
   form.flatten();
 
   return doc.save();
