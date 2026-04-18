@@ -1,19 +1,26 @@
 export type AuthUser = {
   id: number;
   email: string | null;
+  jmbg: string | null;
   firstName: string;
   lastName: string;
-  phone: string;
+  phone: string | null;
   address: string | null;
   role: string;
   createdAt: string;
   updatedAt: string;
 };
 
-type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
+export type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+
+export async function unwrap<T>(p: Promise<ApiResponse<T>>): Promise<T> {
+  const res = await p;
+  if (!res.ok) throw new Error(res.error);
+  return res.data;
+}
 
 async function request<T>(
   path: string,

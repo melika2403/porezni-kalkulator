@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Navbar from "src/components/Navbar/Navbar";
 import Footer from "src/components/Footer/Footer";
+import Providers from "src/components/Providers/Providers";
 import "./globals.css";
 
 // ── Replace with your real domain ─────────────────────────────────────────
@@ -284,9 +285,11 @@ export default function RootLayout({
           crossOrigin="anonymous"></script>
       </head>
       <body>
-        <Navbar />
-        {children}
-        <Footer />
+        <Providers>
+          <Navbar />
+          {children}
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

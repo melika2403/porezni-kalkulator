@@ -16,7 +16,8 @@
       "Bash(python -c ':*)",
       "Bash(mkdir -p \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator/frontend/src/app/ugovor-o-pozajmici\")",
       "Bash(mkdir -p \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator/frontend/src/sections/ugovor-o-pozajmici\")",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(del \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\backend\\\\src\\\\utils\\\\hashJmbg.js\")"
     ]
   }
 }

@@ -1,0 +1,62 @@
+const prisma = require("../prisma");
+const { encryptJmbg, decryptJmbg } = require("../utils/encryptJmbg");
+
+const clientDbSelect = {
+  id: true,
+  type: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+  phone: true,
+  address: true,
+  jmbg: true,
+  taxNumber: true,
+  createdById: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+function toPublicClient(c) {
+  if (!c) return null;
+  const { jmbg, ...rest } = c;
+  return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
+}
+
+async function getPersonClients(userId) {
+  const clients = await prisma.client.findMany({
+    where: { createdById: userId, type: "PERSON", organizationId: null },
+    select: clientDbSelect,
+    orderBy: { createdAt: "desc" },
+  });
+  return clients.map(toPublicClient);
+}
+
+async function createPersonClient(data, userId) {
+  const client = await prisma.client.create({
+    data: { ...data, type: "PERSON", createdById: userId },
+    select: clientDbSelect,
+  });
+  return toPublicClient(client);
+}
+
+async function updatePersonClient(id, data, userId) {
+  try {
+    const existing = await prisma.client.findUnique({
+      where: { id },
+      select: { createdById: true },
+    });
+    if (!existing || existing.createdById !== userId) return null;
+
+    const client = await prisma.client.update({
+      where: { id },
+      data,
+      select: clientDbSelect,
+    });
+    return toPublicClient(client);
+  } catch (error) {
+    if (error?.code === "P2025") return null;
+    throw error;
+  }
+}
+
+module.exports = { getPersonClients, createPersonClient, updatePersonClient };

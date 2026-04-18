@@ -29,6 +29,7 @@ enum FormType {
   GPD
   SPR
   ZO3
+  UGOVOR
 }
 
 enum FormStatus {
@@ -38,10 +39,16 @@ enum FormStatus {
   ARCHIVED
 }
 
+enum OrganizationType {
+  COMPANY
+  BUSINESS // obrt
+}
+
 model User {
   id           Int       @id @default(autoincrement()) @db.UnsignedInt
   googleId     String?   @unique 
   email        String?   @unique @db.VarChar(255)
+  jmbg         String?   @unique @db.VarChar(255)
   password     String?   @db.VarChar(255)
   firstName    String    @db.VarChar(100)
   lastName     String    @db.VarChar(100)
@@ -52,10 +59,11 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   organizations OrganizationMember[]
-  ownedOrganizations Organization[] @relation("OrganizationOwner")
+  createdOrganizations Organization[] @relation("OrganizationCreatedBy")
 
   createdForms Form[] @relation("FormCreatedBy")
   updatedForms Form[] @relation("FormUpdatedBy")
+  createdClients Client[] @relation("ClientCreatedBy")
 
   @@map("users")
 }
@@ -63,13 +71,17 @@ model User {
 model Organization {
   id            Int      @id @default(autoincrement()) @db.UnsignedInt
   name          String   @db.VarChar(255)
+  type          OrganizationType @default(COMPANY)
   taxNumber     String?  @unique @db.VarChar(100)
   email         String?  @db.VarChar(255)
   phone         String?  @db.VarChar(50)
   address       String?  @db.VarChar(255)
 
-  ownerId       Int      @db.UnsignedInt
-  owner         User     @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  ownerId Int? @unique @db.UnsignedInt
+  owner   OrganizationOwner? @relation("OrgOwner", fields: [ownerId], references: [id])
+
+  createdById Int @db.UnsignedInt
+  createdBy   User @relation("OrganizationCreatedBy", fields: [createdById], references: [id])
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -95,6 +107,23 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
+model OrganizationOwner {
+  id        Int @id @default(autoincrement()) @db.UnsignedInt
+
+  firstName String @db.VarChar(100)
+  lastName  String @db.VarChar(100)
+
+  jmbg      String @unique @db.VarChar(255)
+
+  email     String? @db.VarChar(255)
+  phone     String? @db.VarChar(50)
+  address   String? @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+
+  organization Organization? @relation("OrgOwner")
+}
+
 model Client {
   id               Int         @id @default(autoincrement()) @db.UnsignedInt
   organizationId   Int?        @db.UnsignedInt
@@ -109,8 +138,11 @@ model Client {
   phone            String?     @db.VarChar(50)
   address          String?     @db.VarChar(255)
 
-  jmbg             String?     @db.VarChar(20)
+  jmbg             String?     @db.VarChar(500)
   taxNumber        String?     @db.VarChar(100)
+
+  createdById      Int?        @db.UnsignedInt
+  createdBy        User?       @relation("ClientCreatedBy", fields: [createdById], references: [id])
 
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
