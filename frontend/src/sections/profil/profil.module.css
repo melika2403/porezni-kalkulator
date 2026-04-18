@@ -1,0 +1,590 @@
+.page {
+  padding: 4rem 2rem 6rem;
+  max-width: 760px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.headerText {}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.name {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 3.5vw, 2rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.name em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.email {
+  font-size: 0.85rem;
+  color: var(--mid);
+  margin-top: 0.2rem;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.tab {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.6rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  color: var(--mid);
+  transition: color 0.15s, border-color 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tabActive {
+  color: var(--sage);
+  border-bottom-color: var(--sage);
+}
+
+/* ── Panel ───────────────────────────────────────────────────── */
+.panel {
+  animation: fadeUp 0.3s ease both;
+}
+
+/* ── Card ────────────────────────────────────────────────────── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mid);
+  margin: 0 0 1.5rem;
+}
+
+/* ── Form layout ─────────────────────────────────────────────── */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.input::placeholder {
+  color: var(--mid);
+  opacity: 0.5;
+}
+
+.inputReadonly {
+  background: var(--paper);
+  color: var(--mid);
+  cursor: not-allowed;
+}
+
+.secureHint {
+  font-size: 11px;
+  color: var(--sage);
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.jmbgSet {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sage);
+  background: var(--sage-pale);
+  border-radius: 99px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.4rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.select {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%237a8a7d' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+.select:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.btnPrimary {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.7rem 1.5rem;
+  background: var(--sage);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btnPrimary:hover { opacity: 0.88; }
+.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btnGhost {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.7rem 1.5rem;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btnGhost:hover { background: var(--paper); }
+
+.btnDanger {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.6rem 1rem;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent-pale);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btnDanger:hover { background: var(--accent-pale); }
+
+/* ── Messages ────────────────────────────────────────────────── */
+.errorMsg {
+  font-size: 13px;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.successMsg {
+  font-size: 13px;
+  color: var(--sage);
+  background: var(--sage-pale);
+  border: 1px solid rgba(58, 92, 66, 0.2);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+/* ── Organizations ───────────────────────────────────────────── */
+.orgList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.orgItem {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.orgInfo {}
+
+.orgName {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.orgMeta {
+  font-size: 12px;
+  color: var(--mid);
+  margin-top: 0.2rem;
+}
+
+.orgBadge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  background: var(--sage-pale);
+  color: var(--sage);
+  white-space: nowrap;
+}
+
+.orgActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.addOrgToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.65rem 1.25rem;
+  background: transparent;
+  color: var(--sage);
+  border: 1px dashed var(--sage);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+  justify-content: center;
+}
+
+.addOrgToggle:hover { background: var(--sage-pale); }
+
+.addOrgForm {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.addOrgTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mid);
+  margin: 0 0 1rem;
+}
+
+/* ── Empty state ─────────────────────────────────────────────── */
+.empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--mid);
+}
+
+.emptyIcon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  opacity: 0.4;
+}
+
+.emptyText {
+  font-size: 0.9rem;
+}
+
+/* ── Form history ────────────────────────────────────────────── */
+.historyFilters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.filterBtn {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0.4rem 0.9rem;
+  background: var(--white);
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filterBtn:hover { background: var(--paper); color: var(--ink); }
+
+.filterBtnActive {
+  background: var(--sage);
+  color: white;
+  border-color: var(--sage);
+}
+
+.formList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.formItem {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.formTypeBadge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  min-width: 56px;
+  text-align: center;
+}
+
+.badgeGpd { background: #dbeafe; color: #1d4ed8; }
+.badgeSpr { background: #dcfce7; color: #15803d; }
+.badgeZo3 { background: #fef9c3; color: #a16207; }
+.badgeUgovor { background: var(--accent-pale); color: var(--accent); }
+
+.formDetails {
+  flex: 1;
+  min-width: 0;
+}
+
+.formTitle {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.formMeta {
+  font-size: 12px;
+  color: var(--mid);
+  margin-top: 0.15rem;
+}
+
+.formStatus {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.statusDraft { background: var(--paper); color: var(--mid); }
+.statusGenerated { background: #dbeafe; color: #1d4ed8; }
+.statusSubmitted { background: #dcfce7; color: #15803d; }
+.statusArchived { background: var(--border); color: var(--mid); }
+
+/* ── Org type radio cards ────────────────────────────────────── */
+.orgTypeRadios {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.orgTypeRadio {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--paper);
+}
+
+.orgTypeRadio input[type="radio"] {
+  display: none;
+}
+
+.orgTypeRadio:hover {
+  border-color: var(--sage-light);
+}
+
+.orgTypeRadioActive {
+  border-color: var(--sage);
+  background: var(--sage-pale);
+}
+
+.orgTypeRadioIcon {
+  font-size: 1.4rem;
+  line-height: 1;
+  margin-top: 0.1rem;
+}
+
+.orgTypeRadioLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.orgTypeRadioDesc {
+  font-size: 11px;
+  color: var(--mid);
+  margin-top: 0.15rem;
+  line-height: 1.4;
+}
+
+/* ── Owner section ───────────────────────────────────────────── */
+.ownerSection {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ownerSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sage);
+  margin: 0;
+}
+
+/* ── Owner checkbox toggle (edit) ────────────────────────────── */
+.ownerToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 13px;
+  color: var(--mid);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.5rem 0;
+}
+
+.ownerToggle input[type="checkbox"] {
+  accent-color: var(--sage);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .page { padding: 2rem 1rem 4rem; }
+  .card { padding: 1.25rem; }
+  .row { grid-template-columns: 1fr; }
+  .formItem { flex-wrap: wrap; }
+  .orgTypeRadios { grid-template-columns: 1fr !important; }
+}

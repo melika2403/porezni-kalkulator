@@ -1,33 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import styles from './Navbar.module.css';
-import { me, logout, type AuthUser } from 'src/api/auth';
+import { me, logout, unwrap } from 'src/api/auth';
 
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const isHome = pathname === '/';
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    me().then((res) => {
-      if (cancelled) return;
-      setUser(res.ok ? res.data : null);
-      setLoaded(true);
-    });
-    return () => { cancelled = true; };
-  }, [pathname]);
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => unwrap(me()),
+    retry: false,
+  });
 
   const sectionHref = (id: string) => isHome ? `#${id}` : `/#${id}`;
 
   const handleLogout = async () => {
     await logout();
-    setUser(null);
+    queryClient.setQueryData(['me'], null);
+    queryClient.invalidateQueries({ queryKey: ['me'] });
     router.push('/');
     router.refresh();
   };
@@ -56,9 +52,9 @@ export default function Navbar() {
       </div>
 
       <div className={styles.actions}>
-        {!loaded ? null : user ? (
+        {!isLoading && (user ? (
           <>
-            <span className={styles.userChip}>{user.firstName}</span>
+            <Link href="/profil" className={styles.userChip}>{user.firstName}</Link>
             <button className={styles.btnGhost} onClick={handleLogout}>Odjavi se</button>
           </>
         ) : (
@@ -66,7 +62,7 @@ export default function Navbar() {
             <Link href="/prijava" className={styles.btnGhost}>Prijavi se</Link>
             <Link href="/registracija" className={styles.btnPrimary}>Registruj se</Link>
           </>
-        )}
+        ))}
       </div>
     </nav>
   );

@@ -1,4 +1,5 @@
 const userRepository = require("../repositories/userRepository");
+const { encryptJmbg } = require("../utils/encryptJmbg");
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -9,7 +10,7 @@ function isAdmin(req) {
 }
 
 function validateUserUpdatePayload(body) {
-  const { firstName, lastName, phone, address, role } = body ?? {};
+  const { firstName, lastName, phone, address, jmbg, role } = body ?? {};
 
   const data = {};
 
@@ -39,6 +40,17 @@ function validateUserUpdatePayload(body) {
       return { ok: false, message: "address must be a string" };
     }
     data.address = typeof address === "string" ? address.trim() : null;
+  }
+
+  if (jmbg !== undefined) {
+    if (jmbg != null) {
+      if (typeof jmbg !== "string" || !/^\d{13}$/.test(jmbg.trim())) {
+        return { ok: false, message: "jmbg must be exactly 13 digits" };
+      }
+      data.jmbg = encryptJmbg(jmbg.trim());
+    } else {
+      data.jmbg = null;
+    }
   }
 
   if (role != null) {

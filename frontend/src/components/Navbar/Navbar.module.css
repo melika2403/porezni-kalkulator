@@ -106,6 +106,12 @@
   font-size: 13px;
   color: var(--mid);
   padding: 6px 10px;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.userChip:hover {
+  color: var(--sage);
 }
 
 @media (max-width: 640px) {

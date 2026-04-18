@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { decryptJmbg } = require("../utils/encryptJmbg");
 
 const prisma = require("../prisma");
 const googleAuth = require("../auth/googleAuth");
@@ -43,6 +44,7 @@ function publicUserSelect() {
   return {
     id: true,
     email: true,
+    jmbg: true,
     firstName: true,
     lastName: true,
     phone: true,
@@ -51,6 +53,12 @@ function publicUserSelect() {
     createdAt: true,
     updatedAt: true,
   };
+}
+
+function toPublicUser(user) {
+  if (!user) return null;
+  const { jmbg, ...rest } = user;
+  return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
 }
 
 async function register(req, res) {
@@ -103,7 +111,7 @@ async function register(req, res) {
     });
 
     setAuthCookie(res, token);
-    return res.status(201).json({ ok: true, data: user });
+    return res.status(201).json({ ok: true, data: toPublicUser(user) });
   } catch (error) {
     if (error && typeof error === "object" && error.code === "P2002") {
       return res.status(409).json({ ok: false, error: "DUPLICATE_VALUE" });
@@ -150,7 +158,7 @@ async function login(req, res) {
       select: publicUserSelect(),
     });
 
-    return res.status(200).json({ ok: true, data: safeUser });
+    return res.status(200).json({ ok: true, data: toPublicUser(safeUser) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return res.status(500).json({ ok: false, error: message });
@@ -177,7 +185,7 @@ async function me(req, res) {
     return res.status(404).json({ ok: false, error: "User not found" });
   }
 
-  return res.status(200).json({ ok: true, data: user });
+  return res.status(200).json({ ok: true, data: toPublicUser(user) });
 }
 
 function signJwtForUser(user) {
