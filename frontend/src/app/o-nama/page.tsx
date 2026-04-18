@@ -24,14 +24,14 @@ export default function ONamaPage() {
         <p>
           Porezni Kalkulator BiH je besplatna web aplikacija namijenjena fizičkim i pravnim licima koja obavljaju
           privrednu djelatnost u Federaciji Bosne i Hercegovine. Naša platforma nudi skup praktičnih alata koji
-          olakšavaju svakodnevne porezne i računovodstvene obaveze — bez potrebe za instalacijom softvera,
+          olakšavaju svakodnevne porezne i računovodstvene obaveze - bez potrebe za instalacijom softvera,
           pretplatom ili registracijom za osnovne funkcije.
         </p>
 
         <h2>Naša misija</h2>
         <p>
-          Vjerujemo da pristup jasnim i tačnim poreznim bi trebao biti dostupan svima. Naša misija je da malim poduzetnicima, obrtnicima i freelancerima u BiH omogućimo da
-          razumiju svoje porezne obaveze, ispravno popune obrasce i izračunaju troškove — brzo, tačno i besplatno.
+          Vjerujemo da pristup jasnim i tačnim poreznim podacima bi trebao biti dostupan svima. Naša misija je da malim poduzetnicima, obrtnicima i freelancerima u BiH omogućimo da
+          razumiju svoje porezne obaveze, ispravno popune obrasce i izračunaju troškove brzo, tačno i besplatno.
         </p>
 
         <h2>Šta nudimo?</h2>
@@ -39,6 +39,7 @@ export default function ONamaPage() {
           <li><strong>SPR-1053 obrazac</strong> — automatska izrada i generator obrasca za porez na dohodak iz samostalne djelatnosti</li>
           <li><strong>GPD-1051 obrazac</strong> — automatska izrada i generator godišnje prijava poreza na dohodak fizičkih lica</li>
           <li><strong>ZO3 obrazac</strong> — automatska izrada i generator ZO3 obrasca za prijavu/promjenu zdravstvenog osiguranja</li>
+          <li><strong>AMS-1035 obrazac</strong> — automatska izrada i generator AMS-1035 obrasca za prijavu poreza na uplate iz inostranstva</li>
           <li><strong>Ugovor o pozajmici</strong> — besplatan template/primjer ugovora s mogućnosti prilagođavanja prema Vašim potrebama</li>
           <li><strong>Preračun neto/bruto plate</strong> — kalkulator doprinosa i poreza po važećim stopama u FBiH</li>
           <li><strong>PDV kalkulator</strong> — preračun PDV-a u oba smjera uz prikaz u KM i EUR</li>
