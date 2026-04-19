@@ -52,11 +52,61 @@
   margin-bottom: 1.5rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+
+  gap: 0.6rem;
 }
 
 .sectionTitle em {
   font-style: italic;
   color: var(--sage);
+}
+
+.helpLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  text-decoration: none;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.helpLink:hover .helpBtn {
+  background: var(--sage-light);
+  transform: scale(1.1);
+}
+
+.helpLink:hover .helpLinkText {
+  color: var(--sage);
+}
+
+.helpLinkText {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  font-style: normal;
+  color: var(--mid);
+  transition: color 0.2s;
+  letter-spacing: 0.01em;
+}
+
+.helpBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  font-style: normal;
+  flex-shrink: 0;
+  transition: background 0.2s, transform 0.15s;
+  line-height: 1;
 }
 
 /* ── Form grid ── */

@@ -97,6 +97,28 @@ const FEATURES: Feature[] = [
     ),
     dest: "/ugovor-o-pozajmici",
   },
+  // ── Free (continued) ─────────────────────────────────
+  {
+    title: "AMS-1035 obrazac",
+    desc: "Automatska izrada AMS-1035 obrasca i uplatnica za prijavu poreza na uplate iz inostranstva. Unesite podatke o uplati i preuzmite popunjeni obrazac. Preuzmite gotove uplatnice za banku.",
+    badge: "free",
+    iconColor: "sage",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <path d="M8 13h8M8 17h5" />
+        <circle cx="17" cy="17" r="3" />
+        <path d="M17 15.5v1.5l1 1" />
+      </svg>
+    ),
+    dest: "/ams",
+  },
   // ── Registration ─────────────────────────────────────
   {
     title: "Stalna sredstva i amortizacija",
@@ -110,7 +132,11 @@ const FEATURES: Feature[] = [
         stroke="currentColor"
         strokeWidth="1.6"
       >
-        <path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z" />
+        <path d="M3 20h18" />
+        <rect x="4" y="8" width="3" height="12" rx="1" />
+        <rect x="10" y="11" width="3" height="9" rx="1" />
+        <rect x="16" y="14" width="3" height="6" rx="1" />
+        <path d="M5.5 8 L11.5 11 L17.5 14" strokeDasharray="2 2" />
       </svg>
     ),
     dest: "/stalna-sredstva",
@@ -157,8 +183,8 @@ const FEATURES: Feature[] = [
     soon: true,
   },
   {
-    title: "Ugovori o djelu",
-    desc: "Izrada ugovora o djelu s automatskim obračunom troškova, poreza i doprinosa na honorar.",
+    title: "Ugovori o djelu i ostali ugovori",
+    desc: "Izrada ugovora o djelu s obračunom poreza i doprinosa na honorar, te ugovora o zakupu, kupoprodajnih i ostalih poslovnih ugovora.",
     badge: "pro",
     iconColor: "dark",
     icon: (
@@ -172,26 +198,7 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
       </svg>
     ),
-    dest: "/ugovori-o-djelu",
-    soon: true,
-  },
-  {
-    title: "Ostali ugovori",
-    desc: "Izrada ugovora o zakupu, kupoprodajnih ugovora i ostalih poslovnih ugovora prilagođenih vašim potrebama.",
-    badge: "pro",
-    iconColor: "dark",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      >
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
-      </svg>
-    ),
-    dest: "/ostali-ugovori",
+    dest: "/ugovori",
     soon: true,
   },
 ];
