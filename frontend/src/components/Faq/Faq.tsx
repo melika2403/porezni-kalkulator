@@ -14,15 +14,15 @@ const FAQS = [
   },
   {
     q: 'Mogu li koristiti aplikaciju bez registracije?',
-    a: 'Apsolutno. SPR-1053, GPD-1051, preračun plate i PDV kalkulator su dostupni bez ikakve registracije.',
+    a: 'Apsolutno. SPR-1053, GPD-1051, ZO3 obrazac, ugovor o pozajmici, AMS obrazac, preračun plate i PDV kalkulator su dostupni bez ikakve registracije.',
   },
   {
     q: 'Kako funkcioniše godišnja pretplata?',
-    a: 'Pretplata se naplaćuje jednom godišnje i daje vam pristup svim premium funkcijama — prijave radnika, ugovori o radu i ugovori o djelu. Možete otkazati u bilo kom trenutku.',
+    a: 'Pretplata se naplaćuje jednom godišnje i daje vam pristup svim premium funkcijama — prijave radnika, ugovori o radu i ugovori o djelu.  Možete otkazati u bilo kom trenutku.',
   },
   {
     q: 'Da li mogu koristiti aplikaciju za više firmi/obrta?',
-    a: 'Trenutno je svaki korisnički nalog vezan za jednu firmu/obrt. Podrška za više firmi/obrta po nalogu je u planu za buduće verzije.',
+    a: 'Ova funkcija je dostupna samo pretplatnicima. Omogućava vam da kreirate i upravljate neograničenim brojem firmi/obrta/fizičkih lica unutar jednog naloga.',
   },
 ];
 

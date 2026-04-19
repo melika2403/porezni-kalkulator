@@ -1,0 +1,146 @@
+.page {
+  padding: 3rem 2rem 5rem;
+  max-width: 860px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+.backRow {
+  margin-bottom: 1.5rem;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--mid);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.backLink:hover {
+  color: var(--sage);
+}
+
+.backLink svg {
+  width: 14px;
+  height: 14px;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 0.5rem;
+}
+
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.subtitle {
+  font-size: 1rem;
+  color: var(--mid);
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+.section {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.sectionTitle {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.15rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+}
+
+.text {
+  font-size: 0.95rem;
+  color: var(--mid);
+  line-height: 1.75;
+}
+
+.rowList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rowNum {
+  flex-shrink: 0;
+  min-width: 90px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sage);
+  letter-spacing: 0.03em;
+  padding-top: 2px;
+}
+
+.rowTitle {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 0.3rem;
+}
+
+.rowText {
+  font-size: 0.88rem;
+  color: var(--mid);
+  line-height: 1.65;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 2rem 1rem 4rem;
+  }
+
+  .section {
+    padding: 1.25rem;
+  }
+
+  .row {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .rowNum {
+    min-width: unset;
+  }
+}
