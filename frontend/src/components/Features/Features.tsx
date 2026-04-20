@@ -139,8 +139,7 @@ const FEATURES: Feature[] = [
         <path d="M5.5 8 L11.5 11 L17.5 14" strokeDasharray="2 2" />
       </svg>
     ),
-    dest: "/stalna-sredstva",
-    soon: true,
+    dest: "/amortizacija",
   },
   {
     title: "Šihterica — Evidencija radnog vremena",
