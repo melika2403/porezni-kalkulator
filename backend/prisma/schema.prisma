@@ -44,6 +44,11 @@ enum OrganizationType {
   BUSINESS // obrt
 }
 
+enum WorkerRole {
+  VLASNIK
+  RADNIK
+}
+
 model User {
   id           Int       @id @default(autoincrement()) @db.UnsignedInt
   googleId     String?   @unique 
@@ -58,7 +63,10 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  organizations OrganizationMember[]
+  passwordResetToken       String?   @db.VarChar(255)
+  passwordResetTokenExpiry DateTime?
+
+  organizations        OrganizationMember[]
   createdOrganizations Organization[] @relation("OrganizationCreatedBy")
 
   createdForms Form[] @relation("FormCreatedBy")
@@ -77,9 +85,6 @@ model Organization {
   phone         String?  @db.VarChar(50)
   address       String?  @db.VarChar(255)
 
-  ownerId Int? @unique @db.UnsignedInt
-  owner   OrganizationOwner? @relation("OrgOwner", fields: [ownerId], references: [id])
-
   createdById Int @db.UnsignedInt
   createdBy   User @relation("OrganizationCreatedBy", fields: [createdById], references: [id])
 
@@ -89,8 +94,30 @@ model Organization {
   members       OrganizationMember[]
   clients       Client[]
   forms         Form[]
+  workers       Worker[]
 
   @@map("organizations")
+}
+
+model Worker {
+  id             Int          @id @default(autoincrement()) @db.UnsignedInt
+  organizationId Int          @db.UnsignedInt
+  role           WorkerRole   @default(RADNIK)
+  firstName      String       @db.VarChar(100)
+  lastName       String       @db.VarChar(100)
+  jmbg           String?      @db.VarChar(500)
+  email          String?      @db.VarChar(255)
+  phone          String?      @db.VarChar(50)
+  address        String?      @db.VarChar(255)
+  startDate      DateTime?    @db.Date
+  endDate        DateTime?    @db.Date
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("workers")
 }
 
 model OrganizationMember {
@@ -107,22 +134,6 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
-model OrganizationOwner {
-  id        Int @id @default(autoincrement()) @db.UnsignedInt
-
-  firstName String @db.VarChar(100)
-  lastName  String @db.VarChar(100)
-
-  jmbg      String @unique @db.VarChar(255)
-
-  email     String? @db.VarChar(255)
-  phone     String? @db.VarChar(50)
-  address   String? @db.VarChar(255)
-
-  createdAt DateTime @default(now())
-
-  organization Organization? @relation("OrgOwner")
-}
 
 model Client {
   id               Int         @id @default(autoincrement()) @db.UnsignedInt

@@ -61,10 +61,24 @@ export function register(payload: RegisterPayload) {
   });
 }
 
-export function login(email: string, password: string) {
+export function login(email: string, password: string, rememberMe = false) {
   return request<AuthUser>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, rememberMe }),
+  });
+}
+
+export function forgotPassword(email: string) {
+  return request<null>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(token: string, newPassword: string) {
+  return request<null>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, newPassword }),
   });
 }
 
