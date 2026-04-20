@@ -195,19 +195,6 @@ enum OrganizationType {
   BUSINESS
 }
 
-<<<<<<< HEAD
-enum forms_type {
-  GPD
-  SPR
-  ZO3
-  UGOVOR
-}
-
-enum workers_role {
-  VLASNIK
-  RADNIK
-}
-=======
 enum WorkerRole {
   VLASNIK
   RADNIK
@@ -394,4 +381,3 @@ model FormAttachment {
 
   @@map("form_attachments")
 }
->>>>>>> e4477dd10b001fd660d72ce5b39aac3608e89133
