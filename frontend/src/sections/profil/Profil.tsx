@@ -6,6 +6,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
 import { me, unwrap, type AuthUser } from "src/api/auth";
 import {
+  LuPencil,
+  LuSquareArrowUpRight,
+  LuUser,
+  LuUsers,
+} from "react-icons/lu";
+import {
   updateProfile,
   getOrganizations,
   createOrganization,
@@ -23,6 +29,8 @@ import {
   type PersonClientPayload,
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import Link from "next/link";
+import { useRole } from "src/hooks/useRole";
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
@@ -97,11 +105,6 @@ function ProfilTab({ user }: { user: AuthUser }) {
   const [address, setAddress] = useState(user.address ?? "");
   const [jmbg, setJmbg] = useState(user.jmbg ?? "");
   const [success, setSuccess] = useState(false);
-
-  // Sync jmbg field when user data refreshes after a save
-  useEffect(() => {
-    setJmbg(user.jmbg ?? "");
-  }, [user.jmbg]);
 
   const mutation = useMutation({
     mutationFn: (payload: Parameters<typeof updateProfile>[1]) =>
@@ -435,6 +438,7 @@ function OrgFormFields({
             value={value.taxNumber}
             onChange={set("taxNumber")}
             placeholder="4200000000000"
+            maxLength={13}
           />
         </div>
         <div className={styles.field}>
@@ -456,6 +460,7 @@ function OrgFormFields({
             value={value.phone}
             onChange={set("phone")}
             placeholder="+387 33 000 000"
+            maxLength={11}
           />
         </div>
         <div className={styles.field}>
@@ -565,6 +570,7 @@ function PersonFormFields({
             value={value.taxNumber}
             onChange={set("taxNumber")}
             placeholder="1234567890"
+            maxLength={13}
           />
         </div>
       </div>
@@ -586,6 +592,7 @@ function PersonFormFields({
             value={value.phone}
             onChange={set("phone")}
             placeholder="+387 61 000 000"
+            maxLength={11}
           />
         </div>
       </div>
@@ -608,11 +615,16 @@ type AddMode = "own" | "client-org" | "person";
 
 function DjelatnostTab() {
   const queryClient = useQueryClient();
+  const { role } = useRole();
+  const isAccountant = role === "ACCOUNTANT";
 
   const { data: orgs = [], isLoading: orgsLoading } = useQuery<Organization[]>({
     queryKey: ["organizations"],
     queryFn: () => unwrap(getOrganizations()),
   });
+
+  const hasOwnOrg = orgs.some((o) => o.memberRole === "OWNER");
+  const canAddOwnOrg = !isAccountant && !hasOwnOrg;
 
   const { data: persons = [], isLoading: personsLoading } = useQuery<
     PersonClient[]
@@ -623,7 +635,9 @@ function DjelatnostTab() {
 
   // add form state
   const [showAdd, setShowAdd] = useState(false);
-  const [addMode, setAddMode] = useState<AddMode>("own");
+  const [addMode, setAddMode] = useState<AddMode>(
+    isAccountant ? "client-org" : "own",
+  );
   const [addOrg, setAddOrg] = useState<OrgFormState>(emptyOrgForm);
   const [addOwner, setAddOwner] = useState<OwnerFormState>(emptyOwner);
   const [addPerson, setAddPerson] = useState<PersonFormState>(emptyPersonForm);
@@ -636,7 +650,8 @@ function DjelatnostTab() {
 
   // edit person state
   const [editPersonId, setEditPersonId] = useState<number | null>(null);
-  const [editPerson, setEditPerson] = useState<PersonFormState>(emptyPersonForm);
+  const [editPerson, setEditPerson] =
+    useState<PersonFormState>(emptyPersonForm);
 
   const createOrgMutation = useMutation({
     mutationFn: (payload: OrgPayload) => unwrap(createOrganization(payload)),
@@ -678,9 +693,11 @@ function DjelatnostTab() {
     },
   });
 
+  const defaultAddMode = (): AddMode => (isAccountant ? "client-org" : "own");
+
   const resetAddForm = () => {
     setShowAdd(false);
-    setAddMode("own");
+    setAddMode(defaultAddMode());
     setAddOrg(emptyOrgForm);
     setAddOwner(emptyOwner);
     setAddPerson(emptyPersonForm);
@@ -826,21 +843,20 @@ function DjelatnostTab() {
                     </div>
                   </div>
                   <div className={styles.orgActions}>
-                    <span className={styles.orgBadge}>
-                      {org.memberRole === "OWNER"
-                        ? "Vlasnik"
-                        : org.memberRole === "ADMIN"
-                          ? "Admin"
-                          : "Član"}
-                    </span>
+                    <Link
+                      href={`/organizacija/${org.id}`}
+                      className={styles.btnIcon}
+                    >
+                      <LuSquareArrowUpRight />
+                    </Link>
                     {(org.memberRole === "OWNER" ||
                       org.memberRole === "ADMIN") && (
                       <button
                         type="button"
-                        className={styles.btnGhost}
+                        className={styles.btnIcon}
                         onClick={() => startEditOrg(org)}
                       >
-                        Uredi
+                        <LuPencil />
                       </button>
                     )}
                   </div>
@@ -854,11 +870,13 @@ function DjelatnostTab() {
       {/* ── Person clients ── */}
       <div className={styles.card} style={{ marginBottom: "1.5rem" }}>
         <p className={styles.cardTitle}>Fizička lica (klijenti)</p>
-        <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]} label="Samo računovođa">
+        <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]}>
           <>
             {persons.length === 0 && (
               <div className={styles.empty} style={{ padding: "1.5rem 0" }}>
-                <div className={styles.emptyIcon}>👤</div>
+                <div className={styles.emptyIcon}>
+                  <LuUser />
+                </div>
                 <div className={styles.emptyText}>
                   Nema dodanih fizičkih lica.
                 </div>
@@ -944,7 +962,10 @@ function DjelatnostTab() {
           <button
             type="button"
             className={styles.addOrgToggle}
-            onClick={() => setShowAdd(true)}
+            onClick={() => {
+              setShowAdd(true);
+              setAddMode(defaultAddMode());
+            }}
           >
             <span>+</span> Dodaj djelatnost / klijenta
           </button>
@@ -952,31 +973,43 @@ function DjelatnostTab() {
           <div className={styles.addOrgForm}>
             <p className={styles.addOrgTitle}>Šta želite dodati?</p>
 
-            <div className={styles.orgTypeRadios} style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
-              <label
-                className={`${styles.orgTypeRadio} ${addMode === "own" ? styles.orgTypeRadioActive : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="addMode"
-                  checked={addMode === "own"}
-                  onChange={() => setAddMode("own")}
-                />
-                <span className={styles.orgTypeRadioIcon}>🧑‍💼</span>
-                <div>
-                  <div className={styles.orgTypeRadioLabel}>
-                    Moja djelatnost
+            <div
+              className={styles.orgTypeRadios}
+              style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
+            >
+              {!isAccountant && (
+                <label
+                  className={`${styles.orgTypeRadio} ${addMode === "own" ? styles.orgTypeRadioActive : ""} ${!canAddOwnOrg ? styles.orgTypeRadioDisabled : ""}`}
+                  title={
+                    !canAddOwnOrg
+                      ? "Već imate jednu vlastitu organizaciju"
+                      : undefined
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="addMode"
+                    checked={addMode === "own"}
+                    onChange={() => canAddOwnOrg && setAddMode("own")}
+                    disabled={!canAddOwnOrg}
+                  />
+                  <span className={styles.orgTypeRadioIcon}>
+                    <LuUser />
+                  </span>
+                  <div>
+                    <div className={styles.orgTypeRadioLabel}>
+                      Moja djelatnost
+                    </div>
+                    <div className={styles.orgTypeRadioDesc}>
+                      {!canAddOwnOrg
+                        ? "Već imate vlastitu org."
+                        : "Svoja firma ili obrt"}
+                    </div>
                   </div>
-                  <div className={styles.orgTypeRadioDesc}>
-                    Svoja firma ili obrt
-                  </div>
-                </div>
-              </label>
+                </label>
+              )}
 
-              <RoleGuard
-                roles={["ACCOUNTANT", "SUPER_ADMIN"]}
-                label="Samo računovođa"
-              >
+              <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]}>
                 <label
                   className={`${styles.orgTypeRadio} ${addMode === "client-org" ? styles.orgTypeRadioActive : ""}`}
                 >
@@ -986,7 +1019,9 @@ function DjelatnostTab() {
                     checked={addMode === "client-org"}
                     onChange={() => setAddMode("client-org")}
                   />
-                  <span className={styles.orgTypeRadioIcon}>👥</span>
+                  <span className={styles.orgTypeRadioIcon}>
+                    <LuUsers />
+                  </span>
                   <div>
                     <div className={styles.orgTypeRadioLabel}>
                       Djelatnost klijenta
@@ -998,10 +1033,7 @@ function DjelatnostTab() {
                 </label>
               </RoleGuard>
 
-              <RoleGuard
-                roles={["ACCOUNTANT", "SUPER_ADMIN"]}
-                label="Samo računovođa"
-              >
+              <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]}>
                 <label
                   className={`${styles.orgTypeRadio} ${addMode === "person" ? styles.orgTypeRadioActive : ""}`}
                 >
@@ -1011,11 +1043,11 @@ function DjelatnostTab() {
                     checked={addMode === "person"}
                     onChange={() => setAddMode("person")}
                   />
-                  <span className={styles.orgTypeRadioIcon}>👤</span>
+                  <span className={styles.orgTypeRadioIcon}>
+                    <LuUser />
+                  </span>
                   <div>
-                    <div className={styles.orgTypeRadioLabel}>
-                      Fizičko lice
-                    </div>
+                    <div className={styles.orgTypeRadioLabel}>Fizičko lice</div>
                     <div className={styles.orgTypeRadioDesc}>
                       Klijent bez firme
                     </div>
@@ -1074,7 +1106,12 @@ function DjelatnostTab() {
                 )}
                 {createOrgMutation.error && (
                   <div className={styles.errorMsg}>
-                    {createOrgMutation.error.message}
+                    {createOrgMutation.error.message === "ALREADY_HAS_OWN_ORG"
+                      ? "Možete imati samo jednu vlastitu organizaciju."
+                      : createOrgMutation.error.message ===
+                          "ACCOUNTANT_CANNOT_OWN_ORG"
+                        ? "Računovođe ne mogu imati vlastitu organizaciju."
+                        : createOrgMutation.error.message}
                   </div>
                 )}
                 <div className={styles.formActions}>
@@ -1253,7 +1290,7 @@ export default function Profil() {
         ))}
       </div>
 
-      {tab === "profil" && <ProfilTab user={user} />}
+      {tab === "profil" && <ProfilTab key={user.id} user={user} />}
       {tab === "djelatnost" && <DjelatnostTab />}
       {tab === "historija" && <HistorijaTab />}
     </div>
