@@ -15,7 +15,7 @@ export default function RoleGuard({
   roles,
   children,
   mode = "disable",
-  label = "Samo računovođa",
+  label = "Pretplati se",
 }: Props) {
   const { hasRole } = useRole();
 
@@ -24,12 +24,12 @@ export default function RoleGuard({
   if (mode === "hide") return null;
 
   return (
-    <div className={`${styles.wrapper} ${styles.disabled}`} title={`Pristup ograničen: ${label}`}>
+    <div
+      className={`${styles.wrapper} ${styles.disabled}`}
+      title={`Pristup ograničen: ${label}`}
+    >
       {children}
-      <span className={styles.badge}>
-        <span className={styles.lockIcon}>🔒</span>
-        {label}
-      </span>
+      <span className={styles.badge}>{label}</span>
     </div>
   );
 }

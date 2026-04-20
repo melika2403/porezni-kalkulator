@@ -1,7 +1,7 @@
 const prisma = require("../prisma");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const ownerDbSelect = {
+const vlasnikSelect = {
   id: true,
   firstName: true,
   lastName: true,
@@ -10,12 +10,6 @@ const ownerDbSelect = {
   phone: true,
   address: true,
 };
-
-function toPublicOwner(owner) {
-  if (!owner) return null;
-  const { jmbg, ...rest } = owner;
-  return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
-}
 
 const orgSelect = {
   id: true,
@@ -27,7 +21,11 @@ const orgSelect = {
   address: true,
   createdAt: true,
   updatedAt: true,
-  owner: { select: ownerDbSelect },
+  workers: {
+    where: { role: "VLASNIK" },
+    take: 1,
+    select: vlasnikSelect,
+  },
   members: {
     select: { role: true, userId: true },
   },
@@ -35,7 +33,10 @@ const orgSelect = {
 
 function toPublicOrg(org) {
   if (!org) return null;
-  return { ...org, owner: toPublicOwner(org.owner) };
+  const { workers, ...rest } = org;
+  const raw = workers?.[0] ?? null;
+  const owner = raw ? { ...raw, jmbg: raw.jmbg ? decryptJmbg(raw.jmbg) : null } : null;
+  return { ...rest, owner };
 }
 
 async function getUserOrganizations(userId) {
@@ -49,23 +50,44 @@ async function getUserOrganizations(userId) {
 
 async function createOrganization(data, ownerData, userId) {
   return prisma.$transaction(async (tx) => {
-    let ownerId = null;
-
-    if (ownerData) {
-      const owner = await tx.organizationOwner.create({ data: ownerData, select: ownerDbSelect });
-      ownerId = owner.id;
-    }
-
     const org = await tx.organization.create({
-      data: { ...data, ownerId, createdById: userId },
-      select: orgSelect,
+      data: { ...data, createdById: userId },
+      select: { id: true },
     });
 
     await tx.organizationMember.create({
       data: { organizationId: org.id, userId, role: "OWNER" },
     });
 
-    return toPublicOrg({ ...org, memberRole: "OWNER" });
+    if (ownerData) {
+      await tx.worker.create({
+        data: { organizationId: org.id, role: "VLASNIK", ...ownerData },
+      });
+    } else {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true, jmbg: true, email: true, phone: true, address: true },
+      });
+      await tx.worker.create({
+        data: {
+          organizationId: org.id,
+          role: "VLASNIK",
+          firstName: user.firstName,
+          lastName: user.lastName,
+          jmbg: user.jmbg ?? null,
+          email: user.email ?? null,
+          phone: user.phone ?? null,
+          address: user.address ?? null,
+        },
+      });
+    }
+
+    const created = await tx.organization.findUnique({
+      where: { id: org.id },
+      select: orgSelect,
+    });
+
+    return toPublicOrg({ ...created, memberRole: "OWNER" });
   });
 }
 
@@ -77,18 +99,33 @@ async function updateOrganization(id, orgData, ownerData, userId) {
 
   return prisma.$transaction(async (tx) => {
     if (ownerData) {
-      const org = await tx.organization.findUnique({ where: { id }, select: { ownerId: true } });
-
-      if (org?.ownerId) {
-        await tx.organizationOwner.update({ where: { id: org.ownerId }, data: ownerData });
+      const existing = await tx.worker.findFirst({
+        where: { organizationId: id, role: "VLASNIK" },
+      });
+      if (existing) {
+        await tx.worker.update({ where: { id: existing.id }, data: ownerData });
       } else {
-        const owner = await tx.organizationOwner.create({ data: ownerData, select: ownerSelect });
-        orgData = { ...orgData, ownerId: owner.id };
+        await tx.worker.create({
+          data: { organizationId: id, role: "VLASNIK", ...ownerData },
+        });
       }
     }
 
-    const updated = await tx.organization.update({ where: { id }, data: orgData, select: orgSelect });
+    if (Object.keys(orgData).length > 0) {
+      await tx.organization.update({ where: { id }, data: orgData });
+    }
+
+    const updated = await tx.organization.findUnique({
+      where: { id },
+      select: orgSelect,
+    });
     return toPublicOrg(updated);
+  });
+}
+
+async function countOwnedOrganizations(userId) {
+  return prisma.organizationMember.count({
+    where: { userId, role: "OWNER" },
   });
 }
 
@@ -96,4 +133,5 @@ module.exports = {
   getUserOrganizations,
   createOrganization,
   updateOrganization,
+  countOwnedOrganizations,
 };

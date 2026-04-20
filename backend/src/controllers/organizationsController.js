@@ -71,6 +71,20 @@ async function list(req, res) {
 
 async function create(req, res) {
   const { ownerData, ...orgBody } = req.body ?? {};
+  const userRole = req.user.role;
+
+  // ACCOUNTANT cannot own organizations — they must always provide ownerData (client's org)
+  if (userRole === "ACCOUNTANT" && !ownerData) {
+    return res.status(403).json({ ok: false, error: "ACCOUNTANT_CANNOT_OWN_ORG" });
+  }
+
+  // Regular USER can own at most one organization
+  if (userRole === "USER" && !ownerData) {
+    const ownedCount = await organizationRepository.countOwnedOrganizations(req.user.id);
+    if (ownedCount >= 1) {
+      return res.status(409).json({ ok: false, error: "ALREADY_HAS_OWN_ORG" });
+    }
+  }
 
   const orgValidation = validateOrgData(orgBody, true);
   if (!orgValidation.ok) {

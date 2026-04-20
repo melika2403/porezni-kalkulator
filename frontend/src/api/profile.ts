@@ -94,10 +94,106 @@ export function createOrganization(payload: OrgPayload) {
   });
 }
 
+export function getOrganization(id: number) {
+  return request<Organization>(`/api/organizations/${id}`);
+}
+
 export function updateOrganization(id: number, payload: Partial<OrgPayload>) {
   return request<Organization>(`/api/organizations/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+// ─── Members ─────────────────────────────────────────────────────────────────
+
+export type OrgMember = {
+  userId: number;
+  role: "OWNER" | "ADMIN" | "MEMBER";
+  joinedAt: string;
+  user: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  };
+};
+
+export function getMembers(orgId: number) {
+  return request<OrgMember[]>(`/api/organizations/${orgId}/members`);
+}
+
+export function addMember(orgId: number, payload: { email: string; role: "ADMIN" | "MEMBER" }) {
+  return request<OrgMember>(`/api/organizations/${orgId}/members`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateMemberRole(orgId: number, userId: number, role: "ADMIN" | "MEMBER") {
+  return request<OrgMember>(`/api/organizations/${orgId}/members/${userId}`, {
+    method: "PUT",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export function removeMember(orgId: number, userId: number) {
+  return request<null>(`/api/organizations/${orgId}/members/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+// ─── Workers ─────────────────────────────────────────────────────────────────
+
+export type Worker = {
+  id: number;
+  organizationId: number;
+  role: "VLASNIK" | "RADNIK";
+  firstName: string;
+  lastName: string;
+  jmbg: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkerPayload = {
+  firstName: string;
+  lastName: string;
+  role?: "VLASNIK" | "RADNIK";
+  jmbg?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+};
+
+export function getWorkers(orgId: number) {
+  return request<Worker[]>(`/api/organizations/${orgId}/workers`);
+}
+
+export function createWorker(orgId: number, payload: WorkerPayload) {
+  return request<Worker>(`/api/organizations/${orgId}/workers`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateWorker(orgId: number, workerId: number, payload: Partial<WorkerPayload>) {
+  return request<Worker>(`/api/organizations/${orgId}/workers/${workerId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteWorker(orgId: number, workerId: number) {
+  return request<null>(`/api/organizations/${orgId}/workers/${workerId}`, {
+    method: "DELETE",
   });
 }
 

@@ -11,10 +11,11 @@ export default function Login() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) =>
-      unwrap(login(email, password)),
+    mutationFn: ({ email, password, rememberMe }: { email: string; password: string; rememberMe: boolean }) =>
+      unwrap(login(email, password, rememberMe)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["me"] });
       router.push("/");
@@ -24,7 +25,7 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.mutate({ email: email.trim(), password });
+    mutation.mutate({ email: email.trim(), password, rememberMe });
   };
 
   const handleGoogle = () => {
@@ -67,7 +68,12 @@ export default function Login() {
         </div>
 
         <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="password">Lozinka</label>
+          <div className={styles.passwordLabelRow}>
+            <label className={styles.fieldLabel} htmlFor="password">Lozinka</label>
+            <Link href="/zaboravljena-lozinka" className={styles.forgotLink}>
+              Zaboravili ste lozinku?
+            </Link>
+          </div>
           <input
             id="password"
             className={styles.input}
@@ -79,6 +85,16 @@ export default function Login() {
             required
           />
         </div>
+
+        <label className={styles.checkboxRow}>
+          <input
+            type="checkbox"
+            className={styles.checkbox}
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+          />
+          <span className={styles.checkboxLabel}>Zapamti me</span>
+        </label>
 
         {errorMsg && <div className={styles.errorMsg}>{errorMsg}</div>}
 

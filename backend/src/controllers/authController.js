@@ -1,11 +1,16 @@
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { decryptJmbg } = require("../utils/encryptJmbg");
+const { sendPasswordResetEmail } = require("../utils/mailer");
 
 const prisma = require("../prisma");
 const googleAuth = require("../auth/googleAuth");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
+const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10; // 10 years
+const REMEMBER_ME_JWT_EXPIRES = "87600h"; // 10 years
+const DEFAULT_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -23,14 +28,14 @@ function getJwtExpiresIn() {
   return process.env.JWT_EXPIRES_IN || "7d";
 }
 
-function setAuthCookie(res, token) {
+function setAuthCookie(res, token, rememberMe = false) {
   const isProd = process.env.NODE_ENV === "production";
   res.cookie("access_token", token, {
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
     path: "/",
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days (keep in sync with default JWT_EXPIRES_IN)
+    maxAge: rememberMe ? REMEMBER_ME_DURATION_MS : DEFAULT_COOKIE_MAX_AGE,
   });
 }
 
@@ -123,7 +128,7 @@ async function register(req, res) {
 }
 
 async function login(req, res) {
-  const { email, password } = req.body ?? {};
+  const { email, password, rememberMe } = req.body ?? {};
 
   if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
     return res
@@ -146,12 +151,13 @@ async function login(req, res) {
     }
 
     const secret = getJwtSecret();
+    const expiresIn = rememberMe ? REMEMBER_ME_JWT_EXPIRES : getJwtExpiresIn();
     const token = jwt.sign({ role: user.role }, secret, {
       subject: String(user.id),
-      expiresIn: getJwtExpiresIn(),
+      expiresIn,
     });
 
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, Boolean(rememberMe));
 
     const safeUser = await prisma.user.findUnique({
       where: { id: user.id },
@@ -194,6 +200,98 @@ function signJwtForUser(user) {
     subject: String(user.id),
     expiresIn: getJwtExpiresIn(),
   });
+}
+
+async function forgotPassword(req, res) {
+  const { email } = req.body ?? {};
+
+  if (!isNonEmptyString(email)) {
+    return res.status(400).json({ ok: false, error: "email is required" });
+  }
+
+  // Always return 200 to avoid revealing whether email exists
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+
+    if (user && user.password) {
+      const plainToken = crypto.randomBytes(32).toString("hex");
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(plainToken)
+        .digest("hex");
+
+      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: hashedToken,
+          passwordResetTokenExpiry: expiry,
+        },
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const resetUrl = `${frontendUrl}/reset-lozinke?token=${plainToken}`;
+
+      await sendPasswordResetEmail(user.email, resetUrl);
+    }
+  } catch (error) {
+    // Log but don't leak error details
+    console.error("forgotPassword error:", error);
+  }
+
+  return res.status(200).json({ ok: true });
+}
+
+async function resetPassword(req, res) {
+  const { token, newPassword } = req.body ?? {};
+
+  if (!isNonEmptyString(token)) {
+    return res.status(400).json({ ok: false, error: "token is required" });
+  }
+  if (!isNonEmptyString(newPassword) || newPassword.trim().length < 6) {
+    return res
+      .status(400)
+      .json({ ok: false, error: "password must be at least 6 characters" });
+  }
+
+  try {
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token.trim())
+      .digest("hex");
+
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: hashedToken,
+        passwordResetTokenExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: passwordHash,
+        passwordResetToken: null,
+        passwordResetTokenExpiry: null,
+      },
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
 }
 
 async function googleStart(_req, res) {
@@ -294,6 +392,8 @@ module.exports = {
   login,
   logout,
   me,
+  forgotPassword,
+  resetPassword,
   googleStart,
   googleCallback,
 };
