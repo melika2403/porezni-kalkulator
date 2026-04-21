@@ -67,9 +67,37 @@ function validateUserUpdatePayload(body) {
   return { ok: true, value: data };
 }
 
+function firstQueryValue(value) {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function parsePositiveInt(value, fallback) {
+  const v = firstQueryValue(value);
+  const n = Number.parseInt(typeof v === "string" ? v : "", 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 async function list(req, res) {
-  const users = await userRepository.listUsers();
-  res.status(200).json({ ok: true, data: users });
+  const firstName = firstQueryValue(req.query.firstName);
+  const lastName = firstQueryValue(req.query.lastName);
+  const email = firstQueryValue(req.query.email);
+
+  const pageNum = parsePositiveInt(req.query.page, 1);
+  const limitNum = Math.min(parsePositiveInt(req.query.limit, 20), 100);
+
+  const { items, total } = await userRepository.listUsers({
+    firstName,
+    lastName,
+    email,
+    page: pageNum,
+    limit: limitNum,
+  });
+
+  return res.status(200).json({
+    ok: true,
+    data: { items, total, page: pageNum, limit: limitNum },
+  });
 }
 
 async function getById(req, res) {
