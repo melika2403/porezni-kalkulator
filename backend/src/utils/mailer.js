@@ -45,4 +45,20 @@ async function sendPasswordResetEmail(to, resetUrl) {
   });
 }
 
-module.exports = { sendPasswordResetEmail };
+async function sendContactEmail({ ime, email, poruka }) {
+  const transporter = createTransporter();
+
+  const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
+  const from = `"${displayName}" <${process.env.SMTP_USER}>`;
+  const to = process.env.CONTACT_TO || "info@poreznikalkulator.ba";
+
+  await transporter.sendMail({
+    from,
+    to,
+    replyTo: email,
+    subject: `Kontakt forma — poruka od ${ime}`,
+    text: `Ime: ${ime}\nEmail: ${email}\n\nPoruka:\n${poruka}`,
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendContactEmail };
