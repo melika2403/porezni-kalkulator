@@ -103,14 +103,40 @@
 }
 
 .userChip {
-  font-size: 13px;
-  color: var(--mid);
-  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 5px;
+  border-radius: 999px;
+  background: var(--sage-pale);
+  border: 1px solid color-mix(in srgb, var(--sage) 25%, transparent);
   text-decoration: none;
-  transition: color 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .userChip:hover {
+  background: color-mix(in srgb, var(--sage) 18%, transparent);
+  border-color: color-mix(in srgb, var(--sage) 40%, transparent);
+}
+
+.userAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+
+.userName {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--sage);
 }
 

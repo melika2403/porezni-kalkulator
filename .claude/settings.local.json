@@ -21,7 +21,13 @@
       "Bash(start \"c:/Users/User/Desktop/porezni kalkulator/porezni-kalkulator/frontend/public/templates/VIRMAN_grid.pdf\")",
       "Bash(start \"c:/Users/User/Desktop/porezni kalkulator/porezni-kalkulator/frontend/public/templates/VIRMAN_test.pdf\")",
       "Bash(start \"c:/Users/User/Desktop/porezni kalkulator/porezni-kalkulator/frontend/public/templates/UPLATNICA_grid.pdf\")",
-      "WebFetch(domain:tips.ba)"
+      "WebFetch(domain:tips.ba)",
+      "Bash(npx prisma *)",
+      "Bash(mysql --version)",
+      "Bash(tasklist /fi \"IMAGENAME eq node.exe\")",
+      "Bash(netstat -ano)",
+      "Bash(node -e \"require\\('./src/app.js'\\)\")",
+      "Bash(curl -s http://localhost:4000/api/amortizacija/years)"
     ]
   }
 }

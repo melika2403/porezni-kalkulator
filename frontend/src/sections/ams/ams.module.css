@@ -217,6 +217,111 @@
   margin-top: 0.35rem;
 }
 
+/* ── Net summary ── */
+.netSummary {
+  margin-top: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--white);
+}
+
+.netTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid);
+  padding: 0.6rem 1rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+}
+
+.netRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.netLabel {
+  color: var(--ink);
+}
+
+.netValue {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.netDeduct {
+  font-weight: 500;
+  color: #dc2626;
+}
+
+.netSumRow {
+  border-top: 2px solid var(--border);
+}
+
+.netFinalRow {
+  padding: 0.75rem 1rem;
+  border-bottom: none;
+  background: var(--sage-pale);
+}
+
+.netFinalLabel {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.netFinal {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--sage);
+}
+
+/* ── EUR converter ── */
+.eurRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.eurLabel {
+  font-size: 12px;
+  color: var(--mid);
+  white-space: nowrap;
+}
+
+.eurInput {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  width: 110px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.eurInput:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 2px var(--sage-pale);
+}
+
+.eurRate {
+  font-size: 11px;
+  color: var(--mid);
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
 /* ── Izjava ── */
 .izjavaText {
   font-size: 0.88rem;
@@ -286,6 +391,76 @@
   border-radius: var(--radius);
   line-height: 1.6;
   font-weight: 300;
+}
+
+/* ── FAQ ── */
+.faqSection {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
+.faqTitle {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.5rem;
+  margin-bottom: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.faqItem {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--white);
+}
+
+.faqQ {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.faqQ:hover {
+  background: var(--paper);
+}
+
+.faqChevron {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--mid);
+  transition: transform 0.2s;
+}
+
+.faqChevronOpen {
+  transform: rotate(180deg);
+}
+
+.faqA {
+  padding: 0 1.25rem 1rem;
+  font-size: 0.9rem;
+  color: var(--mid);
+  line-height: 1.7;
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
 }
 
 /* ── Print napomena ── */

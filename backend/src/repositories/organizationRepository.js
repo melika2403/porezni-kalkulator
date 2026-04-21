@@ -16,6 +16,8 @@ const orgSelect = {
   name: true,
   type: true,
   taxNumber: true,
+  activityCode: true,
+  activityName: true,
   email: true,
   phone: true,
   address: true,
@@ -129,9 +131,24 @@ async function countOwnedOrganizations(userId) {
   });
 }
 
+async function deleteOrganization(id, userId) {
+  const membership = await prisma.organizationMember.findFirst({
+    where: { organizationId: id, userId, role: "OWNER" },
+  });
+  if (!membership) return false;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.worker.deleteMany({ where: { organizationId: id } });
+    await tx.organizationMember.deleteMany({ where: { organizationId: id } });
+    await tx.organization.delete({ where: { id } });
+  });
+  return true;
+}
+
 module.exports = {
   getUserOrganizations,
   createOrganization,
   updateOrganization,
   countOwnedOrganizations,
+  deleteOrganization,
 };

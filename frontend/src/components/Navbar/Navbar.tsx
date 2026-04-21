@@ -54,7 +54,10 @@ export default function Navbar() {
       <div className={styles.actions}>
         {!isLoading && (user ? (
           <>
-            <Link href="/profil" className={styles.userChip}>{user.firstName}</Link>
+            <Link href="/profil" className={styles.userChip} title="Moj profil">
+              <span className={styles.userAvatar}>{user.firstName[0].toUpperCase()}</span>
+              <span className={styles.userName}>{user.firstName}</span>
+            </Link>
             <button className={styles.btnGhost} onClick={handleLogout}>Odjavi se</button>
           </>
         ) : (

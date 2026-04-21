@@ -99,7 +99,7 @@ const FEATURES: Feature[] = [
   },
   // ── Free (continued) ─────────────────────────────────
   {
-    title: "AMS-1035 obrazac",
+    title: "AMS-1035 generator",
     desc: "Automatska izrada AMS-1035 obrasca i uplatnica za prijavu poreza na uplate iz inostranstva. Unesite podatke o uplati i preuzmite popunjeni obrazac. Preuzmite gotove uplatnice za banku.",
     badge: "free",
     iconColor: "sage",
@@ -139,8 +139,7 @@ const FEATURES: Feature[] = [
         <path d="M5.5 8 L11.5 11 L17.5 14" strokeDasharray="2 2" />
       </svg>
     ),
-    dest: "/stalna-sredstva",
-    soon: true,
+    dest: "/amortizacija",
   },
   {
     title: "Šihterica — Evidencija radnog vremena",

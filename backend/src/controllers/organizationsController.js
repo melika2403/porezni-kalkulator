@@ -24,6 +24,8 @@ function validateOrgData(body, requireName = true) {
   }
 
   if (taxNumber !== undefined) data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
+  if (body.activityCode !== undefined) data.activityCode = body.activityCode ? String(body.activityCode).trim() : null;
+  if (body.activityName !== undefined) data.activityName = body.activityName ? String(body.activityName).trim() : null;
   if (email !== undefined) data.email = email ? String(email).trim() : null;
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
   if (address !== undefined) data.address = address ? String(address).trim() : null;
@@ -73,13 +75,8 @@ async function create(req, res) {
   const { ownerData, ...orgBody } = req.body ?? {};
   const userRole = req.user.role;
 
-  // ACCOUNTANT cannot own organizations — they must always provide ownerData (client's org)
-  if (userRole === "ACCOUNTANT" && !ownerData) {
-    return res.status(403).json({ ok: false, error: "ACCOUNTANT_CANNOT_OWN_ORG" });
-  }
-
-  // Regular USER can own at most one organization
-  if (userRole === "USER" && !ownerData) {
+  // Without ownerData the logged-in user becomes the owner — regular users limited to one
+  if (!ownerData && userRole === "USER") {
     const ownedCount = await organizationRepository.countOwnedOrganizations(req.user.id);
     if (ownedCount >= 1) {
       return res.status(409).json({ ok: false, error: "ALREADY_HAS_OWN_ORG" });
@@ -156,4 +153,18 @@ async function update(req, res) {
   }
 }
 
-module.exports = { list, create, update };
+async function remove(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  }
+  try {
+    const deleted = await organizationRepository.deleteOrganization(id, req.user.id);
+    if (!deleted) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: String(error?.message ?? error) });
+  }
+}
+
+module.exports = { list, create, update, remove };

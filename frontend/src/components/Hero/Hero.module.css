@@ -135,7 +135,7 @@
 }
 
 .note {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--mid);
   animation: fadeUp 0.5s 0.4s ease both;
 }
