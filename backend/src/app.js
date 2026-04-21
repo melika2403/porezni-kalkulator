@@ -10,6 +10,7 @@ const usersRoutes = require("./routes/usersRoutes");
 const organizationsRoutes = require("./routes/organizationsRoutes");
 const formsRoutes = require("./routes/formsRoutes");
 const clientsRoutes = require("./routes/clientsRoutes");
+const subscriptionsRoutes = require("./routes/subscriptionsRoutes");
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use("/api/users", usersRoutes);
 app.use("/api/organizations", organizationsRoutes);
 app.use("/api/forms", formsRoutes);
 app.use("/api/clients", clientsRoutes);
+app.use("/api/users", subscriptionsRoutes);
 
 app.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`);

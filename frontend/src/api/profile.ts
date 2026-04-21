@@ -31,10 +31,90 @@ export type ProfileUpdatePayload = {
   jmbg?: string | null;
 };
 
+export type Subscription = {
+  id: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+};
+
+export type UsersListResponse = {
+  items: Users[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type Users = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  role: "USER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+  phone: string | null;
+  address: string | null;
+  createdAt: string;
+  subscription: Subscription | null;
+};
+
+export type UserUpdatePayload = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  address?: string;
+  role?: "USER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+};
+
+export type SubscriptionPayload = {
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+};
+
 export function updateProfile(userId: number, payload: ProfileUpdatePayload) {
   return request(`/api/users/${userId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export function getUsers(params?: {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const sp = new URLSearchParams();
+  if (params?.firstName) sp.set("firstName", params.firstName);
+  if (params?.lastName) sp.set("lastName", params.lastName);
+  if (params?.email) sp.set("email", params.email);
+  sp.set("page", String(params?.page ?? 1));
+  sp.set("limit", String(params?.limit ?? 20));
+
+  return request<UsersListResponse>(`/api/users?${sp.toString()}`);
+}
+
+export function adminUpdateUser(userId: number, payload: UserUpdatePayload) {
+  return request<Users>(`/api/users/${userId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function upsertSubscription(
+  userId: number,
+  payload: SubscriptionPayload,
+) {
+  return request<Subscription>(`/api/users/${userId}/subscription`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteSubscription(userId: number) {
+  return request<null>(`/api/users/${userId}/subscription`, {
+    method: "DELETE",
   });
 }
 
@@ -123,14 +203,21 @@ export function getMembers(orgId: number) {
   return request<OrgMember[]>(`/api/organizations/${orgId}/members`);
 }
 
-export function addMember(orgId: number, payload: { email: string; role: "ADMIN" | "MEMBER" }) {
+export function addMember(
+  orgId: number,
+  payload: { email: string; role: "ADMIN" | "MEMBER" },
+) {
   return request<OrgMember>(`/api/organizations/${orgId}/members`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function updateMemberRole(orgId: number, userId: number, role: "ADMIN" | "MEMBER") {
+export function updateMemberRole(
+  orgId: number,
+  userId: number,
+  role: "ADMIN" | "MEMBER",
+) {
   return request<OrgMember>(`/api/organizations/${orgId}/members/${userId}`, {
     method: "PUT",
     body: JSON.stringify({ role }),
@@ -184,7 +271,11 @@ export function createWorker(orgId: number, payload: WorkerPayload) {
   });
 }
 
-export function updateWorker(orgId: number, workerId: number, payload: Partial<WorkerPayload>) {
+export function updateWorker(
+  orgId: number,
+  workerId: number,
+  payload: Partial<WorkerPayload>,
+) {
   return request<Worker>(`/api/organizations/${orgId}/workers/${workerId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
