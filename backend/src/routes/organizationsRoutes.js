@@ -10,6 +10,7 @@ const router = express.Router();
 router.get("/", requireAuth, organizationsController.list);
 router.post("/", requireAuth, organizationsController.create);
 router.put("/:id", requireAuth, organizationsController.update);
+router.delete("/:id", requireAuth, organizationsController.remove);
 
 // Single organization detail
 router.get("/:id", requireAuth, async (req, res) => {

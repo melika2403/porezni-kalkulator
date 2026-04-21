@@ -64,6 +64,8 @@ export type Organization = {
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber: string | null;
+  activityCode: string | null;
+  activityName: string | null;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -77,6 +79,8 @@ export type OrgPayload = {
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber?: string;
+  activityCode?: string;
+  activityName?: string;
   email?: string;
   phone?: string;
   address?: string;
@@ -103,6 +107,10 @@ export function updateOrganization(id: number, payload: Partial<OrgPayload>) {
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export function deleteOrganization(id: number) {
+  return request<null>(`/api/organizations/${id}`, { method: "DELETE" });
 }
 
 // ─── Members ─────────────────────────────────────────────────────────────────
@@ -199,7 +207,7 @@ export function deleteWorker(orgId: number, workerId: number) {
 
 // ─── Forms history ────────────────────────────────────────────────────────────
 
-export type FormType = "GPD" | "SPR" | "ZO3" | "UGOVOR";
+export type FormType = "GPD" | "SPR" | "ZO3" | "UGOVOR" | "PLDI";
 export type FormStatus = "DRAFT" | "GENERATED" | "SUBMITTED" | "ARCHIVED";
 
 export type FormRecord = {

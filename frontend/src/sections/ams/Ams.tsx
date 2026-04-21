@@ -80,6 +80,7 @@ export default function AmsForm() {
 
   // Dio 3
   const [iznosUplate, setIznosUplate] = useState("");
+  const [eurInput, setEurInput] = useState("");
   const [odbitakPct, setOdbitakPct] = useState("20");
   const [porezniKredit, setPorezniKredit] = useState("");
 
@@ -178,10 +179,13 @@ export default function AmsForm() {
       <div className={styles.header}>
         <p className={styles.label}>Obrazac AMS-1035</p>
         <h1 className={styles.h1}>
-          Akontacija poreza po odbitku na <em>druge samostalne djelatnosti na prihod iz inostranstva</em>
+          AMS - 1035 <em>Generator</em>
         </h1>
         <p className={styles.subtitle}>
-          Popunite podatke i preuzmite popunjeni obrazac u PDF formatu.
+          Brza i jednostavna popuna AMS‑1035 obrazca. Sa našim generatorom jednostavno u par koraka
+          popunite AMS obrazac za akontaciju poreza po odbitku na druge samostalne djelatnosti na
+          prihod iz inostranstva. Kad kreirate obrazac imate mogućnost štampanja automatski
+          popunjenih uplatnica spremnih za banku, ili elektronsko plaćanje.
         </p>
       </div>
 
@@ -274,7 +278,24 @@ export default function AmsForm() {
             <label className={styles.fieldLabel}>9) Iznos dohotka (KM)</label>
             <input className={styles.fieldInput} inputMode="decimal" placeholder="0,00"
               value={iznosUplate}
-              onChange={(e) => setIznosUplate(fmtInput(e.target.value))} />
+              onChange={(e) => { setIznosUplate(fmtInput(e.target.value)); setEurInput(""); }} />
+            <div className={styles.eurRow}>
+              <span className={styles.eurLabel}>ili unesi u EUR</span>
+              <input
+                className={styles.eurInput}
+                inputMode="decimal"
+                placeholder="0,00 €"
+                value={eurInput}
+                onChange={(e) => {
+                  const raw = fmtInput(e.target.value);
+                  setEurInput(raw);
+                  const eur = num(raw);
+                  if (eur > 0) setIznosUplate(fmtInput(String(r2(eur * 1.95583)).replace(".", ",")));
+                  else setIznosUplate("");
+                }}
+              />
+              <span className={styles.eurRate}>1 € = 1,95583 KM</span>
+            </div>
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Odbitak (rashodi)</label>
@@ -333,6 +354,32 @@ export default function AmsForm() {
             </div>
           )}
         </div>
+
+        {hasAmount && (
+          <div className={styles.netSummary}>
+            <div className={styles.netTitle}>Pregled isplate</div>
+            <div className={styles.netRow}>
+              <span className={styles.netLabel}>Primljeno na račun (bruto)</span>
+              <span className={styles.netValue}>{fmt(num(iznosUplate))} KM</span>
+            </div>
+            <div className={styles.netRow}>
+              <span className={styles.netLabel}>− Zdravstveno osiguranje (4%)</span>
+              <span className={styles.netValue}>− {fmt(computed.zdravstveno)} KM</span>
+            </div>
+            <div className={styles.netRow}>
+              <span className={styles.netLabel}>− Porez za uplatu</span>
+              <span className={styles.netValue}>− {fmt(computed.razlika)} KM</span>
+            </div>
+            <div className={`${styles.netRow} ${styles.netSumRow}`}>
+              <span className={styles.netLabel}>= Ukupni troškovi</span>
+              <span className={styles.netDeduct}>− {fmt(r2(computed.zdravstveno + computed.razlika))} KM</span>
+            </div>
+            <div className={`${styles.netRow} ${styles.netFinalRow}`}>
+              <span className={styles.netFinalLabel}>Čisti prihod</span>
+              <span className={styles.netFinal}>{fmt(r2(num(iznosUplate) - computed.zdravstveno - computed.razlika))} KM</span>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Dio 4 */}
@@ -466,6 +513,62 @@ export default function AmsForm() {
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      <section className={styles.faqSection}>
+        <h2 className={styles.faqTitle}>Često postavljena pitanja</h2>
+        <div className={styles.faqList}>
+          {[
+            {
+              q: "Ko je obavezan podnositi AMS-1035 obrazac?",
+              a: "AMS-1035 obrazac obavezno podnosi svaka fizička osoba rezident FBiH koja prima prihode od obavljanja djelatnosti iz inostranstva — npr. freelance rad, honorari, konsultantske usluge i slično — a isplatilac nije na teritoriji Bosne i Hercegovine.",
+            },
+            {
+              q: "Koji je rok za predaju AMS-1035 obrasca?",
+              a: "Obrazac se predaje u roku od 15 dana od dana isplate. Dakle, ako ste novac primili 10. u mjesecu, obrazac ste dužni predati do 25. istog mjeseca u nadležnu ispostavu Porezne uprave FBiH prema svom mjestu stanovanja.",
+            },
+            {
+              q: "Kolika je stopa rashoda — 20% ili 30%?",
+              a: "Standardna stopa normiranih rashoda iznosi 20% od bruto iznosa. Stopa od 30% primjenjuje se isključivo na autorske naknade (npr. književna, muzička, filmska ili likovna ostvarenja). Ukoliko niste sigurni, konzultirajte nadležnog poreznog savjetnika.",
+            },
+            {
+              q: "Šta je porezni kredit i kada ga koristim?",
+              a: "Porezni kredit je iznos poreza koji ste već platili u inostranstvu na isti prihod. Na osnovu međunarodnih sporazuma o izbjegavanju dvostrukog oporezivanja, taj iznos možete odbititi od obaveze u FBiH. Unesite tačan iznos u polje 13 — razlika za uplatu u BiH biće smanjena.",
+            },
+            {
+              q: "Da li moram platiti zdravstveno osiguranje čak i kad već imam zaposlenje?",
+              a: "Da. Doprinos za zdravstveno osiguranje po stopi od 4% plaća se na svaki dohodak od samostalne djelatnosti, bez obzira na to da li ste već zdravstveno osigurani po osnovu radnog odnosa. Taj doprinos se dijeli između kantonalnog zavoda (89,8%) i Federalnog zavoda za zdravstveno osiguranje (10,2%).",
+            },
+            {
+              q: "Kako da znam koji kanton i općinu da odaberem za uplatnice?",
+              a: "Odaberite kanton i općinu prema svom trenutnom mjestu stanovanja (adresa prijavljenog boravišta), a ne prema lokaciji isplatioca. Svaki kanton ima vlastiti žiro račun za zdravstveno osiguranje i kantonalni budžet za porez na dohodak.",
+            },
+            {
+              q: "Može li se AMS-1035 podnijeti elektronski?",
+              a: "Da, ukoliko posjedujete kvalifikovani digitalni certifikat. Ukoliko to nemate, obrazac štampate u 2 primjerka i zajedno s uplatnicama nosite u najbližu poreznu ispostavu. Na šalteru će vam potvrditi prijem obrasca i dati pečat, a jedan primjerak zadržavaju, dok drugi ostaje vama kao potvrda o predaji.",
+            },
+          ].map(({ q, a }, i) => (
+            <FaqItem key={i} question={q} answer={a} />
+          ))}
+        </div>
+      </section>
     </main>
+  );
+}
+
+function FaqItem({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={styles.faqItem}>
+      <button className={styles.faqQ} onClick={() => setOpen(o => !o)}>
+        <span>{question}</span>
+        <svg
+          className={`${styles.faqChevron} ${open ? styles.faqChevronOpen : ""}`}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && <div className={styles.faqA}>{answer}</div>}
+    </div>
   );
 }

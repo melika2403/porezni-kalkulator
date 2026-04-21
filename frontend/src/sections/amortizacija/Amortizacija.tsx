@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import FaqSection from "src/components/FaqSection/FaqSection";
 import { useQuery } from "@tanstack/react-query";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
@@ -46,15 +47,15 @@ export interface ObveznikData {
 type SortKey = "naziv" | "datumNabavke" | "nabavnaVrijednost" | "kvPocetak" | "iznos" | "kvKraj";
 
 /* ── Constants ── */
-const VIJEK_STOPA: Record<string, number> = Object.fromEntries(
-  Array.from({ length: 30 }, (_, i) => {
+export const VIJEK_STOPA: Record<string, number> = Object.fromEntries(
+  Array.from({ length: 40 }, (_, i) => {
     const god = i + 1;
     return [String(god), Math.round(100 / god * 100) / 100];
   })
 );
 
 /* ── Helpers ── */
-function r2(n: number) { return Math.round(n * 100) / 100; }
+export function r2(n: number) { return Math.round(n * 100) / 100; }
 
 function bsFmt(n: number): string {
   const [int, dec] = n.toFixed(2).split(".");
@@ -66,7 +67,7 @@ function fmtKm(n: number | null): string {
   return bsFmt(n);
 }
 
-function parseDec(s: string): number | null {
+export function parseDec(s: string): number | null {
   if (!s) return null;
   const cleaned = s.includes(",")
     ? s.replace(/\./g, "").replace(",", ".")
@@ -81,7 +82,7 @@ function fmtKmInput(s: string): string {
   return bsFmt(n);
 }
 
-function isoToDisplay(iso: string): string {
+export function isoToDisplay(iso: string): string {
   if (!iso || !iso.includes("-")) return iso;
   const [y, m, d] = iso.split("-");
   return `${d}.${m}.${y}.`;
@@ -114,7 +115,7 @@ function calcMjeseciProdaje(datumProdaje: string, datumNabavke: string, odISO: s
   return Math.max(1, Math.min(12, prodaja.getMonth() - start.getMonth() + 1));
 }
 
-function calcRow(row: AssetRow, odISO: string, doISO: string) {
+export function calcRow(row: AssetRow, odISO: string, doISO: string) {
   if (row.prodano) {
     const nabavna = parseDec(row.nabavnaVrijednost) ?? 0;
     const kvStart = parseDec(row.kvPocetak);
@@ -216,10 +217,37 @@ export default function Amortizacija() {
   }, [isDirty]);
 
   /* ── Load helpers ── */
-  const applyLoadedData = useCallback((data: { obveznik: ObveznikData; rows: AssetRow[] }) => {
+  const applyLoadedData = useCallback((data: { obveznik?: ObveznikData; rows?: AssetRow[] }) => {
+    if (!data?.obveznik) return;
     isLoadingRef.current = true;
-    setObveznik(data.obveznik);
-    setRows(data.rows.map(r => ({ ...r, id: crypto.randomUUID(), prodano: r.prodano ?? false, datumProdaje: r.datumProdaje ?? "" })));
+    setObveznik({
+      jmb: data.obveznik.jmb ?? "",
+      imeIPrezime: data.obveznik.imeIPrezime ?? "",
+      adresa: data.obveznik.adresa ?? "",
+      jib: data.obveznik.jib ?? "",
+      naziv: data.obveznik.naziv ?? "",
+      adresaDjelatnosti: data.obveznik.adresaDjelatnosti ?? "",
+      vrstaSifra: data.obveznik.vrstaSifra ?? "",
+      vrstaNaziv: data.obveznik.vrstaNaziv ?? "",
+      godina: data.obveznik.godina ?? "",
+      manualPeriod: data.obveznik.manualPeriod ?? false,
+      periodOd: data.obveznik.periodOd ?? "",
+      periodDo: data.obveznik.periodDo ?? "",
+    });
+    setRows((data.rows ?? []).map(r => ({
+      id: crypto.randomUUID(),
+      naziv: r.naziv ?? "",
+      datumNabavke: r.datumNabavke ?? "",
+      brojDokumenta: r.brojDokumenta ?? "",
+      nabavnaVrijednost: r.nabavnaVrijednost ?? "",
+      kvPocetak: r.kvPocetak ?? "",
+      vijekTrajanja: r.vijekTrajanja ?? "",
+      stopaOverride: r.stopaOverride ?? "",
+      mjeseciOverride: r.mjeseciOverride ?? "",
+      napomena: r.napomena ?? "",
+      prodano: r.prodano ?? false,
+      datumProdaje: r.datumProdaje ?? "",
+    })));
     setTimeout(() => {
       isLoadingRef.current = false;
       setIsDirty(false);
@@ -567,7 +595,7 @@ export default function Amortizacija() {
       <div className={styles.header}>
         <p className={styles.label}>Obrazac PLDI-1043</p>
         <h1 className={styles.h1}>Popisna lista <em>dugotrajne imovine</em></h1>
-        <p className={styles.subtitle}>Evidencija stalnih sredstava i obračun amortizacije po godinama</p>
+        <p className={styles.subtitle}>Evidencija dugotrajne imovine i automatski obračun amortizacije po porezno priznatim stopama. Generišite PLDI-1043 obrazac za godišnju poreznu prijavu — besplatno.</p>
       </div>
 
       {/* Year switcher */}
@@ -789,7 +817,7 @@ export default function Amortizacija() {
                       <div className={styles.sufikWrap}>
                         <input className={`${styles.tdInput} ${styles.tdCenter}`} value={row.vijekTrajanja}
                           onChange={setRow(row.id, "vijekTrajanja")}
-                          placeholder="7" inputMode="numeric" style={{ maxWidth: 40 }} maxLength={3} />
+                          placeholder="7" inputMode="numeric" style={{ maxWidth: 52 }} maxLength={3} />
                         <span className={styles.sufikLabel}>god.</span>
                       </div>
                     </td>
@@ -897,6 +925,15 @@ export default function Amortizacija() {
       <p className={styles.napomena}>
         Obrazac PLDI-1043 · Popisna lista dugotrajne imovine · Federacija BiH
       </p>
+
+      <FaqSection items={[
+        { q: "Ko je obavezan podnijeti PLDI-1043 obrazac?", a: "PLDI-1043 podnose fizičke osobe koje obavljaju samostalnu djelatnost i posjeduju dugotrajnu imovinu (stalna sredstva) koja se koristi u poslovne svrhe. Obrazac se predaje kao prilog godišnjoj prijavi poreza (GPD-1051) i specifikaciji SPR-1053." },
+        { q: "Šta se smatra stalnim sredstvima (dugotrajnom imovinom)?", a: "Stalnim sredstvima smatraju se materijalna i nematerijalna dobra čiji je vijek trajanja duži od jedne godine i čija nabavna vrijednost prelazi propisani prag. To uključuje: vozila, opremu, računare, namještaj, poslovne prostore, patente, licence i slična sredstva koja se koriste u obavljanju djelatnosti." },
+        { q: "Koje stope amortizacije se primjenjuju u FBiH?", a: "Stope amortizacije ovise o vijeku trajanja sredstva. Primjeri: računari i softver (3 god. — 33,33%), vozila (5 god. — 20%), oprema (7 god. — 14,29%), poslovni objekti (25–40 god. — 2,5–4%). Porezno priznate stope propisane su Pravilnikom o primjeni Zakona o porezu na dohodak FBiH." },
+        { q: "Šta se dešava kad je sredstvo prodano ili otpisano?", a: "Kod prodaje sredstva, amortizacija se obračunava samo za period dok je sredstvo korišteno (do datuma prodaje). Preostala knjigovodstvena vrijednost ne prenosi se u narednu godinu. Na PLDI obrascu se u koloni 17 upisuje napomena o prodaji umjesto preostale vrijednosti." },
+        { q: "Kako funkcioniše prenos podataka iz prethodne godine?", a: "Naš generator automatski prenosi knjigovodstvenu vrijednost (kolona 13) iz prethodne godine u novu godinu, čime se osigurava kontinuitet evidencije. Sredstva koja su prodana ili otpisana ne prenose se dalje." },
+        { q: "Mogu li koristiti različite stope amortizacije za različita sredstva?", a: "Da, svako sredstvo može imati svoju stopu amortizacije zavisno od njegove prirode i vijeka trajanja. Stopa mora biti u skladu s propisanim porezno priznatim stopama. Nije dozvoljeno nasumično mijenjanje stopa iz godine u godinu za isto sredstvo." },
+      ]} />
     </div>
   );
 }

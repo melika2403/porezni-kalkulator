@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState, useCallback, useRef } from "react";
 import styles from "./spr.module.css";
+import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import DateInput from "src/components/DateInput/DateInput";
 
@@ -249,7 +250,7 @@ export default function SprForm() {
           <em>samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
-          Popunite podatke i preuzmite popunjeni obrazac u PDF formatu.
+          Obračun dohotka od obrta, slobodnih zanimanja i poljoprivrede za godišnju poreznu prijavu (GPD-1051). Popunite obrazac online i preuzmite popunjeni SPR-1053 PDF — besplatno.
         </p>
       </div>
 
@@ -832,6 +833,13 @@ export default function SprForm() {
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+      <FaqSection items={[
+        { q: "Ko je obavezan podnijeti SPR-1053 obrazac?", a: "SPR-1053 podnose fizičke osobe koje obavljaju samostalnu djelatnost (obrtnici, slobodna zanimanja, poljoprivrednici i šumari) radi utvrđivanja dohotka od te djelatnosti. Obrazac se predaje nadležnoj ispostavi Porezne uprave FBiH." },
+        { q: "Koji je rok za predaju SPR obrasca?", a: "SPR-1053 se predaje do 28. februara tekuće godine za prethodnu kalendarsku godinu, zajedno sa godišnjom prijavom poreza (GPD-1051). Preporučuje se predaja u što kraćem roku radi izbjegavanja gužvi." },
+{ q: "Razlika između SPR i GPD obrasca?", a: "SPR-1053 je specifikacija koja prikazuje kako je ostvaren dohodak od samostalne djelatnosti — prihodi minus rashodi. GPD-1051 je godišnja prijava poreza koja objedinjuje sve izvore dohotka (uključujući i SPR) i izračunava konačnu poreznu obavezu." },
+        { q: "Moram li voditi poslovne knjige da bih podnio SPR?", a: "Porezni obveznici koji koriste normirane rashode nisu obavezni voditi detaljne poslovne knjige, ali moraju imati evidenciju o prihodima. Oni koji koriste stvarne rashode moraju voditi propisane poslovne knjige po sistemu prostog ili dvojnog knjigovodstva." },
+        { q: "Kako se obračunava akontacija poreza tokom godine?", a: "Akontacija poreza je predviđanje Vaše dobiti na kraju poslovne godine, na osnovu dobiti prošle godine. Ona bi se trebala uplaćivati svaki mjesec, te ukoliko zatražite neki dokument ili potvrdu od porezne uprave, mogu od Vas zatražiti da su Vam sve akontacije do tog mjeseca uplaćene. Akontacije Vam pomažu da izbjegnete velike porezne obaveze na kraju godine. Ukoliko na kraju godine imate više uplaćenih akontacija nego poreza za platiti, one se prenose na sljedeću godinu." },
+      ]} />
     </form>
   );
 }

@@ -99,7 +99,7 @@ const FEATURES: Feature[] = [
   },
   // ── Free (continued) ─────────────────────────────────
   {
-    title: "AMS-1035 obrazac",
+    title: "AMS-1035 generator",
     desc: "Automatska izrada AMS-1035 obrasca i uplatnica za prijavu poreza na uplate iz inostranstva. Unesite podatke o uplati i preuzmite popunjeni obrazac. Preuzmite gotove uplatnice za banku.",
     badge: "free",
     iconColor: "sage",

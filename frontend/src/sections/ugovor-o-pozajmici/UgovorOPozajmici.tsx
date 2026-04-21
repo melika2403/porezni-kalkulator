@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./ugovor.module.css";
 import type { UgovorData } from "./generateDocx";
 import { useEffect } from "react";
@@ -113,7 +114,7 @@ export default function UgovorOPozajmici() {
           Ugovor o <em>pozajmici</em>
         </h1>
         <p className={styles.subtitle}>
-          Popunite polja i preuzmite ugovor kao Word dokument ili PDF.
+          Kreirajte pravno validan ugovor o pozajmici novca između fizičkih ili pravnih lica. Definirajte iznos, kamatnu stopu, rok otplate i uslove vraćanja — preuzmite u PDF ili Word formatu.
         </p>
       </div>
 
@@ -451,6 +452,14 @@ export default function UgovorOPozajmici() {
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja dokumenta uvijek provjerite tačnost podataka.
       </p>
+      <FaqSection items={[
+        { q: "Da li ugovor o pozajmici mora biti ovjeren kod notara?", a: "Nije obavezna notarska ovjera za ugovor o pozajmici između fizičkih osoba u FBiH, ali se preporučuje za veće iznose radi veće pravne sigurnosti. Notarski ovjeren ugovor je direktno izvršna isprava što olakšava naplatu u slučaju spora." },
+        { q: "Da li se plaća porez na pozajmicu novca?", a: "Sama pozajmica nije oporeziva jer se radi o povratu sredstava. Međutim, kamata na pozajmicu predstavlja prihod zajmodavca i podliježe oporezivanju porezom na dohodak kao prihod od kapitala po stopi od 10%." },
+        { q: "Da li kamata mora biti ugovorena?", a: "Ne, kamata nije obavezna — stranke mogu dogovoriti beskamatnu pozajmicu. Ukoliko se radi o pozajmici između pravnih osoba ili između pravne i fizičke osobe, Porezna uprava može primijeniti tržišnu kamatnu stopu radi izbjegavanja prikrivenih distribucija dobiti." },
+        { q: "Koji minimalni podaci moraju biti u ugovoru o pozajmici?", a: "Ugovor mora sadržavati: identifikacione podatke zajmodavca i zajmoprimca, iznos pozajmice, valutu, rok vraćanja, kamatnu stopu (ili izjavu da je beskamatna) i datum zaključenja ugovora. Preporučuje se i klauzula o načinu vraćanja i posljedicama kašnjenja." },
+        { q: "Može li ugovor o pozajmici biti između firme i vlasnika?", a: "Da, ugovor može biti zaključen između privrednog društva i njegovog vlasnika ili direktora. U tom slučaju potrebno je voditi računa o transfernim cijenama i tržišnoj kamatnoj stopi kako bi se izbjegla porezna reklasifikacija kao prikrivena raspodjela dobiti." },
+        { q: "Šta ako zajmoprimac ne vrati novac na vrijeme?", a: "Ugovorom se mogu predvidjeti zatezne kamate na neplaćeni iznos. U slučaju spora, zajmodavac može pokrenuti sudski postupak. Uz notarski ovjeren ugovor moguće je direktno pokrenuti izvršni postupak bez prethodne presude, što značajno ubrzava naplatu." },
+      ]} />
     </main>
   );
 }

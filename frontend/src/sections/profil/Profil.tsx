@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
+import { KD_BIH, type KdBihEntry } from "src/data/kd-bih";
 import { me, unwrap, type AuthUser } from "src/api/auth";
 import {
   LuPencil,
   LuSquareArrowUpRight,
   LuUser,
   LuUsers,
+  LuFileDown,
+  LuHistory,
 } from "react-icons/lu";
 import {
   updateProfile,
   getOrganizations,
   createOrganization,
   updateOrganization,
+  deleteOrganization,
   getForms,
   getPersonClients,
   createPersonClient,
@@ -30,7 +34,9 @@ import {
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import Link from "next/link";
-import { useRole } from "src/hooks/useRole";
+import { getAmortizacijaYears, getAmortizacija } from "src/api/amortizacija";
+import { fillPldiTemplate, type PldiData } from "src/sections/amortizacija/fillPldi";
+import { calcRow, parseDec, isoToDisplay, r2, VIJEK_STOPA } from "src/sections/amortizacija/Amortizacija";
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +50,7 @@ const FORM_TYPE_LABELS: Record<FormType, string> = {
   SPR: "SPR",
   ZO3: "ZO3",
   UGOVOR: "Ugovor",
+  PLDI: "PLDI",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -79,6 +86,7 @@ function typeBadgeClass(type: FormType, s: Record<string, string>) {
     SPR: s.badgeSpr,
     ZO3: s.badgeZo3,
     UGOVOR: s.badgeUgovor,
+    PLDI: s.badgePldi,
   };
   return `${s.formTypeBadge} ${map[type] ?? ""}`;
 }
@@ -93,12 +101,70 @@ function statusClass(status: string, s: Record<string, string>) {
   return `${s.formStatus} ${map[status] ?? ""}`;
 }
 
-type Tab = "profil" | "djelatnost" | "historija";
+type Tab = "profil" | "klijenti" | "historija";
 
 // ─── Profile tab ──────────────────────────────────────────────────────────────
 
 function ProfilTab({ user }: { user: AuthUser }) {
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+
+  // own orgs
+  const { data: orgs = [] } = useQuery<Organization[]>({
+    queryKey: ["organizations"],
+    queryFn: () => unwrap(getOrganizations()),
+  });
+  const ownOrgs = orgs.filter((o) => o.memberRole === "OWNER");
+  const isAccountant = user.role === "ACCOUNTANT";
+
+  const [editOwnId, setEditOwnId] = useState<number | null>(null);
+  const [editOwnOrg, setEditOwnOrg] = useState<OrgFormState>(emptyOrgForm);
+  const [showAddOrg, setShowAddOrg] = useState(false);
+  const [addOrg, setAddOrg] = useState<OrgFormState>(emptyOrgForm);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const updateOwnOrgMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: OrgPayload }) =>
+      unwrap(updateOrganization(id, payload)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      setEditOwnId(null);
+    },
+  });
+
+  const createOwnOrgMutation = useMutation({
+    mutationFn: (payload: OrgPayload) => unwrap(createOrganization(payload)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      setShowAddOrg(false);
+      setAddOrg(emptyOrgForm);
+    },
+  });
+
+  const deleteOwnOrgMutation = useMutation({
+    mutationFn: (id: number) => unwrap(deleteOrganization(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      setEditOwnId(null);
+      setConfirmDeleteId(null);
+    },
+  });
+
+  const startEditOwnOrg = (org: Organization) => {
+    setEditOwnId(org.id);
+    setConfirmDeleteId(null);
+    setEditOwnOrg({
+      name: org.name,
+      type: org.type,
+      taxNumber: org.taxNumber ?? "",
+      activityCode: org.activityCode ?? "",
+      activityName: org.activityName ?? "",
+      email: org.email ?? "",
+      phone: org.phone ?? "",
+      address: org.address ?? "",
+    });
+    updateOwnOrgMutation.reset();
+  };
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
   const [phone, setPhone] = useState(user.phone ?? "");
@@ -112,6 +178,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["me"] });
       setSuccess(true);
+      setEditing(false);
       setTimeout(() => setSuccess(false), 3000);
     },
   });
@@ -128,6 +195,16 @@ function ProfilTab({ user }: { user: AuthUser }) {
     });
   };
 
+  const handleCancel = () => {
+    setFirstName(user.firstName);
+    setLastName(user.lastName);
+    setPhone(user.phone ?? "");
+    setAddress(user.address ?? "");
+    setJmbg(user.jmbg ?? "");
+    mutation.reset();
+    setEditing(false);
+  };
+
   const errorMsg = mutation.error
     ? mutation.error.message === "jmbg must be exactly 13 digits"
       ? "JMBG mora imati tačno 13 cifara."
@@ -139,99 +216,237 @@ function ProfilTab({ user }: { user: AuthUser }) {
   return (
     <div className={styles.panel}>
       <div className={styles.card}>
-        <p className={styles.cardTitle}>Lični podaci</p>
-        <form className={styles.form} onSubmit={handleSubmit}>
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="firstName">
-                Ime
-              </label>
-              <input
-                id="firstName"
-                className={styles.input}
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-              />
+        <div className={styles.cardHeader}>
+          <p className={styles.cardTitle}>Lični podaci</p>
+          {!editing && (
+            <button className={styles.btnEditInline} onClick={() => setEditing(true)}>
+              <LuPencil size={14} /> Izmijeni
+            </button>
+          )}
+        </div>
+
+        {success && (
+          <div className={styles.successMsg}>Profil uspješno sačuvan.</div>
+        )}
+
+        {!editing ? (
+          <div className={styles.infoList}>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Ime i prezime</span>
+              <span className={styles.infoValue}>{user.firstName} {user.lastName}</span>
             </div>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="lastName">
-                Prezime
-              </label>
-              <input
-                id="lastName"
-                className={styles.input}
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                required
-              />
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Email</span>
+              <span className={styles.infoValue}>{user.email ?? "—"}</span>
             </div>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Email</label>
-            <input
-              className={`${styles.input} ${styles.inputReadonly}`}
-              value={user.email ?? "—"}
-              readOnly
-              tabIndex={-1}
-            />
-          </div>
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="phone">
-                Telefon
-              </label>
-              <input
-                id="phone"
-                className={styles.input}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+387 61 000 000"
-              />
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Telefon</span>
+              <span className={styles.infoValue}>
+                {user.phone || <span className={styles.infoEmpty}>Nije unesen</span>}
+              </span>
             </div>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="jmbg">
-                JMBG
-              </label>
-              <input
-                id="jmbg"
-                className={styles.input}
-                value={jmbg}
-                onChange={(e) => setJmbg(e.target.value)}
-                placeholder={"1234567890123"}
-                maxLength={13}
-              />
-              <span className={styles.secureHint}>
-                JMBG se kriptira i nikad nije vidljiv drugima.
+            <div className={styles.infoRowColumn}>
+              <div className={styles.infoRowInner}>
+                <span className={styles.infoLabel}>JMBG</span>
+                <span className={styles.infoValue}>
+                  {user.jmbg
+                    ? <span className={styles.jmbgBadge}>🔒 Pohranjen i kriptiran</span>
+                    : <span className={styles.infoEmpty}>Nije unesen</span>}
+                </span>
+              </div>
+              <p className={styles.jmbgDisclaimer}>
+                JMBG je uvijek zaštićen kao lozinka i vidljiv samo Vama — ni administrator sistema nema pristup ovom podatku.
+              </p>
+            </div>
+            <div className={styles.infoRow} style={{ borderBottom: "none" }}>
+              <span className={styles.infoLabel}>Adresa</span>
+              <span className={styles.infoValue}>
+                {user.address || <span className={styles.infoEmpty}>Nije unesena</span>}
               </span>
             </div>
           </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="address">
-              Adresa
-            </label>
-            <input
-              id="address"
-              className={styles.input}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Ulica bb, Grad"
-            />
+        ) : (
+          <form className={styles.form} onSubmit={handleSubmit}>
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="firstName">Ime</label>
+                <input id="firstName" className={styles.input} value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)} required />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="lastName">Prezime</label>
+                <input id="lastName" className={styles.input} value={lastName}
+                  onChange={(e) => setLastName(e.target.value)} required />
+              </div>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Email</label>
+              <input className={`${styles.input} ${styles.inputReadonly}`}
+                value={user.email ?? "—"} readOnly tabIndex={-1} />
+            </div>
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="phone">Telefon</label>
+                <input id="phone" className={styles.input} value={phone}
+                  onChange={(e) => setPhone(e.target.value)} placeholder="+387 61 000 000" />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="jmbg">JMBG</label>
+                <input id="jmbg" className={styles.input} value={jmbg}
+                  onChange={(e) => setJmbg(e.target.value)} placeholder="1234567890123" maxLength={13} />
+                <span className={styles.secureHint}>JMBG se kriptira i nikad nije vidljiv drugima.</span>
+              </div>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="address">Adresa</label>
+              <input id="address" className={styles.input} value={address}
+                onChange={(e) => setAddress(e.target.value)} placeholder="Ulica bb, Grad" />
+            </div>
+            {errorMsg && <div className={styles.errorMsg}>{errorMsg}</div>}
+            <div className={styles.formActions}>
+              <button type="button" className={styles.btnGhost} onClick={handleCancel}>
+                Odustani
+              </button>
+              <button type="submit" className={styles.btnPrimary} disabled={mutation.isPending}>
+                {mutation.isPending ? "Snimanje..." : "Sačuvaj izmjene"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* ── Moja djelatnost ── */}
+      <div className={styles.card} style={{ marginTop: "1.5rem" }}>
+        <div className={styles.cardHeader}>
+          <p className={styles.cardTitle}>Moja djelatnost</p>
+        </div>
+
+        {ownOrgs.map((org) => (
+          <div key={org.id} className={styles.ownOrgItem}>
+            {editOwnId === org.id ? (
+              <form className={styles.form} onSubmit={(e) => {
+                e.preventDefault();
+                updateOwnOrgMutation.mutate({ id: org.id, payload: orgFormToPayload(editOwnOrg, null) });
+              }}>
+                <OrgFormFields value={editOwnOrg} onChange={setEditOwnOrg} />
+                {updateOwnOrgMutation.error && (
+                  <div className={styles.errorMsg}>{updateOwnOrgMutation.error.message}</div>
+                )}
+                {deleteOwnOrgMutation.error && confirmDeleteId === org.id && (
+                  <div className={styles.errorMsg}>Greška pri brisanju. Pokušajte ponovo.</div>
+                )}
+                {confirmDeleteId === org.id ? (
+                  <div className={styles.deleteConfirm}>
+                    <span className={styles.deleteConfirmText}>Sigurno želite obrisati djelatnost? Ova akcija se ne može poništiti.</span>
+                    <div className={styles.deleteConfirmActions}>
+                      <button type="button" className={styles.btnGhost} onClick={() => setConfirmDeleteId(null)}>
+                        Odustani
+                      </button>
+                      <button type="button" className={styles.btnDanger} onClick={() => deleteOwnOrgMutation.mutate(org.id)} disabled={deleteOwnOrgMutation.isPending}>
+                        {deleteOwnOrgMutation.isPending ? "Brisanje..." : "Da, obriši"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.formActionsWithDelete}>
+                    <button type="button" className={styles.btnDanger} onClick={() => setConfirmDeleteId(org.id)}>
+                      Obriši djelatnost
+                    </button>
+                    <div className={styles.formActions} style={{ margin: 0 }}>
+                      <button type="button" className={styles.btnGhost} onClick={() => setEditOwnId(null)}>Odustani</button>
+                      <button type="submit" className={styles.btnPrimary} disabled={updateOwnOrgMutation.isPending}>
+                        {updateOwnOrgMutation.isPending ? "Snimanje..." : "Sačuvaj"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </form>
+            ) : (
+              <>
+                <div className={styles.infoList}>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>Naziv</span>
+                    <span className={styles.infoValue}>{org.name}</span>
+                  </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>Tip</span>
+                    <span className={styles.infoValue}>{ORG_TYPE_LABELS[org.type] ?? org.type}</span>
+                  </div>
+                  {org.taxNumber && (
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>JIB</span>
+                      <span className={styles.infoValue}>{org.taxNumber}</span>
+                    </div>
+                  )}
+                  {org.activityCode && (
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>Šifra djelatnosti</span>
+                      <span className={styles.infoValue}>
+                        {org.activityCode}{org.activityName ? ` — ${org.activityName}` : ""}
+                      </span>
+                    </div>
+                  )}
+                  {org.email && (
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>Email</span>
+                      <span className={styles.infoValue}>{org.email}</span>
+                    </div>
+                  )}
+                  {org.phone && (
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>Telefon</span>
+                      <span className={styles.infoValue}>{org.phone}</span>
+                    </div>
+                  )}
+                  <div className={styles.infoRow} style={{ borderBottom: "none" }}>
+                    <span className={styles.infoLabel}>Adresa</span>
+                    <span className={styles.infoValue}>
+                      {org.address || <span className={styles.infoEmpty}>Nije unesena</span>}
+                    </span>
+                  </div>
+                </div>
+                <div className={styles.ownOrgActions}>
+                  <button className={styles.btnEditInline} onClick={() => startEditOwnOrg(org)}>
+                    <LuPencil size={14} /> Izmijeni
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-          {errorMsg && <div className={styles.errorMsg}>{errorMsg}</div>}
-          {success && (
-            <div className={styles.successMsg}>Profil uspješno sačuvan.</div>
-          )}
-          <div className={styles.formActions}>
-            <button
-              type="submit"
-              className={styles.btnPrimary}
-              disabled={mutation.isPending}
-            >
-              {mutation.isPending ? "Snimanje..." : "Sačuvaj izmjene"}
-            </button>
+        ))}
+
+        {/* add button — ACCOUNTANT always, USER only if no owned orgs yet */}
+        {!showAddOrg && editOwnId === null && (isAccountant || ownOrgs.length === 0) && (
+          <button className={styles.addOrgToggle} onClick={() => setShowAddOrg(true)}>
+            <span>+</span> Dodaj {ownOrgs.length > 0 ? "još jednu djelatnost" : "svoju firmu ili obrt"}
+          </button>
+        )}
+
+        {/* locked upsell for USER with an existing org */}
+        {!showAddOrg && editOwnId === null && !isAccountant && ownOrgs.length > 0 && (
+          <div className={styles.lockedFeature}>
+            <span>🔒</span>
+            <span>Više djelatnosti dostupno uz pretplatu na <strong>Accountant plan</strong>.</span>
           </div>
-        </form>
+        )}
+
+        {showAddOrg && (
+          <form className={styles.form} onSubmit={(e) => {
+            e.preventDefault();
+            createOwnOrgMutation.mutate(orgFormToPayload(addOrg, null));
+          }}>
+            <OrgFormFields value={addOrg} onChange={setAddOrg} />
+            {createOwnOrgMutation.error && (
+              <div className={styles.errorMsg}>{createOwnOrgMutation.error.message}</div>
+            )}
+            <div className={styles.formActions}>
+              <button type="button" className={styles.btnGhost} onClick={() => { setShowAddOrg(false); setAddOrg(emptyOrgForm); }}>Odustani</button>
+              <button type="submit" className={styles.btnPrimary} disabled={createOwnOrgMutation.isPending}>
+                {createOwnOrgMutation.isPending ? "Dodavanje..." : "Dodaj"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -364,6 +579,8 @@ type OrgFormState = {
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber: string;
+  activityCode: string;
+  activityName: string;
   email: string;
   phone: string;
   address: string;
@@ -373,6 +590,8 @@ const emptyOrgForm: OrgFormState = {
   name: "",
   type: "COMPANY",
   taxNumber: "",
+  activityCode: "",
+  activityName: "",
   email: "",
   phone: "",
   address: "",
@@ -386,11 +605,124 @@ function orgFormToPayload(
     name: f.name.trim(),
     type: f.type,
     ...(f.taxNumber.trim() && { taxNumber: f.taxNumber.trim() }),
+    activityCode: f.activityCode.trim() || undefined,
+    activityName: f.activityName.trim() || undefined,
     ...(f.email.trim() && { email: f.email.trim() }),
     ...(f.phone.trim() && { phone: f.phone.trim() }),
     ...(f.address.trim() && { address: f.address.trim() }),
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
+}
+
+function ActivityCombobox({
+  taxNumber,
+  onTaxNumberChange,
+  activityCode,
+  activityName,
+  onChange,
+}: {
+  taxNumber: string;
+  onTaxNumberChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  activityCode: string;
+  activityName: string;
+  onChange: (code: string, name: string) => void;
+}) {
+  const [codeVal, setCodeVal] = useState(activityCode);
+  const [nameVal, setNameVal] = useState(activityName);
+  const [active, setActive] = useState<"code" | "name" | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setCodeVal(activityCode); }, [activityCode]);
+  useEffect(() => { setNameVal(activityName); }, [activityName]);
+
+  const query = active === "code" ? codeVal : active === "name" ? nameVal : "";
+
+  const results = useMemo<KdBihEntry[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return KD_BIH.filter(
+      (e) => e.code.startsWith(q) || e.name.toLowerCase().includes(q),
+    ).slice(0, 60);
+  }, [query]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node))
+        setActive(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const select = (e: KdBihEntry) => {
+    onChange(e.code, e.name);
+    setCodeVal(e.code);
+    setNameVal(e.name);
+    setActive(null);
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Porezni broj (JIB)</label>
+          <input
+            className={styles.input}
+            value={taxNumber}
+            onChange={onTaxNumberChange}
+            placeholder="4200000000000"
+            maxLength={13}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Šifra djelatnosti</label>
+          <input
+            className={styles.input}
+            value={codeVal}
+            autoComplete="off"
+            placeholder="47.11"
+            maxLength={10}
+            onFocus={() => setActive("code")}
+            onChange={(ev) => {
+              setCodeVal(ev.target.value);
+              setActive("code");
+              if (!ev.target.value) onChange("", "");
+            }}
+          />
+        </div>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Naziv djelatnosti</label>
+        <input
+          className={styles.input}
+          value={nameVal}
+          autoComplete="off"
+          placeholder="Trgovina na malo..."
+          onFocus={() => setActive("name")}
+          onChange={(ev) => {
+            setNameVal(ev.target.value);
+            setActive("name");
+            if (!ev.target.value) onChange("", "");
+          }}
+        />
+      </div>
+      {active && results.length > 0 && (
+        <div className={styles.activityDropdown}>
+          {results.map((e) => (
+            <button
+              key={e.code}
+              type="button"
+              className={styles.activityOption}
+              onMouseDown={(ev) => { ev.preventDefault(); select(e); }}
+            >
+              <span className={styles.activityCode}>{e.code}</span>
+              <span className={styles.activityName}>{e.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function OrgFormFields({
@@ -430,17 +762,14 @@ function OrgFormFields({
           </select>
         </div>
       </div>
+      <ActivityCombobox
+        taxNumber={value.taxNumber}
+        onTaxNumberChange={(e) => onChange({ ...value, taxNumber: e.target.value })}
+        activityCode={value.activityCode}
+        activityName={value.activityName}
+        onChange={(code, name) => onChange({ ...value, activityCode: code, activityName: name })}
+      />
       <div className={styles.row}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>Porezni broj (JIB)</label>
-          <input
-            className={styles.input}
-            value={value.taxNumber}
-            onChange={set("taxNumber")}
-            placeholder="4200000000000"
-            maxLength={13}
-          />
-        </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Email</label>
           <input
@@ -451,8 +780,6 @@ function OrgFormFields({
             placeholder="firma@email.ba"
           />
         </div>
-      </div>
-      <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Telefon</label>
           <input
@@ -463,15 +790,15 @@ function OrgFormFields({
             maxLength={11}
           />
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>Adresa</label>
-          <input
-            className={styles.input}
-            value={value.address}
-            onChange={set("address")}
-            placeholder="Ulica bb, Sarajevo"
-          />
-        </div>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Adresa</label>
+        <input
+          className={styles.input}
+          value={value.address}
+          onChange={set("address")}
+          placeholder="Ulica bb, Sarajevo"
+        />
       </div>
     </>
   );
@@ -609,22 +936,18 @@ function PersonFormFields({
   );
 }
 
-// ─── Djelatnost tab ───────────────────────────────────────────────────────────
+// ─── Klijenti tab ────────────────────────────────────────────────────────────
 
-type AddMode = "own" | "client-org" | "person";
+type AddMode = "client-org" | "person";
 
 function DjelatnostTab() {
   const queryClient = useQueryClient();
-  const { role } = useRole();
-  const isAccountant = role === "ACCOUNTANT";
-
   const { data: orgs = [], isLoading: orgsLoading } = useQuery<Organization[]>({
     queryKey: ["organizations"],
     queryFn: () => unwrap(getOrganizations()),
   });
 
-  const hasOwnOrg = orgs.some((o) => o.memberRole === "OWNER");
-  const canAddOwnOrg = !isAccountant && !hasOwnOrg;
+  const clientOrgs = orgs.filter((o) => o.memberRole !== "OWNER");
 
   const { data: persons = [], isLoading: personsLoading } = useQuery<
     PersonClient[]
@@ -635,9 +958,7 @@ function DjelatnostTab() {
 
   // add form state
   const [showAdd, setShowAdd] = useState(false);
-  const [addMode, setAddMode] = useState<AddMode>(
-    isAccountant ? "client-org" : "own",
-  );
+  const [addMode, setAddMode] = useState<AddMode>("client-org");
   const [addOrg, setAddOrg] = useState<OrgFormState>(emptyOrgForm);
   const [addOwner, setAddOwner] = useState<OwnerFormState>(emptyOwner);
   const [addPerson, setAddPerson] = useState<PersonFormState>(emptyPersonForm);
@@ -693,11 +1014,9 @@ function DjelatnostTab() {
     },
   });
 
-  const defaultAddMode = (): AddMode => (isAccountant ? "client-org" : "own");
-
   const resetAddForm = () => {
     setShowAdd(false);
-    setAddMode(defaultAddMode());
+    setAddMode("client-org");
     setAddOrg(emptyOrgForm);
     setAddOwner(emptyOwner);
     setAddPerson(emptyPersonForm);
@@ -712,6 +1031,8 @@ function DjelatnostTab() {
       name: org.name,
       type: org.type,
       taxNumber: org.taxNumber ?? "",
+      activityCode: org.activityCode ?? "",
+      activityName: org.activityName ?? "",
       email: org.email ?? "",
       phone: org.phone ?? "",
       address: org.address ?? "",
@@ -764,18 +1085,18 @@ function DjelatnostTab() {
     <div className={styles.panel}>
       {/* ── Organizations ── */}
       <div className={styles.card} style={{ marginBottom: "1.5rem" }}>
-        <p className={styles.cardTitle}>Moje organizacije / djelatnosti</p>
+        <p className={styles.cardTitle}>Klijentske organizacije</p>
 
-        {orgs.length === 0 && (
+        {clientOrgs.length === 0 && (
           <div className={styles.empty} style={{ padding: "1.5rem 0" }}>
             <div className={styles.emptyIcon}>🏢</div>
-            <div className={styles.emptyText}>Nema dodanih organizacija.</div>
+            <div className={styles.emptyText}>Nema dodanih klijentskih organizacija.</div>
           </div>
         )}
 
-        {orgs.length > 0 && (
+        {clientOrgs.length > 0 && (
           <div className={styles.orgList}>
-            {orgs.map((org) =>
+            {clientOrgs.map((org) =>
               editId === org.id ? (
                 <form
                   key={org.id}
@@ -838,6 +1159,7 @@ function DjelatnostTab() {
                     <div className={styles.orgMeta}>
                       {ORG_TYPE_LABELS[org.type] ?? org.type}
                       {org.taxNumber && ` · JIB: ${org.taxNumber}`}
+                      {org.activityCode && ` · ${org.activityCode}${org.activityName ? ` ${org.activityName}` : ""}`}
                       {org.owner &&
                         ` · Vlasnik: ${org.owner.firstName} ${org.owner.lastName}`}
                     </div>
@@ -964,51 +1286,16 @@ function DjelatnostTab() {
             className={styles.addOrgToggle}
             onClick={() => {
               setShowAdd(true);
-              setAddMode(defaultAddMode());
+              setAddMode("client-org");
             }}
           >
-            <span>+</span> Dodaj djelatnost / klijenta
+            <span>+</span> Dodaj klijenta
           </button>
         ) : (
           <div className={styles.addOrgForm}>
             <p className={styles.addOrgTitle}>Šta želite dodati?</p>
 
-            <div
-              className={styles.orgTypeRadios}
-              style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
-            >
-              {!isAccountant && (
-                <label
-                  className={`${styles.orgTypeRadio} ${addMode === "own" ? styles.orgTypeRadioActive : ""} ${!canAddOwnOrg ? styles.orgTypeRadioDisabled : ""}`}
-                  title={
-                    !canAddOwnOrg
-                      ? "Već imate jednu vlastitu organizaciju"
-                      : undefined
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="addMode"
-                    checked={addMode === "own"}
-                    onChange={() => canAddOwnOrg && setAddMode("own")}
-                    disabled={!canAddOwnOrg}
-                  />
-                  <span className={styles.orgTypeRadioIcon}>
-                    <LuUser />
-                  </span>
-                  <div>
-                    <div className={styles.orgTypeRadioLabel}>
-                      Moja djelatnost
-                    </div>
-                    <div className={styles.orgTypeRadioDesc}>
-                      {!canAddOwnOrg
-                        ? "Već imate vlastitu org."
-                        : "Svoja firma ili obrt"}
-                    </div>
-                  </div>
-                </label>
-              )}
-
+            <div className={styles.orgTypeRadios}>
               <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]}>
                 <label
                   className={`${styles.orgTypeRadio} ${addMode === "client-org" ? styles.orgTypeRadioActive : ""}`}
@@ -1095,7 +1382,7 @@ function DjelatnostTab() {
                   createOrgMutation.mutate(
                     orgFormToPayload(
                       addOrg,
-                      addMode === "client-org" ? addOwner : null,
+                      addOwner,
                     ),
                   );
                 }}
@@ -1141,20 +1428,121 @@ function DjelatnostTab() {
 
 // ─── Historija tab ────────────────────────────────────────────────────────────
 
-const FILTER_OPTIONS: Array<{ label: string; value: FormType | "ALL" }> = [
+type HistorijaFilter = FormType | "ALL" | "PLDI";
+
+const FILTER_OPTIONS: Array<{ label: string; value: HistorijaFilter }> = [
   { label: "Sve", value: "ALL" },
   { label: "GPD", value: "GPD" },
   { label: "SPR", value: "SPR" },
   { label: "ZO3", value: "ZO3" },
   { label: "Ugovor o pozajmici", value: "UGOVOR" },
+  { label: "Stalna sredstva (PLDI)", value: "PLDI" },
 ];
 
+function AmortizacijaSection() {
+  const [loadingYear, setLoadingYear] = useState<number | null>(null);
+
+  const { data: years = [], isLoading } = useQuery<number[]>({
+    queryKey: ["amortizacijaYears"],
+    queryFn: () => unwrap(getAmortizacijaYears()),
+  });
+
+  const handleDownload = async (year: number) => {
+    setLoadingYear(year);
+    try {
+      const res = await getAmortizacija(String(year));
+      if (!res.ok || !res.data) return;
+      const { obveznik, rows } = res.data;
+      const odISO = obveznik.periodOd || `${year}-01-01`;
+      const doISO = obveznik.periodDo || `${year}-12-31`;
+
+      let nabavna = 0, kv = 0, iznos = 0, kvKraj = 0;
+      const pldiRows = rows.map(row => {
+        const calc = calcRow(row, odISO, doISO);
+        if (!row.prodano) {
+          nabavna += parseDec(row.nabavnaVrijednost) ?? 0;
+          kv      += parseDec(row.kvPocetak) ?? 0;
+          kvKraj  += calc.kvKraj ?? 0;
+        }
+        iznos += calc.iznos ?? 0;
+        return {
+          naziv: row.naziv,
+          datumNabavke: isoToDisplay(row.datumNabavke),
+          brojDokumenta: row.brojDokumenta,
+          nabavnaVrijednost: parseDec(row.nabavnaVrijednost),
+          kvPocetak: parseDec(row.kvPocetak),
+          vijekTrajanja: row.vijekTrajanja,
+          stopa: calc.stopa,
+          iznos: calc.iznos,
+          kvKraj: calc.kvKraj,
+          napomena: row.napomena ?? "",
+          prodanoText: row.prodano
+            ? `PR.${row.datumProdaje ? ` ${isoToDisplay(row.datumProdaje)}` : ""}`
+            : undefined,
+        };
+      });
+
+      const data: PldiData = {
+        jmb: obveznik.jmb, imeIPrezime: obveznik.imeIPrezime, adresa: obveznik.adresa,
+        jib: obveznik.jib, naziv: obveznik.naziv, adresaDjelatnosti: obveznik.adresaDjelatnosti,
+        vrstaSifra: obveznik.vrstaSifra, vrstaNaziv: obveznik.vrstaNaziv,
+        godina: String(year),
+        periodOd: isoToDisplay(odISO),
+        periodDo: isoToDisplay(doISO),
+        rows: pldiRows,
+        totalNabavna: r2(nabavna), totalKv: r2(kv),
+        totalIznos: r2(iznos), totalKvKraj: r2(kvKraj),
+      };
+
+      const bytes = await fillPldiTemplate(data);
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PLDI-1043-${year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setLoadingYear(null);
+    }
+  };
+
+  if (isLoading) return <div className={styles.emptyText}>Učitavanje...</div>;
+  if (years.length === 0) return null;
+
+  return (
+    <div className={styles.formList}>
+      {[...years].sort((a, b) => b - a).map(year => (
+        <div key={year} className={styles.formItem}>
+          <span className={`${styles.formTypeBadge} ${styles.badgePldi}`}>PLDI</span>
+          <div className={styles.formDetails}>
+            <div className={styles.formTitle}>Stalna sredstva · {year}</div>
+            <div className={styles.formMeta}>Obrazac PLDI-1043</div>
+          </div>
+          <button
+            className={styles.btnGhost}
+            onClick={() => handleDownload(year)}
+            disabled={loadingYear === year}
+          >
+            <LuFileDown size={14} style={{ marginRight: 4, verticalAlign: "middle" }} />
+            {loadingYear === year ? "Generišem..." : "Preuzmi PDF"}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HistorijaTab() {
-  const [filter, setFilter] = useState<FormType | "ALL">("ALL");
+  const [filter, setFilter] = useState<HistorijaFilter>("ALL");
+
+  const showForms = filter !== "PLDI";
+  const showAmortizacija = filter === "ALL" || filter === "PLDI";
 
   const { data: forms = [], isLoading } = useQuery<FormRecord[]>({
     queryKey: ["forms", filter],
-    queryFn: () => unwrap(getForms(filter === "ALL" ? undefined : filter)),
+    queryFn: () => unwrap(getForms(showForms ? (filter === "ALL" ? undefined : filter as FormType) : undefined)),
+    enabled: showForms,
   });
 
   const displayTitle = (f: FormRecord) => {
@@ -1165,34 +1553,36 @@ function HistorijaTab() {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.historyFilters}>
-        {FILTER_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            className={`${styles.filterBtn} ${filter === opt.value ? styles.filterBtnActive : ""}`}
-            onClick={() => setFilter(opt.value)}
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div className={styles.historyFilterRow}>
+        <select
+          className={styles.filterSelect}
+          value={filter}
+          onChange={e => setFilter(e.target.value as HistorijaFilter)}
+        >
+          {FILTER_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
-      {isLoading && (
+      {showAmortizacija && <AmortizacijaSection />}
+
+      {showForms && isLoading && (
         <div className={styles.empty}>
           <div className={styles.emptyText}>Učitavanje...</div>
         </div>
       )}
 
-      {!isLoading && forms.length === 0 && (
+      {showForms && !isLoading && forms.length === 0 && filter !== "ALL" && (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>📄</div>
           <div className={styles.emptyText}>Nema pronađenih obrazaca.</div>
         </div>
       )}
 
-      {!isLoading && forms.length > 0 && (
-        <div className={styles.formList}>
-          {forms.map((f) => (
+      {showForms && !isLoading && forms.filter(f => f.type !== "PLDI").length > 0 && (
+        <div className={styles.formList} style={{ marginTop: showAmortizacija ? "0.75rem" : 0 }}>
+          {forms.filter(f => f.type !== "PLDI").map((f) => (
             <div key={f.id} className={styles.formItem}>
               <span className={typeBadgeClass(f.type, styles)}>
                 {FORM_TYPE_LABELS[f.type]}
@@ -1261,38 +1651,44 @@ export default function Profil() {
 
   if (!user) return null;
 
+  const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: "profil",    label: "Profil",    icon: <LuUser size={17} /> },
+    { key: "klijenti",  label: "Klijenti",  icon: <LuUsers size={17} /> },
+    { key: "historija", label: "Historija", icon: <LuHistory size={17} /> },
+  ];
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <div className={styles.avatar}>{initials(user)}</div>
-        <div className={styles.headerText}>
-          <div className={styles.label}>Moj profil</div>
-          <h1 className={styles.name}>
-            {user.firstName} <em>{user.lastName}</em>
-          </h1>
-          {user.email && <div className={styles.email}>{user.email}</div>}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarProfile}>
+          <div className={styles.avatar}>{initials(user)}</div>
+          <div>
+            <div className={styles.name}>
+              {user.firstName} <em>{user.lastName}</em>
+            </div>
+            {user.email && <div className={styles.email}>{user.email}</div>}
+          </div>
         </div>
-      </div>
 
-      <div className={styles.tabs}>
-        {(["profil", "djelatnost", "historija"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            className={`${styles.tab} ${tab === t ? styles.tabActive : ""}`}
-            onClick={() => setTab(t)}
-          >
-            {t === "profil"
-              ? "Profil"
-              : t === "djelatnost"
-                ? "Djelatnost"
-                : "Historija"}
-          </button>
-        ))}
-      </div>
+        <nav className={styles.sidebarNav}>
+          {NAV_ITEMS.map(({ key, label, icon }) => (
+            <button
+              key={key}
+              className={`${styles.navItem} ${tab === key ? styles.navItemActive : ""}`}
+              onClick={() => setTab(key)}
+            >
+              <span className={styles.navIcon}>{icon}</span>
+              {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
 
-      {tab === "profil" && <ProfilTab key={user.id} user={user} />}
-      {tab === "djelatnost" && <DjelatnostTab />}
-      {tab === "historija" && <HistorijaTab />}
+      <main className={styles.content}>
+        {tab === "profil"    && <ProfilTab key={user.id} user={user} />}
+        {tab === "klijenti"  && <DjelatnostTab />}
+        {tab === "historija" && <HistorijaTab />}
+      </main>
     </div>
   );
 }

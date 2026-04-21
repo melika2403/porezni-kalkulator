@@ -217,7 +217,7 @@ const pozivBroj = (month: string): string => {
 };
 
 // Place a single char centred in a box
-function drawChar(
+export function drawChar(
   page: ReturnType<PDFDocument["getPage"]>,
   box: Box,
   char: string,
@@ -408,25 +408,29 @@ const A_PRORAC: Box[] = [
 
 /* ── Fill a single uplatnica page ── */
 
+interface FillPageOpts {
+  uplatio: string[];
+  svrha: string;
+  primatelj: string[];
+  racunPosilDigits?: string;
+  racunPrimDigits: string;
+  kmIznos: number;
+  vrstaProhoda: string;
+  jmbg: string;
+  opcinaKod: string;
+  opcinaIme: string;
+  datum: string; // ISO
+  periodMjesec: string;
+  periodGodina: string;
+  customOdChars?: string[];
+  customDoChars?: string[];
+  customPoziv?: string;
+}
+
 function fillPage(
   page: ReturnType<PDFDocument["getPage"]>,
   font: Awaited<ReturnType<PDFDocument["embedFont"]>>,
-  opts: {
-    uplatio: string[];
-    svrha: string;
-    primatelj: string[];
-    racunPosilDigits?: string;
-    racunPrimDigits: string;
-    kmIznos: number;
-    vrstaProhoda: string;
-    // shared
-    jmbg: string;
-    opcinaKod: string;
-    opcinaIme: string;
-    datum: string; // ISO
-    periodMjesec: string;
-    periodGodina: string;
-  }
+  opts: FillPageOpts
 ) {
   const FS_TEXT = 48;  // large text areas
   const FS_BOX  = 50;  // single-char boxes
@@ -442,11 +446,11 @@ function fillPage(
   const mPad = periodMjesec.padStart(2, "0");
   const yShort = periodGodina.slice(-2);
   const lastDay = lastDayOfMonth(periodMjesec, periodGodina);
-  const odChars  = ["0", "1", mPad[0], mPad[1], yShort[0], yShort[1]];
-  const doChars  = [lastDay[0], lastDay[1], mPad[0], mPad[1], yShort[0], yShort[1]];
+  const odChars  = opts.customOdChars ?? ["0", "1", mPad[0], mPad[1], yShort[0], yShort[1]];
+  const doChars  = opts.customDoChars ?? [lastDay[0], lastDay[1], mPad[0], mPad[1], yShort[0], yShort[1]];
 
   // Poziv na broj
-  const poziv = pozivBroj(periodMjesec);
+  const poziv = opts.customPoziv ?? pozivBroj(periodMjesec);
 
   // Left side — text areas
   drawLines(page, A_UPLATIO, opts.uplatio, font, FS_TEXT);
@@ -580,6 +584,60 @@ export async function fillUplatnice(data: UplatnicaData): Promise<Uint8Array> {
       vrstaProhoda: "716116",
     });
   }
+
+  return out.save();
+}
+
+/* ── GPD uplatnica (single, full-year period) ── */
+
+export interface GpdUplatnicaData {
+  imeIPrezime: string;
+  adresa: string;
+  jmbg: string;
+  godina: string;       // "2025"
+  porez: number;
+  kantonKey: KantonKey;
+  opcinaKod: string;
+  opcinaIme: string;
+  datum: string;        // ISO yyyy-mm-dd
+  ziroRacun?: string;
+}
+
+export async function fillGpdUplatnica(data: GpdUplatnicaData): Promise<Uint8Array> {
+  const kanton = KANTONI[data.kantonKey];
+  const yShort = data.godina.slice(-2);
+
+  const [templateBytes, fontBytes] = await Promise.all([
+    fetch("/templates/UPLATNICA PRAZNA.pdf").then((r) => r.arrayBuffer()),
+    fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),
+  ]);
+
+  const out = await PDFDocument.create();
+  out.registerFontkit(fontkit);
+  const font = await out.embedFont(fontBytes);
+
+  const tpl = await PDFDocument.load(templateBytes);
+  const [p] = await out.copyPages(tpl, [0]);
+  out.addPage(p);
+
+  fillPage(out.getPage(0), font, {
+    uplatio: [data.imeIPrezime, data.adresa],
+    svrha: `Porez na dohodak po godišnjoj prijavi za 20${data.godina}. godinu`,
+    primatelj: ["Budžet " + kanton.genitiv],
+    racunPosilDigits: data.ziroRacun ? accDigits(data.ziroRacun) : undefined,
+    racunPrimDigits: accDigits(kanton.budzet),
+    kmIznos: data.porez,
+    vrstaProhoda: "716117",
+    jmbg: data.jmbg,
+    opcinaKod: data.opcinaKod,
+    opcinaIme: data.opcinaIme,
+    datum: data.datum,
+    periodMjesec: "01",
+    periodGodina: data.godina,
+    customOdChars: ["0", "1", "0", "1", yShort[0], yShort[1]],
+    customDoChars: ["3", "1", "1", "2", yShort[0], yShort[1]],
+    customPoziv:   "0000000000",
+  });
 
   return out.save();
 }

@@ -25,7 +25,9 @@
       "Bash(npx prisma *)",
       "Bash(mysql --version)",
       "Bash(tasklist /fi \"IMAGENAME eq node.exe\")",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(node -e \"require\\('./src/app.js'\\)\")",
+      "Bash(curl -s http://localhost:4000/api/amortizacija/years)"
     ]
   }
 }

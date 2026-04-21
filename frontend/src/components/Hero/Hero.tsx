@@ -35,7 +35,7 @@ export default function Hero() {
           </Link>
         </div>
         <p className={styles.note}>
-          <strong>SPR i GPD obrazci</strong> — besplatno, bez registracije
+          Kreirajte profil i svi Vaši obrasci su sačuvani. <strong>Pristupite podacima kad god Vam trebaju.</strong>
         </p>
       </section>
 
@@ -44,7 +44,7 @@ export default function Hero() {
 }
 
 const FEATURE_PILLS = [
-  'SPR-1053', 'GPD-1051', 'Neto/bruto plate', 'PDV kalkulator',
+  'SPR-1053', 'GPD-1051', 'AMS-1035', 'Neto/bruto plate', 'PDV kalkulator',
   'Stalna sredstva', 'ZO3 obrazac', 'Šihterica', 'Ugovori',
 ];
 
