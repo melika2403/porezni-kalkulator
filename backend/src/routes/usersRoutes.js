@@ -5,13 +5,13 @@ const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
-router.get("/", requireAuth, requireRole("admin"), usersController.list);
+router.get("/", requireAuth, requireRole("ADMIN"), usersController.list);
 router.get("/:id", requireAuth, usersController.getById);
 router.put("/:id", requireAuth, usersController.update);
 router.delete(
   "/:id",
   requireAuth,
-  requireRole("admin"),
+  requireRole("ADMIN"),
   usersController.remove,
 );
 

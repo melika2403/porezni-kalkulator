@@ -12,6 +12,14 @@ const userDbSelect = {
   role: true,
   createdAt: true,
   updatedAt: true,
+  subscription: {
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      isActive: true,
+    },
+  },
 };
 
 function toPublicUser(user) {
@@ -20,13 +28,36 @@ function toPublicUser(user) {
   return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
 }
 
-async function listUsers() {
-  const users = await prisma.user.findMany({ orderBy: { id: "desc" }, select: userDbSelect });
-  return users.map(toPublicUser);
+async function listUsers({ firstName, lastName, email, page = 1, limit = 20 }) {
+  const where = {
+    AND: [
+      firstName ? { firstName: { contains: firstName.trim() } } : undefined,
+      lastName ? { lastName: { contains: lastName.trim() } } : undefined,
+      email ? { email: { contains: email.trim() } } : undefined,
+    ].filter(Boolean),
+  };
+
+  const skip = (page - 1) * limit;
+
+  const [items, total] = await prisma.$transaction([
+    prisma.user.findMany({
+      where,
+      orderBy: { id: "desc" },
+      skip,
+      take: limit,
+      select: userDbSelect,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return { items: items.map(toPublicUser), total };
 }
 
 async function getUserById(id) {
-  const user = await prisma.user.findUnique({ where: { id }, select: userDbSelect });
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: userDbSelect,
+  });
   return toPublicUser(user);
 }
 
@@ -37,7 +68,11 @@ async function createUser(data) {
 
 async function updateUserById(id, data) {
   try {
-    const user = await prisma.user.update({ where: { id }, data, select: userDbSelect });
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: userDbSelect,
+    });
     return toPublicUser(user);
   } catch (error) {
     if (error?.code === "P2025") return null;
@@ -55,4 +90,10 @@ async function deleteUserById(id) {
   }
 }
 
-module.exports = { listUsers, getUserById, createUser, updateUserById, deleteUserById };
+module.exports = {
+  listUsers,
+  getUserById,
+  createUser,
+  updateUserById,
+  deleteUserById,
+};
