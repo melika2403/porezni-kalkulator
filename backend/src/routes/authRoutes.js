@@ -13,6 +13,9 @@ router.get("/me", requireAuth, authController.me);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
 
+router.get("/verify-email", authController.verifyEmail);
+router.post("/resend-verification", authController.resendVerification);
+
 router.get("/google", authController.googleStart);
 router.get("/google/callback", authController.googleCallback);
 

@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { decryptJmbg } = require("../utils/encryptJmbg");
-const { sendPasswordResetEmail } = require("../utils/mailer");
+const { sendPasswordResetEmail, sendVerificationEmail } = require("../utils/mailer");
 
 const prisma = require("../prisma");
 const googleAuth = require("../auth/googleAuth");
@@ -96,6 +96,10 @@ async function register(req, res) {
   try {
     const passwordHash = await bcrypt.hash(password, 10);
 
+    const plainToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(plainToken).digest("hex");
+    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const user = await prisma.user.create({
       data: {
         email: email.trim().toLowerCase(),
@@ -105,18 +109,22 @@ async function register(req, res) {
         phone: phone.trim(),
         address: typeof address === "string" ? address.trim() : null,
         role: "USER",
+        isEmailVerified: false,
+        emailVerificationToken: hashedToken,
+        emailVerificationExpiry: expiry,
       },
-      select: publicUserSelect(),
     });
 
-    const secret = getJwtSecret();
-    const token = jwt.sign({ role: user.role }, secret, {
-      subject: String(user.id),
-      expiresIn: getJwtExpiresIn(),
-    });
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const verifyUrl = `${frontendUrl}/verifikacija?token=${plainToken}`;
 
-    setAuthCookie(res, token);
-    return res.status(201).json({ ok: true, data: toPublicUser(user) });
+    try {
+      await sendVerificationEmail(user.email, user.firstName, verifyUrl);
+    } catch (mailErr) {
+      console.error("Greška pri slanju verifikacijskog emaila:", mailErr);
+    }
+
+    return res.status(201).json({ ok: true, data: { email: user.email } });
   } catch (error) {
     if (error && typeof error === "object" && error.code === "P2002") {
       return res.status(409).json({ ok: false, error: "DUPLICATE_VALUE" });
@@ -148,6 +156,10 @@ async function login(req, res) {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
       return res.status(401).json({ ok: false, error: "INVALID_CREDENTIALS" });
+    }
+
+    if (!user.isEmailVerified) {
+      return res.status(403).json({ ok: false, error: "EMAIL_NOT_VERIFIED" });
     }
 
     const secret = getJwtSecret();
@@ -294,6 +306,90 @@ async function resetPassword(req, res) {
   }
 }
 
+async function verifyEmail(req, res) {
+  const { token } = req.query ?? {};
+
+  if (!isNonEmptyString(token)) {
+    return res.status(400).json({ ok: false, error: "INVALID_TOKEN" });
+  }
+
+  try {
+    const hashedToken = crypto.createHash("sha256").update(token.trim()).digest("hex");
+
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken: hashedToken,
+        emailVerificationExpiry: { gt: new Date() },
+        isEmailVerified: false,
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isEmailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null,
+      },
+    });
+
+    // Auto-login after verification
+    const jwtToken = signJwtForUser(user);
+    setAuthCookie(res, jwtToken);
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
+}
+
+async function resendVerification(req, res) {
+  const { email } = req.body ?? {};
+
+  if (!isNonEmptyString(email)) {
+    return res.status(400).json({ ok: false, error: "email is required" });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+
+    if (user && user.password && !user.isEmailVerified) {
+      const plainToken = crypto.randomBytes(32).toString("hex");
+      const hashedToken = crypto.createHash("sha256").update(plainToken).digest("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationToken: hashedToken,
+          emailVerificationExpiry: expiry,
+        },
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const verifyUrl = `${frontendUrl}/verifikacija?token=${plainToken}`;
+
+      try {
+        await sendVerificationEmail(user.email, user.firstName, verifyUrl);
+      } catch (mailErr) {
+        console.error("Greška pri ponovnom slanju verifikacijskog emaila:", mailErr);
+      }
+    }
+  } catch (error) {
+    console.error("resendVerification error:", error);
+  }
+
+  // Always return 200 to not leak whether email exists
+  return res.status(200).json({ ok: true });
+}
+
 async function googleStart(_req, res) {
   try {
     const state = googleAuth.createStateToken();
@@ -371,6 +467,7 @@ async function googleCallback(req, res) {
             firstName,
             lastName,
             role: "USER",
+            isEmailVerified: true,
           },
           select: publicUserSelect(),
         });
@@ -394,6 +491,8 @@ module.exports = {
   me,
   forgotPassword,
   resetPassword,
+  verifyEmail,
+  resendVerification,
   googleStart,
   googleCallback,
 };
