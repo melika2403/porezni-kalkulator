@@ -16,7 +16,7 @@ model User {
   lastName                 String               @db.VarChar(100)
   phone                    String?              @db.VarChar(30)
   address                  String?              @db.VarChar(255)
-  role                     UserRole             @default(USER)
+  role                     users_role           @default(USER)
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
   jmbg                     String?              @unique @db.VarChar(255)
@@ -185,13 +185,6 @@ model FormAttachment {
   @@map("form_attachments")
 }
 
-enum UserRole {
-  USER
-  ACCOUNTANT
-  ADMIN
-  SUPER_ADMIN
-}
-
 enum OrganizationRole {
   OWNER
   ADMIN
@@ -226,4 +219,11 @@ enum forms_type {
   ZO3
   UGOVOR
   PLDI
+}
+
+enum users_role {
+  USER
+  ACCOUNTANT
+  ADMIN
+  SUPER_ADMIN
 }

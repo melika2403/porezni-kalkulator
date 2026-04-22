@@ -70,7 +70,7 @@
   color: var(--sage);
 }
 
-.roleAccountant {
+.rolePro {
   background: #fffbeb;
   color: #b45309;
   border: 1px solid #fcd34d;
@@ -81,7 +81,7 @@
   color: var(--accent);
 }
 
-.roleSuperAdmin {
+.roleBusiness {
   background: var(--ink);
   color: var(--paper);
 }

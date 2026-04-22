@@ -13,16 +13,7 @@ router.put("/:id", requireAuth, organizationsController.update);
 router.delete("/:id", requireAuth, organizationsController.remove);
 
 // Single organization detail
-router.get("/:id", requireAuth, async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ ok: false, error: "Invalid id" });
-  }
-  const orgs = await organizationRepository.getUserOrganizations(req.user.id);
-  const org = orgs.find((o) => o.id === id);
-  if (!org) return res.status(404).json({ ok: false, error: "Organizacija nije pronađena" });
-  return res.json({ ok: true, data: org });
-});
+router.get("/:id", requireAuth, organizationsController.getById);
 
 // Members
 router.get("/:id/members", requireAuth, membersController.list);
@@ -34,6 +25,10 @@ router.delete("/:id/members/:userId", requireAuth, membersController.remove);
 router.get("/:orgId/workers", requireAuth, workersController.list);
 router.post("/:orgId/workers", requireAuth, workersController.create);
 router.put("/:orgId/workers/:workerId", requireAuth, workersController.update);
-router.delete("/:orgId/workers/:workerId", requireAuth, workersController.remove);
+router.delete(
+  "/:orgId/workers/:workerId",
+  requireAuth,
+  workersController.remove,
+);
 
 module.exports = router;
