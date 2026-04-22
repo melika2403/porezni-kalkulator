@@ -83,14 +83,19 @@ async function create(req, res) {
   const { ownerData, ...orgBody } = req.body ?? {};
   const userRole = req.user.role;
 
-  // Without ownerData the logged-in user becomes the owner — regular users limited to one
-  if (!ownerData && userRole === "USER") {
-    const ownedCount = await organizationRepository.countOwnedOrganizations(
-      req.user.id,
-    );
-    if (ownedCount >= 1) {
-      return res.status(409).json({ ok: false, error: "ALREADY_HAS_OWN_ORG" });
-    }
+  // Only elevated roles can create client orgs (with separate ownerData)
+  const CLIENT_ORG_ROLES = ["PRO", "BUSINESS", "ADMIN"];
+  if (ownerData && !CLIENT_ORG_ROLES.includes(userRole)) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+
+  const ownedCount = await organizationRepository.countOwnedOrganizations(
+    req.user.id,
+  );
+  if (ownedCount >= 2) {
+    return res
+      .status(409)
+      .json({ ok: false, error: "ALREADY_HAS_OWN_ORG_LIMIT" });
   }
 
   const orgValidation = validateOrgData(orgBody, true);
@@ -118,12 +123,10 @@ async function create(req, res) {
     res.status(201).json({ ok: true, data: org });
   } catch (error) {
     if (error?.code === "P2002") {
-      return res
-        .status(409)
-        .json({
-          ok: false,
-          error: "Porezni broj ili JMBG vlasnika već postoji",
-        });
+      return res.status(409).json({
+        ok: false,
+        error: "Porezni broj ili JMBG vlasnika već postoji",
+      });
     }
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
   }
@@ -168,12 +171,10 @@ async function update(req, res) {
     res.status(200).json({ ok: true, data: org });
   } catch (error) {
     if (error?.code === "P2002") {
-      return res
-        .status(409)
-        .json({
-          ok: false,
-          error: "Porezni broj ili JMBG vlasnika već postoji",
-        });
+      return res.status(409).json({
+        ok: false,
+        error: "Porezni broj ili JMBG vlasnika već postoji",
+      });
     }
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
   }

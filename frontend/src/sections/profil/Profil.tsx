@@ -13,6 +13,7 @@ import {
   LuUsers,
   LuFileDown,
   LuHistory,
+  LuBuilding,
 } from "react-icons/lu";
 import {
   updateProfile,
@@ -544,7 +545,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
         {/* add button — ACCOUNTANT always, USER only if no owned orgs yet */}
         {!showAddOrg &&
           editOwnId === null &&
-          (isSubscriber || ownOrgs.length === 0) && (
+          (isSubscriber || ownOrgs.length <= 2) && (
             <button
               className={styles.addOrgToggle}
               onClick={() => setShowAddOrg(true)}
@@ -1258,7 +1259,9 @@ function DjelatnostTab() {
 
         {clientOrgs.length === 0 && (
           <div className={styles.empty} style={{ padding: "1.5rem 0" }}>
-            <div className={styles.emptyIcon}>🏢</div>
+            <div className={styles.emptyIcon}>
+              <LuBuilding />
+            </div>
             <div className={styles.emptyText}>
               Nema dodanih klijentskih organizacija.
             </div>
@@ -1576,13 +1579,15 @@ function DjelatnostTab() {
                   >
                     Odustani
                   </button>
-                  <button
-                    type="submit"
-                    className={styles.btnPrimary}
-                    disabled={createOrgMutation.isPending}
-                  >
-                    {createOrgMutation.isPending ? "Dodavanje..." : "Dodaj"}
-                  </button>
+                  <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
+                    <button
+                      type="submit"
+                      className={styles.btnPrimary}
+                      disabled={createOrgMutation.isPending}
+                    >
+                      {createOrgMutation.isPending ? "Dodavanje..." : "Dodaj"}
+                    </button>
+                  </RoleGuard>
                 </div>
               </form>
             )}
