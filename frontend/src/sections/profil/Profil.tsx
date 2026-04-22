@@ -35,8 +35,17 @@ import {
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import Link from "next/link";
 import { getAmortizacijaYears, getAmortizacija } from "src/api/amortizacija";
-import { fillPldiTemplate, type PldiData } from "src/sections/amortizacija/fillPldi";
-import { calcRow, parseDec, isoToDisplay, r2, VIJEK_STOPA } from "src/sections/amortizacija/Amortizacija";
+import {
+  fillPldiTemplate,
+  type PldiData,
+} from "src/sections/amortizacija/fillPldi";
+import {
+  calcRow,
+  parseDec,
+  isoToDisplay,
+  r2,
+  VIJEK_STOPA,
+} from "src/sections/amortizacija/Amortizacija";
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
@@ -115,7 +124,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
     queryFn: () => unwrap(getOrganizations()),
   });
   const ownOrgs = orgs.filter((o) => o.memberRole === "OWNER");
-  const isAccountant = user.role === "ACCOUNTANT";
+  const isSubscriber = user.role === "PRO" || user.role === "BUSINESS";
 
   const [editOwnId, setEditOwnId] = useState<number | null>(null);
   const [editOwnOrg, setEditOwnOrg] = useState<OrgFormState>(emptyOrgForm);
@@ -219,7 +228,10 @@ function ProfilTab({ user }: { user: AuthUser }) {
         <div className={styles.cardHeader}>
           <p className={styles.cardTitle}>Lični podaci</p>
           {!editing && (
-            <button className={styles.btnEditInline} onClick={() => setEditing(true)}>
+            <button
+              className={styles.btnEditInline}
+              onClick={() => setEditing(true)}
+            >
               <LuPencil size={14} /> Izmijeni
             </button>
           )}
@@ -233,7 +245,9 @@ function ProfilTab({ user }: { user: AuthUser }) {
           <div className={styles.infoList}>
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>Ime i prezime</span>
-              <span className={styles.infoValue}>{user.firstName} {user.lastName}</span>
+              <span className={styles.infoValue}>
+                {user.firstName} {user.lastName}
+              </span>
             </div>
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>Email</span>
@@ -242,26 +256,35 @@ function ProfilTab({ user }: { user: AuthUser }) {
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>Telefon</span>
               <span className={styles.infoValue}>
-                {user.phone || <span className={styles.infoEmpty}>Nije unesen</span>}
+                {user.phone || (
+                  <span className={styles.infoEmpty}>Nije unesen</span>
+                )}
               </span>
             </div>
             <div className={styles.infoRowColumn}>
               <div className={styles.infoRowInner}>
                 <span className={styles.infoLabel}>JMBG</span>
                 <span className={styles.infoValue}>
-                  {user.jmbg
-                    ? <span className={styles.jmbgBadge}>🔒 Pohranjen i kriptiran</span>
-                    : <span className={styles.infoEmpty}>Nije unesen</span>}
+                  {user.jmbg ? (
+                    <span className={styles.jmbgBadge}>
+                      🔒 Pohranjen i kriptiran
+                    </span>
+                  ) : (
+                    <span className={styles.infoEmpty}>Nije unesen</span>
+                  )}
                 </span>
               </div>
               <p className={styles.jmbgDisclaimer}>
-                JMBG je uvijek zaštićen kao lozinka i vidljiv samo Vama — ni administrator sistema nema pristup ovom podatku.
+                JMBG je uvijek zaštićen kao lozinka i vidljiv samo Vama — ni
+                administrator sistema nema pristup ovom podatku.
               </p>
             </div>
             <div className={styles.infoRow} style={{ borderBottom: "none" }}>
               <span className={styles.infoLabel}>Adresa</span>
               <span className={styles.infoValue}>
-                {user.address || <span className={styles.infoEmpty}>Nije unesena</span>}
+                {user.address || (
+                  <span className={styles.infoEmpty}>Nije unesena</span>
+                )}
               </span>
             </div>
           </div>
@@ -269,45 +292,95 @@ function ProfilTab({ user }: { user: AuthUser }) {
           <form className={styles.form} onSubmit={handleSubmit}>
             <div className={styles.row}>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="firstName">Ime</label>
-                <input id="firstName" className={styles.input} value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)} required />
+                <label className={styles.fieldLabel} htmlFor="firstName">
+                  Ime
+                </label>
+                <input
+                  id="firstName"
+                  className={styles.input}
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                />
               </div>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="lastName">Prezime</label>
-                <input id="lastName" className={styles.input} value={lastName}
-                  onChange={(e) => setLastName(e.target.value)} required />
+                <label className={styles.fieldLabel} htmlFor="lastName">
+                  Prezime
+                </label>
+                <input
+                  id="lastName"
+                  className={styles.input}
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                />
               </div>
             </div>
             <div className={styles.field}>
               <label className={styles.fieldLabel}>Email</label>
-              <input className={`${styles.input} ${styles.inputReadonly}`}
-                value={user.email ?? "—"} readOnly tabIndex={-1} />
+              <input
+                className={`${styles.input} ${styles.inputReadonly}`}
+                value={user.email ?? "—"}
+                readOnly
+                tabIndex={-1}
+              />
             </div>
             <div className={styles.row}>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="phone">Telefon</label>
-                <input id="phone" className={styles.input} value={phone}
-                  onChange={(e) => setPhone(e.target.value)} placeholder="+387 61 000 000" />
+                <label className={styles.fieldLabel} htmlFor="phone">
+                  Telefon
+                </label>
+                <input
+                  id="phone"
+                  className={styles.input}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+387 61 000 000"
+                />
               </div>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="jmbg">JMBG</label>
-                <input id="jmbg" className={styles.input} value={jmbg}
-                  onChange={(e) => setJmbg(e.target.value)} placeholder="1234567890123" maxLength={13} />
-                <span className={styles.secureHint}>JMBG se kriptira i nikad nije vidljiv drugima.</span>
+                <label className={styles.fieldLabel} htmlFor="jmbg">
+                  JMBG
+                </label>
+                <input
+                  id="jmbg"
+                  className={styles.input}
+                  value={jmbg}
+                  onChange={(e) => setJmbg(e.target.value)}
+                  placeholder="1234567890123"
+                  maxLength={13}
+                />
+                <span className={styles.secureHint}>
+                  JMBG se kriptira i nikad nije vidljiv drugima.
+                </span>
               </div>
             </div>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="address">Adresa</label>
-              <input id="address" className={styles.input} value={address}
-                onChange={(e) => setAddress(e.target.value)} placeholder="Ulica bb, Grad" />
+              <label className={styles.fieldLabel} htmlFor="address">
+                Adresa
+              </label>
+              <input
+                id="address"
+                className={styles.input}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Ulica bb, Grad"
+              />
             </div>
             {errorMsg && <div className={styles.errorMsg}>{errorMsg}</div>}
             <div className={styles.formActions}>
-              <button type="button" className={styles.btnGhost} onClick={handleCancel}>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                onClick={handleCancel}
+              >
                 Odustani
               </button>
-              <button type="submit" className={styles.btnPrimary} disabled={mutation.isPending}>
+              <button
+                type="submit"
+                className={styles.btnPrimary}
+                disabled={mutation.isPending}
+              >
                 {mutation.isPending ? "Snimanje..." : "Sačuvaj izmjene"}
               </button>
             </div>
@@ -324,38 +397,78 @@ function ProfilTab({ user }: { user: AuthUser }) {
         {ownOrgs.map((org) => (
           <div key={org.id} className={styles.ownOrgItem}>
             {editOwnId === org.id ? (
-              <form className={styles.form} onSubmit={(e) => {
-                e.preventDefault();
-                updateOwnOrgMutation.mutate({ id: org.id, payload: orgFormToPayload(editOwnOrg, null) });
-              }}>
+              <form
+                className={styles.form}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  updateOwnOrgMutation.mutate({
+                    id: org.id,
+                    payload: orgFormToPayload(editOwnOrg, null),
+                  });
+                }}
+              >
                 <OrgFormFields value={editOwnOrg} onChange={setEditOwnOrg} />
                 {updateOwnOrgMutation.error && (
-                  <div className={styles.errorMsg}>{updateOwnOrgMutation.error.message}</div>
+                  <div className={styles.errorMsg}>
+                    {updateOwnOrgMutation.error.message}
+                  </div>
                 )}
                 {deleteOwnOrgMutation.error && confirmDeleteId === org.id && (
-                  <div className={styles.errorMsg}>Greška pri brisanju. Pokušajte ponovo.</div>
+                  <div className={styles.errorMsg}>
+                    Greška pri brisanju. Pokušajte ponovo.
+                  </div>
                 )}
                 {confirmDeleteId === org.id ? (
                   <div className={styles.deleteConfirm}>
-                    <span className={styles.deleteConfirmText}>Sigurno želite obrisati djelatnost? Ova akcija se ne može poništiti.</span>
+                    <span className={styles.deleteConfirmText}>
+                      Sigurno želite obrisati djelatnost? Ova akcija se ne može
+                      poništiti.
+                    </span>
                     <div className={styles.deleteConfirmActions}>
-                      <button type="button" className={styles.btnGhost} onClick={() => setConfirmDeleteId(null)}>
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
                         Odustani
                       </button>
-                      <button type="button" className={styles.btnDanger} onClick={() => deleteOwnOrgMutation.mutate(org.id)} disabled={deleteOwnOrgMutation.isPending}>
-                        {deleteOwnOrgMutation.isPending ? "Brisanje..." : "Da, obriši"}
+                      <button
+                        type="button"
+                        className={styles.btnDanger}
+                        onClick={() => deleteOwnOrgMutation.mutate(org.id)}
+                        disabled={deleteOwnOrgMutation.isPending}
+                      >
+                        {deleteOwnOrgMutation.isPending
+                          ? "Brisanje..."
+                          : "Da, obriši"}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className={styles.formActionsWithDelete}>
-                    <button type="button" className={styles.btnDanger} onClick={() => setConfirmDeleteId(org.id)}>
+                    <button
+                      type="button"
+                      className={styles.btnDanger}
+                      onClick={() => setConfirmDeleteId(org.id)}
+                    >
                       Obriši djelatnost
                     </button>
                     <div className={styles.formActions} style={{ margin: 0 }}>
-                      <button type="button" className={styles.btnGhost} onClick={() => setEditOwnId(null)}>Odustani</button>
-                      <button type="submit" className={styles.btnPrimary} disabled={updateOwnOrgMutation.isPending}>
-                        {updateOwnOrgMutation.isPending ? "Snimanje..." : "Sačuvaj"}
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => setEditOwnId(null)}
+                      >
+                        Odustani
+                      </button>
+                      <button
+                        type="submit"
+                        className={styles.btnPrimary}
+                        disabled={updateOwnOrgMutation.isPending}
+                      >
+                        {updateOwnOrgMutation.isPending
+                          ? "Snimanje..."
+                          : "Sačuvaj"}
                       </button>
                     </div>
                   </div>
@@ -370,7 +483,9 @@ function ProfilTab({ user }: { user: AuthUser }) {
                   </div>
                   <div className={styles.infoRow}>
                     <span className={styles.infoLabel}>Tip</span>
-                    <span className={styles.infoValue}>{ORG_TYPE_LABELS[org.type] ?? org.type}</span>
+                    <span className={styles.infoValue}>
+                      {ORG_TYPE_LABELS[org.type] ?? org.type}
+                    </span>
                   </div>
                   {org.taxNumber && (
                     <div className={styles.infoRow}>
@@ -380,9 +495,12 @@ function ProfilTab({ user }: { user: AuthUser }) {
                   )}
                   {org.activityCode && (
                     <div className={styles.infoRow}>
-                      <span className={styles.infoLabel}>Šifra djelatnosti</span>
+                      <span className={styles.infoLabel}>
+                        Šifra djelatnosti
+                      </span>
                       <span className={styles.infoValue}>
-                        {org.activityCode}{org.activityName ? ` — ${org.activityName}` : ""}
+                        {org.activityCode}
+                        {org.activityName ? ` — ${org.activityName}` : ""}
                       </span>
                     </div>
                   )}
@@ -398,15 +516,23 @@ function ProfilTab({ user }: { user: AuthUser }) {
                       <span className={styles.infoValue}>{org.phone}</span>
                     </div>
                   )}
-                  <div className={styles.infoRow} style={{ borderBottom: "none" }}>
+                  <div
+                    className={styles.infoRow}
+                    style={{ borderBottom: "none" }}
+                  >
                     <span className={styles.infoLabel}>Adresa</span>
                     <span className={styles.infoValue}>
-                      {org.address || <span className={styles.infoEmpty}>Nije unesena</span>}
+                      {org.address || (
+                        <span className={styles.infoEmpty}>Nije unesena</span>
+                      )}
                     </span>
                   </div>
                 </div>
                 <div className={styles.ownOrgActions}>
-                  <button className={styles.btnEditInline} onClick={() => startEditOwnOrg(org)}>
+                  <button
+                    className={styles.btnEditInline}
+                    onClick={() => startEditOwnOrg(org)}
+                  >
                     <LuPencil size={14} /> Izmijeni
                   </button>
                 </div>
@@ -416,32 +542,64 @@ function ProfilTab({ user }: { user: AuthUser }) {
         ))}
 
         {/* add button — ACCOUNTANT always, USER only if no owned orgs yet */}
-        {!showAddOrg && editOwnId === null && (isAccountant || ownOrgs.length === 0) && (
-          <button className={styles.addOrgToggle} onClick={() => setShowAddOrg(true)}>
-            <span>+</span> Dodaj {ownOrgs.length > 0 ? "još jednu djelatnost" : "svoju firmu ili obrt"}
-          </button>
-        )}
+        {!showAddOrg &&
+          editOwnId === null &&
+          (isSubscriber || ownOrgs.length === 0) && (
+            <button
+              className={styles.addOrgToggle}
+              onClick={() => setShowAddOrg(true)}
+            >
+              <span>+</span> Dodaj{" "}
+              {ownOrgs.length > 0
+                ? "još jednu djelatnost"
+                : "svoju firmu ili obrt"}
+            </button>
+          )}
 
         {/* locked upsell for USER with an existing org */}
-        {!showAddOrg && editOwnId === null && !isAccountant && ownOrgs.length > 0 && (
-          <div className={styles.lockedFeature}>
-            <span>🔒</span>
-            <span>Više djelatnosti dostupno uz pretplatu na <strong>Accountant plan</strong>.</span>
-          </div>
-        )}
+        {!showAddOrg &&
+          editOwnId === null &&
+          !isSubscriber &&
+          ownOrgs.length > 0 && (
+            <div className={styles.lockedFeature}>
+              <span>🔒</span>
+              <span>
+                Više djelatnosti dostupno uz pretplatu na{" "}
+                <strong>Accountant plan</strong>.
+              </span>
+            </div>
+          )}
 
         {showAddOrg && (
-          <form className={styles.form} onSubmit={(e) => {
-            e.preventDefault();
-            createOwnOrgMutation.mutate(orgFormToPayload(addOrg, null));
-          }}>
+          <form
+            className={styles.form}
+            onSubmit={(e) => {
+              e.preventDefault();
+              createOwnOrgMutation.mutate(orgFormToPayload(addOrg, null));
+            }}
+          >
             <OrgFormFields value={addOrg} onChange={setAddOrg} />
             {createOwnOrgMutation.error && (
-              <div className={styles.errorMsg}>{createOwnOrgMutation.error.message}</div>
+              <div className={styles.errorMsg}>
+                {createOwnOrgMutation.error.message}
+              </div>
             )}
             <div className={styles.formActions}>
-              <button type="button" className={styles.btnGhost} onClick={() => { setShowAddOrg(false); setAddOrg(emptyOrgForm); }}>Odustani</button>
-              <button type="submit" className={styles.btnPrimary} disabled={createOwnOrgMutation.isPending}>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                onClick={() => {
+                  setShowAddOrg(false);
+                  setAddOrg(emptyOrgForm);
+                }}
+              >
+                Odustani
+              </button>
+              <button
+                type="submit"
+                className={styles.btnPrimary}
+                disabled={createOwnOrgMutation.isPending}
+              >
                 {createOwnOrgMutation.isPending ? "Dodavanje..." : "Dodaj"}
               </button>
             </div>
@@ -632,8 +790,12 @@ function ActivityCombobox({
   const [active, setActive] = useState<"code" | "name" | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setCodeVal(activityCode); }, [activityCode]);
-  useEffect(() => { setNameVal(activityName); }, [activityName]);
+  useEffect(() => {
+    setCodeVal(activityCode);
+  }, [activityCode]);
+  useEffect(() => {
+    setNameVal(activityName);
+  }, [activityName]);
 
   const query = active === "code" ? codeVal : active === "name" ? nameVal : "";
 
@@ -713,7 +875,10 @@ function ActivityCombobox({
               key={e.code}
               type="button"
               className={styles.activityOption}
-              onMouseDown={(ev) => { ev.preventDefault(); select(e); }}
+              onMouseDown={(ev) => {
+                ev.preventDefault();
+                select(e);
+              }}
             >
               <span className={styles.activityCode}>{e.code}</span>
               <span className={styles.activityName}>{e.name}</span>
@@ -764,10 +929,14 @@ function OrgFormFields({
       </div>
       <ActivityCombobox
         taxNumber={value.taxNumber}
-        onTaxNumberChange={(e) => onChange({ ...value, taxNumber: e.target.value })}
+        onTaxNumberChange={(e) =>
+          onChange({ ...value, taxNumber: e.target.value })
+        }
         activityCode={value.activityCode}
         activityName={value.activityName}
-        onChange={(code, name) => onChange({ ...value, activityCode: code, activityName: name })}
+        onChange={(code, name) =>
+          onChange({ ...value, activityCode: code, activityName: name })
+        }
       />
       <div className={styles.row}>
         <div className={styles.field}>
@@ -1090,7 +1259,9 @@ function DjelatnostTab() {
         {clientOrgs.length === 0 && (
           <div className={styles.empty} style={{ padding: "1.5rem 0" }}>
             <div className={styles.emptyIcon}>🏢</div>
-            <div className={styles.emptyText}>Nema dodanih klijentskih organizacija.</div>
+            <div className={styles.emptyText}>
+              Nema dodanih klijentskih organizacija.
+            </div>
           </div>
         )}
 
@@ -1159,7 +1330,8 @@ function DjelatnostTab() {
                     <div className={styles.orgMeta}>
                       {ORG_TYPE_LABELS[org.type] ?? org.type}
                       {org.taxNumber && ` · JIB: ${org.taxNumber}`}
-                      {org.activityCode && ` · ${org.activityCode}${org.activityName ? ` ${org.activityName}` : ""}`}
+                      {org.activityCode &&
+                        ` · ${org.activityCode}${org.activityName ? ` ${org.activityName}` : ""}`}
                       {org.owner &&
                         ` · Vlasnik: ${org.owner.firstName} ${org.owner.lastName}`}
                     </div>
@@ -1192,7 +1364,7 @@ function DjelatnostTab() {
       {/* ── Person clients ── */}
       <div className={styles.card} style={{ marginBottom: "1.5rem" }}>
         <p className={styles.cardTitle}>Fizička lica (klijenti)</p>
-        <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]}>
+        <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]}>
           <>
             {persons.length === 0 && (
               <div className={styles.empty} style={{ padding: "1.5rem 0" }}>
@@ -1296,7 +1468,7 @@ function DjelatnostTab() {
             <p className={styles.addOrgTitle}>Šta želite dodati?</p>
 
             <div className={styles.orgTypeRadios}>
-              <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]}>
+              <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]}>
                 <label
                   className={`${styles.orgTypeRadio} ${addMode === "client-org" ? styles.orgTypeRadioActive : ""}`}
                 >
@@ -1320,7 +1492,7 @@ function DjelatnostTab() {
                 </label>
               </RoleGuard>
 
-              <RoleGuard roles={["ACCOUNTANT", "SUPER_ADMIN"]}>
+              <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]}>
                 <label
                   className={`${styles.orgTypeRadio} ${addMode === "person" ? styles.orgTypeRadioActive : ""}`}
                 >
@@ -1379,12 +1551,7 @@ function DjelatnostTab() {
                 className={styles.form}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  createOrgMutation.mutate(
-                    orgFormToPayload(
-                      addOrg,
-                      addOwner,
-                    ),
-                  );
+                  createOrgMutation.mutate(orgFormToPayload(addOrg, addOwner));
                 }}
               >
                 <OrgFormFields value={addOrg} onChange={setAddOrg} />
@@ -1456,13 +1623,16 @@ function AmortizacijaSection() {
       const odISO = obveznik.periodOd || `${year}-01-01`;
       const doISO = obveznik.periodDo || `${year}-12-31`;
 
-      let nabavna = 0, kv = 0, iznos = 0, kvKraj = 0;
-      const pldiRows = rows.map(row => {
+      let nabavna = 0,
+        kv = 0,
+        iznos = 0,
+        kvKraj = 0;
+      const pldiRows = rows.map((row) => {
         const calc = calcRow(row, odISO, doISO);
         if (!row.prodano) {
           nabavna += parseDec(row.nabavnaVrijednost) ?? 0;
-          kv      += parseDec(row.kvPocetak) ?? 0;
-          kvKraj  += calc.kvKraj ?? 0;
+          kv += parseDec(row.kvPocetak) ?? 0;
+          kvKraj += calc.kvKraj ?? 0;
         }
         iznos += calc.iznos ?? 0;
         return {
@@ -1483,19 +1653,28 @@ function AmortizacijaSection() {
       });
 
       const data: PldiData = {
-        jmb: obveznik.jmb, imeIPrezime: obveznik.imeIPrezime, adresa: obveznik.adresa,
-        jib: obveznik.jib, naziv: obveznik.naziv, adresaDjelatnosti: obveznik.adresaDjelatnosti,
-        vrstaSifra: obveznik.vrstaSifra, vrstaNaziv: obveznik.vrstaNaziv,
+        jmb: obveznik.jmb,
+        imeIPrezime: obveznik.imeIPrezime,
+        adresa: obveznik.adresa,
+        jib: obveznik.jib,
+        naziv: obveznik.naziv,
+        adresaDjelatnosti: obveznik.adresaDjelatnosti,
+        vrstaSifra: obveznik.vrstaSifra,
+        vrstaNaziv: obveznik.vrstaNaziv,
         godina: String(year),
         periodOd: isoToDisplay(odISO),
         periodDo: isoToDisplay(doISO),
         rows: pldiRows,
-        totalNabavna: r2(nabavna), totalKv: r2(kv),
-        totalIznos: r2(iznos), totalKvKraj: r2(kvKraj),
+        totalNabavna: r2(nabavna),
+        totalKv: r2(kv),
+        totalIznos: r2(iznos),
+        totalKvKraj: r2(kvKraj),
       };
 
       const bytes = await fillPldiTemplate(data);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+      const blob = new Blob([bytes.buffer as ArrayBuffer], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1512,23 +1691,30 @@ function AmortizacijaSection() {
 
   return (
     <div className={styles.formList}>
-      {[...years].sort((a, b) => b - a).map(year => (
-        <div key={year} className={styles.formItem}>
-          <span className={`${styles.formTypeBadge} ${styles.badgePldi}`}>PLDI</span>
-          <div className={styles.formDetails}>
-            <div className={styles.formTitle}>Stalna sredstva · {year}</div>
-            <div className={styles.formMeta}>Obrazac PLDI-1043</div>
+      {[...years]
+        .sort((a, b) => b - a)
+        .map((year) => (
+          <div key={year} className={styles.formItem}>
+            <span className={`${styles.formTypeBadge} ${styles.badgePldi}`}>
+              PLDI
+            </span>
+            <div className={styles.formDetails}>
+              <div className={styles.formTitle}>Stalna sredstva · {year}</div>
+              <div className={styles.formMeta}>Obrazac PLDI-1043</div>
+            </div>
+            <button
+              className={styles.btnGhost}
+              onClick={() => handleDownload(year)}
+              disabled={loadingYear === year}
+            >
+              <LuFileDown
+                size={14}
+                style={{ marginRight: 4, verticalAlign: "middle" }}
+              />
+              {loadingYear === year ? "Generišem..." : "Preuzmi PDF"}
+            </button>
           </div>
-          <button
-            className={styles.btnGhost}
-            onClick={() => handleDownload(year)}
-            disabled={loadingYear === year}
-          >
-            <LuFileDown size={14} style={{ marginRight: 4, verticalAlign: "middle" }} />
-            {loadingYear === year ? "Generišem..." : "Preuzmi PDF"}
-          </button>
-        </div>
-      ))}
+        ))}
     </div>
   );
 }
@@ -1541,7 +1727,16 @@ function HistorijaTab() {
 
   const { data: forms = [], isLoading } = useQuery<FormRecord[]>({
     queryKey: ["forms", filter],
-    queryFn: () => unwrap(getForms(showForms ? (filter === "ALL" ? undefined : filter as FormType) : undefined)),
+    queryFn: () =>
+      unwrap(
+        getForms(
+          showForms
+            ? filter === "ALL"
+              ? undefined
+              : (filter as FormType)
+            : undefined,
+        ),
+      ),
     enabled: showForms,
   });
 
@@ -1557,10 +1752,12 @@ function HistorijaTab() {
         <select
           className={styles.filterSelect}
           value={filter}
-          onChange={e => setFilter(e.target.value as HistorijaFilter)}
+          onChange={(e) => setFilter(e.target.value as HistorijaFilter)}
         >
-          {FILTER_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          {FILTER_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
       </div>
@@ -1580,38 +1777,45 @@ function HistorijaTab() {
         </div>
       )}
 
-      {showForms && !isLoading && forms.filter(f => f.type !== "PLDI").length > 0 && (
-        <div className={styles.formList} style={{ marginTop: showAmortizacija ? "0.75rem" : 0 }}>
-          {forms.filter(f => f.type !== "PLDI").map((f) => (
-            <div key={f.id} className={styles.formItem}>
-              <span className={typeBadgeClass(f.type, styles)}>
-                {FORM_TYPE_LABELS[f.type]}
-              </span>
-              <div className={styles.formDetails}>
-                <div className={styles.formTitle}>{displayTitle(f)}</div>
-                <div className={styles.formMeta}>
-                  {f.organization && `${f.organization.name} · `}
-                  {new Date(f.createdAt).toLocaleDateString("bs-BA")}
+      {showForms &&
+        !isLoading &&
+        forms.filter((f) => f.type !== "PLDI").length > 0 && (
+          <div
+            className={styles.formList}
+            style={{ marginTop: showAmortizacija ? "0.75rem" : 0 }}
+          >
+            {forms
+              .filter((f) => f.type !== "PLDI")
+              .map((f) => (
+                <div key={f.id} className={styles.formItem}>
+                  <span className={typeBadgeClass(f.type, styles)}>
+                    {FORM_TYPE_LABELS[f.type]}
+                  </span>
+                  <div className={styles.formDetails}>
+                    <div className={styles.formTitle}>{displayTitle(f)}</div>
+                    <div className={styles.formMeta}>
+                      {f.organization && `${f.organization.name} · `}
+                      {new Date(f.createdAt).toLocaleDateString("bs-BA")}
+                    </div>
+                  </div>
+                  <span className={statusClass(f.status, styles)}>
+                    {STATUS_LABELS[f.status] ?? f.status}
+                  </span>
+                  {f.pdfUrl && (
+                    <a
+                      href={f.pdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={styles.btnGhost}
+                      style={{ textDecoration: "none", fontSize: 12 }}
+                    >
+                      PDF
+                    </a>
+                  )}
                 </div>
-              </div>
-              <span className={statusClass(f.status, styles)}>
-                {STATUS_LABELS[f.status] ?? f.status}
-              </span>
-              {f.pdfUrl && (
-                <a
-                  href={f.pdfUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={styles.btnGhost}
-                  style={{ textDecoration: "none", fontSize: 12 }}
-                >
-                  PDF
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              ))}
+          </div>
+        )}
     </div>
   );
 }
@@ -1652,8 +1856,8 @@ export default function Profil() {
   if (!user) return null;
 
   const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: "profil",    label: "Profil",    icon: <LuUser size={17} /> },
-    { key: "klijenti",  label: "Klijenti",  icon: <LuUsers size={17} /> },
+    { key: "profil", label: "Profil", icon: <LuUser size={17} /> },
+    { key: "klijenti", label: "Klijenti", icon: <LuUsers size={17} /> },
     { key: "historija", label: "Historija", icon: <LuHistory size={17} /> },
   ];
 
@@ -1685,8 +1889,8 @@ export default function Profil() {
       </aside>
 
       <main className={styles.content}>
-        {tab === "profil"    && <ProfilTab key={user.id} user={user} />}
-        {tab === "klijenti"  && <DjelatnostTab />}
+        {tab === "profil" && <ProfilTab key={user.id} user={user} />}
+        {tab === "klijenti" && <DjelatnostTab />}
         {tab === "historija" && <HistorijaTab />}
       </main>
     </div>

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 
-export type AppRole = "USER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+export type AppRole = "USER" | "PRO" | "BUSINESS" | "ADMIN";
 
 export function useRole() {
   const { data: user } = useQuery({
@@ -16,7 +16,6 @@ export function useRole() {
 
   return {
     role,
-    hasRole: (...roles: AppRole[]) =>
-      role !== null && roles.includes(role),
+    hasRole: (...roles: AppRole[]) => role !== null && roles.includes(role),
   };
 }

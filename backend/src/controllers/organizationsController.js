@@ -23,12 +23,20 @@ function validateOrgData(body, requireName = true) {
     data.type = type;
   }
 
-  if (taxNumber !== undefined) data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
-  if (body.activityCode !== undefined) data.activityCode = body.activityCode ? String(body.activityCode).trim() : null;
-  if (body.activityName !== undefined) data.activityName = body.activityName ? String(body.activityName).trim() : null;
+  if (taxNumber !== undefined)
+    data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
+  if (body.activityCode !== undefined)
+    data.activityCode = body.activityCode
+      ? String(body.activityCode).trim()
+      : null;
+  if (body.activityName !== undefined)
+    data.activityName = body.activityName
+      ? String(body.activityName).trim()
+      : null;
   if (email !== undefined) data.email = email ? String(email).trim() : null;
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
-  if (address !== undefined) data.address = address ? String(address).trim() : null;
+  if (address !== undefined)
+    data.address = address ? String(address).trim() : null;
 
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
@@ -77,7 +85,9 @@ async function create(req, res) {
 
   // Without ownerData the logged-in user becomes the owner — regular users limited to one
   if (!ownerData && userRole === "USER") {
-    const ownedCount = await organizationRepository.countOwnedOrganizations(req.user.id);
+    const ownedCount = await organizationRepository.countOwnedOrganizations(
+      req.user.id,
+    );
     if (ownedCount >= 1) {
       return res.status(409).json({ ok: false, error: "ALREADY_HAS_OWN_ORG" });
     }
@@ -92,7 +102,9 @@ async function create(req, res) {
   if (ownerData) {
     const ownerValidation = validateOwnerData(ownerData);
     if (!ownerValidation.ok) {
-      return res.status(400).json({ ok: false, error: ownerValidation.message });
+      return res
+        .status(400)
+        .json({ ok: false, error: ownerValidation.message });
     }
     validatedOwner = ownerValidation.value;
   }
@@ -101,12 +113,17 @@ async function create(req, res) {
     const org = await organizationRepository.createOrganization(
       orgValidation.value,
       validatedOwner,
-      req.user.id
+      req.user.id,
     );
     res.status(201).json({ ok: true, data: org });
   } catch (error) {
     if (error?.code === "P2002") {
-      return res.status(409).json({ ok: false, error: "Porezni broj ili JMBG vlasnika već postoji" });
+      return res
+        .status(409)
+        .json({
+          ok: false,
+          error: "Porezni broj ili JMBG vlasnika već postoji",
+        });
     }
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
   }
@@ -129,7 +146,9 @@ async function update(req, res) {
   if (ownerData) {
     const ownerValidation = validateOwnerData(ownerData, false); // jmbg optional on update
     if (!ownerValidation.ok) {
-      return res.status(400).json({ ok: false, error: ownerValidation.message });
+      return res
+        .status(400)
+        .json({ ok: false, error: ownerValidation.message });
     }
     validatedOwner = ownerValidation.value;
   }
@@ -139,15 +158,22 @@ async function update(req, res) {
       id,
       orgValidation.value,
       validatedOwner,
-      req.user.id
+      req.user.id,
     );
     if (!org) {
-      return res.status(404).json({ ok: false, error: "Organizacija nije pronađena" });
+      return res
+        .status(404)
+        .json({ ok: false, error: "Organizacija nije pronađena" });
     }
     res.status(200).json({ ok: true, data: org });
   } catch (error) {
     if (error?.code === "P2002") {
-      return res.status(409).json({ ok: false, error: "Porezni broj ili JMBG vlasnika već postoji" });
+      return res
+        .status(409)
+        .json({
+          ok: false,
+          error: "Porezni broj ili JMBG vlasnika već postoji",
+        });
     }
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
   }
@@ -159,12 +185,34 @@ async function remove(req, res) {
     return res.status(400).json({ ok: false, error: "Invalid id" });
   }
   try {
-    const deleted = await organizationRepository.deleteOrganization(id, req.user.id);
-    if (!deleted) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+    const deleted = await organizationRepository.deleteOrganization(
+      id,
+      req.user.id,
+    );
+    if (!deleted)
+      return res.status(403).json({ ok: false, error: "FORBIDDEN" });
     res.status(200).json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
   }
 }
 
-module.exports = { list, create, update, remove };
+async function getById(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  }
+
+  const orgs = await organizationRepository.getUserOrganizations(req.user.id);
+  const org = orgs.find((o) => o.id === id);
+
+  if (!org) {
+    return res
+      .status(404)
+      .json({ ok: false, error: "Organizacija nije pronađena" });
+  }
+
+  return res.status(200).json({ ok: true, data: org });
+}
+
+module.exports = { list, create, update, remove, getById };

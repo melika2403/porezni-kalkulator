@@ -1,7 +1,7 @@
 const clientRepository = require("../repositories/clientRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 
-const ALLOWED_ROLES = ["ACCOUNTANT", "SUPER_ADMIN"];
+const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
@@ -16,7 +16,8 @@ function checkRole(req, res) {
 }
 
 function validateClientPayload(body, requireName = true) {
-  const { firstName, lastName, jmbg, taxNumber, email, phone, address } = body ?? {};
+  const { firstName, lastName, jmbg, taxNumber, email, phone, address } =
+    body ?? {};
   const data = {};
 
   if (requireName || firstName != null) {
@@ -36,10 +37,12 @@ function validateClientPayload(body, requireName = true) {
     data.jmbg = encryptJmbg(String(jmbg).trim());
   }
 
-  if (taxNumber !== undefined) data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
+  if (taxNumber !== undefined)
+    data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
   if (email !== undefined) data.email = email ? String(email).trim() : null;
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
-  if (address !== undefined) data.address = address ? String(address).trim() : null;
+  if (address !== undefined)
+    data.address = address ? String(address).trim() : null;
 
   if (Object.keys(data).length === 0)
     return { ok: false, message: "Nema polja za ažuriranje" };
@@ -61,7 +64,10 @@ async function create(req, res) {
     return res.status(400).json({ ok: false, error: validation.message });
 
   try {
-    const client = await clientRepository.createPersonClient(validation.value, req.user.id);
+    const client = await clientRepository.createPersonClient(
+      validation.value,
+      req.user.id,
+    );
     res.status(201).json({ ok: true, data: client });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -80,9 +86,15 @@ async function update(req, res) {
     return res.status(400).json({ ok: false, error: validation.message });
 
   try {
-    const client = await clientRepository.updatePersonClient(id, validation.value, req.user.id);
+    const client = await clientRepository.updatePersonClient(
+      id,
+      validation.value,
+      req.user.id,
+    );
     if (!client)
-      return res.status(404).json({ ok: false, error: "Klijent nije pronađen" });
+      return res
+        .status(404)
+        .json({ ok: false, error: "Klijent nije pronađen" });
     res.status(200).json({ ok: true, data: client });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });

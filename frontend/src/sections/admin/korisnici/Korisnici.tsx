@@ -18,16 +18,16 @@ import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 
 const ROLE_LABELS: Record<string, string> = {
   USER: "Korisnik",
-  ACCOUNTANT: "Računovođa",
+  PRO: "Pro",
   ADMIN: "Admin",
-  SUPER_ADMIN: "Super Admin",
+  BUSINESS: "Business",
 };
 
 const ROLE_BADGE_CLASS: Record<Users["role"], string> = {
   USER: "roleUser",
-  ACCOUNTANT: "roleAccountant",
+  PRO: "rolePro",
   ADMIN: "roleAdmin",
-  SUPER_ADMIN: "roleSuperAdmin",
+  BUSINESS: "roleBusiness",
 };
 
 function formatDate(iso: string | null | undefined) {
@@ -121,11 +121,7 @@ export default function Korisnici() {
   const canNext = page < totalPages && !query.isFetching;
 
   return (
-    <RoleGuard
-      roles={["ADMIN", "SUPER_ADMIN"]}
-      label="Nemate pristup"
-      mode="hide"
-    >
+    <RoleGuard roles={["ADMIN"]} label="Nemate pristup" mode="hide">
       <div className={styles.page}>
         <div className={styles.orgHeader}>
           <h1 className={styles.orgTitle}>Korisnici</h1>
@@ -421,9 +417,9 @@ function UserRow({ user }: { user: Users }) {
             onChange={(e) => setRole(e.target.value as Users["role"])}
           >
             <option value="USER">Korisnik</option>
-            <option value="ACCOUNTANT">Računovođa</option>
+            <option value="PRO">Pro</option>
+            <option value="BUSINESS">Business</option>
             <option value="ADMIN">Admin</option>
-            <option value="SUPER_ADMIN">Super Admin</option>
           </select>
         ) : (
           <span

@@ -6,7 +6,7 @@ function isNonEmptyString(value) {
 }
 
 function isAdmin(req) {
-  return req.user?.role === "admin";
+  return req.user?.role === "ADMIN";
 }
 
 function validateUserUpdatePayload(body) {
