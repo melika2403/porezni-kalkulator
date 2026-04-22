@@ -9,8 +9,9 @@ interface Plan {
   period: string;
   features: string[];
   cta: string;
-  ctaStyle: 'outline' | 'white' | 'dark';
-  featured?: boolean;
+  ctaStyle: 'outline' | 'white' | 'blue-white';
+  variant?: 'pro' | 'business';
+  tag?: string;
   action: 'scroll' | 'soon';
 }
 
@@ -20,45 +21,53 @@ const PLANS: Plan[] = [
     price: '0 KM',
     period: 'zauvijek besplatno',
     features: [
-      'SPR-1053 obrazac',
-      'GPD-1051 obrazac',
-      'Preračun neto / bruto plate',
-      'PDV kalkulator',
-      'Bez registracije',
+      'SPR-1053 i GPD-1051 obrazac',
+      'izrada i automatska popuna ZO3 obrazca',
+      'AMS-1035 generator zajedno sa uplatnicama',
+      'Stalna sredstva i amortizacija kroz godine',
+      'Historija svih dokumenata po godinama ili obrascima',
+      'Pohrana podataka obrta u svim dokumentima',
+      'Izvoz u Docx / PDF',
     ],
-    cta: 'Počni odmah',
+    cta: 'Počni besplatno',
     ctaStyle: 'outline',
     action: 'scroll',
   },
   {
-    tier: 'Registracija',
-    price: 'Besplatno',
-    period: 'sa registracijom',
-    features: [
-      'Sve iz besplatnog plana',
-      'Stalna sredstva i amortizacija',
-      'Historija GPD podataka po godinama',
-      'Pohrana podataka obrta u SPR-u',
-      'Izvoz u Docx / PDF',
-    ],
-    cta: 'Registruj se besplatno',
-    ctaStyle: 'white',
-    featured: true,
-    action: 'soon',
-  },
-  {
-    tier: 'Pro pretplata',
+    tier: 'Pro',
     price: '--,-- KM',
     period: 'godišnje / po korisniku',
     features: [
-      'Sve iz prethodnih planova',
-      'Prijave radnika + ispis obrazaca',
-      'Ugovori o radu',
-      'Ugovori o djelu s troškovima',
+      'Sve iz besplatnog plana',
+      'Šihterica — Evidencija radnog vremena',
+      'Višestruke vlastite djelatnosti',
+      'Mogućnost dodavanja do 20 klijenata i fizičkih lica',
+      'Prijave/odjake radika, izrada JS3000 obrasca',
+      'Obračun plata i doprinosa za vlasnika obrta i zaposlene',
+      'Generisanje uplatnica za plate i doprinose',
+    ],
+    cta: 'Pretplati se na Pro',
+    ctaStyle: 'white',
+    variant: 'pro',
+    tag: 'Najpopularnije',
+    action: 'soon',
+  },
+  {
+    tier: 'Business',
+    price: '--,-- KM',
+    period: 'godišnje / po korisniku',
+    features: [
+      'Sve iz Pro plana',
+      'Upravljanje neograničenim brojem klijenata i fizičkih lica',
+      'Višekorisnički pristup (tim)',
+      'Ugovori o djelu i automatski obračun poreza i doprinosa',
+      'Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima',
       'Prioritetna podrška',
     ],
-    cta: 'Pretplati se',
-    ctaStyle: 'dark',
+    cta: 'Pretplati se na Business',
+    ctaStyle: 'blue-white',
+    variant: 'business',
+    tag: 'Najbolja vrijednost',
     action: 'soon',
   },
 ];
@@ -78,7 +87,7 @@ export default function Pricing() {
     <>
       <section id="cijene" className={styles.section}>
         <div className={styles.inner}>
-          <div className={styles.label}>Planovi i cijene</div>
+          <div className={styles.label}>Pretplatnički paketi</div>
           <h2 className={styles.h2}>
             Transparentne cijene,<br /><em>bez iznenađenja</em>
           </h2>
@@ -88,9 +97,9 @@ export default function Pricing() {
             {PLANS.map((plan) => (
               <div
                 key={plan.tier}
-                className={`${styles.card} ${plan.featured ? styles.featured : ''}`}
+                className={`${styles.card} ${plan.variant === 'pro' ? styles.featuredPro : ''} ${plan.variant === 'business' ? styles.featuredBusiness : ''}`}
               >
-                {plan.featured && <div className={styles.popularTag}>Najpopularnije</div>}
+                {plan.tag && <div className={styles.popularTag}>{plan.tag}</div>}
                 <div className={styles.tier}>{plan.tier}</div>
                 <div className={styles.price}>{plan.price}</div>
                 <div className={styles.period}>{plan.period}</div>
@@ -101,7 +110,7 @@ export default function Pricing() {
                   ))}
                 </ul>
                 <button
-                  className={`${styles.cta} ${styles[plan.ctaStyle]}`}
+                  className={`${styles.cta} ${plan.ctaStyle === 'outline' ? styles.outline : plan.ctaStyle === 'white' ? styles.white : styles.blueWhite}`}
                   onClick={() => handleCta(plan.action)}
                 >
                   {plan.cta}

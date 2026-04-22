@@ -340,7 +340,7 @@ export default function RootLayout({
       <body>
         <Providers>
           <Navbar />
-          {children}
+          <div className="pageContent">{children}</div>
           <Footer />
         </Providers>
       </body>

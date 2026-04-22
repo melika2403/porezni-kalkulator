@@ -46,7 +46,7 @@ export default function Navbar() {
 
       <div className={styles.links}>
         <Link href={sectionHref('funkcije')}>Funkcije</Link>
-        <Link href={sectionHref('cijene')}>Cijene</Link>
+        <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
         <Link href={sectionHref('kako')}>Kako radi</Link>
         <Link href={sectionHref('faq')}>FAQ</Link>
       </div>

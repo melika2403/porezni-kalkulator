@@ -51,15 +51,23 @@
   padding: 2rem;
   position: relative;
   transition: transform 0.2s;
+  display: flex;
+  flex-direction: column;
 }
 
 .card:hover {
   transform: translateY(-3px);
 }
 
-.card.featured {
+.featuredPro {
   border-color: var(--sage);
   background: var(--sage);
+  color: white;
+}
+
+.featuredBusiness {
+  border-color: #1a4480;
+  background: #1a4480;
   color: white;
 }
 
@@ -107,7 +115,8 @@
   margin: 1.25rem 0;
 }
 
-.featured .divider {
+.featuredPro .divider,
+.featuredBusiness .divider {
   background: rgba(255, 255, 255, 0.2);
 }
 
@@ -117,6 +126,7 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 1.5rem;
+  flex: 1;
 }
 
 .features li {
@@ -134,8 +144,19 @@
   margin-top: 1px;
 }
 
-.featured .features li {
+.featuredPro .features li,
+.featuredBusiness .features li {
   opacity: 0.9;
+}
+
+.blueWhite {
+  background: white;
+  border: none;
+  color: #1a4480;
+}
+
+.blueWhite:hover {
+  background: #e8f0fb;
 }
 
 .cta {
