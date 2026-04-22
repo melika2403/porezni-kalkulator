@@ -55,9 +55,22 @@ export type RegisterPayload = {
 };
 
 export function register(payload: RegisterPayload) {
-  return request<AuthUser>("/api/auth/register", {
+  return request<{ email: string }>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function verifyEmail(token: string) {
+  return request<null>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
+    method: "GET",
+  });
+}
+
+export function resendVerification(email: string) {
+  return request<null>("/api/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
   });
 }
 

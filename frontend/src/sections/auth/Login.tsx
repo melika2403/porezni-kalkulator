@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./auth.module.css";
-import { login, unwrap } from "src/api/auth";
+import { login, resendVerification, unwrap } from "src/api/auth";
 
 export default function Login() {
   const router = useRouter();
@@ -34,9 +34,17 @@ export default function Login() {
     window.location.href = `${backendUrl}/api/auth/google`;
   };
 
+  const isUnverified = mutation.error?.message === "EMAIL_NOT_VERIFIED";
+
+  const resendMutation = useMutation({
+    mutationFn: () => unwrap(resendVerification(email.trim())),
+  });
+
   const errorMsg = mutation.error
     ? mutation.error.message === "INVALID_CREDENTIALS"
       ? "Pogrešan email ili lozinka."
+      : mutation.error.message === "EMAIL_NOT_VERIFIED"
+      ? null
       : mutation.error.message === "NETWORK_ERROR"
       ? "Server nije dostupan. Pokušajte ponovo."
       : "Došlo je do greške. Pokušajte ponovo."
@@ -97,6 +105,24 @@ export default function Login() {
         </label>
 
         {errorMsg && <div className={styles.errorMsg}>{errorMsg}</div>}
+
+        {isUnverified && (
+          <div className={styles.infoBox}>
+            <p>Email adresa nije potvrđena. Provjerite inbox ili spam folder.</p>
+            <button
+              type="button"
+              className={styles.submit}
+              disabled={resendMutation.isPending || resendMutation.isSuccess}
+              onClick={() => resendMutation.mutate()}
+            >
+              {resendMutation.isSuccess
+                ? "Email je poslan"
+                : resendMutation.isPending
+                  ? "Slanje..."
+                  : "Pošalji ponovo"}
+            </button>
+          </div>
+        )}
 
         <button type="submit" className={styles.submit} disabled={mutation.isPending}>
           {mutation.isPending ? "Prijavljivanje..." : "Prijavi se"}

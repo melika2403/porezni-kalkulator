@@ -1,14 +1,11 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import styles from "./auth.module.css";
-import { register, unwrap } from "src/api/auth";
+import { register, resendVerification, unwrap } from "src/api/auth";
 
 export default function Register() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -17,14 +14,17 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+
+  const resendMutation = useMutation({
+    mutationFn: (e: string) => unwrap(resendVerification(e)),
+  });
 
   const mutation = useMutation({
     mutationFn: (payload: Parameters<typeof register>[0]) =>
       unwrap(register(payload)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push("/");
-      router.refresh();
+    onSuccess: (data) => {
+      setSentTo(data.email);
     },
   });
 
@@ -66,6 +66,38 @@ export default function Register() {
     : null;
 
   const errorMsg = validationError ?? serverError;
+
+  if (sentTo) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className={styles.label}>Registracija</div>
+          <h1 className={styles.h1}>Provjerite <em>email</em></h1>
+          <p className={styles.lead}>
+            Poslali smo link za potvrdu na <strong>{sentTo}</strong>.
+            Kliknite na link u emailu da aktivirate račun.
+          </p>
+        </div>
+        <div className={styles.infoBox}>
+          <p>Nije stigao email? Provjerite spam folder ili:</p>
+          <button
+            className={styles.submit}
+            disabled={resendMutation.isPending || resendMutation.isSuccess}
+            onClick={() => resendMutation.mutate(sentTo)}
+          >
+            {resendMutation.isSuccess
+              ? "Email je ponovo poslan"
+              : resendMutation.isPending
+                ? "Slanje..."
+                : "Pošalji ponovo"}
+          </button>
+        </div>
+        <div className={styles.footer}>
+          <Link href="/prijava">Nazad na prijavu</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>

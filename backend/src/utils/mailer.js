@@ -45,6 +45,40 @@ async function sendPasswordResetEmail(to, resetUrl) {
   });
 }
 
+async function sendVerificationEmail(to, firstName, verifyUrl) {
+  const transporter = createTransporter();
+  const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
+  const from = `"${displayName}" <${process.env.SMTP_USER}>`;
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: "Potvrdite vašu email adresu — Porezni Kalkulator",
+    text: `Zdravo ${firstName},\n\nHvala što ste se registrovali na Porezni Kalkulator.\n\nKliknite na sljedeći link da potvrdite vašu email adresu (link važi 24 sata):\n${verifyUrl}\n\nAko se niste registrovali, ignorišite ovaj email.`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Potvrdite vašu email adresu</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 8px;">
+          Zdravo <strong>${firstName}</strong>,
+        </p>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 28px;">
+          Hvala što ste se registrovali na <strong>Porezni Kalkulator</strong>.
+          Kliknite na dugme ispod da potvrdite vašu email adresu. Link važi <strong>24 sata</strong>.
+        </p>
+        <a href="${verifyUrl}"
+           style="display: inline-block; background: #3a5c42; color: #fff; text-decoration: none;
+                  padding: 13px 28px; border-radius: 8px; font-size: 15px; font-weight: 500; margin-bottom: 28px;">
+          Potvrdi email adresu
+        </a>
+        <p style="color: #999; font-size: 13px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          Ako se niste registrovali na Porezni Kalkulator, ignorišite ovaj email.<br/>
+          Link: <a href="${verifyUrl}" style="color: #3a5c42;">${verifyUrl}</a>
+        </p>
+      </div>
+    `,
+  });
+}
+
 async function sendContactEmail({ ime, email, poruka }) {
   const transporter = createTransporter();
 
@@ -61,4 +95,4 @@ async function sendContactEmail({ ime, email, poruka }) {
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendContactEmail };
+module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendContactEmail };

@@ -27,7 +27,12 @@
       "Bash(tasklist /fi \"IMAGENAME eq node.exe\")",
       "Bash(netstat -ano)",
       "Bash(node -e \"require\\('./src/app.js'\\)\")",
-      "Bash(curl -s http://localhost:4000/api/amortizacija/years)"
+      "Bash(curl -s http://localhost:4000/api/amortizacija/years)",
+      "Bash(node -e 'const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.$queryRaw`SELECT id, email, role FROM users WHERE role NOT IN \\('\\\\''USER'\\\\'','\\\\''ACCOUNTANT'\\\\'','\\\\''ADMIN'\\\\'','\\\\''SUPER_ADMIN'\\\\''\\)`.then\\(r => console.log\\(JSON.stringify\\(r\\)\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
+      "Bash(node -e 'require\\('\\\\''dotenv'\\\\''\\).config\\(\\); const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.$executeRawUnsafe\\(\"UPDATE users SET role = '\\\\''USER'\\\\'' WHERE role NOT IN \\('\\\\''USER'\\\\'','\\\\''ACCOUNTANT'\\\\'','\\\\''ADMIN'\\\\'','\\\\''SUPER_ADMIN'\\\\''\\)\"\\).then\\(r => console.log\\('\\\\''Updated rows:'\\\\'', r\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
+      "Bash(taskkill /F /IM node.exe)",
+      "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(node -e 'require\\('\\\\''dotenv'\\\\''\\).config\\(\\); const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.user.updateMany\\({ where: { isEmailVerified: false }, data: { isEmailVerified: true } }\\).then\\(r => console.log\\('\\\\''Ažurirano korisnika:'\\\\'', r.count\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')"
     ]
   }
 }
