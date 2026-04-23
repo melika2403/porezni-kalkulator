@@ -17,7 +17,7 @@ router.get(
 router.get(
   "/workers/mine",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("BUSINESS"),
   workersController.listAllForUser,
 );
 router.post("/", requireAuth, organizationsController.create);
