@@ -220,6 +220,7 @@ enum forms_type {
   ZO3
   UGOVOR
   PLDI
+  AMS
 }
 
 enum users_role {

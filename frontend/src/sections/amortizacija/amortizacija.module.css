@@ -805,6 +805,35 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Load from profile */
+.loadFromProfileRow {
+  margin-bottom: 1.5rem;
+}
+
+.loadFromProfileSelect {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  min-width: 260px;
+}
+
+.loadFromProfileSelect:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.loadFromProfileSelect:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ── Footer note ── */
 .napomena {
   font-size: 12px;
