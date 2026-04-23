@@ -79,6 +79,16 @@ async function list(req, res) {
   res.status(200).json({ ok: true, data: orgs });
 }
 
+const CLIENT_ORG_ROLES = ["PRO", "BUSINESS", "ADMIN"];
+
+async function listClients(req, res) {
+  if (!CLIENT_ORG_ROLES.includes(req.user?.role)) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+  const orgs = await organizationRepository.getClientOrganizations(req.user.id);
+  res.status(200).json({ ok: true, data: orgs });
+}
+
 async function create(req, res) {
   const { ownerData, ...orgBody } = req.body ?? {};
   const userRole = req.user.role;
@@ -89,13 +99,15 @@ async function create(req, res) {
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
   }
 
-  const ownedCount = await organizationRepository.countOwnedOrganizations(
-    req.user.id,
-  );
-  if (ownedCount >= 2) {
-    return res
-      .status(409)
-      .json({ ok: false, error: "ALREADY_HAS_OWN_ORG_LIMIT" });
+  if (!ownerData) {
+    const ownedCount = await organizationRepository.countOwnedOrganizations(
+      req.user.id,
+    );
+    if (ownedCount >= 2) {
+      return res
+        .status(409)
+        .json({ ok: false, error: "ALREADY_HAS_OWN_ORG_LIMIT" });
+    }
   }
 
   const orgValidation = validateOrgData(orgBody, true);
@@ -204,8 +216,10 @@ async function getById(req, res) {
     return res.status(400).json({ ok: false, error: "Invalid id" });
   }
 
-  const orgs = await organizationRepository.getUserOrganizations(req.user.id);
-  const org = orgs.find((o) => o.id === id);
+  const org = await organizationRepository.getOrganizationForUser(
+    id,
+    req.user.id,
+  );
 
   if (!org) {
     return res
@@ -216,4 +230,4 @@ async function getById(req, res) {
   return res.status(200).json({ ok: true, data: org });
 }
 
-module.exports = { list, create, update, remove, getById };
+module.exports = { list, listClients, create, update, remove, getById };

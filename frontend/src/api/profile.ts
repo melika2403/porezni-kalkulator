@@ -171,6 +171,10 @@ export function getOrganizations() {
   return request<Organization[]>("/api/organizations");
 }
 
+export function getClientOrganizations() {
+  return request<Organization[]>("/api/organizations/clients");
+}
+
 export function createOrganization(payload: OrgPayload) {
   return request<Organization>("/api/organizations", {
     method: "POST",
@@ -270,6 +274,15 @@ export type WorkerPayload = {
 
 export function getWorkers(orgId: number) {
   return request<Worker[]>(`/api/organizations/${orgId}/workers`);
+}
+
+export type WorkerWithOrg = Worker & {
+  organizationId: number;
+  organizationName: string;
+};
+
+export function getAllMyWorkers() {
+  return request<WorkerWithOrg[]>(`/api/organizations/workers/mine`);
 }
 
 export function createWorker(orgId: number, payload: WorkerPayload) {

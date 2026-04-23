@@ -6,6 +6,7 @@ import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
 import { fillGpdUplatnica, KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
+import PersonFillSelect, { type FillData } from "src/components/PersonFillSelect/PersonFillSelect";
 
 /* ── Row definitions ── */
 
@@ -286,6 +287,18 @@ export default function GpdForm() {
     [],
   );
 
+  /* ── Fill from profile/client ── */
+
+  const fillPersonal = useCallback((data: FillData) => {
+    setPersonal((p) => ({
+      ...p,
+      jmb: data.jmbg ?? p.jmb,
+      fullName:
+        [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
+      address: data.address ?? p.address,
+    }));
+  }, []);
+
   /* ── PDF Export ── */
 
   const exportPdf = useCallback(async () => {
@@ -436,6 +449,7 @@ export default function GpdForm() {
             <span className={styles.helpBtn}>?</span>
           </Link>
         </h2>
+        <PersonFillSelect onFill={fillPersonal} />
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>1) JMB</label>

@@ -4,6 +4,8 @@ import styles from "./zo3.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import DateInput from "src/components/DateInput/DateInput";
+import PersonFillSelect, { type FillData } from "src/components/PersonFillSelect/PersonFillSelect";
+import OrgFillSelect, { type OrgFillData } from "src/components/PersonFillSelect/OrgFillSelect";
 
 /* ── Constants ── */
 
@@ -210,6 +212,27 @@ export default function Zo3Form() {
   const [mjesto, setMjesto] = useState("");
   const [datum, setDatum] = useState(() => getTodayIsoString());
 
+  /* ── Fill from profile/client ── */
+
+  const fillInsured = useCallback((data: FillData) => {
+    setInsured((p) => ({
+      ...p,
+      jmbg: data.jmbg ?? p.jmbg,
+      ime: data.firstName ?? p.ime,
+      prezime: data.lastName ?? p.prezime,
+      ulicaBroj: data.address ?? p.ulicaBroj,
+    }));
+  }, []);
+
+  const fillEmployer = useCallback((data: OrgFillData) => {
+    setEmployer((p) => ({
+      ...p,
+      naziv: data.name ?? p.naziv,
+      jib: data.taxNumber ?? p.jib,
+      sifraDjelatnosti: data.activityCode ?? p.sifraDjelatnosti,
+    }));
+  }, []);
+
   /* ── Autocomplete for poslovnica ── */
   const poslovniceOptions = useMemo(
     () => (kanton ? (POSLOVNICE[kanton] ?? []) : []),
@@ -395,6 +418,7 @@ export default function Zo3Form() {
         <h2 className={styles.sectionTitle}>
           Naziv i sjedište <em>obveznika uplate doprinosa</em>
         </h2>
+        <OrgFillSelect onFill={fillEmployer} />
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>
@@ -483,6 +507,7 @@ export default function Zo3Form() {
         <h2 className={styles.sectionTitle}>
           Podaci o <em>osiguraniku</em>
         </h2>
+        <PersonFillSelect onFill={fillInsured} />
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) JMBG</label>
