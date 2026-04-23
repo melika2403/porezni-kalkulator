@@ -4,8 +4,13 @@ import styles from "./ams.module.css";
 import { fillAmsTemplate, type AmsData } from "./fillAms";
 import { fillUplatnice, KANTONI, type KantonKey } from "./fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
-import PersonFillSelect, { type FillData } from "src/components/PersonFillSelect/PersonFillSelect";
-import OrgFillSelect, { type OrgFillData } from "src/components/PersonFillSelect/OrgFillSelect";
+import PersonFillSelect, {
+  type FillData,
+} from "src/components/PersonFillSelect/PersonFillSelect";
+import OrgFillSelect, {
+  type OrgFillData,
+} from "src/components/PersonFillSelect/OrgFillSelect";
+import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 
 /* ── Helpers ── */
 
@@ -26,7 +31,10 @@ const fmtInput = (raw: string): string => {
 };
 
 const fmt = (n: number) =>
-  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  n.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -41,20 +49,36 @@ const isoToDisplay = (iso: string): string => {
   return `${d}.${m}.${y}.`;
 };
 
-const EMPTY_ROW = { iznosDohotka: 0, zdravstveno: 0, osnovica: 0, porez: 0, porezniKredit: 0, razlika: 0 };
+const EMPTY_ROW = {
+  iznosDohotka: 0,
+  zdravstveno: 0,
+  osnovica: 0,
+  porez: 0,
+  porezniKredit: 0,
+  razlika: 0,
+};
 
 const KANTON_KEYS = Object.keys(KANTONI) as KantonKey[];
 
 const formatZiroRacun = (raw: string): string => {
   const d = raw.replace(/\D/g, "").slice(0, 16);
-  const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+  const parts = [
+    d.slice(0, 3),
+    d.slice(3, 6),
+    d.slice(6, 14),
+    d.slice(14, 16),
+  ].filter(Boolean);
   return parts.join("-");
 };
 
 const downloadPdf = (bytes: Uint8Array, filename: string) => {
-  const ab = bytes.buffer instanceof ArrayBuffer
-    ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-    : Uint8Array.from(bytes).buffer;
+  const ab =
+    bytes.buffer instanceof ArrayBuffer
+      ? bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength,
+        )
+      : Uint8Array.from(bytes).buffer;
   const blob = new Blob([ab], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -96,6 +120,9 @@ export default function AmsForm() {
   const [ziroRacun, setZiroRacun] = useState("");
   const [loadingUpl, setLoadingUpl] = useState(false);
 
+  const [sourceClientId, setSourceClientId] = useState<number | null>(null);
+  const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
+
   /* ── Fill from profile/client ── */
 
   const fillPersonal = useCallback((data: FillData) => {
@@ -103,6 +130,10 @@ export default function AmsForm() {
     const name = [data.firstName, data.lastName].filter(Boolean).join(" ");
     if (name) setImeIPrezime(name);
     if (data.address) setAdresa(data.address);
+    if (data.sourceClientId !== undefined)
+      setSourceClientId(data.sourceClientId);
+    if (data.sourceWorkerOrgId !== undefined)
+      setSourceOrgId(data.sourceWorkerOrgId);
   }, []);
 
   const fillIsplatilac = useCallback((data: OrgFillData) => {
@@ -123,42 +154,88 @@ export default function AmsForm() {
     const razlika = r2(porez - kredit);
     const zdravstvenoKanton = r2(zdravstveno * 0.898);
     const zdravstvenoFbih = r2(zdravstveno * 0.102);
-    return { rashodi, iznosDohotka, zdravstveno, zdravstvenoKanton, zdravstvenoFbih, osnovica, porez, kredit, razlika };
+    return {
+      rashodi,
+      iznosDohotka,
+      zdravstveno,
+      zdravstvenoKanton,
+      zdravstvenoFbih,
+      osnovica,
+      porez,
+      kredit,
+      razlika,
+    };
   }, [iznosUplate, odbitakPct, porezniKredit]);
 
   const kantonData = kanton ? KANTONI[kanton] : null;
   const opcinaData = kantonData?.opcine.find((o) => o.kod === opcina) ?? null;
 
+  /* ── Build AMS data ── */
+  const buildAmsData = useCallback((): AmsData => {
+    const row1 = {
+      iznosDohotka: computed.iznosDohotka,
+      zdravstveno: computed.zdravstveno,
+      osnovica: computed.osnovica,
+      porez: computed.porez,
+      porezniKredit: computed.kredit,
+      razlika: computed.razlika,
+    };
+    return {
+      imeIPrezime,
+      jmbg,
+      adresa,
+      datumIsplate,
+      periodMjesec,
+      periodGodina,
+      naziv,
+      adresaIsplatioca,
+      drzava,
+      rows: [row1, EMPTY_ROW, EMPTY_ROW, EMPTY_ROW, EMPTY_ROW],
+      ukupnoZdravstveno: computed.zdravstveno,
+      ukupnoOsnovica: computed.osnovica,
+      ukupnoPorez: computed.porez,
+      ukupnoPorezniKredit: computed.kredit,
+      ukupnoRazlika: computed.razlika,
+      datum: isoToDisplay(datum),
+    };
+  }, [
+    imeIPrezime,
+    jmbg,
+    adresa,
+    datumIsplate,
+    periodMjesec,
+    periodGodina,
+    naziv,
+    adresaIsplatioca,
+    drzava,
+    computed,
+    datum,
+  ]);
+
   /* ── Export AMS ── */
   const handleExport = async () => {
     setLoading(true);
     try {
-      const row1 = {
-        iznosDohotka: computed.iznosDohotka,
-        zdravstveno: computed.zdravstveno,
-        osnovica: computed.osnovica,
-        porez: computed.porez,
-        porezniKredit: computed.kredit,
-        razlika: computed.razlika,
-      };
-      const data: AmsData = {
-        imeIPrezime, jmbg, adresa, datumIsplate,
-        periodMjesec, periodGodina,
-        naziv, adresaIsplatioca, drzava,
-        rows: [row1, EMPTY_ROW, EMPTY_ROW, EMPTY_ROW, EMPTY_ROW],
-        ukupnoZdravstveno: computed.zdravstveno,
-        ukupnoOsnovica: computed.osnovica,
-        ukupnoPorez: computed.porez,
-        ukupnoPorezniKredit: computed.kredit,
-        ukupnoRazlika: computed.razlika,
-        datum: isoToDisplay(datum),
-      };
-      const bytes = await fillAmsTemplate(data);
-      downloadPdf(bytes, `AMS-1035_${periodMjesec || "XX"}_20${periodGodina || "XX"}.pdf`);
+      const bytes = await fillAmsTemplate(buildAmsData());
+      downloadPdf(
+        bytes,
+        `AMS-1035_${periodMjesec || "XX"}_20${periodGodina || "XX"}.pdf`,
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  /* ── Parsed period for save ── */
+  const parsedYear = (() => {
+    const raw = periodGodina;
+    if (/^\d{4}$/.test(raw)) return parseInt(raw);
+    if (/^\d{2}$/.test(raw)) return 2000 + parseInt(raw);
+    return null;
+  })();
+  const parsedMonth = /^\d{1,2}$/.test(periodMjesec)
+    ? parseInt(periodMjesec)
+    : null;
 
   /* ── Export Uplatnice ── */
   const handleExportUplatnice = async () => {
@@ -180,14 +257,22 @@ export default function AmsForm() {
         datum,
         ziroRacun: ziroRacun || undefined,
       });
-      downloadPdf(bytes, `Uplatnice_${periodMjesec || "XX"}_${periodGodina || "XXXX"}.pdf`);
+      downloadPdf(
+        bytes,
+        `Uplatnice_${periodMjesec || "XX"}_${periodGodina || "XXXX"}.pdf`,
+      );
     } finally {
       setLoadingUpl(false);
     }
   };
 
   const hasAmount = num(iznosUplate) > 0;
-  const canDownloadUpl = kanton !== "" && opcina !== "" && hasAmount && periodMjesec !== "" && periodGodina.length === 4;
+  const canDownloadUpl =
+    kanton !== "" &&
+    opcina !== "" &&
+    hasAmount &&
+    periodMjesec !== "" &&
+    periodGodina.length === 4;
 
   return (
     <main className={styles.page}>
@@ -198,10 +283,11 @@ export default function AmsForm() {
           AMS - 1035 <em>Generator</em>
         </h1>
         <p className={styles.subtitle}>
-          Brza i jednostavna popuna AMS‑1035 obrazca. Sa našim generatorom jednostavno u par koraka
-          popunite AMS obrazac za akontaciju poreza po odbitku na druge samostalne djelatnosti na
-          prihod iz inostranstva. Kad kreirate obrazac imate mogućnost štampanja automatski
-          popunjenih uplatnica spremnih za banku, ili elektronsko plaćanje.
+          Brza i jednostavna popuna AMS‑1035 obrazca. Sa našim generatorom
+          jednostavno u par koraka popunite AMS obrazac za akontaciju poreza po
+          odbitku na druge samostalne djelatnosti na prihod iz inostranstva. Kad
+          kreirate obrazac imate mogućnost štampanja automatski popunjenih
+          uplatnica spremnih za banku, ili elektronsko plaćanje.
         </p>
       </div>
 
@@ -214,28 +300,50 @@ export default function AmsForm() {
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>1) Ime i prezime</label>
-            <input className={styles.fieldInput} placeholder="Ime i prezime primaoca"
-              value={imeIPrezime} onChange={(e) => setImeIPrezime(e.target.value)} />
+            <input
+              className={styles.fieldInput}
+              placeholder="Ime i prezime primaoca"
+              value={imeIPrezime}
+              onChange={(e) => setImeIPrezime(e.target.value)}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>2) JMBG</label>
-            <input className={styles.fieldInput} inputMode="numeric" maxLength={13}
-              placeholder="0000000000000" value={jmbg}
-              onChange={(e) => setJmbg(e.target.value.replace(/\D/g, "").slice(0, 13))} />
+            <input
+              className={styles.fieldInput}
+              inputMode="numeric"
+              maxLength={13}
+              placeholder="0000000000000"
+              value={jmbg}
+              onChange={(e) =>
+                setJmbg(e.target.value.replace(/\D/g, "").slice(0, 13))
+              }
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>4) Datum isplate</label>
-            <DateInput className={styles.fieldInput} value={datumIsplate} onValueChange={setDatumIsplate} />
+            <DateInput
+              className={styles.fieldInput}
+              value={datumIsplate}
+              onValueChange={setDatumIsplate}
+            />
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>3) Adresa</label>
-            <input className={styles.fieldInput} placeholder="Ulica, broj, grad"
-              value={adresa} onChange={(e) => setAdresa(e.target.value)} />
+            <input
+              className={styles.fieldInput}
+              placeholder="Ulica, broj, grad"
+              value={adresa}
+              onChange={(e) => setAdresa(e.target.value)}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) Period — Mjesec</label>
-            <select className={styles.fieldInput} value={periodMjesec}
-              onChange={(e) => setPeriodMjesec(e.target.value)}>
+            <select
+              className={styles.fieldInput}
+              value={periodMjesec}
+              onChange={(e) => setPeriodMjesec(e.target.value)}
+            >
               <option value="">— Odaberite mjesec —</option>
               <option value="01">Januar</option>
               <option value="02">Februar</option>
@@ -253,9 +361,16 @@ export default function AmsForm() {
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) Period — Godina</label>
-            <input className={styles.fieldInput} inputMode="numeric" maxLength={4}
-              placeholder="2026" value={periodGodina}
-              onChange={(e) => setPeriodGodina(e.target.value.replace(/\D/g, "").slice(0, 4))} />
+            <input
+              className={styles.fieldInput}
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="2026"
+              value={periodGodina}
+              onChange={(e) =>
+                setPeriodGodina(e.target.value.replace(/\D/g, "").slice(0, 4))
+              }
+            />
           </div>
         </div>
       </section>
@@ -269,18 +384,30 @@ export default function AmsForm() {
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>6) Naziv</label>
-            <input className={styles.fieldInput} placeholder="Naziv isplatioca"
-              value={naziv} onChange={(e) => setNaziv(e.target.value)} />
+            <input
+              className={styles.fieldInput}
+              placeholder="Naziv isplatioca"
+              value={naziv}
+              onChange={(e) => setNaziv(e.target.value)}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>7) Adresa</label>
-            <input className={styles.fieldInput} placeholder="Adresa isplatioca"
-              value={adresaIsplatioca} onChange={(e) => setAdresaIsplatioca(e.target.value)} />
+            <input
+              className={styles.fieldInput}
+              placeholder="Adresa isplatioca"
+              value={adresaIsplatioca}
+              onChange={(e) => setAdresaIsplatioca(e.target.value)}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>8) Država</label>
-            <input className={styles.fieldInput} placeholder="npr. Hrvatska"
-              value={drzava} onChange={(e) => setDrzava(e.target.value)} />
+            <input
+              className={styles.fieldInput}
+              placeholder="npr. Hrvatska"
+              value={drzava}
+              onChange={(e) => setDrzava(e.target.value)}
+            />
           </div>
         </div>
       </section>
@@ -294,9 +421,16 @@ export default function AmsForm() {
         <div className={styles.sredstvaGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>9) Iznos dohotka (KM)</label>
-            <input className={styles.fieldInput} inputMode="decimal" placeholder="0,00"
+            <input
+              className={styles.fieldInput}
+              inputMode="decimal"
+              placeholder="0,00"
               value={iznosUplate}
-              onChange={(e) => { setIznosUplate(fmtInput(e.target.value)); setEurInput(""); }} />
+              onChange={(e) => {
+                setIznosUplate(fmtInput(e.target.value));
+                setEurInput("");
+              }}
+            />
             <div className={styles.eurRow}>
               <span className={styles.eurLabel}>ili unesi u EUR</span>
               <input
@@ -308,7 +442,10 @@ export default function AmsForm() {
                   const raw = fmtInput(e.target.value);
                   setEurInput(raw);
                   const eur = num(raw);
-                  if (eur > 0) setIznosUplate(fmtInput(String(r2(eur * 1.95583)).replace(".", ",")));
+                  if (eur > 0)
+                    setIznosUplate(
+                      fmtInput(String(r2(eur * 1.95583)).replace(".", ",")),
+                    );
                   else setIznosUplate("");
                 }}
               />
@@ -318,15 +455,21 @@ export default function AmsForm() {
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Odbitak (rashodi)</label>
             <div className={styles.pctWrap}>
-              <input className={`${styles.fieldInput} ${styles.pctInput}`}
-                inputMode="numeric" maxLength={3} placeholder="20"
+              <input
+                className={`${styles.fieldInput} ${styles.pctInput}`}
+                inputMode="numeric"
+                maxLength={3}
+                placeholder="20"
                 value={odbitakPct}
-                onChange={(e) => setOdbitakPct(e.target.value.replace(/\D/g, "").slice(0, 3))} />
+                onChange={(e) =>
+                  setOdbitakPct(e.target.value.replace(/\D/g, "").slice(0, 3))
+                }
+              />
               <span className={styles.pctSuffix}>%</span>
             </div>
             <p className={styles.hint}>
-              Pravo na priznavanje rashoda u iznosu od 20%
-              (30% ukoliko se radi o autorskim naknadama)
+              Pravo na priznavanje rashoda u iznosu od 20% (30% ukoliko se radi
+              o autorskim naknadama)
             </p>
           </div>
         </div>
@@ -334,39 +477,69 @@ export default function AmsForm() {
         {hasAmount && (
           <div className={styles.breakdown}>
             <div className={styles.breakdownRow}>
-              <span className={styles.breakdownLabel}>Normirani rashodi ({odbitakPct}%)</span>
-              <span className={styles.breakdownValue}>− {fmt(computed.rashodi)} KM</span>
+              <span className={styles.breakdownLabel}>
+                Normirani rashodi ({odbitakPct}%)
+              </span>
+              <span className={styles.breakdownValue}>
+                − {fmt(computed.rashodi)} KM
+              </span>
             </div>
             <div className={`${styles.breakdownRow} ${styles.breakdownBold}`}>
-              <span className={styles.breakdownLabel}>9) Iznos dohotka (osnova za obračun)</span>
-              <span className={styles.breakdownValue}>{fmt(computed.iznosDohotka)} KM</span>
+              <span className={styles.breakdownLabel}>
+                9) Iznos dohotka (osnova za obračun)
+              </span>
+              <span className={styles.breakdownValue}>
+                {fmt(computed.iznosDohotka)} KM
+              </span>
             </div>
             <div className={styles.breakdownRow}>
-              <span className={styles.breakdownLabel}>10) Zdravstveno osiguranje (× 0,04)</span>
-              <span className={styles.breakdownValue}>{fmt(computed.zdravstveno)} KM</span>
+              <span className={styles.breakdownLabel}>
+                10) Zdravstveno osiguranje (× 0,04)
+              </span>
+              <span className={styles.breakdownValue}>
+                {fmt(computed.zdravstveno)} KM
+              </span>
             </div>
             <div className={styles.breakdownRow}>
-              <span className={styles.breakdownLabel}>11) Osnovica za porez (9 − 10)</span>
-              <span className={styles.breakdownValue}>{fmt(computed.osnovica)} KM</span>
+              <span className={styles.breakdownLabel}>
+                11) Osnovica za porez (9 − 10)
+              </span>
+              <span className={styles.breakdownValue}>
+                {fmt(computed.osnovica)} KM
+              </span>
             </div>
             <div className={`${styles.breakdownRow} ${styles.breakdownBold}`}>
-              <span className={styles.breakdownLabel}>12) Iznos poreza (× 0,1)</span>
-              <span className={styles.breakdownValue}>{fmt(computed.porez)} KM</span>
+              <span className={styles.breakdownLabel}>
+                12) Iznos poreza (× 0,1)
+              </span>
+              <span className={styles.breakdownValue}>
+                {fmt(computed.porez)} KM
+              </span>
             </div>
           </div>
         )}
 
         <div className={styles.kreditRow}>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>13) Porezni kredit plaćen u inostranstvu (KM)</label>
-            <input className={styles.fieldInput} inputMode="decimal" placeholder="0,00"
+            <label className={styles.fieldLabel}>
+              13) Porezni kredit plaćen u inostranstvu (KM)
+            </label>
+            <input
+              className={styles.fieldInput}
+              inputMode="decimal"
+              placeholder="0,00"
               value={porezniKredit}
-              onChange={(e) => setPorezniKredit(fmtInput(e.target.value))} />
+              onChange={(e) => setPorezniKredit(fmtInput(e.target.value))}
+            />
           </div>
           {hasAmount && (
             <div className={styles.razlikaBox}>
-              <span className={styles.razlikaLabel}>14) Razlika poreza za uplatu</span>
-              <span className={`${styles.razlikaValue} ${computed.razlika > 0 ? styles.taxDue : styles.refund}`}>
+              <span className={styles.razlikaLabel}>
+                14) Razlika poreza za uplatu
+              </span>
+              <span
+                className={`${styles.razlikaValue} ${computed.razlika > 0 ? styles.taxDue : styles.refund}`}
+              >
                 {fmt(computed.razlika)} KM
               </span>
             </div>
@@ -377,24 +550,43 @@ export default function AmsForm() {
           <div className={styles.netSummary}>
             <div className={styles.netTitle}>Pregled isplate</div>
             <div className={styles.netRow}>
-              <span className={styles.netLabel}>Primljeno na račun (bruto)</span>
-              <span className={styles.netValue}>{fmt(num(iznosUplate))} KM</span>
+              <span className={styles.netLabel}>
+                Primljeno na račun (bruto)
+              </span>
+              <span className={styles.netValue}>
+                {fmt(num(iznosUplate))} KM
+              </span>
             </div>
             <div className={styles.netRow}>
-              <span className={styles.netLabel}>− Zdravstveno osiguranje (4%)</span>
-              <span className={styles.netValue}>− {fmt(computed.zdravstveno)} KM</span>
+              <span className={styles.netLabel}>
+                − Zdravstveno osiguranje (4%)
+              </span>
+              <span className={styles.netValue}>
+                − {fmt(computed.zdravstveno)} KM
+              </span>
             </div>
             <div className={styles.netRow}>
               <span className={styles.netLabel}>− Porez za uplatu</span>
-              <span className={styles.netValue}>− {fmt(computed.razlika)} KM</span>
+              <span className={styles.netValue}>
+                − {fmt(computed.razlika)} KM
+              </span>
             </div>
             <div className={`${styles.netRow} ${styles.netSumRow}`}>
               <span className={styles.netLabel}>= Ukupni troškovi</span>
-              <span className={styles.netDeduct}>− {fmt(r2(computed.zdravstveno + computed.razlika))} KM</span>
+              <span className={styles.netDeduct}>
+                − {fmt(r2(computed.zdravstveno + computed.razlika))} KM
+              </span>
             </div>
             <div className={`${styles.netRow} ${styles.netFinalRow}`}>
               <span className={styles.netFinalLabel}>Čisti prihod</span>
-              <span className={styles.netFinal}>{fmt(r2(num(iznosUplate) - computed.zdravstveno - computed.razlika))} KM</span>
+              <span className={styles.netFinal}>
+                {fmt(
+                  r2(
+                    num(iznosUplate) - computed.zdravstveno - computed.razlika,
+                  ),
+                )}{" "}
+                KM
+              </span>
             </div>
           </div>
         )}
@@ -406,19 +598,43 @@ export default function AmsForm() {
           Dio 4 — <em>Izjava</em>
         </h2>
         <p className={styles.izjavaText}>
-          Upoznat sam sa sankcijama propisanim Zakonom o Poreznoj upravi i izjavljujem da su podaci
-          navedeni u ovoj prijavi, uključujući sve priloge tačni, potpuni i jasni.
+          Upoznat sam sa sankcijama propisanim Zakonom o Poreznoj upravi i
+          izjavljujem da su podaci navedeni u ovoj prijavi, uključujući sve
+          priloge tačni, potpuni i jasni.
         </p>
         <div className={styles.dateField}>
           <span className={styles.dateLabel}>Datum:</span>
-          <DateInput className={styles.fieldInput} value={datum} onValueChange={setDatum} />
+          <DateInput
+            className={styles.fieldInput}
+            value={datum}
+            onValueChange={setDatum}
+          />
         </div>
       </section>
 
       {/* Export AMS */}
       <div className={styles.actions}>
-        <button className={styles.exportBtn} onClick={handleExport} disabled={loading}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <SaveToProfileButton
+          type="AMS"
+          year={parsedYear}
+          month={parsedMonth}
+          title={`AMS-1035 · ${imeIPrezime} · ${parsedMonth ?? "?"}/${parsedYear ?? "?"}`}
+          buildData={buildAmsData}
+          disabled={parsedYear === null}
+          defaultOrganizationId={sourceOrgId}
+          defaultClientId={sourceClientId}
+        />
+        <button
+          className={styles.exportBtn}
+          onClick={handleExport}
+          disabled={loading}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
           </svg>
@@ -432,40 +648,58 @@ export default function AmsForm() {
           Dio 5 — <em>Uplatnice</em>
         </h2>
         <p className={styles.izjavaText}>
-          Odaberite kanton i općinu te preuzmite tri popunjene uplatnice: doprinos za zdravstveno osiguranje
-          kantonalnom zavodu (89,8%), doprinos Zavodu zdravstvenog osiguranja i reosiguranja FBiH (10,2%)
-          i porez na dohodak kantonalnom budžetu.
+          Odaberite kanton i općinu te preuzmite tri popunjene uplatnice:
+          doprinos za zdravstveno osiguranje kantonalnom zavodu (89,8%),
+          doprinos Zavodu zdravstvenog osiguranja i reosiguranja FBiH (10,2%) i
+          porez na dohodak kantonalnom budžetu.
         </p>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Kanton</label>
-            <select className={styles.fieldInput} value={kanton}
-              onChange={(e) => { setKanton(e.target.value as KantonKey | ""); setOpcina(""); }}>
+            <select
+              className={styles.fieldInput}
+              value={kanton}
+              onChange={(e) => {
+                setKanton(e.target.value as KantonKey | "");
+                setOpcina("");
+              }}
+            >
               <option value="">— Odaberite kanton —</option>
               {KANTON_KEYS.map((k) => (
-                <option key={k} value={k}>{KANTONI[k].ime}</option>
+                <option key={k} value={k}>
+                  {KANTONI[k].ime}
+                </option>
               ))}
             </select>
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Općina</label>
-            <select className={styles.fieldInput} value={opcina}
+            <select
+              className={styles.fieldInput}
+              value={opcina}
               onChange={(e) => setOpcina(e.target.value)}
-              disabled={!kanton}>
+              disabled={!kanton}
+            >
               <option value="">— Odaberite općinu —</option>
               {kantonData?.opcine.map((o) => (
-                <option key={o.kod} value={o.kod}>{o.ime}</option>
+                <option key={o.kod} value={o.kod}>
+                  {o.ime}
+                </option>
               ))}
             </select>
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>Žiro račun pošiljatelja</label>
-            <input className={styles.fieldInput} inputMode="numeric"
+            <input
+              className={styles.fieldInput}
+              inputMode="numeric"
               placeholder="338-000-12345678-90"
               value={ziroRacun}
-              onChange={(e) => setZiroRacun(formatZiroRacun(e.target.value))} />
+              onChange={(e) => setZiroRacun(formatZiroRacun(e.target.value))}
+            />
             <p className={styles.hint}>
-              Ukoliko plaćate preko žiro računa, unesite vaš žiro račun. Ako plaćate u gotovini, ostavite prazno.
+              Ukoliko plaćate preko žiro računa, unesite vaš žiro račun. Ako
+              plaćate u gotovini, ostavite prazno.
             </p>
           </div>
         </div>
@@ -474,31 +708,53 @@ export default function AmsForm() {
           <div className={styles.uplCard}>
             <span className={styles.uplCardNum}>1</span>
             <div>
-              <div className={styles.uplCardTitle}>Zdravstveno osiguranje — kanton</div>
+              <div className={styles.uplCardTitle}>
+                Zdravstveno osiguranje — kanton
+              </div>
               <div className={styles.uplCardSub}>
-                {kantonData ? `${kantonData.zoRacun} · ${kantonData.ime}` : "Odaberite kanton"}
+                {kantonData
+                  ? `${kantonData.zoRacun} · ${kantonData.ime}`
+                  : "Odaberite kanton"}
               </div>
             </div>
-            {hasAmount && <span className={styles.uplCardIznos}>{fmt(computed.zdravstvenoKanton)} KM</span>}
+            {hasAmount && (
+              <span className={styles.uplCardIznos}>
+                {fmt(computed.zdravstvenoKanton)} KM
+              </span>
+            )}
           </div>
           <div className={styles.uplCard}>
             <span className={styles.uplCardNum}>2</span>
             <div>
-              <div className={styles.uplCardTitle}>Zdravstveno osiguranje — FBiH</div>
-              <div className={styles.uplCardSub}>102-050-00000640-18 · ZZO FBiH</div>
+              <div className={styles.uplCardTitle}>
+                Zdravstveno osiguranje — FBiH
+              </div>
+              <div className={styles.uplCardSub}>
+                102-050-00000640-18 · ZZO FBiH
+              </div>
             </div>
-            {hasAmount && <span className={styles.uplCardIznos}>{fmt(computed.zdravstvenoFbih)} KM</span>}
+            {hasAmount && (
+              <span className={styles.uplCardIznos}>
+                {fmt(computed.zdravstvenoFbih)} KM
+              </span>
+            )}
           </div>
           <div className={styles.uplCard}>
             <span className={styles.uplCardNum}>3</span>
             <div>
-              <div className={styles.uplCardTitle}>Porez na dohodak — kantonalni budžet</div>
+              <div className={styles.uplCardTitle}>
+                Porez na dohodak — kantonalni budžet
+              </div>
               <div className={styles.uplCardSub}>
-                {kantonData ? `${kantonData.budzet} · Budžet ${kantonData.genitiv}` : "Odaberite kanton"}
+                {kantonData
+                  ? `${kantonData.budzet} · Budžet ${kantonData.genitiv}`
+                  : "Odaberite kanton"}
               </div>
             </div>
             {hasAmount && (
-              <span className={`${styles.uplCardIznos} ${computed.razlika > 0 ? styles.taxDue : styles.refund}`}>
+              <span
+                className={`${styles.uplCardIznos} ${computed.razlika > 0 ? styles.taxDue : styles.refund}`}
+              >
                 {fmt(computed.razlika)} KM
               </span>
             )}
@@ -506,20 +762,40 @@ export default function AmsForm() {
         </div>
 
         <div className={styles.printNapomena}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18" style={{ flexShrink: 0 }}>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            width="18"
+            height="18"
+            style={{ flexShrink: 0 }}
+          >
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           <span>
-            <strong>Napomena za štampanje:</strong> Pri štampanju uplatnica u PDF pregledaču, pod opcijom skaliranja odaberite <strong>Fit to Paper</strong> ili <strong>Fit to Printable Area</strong> kako bi uplatnica bila ispravno skalirana na stranici.
+            <strong>Napomena za štampanje:</strong> Pri štampanju uplatnica u
+            PDF pregledaču, pod opcijom skaliranja odaberite{" "}
+            <strong>Fit to Paper</strong> ili{" "}
+            <strong>Fit to Printable Area</strong> kako bi uplatnica bila
+            ispravno skalirana na stranici.
           </span>
         </div>
 
         <div className={styles.actions} style={{ marginTop: "1.5rem" }}>
-          <button className={styles.exportBtn} onClick={handleExportUplatnice}
-            disabled={loadingUpl || !canDownloadUpl}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <button
+            className={styles.exportBtn}
+            onClick={handleExportUplatnice}
+            disabled={loadingUpl || !canDownloadUpl}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
             </svg>
@@ -529,7 +805,8 @@ export default function AmsForm() {
       </section>
 
       <p className={styles.dataNapomena}>
-        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
+        Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
 
       <section className={styles.faqSection}>
@@ -577,11 +854,14 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={styles.faqItem}>
-      <button className={styles.faqQ} onClick={() => setOpen(o => !o)}>
+      <button className={styles.faqQ} onClick={() => setOpen((o) => !o)}>
         <span>{question}</span>
         <svg
           className={`${styles.faqChevron} ${open ? styles.faqChevronOpen : ""}`}
-          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
         >
           <path d="M6 9l6 6 6-6" />
         </svg>

@@ -4,9 +4,16 @@ import Link from "next/link";
 import styles from "./gpd.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
-import { fillGpdUplatnica, KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
+import {
+  fillGpdUplatnica,
+  KANTONI,
+  type KantonKey,
+} from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
-import PersonFillSelect, { type FillData } from "src/components/PersonFillSelect/PersonFillSelect";
+import PersonFillSelect, {
+  type FillData,
+} from "src/components/PersonFillSelect/PersonFillSelect";
+import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 
 /* ── Row definitions ── */
 
@@ -289,6 +296,9 @@ export default function GpdForm() {
 
   /* ── Fill from profile/client ── */
 
+  const [sourceClientId, setSourceClientId] = useState<number | null>(null);
+  const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
+
   const fillPersonal = useCallback((data: FillData) => {
     setPersonal((p) => ({
       ...p,
@@ -297,12 +307,16 @@ export default function GpdForm() {
         [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
       address: data.address ?? p.address,
     }));
+    if (data.sourceClientId !== undefined)
+      setSourceClientId(data.sourceClientId);
+    if (data.sourceWorkerOrgId !== undefined)
+      setSourceOrgId(data.sourceWorkerOrgId);
   }, []);
 
   /* ── PDF Export ── */
 
-  const exportPdf = useCallback(async () => {
-    const data: GpdData = {
+  const buildGpdData = useCallback((): GpdData => {
+    return {
       // Dio 1
       jmb: personal.jmb,
       fullName: personal.fullName,
@@ -356,7 +370,10 @@ export default function GpdForm() {
       // Dio 5
       dateSigned: isoToFormatted(dateSigned),
     };
+  }, [personal, rows, deductions, taxCalc, refundOption, dateSigned, computed]);
 
+  const exportPdf = useCallback(async () => {
+    const data = buildGpdData();
     const pdfBytes = await fillGpdTemplate(data);
 
     const pdfArrayBuffer: ArrayBuffer =
@@ -375,7 +392,13 @@ export default function GpdForm() {
     a.download = `GPD-1051_20${personal.taxYear || "XX"}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [personal, rows, deductions, taxCalc, refundOption, dateSigned, computed]);
+  }, [buildGpdData, personal.taxYear]);
+
+  const gpdYear = /^\d{2}$/.test(personal.taxYear)
+    ? 2000 + parseInt(personal.taxYear)
+    : /^\d{4}$/.test(personal.taxYear)
+      ? parseInt(personal.taxYear)
+      : null;
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -390,9 +413,13 @@ export default function GpdForm() {
   /* ── Export Uplatnica ── */
 
   const kantonGpdData = kantonGpd ? KANTONI[kantonGpd] : null;
-  const opcinaGpdData = kantonGpdData?.opcine.find((o) => o.kod === opcinaGpd) ?? null;
+  const opcinaGpdData =
+    kantonGpdData?.opcine.find((o) => o.kod === opcinaGpd) ?? null;
   const canDownloadUplGpd =
-    kantonGpd !== "" && opcinaGpd !== "" && computed.difference > 0 && !!personal.taxYear;
+    kantonGpd !== "" &&
+    opcinaGpd !== "" &&
+    computed.difference > 0 &&
+    !!personal.taxYear;
 
   const handleExportUplatnica = async () => {
     if (!kantonGpd || !opcinaGpd || !opcinaGpdData) return;
@@ -410,9 +437,13 @@ export default function GpdForm() {
         datum: dateSigned,
         ziroRacun: ziroRacunGpd || undefined,
       });
-      const ab = bytes.buffer instanceof ArrayBuffer
-        ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-        : Uint8Array.from(bytes).buffer;
+      const ab =
+        bytes.buffer instanceof ArrayBuffer
+          ? bytes.buffer.slice(
+              bytes.byteOffset,
+              bytes.byteOffset + bytes.byteLength,
+            )
+          : Uint8Array.from(bytes).buffer;
       const blob = new Blob([ab], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -428,7 +459,12 @@ export default function GpdForm() {
   /* ── Render ── */
 
   return (
-    <form ref={formRef} className={styles.page} onSubmit={onSubmit} onKeyDown={onEnterNext}>
+    <form
+      ref={formRef}
+      className={styles.page}
+      onSubmit={onSubmit}
+      onKeyDown={onEnterNext}
+    >
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.label}>Obrazac GPD-1051</div>
@@ -436,7 +472,9 @@ export default function GpdForm() {
           Godišnja prijava <em>poreza na dohodak</em>
         </h1>
         <p className={styles.subtitle}>
-          Godišnja prijava poreza na dohodak za fizičke osobe u FBiH. Unesite prihode od plaće, obrta, najma ili kapitala — automatski obračun i PDF preuzimanje, besplatno.
+          Godišnja prijava poreza na dohodak za fizičke osobe u FBiH. Unesite
+          prihode od plaće, obrta, najma ili kapitala — automatski obračun i PDF
+          preuzimanje, besplatno.
         </p>
       </div>
 
@@ -444,7 +482,11 @@ export default function GpdForm() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           Dio 1 — Podaci o <em>poreznom obvezniku</em>
-          <Link href="/gpd/upute" className={styles.helpLink} title="Otvorite upute za popunjavanje GPD obrasca">
+          <Link
+            href="/gpd/upute"
+            className={styles.helpLink}
+            title="Otvorite upute za popunjavanje GPD obrasca"
+          >
             <span className={styles.helpLinkText}>Kako popuniti?</span>
             <span className={styles.helpBtn}>?</span>
           </Link>
@@ -1088,6 +1130,15 @@ export default function GpdForm() {
 
       {/* ── Export ── */}
       <div className={styles.actions}>
+        <SaveToProfileButton
+          type="GPD"
+          year={gpdYear}
+          title={`GPD-1051 · ${personal.fullName} · ${gpdYear ?? "?"}`}
+          buildData={buildGpdData}
+          disabled={gpdYear === null}
+          defaultOrganizationId={sourceOrgId}
+          defaultClientId={sourceClientId}
+        />
         <button type="submit" className={styles.exportBtn}>
           <svg
             viewBox="0 0 24 24"
@@ -1120,7 +1171,8 @@ export default function GpdForm() {
         ) : (
           <>
             <p className={styles.izjavaText}>
-              Odaberite kanton i općinu te preuzmite popunjenu uplatnicu za uplatu poreza na dohodak kantonalnom budžetu.
+              Odaberite kanton i općinu te preuzmite popunjenu uplatnicu za
+              uplatu poreza na dohodak kantonalnom budžetu.
             </p>
             <div className={styles.fieldGrid}>
               <div className={styles.fieldGroup}>
@@ -1128,11 +1180,16 @@ export default function GpdForm() {
                 <select
                   className={styles.fieldInput}
                   value={kantonGpd}
-                  onChange={(e) => { setKantonGpd(e.target.value as KantonKey | ""); setOpcinaGpd(""); }}
+                  onChange={(e) => {
+                    setKantonGpd(e.target.value as KantonKey | "");
+                    setOpcinaGpd("");
+                  }}
                 >
                   <option value="">— Odaberite kanton —</option>
                   {KANTON_KEYS.map((k) => (
-                    <option key={k} value={k}>{KANTONI[k].ime}</option>
+                    <option key={k} value={k}>
+                      {KANTONI[k].ime}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1146,21 +1203,28 @@ export default function GpdForm() {
                 >
                   <option value="">— Odaberite općinu —</option>
                   {kantonGpdData?.opcine.map((o) => (
-                    <option key={o.kod} value={o.kod}>{o.ime}</option>
+                    <option key={o.kod} value={o.kod}>
+                      {o.ime}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-                <label className={styles.fieldLabel}>Žiro račun pošiljatelja</label>
+                <label className={styles.fieldLabel}>
+                  Žiro račun pošiljatelja
+                </label>
                 <input
                   className={styles.fieldInput}
                   inputMode="numeric"
                   placeholder="338-000-12345678-90"
                   value={ziroRacunGpd}
-                  onChange={(e) => setZiroRacunGpd(formatBankAccount(e.target.value))}
+                  onChange={(e) =>
+                    setZiroRacunGpd(formatBankAccount(e.target.value))
+                  }
                 />
                 <p className={styles.hint}>
-                  Ukoliko plaćate preko žiro računa, unesite vaš žiro račun. Ako plaćate u gotovini, ostavite prazno.
+                  Ukoliko plaćate preko žiro računa, unesite vaš žiro račun. Ako
+                  plaćate u gotovini, ostavite prazno.
                 </p>
               </div>
             </div>
@@ -1169,7 +1233,9 @@ export default function GpdForm() {
               <div className={styles.uplCard}>
                 <span className={styles.uplCardNum}>1</span>
                 <div>
-                  <div className={styles.uplCardTitle}>Porez na dohodak — kantonalni budžet</div>
+                  <div className={styles.uplCardTitle}>
+                    Porez na dohodak — kantonalni budžet
+                  </div>
                   <div className={styles.uplCardSub}>
                     {kantonGpdData
                       ? `${kantonGpdData.budzet} · Budžet ${kantonGpdData.genitiv}`
@@ -1183,13 +1249,25 @@ export default function GpdForm() {
             </div>
 
             <div className={styles.printNapomena}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18" style={{ flexShrink: 0 }}>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                width="18"
+                height="18"
+                style={{ flexShrink: 0 }}
+              >
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
               <span>
-                <strong>Napomena za štampanje:</strong> Pri štampanju uplatnice u PDF pregledaču, pod opcijom skaliranja odaberite <strong>Fit to Paper</strong> ili <strong>Fit to Printable Area</strong> kako bi uplatnica bila ispravno skalirana na stranici.
+                <strong>Napomena za štampanje:</strong> Pri štampanju uplatnice
+                u PDF pregledaču, pod opcijom skaliranja odaberite{" "}
+                <strong>Fit to Paper</strong> ili{" "}
+                <strong>Fit to Printable Area</strong> kako bi uplatnica bila
+                ispravno skalirana na stranici.
               </span>
             </div>
 
@@ -1200,7 +1278,12 @@ export default function GpdForm() {
                 onClick={handleExportUplatnica}
                 disabled={loadingUplGpd || !canDownloadUplGpd}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
                 </svg>
@@ -1212,16 +1295,37 @@ export default function GpdForm() {
       </section>
 
       <p className={styles.dataNapomena}>
-        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
+        Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
-      <FaqSection items={[
-        { q: "Ko je obavezan podnijeti GPD-1051 obrazac?", a: "Godišnju prijavu poreza na dohodak obavezno podnosi svaka fizička osoba — rezident FBiH — koja je tokom godine ostvarila dohodak koji podliježe oporezivanju, uključujući dohotke od nesamostalne djelatnosti, samostalne djelatnosti, imovine i imovinskih prava, kapitala i ostale dohotke." },
-        { q: "Koji je rok za predaju GPD obrasca?", a: "GPD-1051 obrazac predaje se najkasnije do 31. marta tekuće godine za prethodnu kalendarsku godinu. Kasno podnošenje može rezultirati novčanom kaznom od strane Porezne uprave FBiH." },
-        { q: "Ko ne mora podnositi godišnju prijavu poreza?", a: "Osobe čiji su ukupni godišnji prihodi manji od iznosa godišnjeg ličnog odbitka (trenutno 3.600 KM), te osobe koje su ostvarile isključivo dohodak od nesamostalne djelatnosti kod jednog poslodavca koji je pravilno obračunavao i uplaćivao akontacije poreza, generalno nisu obavezne na podnošenje GPD obrasca." },
-        { q: "Šta su lični odbici i kako ih koristim?", a: "Lični odbitak je iznos koji se oduzima od ukupnog dohotka prije obračuna poreza. Osnovni lični odbitak iznosi 300 KM mjesečno (3.600 KM godišnje). Dodatni odbici postoje za uzdržavane članove porodice, doprinos za zdravstveno osiguranje i plaćene kamate na stambene kredite." },
-        { q: "Šta ako sam radio kod više poslodavaca tokom godine?", a: "Ukoliko ste tokom iste godine primali plaću od više poslodavaca, obavezni ste podnijeti godišnju prijavu poreza. Svaki poslodavac je obračunavao porez posebno, što može rezultirati razlikom u konačnoj poreznoj obavezi." },
-        { q: "Mogu li tražiti povrat poreza putem GPD obrasca?", a: "Da. Ukoliko su akontacije poreza plaćene tokom godine veće od stvarne godišnje porezne obaveze, imate pravo na povrat razlike. Zahtjev za povrat se podnosi zajedno sa GPD obrascem, a Porezna uprava je dužna izvršiti povrat u zakonskom roku." },
-      ]} />
+      <FaqSection
+        items={[
+          {
+            q: "Ko je obavezan podnijeti GPD-1051 obrazac?",
+            a: "Godišnju prijavu poreza na dohodak obavezno podnosi svaka fizička osoba — rezident FBiH — koja je tokom godine ostvarila dohodak koji podliježe oporezivanju, uključujući dohotke od nesamostalne djelatnosti, samostalne djelatnosti, imovine i imovinskih prava, kapitala i ostale dohotke.",
+          },
+          {
+            q: "Koji je rok za predaju GPD obrasca?",
+            a: "GPD-1051 obrazac predaje se najkasnije do 31. marta tekuće godine za prethodnu kalendarsku godinu. Kasno podnošenje može rezultirati novčanom kaznom od strane Porezne uprave FBiH.",
+          },
+          {
+            q: "Ko ne mora podnositi godišnju prijavu poreza?",
+            a: "Osobe čiji su ukupni godišnji prihodi manji od iznosa godišnjeg ličnog odbitka (trenutno 3.600 KM), te osobe koje su ostvarile isključivo dohodak od nesamostalne djelatnosti kod jednog poslodavca koji je pravilno obračunavao i uplaćivao akontacije poreza, generalno nisu obavezne na podnošenje GPD obrasca.",
+          },
+          {
+            q: "Šta su lični odbici i kako ih koristim?",
+            a: "Lični odbitak je iznos koji se oduzima od ukupnog dohotka prije obračuna poreza. Osnovni lični odbitak iznosi 300 KM mjesečno (3.600 KM godišnje). Dodatni odbici postoje za uzdržavane članove porodice, doprinos za zdravstveno osiguranje i plaćene kamate na stambene kredite.",
+          },
+          {
+            q: "Šta ako sam radio kod više poslodavaca tokom godine?",
+            a: "Ukoliko ste tokom iste godine primali plaću od više poslodavaca, obavezni ste podnijeti godišnju prijavu poreza. Svaki poslodavac je obračunavao porez posebno, što može rezultirati razlikom u konačnoj poreznoj obavezi.",
+          },
+          {
+            q: "Mogu li tražiti povrat poreza putem GPD obrasca?",
+            a: "Da. Ukoliko su akontacije poreza plaćene tokom godine veće od stvarne godišnje porezne obaveze, imate pravo na povrat razlike. Zahtjev za povrat se podnosi zajedno sa GPD obrascem, a Porezna uprava je dužna izvršiti povrat u zakonskom roku.",
+          },
+        ]}
+      />
     </form>
   );
 }

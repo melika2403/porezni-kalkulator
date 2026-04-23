@@ -16,6 +16,8 @@ export type FillData = {
   firstName: string | null;
   lastName: string | null;
   address: string | null;
+  sourceClientId?: number | null;
+  sourceWorkerOrgId?: number | null;
 };
 
 type Props = {
@@ -58,6 +60,7 @@ export default function PersonFillSelect({ onFill }: Props) {
       firstName: w.firstName,
       lastName: w.lastName,
       address: w.address,
+      sourceWorkerOrgId: w.organizationId,
     });
   }
 
@@ -74,6 +77,7 @@ export default function PersonFillSelect({ onFill }: Props) {
               firstName: user.firstName,
               lastName: user.lastName,
               address: user.address,
+              sourceClientId: null,
             })
           }
         >
@@ -93,6 +97,7 @@ export default function PersonFillSelect({ onFill }: Props) {
         firstName: user!.firstName,
         lastName: user!.lastName,
         address: user!.address,
+        sourceClientId: null,
       });
     } else if (value.startsWith("w:")) {
       const id = parseInt(value.slice(2), 10);
@@ -107,6 +112,7 @@ export default function PersonFillSelect({ onFill }: Props) {
         firstName: client.firstName,
         lastName: client.lastName,
         address: client.address,
+        sourceClientId: client.id,
       });
     }
   }

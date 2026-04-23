@@ -16,6 +16,7 @@ export type OrgFillData = {
   activityCode: string | null;
   activityName: string | null;
   address: string | null;
+  sourceOrgId?: number | null;
 };
 
 type Props = {
@@ -66,6 +67,7 @@ export default function OrgFillSelect({ onFill }: Props) {
       activityCode: org.activityCode,
       activityName: org.activityName,
       address: org.address,
+      sourceOrgId: org.id,
     });
   }
 
