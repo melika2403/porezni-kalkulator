@@ -1,0 +1,292 @@
+.page {
+  padding: 3rem 2rem 5rem;
+  max-width: 1320px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+.header {
+  margin-bottom: 2.5rem;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 0.5rem;
+}
+
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--mid);
+  font-weight: 300;
+}
+
+/* ── Section card ── */
+.section {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.2rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionTitle em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+/* ── Field grid ── */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+}
+
+.fieldGrid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem 1.5rem;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  letter-spacing: 0.01em;
+}
+
+.fieldInput,
+.fieldSelect {
+  height: 42px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fieldInput:focus,
+.fieldSelect:focus {
+  border-color: var(--sage);
+  background: var(--white);
+}
+
+.fieldInput:disabled,
+.fieldSelect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Table container ── */
+.tableWrap {
+  overflow-x: auto;
+  margin: 0 -0.5rem;
+}
+
+.table {
+  width: 100%;
+  min-width: 1000px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th {
+  background: var(--paper);
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  border: 1px solid var(--border);
+  padding: 3px 4px;
+  vertical-align: middle;
+}
+
+.dayCell {
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  text-align: center;
+}
+
+.dayCellFull {
+  width: 100%;
+  text-align: left;
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.dayCell.weekend {
+  color: var(--accent);
+  background: var(--accent-pale);
+}
+
+.cellInput {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ink);
+  padding: 6px 4px;
+  text-align: center;
+  outline: none;
+  min-width: 44px;
+  box-sizing: border-box;
+}
+
+.cellInput:focus {
+  background: rgba(var(--sage-rgb, 31, 70, 50), 0.06);
+  border-radius: 3px;
+}
+
+.cellAuto {
+  display: block;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+
+/* ── Total row ── */
+.totalRow {
+  border-top: 2px solid var(--ink);
+}
+
+.totalLabel {
+  padding: 10px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: right;
+  border: 1px solid var(--border);
+}
+
+.totalValue {
+  padding: 10px 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sage);
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+/* ── Page break indicator ── */
+.pageBreak {
+  border-top: 2px dashed var(--border);
+  margin: 1rem 0 0.5rem;
+  position: relative;
+}
+
+.pageBreakLabel {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--white);
+  padding: 0 0.5rem;
+  font-size: 10px;
+  color: var(--mid);
+  white-space: nowrap;
+}
+
+/* ── Actions ── */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.exportBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  background: var(--sage);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.exportBtn:hover {
+  background: var(--sage-light);
+  transform: translateY(-1px);
+}
+
+.exportBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.exportBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Notice ── */
+.dataNapomena {
+  font-size: 11px;
+  color: var(--mid);
+  text-align: center;
+  margin-top: 1.5rem;
+  font-style: italic;
+}
+
+/* ── Empty state ── */
+.emptyState {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--mid);
+  font-size: 0.95rem;
+}

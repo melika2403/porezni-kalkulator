@@ -5,7 +5,7 @@ import Link from 'next/link';
 import styles from './Features.module.css';
 import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
 
-type Badge = "free" | "reg" | "pro";
+type Badge = "free" | "reg" | "pro" | "business";
 
 interface Feature {
   title: string;
@@ -20,7 +20,8 @@ interface Feature {
 const BADGE_LABELS: Record<Badge, string> = {
   free: "Besplatno",
   reg: "Registracija",
-  pro: "Godišnja pretplata",
+  pro: "Pro pretplata",
+  business: "Business pretplata",
 };
 
 const FEATURES: Feature[] = [
@@ -144,7 +145,7 @@ const FEATURES: Feature[] = [
   {
     title: "Šihterica — Evidencija radnog vremena",
     desc: "Unos i pregled radnog vremena po zaposlenima. Automatski obračun sati, prekovremenih i slobodnih dana.",
-    badge: "reg",
+    badge: "pro",
     iconColor: "accent",
     icon: (
       <svg
@@ -159,13 +160,12 @@ const FEATURES: Feature[] = [
       </svg>
     ),
     dest: "/sihterica",
-    soon: true,
   },
-  // ── Pro ──────────────────────────────────────────────
+  // ── Business ─────────────────────────────────────────
   {
     title: "Prijave / odjave radnika",
     desc: "Unos i evidencija radnika s automatskim ispisom JS3100 obrasca i ostalih prijavnih obrazaca u PDF formatu.",
-    badge: "pro",
+    badge: "business",
     iconColor: "dark",
     icon: (
       <svg
@@ -184,7 +184,7 @@ const FEATURES: Feature[] = [
   {
     title: "Ugovori o djelu i ostali ugovori",
     desc: "Izrada ugovora o djelu s obračunom poreza i doprinosa na honorar, te ugovora o zakupu, kupoprodajnih i ostalih poslovnih ugovora.",
-    badge: "pro",
+    badge: "business",
     iconColor: "dark",
     icon: (
       <svg

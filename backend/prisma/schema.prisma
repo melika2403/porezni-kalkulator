@@ -61,6 +61,7 @@ model Organization {
   type         OrganizationType     @default(COMPANY)
   activityCode String?              @db.VarChar(20)
   activityName String?              @db.VarChar(255)
+  isClientOrg  Boolean              @default(false)
   clients      Client[]
   forms        Form[]
   members      OrganizationMember[]
@@ -223,7 +224,7 @@ enum forms_type {
 
 enum users_role {
   USER
-  ACCOUNTANT
+  PRO
+  BUSINESS
   ADMIN
-  SUPER_ADMIN
 }
