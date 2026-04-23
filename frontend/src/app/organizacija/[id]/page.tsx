@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import Organizacija from "src/sections/organizacija/Organizacija";
 
 export const metadata: Metadata = {
@@ -15,9 +14,5 @@ export default async function OrganizacijaPage({
   const { id } = await params;
   const orgId = Number(id);
 
-  return (
-    <Suspense>
-      <Organizacija orgId={orgId} />
-    </Suspense>
-  );
+  return <Organizacija orgId={orgId} />;
 }

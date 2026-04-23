@@ -54,7 +54,7 @@ async function upsert(req, res) {
       const user = await userRepository.getUserById(userId);
 
       if (user && user.role === "USER") {
-        await userRepository.updateUserById(userId, { role: "ACCOUNTANT" });
+        await userRepository.updateUserById(userId, { role: "PRO" });
       }
     }
     res.status(200).json({ ok: true, data: sub });

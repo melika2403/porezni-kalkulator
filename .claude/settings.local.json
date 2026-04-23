@@ -32,7 +32,8 @@
       "Bash(node -e 'require\\('\\\\''dotenv'\\\\''\\).config\\(\\); const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.$executeRawUnsafe\\(\"UPDATE users SET role = '\\\\''USER'\\\\'' WHERE role NOT IN \\('\\\\''USER'\\\\'','\\\\''ACCOUNTANT'\\\\'','\\\\''ADMIN'\\\\'','\\\\''SUPER_ADMIN'\\\\''\\)\"\\).then\\(r => console.log\\('\\\\''Updated rows:'\\\\'', r\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
       "Bash(taskkill /F /IM node.exe)",
       "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
-      "Bash(node -e 'require\\('\\\\''dotenv'\\\\''\\).config\\(\\); const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.user.updateMany\\({ where: { isEmailVerified: false }, data: { isEmailVerified: true } }\\).then\\(r => console.log\\('\\\\''Ažurirano korisnika:'\\\\'', r.count\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')"
+      "Bash(node -e 'require\\('\\\\''dotenv'\\\\''\\).config\\(\\); const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.user.updateMany\\({ where: { isEmailVerified: false }, data: { isEmailVerified: true } }\\).then\\(r => console.log\\('\\\\''Ažurirano korisnika:'\\\\'', r.count\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
+      "Bash(dir \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\frontend\\\\src\\\\sections\\\\profil\\\\\")"
     ]
   }
 }

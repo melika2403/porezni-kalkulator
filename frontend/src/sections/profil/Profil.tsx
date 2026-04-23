@@ -18,6 +18,7 @@ import {
 import {
   updateProfile,
   getOrganizations,
+  getClientOrganizations,
   createOrganization,
   updateOrganization,
   deleteOrganization,
@@ -530,6 +531,14 @@ function ProfilTab({ user }: { user: AuthUser }) {
                   </div>
                 </div>
                 <div className={styles.ownOrgActions}>
+                  <RoleGuard roles={["BUSINESS"]} mode="hide">
+                    <Link
+                      href={`/organizacija/${org.id}`}
+                      className={styles.btnEditInline}
+                    >
+                      <LuSquareArrowUpRight size={14} /> Otvori
+                    </Link>
+                  </RoleGuard>
                   <button
                     className={styles.btnEditInline}
                     onClick={() => startEditOwnOrg(org)}
@@ -1112,12 +1121,12 @@ type AddMode = "client-org" | "person";
 
 function DjelatnostTab() {
   const queryClient = useQueryClient();
-  const { data: orgs = [], isLoading: orgsLoading } = useQuery<Organization[]>({
-    queryKey: ["organizations"],
-    queryFn: () => unwrap(getOrganizations()),
+  const { data: clientOrgs = [], isLoading: orgsLoading } = useQuery<
+    Organization[]
+  >({
+    queryKey: ["clientOrganizations"],
+    queryFn: () => unwrap(getClientOrganizations()),
   });
-
-  const clientOrgs = orgs.filter((o) => o.memberRole !== "OWNER");
 
   const { data: persons = [], isLoading: personsLoading } = useQuery<
     PersonClient[]
@@ -1147,7 +1156,7 @@ function DjelatnostTab() {
   const createOrgMutation = useMutation({
     mutationFn: (payload: OrgPayload) => unwrap(createOrganization(payload)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["clientOrganizations"] });
       resetAddForm();
     },
   });
@@ -1156,7 +1165,7 @@ function DjelatnostTab() {
     mutationFn: ({ id, payload }: { id: number; payload: OrgPayload }) =>
       unwrap(updateOrganization(id, payload)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["clientOrganizations"] });
       setEditId(null);
     },
   });

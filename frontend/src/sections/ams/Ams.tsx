@@ -1,9 +1,11 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import styles from "./ams.module.css";
 import { fillAmsTemplate, type AmsData } from "./fillAms";
 import { fillUplatnice, KANTONI, type KantonKey } from "./fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
+import PersonFillSelect, { type FillData } from "src/components/PersonFillSelect/PersonFillSelect";
+import OrgFillSelect, { type OrgFillData } from "src/components/PersonFillSelect/OrgFillSelect";
 
 /* ── Helpers ── */
 
@@ -93,6 +95,20 @@ export default function AmsForm() {
   const [opcina, setOpcina] = useState("");
   const [ziroRacun, setZiroRacun] = useState("");
   const [loadingUpl, setLoadingUpl] = useState(false);
+
+  /* ── Fill from profile/client ── */
+
+  const fillPersonal = useCallback((data: FillData) => {
+    if (data.jmbg) setJmbg(data.jmbg);
+    const name = [data.firstName, data.lastName].filter(Boolean).join(" ");
+    if (name) setImeIPrezime(name);
+    if (data.address) setAdresa(data.address);
+  }, []);
+
+  const fillIsplatilac = useCallback((data: OrgFillData) => {
+    if (data.name) setNaziv(data.name);
+    if (data.address) setAdresaIsplatioca(data.address);
+  }, []);
 
   /* ── Computed ── */
   const computed = useMemo(() => {
@@ -194,6 +210,7 @@ export default function AmsForm() {
         <h2 className={styles.sectionTitle}>
           Dio 1 — Podaci o <em>primaocu</em>
         </h2>
+        <PersonFillSelect onFill={fillPersonal} />
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>1) Ime i prezime</label>
@@ -248,6 +265,7 @@ export default function AmsForm() {
         <h2 className={styles.sectionTitle}>
           Dio 2 — Podaci o <em>isplatiocu</em>
         </h2>
+        <OrgFillSelect onFill={fillIsplatilac} />
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>6) Naziv</label>
