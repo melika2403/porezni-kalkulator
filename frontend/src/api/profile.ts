@@ -50,7 +50,7 @@ export type Users = {
   firstName: string;
   lastName: string;
   email: string | null;
-  role: "USER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+  role: "USER" | "PRO" | "ADMIN" | "BUSINESS";
   phone: string | null;
   address: string | null;
   createdAt: string;
@@ -62,7 +62,7 @@ export type UserUpdatePayload = {
   lastName?: string;
   phone?: string;
   address?: string;
-  role?: "USER" | "ACCOUNTANT" | "ADMIN" | "SUPER_ADMIN";
+  role?: "USER" | "PRO" | "ADMIN" | "BUSINESS";
 };
 
 export type SubscriptionPayload = {
@@ -171,6 +171,10 @@ export function getOrganizations() {
   return request<Organization[]>("/api/organizations");
 }
 
+export function getClientOrganizations() {
+  return request<Organization[]>("/api/organizations/clients");
+}
+
 export function createOrganization(payload: OrgPayload) {
   return request<Organization>("/api/organizations", {
     method: "POST",
@@ -272,6 +276,15 @@ export function getWorkers(orgId: number) {
   return request<Worker[]>(`/api/organizations/${orgId}/workers`);
 }
 
+export type WorkerWithOrg = Worker & {
+  organizationId: number;
+  organizationName: string;
+};
+
+export function getAllMyWorkers() {
+  return request<WorkerWithOrg[]>(`/api/organizations/workers/mine`);
+}
+
 export function createWorker(orgId: number, payload: WorkerPayload) {
   return request<Worker>(`/api/organizations/${orgId}/workers`, {
     method: "POST",
@@ -298,7 +311,7 @@ export function deleteWorker(orgId: number, workerId: number) {
 
 // ─── Forms history ────────────────────────────────────────────────────────────
 
-export type FormType = "GPD" | "SPR" | "ZO3" | "UGOVOR" | "PLDI";
+export type FormType = "GPD" | "SPR" | "ZO3" | "UGOVOR" | "PLDI" | "AMS";
 export type FormStatus = "DRAFT" | "GENERATED" | "SUBMITTED" | "ARCHIVED";
 
 export type FormRecord = {

@@ -37,23 +37,50 @@ function toPublicOrg(org) {
   if (!org) return null;
   const { workers, ...rest } = org;
   const raw = workers?.[0] ?? null;
-  const owner = raw ? { ...raw, jmbg: raw.jmbg ? decryptJmbg(raw.jmbg) : null } : null;
+  const owner = raw
+    ? { ...raw, jmbg: raw.jmbg ? decryptJmbg(raw.jmbg) : null }
+    : null;
   return { ...rest, owner };
 }
 
 async function getUserOrganizations(userId) {
   const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
+    where: { userId, organization: { isClientOrg: false } },
     include: { organization: { select: orgSelect } },
     orderBy: { joinedAt: "desc" },
   });
-  return memberships.map((m) => toPublicOrg({ ...m.organization, memberRole: m.role }));
+  return memberships.map((m) =>
+    toPublicOrg({ ...m.organization, memberRole: m.role }),
+  );
+}
+
+async function getClientOrganizations(userId) {
+  const memberships = await prisma.organizationMember.findMany({
+    where: { userId, organization: { isClientOrg: true } },
+    include: { organization: { select: orgSelect } },
+    orderBy: { joinedAt: "desc" },
+  });
+  return memberships.map((m) =>
+    toPublicOrg({ ...m.organization, memberRole: m.role }),
+  );
+}
+
+async function getOrganizationForUser(id, userId) {
+  const membership = await prisma.organizationMember.findFirst({
+    where: { organizationId: id, userId },
+    include: { organization: { select: orgSelect } },
+  });
+  if (!membership) return null;
+  return toPublicOrg({
+    ...membership.organization,
+    memberRole: membership.role,
+  });
 }
 
 async function createOrganization(data, ownerData, userId) {
   return prisma.$transaction(async (tx) => {
     const org = await tx.organization.create({
-      data: { ...data, createdById: userId },
+      data: { ...data, createdById: userId, isClientOrg: !!ownerData },
       select: { id: true },
     });
 
@@ -68,7 +95,14 @@ async function createOrganization(data, ownerData, userId) {
     } else {
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { firstName: true, lastName: true, jmbg: true, email: true, phone: true, address: true },
+        select: {
+          firstName: true,
+          lastName: true,
+          jmbg: true,
+          email: true,
+          phone: true,
+          address: true,
+        },
       });
       await tx.worker.create({
         data: {
@@ -127,7 +161,7 @@ async function updateOrganization(id, orgData, ownerData, userId) {
 
 async function countOwnedOrganizations(userId) {
   return prisma.organizationMember.count({
-    where: { userId, role: "OWNER" },
+    where: { userId, organization: { isClientOrg: false } },
   });
 }
 
@@ -147,6 +181,8 @@ async function deleteOrganization(id, userId) {
 
 module.exports = {
   getUserOrganizations,
+  getClientOrganizations,
+  getOrganizationForUser,
   createOrganization,
   updateOrganization,
   countOwnedOrganizations,

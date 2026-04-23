@@ -4,6 +4,13 @@ import styles from "./zo3.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import DateInput from "src/components/DateInput/DateInput";
+import PersonFillSelect, {
+  type FillData,
+} from "src/components/PersonFillSelect/PersonFillSelect";
+import OrgFillSelect, {
+  type OrgFillData,
+} from "src/components/PersonFillSelect/OrgFillSelect";
+import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 
 /* ── Constants ── */
 
@@ -170,6 +177,9 @@ export default function Zo3Form() {
   const [poslovnica, setPoslovnica] = useState("");
   const [poslovnicaOpen, setPoslovnicaOpen] = useState(false);
 
+  const [sourceClientId, setSourceClientId] = useState<number | null>(null);
+  const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
+
   /* ── Obveznik uplate doprinosa ── */
   const [employer, setEmployer] = useState({
     naziv: "",
@@ -210,6 +220,31 @@ export default function Zo3Form() {
   const [mjesto, setMjesto] = useState("");
   const [datum, setDatum] = useState(() => getTodayIsoString());
 
+  /* ── Fill from profile/client ── */
+
+  const fillInsured = useCallback((data: FillData) => {
+    setInsured((p) => ({
+      ...p,
+      jmbg: data.jmbg ?? p.jmbg,
+      ime: data.firstName ?? p.ime,
+      prezime: data.lastName ?? p.prezime,
+      ulicaBroj: data.address ?? p.ulicaBroj,
+    }));
+    if (data.sourceClientId !== undefined)
+      setSourceClientId(data.sourceClientId);
+    if (data.sourceWorkerOrgId !== undefined)
+      setSourceOrgId(data.sourceWorkerOrgId);
+  }, []);
+
+  const fillEmployer = useCallback((data: OrgFillData) => {
+    setEmployer((p) => ({
+      ...p,
+      naziv: data.name ?? p.naziv,
+      jib: data.taxNumber ?? p.jib,
+      sifraDjelatnosti: data.activityCode ?? p.sifraDjelatnosti,
+    }));
+  }, []);
+
   /* ── Autocomplete for poslovnica ── */
   const poslovniceOptions = useMemo(
     () => (kanton ? (POSLOVNICE[kanton] ?? []) : []),
@@ -235,8 +270,8 @@ export default function Zo3Form() {
 
   /* ── PDF Export ── */
 
-  const exportPdf = useCallback(async () => {
-    const data: Zo3Data = {
+  const buildZo3Data = useCallback((): Zo3Data => {
+    return {
       kanton,
       poslovnica,
 
@@ -272,7 +307,19 @@ export default function Zo3Form() {
       mjesto,
       datum: isoToFormatted(datum),
     };
+  }, [
+    kanton,
+    poslovnica,
+    employer,
+    insured,
+    familyMembers,
+    napomena,
+    mjesto,
+    datum,
+  ]);
 
+  const exportPdf = useCallback(async () => {
+    const data = buildZo3Data();
     const pdfBytes = await fillZo3Template(data);
 
     const pdfArrayBuffer: ArrayBuffer =
@@ -290,16 +337,9 @@ export default function Zo3Form() {
     a.download = `ZO3_obrazac${insured.prezime ? `_${insured.prezime}` : ""}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [
-    kanton,
-    poslovnica,
-    employer,
-    insured,
-    familyMembers,
-    napomena,
-    mjesto,
-    datum,
-  ]);
+  }, [buildZo3Data, insured.prezime]);
+
+  const zo3Year = datum ? parseInt(datum.slice(0, 4)) || null : null;
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -314,7 +354,12 @@ export default function Zo3Form() {
   /* ── Render ── */
 
   return (
-    <form ref={formRef} className={styles.page} onSubmit={onSubmit} onKeyDown={onEnterNext}>
+    <form
+      ref={formRef}
+      className={styles.page}
+      onSubmit={onSubmit}
+      onKeyDown={onEnterNext}
+    >
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.label}>Obrazac ZO 3</div>
@@ -322,7 +367,9 @@ export default function Zo3Form() {
           Prijava o promjeni u tijeku <em>osiguranja</em>
         </h1>
         <p className={styles.subtitle}>
-          Prijavite supružnika, dijete ili roditelja na zdravstveno osiguranje u FBiH. Popunite ZO3 obrazac online i preuzmite popunjeni PDF — besplatno, bez registracije.
+          Prijavite supružnika, dijete ili roditelja na zdravstveno osiguranje u
+          FBiH. Popunite ZO3 obrazac online i preuzmite popunjeni PDF —
+          besplatno, bez registracije.
         </p>
       </div>
 
@@ -395,6 +442,7 @@ export default function Zo3Form() {
         <h2 className={styles.sectionTitle}>
           Naziv i sjedište <em>obveznika uplate doprinosa</em>
         </h2>
+        <OrgFillSelect onFill={fillEmployer} />
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>
@@ -443,7 +491,10 @@ export default function Zo3Form() {
               maxLength={10}
               value={employer.regBroj}
               onChange={(e) =>
-                setEmployer((s) => ({ ...s, regBroj: e.target.value.replace(/\D/g, "").slice(0, 10) }))
+                setEmployer((s) => ({
+                  ...s,
+                  regBroj: e.target.value.replace(/\D/g, "").slice(0, 10),
+                }))
               }
             />
           </div>
@@ -483,6 +534,7 @@ export default function Zo3Form() {
         <h2 className={styles.sectionTitle}>
           Podaci o <em>osiguraniku</em>
         </h2>
+        <PersonFillSelect onFill={fillInsured} />
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) JMBG</label>
@@ -569,7 +621,10 @@ export default function Zo3Form() {
               maxLength={5}
               value={insured.brojPoste}
               onChange={(e) =>
-                setInsured((s) => ({ ...s, brojPoste: e.target.value.replace(/\D/g, "").slice(0, 5) }))
+                setInsured((s) => ({
+                  ...s,
+                  brojPoste: e.target.value.replace(/\D/g, "").slice(0, 5),
+                }))
               }
             />
           </div>
@@ -593,7 +648,10 @@ export default function Zo3Form() {
               maxLength={4}
               value={insured.zamanjanjeKod}
               onChange={(e) =>
-                setInsured((s) => ({ ...s, zamanjanjeKod: e.target.value.replace(/\D/g, "").slice(0, 4) }))
+                setInsured((s) => ({
+                  ...s,
+                  zamanjanjeKod: e.target.value.replace(/\D/g, "").slice(0, 4),
+                }))
               }
             />
           </div>
@@ -806,6 +864,15 @@ export default function Zo3Form() {
 
       {/* ── Export ── */}
       <div className={styles.actions}>
+        <SaveToProfileButton
+          type="ZO3"
+          year={zo3Year}
+          title={`ZO3 · ${insured.prezime || "obrazac"} · ${zo3Year ?? "?"}`}
+          buildData={buildZo3Data}
+          disabled={zo3Year === null}
+          defaultOrganizationId={sourceOrgId}
+          defaultClientId={sourceClientId}
+        />
         <button type="submit" className={styles.exportBtn}>
           <svg
             viewBox="0 0 24 24"
@@ -826,15 +893,33 @@ export default function Zo3Form() {
         Napomena: Preporučuje se štampanje obrazca u dva primjerka.
       </p>
       <p className={styles.dataNapomena}>
-        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
+        Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
-      <FaqSection items={[
-        { q: "Šta je ZO3 obrazac?", a: "ZO3 je obrazac 'Prijava o promjeni u tijeku osiguranja' koji se koristi za prijavu članova porodice na zdravstveno osiguranje osiguranika. Putem ovog obrasca možete dodati supružnika, djecu ili roditelje na svoje zdravstveno osiguranje." },
-        { q: "Ko može biti prijavljen kao član porodice na zdravstveno osiguranje?", a: "Na zdravstveno osiguranje kao uzdržavani članovi porodice mogu se prijaviti: supružnik, djeca (maloljetna ili na redovnom školovanju), te roditelji osiguranika — ukoliko to pravo ne ostvaruju po drugom osnovu (npr. kroz vlastito zaposlenje ili penziju)." },
-        { q: "Kako se podnosi ZO3 obrazac?", a: "ZO3 obrazac podnosi poslodavac na zahtjev osiguranika, u dva primjerka, nadležnoj regionalnoj ispostavi Zavoda zdravstvenog osiguranja. Uz obrazac je potrebno priložiti odgovarajuću dokumentaciju zavisno od vrste člana porodice koji se prijavljuje." },
-        { q: "Koja dokumentacija je potrebna uz ZO3 obrazac?", a: "Uz popunjeni i ovjereni ZO3 obrazac potrebno je priložiti dokumentaciju koja dokazuje srodstvo i uzdržavanje — npr. izvod iz matične knjige vjenčanih za supružnika, rodni list za djecu, te dokaz da član porodice nema zdravstveno osiguranje po drugom osnovu." },
-        { q: "Gdje mogu preuzeti ZO3 obrazac?", a: "ZO3 obrazac dostupan je za preuzimanje na web stranicama kantonalnih zavoda zdravstvenog osiguranja. Na našoj stranici možete ga popuniti online i preuzeti u PDF formatu." },
-      ]} />
+      <FaqSection
+        items={[
+          {
+            q: "Šta je ZO3 obrazac?",
+            a: "ZO3 je obrazac 'Prijava o promjeni u tijeku osiguranja' koji se koristi za prijavu članova porodice na zdravstveno osiguranje osiguranika. Putem ovog obrasca možete dodati supružnika, djecu ili roditelje na svoje zdravstveno osiguranje.",
+          },
+          {
+            q: "Ko može biti prijavljen kao član porodice na zdravstveno osiguranje?",
+            a: "Na zdravstveno osiguranje kao uzdržavani članovi porodice mogu se prijaviti: supružnik, djeca (maloljetna ili na redovnom školovanju), te roditelji osiguranika — ukoliko to pravo ne ostvaruju po drugom osnovu (npr. kroz vlastito zaposlenje ili penziju).",
+          },
+          {
+            q: "Kako se podnosi ZO3 obrazac?",
+            a: "ZO3 obrazac podnosi poslodavac na zahtjev osiguranika, u dva primjerka, nadležnoj regionalnoj ispostavi Zavoda zdravstvenog osiguranja. Uz obrazac je potrebno priložiti odgovarajuću dokumentaciju zavisno od vrste člana porodice koji se prijavljuje.",
+          },
+          {
+            q: "Koja dokumentacija je potrebna uz ZO3 obrazac?",
+            a: "Uz popunjeni i ovjereni ZO3 obrazac potrebno je priložiti dokumentaciju koja dokazuje srodstvo i uzdržavanje — npr. izvod iz matične knjige vjenčanih za supružnika, rodni list za djecu, te dokaz da član porodice nema zdravstveno osiguranje po drugom osnovu.",
+          },
+          {
+            q: "Gdje mogu preuzeti ZO3 obrazac?",
+            a: "ZO3 obrazac dostupan je za preuzimanje na web stranicama kantonalnih zavoda zdravstvenog osiguranja. Na našoj stranici možete ga popuniti online i preuzeti u PDF formatu.",
+          },
+        ]}
+      />
     </form>
   );
 }

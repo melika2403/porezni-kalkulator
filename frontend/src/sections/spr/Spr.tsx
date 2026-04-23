@@ -4,6 +4,13 @@ import styles from "./spr.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import DateInput from "src/components/DateInput/DateInput";
+import PersonFillSelect, {
+  type FillData,
+} from "src/components/PersonFillSelect/PersonFillSelect";
+import OrgFillSelect, {
+  type OrgFillData,
+} from "src/components/PersonFillSelect/OrgFillSelect";
+import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 
 /* ── Helpers ── */
 
@@ -131,6 +138,38 @@ export default function SprForm() {
 
   const [dateSigned, setDateSigned] = useState(() => getTodayIsoString());
 
+  const [sourceClientId, setSourceClientId] = useState<number | null>(null);
+  const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
+
+  /* ── Fill from profile/client ── */
+
+  const fillPersonal = useCallback((data: FillData) => {
+    setPersonal((p) => ({
+      ...p,
+      jmbOsobni: data.jmbg ?? p.jmbOsobni,
+      fullName:
+        [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
+      address: data.address ?? p.address,
+    }));
+    if (data.sourceClientId !== undefined)
+      setSourceClientId(data.sourceClientId);
+    if (data.sourceWorkerOrgId !== undefined)
+      setSourceOrgId(data.sourceWorkerOrgId);
+  }, []);
+
+  const fillBusiness = useCallback((data: OrgFillData) => {
+    setBusiness((p) => ({
+      ...p,
+      jibJmb: data.taxNumber ?? p.jibJmb,
+      name: data.name ?? p.name,
+      address: data.address ?? p.address,
+      activityType:
+        data.activityCode && data.activityName
+          ? `${data.activityCode} - ${data.activityName}`
+          : (data.activityCode ?? p.activityType),
+    }));
+  }, []);
+
   /* ── Computed values ── */
 
   const computed = useMemo(() => {
@@ -166,11 +205,10 @@ export default function SprForm() {
 
   /* ── PDF Export ── */
 
-  const exportPdf = useCallback(async () => {
+  const buildSprData = useCallback((): SprData => {
     const adj = num(adjustments.row27);
     const adjSigned = adjustments.sign === "-" ? -adj : adj;
-
-    const data: SprData = {
+    return {
       jmbOsobni: personal.jmbOsobni,
       fullName: personal.fullName,
       address: personal.address,
@@ -208,7 +246,10 @@ export default function SprForm() {
 
       dateSigned: isoToFormatted(dateSigned),
     };
+  }, [personal, business, income, expenses, adjustments, dateSigned, computed]);
 
+  const exportPdf = useCallback(async () => {
+    const data = buildSprData();
     const pdfBytes = await fillSprTemplate(data);
 
     const pdfArrayBuffer: ArrayBuffer =
@@ -226,7 +267,11 @@ export default function SprForm() {
     a.download = `SPR-1053_${isoToCompact(business.periodFrom) || "XXXXXXXX"}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [personal, business, income, expenses, adjustments, dateSigned, computed]);
+  }, [buildSprData, business.periodFrom]);
+
+  const sprYear = business.periodFrom
+    ? parseInt(business.periodFrom.slice(0, 4)) || null
+    : null;
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -241,7 +286,12 @@ export default function SprForm() {
   /* ── Render ── */
 
   return (
-    <form ref={formRef} className={styles.page} onSubmit={onSubmit} onKeyDown={onEnterNext}>
+    <form
+      ref={formRef}
+      className={styles.page}
+      onSubmit={onSubmit}
+      onKeyDown={onEnterNext}
+    >
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.label}>Obrazac SPR-1053</div>
@@ -250,7 +300,9 @@ export default function SprForm() {
           <em>samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
-          Obračun dohotka od obrta, slobodnih zanimanja i poljoprivrede za godišnju poreznu prijavu (GPD-1051). Popunite obrazac online i preuzmite popunjeni SPR-1053 PDF — besplatno.
+          Obračun dohotka od obrta, slobodnih zanimanja i poljoprivrede za
+          godišnju poreznu prijavu (GPD-1051). Popunite obrazac online i
+          preuzmite popunjeni SPR-1053 PDF — besplatno.
         </p>
       </div>
 
@@ -259,6 +311,7 @@ export default function SprForm() {
         <h2 className={styles.sectionTitle}>
           Dio 1 — Podaci o <em>poreznom obvezniku</em>
         </h2>
+        <PersonFillSelect onFill={fillPersonal} />
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>1) JMB</label>
@@ -329,6 +382,7 @@ export default function SprForm() {
         <h2 className={styles.sectionTitle}>
           Dio 2 — Podaci o <em>djelatnosti</em>
         </h2>
+        <OrgFillSelect onFill={fillBusiness} />
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>4) JIB/JMB djelatnosti</label>
@@ -481,7 +535,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row11}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row11: fmtInput(e.target.value) }))
+                    setIncome((s) => ({
+                      ...s,
+                      row11: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -497,7 +554,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row12}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row12: fmtInput(e.target.value) }))
+                    setIncome((s) => ({
+                      ...s,
+                      row12: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -513,7 +573,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row13}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row13: fmtInput(e.target.value) }))
+                    setIncome((s) => ({
+                      ...s,
+                      row13: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -529,7 +592,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row14}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row14: fmtInput(e.target.value) }))
+                    setIncome((s) => ({
+                      ...s,
+                      row14: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -545,7 +611,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={income.row15}
                   onChange={(e) =>
-                    setIncome((s) => ({ ...s, row15: fmtInput(e.target.value) }))
+                    setIncome((s) => ({
+                      ...s,
+                      row15: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -594,7 +663,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row17}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row17: fmtInput(e.target.value) }))
+                    setExpenses((s) => ({
+                      ...s,
+                      row17: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -610,7 +682,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row18}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row18: fmtInput(e.target.value) }))
+                    setExpenses((s) => ({
+                      ...s,
+                      row18: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -629,7 +704,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row19}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row19: fmtInput(e.target.value) }))
+                    setExpenses((s) => ({
+                      ...s,
+                      row19: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -645,7 +723,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row20}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row20: fmtInput(e.target.value) }))
+                    setExpenses((s) => ({
+                      ...s,
+                      row20: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -661,7 +742,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row21}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row21: fmtInput(e.target.value) }))
+                    setExpenses((s) => ({
+                      ...s,
+                      row21: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -677,7 +761,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row22}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row22: fmtInput(e.target.value) }))
+                    setExpenses((s) => ({
+                      ...s,
+                      row22: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -693,7 +780,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={expenses.row23}
                   onChange={(e) =>
-                    setExpenses((s) => ({ ...s, row23: fmtInput(e.target.value) }))
+                    setExpenses((s) => ({
+                      ...s,
+                      row23: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -764,7 +854,10 @@ export default function SprForm() {
                   placeholder="0,00"
                   value={adjustments.row27}
                   onChange={(e) =>
-                    setAdjustments((s) => ({ ...s, row27: fmtInput(e.target.value) }))
+                    setAdjustments((s) => ({
+                      ...s,
+                      row27: fmtInput(e.target.value),
+                    }))
                   }
                 />
               </td>
@@ -817,6 +910,15 @@ export default function SprForm() {
 
       {/* ── Export ── */}
       <div className={styles.actions}>
+        <SaveToProfileButton
+          type="SPR"
+          year={sprYear}
+          title={`SPR-1053 · ${personal.fullName} · ${sprYear ?? "?"}`}
+          buildData={buildSprData}
+          disabled={sprYear === null}
+          defaultOrganizationId={sourceOrgId}
+          defaultClientId={sourceClientId}
+        />
         <button type="submit" className={styles.exportBtn}>
           <svg
             viewBox="0 0 24 24"
@@ -831,15 +933,33 @@ export default function SprForm() {
         </button>
       </div>
       <p className={styles.dataNapomena}>
-        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
+        Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
-      <FaqSection items={[
-        { q: "Ko je obavezan podnijeti SPR-1053 obrazac?", a: "SPR-1053 podnose fizičke osobe koje obavljaju samostalnu djelatnost (obrtnici, slobodna zanimanja, poljoprivrednici i šumari) radi utvrđivanja dohotka od te djelatnosti. Obrazac se predaje nadležnoj ispostavi Porezne uprave FBiH." },
-        { q: "Koji je rok za predaju SPR obrasca?", a: "SPR-1053 se predaje do 28. februara tekuće godine za prethodnu kalendarsku godinu, zajedno sa godišnjom prijavom poreza (GPD-1051). Preporučuje se predaja u što kraćem roku radi izbjegavanja gužvi." },
-{ q: "Razlika između SPR i GPD obrasca?", a: "SPR-1053 je specifikacija koja prikazuje kako je ostvaren dohodak od samostalne djelatnosti — prihodi minus rashodi. GPD-1051 je godišnja prijava poreza koja objedinjuje sve izvore dohotka (uključujući i SPR) i izračunava konačnu poreznu obavezu." },
-        { q: "Moram li voditi poslovne knjige da bih podnio SPR?", a: "Porezni obveznici koji koriste normirane rashode nisu obavezni voditi detaljne poslovne knjige, ali moraju imati evidenciju o prihodima. Oni koji koriste stvarne rashode moraju voditi propisane poslovne knjige po sistemu prostog ili dvojnog knjigovodstva." },
-        { q: "Kako se obračunava akontacija poreza tokom godine?", a: "Akontacija poreza je predviđanje Vaše dobiti na kraju poslovne godine, na osnovu dobiti prošle godine. Ona bi se trebala uplaćivati svaki mjesec, te ukoliko zatražite neki dokument ili potvrdu od porezne uprave, mogu od Vas zatražiti da su Vam sve akontacije do tog mjeseca uplaćene. Akontacije Vam pomažu da izbjegnete velike porezne obaveze na kraju godine. Ukoliko na kraju godine imate više uplaćenih akontacija nego poreza za platiti, one se prenose na sljedeću godinu." },
-      ]} />
+      <FaqSection
+        items={[
+          {
+            q: "Ko je obavezan podnijeti SPR-1053 obrazac?",
+            a: "SPR-1053 podnose fizičke osobe koje obavljaju samostalnu djelatnost (obrtnici, slobodna zanimanja, poljoprivrednici i šumari) radi utvrđivanja dohotka od te djelatnosti. Obrazac se predaje nadležnoj ispostavi Porezne uprave FBiH.",
+          },
+          {
+            q: "Koji je rok za predaju SPR obrasca?",
+            a: "SPR-1053 se predaje do 28. februara tekuće godine za prethodnu kalendarsku godinu, zajedno sa godišnjom prijavom poreza (GPD-1051). Preporučuje se predaja u što kraćem roku radi izbjegavanja gužvi.",
+          },
+          {
+            q: "Razlika između SPR i GPD obrasca?",
+            a: "SPR-1053 je specifikacija koja prikazuje kako je ostvaren dohodak od samostalne djelatnosti — prihodi minus rashodi. GPD-1051 je godišnja prijava poreza koja objedinjuje sve izvore dohotka (uključujući i SPR) i izračunava konačnu poreznu obavezu.",
+          },
+          {
+            q: "Moram li voditi poslovne knjige da bih podnio SPR?",
+            a: "Porezni obveznici koji koriste normirane rashode nisu obavezni voditi detaljne poslovne knjige, ali moraju imati evidenciju o prihodima. Oni koji koriste stvarne rashode moraju voditi propisane poslovne knjige po sistemu prostog ili dvojnog knjigovodstva.",
+          },
+          {
+            q: "Kako se obračunava akontacija poreza tokom godine?",
+            a: "Akontacija poreza je predviđanje Vaše dobiti na kraju poslovne godine, na osnovu dobiti prošle godine. Ona bi se trebala uplaćivati svaki mjesec, te ukoliko zatražite neki dokument ili potvrdu od porezne uprave, mogu od Vas zatražiti da su Vam sve akontacije do tog mjeseca uplaćene. Akontacije Vam pomažu da izbjegnete velike porezne obaveze na kraju godine. Ukoliko na kraju godine imate više uplaćenih akontacija nego poreza za platiti, one se prenose na sljedeću godinu.",
+          },
+        ]}
+      />
     </form>
   );
 }
