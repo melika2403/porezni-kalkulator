@@ -176,4 +176,29 @@ async function remove(req, res) {
   return res.json({ ok: true });
 }
 
-module.exports = { list, create, update, remove };
+async function listAllForUser(req, res) {
+  const memberships = await prisma.organizationMember.findMany({
+    where: { userId: req.user.id },
+    select: {
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          workers: true,
+        },
+      },
+    },
+  });
+
+  const data = memberships.flatMap((m) =>
+    m.organization.workers.map((w) => ({
+      ...toPublicWorker(w),
+      organizationId: m.organization.id,
+      organizationName: m.organization.name,
+    })),
+  );
+
+  return res.json({ ok: true, data });
+}
+
+module.exports = { list, listAllForUser, create, update, remove };

@@ -49,24 +49,24 @@ model Subscription {
 }
 
 model Organization {
-  id           Int                  @id @default(autoincrement()) @db.UnsignedInt
-  name         String               @db.VarChar(255)
-  taxNumber    String?              @unique @db.VarChar(100)
-  email        String?              @db.VarChar(255)
-  phone        String?              @db.VarChar(50)
-  address      String?              @db.VarChar(255)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  createdById  Int                  @db.UnsignedInt
-  type         OrganizationType     @default(COMPANY)
-  activityCode String?              @db.VarChar(20)
-  activityName String?              @db.VarChar(255)
-  isClientOrg  Boolean              @default(false)
-  clients      Client[]
-  forms        Form[]
-  members      OrganizationMember[]
-  createdBy    User                 @relation("OrganizationCreatedBy", fields: [createdById], references: [id])
-  workers      Worker[]
+  id            Int                  @id @default(autoincrement()) @db.UnsignedInt
+  name          String               @db.VarChar(255)
+  taxNumber     String?              @unique @db.VarChar(100)
+  email         String?              @db.VarChar(255)
+  phone         String?              @db.VarChar(50)
+  address       String?              @db.VarChar(255)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  createdById   Int                  @db.UnsignedInt
+  type          OrganizationType     @default(COMPANY)
+  activityCode  String?              @db.VarChar(20)
+  activityName  String?              @db.VarChar(255)
+  isClientOrg   Boolean              @default(false)
+  clients       Client[]
+  forms         Form[]
+  members       OrganizationMember[]
+  createdBy     User                 @relation("OrganizationCreatedBy", fields: [createdById], references: [id])
+  workers       Worker[]
 
   @@index([createdById], map: "organizations_createdById_fkey")
   @@map("organizations")

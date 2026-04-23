@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import FaqSection from "src/components/FaqSection/FaqSection";
-import { useQuery } from "@tanstack/react-query";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
 import DateInput from "src/components/DateInput/DateInput";
-import { me, unwrap } from "src/api/auth";
+import PersonFillSelect, { type FillData } from "src/components/PersonFillSelect/PersonFillSelect";
+import OrgFillSelect, { type OrgFillData } from "src/components/PersonFillSelect/OrgFillSelect";
 import {
   getAmortizacijaYears,
   getAmortizacija,
@@ -183,7 +183,6 @@ function sortIcon(key: SortKey, sortKey: SortKey | null, sortDir: "asc" | "desc"
 export default function Amortizacija() {
   const currentYear = new Date().getFullYear().toString();
 
-  const { data: user } = useQuery({ queryKey: ["me"], queryFn: () => unwrap(me()), retry: false });
 
   const [obveznik, setObveznik] = useState<ObveznikData>(makeObveznik(currentYear));
   const [rows, setRows] = useState<AssetRow[]>([newRow()]);
@@ -429,17 +428,28 @@ export default function Amortizacija() {
     markDirty();
   };
 
-  /* ── Profile fill ── */
-  const fillFromProfile = useCallback(() => {
-    if (!user) return;
+  /* ── Profile / client fill ── */
+  const fillObveznik = useCallback((data: FillData) => {
     setObveznik(p => ({
       ...p,
-      jmb: (user as { jmbg?: string }).jmbg ?? p.jmb,
-      imeIPrezime: [user.firstName, user.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
-      adresa: (user as { address?: string }).address ?? p.adresa,
+      jmb: data.jmbg ?? p.jmb,
+      imeIPrezime: [data.firstName, data.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
+      adresa: data.address ?? p.adresa,
     }));
     markDirty();
-  }, [user, markDirty]);
+  }, [markDirty]);
+
+  const fillDjelatnost = useCallback((data: OrgFillData) => {
+    setObveznik(p => ({
+      ...p,
+      jib: data.taxNumber ?? p.jib,
+      naziv: data.name ?? p.naziv,
+      adresaDjelatnosti: data.address ?? p.adresaDjelatnosti,
+      vrstaSifra: data.activityCode ?? p.vrstaSifra,
+      vrstaNaziv: data.activityName ?? p.vrstaNaziv,
+    }));
+    markDirty();
+  }, [markDirty]);
 
   /* ── Period ── */
   const activeOd = obveznik.manualPeriod ? obveznik.periodOd : `${obveznik.godina}-01-01`;
@@ -660,11 +670,7 @@ export default function Amortizacija() {
           <div className={styles.colGroup}>
             <div className={styles.colLabelRow}>
               <p className={styles.colLabel}>Porezni obveznik</p>
-              {user && (
-                <button className={styles.profileFillBtn} onClick={fillFromProfile} title="Popuni iz korisničkog profila">
-                  Popuni iz profila
-                </button>
-              )}
+              <PersonFillSelect onFill={fillObveznik} />
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>1. JMB</label>
@@ -681,7 +687,10 @@ export default function Amortizacija() {
           </div>
 
           <div className={styles.colGroup}>
-            <p className={styles.colLabel}>Registrovana djelatnost</p>
+            <div className={styles.colLabelRow}>
+              <p className={styles.colLabel}>Registrovana djelatnost</p>
+              <OrgFillSelect onFill={fillDjelatnost} />
+            </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>4. JIB</label>
               <input className={styles.fieldInput} value={obveznik.jib} onChange={setO("jib")} placeholder="XXXXXXXXXXXX" maxLength={13} />

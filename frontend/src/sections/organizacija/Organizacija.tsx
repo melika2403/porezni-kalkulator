@@ -21,6 +21,7 @@ import {
   type OrgMember,
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
+import RoleGuard from "src/components/RoleGuard/RoleGuard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,7 +101,11 @@ function WorkerFormFields({
     <div className={styles.formGrid}>
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Uloga</label>
-        <select className={styles.input} value={value.role} onChange={set("role")}>
+        <select
+          className={styles.input}
+          value={value.role}
+          onChange={set("role")}
+        >
           <option value="RADNIK">Radnik</option>
           <option value="VLASNIK">Vlasnik</option>
         </select>
@@ -251,121 +256,121 @@ export default function Organizacija({ orgId }: { orgId: number }) {
 
   return (
     <div className={styles.page}>
-      <Link href="/profil" className={styles.back}>
-        ← Nazad na profil
-      </Link>
+      <RoleGuard roles={["BUSINESS"]} mode="hide">
+        <Link href="/profil" className={styles.back}>
+          ← Nazad na profil
+        </Link>
 
-      {/* ── Org header ── */}
-      <div className={styles.orgHeader}>
-        <h1 className={styles.orgTitle}>{org.name}</h1>
-        <div className={styles.orgMeta}>
-          <span>{ORG_TYPE_LABELS[org.type] ?? org.type}</span>
-          {org.taxNumber && <span>JIB: {org.taxNumber}</span>}
-          {org.owner && (
-            <span>
-              Vlasnik: {org.owner.firstName} {org.owner.lastName}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* ── Workers card ── */}
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <span className={styles.cardTitle}>
-            Radnici{workers.length > 0 ? ` (${workers.length})` : ""}
-          </span>
-          {canEdit && !showAdd && (
-            <button
-              className={styles.btnPrimary}
-              onClick={() => {
-                setShowAdd(true);
-                setEditId(null);
-                createMutation.reset();
-              }}
-            >
-              + Dodaj radnika
-            </button>
-          )}
-        </div>
-
-        {/* Add form */}
-        {showAdd && canEdit && (
-          <form
-            className={styles.formCard}
-            onSubmit={(e) => {
-              e.preventDefault();
-              createMutation.mutate(formToPayload(addForm));
-            }}
-          >
-            <WorkerFormFields value={addForm} onChange={setAddForm} />
-            {createMutation.error && (
-              <div className={styles.errorMsg}>
-                {createMutation.error.message}
-              </div>
+        {/* ── Org header ── */}
+        <div className={styles.orgHeader}>
+          <h1 className={styles.orgTitle}>{org.name}</h1>
+          <div className={styles.orgMeta}>
+            <span>{ORG_TYPE_LABELS[org.type] ?? org.type}</span>
+            {org.taxNumber && <span>JIB: {org.taxNumber}</span>}
+            {org.owner && (
+              <span>
+                Vlasnik: {org.owner.firstName} {org.owner.lastName}
+              </span>
             )}
-            <div className={styles.formActions}>
+          </div>
+        </div>
+
+        {/* ── Workers card ── */}
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardTitle}>
+              Radnici{workers.length > 0 ? ` (${workers.length})` : ""}
+            </span>
+            {canEdit && !showAdd && (
               <button
-                type="button"
-                className={styles.btnGhost}
+                className={styles.btnPrimary}
                 onClick={() => {
-                  setShowAdd(false);
-                  setAddForm(emptyForm());
+                  setShowAdd(true);
+                  setEditId(null);
+                  createMutation.reset();
                 }}
               >
-                Odustani
+                + Dodaj radnika
               </button>
-              <button
-                type="submit"
-                className={styles.btnPrimary}
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? "Dodavanje..." : "Dodaj radnika"}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {workersLoading && (
-          <div className={styles.empty}>Učitavanje radnika...</div>
-        )}
-
-        {!workersLoading && workers.length === 0 && !showAdd && (
-          <div className={styles.empty}>
-            <div className={styles.emptyIcon}>👥</div>
-            <div>Nema dodanih radnika.</div>
+            )}
           </div>
-        )}
 
-        {workers.length > 0 && (
-          <WorkerTable
-            workers={[...activeWorkers, ...inactiveWorkers]}
-            canEdit={canEdit}
-            editId={editId}
-            editForm={editForm}
-            setEditForm={setEditForm}
-            deleteConfirmId={deleteConfirmId}
-            setDeleteConfirmId={setDeleteConfirmId}
-            onStartEdit={startEdit}
-            onCancelEdit={() => setEditId(null)}
-            onSaveEdit={(w) =>
-              updateMutation.mutate({
-                id: w.id,
-                payload: formToPayload(editForm),
-              })
-            }
-            onDelete={(id) => deleteMutation.mutate(id)}
-            updateError={updateMutation.error?.message ?? null}
-            updatePending={updateMutation.isPending}
-            deletePending={deleteMutation.isPending}
-          />
-        )}
-      </div>
+          {/* Add form */}
+          {showAdd && canEdit && (
+            <form
+              className={styles.formCard}
+              onSubmit={(e) => {
+                e.preventDefault();
+                createMutation.mutate(formToPayload(addForm));
+              }}
+            >
+              <WorkerFormFields value={addForm} onChange={setAddForm} />
+              {createMutation.error && (
+                <div className={styles.errorMsg}>
+                  {createMutation.error.message}
+                </div>
+              )}
+              <div className={styles.formActions}>
+                <button
+                  type="button"
+                  className={styles.btnGhost}
+                  onClick={() => {
+                    setShowAdd(false);
+                    setAddForm(emptyForm());
+                  }}
+                >
+                  Odustani
+                </button>
+                <button
+                  type="submit"
+                  className={styles.btnPrimary}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? "Dodavanje..." : "Dodaj radnika"}
+                </button>
+              </div>
+            </form>
+          )}
 
-      {/* ── Members card (owner only) ── */}
-      {org.memberRole === "OWNER" && (
-        <MembersCard orgId={orgId} />
-      )}
+          {workersLoading && (
+            <div className={styles.empty}>Učitavanje radnika...</div>
+          )}
+
+          {!workersLoading && workers.length === 0 && !showAdd && (
+            <div className={styles.empty}>
+              <div className={styles.emptyIcon}>👥</div>
+              <div>Nema dodanih radnika.</div>
+            </div>
+          )}
+
+          {workers.length > 0 && (
+            <WorkerTable
+              workers={[...activeWorkers, ...inactiveWorkers]}
+              canEdit={canEdit}
+              editId={editId}
+              editForm={editForm}
+              setEditForm={setEditForm}
+              deleteConfirmId={deleteConfirmId}
+              setDeleteConfirmId={setDeleteConfirmId}
+              onStartEdit={startEdit}
+              onCancelEdit={() => setEditId(null)}
+              onSaveEdit={(w) =>
+                updateMutation.mutate({
+                  id: w.id,
+                  payload: formToPayload(editForm),
+                })
+              }
+              onDelete={(id) => deleteMutation.mutate(id)}
+              updateError={updateMutation.error?.message ?? null}
+              updatePending={updateMutation.isPending}
+              deletePending={deleteMutation.isPending}
+            />
+          )}
+        </div>
+
+        {/* ── Members card (owner only) ── */}
+        {org.memberRole === "OWNER" && <MembersCard orgId={orgId} />}
+      </RoleGuard>
     </div>
   );
 }
@@ -402,9 +407,15 @@ function MembersCard({ orgId }: { orgId: number }) {
   });
 
   const roleChangeMutation = useMutation({
-    mutationFn: ({ userId, role }: { userId: number; role: "ADMIN" | "MEMBER" }) =>
-      unwrap(updateMemberRole(orgId, userId, role)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members", orgId] }),
+    mutationFn: ({
+      userId,
+      role,
+    }: {
+      userId: number;
+      role: "ADMIN" | "MEMBER";
+    }) => unwrap(updateMemberRole(orgId, userId, role)),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["members", orgId] }),
   });
 
   const removeMutation = useMutation({
@@ -415,11 +426,12 @@ function MembersCard({ orgId }: { orgId: number }) {
     },
   });
 
-  const addError = addMutation.error?.message === "USER_NOT_FOUND"
-    ? "Korisnik s tim emailom nije pronađen."
-    : addMutation.error?.message === "ALREADY_MEMBER"
-      ? "Taj korisnik već ima pristup."
-      : addMutation.error?.message ?? null;
+  const addError =
+    addMutation.error?.message === "USER_NOT_FOUND"
+      ? "Korisnik s tim emailom nije pronađen."
+      : addMutation.error?.message === "ALREADY_MEMBER"
+        ? "Taj korisnik već ima pristup."
+        : (addMutation.error?.message ?? null);
 
   return (
     <div className={styles.card}>
@@ -430,7 +442,10 @@ function MembersCard({ orgId }: { orgId: number }) {
         {!showAdd && (
           <button
             className={styles.btnPrimary}
-            onClick={() => { setShowAdd(true); addMutation.reset(); }}
+            onClick={() => {
+              setShowAdd(true);
+              addMutation.reset();
+            }}
           >
             + Dodaj korisnika
           </button>
@@ -474,7 +489,11 @@ function MembersCard({ orgId }: { orgId: number }) {
             <button
               type="button"
               className={styles.btnGhost}
-              onClick={() => { setShowAdd(false); setEmail(""); setRole("MEMBER"); }}
+              onClick={() => {
+                setShowAdd(false);
+                setEmail("");
+                setRole("MEMBER");
+              }}
             >
               Odustani
             </button>
@@ -510,7 +529,9 @@ function MembersCard({ orgId }: { orgId: number }) {
                 <td className={styles.workerJmbg}>{m.user.email ?? "—"}</td>
                 <td>
                   {m.role === "OWNER" ? (
-                    <span className={styles.vlasnikBadge}>{MEMBER_ROLE_LABELS[m.role]}</span>
+                    <span className={styles.vlasnikBadge}>
+                      {MEMBER_ROLE_LABELS[m.role]}
+                    </span>
                   ) : (
                     <select
                       className={styles.roleSelect}
@@ -529,8 +550,8 @@ function MembersCard({ orgId }: { orgId: number }) {
                   )}
                 </td>
                 <td>
-                  {m.role !== "OWNER" && (
-                    removeConfirmId === m.userId ? (
+                  {m.role !== "OWNER" &&
+                    (removeConfirmId === m.userId ? (
                       <div className={styles.rowActions}>
                         <button
                           className={styles.btnDanger}
@@ -554,8 +575,7 @@ function MembersCard({ orgId }: { orgId: number }) {
                       >
                         <LuTrash2 />
                       </button>
-                    )
-                  )}
+                    ))}
                 </td>
               </tr>
             ))}
@@ -652,7 +672,13 @@ function WorkerTable({
                 {w.firstName} {w.lastName}
               </td>
               <td>
-                <span className={w.role === "VLASNIK" ? styles.vlasnikBadge : styles.radnikBadge}>
+                <span
+                  className={
+                    w.role === "VLASNIK"
+                      ? styles.vlasnikBadge
+                      : styles.radnikBadge
+                  }
+                >
                   {ROLE_LABELS[w.role] ?? w.role}
                 </span>
               </td>

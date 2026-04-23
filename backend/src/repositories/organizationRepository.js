@@ -45,7 +45,7 @@ function toPublicOrg(org) {
 
 async function getUserOrganizations(userId) {
   const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
+    where: { userId, organization: { isClientOrg: false } },
     include: { organization: { select: orgSelect } },
     orderBy: { joinedAt: "desc" },
   });
@@ -54,10 +54,33 @@ async function getUserOrganizations(userId) {
   );
 }
 
+async function getClientOrganizations(userId) {
+  const memberships = await prisma.organizationMember.findMany({
+    where: { userId, organization: { isClientOrg: true } },
+    include: { organization: { select: orgSelect } },
+    orderBy: { joinedAt: "desc" },
+  });
+  return memberships.map((m) =>
+    toPublicOrg({ ...m.organization, memberRole: m.role }),
+  );
+}
+
+async function getOrganizationForUser(id, userId) {
+  const membership = await prisma.organizationMember.findFirst({
+    where: { organizationId: id, userId },
+    include: { organization: { select: orgSelect } },
+  });
+  if (!membership) return null;
+  return toPublicOrg({
+    ...membership.organization,
+    memberRole: membership.role,
+  });
+}
+
 async function createOrganization(data, ownerData, userId) {
   return prisma.$transaction(async (tx) => {
     const org = await tx.organization.create({
-      data: { ...data, createdById: userId },
+      data: { ...data, createdById: userId, isClientOrg: !!ownerData },
       select: { id: true },
     });
 
@@ -138,7 +161,7 @@ async function updateOrganization(id, orgData, ownerData, userId) {
 
 async function countOwnedOrganizations(userId) {
   return prisma.organizationMember.count({
-    where: { userId },
+    where: { userId, organization: { isClientOrg: false } },
   });
 }
 
@@ -158,6 +181,8 @@ async function deleteOrganization(id, userId) {
 
 module.exports = {
   getUserOrganizations,
+  getClientOrganizations,
+  getOrganizationForUser,
   createOrganization,
   updateOrganization,
   countOwnedOrganizations,

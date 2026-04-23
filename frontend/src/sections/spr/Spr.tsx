@@ -4,6 +4,8 @@ import styles from "./spr.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import DateInput from "src/components/DateInput/DateInput";
+import PersonFillSelect, { type FillData } from "src/components/PersonFillSelect/PersonFillSelect";
+import OrgFillSelect, { type OrgFillData } from "src/components/PersonFillSelect/OrgFillSelect";
 
 /* ── Helpers ── */
 
@@ -130,6 +132,31 @@ export default function SprForm() {
   });
 
   const [dateSigned, setDateSigned] = useState(() => getTodayIsoString());
+
+  /* ── Fill from profile/client ── */
+
+  const fillPersonal = useCallback((data: FillData) => {
+    setPersonal((p) => ({
+      ...p,
+      jmbOsobni: data.jmbg ?? p.jmbOsobni,
+      fullName:
+        [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
+      address: data.address ?? p.address,
+    }));
+  }, []);
+
+  const fillBusiness = useCallback((data: OrgFillData) => {
+    setBusiness((p) => ({
+      ...p,
+      jibJmb: data.taxNumber ?? p.jibJmb,
+      name: data.name ?? p.name,
+      address: data.address ?? p.address,
+      activityType:
+        data.activityCode && data.activityName
+          ? `${data.activityCode} - ${data.activityName}`
+          : data.activityCode ?? p.activityType,
+    }));
+  }, []);
 
   /* ── Computed values ── */
 
@@ -259,6 +286,7 @@ export default function SprForm() {
         <h2 className={styles.sectionTitle}>
           Dio 1 — Podaci o <em>poreznom obvezniku</em>
         </h2>
+        <PersonFillSelect onFill={fillPersonal} />
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>1) JMB</label>
@@ -329,6 +357,7 @@ export default function SprForm() {
         <h2 className={styles.sectionTitle}>
           Dio 2 — Podaci o <em>djelatnosti</em>
         </h2>
+        <OrgFillSelect onFill={fillBusiness} />
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>4) JIB/JMB djelatnosti</label>
