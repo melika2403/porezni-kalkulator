@@ -44,13 +44,13 @@ function requireAuth(req, res, next) {
   }
 }
 
-function requireRole(requiredRole) {
+function requireRole(...requiredRoles) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
     }
 
-    if (req.user.role !== requiredRole) {
+    if (!requiredRoles.includes(req.user.role)) {
       return res.status(403).json({ ok: false, error: "FORBIDDEN" });
     }
 

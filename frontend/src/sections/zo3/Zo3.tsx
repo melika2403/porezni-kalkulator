@@ -11,6 +11,7 @@ import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 
 /* ── Constants ── */
 
@@ -186,6 +187,7 @@ export default function Zo3Form() {
     jib: "",
     regBroj: "",
     sifraDjelatnosti: "",
+    nazivDjelatnosti: "",
     radnoVrijeme: "",
   });
 
@@ -242,6 +244,7 @@ export default function Zo3Form() {
       naziv: data.name ?? p.naziv,
       jib: data.taxNumber ?? p.jib,
       sifraDjelatnosti: data.activityCode ?? p.sifraDjelatnosti,
+      nazivDjelatnosti: data.activityName ?? p.nazivDjelatnosti,
     }));
   }, []);
 
@@ -498,18 +501,21 @@ export default function Zo3Form() {
               }
             />
           </div>
-          <div className={styles.fieldGroup}>
+          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>3) Šifra djelatnosti</label>
-            <input
-              className={styles.fieldInput}
-              placeholder="Npr. 69.20"
-              value={employer.sifraDjelatnosti}
-              onChange={(e) =>
+            <ShifraCombobox
+              code={employer.sifraDjelatnosti}
+              name={employer.nazivDjelatnosti}
+              onChange={(code, name) =>
                 setEmployer((s) => ({
                   ...s,
-                  sifraDjelatnosti: e.target.value,
+                  sifraDjelatnosti: code,
+                  nazivDjelatnosti: name,
                 }))
               }
+              inputClassName={styles.fieldInput}
+              codeLabel="Šifra"
+              nameLabel="Naziv"
             />
           </div>
           <div className={styles.fieldGroup}>
