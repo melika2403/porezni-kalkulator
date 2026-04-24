@@ -59,15 +59,24 @@ async function list(req, res) {
 async function create(req, res) {
   if (!checkRole(req, res)) return;
 
-  const validation = validateClientPayload(req.body, true);
-  if (!validation.ok)
-    return res.status(400).json({ ok: false, error: validation.message });
+  const { firstName, lastName, jmbg, taxNumber, email, phone, address } = req.body ?? {};
+  const data = {
+    firstName: isNonEmptyString(firstName) ? firstName.trim() : null,
+    lastName: isNonEmptyString(lastName) ? lastName.trim() : null,
+  };
+
+  if (jmbg && String(jmbg).trim()) {
+    if (!/^\d{13}$/.test(String(jmbg).trim()))
+      return res.status(400).json({ ok: false, error: "JMBG mora imati tačno 13 cifara" });
+    data.jmbg = encryptJmbg(String(jmbg).trim());
+  }
+  if (taxNumber !== undefined) data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
+  if (email !== undefined) data.email = email ? String(email).trim() : null;
+  if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
+  if (address !== undefined) data.address = address ? String(address).trim() : null;
 
   try {
-    const client = await clientRepository.createPersonClient(
-      validation.value,
-      req.user.id,
-    );
+    const client = await clientRepository.createPersonClient(data, req.user.id);
     res.status(201).json({ ok: true, data: client });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -101,4 +110,21 @@ async function update(req, res) {
   }
 }
 
-module.exports = { list, create, update };
+async function remove(req, res) {
+  if (!checkRole(req, res)) return;
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+
+  try {
+    const deleted = await clientRepository.deletePersonClient(id, req.user.id);
+    if (!deleted)
+      return res.status(404).json({ ok: false, error: "Klijent nije pronađen" });
+    res.status(200).json({ ok: true, data: null });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: String(error?.message ?? error) });
+  }
+}
+
+module.exports = { list, create, update, remove };

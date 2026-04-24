@@ -1,12 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useRole } from "src/hooks/useRole";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
 import DateInput from "src/components/DateInput/DateInput";
-import PersonFillSelect, {
-  type FillData,
-} from "src/components/PersonFillSelect/PersonFillSelect";
 import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
@@ -15,10 +14,10 @@ import {
   getAmortizacija,
   saveAmortizacija,
   deleteAmortizacija,
+  getClientYears,
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
-import { getForms, type FormRecord } from "src/api/profile";
-import { getDocument } from "src/api/documents";
+import { getPersonClients, createPersonClient, updatePersonClient, deletePersonClient } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -268,17 +267,105 @@ export default function Amortizacija() {
   const [saveStatus, setSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
-  const [sourceClientId, setSourceClientId] = useState<number | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
-  const [pldiDocs, setPldiDocs] = useState<FormRecord[]>([]);
-  const [loadingDoc, setLoadingDoc] = useState(false);
   const [showNewYear, setShowNewYear] = useState(false);
   const [newYearVal, setNewYearVal] = useState("");
   const [yearToDelete, setYearToDelete] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [savingClient, setSavingClient] = useState(false);
+  const [showCarryoverConfirm, setShowCarryoverConfirm] = useState(false);
+  const [confirmDeleteClientId, setConfirmDeleteClientId] = useState<number | null>(null);
+  const [clientOrder, setClientOrder] = useState<number[]>(() => {
+    try { return JSON.parse(localStorage.getItem("amortizacija-client-order") ?? "[]"); }
+    catch { return []; }
+  });
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const dragItemId = useRef<number | null>(null);
   const isLoadingRef = useRef(false);
   const newYearRef = useRef<HTMLInputElement>(null);
+  const selectedClientIdRef = useRef(selectedClientId);
+  useEffect(() => { selectedClientIdRef.current = selectedClientId; }, [selectedClientId]);
+
+  const { hasRole } = useRole();
+  const isClientUser = hasRole("PRO", "BUSINESS", "ADMIN");
+  const isClientUserRef = useRef(isClientUser);
+  useEffect(() => { isClientUserRef.current = isClientUser; }, [isClientUser]);
+
+  const obveznikRef = useRef(obveznik);
+  useEffect(() => { obveznikRef.current = obveznik; }, [obveznik]);
+
+  /* ── Client sidebar ── */
+  const clientsQuery = useQuery({
+    queryKey: ["personClients"],
+    queryFn: async () => {
+      const res = await getPersonClients();
+      if (!res.ok) return [];
+      return res.data;
+    },
+  });
+
+  const clientYearsQuery = useQuery({
+    queryKey: ["amortizacijaClientYears"],
+    queryFn: async () => {
+      const res = await getClientYears();
+      return res.ok ? res.data : {};
+    },
+  });
+
+  /* ── Client order (drag-and-drop, persisted in localStorage) ── */
+  useEffect(() => {
+    if (!clientsQuery.data) return;
+    setClientOrder((prev) => {
+      const ids = clientsQuery.data.map((c) => c.id);
+      const kept = prev.filter((id) => ids.includes(id));
+      const added = ids.filter((id) => !kept.includes(id));
+      return [...kept, ...added];
+    });
+  }, [clientsQuery.data]);
+
+  useEffect(() => {
+    localStorage.setItem("amortizacija-client-order", JSON.stringify(clientOrder));
+  }, [clientOrder]);
+
+  const sortedClients = useMemo(() => {
+    if (!clientsQuery.data) return [];
+    return [...clientsQuery.data].sort((a, b) => {
+      const ai = clientOrder.indexOf(a.id);
+      const bi = clientOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [clientsQuery.data, clientOrder]);
+
+  const handleDragStart = useCallback((id: number) => {
+    dragItemId.current = id;
+  }, []);
+
+  const handleDragEnter = useCallback((id: number) => {
+    setDragOverId(id);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    const from = dragItemId.current;
+    const to = dragOverId;
+    if (from !== null && to !== null && from !== to) {
+      setClientOrder((prev) => {
+        const next = [...prev];
+        const fi = next.indexOf(from);
+        const ti = next.indexOf(to);
+        if (fi === -1 || ti === -1) return prev;
+        next.splice(fi, 1);
+        next.splice(ti, 0, from);
+        return next;
+      });
+    }
+    dragItemId.current = null;
+    setDragOverId(null);
+  }, [dragOverId]);
 
   /* ── Dirty tracking ── */
   const markDirty = useCallback(() => {
@@ -341,19 +428,15 @@ export default function Amortizacija() {
 
   useEffect(() => {
     (async () => {
-      const [yearsRes, docsRes] = await Promise.all([
-        getAmortizacijaYears(),
-        getForms("PLDI"),
-      ]);
+      const yearsRes = await getAmortizacijaYears(selectedClientId);
       if (yearsRes.ok) setSavedYears(yearsRes.data);
-      if (docsRes.ok) setPldiDocs(docsRes.data);
 
       setDataLoading(true);
-      const res = await getAmortizacija(currentYear);
+      const res = await getAmortizacija(currentYear, selectedClientId);
       setDataLoading(false);
       if (res.ok && res.data) applyLoadedData(res.data);
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (showNewYear) newYearRef.current?.focus();
@@ -382,7 +465,7 @@ export default function Amortizacija() {
         return next;
       });
       setDataLoading(true);
-      const res = await getAmortizacija(year);
+      const res = await getAmortizacija(year, selectedClientIdRef.current);
       setDataLoading(false);
       if (res.ok && res.data) {
         applyLoadedData(res.data);
@@ -418,11 +501,27 @@ export default function Amortizacija() {
     [isDirty, obveznik.godina, doSwitchYear],
   );
 
+  /* ── Auto-create client on first save for PRO/BUSINESS/ADMIN ── */
+  const ensureClient = useCallback(async (): Promise<number | null> => {
+    if (selectedClientIdRef.current !== null) return selectedClientIdRef.current;
+    if (!isClientUserRef.current) return null;
+    const ob = obveznikRef.current;
+    const name = ob.naziv.trim() || ob.imeIPrezime.trim() || "";
+    const res = await createPersonClient({ firstName: name, lastName: "" });
+    if (!res.ok || !res.data) return null;
+    const newId = res.data.id;
+    selectedClientIdRef.current = newId;
+    setSelectedClientId(newId);
+    clientsQuery.refetch();
+    return newId;
+  }, [clientsQuery]);
+
   /* ── Save ── */
   const handleSave = useCallback(async () => {
     setSaveStatus("saving");
+    await ensureClient();
     const godina = obveznik.godina || currentYear;
-    const res = await saveAmortizacija(godina, { obveznik, rows });
+    const res = await saveAmortizacija(godina, { obveznik, rows }, selectedClientIdRef.current);
     if (res.ok) {
       setSaveStatus("saved");
       setIsDirty(false);
@@ -435,11 +534,23 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, currentYear]);
+  }, [obveznik, rows, currentYear, ensureClient]);
 
   /* ── Carryover ── */
   const handleCarryover = useCallback(async () => {
-    const nextYear = String(parseInt(obveznik.godina || currentYear) + 1);
+    const currentGodina = obveznik.godina || currentYear;
+    const nextYear = String(parseInt(currentGodina) + 1);
+
+    setSaveStatus("saving");
+    await ensureClient();
+
+    // Save current year first so nothing is lost
+    await saveAmortizacija(currentGodina, { obveznik, rows }, selectedClientIdRef.current);
+    setSavedYears((prev) => {
+      const yr = parseInt(currentGodina);
+      return prev.includes(yr) ? prev : [...prev, yr].sort((a, b) => a - b);
+    });
+
     const carryoverObveznik: ObveznikData = {
       ...obveznik,
       godina: nextYear,
@@ -475,11 +586,10 @@ export default function Amortizacija() {
       isLoadingRef.current = false;
     }, 0);
 
-    setSaveStatus("saving");
     const res = await saveAmortizacija(nextYear, {
       obveznik: carryoverObveznik,
       rows: carryoverRows,
-    });
+    }, selectedClientIdRef.current);
     if (res.ok) {
       setSavedYears((prev) => {
         const yr = parseInt(nextYear);
@@ -492,12 +602,12 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [obveznik, rows, selectedClientId, currentYear, ensureClient]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Delete year ── */
   const handleDeleteYear = useCallback(
     async (yr: number) => {
-      await deleteAmortizacija(String(yr));
+      await deleteAmortizacija(String(yr), selectedClientIdRef.current);
       const newSaved = savedYears.filter((y) => y !== yr);
       const newVisited = visitedYears.filter((y) => y !== yr);
       setSavedYears(newSaved);
@@ -509,7 +619,7 @@ export default function Amortizacija() {
         const remaining = [...new Set([...newSaved, ...newVisited])].sort(
           (a, b) => a - b,
         );
-        const fallback = remaining[0];
+        const fallback = [...remaining].reverse().find((y) => y < yr) ?? remaining[remaining.length - 1];
         if (fallback !== undefined) {
           await doSwitchYear(String(fallback));
         } else {
@@ -597,24 +707,6 @@ export default function Amortizacija() {
     markDirty();
   };
 
-  /* ── Profile / client fill ── */
-  const fillObveznik = useCallback(
-    (data: FillData) => {
-      setObveznik((p) => ({
-        ...p,
-        jmb: data.jmbg ?? p.jmb,
-        imeIPrezime:
-          [data.firstName, data.lastName].filter(Boolean).join(" ") ||
-          p.imeIPrezime,
-        adresa: data.address ?? p.adresa,
-      }));
-      if (data.sourceClientId !== undefined)
-        setSourceClientId(data.sourceClientId);
-      markDirty();
-    },
-    [markDirty],
-  );
-
   const fillDjelatnost = useCallback(
     (data: OrgFillData) => {
       setObveznik((p) => ({
@@ -626,9 +718,13 @@ export default function Amortizacija() {
         vrstaNaziv: data.activityName ?? p.vrstaNaziv,
       }));
       if (data.sourceOrgId !== undefined) setSourceOrgId(data.sourceOrgId);
+      if (selectedClientIdRef.current !== null && data.name) {
+        updatePersonClient(selectedClientIdRef.current, { firstName: data.name })
+          .then(() => clientsQuery.refetch());
+      }
       markDirty();
     },
-    [markDirty],
+    [markDirty, clientsQuery],
   );
 
   /* ── Period ── */
@@ -810,22 +906,75 @@ export default function Amortizacija() {
 
   const activeYear = parseInt(obveznik.godina || currentYear);
 
-  const handleLoadFromProfile = useCallback(
-    async (id: number) => {
-      setLoadingDoc(true);
-      const res = await getDocument<{ obveznik?: ObveznikData; rows?: AssetRow[] }>(id);
-      setLoadingDoc(false);
-      if (res.ok && res.data?.data) applyLoadedData(res.data.data);
-    },
-    [applyLoadedData],
-  );
-
   const pldiYear = obveznik.godina.length === 4 ? parseInt(obveznik.godina) : null;
 
   const buildPldiData = useCallback(
     () => ({ obveznik, rows }),
     [obveznik, rows],
   );
+
+  /* ── Client switch ── */
+  const handleSelectClient = useCallback(
+    async (clientId: number | null) => {
+      if (clientId === selectedClientId) return;
+      setSelectedClientId(clientId);
+      setSavedYears([]);
+      setVisitedYears([parseInt(currentYear)]);
+      setDeletedYears(new Set());
+      setSaveStatus("idle");
+      setPendingYear(null);
+      isLoadingRef.current = true;
+      setRows([newRow()]);
+      setObveznik(makeObveznik(currentYear));
+      setTimeout(() => { isLoadingRef.current = false; setIsDirty(false); }, 0);
+
+      if (clientId !== null) {
+        const client = clientsQuery.data?.find((c) => c.id === clientId);
+        if (client) {
+          isLoadingRef.current = true;
+          setObveznik((p) => ({
+            ...p,
+            jmb: client.jmbg ?? p.jmb,
+            imeIPrezime: [client.firstName, client.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
+            adresa: client.address ?? p.adresa,
+          }));
+          setTimeout(() => { isLoadingRef.current = false; }, 0);
+        }
+      }
+    },
+    [selectedClientId, currentYear, clientsQuery.data],
+  );
+
+  const handleNazivBlur = useCallback(() => {
+    const clientId = selectedClientIdRef.current;
+    if (clientId === null || !obveznik.naziv.trim()) return;
+    updatePersonClient(clientId, { firstName: obveznik.naziv.trim() })
+      .then(() => clientsQuery.refetch());
+  }, [obveznik.naziv, clientsQuery]);
+
+  const handleConfirmDeleteClient = useCallback(async () => {
+    if (confirmDeleteClientId === null) return;
+    await deletePersonClient(confirmDeleteClientId);
+    setConfirmDeleteClientId(null);
+    if (selectedClientId === confirmDeleteClientId) {
+      const remaining = sortedClients.filter((c) => c.id !== confirmDeleteClientId);
+      const idx = sortedClients.findIndex((c) => c.id === confirmDeleteClientId);
+      const next = remaining[Math.max(0, idx - 1)] ?? remaining[0];
+      handleSelectClient(next?.id ?? null);
+    }
+    setClientOrder((prev) => prev.filter((id) => id !== confirmDeleteClientId));
+    clientsQuery.refetch();
+  }, [confirmDeleteClientId, selectedClientId, sortedClients, handleSelectClient, clientsQuery]);
+
+  const handleAddClient = useCallback(async () => {
+    setSavingClient(true);
+    const res = await createPersonClient({ firstName: "", lastName: "" });
+    setSavingClient(false);
+    if (res.ok && res.data) {
+      await clientsQuery.refetch();
+      handleSelectClient(res.data.id);
+    }
+  }, [clientsQuery, handleSelectClient]);
 
   const thSort = (key: SortKey, label: React.ReactNode) => (
     <th
@@ -840,9 +989,84 @@ export default function Amortizacija() {
     </th>
   );
 
+  const sidebar = (
+    <aside className={styles.sidebar}>
+      <div className={styles.sidebarHeader}>Klijenti</div>
+      {!isClientUser && (
+        <div className={styles.sidebarLock}>
+          <span className={styles.sidebarLockIcon}>🔒</span>
+          <p className={styles.sidebarLockText}>Dostupno uz Pro ili Business pretplatu</p>
+        </div>
+      )}
+      <div className={`${styles.sidebarList}${!isClientUser ? ` ${styles.sidebarLocked}` : ""}`}>
+        {sortedClients.map((client) => {
+          const hasData = !!clientYearsQuery.data?.[String(client.id)]?.length;
+          const isActive = selectedClientId === client.id;
+          const isDragOver = dragOverId === client.id;
+          const label = [client.firstName, client.lastName].filter(Boolean).join(" ") || "Prazan obrazac";
+          return (
+            <div
+              key={client.id}
+              draggable
+              className={`${styles.sidebarItemWrap}${isDragOver ? ` ${styles.dragOver}` : ""}`}
+              onDragStart={() => handleDragStart(client.id)}
+              onDragEnter={() => handleDragEnter(client.id)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <button
+                className={`${styles.sidebarItem}${isActive ? ` ${styles.active}` : ""}`}
+                onClick={() => handleSelectClient(client.id)}
+              >
+                <span className={styles.dragHandle}>⠿</span>
+                <span className={hasData ? styles.sidebarDot : styles.sidebarDotEmpty} />
+                <span className={`${styles.sidebarName}${label === "Prazan obrazac" ? ` ${styles.sidebarNameEmpty}` : ""}`}>
+                  {label}
+                </span>
+              </button>
+              {sortedClients.length > 1 && (
+                <button
+                  className={styles.deleteClientBtn}
+                  title="Obriši klijenta"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteClientId(client.id); }}
+                >
+                  🗑
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {isClientUser && (
+        <button
+          className={styles.addClientBtn}
+          type="button"
+          disabled={savingClient}
+          onClick={handleAddClient}
+        >
+          {savingClient ? "Dodajem…" : "+ Dodaj klijenta"}
+        </button>
+      )}
+
+      {confirmDeleteClientId !== null && (
+        <div className={styles.deletePopup}>
+          <p className={styles.deletePopupText}>Obrisati klijenta? Ova radnja se ne može poništiti.</p>
+          <div className={styles.deletePopupActions}>
+            <button className={styles.deletePopupConfirm} onClick={handleConfirmDeleteClient}>
+              Obriši
+            </button>
+            <button className={styles.deletePopupCancel} onClick={() => setConfirmDeleteClientId(null)}>
+              Odustani
+            </button>
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+
   return (
-    <div className={styles.page}>
-      {/* Header */}
+    <div className={styles.pageOuter}>
+      {/* Header — full width, above sidebar layout */}
       <div className={styles.header}>
         <p className={styles.label}>Obrazac PLDI-1043</p>
         <h1 className={styles.h1}>
@@ -855,7 +1079,7 @@ export default function Amortizacija() {
         </p>
       </div>
 
-      {/* Year switcher */}
+      {/* Year switcher — full width, above sidebar/content row */}
       <div className={styles.yearBar}>
         {allYears.map((yr) => (
           <button
@@ -903,6 +1127,10 @@ export default function Amortizacija() {
         )}
         {dataLoading && <span className={styles.yearLoading}>Učitavam…</span>}
       </div>
+
+    <div className={styles.pageLayout}>
+    {sidebar}
+    <div className={styles.page}>
 
       {/* Pending year switch warning */}
       {pendingYear && (
@@ -971,34 +1199,11 @@ export default function Amortizacija() {
           )}
         </div>
 
-        {pldiDocs.length > 0 && (
-          <div className={styles.loadFromProfileRow}>
-            <select
-              className={styles.loadFromProfileSelect}
-              value=""
-              disabled={loadingDoc}
-              onChange={(e) => {
-                const id = parseInt(e.target.value);
-                if (!isNaN(id)) handleLoadFromProfile(id);
-              }}
-            >
-              <option value="">
-                {loadingDoc ? "Učitavam…" : "Učitaj s profila…"}
-              </option>
-              {pldiDocs.map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.title ?? `PLDI · ${doc.year}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         <div className={styles.twoCol}>
           <div className={styles.colGroup}>
             <div className={styles.colLabelRow}>
               <p className={styles.colLabel}>Porezni obveznik</p>
-              <PersonFillSelect onFill={fillObveznik} />
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>1. JMB</label>
@@ -1033,7 +1238,7 @@ export default function Amortizacija() {
           <div className={styles.colGroup}>
             <div className={styles.colLabelRow}>
               <p className={styles.colLabel}>Registrovana djelatnost</p>
-              <OrgFillSelect onFill={fillDjelatnost} />
+              {(selectedClientId === null || savedYears.length === 0) && <OrgFillSelect onFill={fillDjelatnost} />}
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>4. JIB</label>
@@ -1051,6 +1256,7 @@ export default function Amortizacija() {
                 className={styles.fieldInput}
                 value={obveznik.naziv}
                 onChange={setO("naziv")}
+                onBlur={handleNazivBlur}
                 placeholder='Obrt "Naziv"'
               />
             </div>
@@ -1433,24 +1639,56 @@ export default function Amortizacija() {
       {/* Actions */}
       {isDirty && <p className={styles.dirtyBadge}>Promjene nisu spremljene</p>}
       <div className={styles.actionsRow}>
-        <button
-          className={styles.carryoverBtn}
-          onClick={handleCarryover}
-          disabled={saveStatus === "saving"}
-          title={`Prenesi sva aktivna sredstva u ${parseInt(obveznik.godina || currentYear) + 1}. godinu`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className={styles.carryoverWrap}>
+          <button
+            className={styles.carryoverBtn}
+            onClick={() => {
+              const next = parseInt(obveznik.godina || currentYear) + 1;
+              if (savedYears.includes(next)) {
+                setShowCarryoverConfirm(true);
+              } else {
+                handleCarryover();
+              }
+            }}
+            disabled={saveStatus === "saving"}
+            title={`Prenesi sva aktivna sredstva u ${parseInt(obveznik.godina || currentYear) + 1}. godinu`}
           >
-            <path d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
-          Prenesi u {parseInt(obveznik.godina || currentYear) + 1}.
-        </button>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+            Prenesi u {parseInt(obveznik.godina || currentYear) + 1}.
+          </button>
+
+          {showCarryoverConfirm && (
+            <div className={styles.carryoverConfirm}>
+              <p className={styles.carryoverConfirmText}>
+                Godina {parseInt(obveznik.godina || currentYear) + 1}. već ima sačuvane podatke.
+                Prenos će ih zamijeniti novim stanjem.
+              </p>
+              <div className={styles.carryoverConfirmActions}>
+                <button
+                  className={styles.carryoverConfirmYes}
+                  onClick={() => { setShowCarryoverConfirm(false); handleCarryover(); }}
+                >
+                  Prenesi i zamijeni
+                </button>
+                <button
+                  className={styles.carryoverConfirmNo}
+                  onClick={() => setShowCarryoverConfirm(false)}
+                >
+                  Odustani
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <button
           className={styles.exportBtn}
@@ -1493,7 +1731,8 @@ export default function Amortizacija() {
           buildData={buildPldiData}
           disabled={pldiYear === null}
           defaultOrganizationId={sourceOrgId}
-          defaultClientId={sourceClientId}
+          defaultClientId={selectedClientId}
+          onSuccess={handleSave}
         />
       </div>
 
@@ -1530,5 +1769,7 @@ export default function Amortizacija() {
         ]}
       />
     </div>
+    </div>
+  </div>
   );
 }

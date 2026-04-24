@@ -200,7 +200,7 @@ export default function SprForm() {
     const months = monthsBetween(business.periodFrom, business.periodTo);
     const row29 = months > 0 ? (netIncome * 0.1) / months : 0;
 
-    return { totalIncome, totalExpenses, netIncome, row29 };
+    return { totalIncome, totalExpenses, netIncome, row29, months };
   }, [income, expenses, adjustments, business]);
 
   /* ── PDF Export ── */
@@ -241,7 +241,8 @@ export default function SprForm() {
       row26Expenses: computed.totalExpenses,
       row27Adjustments: adjSigned,
       row28NetIncome: computed.netIncome,
-      row29PersonalDeduction: num(adjustments.row29),
+      row29PersonalDeduction: computed.row29,
+      row29Months: computed.months,
       signAdjustment: adjustments.sign,
 
       dateSigned: isoToFormatted(dateSigned),
@@ -875,7 +876,7 @@ export default function SprForm() {
               <td>29</td>
               <td>
                 Mjesečni iznos akontacije poreza na dohodak ((red 28. x 0,1) /
-                __mjeseci)
+                {computed.months} {computed.months === 1 ? "mjesec" : "mjeseci"})
               </td>
               <td>
                 <span className={styles.autoValue}>

@@ -382,3 +382,7 @@ export function updatePersonClient(
     body: JSON.stringify(payload),
   });
 }
+
+export function deletePersonClient(id: number) {
+  return request<null>(`/api/clients/${id}`, { method: "DELETE" });
+}

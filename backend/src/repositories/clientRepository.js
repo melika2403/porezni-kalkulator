@@ -59,4 +59,14 @@ async function updatePersonClient(id, data, userId) {
   }
 }
 
-module.exports = { getPersonClients, createPersonClient, updatePersonClient };
+async function deletePersonClient(id, userId) {
+  const existing = await prisma.client.findUnique({
+    where: { id },
+    select: { createdById: true },
+  });
+  if (!existing || existing.createdById !== userId) return null;
+  await prisma.client.delete({ where: { id } });
+  return true;
+}
+
+module.exports = { getPersonClients, createPersonClient, updatePersonClient, deletePersonClient };
