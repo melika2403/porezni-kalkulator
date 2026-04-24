@@ -256,7 +256,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
 
   return (
     <div className={styles.page}>
-      <RoleGuard roles={["BUSINESS"]} mode="hide">
+      <RoleGuard roles={["BUSINESS", "ADMIN"]} mode="hide">
         <Link href="/profil" className={styles.back}>
           ← Nazad na profil
         </Link>

@@ -11,6 +11,7 @@ import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 
 /* ── Helpers ── */
 
@@ -106,7 +107,8 @@ export default function SprForm() {
     contactChanged: false,
     name: "",
     address: "",
-    activityType: "",
+    activityCode: "",
+    activityName: "",
   });
 
   /* ── Dio 3 — Prihodi ── */
@@ -163,10 +165,8 @@ export default function SprForm() {
       jibJmb: data.taxNumber ?? p.jibJmb,
       name: data.name ?? p.name,
       address: data.address ?? p.address,
-      activityType:
-        data.activityCode && data.activityName
-          ? `${data.activityCode} - ${data.activityName}`
-          : (data.activityCode ?? p.activityType),
+      activityCode: data.activityCode ?? p.activityCode,
+      activityName: data.activityName ?? p.activityName,
     }));
   }, []);
 
@@ -219,7 +219,9 @@ export default function SprForm() {
       contactChanged: business.contactChanged,
       businessName: business.name,
       businessAddress: business.address,
-      activityType: business.activityType,
+      activityType: [business.activityCode, business.activityName]
+        .filter(Boolean)
+        .join(" - "),
 
       row11Cash: num(income.row11),
       row12InKind: num(income.row12),
@@ -472,22 +474,15 @@ export default function SprForm() {
             <label className={styles.fieldLabel}>
               10) Vrsta djelatnosti — šifra i naziv
             </label>
-            <input
-              className={styles.fieldInput}
-              placeholder="Npr. 47.11 - Trgovina na malo"
-              value={business.activityType}
-              onInvalid={(e) => {
-                const el = e.currentTarget;
-                el.setCustomValidity(
-                  el.validity.valueMissing
-                    ? "Unesite šifru i naziv djelatnosti."
-                    : "",
-                );
-              }}
-              onInput={(e) => e.currentTarget.setCustomValidity("")}
-              onChange={(e) =>
-                setBusiness((s) => ({ ...s, activityType: e.target.value }))
+            <ShifraCombobox
+              code={business.activityCode}
+              name={business.activityName}
+              onChange={(code, name) =>
+                setBusiness((s) => ({ ...s, activityCode: code, activityName: name }))
               }
+              inputClassName={styles.fieldInput}
+              codeLabel="Šifra"
+              nameLabel="Naziv"
             />
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>

@@ -25,7 +25,9 @@ type Props = {
 };
 
 function clientLabel(c: PersonClient): string {
-  return [c.lastName, c.firstName].filter(Boolean).join(" ") || `Klijent #${c.id}`;
+  return (
+    [c.lastName, c.firstName].filter(Boolean).join(" ") || `Klijent #${c.id}`
+  );
 }
 
 export default function PersonFillSelect({ onFill }: Props) {
@@ -38,7 +40,8 @@ export default function PersonFillSelect({ onFill }: Props) {
     retry: false,
   });
 
-  const isProOrBusiness = role === "PRO" || role === "BUSINESS";
+  const isProOrBusiness =
+    role === "PRO" || role === "BUSINESS" || role === "ADMIN";
 
   const { data: clients = [] } = useQuery({
     queryKey: ["personClients"],

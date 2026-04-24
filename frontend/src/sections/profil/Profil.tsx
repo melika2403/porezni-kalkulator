@@ -37,7 +37,7 @@ import {
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import Link from "next/link";
 import { getAmortizacijaYears, getAmortizacija } from "src/api/amortizacija";
-import { getDocument } from "src/api/documents";
+import { getDocument, deleteDocument } from "src/api/documents";
 import {
   fillPldiTemplate,
   type PldiData,
@@ -540,7 +540,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
                   </div>
                 </div>
                 <div className={styles.ownOrgActions}>
-                  <RoleGuard roles={["BUSINESS"]} mode="hide">
+                  <RoleGuard roles={["BUSINESS", "ADMIN"]} mode="hide">
                     <Link
                       href={`/organizacija/${org.id}`}
                       className={styles.btnEditInline}
@@ -584,7 +584,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
               <span>🔒</span>
               <span>
                 Više djelatnosti dostupno uz pretplatu na{" "}
-                <strong>Accountant plan</strong>.
+                <strong>PRO i BUSINESS plan</strong>.
               </span>
             </div>
           )}
@@ -600,7 +600,15 @@ function ProfilTab({ user }: { user: AuthUser }) {
             <OrgFormFields value={addOrg} onChange={setAddOrg} />
             {createOwnOrgMutation.error && (
               <div className={styles.errorMsg}>
-                {createOwnOrgMutation.error.message}
+                {createOwnOrgMutation.error.message ===
+                "ALREADY_HAS_OWN_ORG_LIMIT"
+                  ? "Možete imati najviše dvije vlastite djelatnosti."
+                  : createOwnOrgMutation.error.message === "ALREADY_HAS_OWN_ORG"
+                    ? "Možete imati samo jednu vlastitu organizaciju."
+                    : createOwnOrgMutation.error.message ===
+                        "ACCOUNTANT_CANNOT_OWN_ORG"
+                      ? "Računovođe ne mogu imati vlastitu organizaciju."
+                      : createOwnOrgMutation.error.message}
               </div>
             )}
             <div className={styles.formActions}>
@@ -1078,6 +1086,7 @@ function PersonFormFields({
             🔒 JMBG se kriptira i nikad nije vidljiv drugima
           </span>
         </div>
+        {/*
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Porezni broj (JMB/JMBG)</label>
           <input
@@ -1088,6 +1097,7 @@ function PersonFormFields({
             maxLength={13}
           />
         </div>
+        */}
       </div>
       <div className={styles.row}>
         <div className={styles.field}>
@@ -1630,7 +1640,6 @@ const FILTER_OPTIONS: Array<{ label: string; value: HistorijaFilter }> = [
   { label: "Stalna sredstva (PLDI)", value: "PLDI" },
 ];
 
-
 async function regenerateAndDownload(form: FormRecord) {
   const res = await getDocument(form.id);
   if (!res.ok || !res.data?.data) return;
@@ -1650,10 +1659,16 @@ async function regenerateAndDownload(form: FormRecord) {
     bytes = await fillGpdTemplate(raw as GpdData);
     filename = `GPD-1051_${form.year}.pdf`;
   } else if (form.type === "PLDI") {
-    const { obveznik, rows } = raw as { obveznik: ObveznikData; rows: AssetRow[] };
+    const { obveznik, rows } = raw as {
+      obveznik: ObveznikData;
+      rows: AssetRow[];
+    };
     const odISO = obveznik.periodOd || `${form.year}-01-01`;
     const doISO = obveznik.periodDo || `${form.year}-12-31`;
-    let nabavna = 0, kv = 0, iznos = 0, kvKraj = 0;
+    let nabavna = 0,
+      kv = 0,
+      iznos = 0,
+      kvKraj = 0;
     const pldiRows = rows.map((row) => {
       const calc = calcRow(row, odISO, doISO);
       if (!row.prodano) {
@@ -1765,7 +1780,10 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
       const { obveznik, rows } = res.data;
       const odISO = obveznik.periodOd || `${year}-01-01`;
       const doISO = obveznik.periodDo || `${year}-12-31`;
-      let nabavna = 0, kv = 0, iznos = 0, kvKraj = 0;
+      let nabavna = 0,
+        kv = 0,
+        iznos = 0,
+        kvKraj = 0;
       const pldiRows = rows.map((row) => {
         const calc = calcRow(row, odISO, doISO);
         if (!row.prodano) {
@@ -1809,7 +1827,9 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
         totalKvKraj: r2(kvKraj),
       };
       const bytes = await fillPldiTemplate(data);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+      const blob = new Blob([bytes.buffer as ArrayBuffer], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1825,7 +1845,9 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
 
   return (
     <div className={styles.formItem}>
-      <span className={`${styles.formTypeBadge} ${styles.badgePldi}`}>PLDI</span>
+      <span className={`${styles.formTypeBadge} ${styles.badgePldi}`}>
+        PLDI
+      </span>
       <div className={styles.formDetails}>
         <div className={styles.formTitle}>{title}</div>
         <div className={styles.formMeta}>Obrazac PLDI-1043</div>
@@ -1836,7 +1858,10 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
         disabled={loading}
         style={{ fontSize: 12 }}
       >
-        <LuFileDown size={14} style={{ marginRight: 4, verticalAlign: "middle" }} />
+        <LuFileDown
+          size={14}
+          style={{ marginRight: 4, verticalAlign: "middle" }}
+        />
         {loading ? "Generišem…" : "Preuzmi PDF"}
       </button>
     </div>
@@ -1846,14 +1871,29 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
 const PAGE_SIZE = 5;
 
 function HistorijaTab() {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<HistorijaFilter>("ALL");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [nameByYear, setNameByYear] = useState<Record<number, string>>({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      deleteDocument(id).then((res) => {
+        if (!res.ok) throw new Error(res.error);
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forms"] });
+      setConfirmDeleteId(null);
+    },
+  });
 
   const showAmortizacija = filter === "ALL" || filter === "PLDI";
 
-  useEffect(() => { setPage(0); }, [filter, search]);
+  useEffect(() => {
+    setPage(0);
+  }, [filter, search]);
 
   const { data: amortYears = [] } = useQuery<number[]>({
     queryKey: ["amortizacijaYears"],
@@ -1867,12 +1907,17 @@ function HistorijaTab() {
       amortYears.map((yr) =>
         getAmortizacija(String(yr)).then((res) => ({
           yr,
-          name: (res.ok && res.data?.obveznik?.imeIPrezime) ? res.data.obveznik.imeIPrezime : "",
+          name:
+            res.ok && res.data?.obveznik?.imeIPrezime
+              ? res.data.obveznik.imeIPrezime
+              : "",
         })),
       ),
     ).then((results) => {
       const map: Record<number, string> = {};
-      results.forEach(({ yr, name }) => { map[yr] = name; });
+      results.forEach(({ yr, name }) => {
+        map[yr] = name;
+      });
       setNameByYear(map);
     });
   }, [amortYears]);
@@ -1913,10 +1958,17 @@ function HistorijaTab() {
     const title = displayTitle(f).toLowerCase();
     const cli = f.client
       ? [f.client.firstName, f.client.lastName, f.client.companyName]
-          .filter(Boolean).join(" ").toLowerCase()
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
       : "";
     const org = f.organization?.name.toLowerCase() ?? "";
-    return title.includes(q) || cli.includes(q) || org.includes(q) || String(f.year).includes(q);
+    return (
+      title.includes(q) ||
+      cli.includes(q) ||
+      org.includes(q) ||
+      String(f.year).includes(q)
+    );
   });
 
   const totalItems = filteredAmort.length + filteredForms.length;
@@ -1925,7 +1977,10 @@ function HistorijaTab() {
   const start = page * PAGE_SIZE;
   const end = start + PAGE_SIZE;
 
-  const pagedAmort = filteredAmort.slice(start, Math.min(end, filteredAmort.length));
+  const pagedAmort = filteredAmort.slice(
+    start,
+    Math.min(end, filteredAmort.length),
+  );
   const formsStart = Math.max(0, start - filteredAmort.length);
   const formsEnd = Math.max(0, end - filteredAmort.length);
   const pagedForms = filteredForms.slice(formsStart, formsEnd);
@@ -2003,6 +2058,47 @@ function HistorijaTab() {
                     PDF
                   </a>
                 )}
+                {confirmDeleteId === f.id ? (
+                  <div className={styles.deleteConfirm}>
+                    <span className={styles.deleteConfirmText}>
+                      Sigurno želite obrisati dokument?
+                    </span>
+                    <div className={styles.deleteConfirmActions}>
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        Odustani
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btnDanger}
+                        disabled={deleteMutation.isPending}
+                        onClick={() => deleteMutation.mutate(f.id)}
+                      >
+                        {deleteMutation.isPending
+                          ? "Brisanje..."
+                          : "Da, obriši"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.btnGhost}
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-danger, #e53e3e)",
+                    }}
+                    onClick={() => {
+                      deleteMutation.reset();
+                      setConfirmDeleteId(f.id);
+                    }}
+                  >
+                    Obriši
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2072,7 +2168,7 @@ export default function Profil() {
   const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "profil", label: "Profil", icon: <LuUser size={17} /> },
     { key: "klijenti", label: "Klijenti", icon: <LuUsers size={17} /> },
-    { key: "historija", label: "Historija", icon: <LuHistory size={17} /> },
+    { key: "historija", label: "Dokumenti", icon: <LuHistory size={17} /> },
   ];
 
   return (
