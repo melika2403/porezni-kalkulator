@@ -150,7 +150,7 @@ async function update(req, res) {
       return res.status(404).json({ ok: false, error: "User not found" });
     res.status(200).json({ ok: true, data: user });
   } catch (error) {
-    if (error && typeof error === "object" && error.code === "P2002") {
+    if (error && error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ ok: false, error: "DUPLICATE_VALUE" });
     }
     const message = error instanceof Error ? error.message : String(error);

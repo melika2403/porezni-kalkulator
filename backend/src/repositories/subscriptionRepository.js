@@ -1,50 +1,26 @@
-const prisma = require("../prisma");
+const { Subscription } = require("../models/index");
 
-const subscriptionSelect = {
-  id: true,
-  userId: true,
-  startDate: true,
-  endDate: true,
-  isActive: true,
-  createdAt: true,
-  updatedAt: true,
-};
+const subscriptionAttributes = ["id", "userId", "startDate", "endDate", "isActive", "createdAt", "updatedAt"];
 
 async function getByUserId(userId) {
-  return prisma.subscription.findUnique({
-    where: { userId },
-    select: subscriptionSelect,
-  });
+  return Subscription.findOne({ where: { userId }, attributes: subscriptionAttributes });
 }
 
 async function upsert(userId, data) {
-  const existing = await prisma.subscription.findUnique({
-    where: { userId },
-    select: { userId: true },
-  });
+  const existing = await Subscription.findOne({ where: { userId }, attributes: ["userId"] });
 
   if (existing) {
-    return prisma.subscription.update({
-      where: { userId },
-      data,
-      select: subscriptionSelect,
-    });
+    await Subscription.update(data, { where: { userId } });
+  } else {
+    await Subscription.create({ userId, ...data });
   }
 
-  return prisma.subscription.create({
-    data: { userId, ...data },
-    select: subscriptionSelect,
-  });
+  return Subscription.findOne({ where: { userId }, attributes: subscriptionAttributes });
 }
 
 async function remove(userId) {
-  try {
-    await prisma.subscription.delete({ where: { userId } });
-    return true;
-  } catch (error) {
-    if (error?.code === "P2025") return false;
-    throw error;
-  }
+  const deleted = await Subscription.destroy({ where: { userId } });
+  return deleted > 0;
 }
 
 module.exports = { getByUserId, upsert, remove };

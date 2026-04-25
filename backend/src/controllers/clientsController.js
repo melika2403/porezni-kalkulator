@@ -1,4 +1,4 @@
-const prisma = require("../prisma");
+const { Client } = require("../models/index");
 const clientRepository = require("../repositories/clientRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 
@@ -18,43 +18,6 @@ function checkRole(req, res) {
   return true;
 }
 
-function validateClientPayload(body, requireName = true) {
-  const { firstName, lastName, jmbg, taxNumber, email, phone, address, idCardNumber } =
-    body ?? {};
-  const data = {};
-
-  if (requireName || firstName != null) {
-    if (!isNonEmptyString(firstName))
-      return { ok: false, message: "Ime je obavezno" };
-    data.firstName = firstName.trim();
-  }
-  if (requireName || lastName != null) {
-    if (!isNonEmptyString(lastName))
-      return { ok: false, message: "Prezime je obavezno" };
-    data.lastName = lastName.trim();
-  }
-
-  if (jmbg && String(jmbg).trim()) {
-    if (!/^\d{13}$/.test(String(jmbg).trim()))
-      return { ok: false, message: "JMBG mora imati tačno 13 cifara" };
-    data.jmbg = encryptJmbg(String(jmbg).trim());
-  }
-
-  if (taxNumber !== undefined)
-    data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
-  if (email !== undefined) data.email = email ? String(email).trim() : null;
-  if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
-  if (address !== undefined)
-    data.address = address ? String(address).trim() : null;
-  if (idCardNumber !== undefined)
-    data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
-
-  if (Object.keys(data).length === 0)
-    return { ok: false, message: "Nema polja za ažuriranje" };
-
-  return { ok: true, value: data };
-}
-
 async function list(req, res) {
   if (!checkRole(req, res)) return;
   const clients = await clientRepository.getPersonClients(req.user.id);
@@ -65,13 +28,8 @@ async function create(req, res) {
   if (!checkRole(req, res)) return;
 
   if (req.user.role === "PRO") {
-    const count = await prisma.client.count({
-      where: {
-        createdById: req.user.id,
-        type: "PERSON",
-        organizationId: null,
-        amortizacijaOnly: false,
-      },
+    const count = await Client.count({
+      where: { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: false },
     });
     if (count >= PRO_CLIENT_LIMIT) {
       return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
@@ -105,25 +63,38 @@ async function create(req, res) {
 
 async function update(req, res) {
   if (!checkRole(req, res)) return;
-
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0)
     return res.status(400).json({ ok: false, error: "Invalid id" });
 
-  const validation = validateClientPayload(req.body, false);
-  if (!validation.ok)
-    return res.status(400).json({ ok: false, error: validation.message });
+  const { firstName, lastName, jmbg, taxNumber, email, phone, address, idCardNumber } = req.body ?? {};
+  const data = {};
+
+  if (firstName != null) {
+    if (!isNonEmptyString(firstName)) return res.status(400).json({ ok: false, error: "Ime je obavezno" });
+    data.firstName = firstName.trim();
+  }
+  if (lastName != null) {
+    if (!isNonEmptyString(lastName)) return res.status(400).json({ ok: false, error: "Prezime je obavezno" });
+    data.lastName = lastName.trim();
+  }
+  if (jmbg && String(jmbg).trim()) {
+    if (!/^\d{13}$/.test(String(jmbg).trim()))
+      return res.status(400).json({ ok: false, error: "JMBG mora imati tačno 13 cifara" });
+    data.jmbg = encryptJmbg(String(jmbg).trim());
+  }
+  if (taxNumber !== undefined) data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
+  if (email !== undefined) data.email = email ? String(email).trim() : null;
+  if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
+  if (address !== undefined) data.address = address ? String(address).trim() : null;
+  if (idCardNumber !== undefined) data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
+
+  if (Object.keys(data).length === 0)
+    return res.status(400).json({ ok: false, error: "Nema polja za ažuriranje" });
 
   try {
-    const client = await clientRepository.updatePersonClient(
-      id,
-      validation.value,
-      req.user.id,
-    );
-    if (!client)
-      return res
-        .status(404)
-        .json({ ok: false, error: "Klijent nije pronađen" });
+    const client = await clientRepository.updatePersonClient(id, data, req.user.id);
+    if (!client) return res.status(404).json({ ok: false, error: "Klijent nije pronađen" });
     res.status(200).json({ ok: true, data: client });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -132,15 +103,13 @@ async function update(req, res) {
 
 async function remove(req, res) {
   if (!checkRole(req, res)) return;
-
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0)
     return res.status(400).json({ ok: false, error: "Invalid id" });
 
   try {
     const deleted = await clientRepository.deletePersonClient(id, req.user.id);
-    if (!deleted)
-      return res.status(404).json({ ok: false, error: "Klijent nije pronađen" });
+    if (!deleted) return res.status(404).json({ ok: false, error: "Klijent nije pronađen" });
     res.status(200).json({ ok: true, data: null });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -148,30 +117,22 @@ async function remove(req, res) {
 }
 
 async function listAmortizacija(req, res) {
-  if (!AMORTIZACIJA_ROLES.includes(req.user?.role)) {
+  if (!AMORTIZACIJA_ROLES.includes(req.user?.role))
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
-  }
   const clients = await clientRepository.getAmortizacijaClients(req.user.id);
   res.status(200).json({ ok: true, data: clients });
 }
 
 async function createAmortizacija(req, res) {
-  if (!AMORTIZACIJA_ROLES.includes(req.user?.role)) {
+  if (!AMORTIZACIJA_ROLES.includes(req.user?.role))
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
-  }
 
   if (req.user.role === "PRO") {
-    const count = await prisma.client.count({
-      where: {
-        createdById: req.user.id,
-        type: "PERSON",
-        organizationId: null,
-        amortizacijaOnly: true,
-      },
+    const count = await Client.count({
+      where: { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: true },
     });
-    if (count >= PRO_CLIENT_LIMIT) {
+    if (count >= PRO_CLIENT_LIMIT)
       return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
-    }
   }
 
   const { firstName } = req.body ?? {};

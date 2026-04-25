@@ -1,11 +1,5 @@
-const { PrismaClient } = require("@prisma/client");
-
-const globalForPrisma = globalThis;
-
-const prisma = globalForPrisma.__prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.__prisma = prisma;
-}
-
-module.exports = prisma;
+// Sequelize models — exported under the same variable name
+// so existing imports (const prisma = require("../prisma")) still work
+// via the model-level API used in controllers.
+const models = require("./models/index");
+module.exports = models;

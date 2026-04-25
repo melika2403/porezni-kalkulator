@@ -139,7 +139,7 @@ async function create(req, res) {
     );
     res.status(201).json({ ok: true, data: org });
   } catch (error) {
-    if (error?.code === "P2002") {
+    if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         ok: false,
         error: "Porezni broj ili JMBG vlasnika već postoji",
@@ -187,7 +187,7 @@ async function update(req, res) {
     }
     res.status(200).json({ ok: true, data: org });
   } catch (error) {
-    if (error?.code === "P2002") {
+    if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         ok: false,
         error: "Porezni broj ili JMBG vlasnika već postoji",

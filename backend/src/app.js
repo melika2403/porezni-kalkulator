@@ -4,7 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 
-const prisma = require("./prisma");
+const { sequelize } = require("./models/index");
 const authRoutes = require("./routes/authRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 const organizationsRoutes = require("./routes/organizationsRoutes");
@@ -39,6 +39,16 @@ app.use("/api/documents", documentsRoutes);
 app.use("/api/users", subscriptionsRoutes);
 app.use("/api/contact", contactRoutes);
 
-app.listen(port, () => {
-  console.log(`Backend listening on http://localhost:${port}`);
-});
+// Sync database tables and start server
+sequelize
+  .sync({ alter: false })
+  .then(() => {
+    console.log("Database synced successfully");
+    app.listen(port, () => {
+      console.log(`Backend listening on http://localhost:${port}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to sync database:", err);
+    process.exit(1);
+  });
