@@ -34,7 +34,10 @@
       "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
       "Bash(node -e 'require\\('\\\\''dotenv'\\\\''\\).config\\(\\); const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.user.updateMany\\({ where: { isEmailVerified: false }, data: { isEmailVerified: true } }\\).then\\(r => console.log\\('\\\\''Ažurirano korisnika:'\\\\'', r.count\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
       "Bash(dir \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\frontend\\\\src\\\\sections\\\\profil\\\\\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3000/profil\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3000/profil\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
