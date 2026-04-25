@@ -31,7 +31,7 @@ function setAuthCookie(res, token, rememberMe = false) {
   res.cookie("access_token", token, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: rememberMe ? REMEMBER_ME_DURATION_MS : DEFAULT_COOKIE_MAX_AGE,
   });
@@ -296,7 +296,7 @@ async function googleStart(_req, res) {
   try {
     const state = googleAuth.createStateToken();
     const isProd = process.env.NODE_ENV === "production";
-    res.cookie(GOOGLE_STATE_COOKIE, state, { httpOnly: true, secure: isProd, sameSite: "lax", path: "/", maxAge: 10 * 60 * 1000 });
+    res.cookie(GOOGLE_STATE_COOKIE, state, { httpOnly: true, secure: isProd, sameSite: isProd ? "none" : "lax", path: "/", maxAge: 10 * 60 * 1000 });
     return res.redirect(googleAuth.buildAuthUrl(state));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
