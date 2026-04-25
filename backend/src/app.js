@@ -18,11 +18,21 @@ const contactRoutes = require("./routes/contactRoutes");
 const app = express();
 
 const port = Number(process.env.PORT) || 4000;
-const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
+
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: corsOrigin,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
     credentials: true,
   }),
 );
