@@ -32,6 +32,13 @@ const ROLE_BADGE_CLASS: Record<Users["role"], string> = {
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
+  if (iso.includes("T") || iso.includes("Z")) {
+    const dt = new Date(iso);
+    if (isNaN(dt.getTime())) return "—";
+    const d = String(dt.getDate()).padStart(2, "0");
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    return `${d}.${m}.${dt.getFullYear()}`;
+  }
   const [y, m, d] = iso.slice(0, 10).split("-");
   if (!y || !m || !d) return "—";
   return `${d}.${m}.${y}`;
