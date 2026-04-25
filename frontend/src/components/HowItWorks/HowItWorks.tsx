@@ -1,46 +1,83 @@
+"use client";
+
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { me, unwrap } from "src/api/auth";
 import styles from "./HowItWorks.module.css";
 
 const STEPS = [
   {
     num: "01",
-    title: "Odaberite alat",
-    desc: "SPR obrazac, obračun plate, PDV ili stalna sredstva — sve je dostupno s jednog dashboarda.",
+    title: "Registrujte se besplatno",
+    desc: "Kreirajte račun u nekoliko sekundi i odmah dobijete pristup svim alatima: SPR, ugovori, amortizacija i drugi obrasci.",
   },
   {
     num: "02",
-    title: "Unesite podatke",
-    desc: "Jednostavni formulari s jasnim uputama. Podatke iz prošle godine možete učitati jednim klikom.",
+    title: "Postavite svoju djelatnost",
+    desc: "Na profilu dodajte podatke o svojoj firmi ili obrtu i radnicima. Ti podaci se zatim automatski popunjavaju u obrascima.",
   },
   {
     num: "03",
-    title: "Preuzmite ili ispišite",
-    desc: "Popunjeni obrazac, ugovor ili obračun je spreman za ispis ili preuzimanje u PDF/word formatu.",
+    title: "Uz pretplatu vodite klijente",
+    desc: "Pretplatnici mogu dodavati svoje klijente (fizička i pravna lica) i raditi obrasce za njih. Idealno za knjigovođe i agencije.",
   },
   {
     num: "04",
-    title: "Podaci su sačuvani",
-    desc: "Uz registraciju, svi vaši podaci su sigurno pohranjeni i dostupni iduće godine.",
+    title: "Generišite obrasce automatski",
+    desc: "Odaberite obrazac, kliknite “Popuni podatke” i sve se učita iz vašeg profila ili klijenta. PDF je spreman za preuzimanje i sačuvan za sljedeći put.",
   },
 ];
 
 export default function HowItWorks() {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()),
+    retry: false,
+  });
+
+  const isLoggedIn = !!user;
+
   return (
     <section id="kako" className={styles.section}>
       <div className={styles.label}>Kako radi</div>
       <h2 className={styles.h2}>
-        Jednostavno kao
+        Od registracije do
         <br />
-        <em>jedan, dva, tri</em>
+        <em>gotovog obrasca</em>
       </h2>
       <div className={styles.steps}>
         {STEPS.map((step) => (
-          <div key={step.num}>
-            <div className={styles.num}>{step.num}</div>
+          <div key={step.num} className={styles.step}>
+            <div className={styles.stepHeader}>
+              <span className={styles.num}>{step.num}</span>
+              <span className={styles.connector} />
+            </div>
             <div className={styles.title}>{step.title}</div>
             <div className={styles.desc}>{step.desc}</div>
           </div>
         ))}
       </div>
+
+      {!isLoading && !isLoggedIn && (
+        <div className={styles.cta}>
+          <Link href="/registracija" className={styles.ctaBtn}>
+            Registrirajte se besplatno
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M3 8h10M9 4l4 4-4 4" />
+            </svg>
+          </Link>
+          <p className={styles.ctaNote}>
+            Bez kartice. Pristup svim besplatnim alatima u par sekundi.
+          </p>
+        </div>
+      )}
     </section>
   );
 }

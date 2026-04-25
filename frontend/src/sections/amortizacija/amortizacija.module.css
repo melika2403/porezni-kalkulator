@@ -251,8 +251,39 @@
   transition: background 0.12s;
 }
 
-.addClientBtn:hover {
+.addClientBtn:hover:not(:disabled) {
   background: var(--sage-pale);
+}
+
+.addClientBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sidebarUpgrade {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: #f4f1ea;
+  border-top: 1px solid var(--border);
+  border-left: 3px solid #1a4480;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sidebarUpgradeLink {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a4480;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  align-self: flex-start;
+}
+
+.sidebarUpgradeLink:hover {
+  text-decoration: underline;
 }
 
 .addClientForm {

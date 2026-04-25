@@ -55,6 +55,7 @@ export type Users = {
   phone: string | null;
   address: string | null;
   createdAt: string;
+  isEmailVerified: boolean;
   subscription: Subscription | null;
 };
 
@@ -101,6 +102,10 @@ export function adminUpdateUser(userId: number, payload: UserUpdatePayload) {
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export function deleteUser(userId: number) {
+  return request<null>(`/api/users/${userId}`, { method: "DELETE" });
 }
 
 export function upsertSubscription(

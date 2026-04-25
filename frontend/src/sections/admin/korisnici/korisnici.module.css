@@ -1,7 +1,7 @@
 .page {
-  max-width: 900px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 5rem;
+  padding: 2.5rem 2rem 5rem;
   animation: fadeUp 0.4s ease both;
 }
 
@@ -71,19 +71,18 @@
 }
 
 .rolePro {
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fcd34d;
+  background: #2d5a3d;
+  color: #fff;
 }
 
 .roleAdmin {
-  background: var(--accent-pale);
-  color: var(--accent);
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .roleBusiness {
-  background: var(--ink);
-  color: var(--paper);
+  background: #1a4480;
+  color: #fff;
 }
 
 /* ── Card ── */
@@ -111,17 +110,18 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13px;
 }
 .table th {
   text-align: left;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--mid);
-  padding: 0 0.75rem 0.75rem;
+  padding: 0 0.5rem 0.65rem;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 .table th:first-child {
   padding-left: 0;
@@ -132,10 +132,11 @@
 }
 
 .table td {
-  padding: 0.85rem 0.75rem;
+  padding: 0.6rem 0.5rem;
   border-bottom: 1px solid var(--border);
   color: var(--ink);
   vertical-align: middle;
+  white-space: nowrap;
 }
 .table td:first-child {
   padding-left: 0;
@@ -257,8 +258,8 @@
 
 .roleSelect {
   font-family: "DM Sans", sans-serif;
-  font-size: 12px;
-  padding: 0.2rem 0.5rem;
+  font-size: 13px;
+  padding: 0.3rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -282,6 +283,14 @@
 .btnIcon:hover {
   color: var(--ink);
   background: var(--paper);
+}
+
+.btnIconDanger {
+  color: #b91c1c;
+}
+.btnIconDanger:hover {
+  color: #b91c1c;
+  background: #fee2e2;
 }
 
 .rowActions {
@@ -333,8 +342,8 @@
 }
 .input {
   font-family: "DM Sans", sans-serif;
-  font-size: 14px;
-  padding: 0.65rem 0.85rem;
+  font-size: 13px;
+  padding: 0.3rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--white);
@@ -391,13 +400,13 @@
 .inlineInput {
   font-family: "DM Sans", sans-serif;
   font-size: 13px;
-  padding: 0.3rem 0.55rem;
+  padding: 0.3rem 0.45rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--white);
   color: var(--ink);
   outline: none;
-  width: 100px;
+  width: 80px;
   transition: border-color 0.2s;
 }
 .inlineInput:focus {
@@ -487,6 +496,98 @@
 .toggle input:disabled + .toggleSlider {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Verification badges ── */
+.verifiedWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.verifiedBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 20px;
+  padding: 0.15rem 0.55rem;
+}
+.verifiedDate {
+  font-size: 12px;
+  color: var(--mid);
+  white-space: nowrap;
+}
+.unverifiedBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 20px;
+  padding: 0.15rem 0.55rem;
+}
+
+/* ── Delete confirmation row ── */
+.deleteConfirmRow {
+  padding: 0.75rem 0.5rem !important;
+  background: #fff5f5;
+  border-bottom: 1px solid #fecaca !important;
+}
+.deleteConfirmInner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.deleteConfirmText {
+  font-size: 13px;
+  color: #b91c1c;
+  flex: 1;
+  min-width: 200px;
+}
+.btnConfirmDelete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  background: #b91c1c;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.btnConfirmDelete:hover {
+  opacity: 0.88;
+}
+.btnConfirmDelete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btnCancelDelete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.55rem 1.1rem;
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btnCancelDelete:hover {
+  background: var(--paper);
+  color: var(--ink);
 }
 
 /* ── Responsive ── */

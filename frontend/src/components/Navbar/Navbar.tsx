@@ -22,8 +22,7 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     await logout();
-    queryClient.setQueryData(['me'], null);
-    queryClient.invalidateQueries({ queryKey: ['me'] });
+    queryClient.clear();
     router.push('/');
     router.refresh();
   };

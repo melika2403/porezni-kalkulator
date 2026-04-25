@@ -45,6 +45,7 @@ import {
   type PersonClientPayload,
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import { useRole } from "src/hooks/useRole";
 import Link from "next/link";
 import {
   getAmortizacijaYears,
@@ -1218,8 +1219,13 @@ function PersonFormFields({
 
 type AddMode = "client-org" | "person";
 
+const PRO_CLIENT_LIMIT = 20;
+
 function DjelatnostTab() {
   const queryClient = useQueryClient();
+  const { role } = useRole();
+  const isPro = role === "PRO";
+
   const { data: clientOrgs = [], isLoading: orgsLoading } = useQuery<
     Organization[]
   >({
@@ -1233,6 +1239,8 @@ function DjelatnostTab() {
     queryKey: ["personClients"],
     queryFn: () => unwrap(getPersonClients()),
   });
+
+  const personLimitReached = isPro && persons.length >= PRO_CLIENT_LIMIT;
 
   // add form state
   const [showAdd, setShowAdd] = useState(false);
@@ -1731,13 +1739,25 @@ function DjelatnostTab() {
                 className={styles.form}
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (personLimitReached) return;
                   createPersonMutation.mutate(personFormToPayload(addPerson));
                 }}
               >
                 <PersonFormFields value={addPerson} onChange={setAddPerson} />
-                {createPersonMutation.error && (
+                {personLimitReached && (
+                  <div className={styles.upgradeNotice}>
+                    <strong>Dosegli ste limit od {PRO_CLIENT_LIMIT} fizičkih lica</strong> na Pro pretplati.
+                    Ako želite dodati više klijenata, nadogradite pretplatu na Business.
+                    <Link href="/profil#pretplata" className={styles.upgradeLink}>
+                      Nadogradi na Business →
+                    </Link>
+                  </div>
+                )}
+                {createPersonMutation.error && !personLimitReached && (
                   <div className={styles.errorMsg}>
-                    {createPersonMutation.error.message}
+                    {createPersonMutation.error.message === "PRO_LIMIT_REACHED"
+                      ? `Dosegli ste limit od ${PRO_CLIENT_LIMIT} fizičkih lica. Nadogradite na Business.`
+                      : createPersonMutation.error.message}
                   </div>
                 )}
                 <div className={styles.formActions}>
@@ -1751,7 +1771,7 @@ function DjelatnostTab() {
                   <button
                     type="submit"
                     className={styles.btnPrimary}
-                    disabled={createPersonMutation.isPending}
+                    disabled={createPersonMutation.isPending || personLimitReached}
                   >
                     {createPersonMutation.isPending ? "Dodavanje..." : "Dodaj"}
                   </button>
@@ -2616,21 +2636,30 @@ const PLAN_LABELS: Record<string, string> = {
 
 const PLAN_FEATURES: Record<string, string[]> = {
   USER: [
-    "Besplatni kalkulatori (neto/bruto, PDV)",
-    "GPD, SPR, ZO3, Ugovor o pozajmici",
-    "Jedna amortizacija (PLDI-1043)",
+    "SPR-1053 i GPD-1051 obrazac",
+    "Izrada i automatska popuna ZO3 obrazca",
+    "AMS-1035 generator zajedno sa uplatnicama",
+    "Stalna sredstva i amortizacija kroz godine",
+    "Historija svih dokumenata po godinama ili obrascima",
+    "Pohrana podataka obrta u svim dokumentima",
+    "Izvoz u Docx / PDF",
   ],
   PRO: [
     "Sve iz besplatnog plana",
-    "Neograničeni klijenti u amortizaciji",
-    "PLDI-1043 za više klijenata",
-    "Historija svih dokumenata",
-    "AMS obrasci",
+    "Šihterica — Evidencija radnog vremena",
+    "Višestruke vlastite djelatnosti",
+    "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
+    "Prijave/odjake radnika, izrada JS3000 obrasca",
+    "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
+    "Generisanje uplatnica za plate i doprinose",
   ],
   BUSINESS: [
     "Sve iz Pro plana",
-    "Više vlastitih organizacija",
-    "Timski pristup i upravljanje članovima",
+    "Upravljanje neograničenim brojem klijenata i fizičkih lica",
+    "Višekorisnički pristup (tim)",
+    "Ugovori o djelu i automatski obračun poreza i doprinosa",
+    "Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima",
+    "Prioritetna podrška",
   ],
   ADMIN: ["Puni administratorski pristup"],
 };
@@ -2639,11 +2668,10 @@ function fmtDate(iso: string) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("bs-BA", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}.`;
 }
 
 function PretplataTab({ user }: { user: AuthUser }) {
@@ -2662,7 +2690,7 @@ function PretplataTab({ user }: { user: AuthUser }) {
         </div>
 
         <div className={styles.planCard}>
-          <div className={styles.planBadge}>{PLAN_LABELS[plan] ?? plan}</div>
+          <div className={`${styles.planBadge} ${plan === "PRO" ? styles.planBadgePro : plan === "BUSINESS" ? styles.planBadgeBusiness : plan === "ADMIN" ? styles.planBadgeAdmin : ""}`}>{PLAN_LABELS[plan] ?? plan}</div>
           <p className={styles.planDesc}>
             {isAdmin
               ? "Puni administratorski pristup — uvijek aktivan."
@@ -2799,7 +2827,9 @@ export default function Profil() {
               {user.firstName} <em>{user.lastName}</em>
             </div>
             {user.email && <div className={styles.email}>{user.email}</div>}
-            <div className={styles.roleChip}>{user.role}</div>
+            <div className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}>
+              {user.role}
+            </div>
           </div>
         </div>
 
