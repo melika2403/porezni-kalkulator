@@ -70,6 +70,11 @@ function validateOwnerData(owner, requireJmbg = true) {
   if (owner.email) data.email = String(owner.email).trim();
   if (owner.phone) data.phone = String(owner.phone).trim();
   if (owner.address) data.address = String(owner.address).trim();
+  if (owner.idCardNumber) {
+    const idn = String(owner.idCardNumber).trim();
+    if (idn.length > 9) return { ok: false, message: "Broj lične karte može imati najviše 9 znakova" };
+    data.idCardNumber = idn;
+  }
 
   return { ok: true, value: data };
 }
@@ -134,7 +139,7 @@ async function create(req, res) {
     );
     res.status(201).json({ ok: true, data: org });
   } catch (error) {
-    if (error?.code === "P2002") {
+    if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         ok: false,
         error: "Porezni broj ili JMBG vlasnika već postoji",
@@ -182,7 +187,7 @@ async function update(req, res) {
     }
     res.status(200).json({ ok: true, data: org });
   } catch (error) {
-    if (error?.code === "P2002") {
+    if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         ok: false,
         error: "Porezni broj ili JMBG vlasnika već postoji",

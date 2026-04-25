@@ -1,0 +1,59 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: #fff;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnSaved {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}
+
+.btnError {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.select {
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #111827;
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.select:focus {
+  outline: none;
+  border-color: #6366f1;
+}

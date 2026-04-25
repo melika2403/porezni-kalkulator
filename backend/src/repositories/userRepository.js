@@ -1,99 +1,125 @@
-const prisma = require("../prisma");
+const { Op } = require("sequelize");
+const { sequelize, User, Subscription, Organization, OrganizationMember, Worker, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const userDbSelect = {
-  id: true,
-  email: true,
-  jmbg: true,
-  firstName: true,
-  lastName: true,
-  phone: true,
-  address: true,
-  role: true,
-  createdAt: true,
-  updatedAt: true,
-  subscription: {
-    select: {
-      id: true,
-      startDate: true,
-      endDate: true,
-      isActive: true,
-    },
-  },
-};
+const userInclude = [
+  { model: Subscription, as: "subscription", attributes: ["id", "startDate", "endDate", "isActive"] },
+];
+
+const userAttributes = [
+  "id", "email", "jmbg", "idCardNumber", "firstName", "lastName",
+  "phone", "address", "role", "createdAt", "updatedAt", "isEmailVerified",
+];
 
 function toPublicUser(user) {
   if (!user) return null;
-  const { jmbg, ...rest } = user;
+  const plain = user.toJSON ? user.toJSON() : user;
+  const { jmbg, ...rest } = plain;
   return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
 }
 
 async function listUsers({ firstName, lastName, email, page = 1, limit = 20 }) {
-  const where = {
-    AND: [
-      firstName ? { firstName: { contains: firstName.trim() } } : undefined,
-      lastName ? { lastName: { contains: lastName.trim() } } : undefined,
-      email ? { email: { contains: email.trim() } } : undefined,
-    ].filter(Boolean),
-  };
+  const where = {};
+  if (firstName) where.firstName = { [Op.like]: `%${firstName.trim()}%` };
+  if (lastName) where.lastName = { [Op.like]: `%${lastName.trim()}%` };
+  if (email) where.email = { [Op.like]: `%${email.trim()}%` };
 
-  const skip = (page - 1) * limit;
+  const offset = (page - 1) * limit;
 
-  const [items, total] = await prisma.$transaction([
-    prisma.user.findMany({
-      where,
-      orderBy: { id: "desc" },
-      skip,
-      take: limit,
-      select: userDbSelect,
-    }),
-    prisma.user.count({ where }),
-  ]);
+  const { count: total, rows: items } = await User.findAndCountAll({
+    where,
+    attributes: userAttributes,
+    include: userInclude,
+    order: [["id", "DESC"]],
+    limit,
+    offset,
+  });
 
   return { items: items.map(toPublicUser), total };
 }
 
 async function getUserById(id) {
-  const user = await prisma.user.findUnique({
+  const user = await User.findOne({
     where: { id },
-    select: userDbSelect,
+    attributes: userAttributes,
+    include: userInclude,
   });
   return toPublicUser(user);
 }
 
 async function createUser(data) {
-  const user = await prisma.user.create({ data, select: userDbSelect });
-  return toPublicUser(user);
+  const user = await User.create(data);
+  return getUserById(user.id);
 }
 
 async function updateUserById(id, data) {
-  try {
-    const user = await prisma.user.update({
-      where: { id },
-      data,
-      select: userDbSelect,
-    });
-    return toPublicUser(user);
-  } catch (error) {
-    if (error?.code === "P2025") return null;
-    throw error;
-  }
+  const [affected] = await User.update(data, { where: { id } });
+  if (affected === 0) return null;
+  return getUserById(id);
 }
 
 async function deleteUserById(id) {
-  try {
-    await prisma.user.delete({ where: { id } });
-    return true;
-  } catch (error) {
-    if (error?.code === "P2025") return false;
-    throw error;
-  }
+  const exists = await User.findOne({ where: { id }, attributes: ["id"] });
+  if (!exists) return false;
+
+  await sequelize.transaction(async (t) => {
+    // Nullify updatedById references
+    await Form.update({ updatedById: null }, { where: { updatedById: id }, transaction: t });
+
+    // Delete orgs created by user
+    const orgIds = (await Organization.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })).map((o) => o.id);
+
+    if (orgIds.length > 0) {
+      const orgFormIds = (await Form.findAll({ where: { organizationId: { [Op.in]: orgIds } }, attributes: ["id"], transaction: t })).map((f) => f.id);
+      if (orgFormIds.length > 0) {
+        await FormAttachment.destroy({ where: { formId: { [Op.in]: orgFormIds } }, transaction: t });
+        await FormVersion.destroy({ where: { formId: { [Op.in]: orgFormIds } }, transaction: t });
+        await Form.destroy({ where: { id: { [Op.in]: orgFormIds } }, transaction: t });
+      }
+
+      await OrganizationMember.destroy({ where: { organizationId: { [Op.in]: orgIds } }, transaction: t });
+      await Worker.destroy({ where: { organizationId: { [Op.in]: orgIds } }, transaction: t });
+
+      const orgClientIds = (await Client.findAll({ where: { organizationId: { [Op.in]: orgIds } }, attributes: ["id"], transaction: t })).map((c) => c.id);
+      if (orgClientIds.length > 0) {
+        const clientFormIds = (await Form.findAll({ where: { clientId: { [Op.in]: orgClientIds } }, attributes: ["id"], transaction: t })).map((f) => f.id);
+        if (clientFormIds.length > 0) {
+          await FormAttachment.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
+          await FormVersion.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
+          await Form.destroy({ where: { id: { [Op.in]: clientFormIds } }, transaction: t });
+        }
+        await Client.destroy({ where: { id: { [Op.in]: orgClientIds } }, transaction: t });
+      }
+
+      await Organization.destroy({ where: { id: { [Op.in]: orgIds } }, transaction: t });
+    }
+
+    // Delete user's forms
+    const userFormIds = (await Form.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })).map((f) => f.id);
+    if (userFormIds.length > 0) {
+      await FormAttachment.destroy({ where: { formId: { [Op.in]: userFormIds } }, transaction: t });
+      await FormVersion.destroy({ where: { formId: { [Op.in]: userFormIds } }, transaction: t });
+      await Form.destroy({ where: { id: { [Op.in]: userFormIds } }, transaction: t });
+    }
+
+    // Delete user's clients
+    const userClientIds = (await Client.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })).map((c) => c.id);
+    if (userClientIds.length > 0) {
+      const clientFormIds = (await Form.findAll({ where: { clientId: { [Op.in]: userClientIds } }, attributes: ["id"], transaction: t })).map((f) => f.id);
+      if (clientFormIds.length > 0) {
+        await FormAttachment.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
+        await FormVersion.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
+        await Form.destroy({ where: { id: { [Op.in]: clientFormIds } }, transaction: t });
+      }
+      await Client.destroy({ where: { id: { [Op.in]: userClientIds } }, transaction: t });
+    }
+
+    await OrganizationMember.destroy({ where: { userId: id }, transaction: t });
+    await Subscription.destroy({ where: { userId: id }, transaction: t });
+    await User.destroy({ where: { id }, transaction: t });
+  });
+
+  return true;
 }
 
-module.exports = {
-  listUsers,
-  getUserById,
-  createUser,
-  updateUserById,
-  deleteUserById,
-};
+module.exports = { listUsers, getUserById, createUser, updateUserById, deleteUserById };

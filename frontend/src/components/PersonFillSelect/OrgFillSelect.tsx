@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { unwrap } from "src/api/auth";
+import { me, unwrap } from "src/api/auth";
 import {
   getOrganizations,
   getClientOrganizations,
@@ -16,25 +16,37 @@ export type OrgFillData = {
   activityCode: string | null;
   activityName: string | null;
   address: string | null;
+  sourceOrgId?: number | null;
+  owner?: {
+    jmbg: string | null;
+    firstName: string;
+    lastName: string;
+    address: string | null;
+  } | null;
 };
 
 type Props = {
   onFill: (data: OrgFillData) => void;
 };
 
-function orgLabel(org: Organization): string {
+function optionText(org: Organization): string {
   return org.name || `Organizacija #${org.id}`;
 }
 
-function optionText(org: Organization): string {
-  return orgLabel(org) + (org.taxNumber ? ` (${org.taxNumber})` : "");
-}
-
 export default function OrgFillSelect({ onFill }: Props) {
-  const { role } = useRole();
-  const [selected, setSelected] = useState("");
+  const { hasRole } = useRole();
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const isProOrBusiness = role === "PRO" || role === "BUSINESS";
+  const isProOrBusiness = hasRole("PRO", "BUSINESS", "ADMIN");
+
+  const { data: user, isLoading: userLoading } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()).catch(() => null),
+    retry: false,
+  });
 
   const { data: ownOrgs = [] } = useQuery({
     queryKey: ["organizations"],
@@ -50,53 +62,145 @@ export default function OrgFillSelect({ onFill }: Props) {
   });
 
   const hasAny = ownOrgs.length > 0 || clientOrgs.length > 0;
+  const isGuest = !userLoading && user === null;
+
+  useEffect(() => {
+    if (!open) return;
+    searchRef.current?.focus();
+
+    function handleClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFilter("");
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  if (isGuest) {
+    return (
+      <div className={styles.fillWrap}>
+        <div className={styles.dropdownWrap} ref={wrapRef}>
+          <button
+            type="button"
+            className={styles.fillBtn}
+            onClick={() => setOpen((v) => !v)}
+          >
+            — Popuni djelatnost —
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 4l4 4 4-4" />
+            </svg>
+          </button>
+          {open && (
+            <div className={styles.guestPanel}>
+              <p className={styles.guestText}>
+                Uz besplatnu registraciju možete automatski popunjavati podatke sa profila za sebe i svoju organizaciju.
+              </p>
+              <a href="/registracija" className={styles.guestLink}>Registrujte se besplatno →</a>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!hasAny) return null;
 
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const value = e.target.value;
-    setSelected("");
-    if (!value) return;
-    const id = parseInt(value, 10);
-    const org =
-      ownOrgs.find((o) => o.id === id) ?? clientOrgs.find((o) => o.id === id);
-    if (!org) return;
+  const q = filter.toLowerCase();
+  const filteredOwn = ownOrgs.filter((o) =>
+    optionText(o).toLowerCase().includes(q),
+  );
+  const filteredClient = clientOrgs.filter((o) =>
+    optionText(o).toLowerCase().includes(q),
+  );
+  const noneFound = filteredOwn.length === 0 && filteredClient.length === 0;
+
+  function pick(org: Organization) {
     onFill({
       name: org.name,
       taxNumber: org.taxNumber,
       activityCode: org.activityCode,
       activityName: org.activityName,
       address: org.address,
+      sourceOrgId: org.id,
+      owner: org.owner,
     });
+    setOpen(false);
+    setFilter("");
   }
 
   return (
     <div className={styles.fillWrap}>
-      <select
-        className={styles.fillSelect}
-        value={selected}
-        onChange={handleChange}
-        title="Odaberite djelatnost za automatsku popunu forme"
-      >
-        <option value="">— Popuni djelatnost —</option>
-        {ownOrgs.length > 0 && (
-          <optgroup label="Moje organizacije">
-            {ownOrgs.map((org) => (
-              <option key={org.id} value={String(org.id)}>
-                {optionText(org)}
-              </option>
-            ))}
-          </optgroup>
+      <div className={styles.dropdownWrap} ref={wrapRef}>
+        <button
+          type="button"
+          className={styles.fillBtn}
+          onClick={() => setOpen((v) => !v)}
+        >
+          — Popuni djelatnost —
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 4l4 4 4-4" />
+          </svg>
+        </button>
+
+        {open && (
+          <div className={styles.dropdownPanel}>
+            <input
+              ref={searchRef}
+              className={styles.dropdownSearch}
+              placeholder="Pretraži..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            <div className={styles.dropdownList}>
+              {noneFound && (
+                <div className={styles.dropdownEmpty}>Nema rezultata</div>
+              )}
+              {filteredOwn.length > 0 && (
+                <>
+                  {clientOrgs.length > 0 && (
+                    <div className={styles.dropdownGroup}>Moje organizacije</div>
+                  )}
+                  {filteredOwn.map((org) => (
+                    <button
+                      key={org.id}
+                      type="button"
+                      className={styles.dropdownItem}
+                      onClick={() => pick(org)}
+                    >
+                      {optionText(org)}
+                      {org.taxNumber ? ` (${org.taxNumber})` : ""}
+                    </button>
+                  ))}
+                </>
+              )}
+              {filteredClient.length > 0 && (
+                <>
+                  <div className={styles.dropdownGroup}>Klijentske firme</div>
+                  {filteredClient.map((org) => (
+                    <button
+                      key={org.id}
+                      type="button"
+                      className={styles.dropdownItem}
+                      onClick={() => pick(org)}
+                    >
+                      {optionText(org)}
+                      {org.taxNumber ? ` (${org.taxNumber})` : ""}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+            {!isProOrBusiness && (
+              <div className={styles.dropdownTeaser}>
+                <p className={styles.dropdownTeaserText}>Uz pretplatu: klijentske organizacije</p>
+                <a href="/profil#pretplata" className={styles.dropdownTeaserLink}>Pretplatite se →</a>
+              </div>
+            )}
+          </div>
         )}
-        {clientOrgs.length > 0 && (
-          <optgroup label="Klijentske firme">
-            {clientOrgs.map((org) => (
-              <option key={org.id} value={String(org.id)}>
-                {optionText(org)}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
+      </div>
     </div>
   );
 }

@@ -1,181 +1,163 @@
-const prisma = require("../prisma");
+const { Op } = require("sequelize");
+const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const vlasnikSelect = {
-  id: true,
-  firstName: true,
-  lastName: true,
-  jmbg: true,
-  email: true,
-  phone: true,
-  address: true,
-};
+const orgAttributes = ["id", "name", "type", "taxNumber", "activityCode", "activityName", "email", "phone", "address", "createdAt", "updatedAt"];
 
-const orgSelect = {
-  id: true,
-  name: true,
-  type: true,
-  taxNumber: true,
-  activityCode: true,
-  activityName: true,
-  email: true,
-  phone: true,
-  address: true,
-  createdAt: true,
-  updatedAt: true,
-  workers: {
-    where: { role: "VLASNIK" },
-    take: 1,
-    select: vlasnikSelect,
-  },
-  members: {
-    select: { role: true, userId: true },
-  },
-};
-
-function toPublicOrg(org) {
+function toPublicOrg(org, memberRole) {
   if (!org) return null;
-  const { workers, ...rest } = org;
-  const raw = workers?.[0] ?? null;
-  const owner = raw
-    ? { ...raw, jmbg: raw.jmbg ? decryptJmbg(raw.jmbg) : null }
-    : null;
-  return { ...rest, owner };
+  const plain = org.toJSON ? org.toJSON() : org;
+  const workers = plain.workers || [];
+  const raw = workers.find((w) => w.role === "VLASNIK") || null;
+  const owner = raw ? { ...raw, jmbg: raw.jmbg ? decryptJmbg(raw.jmbg) : null } : null;
+  const { workers: _w, ...rest } = plain;
+  return { ...rest, owner, memberRole: memberRole || plain.memberRole || null };
 }
 
+const orgInclude = [
+  {
+    model: Worker,
+    as: "workers",
+    where: { role: "VLASNIK" },
+    required: false,
+    limit: 1,
+    attributes: ["id", "firstName", "lastName", "jmbg", "email", "phone", "address"],
+  },
+  {
+    model: OrganizationMember,
+    as: "members",
+    attributes: ["role", "userId"],
+  },
+];
+
 async function getUserOrganizations(userId) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId, organization: { isClientOrg: false } },
-    include: { organization: { select: orgSelect } },
-    orderBy: { joinedAt: "desc" },
+  const memberships = await OrganizationMember.findAll({
+    where: { userId },
+    include: [
+      {
+        model: Organization,
+        as: "organization",
+        where: { isClientOrg: false },
+        attributes: orgAttributes,
+        include: orgInclude,
+      },
+    ],
+    order: [[{ model: Organization, as: "organization" }, "name", "ASC"]],
   });
-  return memberships.map((m) =>
-    toPublicOrg({ ...m.organization, memberRole: m.role }),
-  );
+  return memberships.map((m) => toPublicOrg(m.organization, m.role));
 }
 
 async function getClientOrganizations(userId) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId, organization: { isClientOrg: true } },
-    include: { organization: { select: orgSelect } },
-    orderBy: { joinedAt: "desc" },
+  const memberships = await OrganizationMember.findAll({
+    where: { userId },
+    include: [
+      {
+        model: Organization,
+        as: "organization",
+        where: { isClientOrg: true },
+        attributes: orgAttributes,
+        include: orgInclude,
+      },
+    ],
+    order: [[{ model: Organization, as: "organization" }, "name", "ASC"]],
   });
-  return memberships.map((m) =>
-    toPublicOrg({ ...m.organization, memberRole: m.role }),
-  );
+  return memberships.map((m) => toPublicOrg(m.organization, m.role));
 }
 
 async function getOrganizationForUser(id, userId) {
-  const membership = await prisma.organizationMember.findFirst({
+  const membership = await OrganizationMember.findOne({
     where: { organizationId: id, userId },
-    include: { organization: { select: orgSelect } },
+    include: [
+      {
+        model: Organization,
+        as: "organization",
+        attributes: orgAttributes,
+        include: orgInclude,
+      },
+    ],
   });
   if (!membership) return null;
-  return toPublicOrg({
-    ...membership.organization,
-    memberRole: membership.role,
-  });
+  return toPublicOrg(membership.organization, membership.role);
 }
 
 async function createOrganization(data, ownerData, userId) {
-  return prisma.$transaction(async (tx) => {
-    const org = await tx.organization.create({
-      data: { ...data, createdById: userId, isClientOrg: !!ownerData },
-      select: { id: true },
-    });
+  return sequelize.transaction(async (t) => {
+    const org = await Organization.create({ ...data, createdById: userId, isClientOrg: !!ownerData }, { transaction: t });
 
-    await tx.organizationMember.create({
-      data: { organizationId: org.id, userId, role: "OWNER" },
-    });
+    await OrganizationMember.create({ organizationId: org.id, userId, role: "OWNER" }, { transaction: t });
 
     if (ownerData) {
-      await tx.worker.create({
-        data: { organizationId: org.id, role: "VLASNIK", ...ownerData },
-      });
+      await Worker.create({ organizationId: org.id, role: "VLASNIK", ...ownerData }, { transaction: t });
     } else {
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-        select: {
-          firstName: true,
-          lastName: true,
-          jmbg: true,
-          email: true,
-          phone: true,
-          address: true,
-        },
-      });
-      await tx.worker.create({
-        data: {
-          organizationId: org.id,
-          role: "VLASNIK",
-          firstName: user.firstName,
-          lastName: user.lastName,
-          jmbg: user.jmbg ?? null,
-          email: user.email ?? null,
-          phone: user.phone ?? null,
-          address: user.address ?? null,
-        },
-      });
+      const user = await User.findOne({ where: { id: userId }, attributes: ["firstName", "lastName", "jmbg", "email", "phone", "address"], transaction: t });
+      await Worker.create({
+        organizationId: org.id,
+        role: "VLASNIK",
+        firstName: user.firstName,
+        lastName: user.lastName,
+        jmbg: user.jmbg || null,
+        email: user.email || null,
+        phone: user.phone || null,
+        address: user.address || null,
+      }, { transaction: t });
     }
 
-    const created = await tx.organization.findUnique({
-      where: { id: org.id },
-      select: orgSelect,
-    });
-
-    return toPublicOrg({ ...created, memberRole: "OWNER" });
+    const created = await Organization.findOne({ where: { id: org.id }, attributes: orgAttributes, include: orgInclude, transaction: t });
+    return toPublicOrg(created, "OWNER");
   });
 }
 
 async function updateOrganization(id, orgData, ownerData, userId) {
-  const membership = await prisma.organizationMember.findFirst({
-    where: { organizationId: id, userId, role: { in: ["OWNER", "ADMIN"] } },
+  const membership = await OrganizationMember.findOne({
+    where: { organizationId: id, userId, role: { [Op.in]: ["OWNER", "ADMIN"] } },
   });
   if (!membership) return null;
 
-  return prisma.$transaction(async (tx) => {
+  return sequelize.transaction(async (t) => {
     if (ownerData) {
-      const existing = await tx.worker.findFirst({
-        where: { organizationId: id, role: "VLASNIK" },
-      });
+      const existing = await Worker.findOne({ where: { organizationId: id, role: "VLASNIK" }, transaction: t });
       if (existing) {
-        await tx.worker.update({ where: { id: existing.id }, data: ownerData });
+        await Worker.update(ownerData, { where: { id: existing.id }, transaction: t });
       } else {
-        await tx.worker.create({
-          data: { organizationId: id, role: "VLASNIK", ...ownerData },
-        });
+        await Worker.create({ organizationId: id, role: "VLASNIK", ...ownerData }, { transaction: t });
       }
     }
 
     if (Object.keys(orgData).length > 0) {
-      await tx.organization.update({ where: { id }, data: orgData });
+      await Organization.update(orgData, { where: { id }, transaction: t });
     }
 
-    const updated = await tx.organization.findUnique({
-      where: { id },
-      select: orgSelect,
-    });
-    return toPublicOrg(updated);
+    const updated = await Organization.findOne({ where: { id }, attributes: orgAttributes, include: orgInclude, transaction: t });
+    return toPublicOrg(updated, membership.role);
   });
 }
 
 async function countOwnedOrganizations(userId) {
-  return prisma.organizationMember.count({
-    where: { userId, organization: { isClientOrg: false } },
+  const memberships = await OrganizationMember.findAll({
+    where: { userId, role: "OWNER" },
+    include: [{ model: Organization, as: "organization", where: { isClientOrg: false }, attributes: ["id"] }],
   });
+  return memberships.length;
 }
 
 async function deleteOrganization(id, userId) {
-  const membership = await prisma.organizationMember.findFirst({
+  const membership = await OrganizationMember.findOne({
     where: { organizationId: id, userId, role: "OWNER" },
   });
   if (!membership) return false;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.worker.deleteMany({ where: { organizationId: id } });
-    await tx.organizationMember.deleteMany({ where: { organizationId: id } });
-    await tx.organization.delete({ where: { id } });
+  await sequelize.transaction(async (t) => {
+    const formIds = (await Form.findAll({ where: { organizationId: id }, attributes: ["id"], transaction: t })).map((f) => f.id);
+    if (formIds.length > 0) {
+      await FormAttachment.destroy({ where: { formId: { [Op.in]: formIds } }, transaction: t });
+      await FormVersion.destroy({ where: { formId: { [Op.in]: formIds } }, transaction: t });
+      await Form.destroy({ where: { id: { [Op.in]: formIds } }, transaction: t });
+    }
+    await Worker.destroy({ where: { organizationId: id }, transaction: t });
+    await OrganizationMember.destroy({ where: { organizationId: id }, transaction: t });
+    await Organization.destroy({ where: { id }, transaction: t });
   });
+
   return true;
 }
 

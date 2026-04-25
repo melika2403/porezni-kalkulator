@@ -24,7 +24,7 @@ async function send(req, res) {
     return res.status(200).json({ ok: true, data: null });
   } catch (e) {
     console.error("contact send error:", e);
-    return res.status(500).json({ ok: false, error: "Slanje nije uspjelo." });
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
 }
 

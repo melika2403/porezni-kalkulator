@@ -2,17 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LuPencil, LuCheck, LuX } from "react-icons/lu";
+import { LuPencil, LuCheck, LuX, LuTrash2 } from "react-icons/lu";
 import styles from "./korisnici.module.css";
 import {
   getUsers,
   adminUpdateUser,
   upsertSubscription,
+  deleteUser,
   type Users,
   type UsersListResponse,
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
+import DateInput from "src/components/DateInput/DateInput";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,13 @@ const ROLE_BADGE_CLASS: Record<Users["role"], string> = {
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
+  if (iso.includes("T") || iso.includes("Z")) {
+    const dt = new Date(iso);
+    if (isNaN(dt.getTime())) return "—";
+    const d = String(dt.getDate()).padStart(2, "0");
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    return `${d}.${m}.${dt.getFullYear()}`;
+  }
   const [y, m, d] = iso.slice(0, 10).split("-");
   if (!y || !m || !d) return "—";
   return `${d}.${m}.${y}`;
@@ -243,6 +252,8 @@ function UsersTable({ users }: { users: Users[] }) {
         <tr>
           <th>Ime i prezime</th>
           <th>E-mail</th>
+          <th>Registracija</th>
+          <th>Verifikacija</th>
           <th>Uloga</th>
           <th>Datum od</th>
           <th>Datum do</th>
@@ -264,6 +275,12 @@ function UsersTable({ users }: { users: Users[] }) {
 function UserRow({ user }: { user: Users }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const deleteUserMutation = useMutation({
+    mutationFn: () => unwrap(deleteUser(user.id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
 
   // ── user edit state ──
   const [firstName, setFirstName] = useState(user.firstName);
@@ -277,8 +294,9 @@ function UserRow({ user }: { user: Users }) {
   const [subEndDate, setSubEndDate] = useState(toInputDate(sub?.endDate));
   const [subError, setSubError] = useState<string | null>(null);
 
+  const isAdmin = user.role === "ADMIN";
   const isActive = sub?.isActive ?? false;
-  const canEditDates = editing && isActive;
+  const canEditDates = editing && isActive && !isAdmin;
 
   const updateUser = useMutation({
     mutationFn: async () => {
@@ -383,6 +401,7 @@ function UserRow({ user }: { user: Users }) {
   };
 
   return (
+    <>
     <tr>
       <td className={styles.workerName}>
         {editing ? (
@@ -409,6 +428,16 @@ function UserRow({ user }: { user: Users }) {
 
       <td>{user.email || "—"}</td>
 
+      <td>{formatDate(user.createdAt)}</td>
+
+      <td>
+        {user.isEmailVerified ? (
+          <span className={styles.verifiedBadge}>Verifikovan</span>
+        ) : (
+          <span className={styles.unverifiedBadge}>Neverifikovan</span>
+        )}
+      </td>
+
       <td>
         {editing ? (
           <select
@@ -433,16 +462,15 @@ function UserRow({ user }: { user: Users }) {
       </td>
 
       <td>
-        {editing ? (
-          <input
-            type="date"
+        {isAdmin ? (
+          "—"
+        ) : editing ? (
+          <DateInput
             className={styles.input}
             value={subStartDate}
             disabled={!canEditDates}
-            onChange={(e) => setSubStartDate(e.target.value)}
-            title={
-              !canEditDates ? "Aktivirajte pretplatu da mijenjate datume" : ""
-            }
+            onValueChange={setSubStartDate}
+            title={!canEditDates ? "Aktivirajte pretplatu da mijenjate datume" : ""}
           />
         ) : (
           formatDate(sub?.startDate)
@@ -450,16 +478,15 @@ function UserRow({ user }: { user: Users }) {
       </td>
 
       <td>
-        {editing ? (
-          <input
-            type="date"
+        {isAdmin ? (
+          "—"
+        ) : editing ? (
+          <DateInput
             className={styles.input}
             value={subEndDate}
             disabled={!canEditDates}
-            onChange={(e) => setSubEndDate(e.target.value)}
-            title={
-              !canEditDates ? "Aktivirajte pretplatu da mijenjate datume" : ""
-            }
+            onValueChange={setSubEndDate}
+            title={!canEditDates ? "Aktivirajte pretplatu da mijenjate datume" : ""}
           />
         ) : (
           formatDate(endDateToDisplay)
@@ -499,13 +526,22 @@ function UserRow({ user }: { user: Users }) {
               </button>
             </>
           ) : (
-            <button
-              className={styles.btnIcon}
-              title="Uredi"
-              onClick={beginEdit}
-            >
-              <LuPencil />
-            </button>
+            <>
+              <button
+                className={styles.btnIcon}
+                title="Uredi"
+                onClick={beginEdit}
+              >
+                <LuPencil />
+              </button>
+              <button
+                className={`${styles.btnIcon} ${styles.btnIconDanger}`}
+                title="Obriši korisnika"
+                onClick={() => setConfirmDelete((v) => !v)}
+              >
+                <LuTrash2 />
+              </button>
+            </>
           )}
         </span>
 
@@ -513,5 +549,37 @@ function UserRow({ user }: { user: Users }) {
         {subError && <div className={styles.errorMsg}>{subError}</div>}
       </td>
     </tr>
+    {confirmDelete && !editing && (
+      <tr>
+        <td colSpan={9} className={styles.deleteConfirmRow}>
+          <div className={styles.deleteConfirmInner}>
+            <span className={styles.deleteConfirmText}>
+              Brisanjem se brišu svi podaci korisnika. Jeste li sigurni?
+            </span>
+            <button
+              className={styles.btnConfirmDelete}
+              onClick={() => deleteUserMutation.mutate()}
+              disabled={deleteUserMutation.isPending}
+            >
+              <LuCheck size={14} />
+              {deleteUserMutation.isPending ? "Brisanje..." : "Da, obriši"}
+            </button>
+            <button
+              className={styles.btnCancelDelete}
+              onClick={() => setConfirmDelete(false)}
+            >
+              <LuX size={14} />
+              Odustani
+            </button>
+          </div>
+          {deleteUserMutation.isError && (
+            <div className={styles.errorMsg} style={{ marginTop: "0.4rem" }}>
+              {(deleteUserMutation.error as Error).message}
+            </div>
+          )}
+        </td>
+      </tr>
+    )}
+    </>
   );
 }

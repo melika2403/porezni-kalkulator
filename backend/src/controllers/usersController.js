@@ -60,6 +60,11 @@ function validateUserUpdatePayload(body) {
     data.role = role.trim();
   }
 
+  const { idCardNumber } = body ?? {};
+  if (idCardNumber !== undefined) {
+    data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "No fields to update" };
   }
@@ -145,7 +150,7 @@ async function update(req, res) {
       return res.status(404).json({ ok: false, error: "User not found" });
     res.status(200).json({ ok: true, data: user });
   } catch (error) {
-    if (error && typeof error === "object" && error.code === "P2002") {
+    if (error && error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ ok: false, error: "DUPLICATE_VALUE" });
     }
     const message = error instanceof Error ? error.message : String(error);

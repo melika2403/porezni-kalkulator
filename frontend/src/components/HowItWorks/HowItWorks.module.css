@@ -1,6 +1,6 @@
 .section {
   padding: 6rem 2rem;
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -18,7 +18,7 @@
   font-size: clamp(1.8rem, 4vw, 2.8rem);
   letter-spacing: -0.02em;
   line-height: 1.15;
-  margin-bottom: 3rem;
+  margin-bottom: 3.5rem;
 }
 
 .h2 em {
@@ -28,26 +28,117 @@
 
 .steps {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 3rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.step {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 1.5rem 1.6rem;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.step:hover {
+  transform: translateY(-3px);
+  border-color: var(--sage);
+  box-shadow: 0 10px 24px -16px rgba(0, 0, 0, 0.18);
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
 }
 
 .num {
   font-family: 'DM Serif Display', serif;
-  font-size: 3rem;
-  color: var(--border);
+  font-size: 2.2rem;
+  color: var(--sage);
   line-height: 1;
-  margin-bottom: 1rem;
+  flex-shrink: 0;
+}
+
+.connector {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    var(--border),
+    transparent
+  );
 }
 
 .title {
   font-size: 15px;
-  font-weight: 500;
-  margin-bottom: 6px;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--ink);
+  line-height: 1.35;
 }
 
 .desc {
   font-size: 13px;
   color: var(--mid);
   line-height: 1.6;
+}
+
+.cta {
+  margin-top: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ctaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0.85rem 1.75rem;
+  background: var(--sage);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.ctaBtn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.ctaNote {
+  font-size: 12px;
+  color: var(--mid);
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .step:nth-child(2) .connector {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .section {
+    padding: 4rem 1.25rem;
+  }
+  .steps {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .connector {
+    display: none;
+  }
 }

@@ -11,13 +11,13 @@ router.get("/", requireAuth, organizationsController.list);
 router.get(
   "/clients",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   organizationsController.listClients,
 );
 router.get(
   "/workers/mine",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   workersController.listAllForUser,
 );
 router.post("/", requireAuth, organizationsController.create);
@@ -31,25 +31,25 @@ router.get("/:id", requireAuth, organizationsController.getById);
 router.get(
   "/:id/members",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   membersController.list,
 );
 router.post(
   "/:id/members",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   membersController.add,
 );
 router.put(
   "/:id/members/:userId",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   membersController.updateRole,
 );
 router.delete(
   "/:id/members/:userId",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   membersController.remove,
 );
 
@@ -57,25 +57,25 @@ router.delete(
 router.get(
   "/:orgId/workers",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   workersController.list,
 );
 router.post(
   "/:orgId/workers",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   workersController.create,
 );
 router.put(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   workersController.update,
 );
 router.delete(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("BUSINESS"),
+  requireRole("BUSINESS", "ADMIN"),
   workersController.remove,
 );
 
