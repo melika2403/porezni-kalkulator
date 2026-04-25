@@ -47,7 +47,7 @@ async function getUserOrganizations(userId) {
   const memberships = await prisma.organizationMember.findMany({
     where: { userId, organization: { isClientOrg: false } },
     include: { organization: { select: orgSelect } },
-    orderBy: { joinedAt: "desc" },
+    orderBy: { organization: { name: "asc" } },
   });
   return memberships.map((m) =>
     toPublicOrg({ ...m.organization, memberRole: m.role }),
@@ -58,7 +58,7 @@ async function getClientOrganizations(userId) {
   const memberships = await prisma.organizationMember.findMany({
     where: { userId, organization: { isClientOrg: true } },
     include: { organization: { select: orgSelect } },
-    orderBy: { joinedAt: "desc" },
+    orderBy: { organization: { name: "asc" } },
   });
   return memberships.map((m) =>
     toPublicOrg({ ...m.organization, memberRole: m.role }),
@@ -172,6 +172,17 @@ async function deleteOrganization(id, userId) {
   if (!membership) return false;
 
   await prisma.$transaction(async (tx) => {
+    // Delete form versions and attachments before forms
+    const forms = await tx.form.findMany({
+      where: { organizationId: id },
+      select: { id: true },
+    });
+    const formIds = forms.map((f) => f.id);
+    if (formIds.length > 0) {
+      await tx.formAttachment.deleteMany({ where: { formId: { in: formIds } } });
+      await tx.formVersion.deleteMany({ where: { formId: { in: formIds } } });
+      await tx.form.deleteMany({ where: { id: { in: formIds } } });
+    }
     await tx.worker.deleteMany({ where: { organizationId: id } });
     await tx.organizationMember.deleteMany({ where: { organizationId: id } });
     await tx.organization.delete({ where: { id } });

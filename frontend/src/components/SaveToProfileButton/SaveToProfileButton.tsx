@@ -15,6 +15,7 @@ type Props = {
   className?: string;
   defaultOrganizationId?: number | null;
   defaultClientId?: number | null;
+  onSuccess?: () => void;
 };
 
 type Recipient =
@@ -32,6 +33,7 @@ export default function SaveToProfileButton({
   className,
   defaultOrganizationId,
   defaultClientId,
+  onSuccess,
 }: Props) {
   const { data: user } = useQuery({
     queryKey: ["me"],
@@ -71,6 +73,7 @@ export default function SaveToProfileButton({
     if (res.ok) {
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 2500);
+      onSuccess?.();
     } else {
       setStatus("error");
       setTimeout(() => setStatus("idle"), 3000);

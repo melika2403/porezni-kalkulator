@@ -60,6 +60,11 @@ function validateUserUpdatePayload(body) {
     data.role = role.trim();
   }
 
+  const { idCardNumber } = body ?? {};
+  if (idCardNumber !== undefined) {
+    data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "No fields to update" };
   }

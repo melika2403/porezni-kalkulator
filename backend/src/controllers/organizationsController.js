@@ -70,6 +70,11 @@ function validateOwnerData(owner, requireJmbg = true) {
   if (owner.email) data.email = String(owner.email).trim();
   if (owner.phone) data.phone = String(owner.phone).trim();
   if (owner.address) data.address = String(owner.address).trim();
+  if (owner.idCardNumber) {
+    const idn = String(owner.idCardNumber).trim();
+    if (idn.length > 9) return { ok: false, message: "Broj lične karte može imati najviše 9 znakova" };
+    data.idCardNumber = idn;
+  }
 
   return { ok: true, value: data };
 }
