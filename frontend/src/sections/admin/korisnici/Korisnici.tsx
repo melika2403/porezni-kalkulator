@@ -243,6 +243,7 @@ function UsersTable({ users }: { users: Users[] }) {
         <tr>
           <th>Ime i prezime</th>
           <th>E-mail</th>
+          <th>Registracija</th>
           <th>Uloga</th>
           <th>Datum od</th>
           <th>Datum do</th>
@@ -408,6 +409,8 @@ function UserRow({ user }: { user: Users }) {
       </td>
 
       <td>{user.email || "—"}</td>
+
+      <td>{formatDate(user.createdAt)}</td>
 
       <td>
         {editing ? (
