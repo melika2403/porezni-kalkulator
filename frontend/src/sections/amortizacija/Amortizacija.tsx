@@ -17,7 +17,7 @@ import {
   getClientYears,
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
-import { getPersonClients, createPersonClient, updatePersonClient, deletePersonClient } from "src/api/profile";
+import { type PersonClient, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -276,6 +276,7 @@ export default function Amortizacija() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [savingClient, setSavingClient] = useState(false);
   const [showCarryoverConfirm, setShowCarryoverConfirm] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [confirmDeleteClientId, setConfirmDeleteClientId] = useState<number | null>(null);
   const [clientOrder, setClientOrder] = useState<number[]>(() => {
     try { return JSON.parse(localStorage.getItem("amortizacija-client-order") ?? "[]"); }
@@ -283,6 +284,7 @@ export default function Amortizacija() {
   });
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const dragItemId = useRef<number | null>(null);
+  const didAutoSelectRef = useRef(false);
   const isLoadingRef = useRef(false);
   const newYearRef = useRef<HTMLInputElement>(null);
   const selectedClientIdRef = useRef(selectedClientId);
@@ -297,12 +299,12 @@ export default function Amortizacija() {
   useEffect(() => { obveznikRef.current = obveznik; }, [obveznik]);
 
   /* ── Client sidebar ── */
-  const clientsQuery = useQuery({
-    queryKey: ["personClients"],
+  const clientsQuery = useQuery<PersonClient[]>({
+    queryKey: ["amortizacijaClients"],
     queryFn: async () => {
-      const res = await getPersonClients();
+      const res = await getAmortizacijaClients();
       if (!res.ok) return [];
-      return res.data;
+      return res.data ?? [];
     },
   });
 
@@ -428,6 +430,9 @@ export default function Amortizacija() {
 
   useEffect(() => {
     (async () => {
+      // PRO+ users always work within a client — skip null-client slot
+      if (isClientUserRef.current && selectedClientId === null) return;
+
       const yearsRes = await getAmortizacijaYears(selectedClientId);
       if (yearsRes.ok) setSavedYears(yearsRes.data);
 
@@ -453,6 +458,15 @@ export default function Amortizacija() {
       return next;
     });
   }, [obveznik.godina]);
+
+  // Auto-select first client for PRO+ users on initial load
+  useEffect(() => {
+    if (!isClientUser) return;
+    if (sortedClients.length === 0) return;
+    if (didAutoSelectRef.current) return;
+    didAutoSelectRef.current = true;
+    handleSelectClient(sortedClients[0].id);
+  }, [isClientUser, sortedClients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Year switching ── */
   const doSwitchYear = useCallback(
@@ -501,27 +515,21 @@ export default function Amortizacija() {
     [isDirty, obveznik.godina, doSwitchYear],
   );
 
-  /* ── Auto-create client on first save for PRO/BUSINESS/ADMIN ── */
-  const ensureClient = useCallback(async (): Promise<number | null> => {
-    if (selectedClientIdRef.current !== null) return selectedClientIdRef.current;
-    if (!isClientUserRef.current) return null;
-    const ob = obveznikRef.current;
-    const name = ob.naziv.trim() || ob.imeIPrezime.trim() || "";
-    const res = await createPersonClient({ firstName: name, lastName: "" });
-    if (!res.ok || !res.data) return null;
-    const newId = res.data.id;
-    selectedClientIdRef.current = newId;
-    setSelectedClientId(newId);
-    clientsQuery.refetch();
-    return newId;
-  }, [clientsQuery]);
-
   /* ── Save ── */
   const handleSave = useCallback(async () => {
     setSaveStatus("saving");
-    await ensureClient();
+    let clientId = selectedClientIdRef.current;
+    if (isClientUserRef.current && clientId === null) {
+      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      if (clientRes.ok && clientRes.data) {
+        clientId = clientRes.data.id;
+        setSelectedClientId(clientId);
+        selectedClientIdRef.current = clientId;
+        void clientsQuery.refetch();
+      }
+    }
     const godina = obveznik.godina || currentYear;
-    const res = await saveAmortizacija(godina, { obveznik, rows }, selectedClientIdRef.current);
+    const res = await saveAmortizacija(godina, { obveznik, rows }, clientId);
     if (res.ok) {
       setSaveStatus("saved");
       setIsDirty(false);
@@ -534,7 +542,7 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, currentYear, ensureClient]);
+  }, [obveznik, rows, currentYear, clientsQuery]);
 
   /* ── Carryover ── */
   const handleCarryover = useCallback(async () => {
@@ -542,10 +550,20 @@ export default function Amortizacija() {
     const nextYear = String(parseInt(currentGodina) + 1);
 
     setSaveStatus("saving");
-    await ensureClient();
+
+    let clientId = selectedClientIdRef.current;
+    if (isClientUserRef.current && clientId === null) {
+      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      if (clientRes.ok && clientRes.data) {
+        clientId = clientRes.data.id;
+        setSelectedClientId(clientId);
+        selectedClientIdRef.current = clientId;
+        void clientsQuery.refetch();
+      }
+    }
 
     // Save current year first so nothing is lost
-    await saveAmortizacija(currentGodina, { obveznik, rows }, selectedClientIdRef.current);
+    await saveAmortizacija(currentGodina, { obveznik, rows }, clientId);
     setSavedYears((prev) => {
       const yr = parseInt(currentGodina);
       return prev.includes(yr) ? prev : [...prev, yr].sort((a, b) => a - b);
@@ -589,7 +607,7 @@ export default function Amortizacija() {
     const res = await saveAmortizacija(nextYear, {
       obveznik: carryoverObveznik,
       rows: carryoverRows,
-    }, selectedClientIdRef.current);
+    }, clientId);
     if (res.ok) {
       setSavedYears((prev) => {
         const yr = parseInt(nextYear);
@@ -602,7 +620,7 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, selectedClientId, currentYear, ensureClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [obveznik, rows, selectedClientId, currentYear, clientsQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Delete year ── */
   const handleDeleteYear = useCallback(
@@ -716,6 +734,13 @@ export default function Amortizacija() {
         adresaDjelatnosti: data.address ?? p.adresaDjelatnosti,
         vrstaSifra: data.activityCode ?? p.vrstaSifra,
         vrstaNaziv: data.activityName ?? p.vrstaNaziv,
+        ...(data.owner
+          ? {
+              jmb: data.owner.jmbg ?? p.jmb,
+              imeIPrezime: [data.owner.firstName, data.owner.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
+              adresa: data.owner.address ?? p.adresa,
+            }
+          : {}),
       }));
       if (data.sourceOrgId !== undefined) setSourceOrgId(data.sourceOrgId);
       if (selectedClientIdRef.current !== null && data.name) {
@@ -835,6 +860,7 @@ export default function Amortizacija() {
   const handleExport = async () => {
     setExportLoading(true);
     try {
+      await handleSave();
       const pldiRows = rows.map((row, idx) => {
         const prodajaNapomena =
           row.prodano && row.datumProdaje
@@ -968,7 +994,7 @@ export default function Amortizacija() {
 
   const handleAddClient = useCallback(async () => {
     setSavingClient(true);
-    const res = await createPersonClient({ firstName: "", lastName: "" });
+    const res = await createAmortizacijaClient({ firstName: "" });
     setSavingClient(false);
     if (res.ok && res.data) {
       await clientsQuery.refetch();
@@ -996,6 +1022,7 @@ export default function Amortizacija() {
         <div className={styles.sidebarLock}>
           <span className={styles.sidebarLockIcon}>🔒</span>
           <p className={styles.sidebarLockText}>Dostupno uz Pro ili Business pretplatu</p>
+          <a href="/profil" className={styles.sidebarLockBtn}>Pretplatite se</a>
         </div>
       )}
       <div className={`${styles.sidebarList}${!isClientUser ? ` ${styles.sidebarLocked}` : ""}`}>
@@ -1199,6 +1226,44 @@ export default function Amortizacija() {
           )}
         </div>
 
+        <button
+          type="button"
+          className={styles.guideToggleBtn}
+          onClick={() => setShowGuide((v) => !v)}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+            <circle cx="8" cy="8" r="7" />
+            <line x1="8" y1="7" x2="8" y2="11" />
+            <circle cx="8" cy="5" r="0.5" fill="currentColor" stroke="none" />
+          </svg>
+          {showGuide ? "Sakrij uputstvo" : "Kako ispravno popuniti?"}
+        </button>
+
+        {showGuide && (
+          <div className={styles.guideBox}>
+            <ol className={styles.guideList}>
+              <li>
+                <strong>Dodajte svoju djelatnost</strong> — Ako još nemate dodanu organizaciju, idite na{" "}
+                <a href="/profil" className={styles.guideLink}>Profil → Moje organizacije</a>{" "}
+                i dodajte je. Ako popunjavate za klijenta, idite na{" "}
+                <a href="/profil" className={styles.guideLink}>Profil → Klijenti</a>{" "}
+                i tamo dodajte klijenta sa njegovim podacima.
+              </li>
+              <li>
+                <strong>Odaberite ili dodajte klijenta u sidebaru</strong> — Kliknite <em>+ Dodaj klijenta</em> u lijevoj bočnoj traci da otvorite novi prazan obrazac. Ako popunjavate za sebe, možete raditi i bez klijenta.
+              </li>
+              <li>
+                <strong>Popunite djelatnost</strong> — Kliknite dugme <em>Popuni djelatnost</em> i odaberite organizaciju sa liste. Podaci o djelatnosti i vlasniku bit će automatski upisani u obrazac.
+              </li>
+              <li>
+                <strong>Unesite osnovna sredstva</strong> — U tabeli ispod dodajte svako stalno sredstvo: naziv, datum nabavke, broj dokumenta, nabavnu vrijednost, početnu knjigovodstvenu vrijednost i vijek trajanja. Iznos amortizacije se računa automatski.
+              </li>
+              <li>
+                <strong>Sačuvajte i preuzmite obrazac</strong> — Kliknite <em>Sačuvaj na profil</em> da pohranite podatke na vaš nalog gdje im možete pristupiti u svakom trenutku. Kliknite <em>Preuzmi obrazac</em> da preuzmete popunjeni PLDI-1043 PDF — obrazac se automatski sačuva na profilu i klijent se kreira ako već nije upisan. Kada prenesete podatke u narednu godinu klikom na <em>Prenesi u godinu</em>, obrazac tekuće i naredne godine se automatski sačuva.
+              </li>
+            </ol>
+          </div>
+        )}
 
         <div className={styles.twoCol}>
           <div className={styles.colGroup}>
@@ -1727,7 +1792,7 @@ export default function Amortizacija() {
         <SaveToProfileButton
           type="PLDI"
           year={pldiYear}
-          title={`PLDI-1043 · ${obveznik.imeIPrezime} · ${pldiYear ?? "?"}`}
+          title={`PLDI-1043 · ${obveznik.naziv || obveznik.imeIPrezime} · ${pldiYear ?? "?"}`}
           buildData={buildPldiData}
           disabled={pldiYear === null}
           defaultOrganizationId={sourceOrgId}

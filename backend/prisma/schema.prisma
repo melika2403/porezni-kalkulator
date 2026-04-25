@@ -25,6 +25,7 @@ model User {
   emailVerificationExpiry  DateTime?
   emailVerificationToken   String?              @db.VarChar(255)
   isEmailVerified          Boolean              @default(false)
+  idCardNumber             String?              @db.VarChar(9)
   createdClients           Client[]             @relation("ClientCreatedBy")
   createdForms             Form[]               @relation("FormCreatedBy")
   updatedForms             Form[]               @relation("FormUpdatedBy")
@@ -86,6 +87,7 @@ model Worker {
   email          String?      @db.VarChar(255)
   phone          String?      @db.VarChar(50)
   role           WorkerRole   @default(RADNIK)
+  idCardNumber   String?      @db.VarChar(9)
   organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
@@ -107,23 +109,25 @@ model OrganizationMember {
 }
 
 model Client {
-  id             Int           @id @default(autoincrement()) @db.UnsignedInt
-  organizationId Int?          @db.UnsignedInt
-  type           ClientType    @default(PERSON)
-  firstName      String?       @db.VarChar(100)
-  lastName       String?       @db.VarChar(100)
-  companyName    String?       @db.VarChar(255)
-  email          String?       @db.VarChar(255)
-  phone          String?       @db.VarChar(50)
-  address        String?       @db.VarChar(255)
-  jmbg           String?       @db.VarChar(500)
-  taxNumber      String?       @db.VarChar(100)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  createdById    Int?          @db.UnsignedInt
-  createdBy      User?         @relation("ClientCreatedBy", fields: [createdById], references: [id])
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  forms          Form[]
+  id               Int           @id @default(autoincrement()) @db.UnsignedInt
+  organizationId   Int?          @db.UnsignedInt
+  type             ClientType    @default(PERSON)
+  firstName        String?       @db.VarChar(100)
+  lastName         String?       @db.VarChar(100)
+  companyName      String?       @db.VarChar(255)
+  email            String?       @db.VarChar(255)
+  phone            String?       @db.VarChar(50)
+  address          String?       @db.VarChar(255)
+  jmbg             String?       @db.VarChar(500)
+  taxNumber        String?       @db.VarChar(100)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  createdById      Int?          @db.UnsignedInt
+  amortizacijaOnly Boolean       @default(false)
+  idCardNumber     String?       @db.VarChar(9)
+  createdBy        User?         @relation("ClientCreatedBy", fields: [createdById], references: [id])
+  organization     Organization? @relation(fields: [organizationId], references: [id])
+  forms            Form[]
 
   @@index([createdById], map: "clients_createdById_fkey")
   @@index([organizationId], map: "clients_organizationId_fkey")

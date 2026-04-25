@@ -3,8 +3,8 @@ import { useState } from "react";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./ugovor.module.css";
 import type { UgovorData } from "./generateDocx";
-import { useEffect } from "react";
 import DateInput from "src/components/DateInput/DateInput";
+import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 
 const isoToDisplay = (iso: string) => {
   if (!iso || !iso.includes("-")) return iso;
@@ -158,6 +158,28 @@ export default function UgovorOPozajmici() {
         <h2 className={styles.sectionTitle}>
           Ugovorne <em>strane</em>
         </h2>
+        <div className={styles.fieldGrid}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Popuni zajmodavca</label>
+            <UgovorFillSelect
+              onFill={({ name, address, id }) => {
+                set("zajmodavac", name);
+                set("zajmodavacAdresa", address);
+                set("zajmodavacID", id);
+              }}
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Popuni zajmoprimca</label>
+            <UgovorFillSelect
+              onFill={({ name, address, id }) => {
+                set("zajmoprimac", name);
+                set("zajmoprimacAdresa", address);
+                set("zajmoprimacID", id);
+              }}
+            />
+          </div>
+        </div>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>

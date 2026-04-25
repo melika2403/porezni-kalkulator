@@ -5,6 +5,7 @@ const userDbSelect = {
   id: true,
   email: true,
   jmbg: true,
+  idCardNumber: true,
   firstName: true,
   lastName: true,
   phone: true,

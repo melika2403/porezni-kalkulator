@@ -411,7 +411,27 @@ export default function SprForm() {
               }
             />
           </div>
-          <div className={styles.fieldGroup} />
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Brzi odabir godine</label>
+            <select
+              className={styles.fieldInput}
+              value=""
+              onChange={(e) => {
+                const yr = e.target.value;
+                if (!yr) return;
+                setBusiness((s) => ({
+                  ...s,
+                  periodFrom: `${yr}-01-01`,
+                  periodTo: `${yr}-12-31`,
+                }));
+              }}
+            >
+              <option value="">— Odaberi godinu —</option>
+              {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i).map((yr) => (
+                <option key={yr} value={String(yr)}>{yr}.</option>
+              ))}
+            </select>
+          </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) Period od</label>
             <DateInput

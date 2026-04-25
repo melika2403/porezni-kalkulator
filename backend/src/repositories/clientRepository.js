@@ -24,7 +24,16 @@ function toPublicClient(c) {
 
 async function getPersonClients(userId) {
   const clients = await prisma.client.findMany({
-    where: { createdById: userId, type: "PERSON", organizationId: null },
+    where: { createdById: userId, type: "PERSON", organizationId: null, amortizacijaOnly: false },
+    select: clientDbSelect,
+    orderBy: { createdAt: "desc" },
+  });
+  return clients.map(toPublicClient);
+}
+
+async function getAmortizacijaClients(userId) {
+  const clients = await prisma.client.findMany({
+    where: { createdById: userId, type: "PERSON", organizationId: null, amortizacijaOnly: true },
     select: clientDbSelect,
     orderBy: { createdAt: "desc" },
   });
@@ -33,7 +42,15 @@ async function getPersonClients(userId) {
 
 async function createPersonClient(data, userId) {
   const client = await prisma.client.create({
-    data: { ...data, type: "PERSON", createdById: userId },
+    data: { ...data, type: "PERSON", createdById: userId, amortizacijaOnly: false },
+    select: clientDbSelect,
+  });
+  return toPublicClient(client);
+}
+
+async function createAmortizacijaClient(data, userId) {
+  const client = await prisma.client.create({
+    data: { ...data, type: "PERSON", createdById: userId, amortizacijaOnly: true },
     select: clientDbSelect,
   });
   return toPublicClient(client);
@@ -65,8 +82,28 @@ async function deletePersonClient(id, userId) {
     select: { createdById: true },
   });
   if (!existing || existing.createdById !== userId) return null;
-  await prisma.client.delete({ where: { id } });
+
+  await prisma.$transaction(async (tx) => {
+    const forms = await tx.form.findMany({
+      where: { clientId: id },
+      select: { id: true },
+    });
+    const formIds = forms.map((f) => f.id);
+    if (formIds.length > 0) {
+      await tx.formAttachment.deleteMany({ where: { formId: { in: formIds } } });
+      await tx.formVersion.deleteMany({ where: { formId: { in: formIds } } });
+      await tx.form.deleteMany({ where: { id: { in: formIds } } });
+    }
+    await tx.client.delete({ where: { id } });
+  });
   return true;
 }
 
-module.exports = { getPersonClients, createPersonClient, updatePersonClient, deletePersonClient };
+module.exports = {
+  getPersonClients,
+  getAmortizacijaClients,
+  createPersonClient,
+  createAmortizacijaClient,
+  updatePersonClient,
+  deletePersonClient,
+};

@@ -2,6 +2,7 @@ const clientRepository = require("../repositories/clientRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 
 const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
+const AMORTIZACIJA_ROLES = ["PRO", "BUSINESS", "ADMIN"];
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
@@ -16,7 +17,7 @@ function checkRole(req, res) {
 }
 
 function validateClientPayload(body, requireName = true) {
-  const { firstName, lastName, jmbg, taxNumber, email, phone, address } =
+  const { firstName, lastName, jmbg, taxNumber, email, phone, address, idCardNumber } =
     body ?? {};
   const data = {};
 
@@ -43,6 +44,8 @@ function validateClientPayload(body, requireName = true) {
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
   if (address !== undefined)
     data.address = address ? String(address).trim() : null;
+  if (idCardNumber !== undefined)
+    data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
 
   if (Object.keys(data).length === 0)
     return { ok: false, message: "Nema polja za ažuriranje" };
@@ -59,7 +62,7 @@ async function list(req, res) {
 async function create(req, res) {
   if (!checkRole(req, res)) return;
 
-  const { firstName, lastName, jmbg, taxNumber, email, phone, address } = req.body ?? {};
+  const { firstName, lastName, jmbg, taxNumber, email, phone, address, idCardNumber } = req.body ?? {};
   const data = {
     firstName: isNonEmptyString(firstName) ? firstName.trim() : null,
     lastName: isNonEmptyString(lastName) ? lastName.trim() : null,
@@ -74,6 +77,7 @@ async function create(req, res) {
   if (email !== undefined) data.email = email ? String(email).trim() : null;
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
   if (address !== undefined) data.address = address ? String(address).trim() : null;
+  if (idCardNumber !== undefined) data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
 
   try {
     const client = await clientRepository.createPersonClient(data, req.user.id);
@@ -127,4 +131,26 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { list, create, update, remove };
+async function listAmortizacija(req, res) {
+  if (!AMORTIZACIJA_ROLES.includes(req.user?.role)) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+  const clients = await clientRepository.getAmortizacijaClients(req.user.id);
+  res.status(200).json({ ok: true, data: clients });
+}
+
+async function createAmortizacija(req, res) {
+  if (!AMORTIZACIJA_ROLES.includes(req.user?.role)) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+  const { firstName } = req.body ?? {};
+  const data = { firstName: firstName ? String(firstName).trim() : "", lastName: "" };
+  try {
+    const client = await clientRepository.createAmortizacijaClient(data, req.user.id);
+    res.status(201).json({ ok: true, data: client });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: String(error?.message ?? error) });
+  }
+}
+
+module.exports = { list, create, update, remove, listAmortizacija, createAmortizacija };

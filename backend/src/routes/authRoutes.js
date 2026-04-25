@@ -16,6 +16,8 @@ router.post("/reset-password", authController.resetPassword);
 router.get("/verify-email", authController.verifyEmail);
 router.post("/resend-verification", authController.resendVerification);
 
+router.post("/change-password", requireAuth, authController.changePassword);
+
 router.get("/google", authController.googleStart);
 router.get("/google/callback", authController.googleCallback);
 
