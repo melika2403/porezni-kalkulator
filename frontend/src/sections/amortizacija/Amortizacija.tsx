@@ -290,8 +290,10 @@ export default function Amortizacija() {
   const selectedClientIdRef = useRef(selectedClientId);
   useEffect(() => { selectedClientIdRef.current = selectedClientId; }, [selectedClientId]);
 
-  const { hasRole } = useRole();
+  const { hasRole, role } = useRole();
   const isClientUser = hasRole("PRO", "BUSINESS", "ADMIN");
+  const isPro = role === "PRO";
+  const PRO_CLIENT_LIMIT = 20;
   const isClientUserRef = useRef(isClientUser);
   useEffect(() => { isClientUserRef.current = isClientUser; }, [isClientUser]);
 
@@ -992,15 +994,22 @@ export default function Amortizacija() {
     clientsQuery.refetch();
   }, [confirmDeleteClientId, selectedClientId, sortedClients, handleSelectClient, clientsQuery]);
 
+  const [addLimitError, setAddLimitError] = useState(false);
+
   const handleAddClient = useCallback(async () => {
     setSavingClient(true);
+    setAddLimitError(false);
     const res = await createAmortizacijaClient({ firstName: "" });
     setSavingClient(false);
     if (res.ok && res.data) {
       await clientsQuery.refetch();
       handleSelectClient(res.data.id);
+    } else if (!res.ok && res.error === "PRO_LIMIT_REACHED") {
+      setAddLimitError(true);
     }
   }, [clientsQuery, handleSelectClient]);
+
+  const personLimitReached = isPro && sortedClients.length >= PRO_CLIENT_LIMIT;
 
   const thSort = (key: SortKey, label: React.ReactNode) => (
     <th
@@ -1065,14 +1074,25 @@ export default function Amortizacija() {
         })}
       </div>
       {isClientUser && (
-        <button
-          className={styles.addClientBtn}
-          type="button"
-          disabled={savingClient}
-          onClick={handleAddClient}
-        >
-          {savingClient ? "Dodajem…" : "+ Dodaj klijenta"}
-        </button>
+        <>
+          <button
+            className={styles.addClientBtn}
+            type="button"
+            disabled={savingClient || personLimitReached}
+            onClick={handleAddClient}
+          >
+            {savingClient ? "Dodajem…" : "+ Dodaj klijenta"}
+          </button>
+          {(personLimitReached || addLimitError) && (
+            <div className={styles.sidebarUpgrade}>
+              <strong>Limit od {PRO_CLIENT_LIMIT} klijenata</strong> na Pro pretplati je dosegnut.
+              Nadogradite na Business za više klijenata.
+              <a href="/profil#pretplata" className={styles.sidebarUpgradeLink}>
+                Nadogradi na Business →
+              </a>
+            </div>
+          )}
+        </>
       )}
 
       {confirmDeleteClientId !== null && (

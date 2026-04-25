@@ -1,8 +1,10 @@
+const prisma = require("../prisma");
 const clientRepository = require("../repositories/clientRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 
 const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
 const AMORTIZACIJA_ROLES = ["PRO", "BUSINESS", "ADMIN"];
+const PRO_CLIENT_LIMIT = 20;
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
@@ -61,6 +63,20 @@ async function list(req, res) {
 
 async function create(req, res) {
   if (!checkRole(req, res)) return;
+
+  if (req.user.role === "PRO") {
+    const count = await prisma.client.count({
+      where: {
+        createdById: req.user.id,
+        type: "PERSON",
+        organizationId: null,
+        amortizacijaOnly: false,
+      },
+    });
+    if (count >= PRO_CLIENT_LIMIT) {
+      return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
+    }
+  }
 
   const { firstName, lastName, jmbg, taxNumber, email, phone, address, idCardNumber } = req.body ?? {};
   const data = {
@@ -143,6 +159,21 @@ async function createAmortizacija(req, res) {
   if (!AMORTIZACIJA_ROLES.includes(req.user?.role)) {
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
   }
+
+  if (req.user.role === "PRO") {
+    const count = await prisma.client.count({
+      where: {
+        createdById: req.user.id,
+        type: "PERSON",
+        organizationId: null,
+        amortizacijaOnly: true,
+      },
+    });
+    if (count >= PRO_CLIENT_LIMIT) {
+      return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
+    }
+  }
+
   const { firstName } = req.body ?? {};
   const data = { firstName: firstName ? String(firstName).trim() : "", lastName: "" };
   try {
