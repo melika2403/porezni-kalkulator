@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
 import { KD_BIH, type KdBihEntry } from "src/data/kd-bih";
-import { me, unwrap, changePassword, resendVerification, type AuthUser } from "src/api/auth";
+import {
+  me,
+  unwrap,
+  changePassword,
+  resendVerification,
+  type AuthUser,
+} from "src/api/auth";
 import {
   LuPencil,
   LuSquareArrowUpRight,
@@ -16,6 +22,7 @@ import {
   LuBuilding,
   LuShield,
   LuCreditCard,
+  LuSettings,
 } from "react-icons/lu";
 import {
   updateProfile,
@@ -39,7 +46,11 @@ import {
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import Link from "next/link";
-import { getAmortizacijaYears, getAmortizacija, deleteAmortizacija } from "src/api/amortizacija";
+import {
+  getAmortizacijaYears,
+  getAmortizacija,
+  deleteAmortizacija,
+} from "src/api/amortizacija";
 import { getDocument, deleteDocument } from "src/api/documents";
 import {
   fillPldiTemplate,
@@ -124,7 +135,13 @@ function statusClass(status: string, s: Record<string, string>) {
   return `${s.formStatus} ${map[status] ?? ""}`;
 }
 
-type Tab = "profil" | "klijenti" | "historija" | "sigurnost" | "pretplata";
+type Tab =
+  | "profil"
+  | "klijenti"
+  | "historija"
+  | "sigurnost"
+  | "pretplata"
+  | "admin";
 
 // ─── Profile tab ──────────────────────────────────────────────────────────────
 
@@ -788,7 +805,9 @@ function OwnerFields({
       </div>
       <div className={styles.row}>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Broj lične karte (opciono)</label>
+          <label className={styles.fieldLabel}>
+            Broj lične karte (opciono)
+          </label>
           <input
             className={styles.input}
             value={value.idCardNumber}
@@ -1179,7 +1198,9 @@ function PersonFormFields({
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Broj lične karte (opciono)</label>
+          <label className={styles.fieldLabel}>
+            Broj lične karte (opciono)
+          </label>
           <input
             className={styles.input}
             value={value.idCardNumber}
@@ -1232,8 +1253,12 @@ function DjelatnostTab() {
     useState<PersonFormState>(emptyPersonForm);
 
   // delete confirm state
-  const [confirmDeleteOrgId, setConfirmDeleteOrgId] = useState<number | null>(null);
-  const [confirmDeletePersonId, setConfirmDeletePersonId] = useState<number | null>(null);
+  const [confirmDeleteOrgId, setConfirmDeleteOrgId] = useState<number | null>(
+    null,
+  );
+  const [confirmDeletePersonId, setConfirmDeletePersonId] = useState<
+    number | null
+  >(null);
 
   const createOrgMutation = useMutation({
     mutationFn: (payload: OrgPayload) => unwrap(createOrganization(payload)),
@@ -1423,7 +1448,8 @@ function DjelatnostTab() {
                   {confirmDeleteOrgId === org.id ? (
                     <div className={styles.deleteConfirm}>
                       <span className={styles.deleteConfirmText}>
-                        Brisanjem se brišu i svi sačuvani obrasci ovog klijenta. Sigurni ste?
+                        Brisanjem se brišu i svi sačuvani obrasci ovog klijenta.
+                        Sigurni ste?
                       </span>
                       <div className={styles.deleteConfirmActions}>
                         <button
@@ -1439,7 +1465,9 @@ function DjelatnostTab() {
                           disabled={deleteClientOrgMutation.isPending}
                           onClick={() => deleteClientOrgMutation.mutate(org.id)}
                         >
-                          {deleteClientOrgMutation.isPending ? "Brisanje..." : "Obriši"}
+                          {deleteClientOrgMutation.isPending
+                            ? "Brisanje..."
+                            : "Obriši"}
                         </button>
                       </div>
                     </div>
@@ -1464,7 +1492,9 @@ function DjelatnostTab() {
                         className={styles.btnPrimary}
                         disabled={updateOrgMutation.isPending}
                       >
-                        {updateOrgMutation.isPending ? "Snimanje..." : "Sačuvaj"}
+                        {updateOrgMutation.isPending
+                          ? "Snimanje..."
+                          : "Sačuvaj"}
                       </button>
                     </div>
                   )}
@@ -1550,7 +1580,8 @@ function DjelatnostTab() {
                       {confirmDeletePersonId === p.id ? (
                         <div className={styles.deleteConfirm}>
                           <span className={styles.deleteConfirmText}>
-                            Brisanjem se brišu i svi sačuvani obrasci ovog klijenta. Sigurni ste?
+                            Brisanjem se brišu i svi sačuvani obrasci ovog
+                            klijenta. Sigurni ste?
                           </span>
                           <div className={styles.deleteConfirmActions}>
                             <button
@@ -1566,7 +1597,9 @@ function DjelatnostTab() {
                               disabled={deletePersonMutation.isPending}
                               onClick={() => deletePersonMutation.mutate(p.id)}
                             >
-                              {deletePersonMutation.isPending ? "Brisanje..." : "Obriši"}
+                              {deletePersonMutation.isPending
+                                ? "Brisanje..."
+                                : "Obriši"}
                             </button>
                           </div>
                         </div>
@@ -1591,7 +1624,9 @@ function DjelatnostTab() {
                             className={styles.btnPrimary}
                             disabled={updatePersonMutation.isPending}
                           >
-                            {updatePersonMutation.isPending ? "Snimanje..." : "Sačuvaj"}
+                            {updatePersonMutation.isPending
+                              ? "Snimanje..."
+                              : "Sačuvaj"}
                           </button>
                         </div>
                       )}
@@ -2022,9 +2057,15 @@ function AmortizacijaFormItem({
       </button>
       {confirmDelete ? (
         <div className={styles.deleteConfirm}>
-          <span className={styles.deleteConfirmText}>Sigurno želite obrisati?</span>
+          <span className={styles.deleteConfirmText}>
+            Sigurno želite obrisati?
+          </span>
           <div className={styles.deleteConfirmActions}>
-            <button type="button" className={styles.btnGhost} onClick={() => setConfirmDelete(false)}>
+            <button
+              type="button"
+              className={styles.btnGhost}
+              onClick={() => setConfirmDelete(false)}
+            >
               Odustani
             </button>
             <button
@@ -2072,7 +2113,9 @@ function HistorijaTab() {
     },
   });
 
-  const [deletingAmortYear, setDeletingAmortYear] = useState<number | null>(null);
+  const [deletingAmortYear, setDeletingAmortYear] = useState<number | null>(
+    null,
+  );
   const deleteAmortMutation = useMutation({
     mutationFn: (year: number) =>
       deleteAmortizacija(String(year)).then((res) => {
@@ -2102,9 +2145,10 @@ function HistorijaTab() {
       amortYears.map((yr) =>
         getAmortizacija(String(yr)).then((res) => ({
           yr,
-          name: res.ok && res.data?.obveznik
-            ? res.data.obveznik.naziv || res.data.obveznik.imeIPrezime || ""
-            : "",
+          name:
+            res.ok && res.data?.obveznik
+              ? res.data.obveznik.naziv || res.data.obveznik.imeIPrezime || ""
+              : "",
         })),
       ),
     ).then((results) => {
@@ -2227,7 +2271,9 @@ function HistorijaTab() {
                   setDeletingAmortYear(year);
                   deleteAmortMutation.mutate(year);
                 }}
-                deleteLoading={deleteAmortMutation.isPending && deletingAmortYear === year}
+                deleteLoading={
+                  deleteAmortMutation.isPending && deletingAmortYear === year
+                }
               />
             ))}
             {pagedForms.map((f) => (
@@ -2239,7 +2285,10 @@ function HistorijaTab() {
                   <div className={styles.formTitle}>{displayTitle(f)}</div>
                   <div className={styles.formMeta}>
                     {recipientLabel(f)}
-                    {(() => { const d = new Date(f.createdAt); return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}.`; })()}
+                    {(() => {
+                      const d = new Date(f.createdAt);
+                      return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}.`;
+                    })()}
                   </div>
                 </div>
                 <span className={statusClass(f.status, styles)}>
@@ -2383,7 +2432,15 @@ function SigurnostTab({ user }: { user: AuthUser }) {
         <div className={styles.infoList}>
           <div className={styles.infoRow} style={{ borderBottom: "none" }}>
             <span className={styles.infoLabel}>Email</span>
-            <span className={styles.infoValue} style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            <span
+              className={styles.infoValue}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+              }}
+            >
               {user.email ?? "—"}
               {user.isEmailVerified ? (
                 <span className={styles.verifiedBadge}>✓ Verificiran</span>
@@ -2396,17 +2453,22 @@ function SigurnostTab({ user }: { user: AuthUser }) {
         {!user.isEmailVerified && user.email && (
           <div className={styles.verifyActions}>
             <p className={styles.verifyHint}>
-              Niste verificirali email adresu. Možete ponovo poslati verifikacijski email.
+              Niste verificirali email adresu. Možete ponovo poslati
+              verifikacijski email.
             </p>
             {resentEmail ? (
-              <p className={styles.successMsg}>Email je poslan. Provjerite inbox.</p>
+              <p className={styles.successMsg}>
+                Email je poslan. Provjerite inbox.
+              </p>
             ) : (
               <button
                 className={styles.btnPrimary}
                 disabled={resendMutation.isPending}
                 onClick={() => resendMutation.mutate()}
               >
-                {resendMutation.isPending ? "Šalje se…" : "Ponovo pošalji verifikacijski email"}
+                {resendMutation.isPending
+                  ? "Šalje se…"
+                  : "Ponovo pošalji verifikacijski email"}
               </button>
             )}
           </div>
@@ -2420,14 +2482,32 @@ function SigurnostTab({ user }: { user: AuthUser }) {
             <p className={styles.cardTitle}>Google nalog</p>
           </div>
           <div className={styles.googleInfo}>
-            <svg viewBox="0 0 48 48" width="22" height="22" style={{ flexShrink: 0 }}>
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            <svg
+              viewBox="0 0 48 48"
+              width="22"
+              height="22"
+              style={{ flexShrink: 0 }}
+            >
+              <path
+                fill="#EA4335"
+                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+              />
+              <path
+                fill="#4285F4"
+                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+              />
+              <path
+                fill="#34A853"
+                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+              />
             </svg>
             <p className={styles.googleInfoText}>
-              Vaš nalog je vezan za Google. Prijava se vrši putem Google dugmeta — lokalna lozinka nije potrebna.
+              Vaš nalog je vezan za Google. Prijava se vrši putem Google dugmeta
+              — lokalna lozinka nije potrebna.
             </p>
           </div>
         </div>
@@ -2439,7 +2519,11 @@ function SigurnostTab({ user }: { user: AuthUser }) {
           <div className={styles.cardHeader}>
             <p className={styles.cardTitle}>Promjena lozinke</p>
           </div>
-          {pwSuccess && <div className={styles.successMsg}>Lozinka je uspješno promijenjena.</div>}
+          {pwSuccess && (
+            <div className={styles.successMsg}>
+              Lozinka je uspješno promijenjena.
+            </div>
+          )}
           <form
             className={styles.form}
             onSubmit={(e) => {
@@ -2453,7 +2537,10 @@ function SigurnostTab({ user }: { user: AuthUser }) {
                 type="password"
                 className={styles.input}
                 value={currentPw}
-                onChange={(e) => { setCurrentPw(e.target.value); changePwMutation.reset(); }}
+                onChange={(e) => {
+                  setCurrentPw(e.target.value);
+                  changePwMutation.reset();
+                }}
                 autoComplete="current-password"
                 required
               />
@@ -2469,10 +2556,14 @@ function SigurnostTab({ user }: { user: AuthUser }) {
                   autoComplete="new-password"
                   required
                 />
-                {pwTooShort && <span className={styles.fieldError}>Minimalno 6 znakova</span>}
+                {pwTooShort && (
+                  <span className={styles.fieldError}>Minimalno 6 znakova</span>
+                )}
               </div>
               <div className={styles.field}>
-                <label className={styles.fieldLabel}>Potvrdi novu lozinku</label>
+                <label className={styles.fieldLabel}>
+                  Potvrdi novu lozinku
+                </label>
                 <input
                   type="password"
                   className={`${styles.input}${pwMismatch ? ` ${styles.inputError}` : ""}`}
@@ -2481,10 +2572,16 @@ function SigurnostTab({ user }: { user: AuthUser }) {
                   autoComplete="new-password"
                   required
                 />
-                {pwMismatch && <span className={styles.fieldError}>Lozinke se ne podudaraju</span>}
+                {pwMismatch && (
+                  <span className={styles.fieldError}>
+                    Lozinke se ne podudaraju
+                  </span>
+                )}
               </div>
             </div>
-            {changePwError && <div className={styles.errorMsg}>{changePwError}</div>}
+            {changePwError && (
+              <div className={styles.errorMsg}>{changePwError}</div>
+            )}
             <div className={styles.formActions}>
               <button
                 type="submit"
@@ -2542,7 +2639,11 @@ function fmtDate(iso: string) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("bs-BA", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("bs-BA", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 function PretplataTab({ user }: { user: AuthUser }) {
@@ -2586,11 +2687,15 @@ function PretplataTab({ user }: { user: AuthUser }) {
             <div className={styles.subDates}>
               <div className={styles.subDateItem}>
                 <span className={styles.subDateLabel}>Vrijedi od</span>
-                <span className={styles.subDateValue}>{fmtDate(sub.startDate)}</span>
+                <span className={styles.subDateValue}>
+                  {fmtDate(sub.startDate)}
+                </span>
               </div>
               <div className={styles.subDateItem}>
                 <span className={styles.subDateLabel}>Vrijedi do</span>
-                <span className={styles.subDateValue}>{fmtDate(sub.endDate)}</span>
+                <span className={styles.subDateValue}>
+                  {fmtDate(sub.endDate)}
+                </span>
               </div>
             </div>
             <div className={styles.subStatusRow}>
@@ -2600,7 +2705,13 @@ function PretplataTab({ user }: { user: AuthUser }) {
                 <span className={styles.subExpired}>● Istekla</span>
               )}
               {isExpired && (
-                <span className={styles.subStatusNote}>Za obnovu kontaktirajte nas putem <a href="/kontakt" className={styles.planLink}>kontakt forme</a>.</span>
+                <span className={styles.subStatusNote}>
+                  Za obnovu kontaktirajte nas putem{" "}
+                  <a href="/kontakt" className={styles.planLink}>
+                    kontakt forme
+                  </a>
+                  .
+                </span>
               )}
             </div>
           </div>
@@ -2609,14 +2720,23 @@ function PretplataTab({ user }: { user: AuthUser }) {
         {!isPaid && (
           <div className={styles.planUpgrade}>
             <p className={styles.planUpgradeText}>
-              Nadogradite na <strong>Pro</strong> ili <strong>Business</strong> plan za pristup svim funkcionalnostima.
+              Nadogradite na <strong>Pro</strong> ili <strong>Business</strong>{" "}
+              plan za pristup svim funkcionalnostima.
             </p>
-            <button className={styles.btnPrimary} disabled style={{ opacity: 0.6 }}>
+            <button
+              className={styles.btnPrimary}
+              disabled
+              style={{ opacity: 0.6 }}
+            >
               Nadogradi — uskoro dostupno
             </button>
             <p className={styles.planComingSoon}>
-              Online pretplata je u pripremi. Za aktivaciju plana kontaktirajte nas putem{" "}
-              <a href="/kontakt" className={styles.planLink}>kontakt forme</a>.
+              Online pretplata je u pripremi. Za aktivaciju plana kontaktirajte
+              nas putem{" "}
+              <a href="/kontakt" className={styles.planLink}>
+                kontakt forme
+              </a>
+              .
             </p>
           </div>
         )}
@@ -2666,6 +2786,7 @@ export default function Profil() {
     { key: "historija", label: "Dokumenti", icon: <LuHistory size={17} /> },
     { key: "sigurnost", label: "Sigurnost", icon: <LuShield size={17} /> },
     { key: "pretplata", label: "Pretplata", icon: <LuCreditCard size={17} /> },
+    { key: "admin", label: "Admin", icon: <LuSettings size={17} /> },
   ];
 
   return (
@@ -2683,16 +2804,34 @@ export default function Profil() {
         </div>
 
         <nav className={styles.sidebarNav}>
-          {NAV_ITEMS.map(({ key, label, icon }) => (
-            <button
-              key={key}
-              className={`${styles.navItem} ${tab === key ? styles.navItemActive : ""}`}
-              onClick={() => setTab(key)}
-            >
-              <span className={styles.navIcon}>{icon}</span>
-              {label}
-            </button>
-          ))}
+          {NAV_ITEMS.map(({ key, label, icon }) => {
+            const btn = (
+              <button
+                key={key}
+                className={`${styles.navItem} ${tab === key ? styles.navItemActive : ""}`}
+                onClick={() => {
+                  if (key === "admin") {
+                    router.push("/admin/korisnici");
+                    return;
+                  }
+                  setTab(key);
+                }}
+              >
+                <span className={styles.navIcon}>{icon}</span>
+                {label}
+              </button>
+            );
+
+            if (key === "admin") {
+              return (
+                <RoleGuard key={key} roles={["ADMIN"]} mode="hide">
+                  {btn}
+                </RoleGuard>
+              );
+            }
+
+            return btn;
+          })}
         </nav>
       </aside>
 
