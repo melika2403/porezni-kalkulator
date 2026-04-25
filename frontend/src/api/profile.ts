@@ -29,6 +29,7 @@ export type ProfileUpdatePayload = {
   phone?: string;
   address?: string;
   jmbg?: string | null;
+  idCardNumber?: string | null;
 };
 
 export type Subscription = {
@@ -128,6 +129,7 @@ export type OrgOwner = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  idCardNumber: string | null;
 };
 
 export type OrgOwnerPayload = {
@@ -137,6 +139,7 @@ export type OrgOwnerPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  idCardNumber?: string;
 };
 
 export type Organization = {
@@ -254,6 +257,7 @@ export type Worker = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  idCardNumber: string | null;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
@@ -348,6 +352,7 @@ export type PersonClient = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  idCardNumber: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -360,6 +365,7 @@ export type PersonClientPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  idCardNumber?: string;
 };
 
 export function getPersonClients() {
@@ -379,6 +385,21 @@ export function updatePersonClient(
 ) {
   return request<PersonClient>(`/api/clients/${id}`, {
     method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePersonClient(id: number) {
+  return request<null>(`/api/clients/${id}`, { method: "DELETE" });
+}
+
+export function getAmortizacijaClients() {
+  return request<PersonClient[]>("/api/clients/amortizacija");
+}
+
+export function createAmortizacijaClient(payload: { firstName?: string }) {
+  return request<PersonClient>("/api/clients/amortizacija", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }

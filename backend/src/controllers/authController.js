@@ -57,13 +57,30 @@ function publicUserSelect() {
     role: true,
     createdAt: true,
     updatedAt: true,
+    googleId: true,
+    isEmailVerified: true,
+    password: true,
+    idCardNumber: true,
+    subscription: {
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
+      },
+    },
   };
 }
 
 function toPublicUser(user) {
   if (!user) return null;
-  const { jmbg, ...rest } = user;
-  return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
+  const { jmbg, password, googleId, ...rest } = user;
+  return {
+    ...rest,
+    jmbg: jmbg ? decryptJmbg(jmbg) : null,
+    hasPassword: !!password,
+    isGoogleUser: !!googleId,
+  };
 }
 
 async function register(req, res) {
@@ -484,6 +501,41 @@ async function googleCallback(req, res) {
   }
 }
 
+async function changePassword(req, res) {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+  }
+
+  const { currentPassword, newPassword } = req.body ?? {};
+
+  if (!isNonEmptyString(currentPassword)) {
+    return res.status(400).json({ ok: false, error: "CURRENT_PASSWORD_REQUIRED" });
+  }
+  if (!isNonEmptyString(newPassword) || newPassword.trim().length < 6) {
+    return res.status(400).json({ ok: false, error: "PASSWORD_TOO_SHORT" });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { password: true },
+  });
+
+  if (!user || !user.password) {
+    return res.status(400).json({ ok: false, error: "NO_PASSWORD" });
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.password);
+  if (!valid) {
+    return res.status(400).json({ ok: false, error: "WRONG_PASSWORD" });
+  }
+
+  const hash = await bcrypt.hash(newPassword.trim(), 10);
+  await prisma.user.update({ where: { id: userId }, data: { password: hash } });
+
+  return res.status(200).json({ ok: true, data: null });
+}
+
 module.exports = {
   register,
   login,
@@ -495,4 +547,5 @@ module.exports = {
   resendVerification,
   googleStart,
   googleCallback,
+  changePassword,
 };

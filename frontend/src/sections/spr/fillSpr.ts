@@ -41,7 +41,8 @@ export interface SprData {
   row26Expenses: number; // Rashodi (red 24) — computed
   row27Adjustments: number; // Porezne korekcije (+/-)
   row28NetIncome: number; // Dohodak iz djelatnosti (25 - 26 +/- 27) — computed
-  row29PersonalDeduction: number; // Lični odbitak
+  row29PersonalDeduction: number; // Miesečni iznos akontacije
+  row29Months: number; // Broj mieseci za akontaciju
   signAdjustment: "+" | "-" | ""; // da li je korekcija + ili -
 
   // Izjava
@@ -181,9 +182,7 @@ export async function fillSprTemplate(data: SprData): Promise<Uint8Array> {
     10
   );
   setBold("fill_5_2", km(data.row29PersonalDeduction), 10);
-
-  // +/- sign for row 27 adjustment
-  setBold("Text1", data.signAdjustment, 9);
+  setBold("Text1", String(data.row29Months), 9);
 
   /* ── Izjava ── */
   setBold("Datum", data.dateSigned, 10);
