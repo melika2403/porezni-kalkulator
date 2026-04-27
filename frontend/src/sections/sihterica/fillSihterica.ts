@@ -38,8 +38,9 @@ const COLS: Record<string, [number, number]> = {
   totalHrs:   [736, 805],
 };
 
-const ROWS_P1 = [418,402,386,370,354,338,322,306,290,274,258,242,227,210,194,179,163,147,131,114,99,83];
-const ROWS_P2 = [510,493,477,461,446,429,413,398,382];
+const ROW_STEP = 16;
+const ROWS_P1 = Array.from({ length: 22 }, (_, i) => 418 - i * ROW_STEP);
+const ROWS_P2 = Array.from({ length: 9 }, (_, i) => 510 - i * ROW_STEP);
 
 function parseTimeToMins(hhmm: string): number | null {
   if (!hhmm) return null;
@@ -86,6 +87,20 @@ function drawCentered(
   const cellWidth = col[1] - col[0];
   const x = col[0] + Math.max(0, (cellWidth - textWidth) / 2);
   page.drawText(text, { x, y, size, font, color: BLACK });
+}
+
+function drawLeft(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  page: any,
+  text: string,
+  col: [number, number],
+  y: number,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  font: any,
+  size: number = FONT_SIZE,
+) {
+  if (!text) return;
+  page.drawText(text, { x: col[0] + 3, y, size, font, color: BLACK });
 }
 
 const DAY_NAMES = ["Ned", "Pon", "Uto", "Sri", "Čet", "Pet", "Sub"];
@@ -163,6 +178,10 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   const draw = (page: any, text: string, col: [number, number], rowY: number, size?: number) => {
     drawCentered(page, text, col, rowY + Y_OFFSET, font, size);
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const drawL = (page: any, text: string, col: [number, number], rowY: number, size?: number) => {
+    drawLeft(page, text, col, rowY + Y_OFFSET, font, size);
+  };
 
   // Header
   const monthStr = MONTH_NAMES[data.month - 1];
@@ -181,14 +200,14 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
     const label = `${dd}.${mm}.${data.year}. ${DAY_NAMES[date.getDay()]}`;
     const y = ROWS_P1[i];
 
-    draw(page1, label, COLS.date, y, 8);
+    drawL(page1, label, COLS.date, y, 8);
 
     const entry = data.days[i];
     if (entry) {
       const xMark = entry.absence && !entry.startTime && !entry.endTime;
       draw(page1, xMark ? "x" : entry.startTime, COLS.startTime, y);
       draw(page1, xMark ? "x" : entry.endTime, COLS.endTime, y);
-      draw(page1, entry.zastoj, COLS.zastoj, y);
+      draw(page1, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
       draw(page1, calcTotalDaily(entry), COLS.totalDaily, y);
       draw(page1, entry.fieldWork, COLS.fieldWork, y);
       draw(page1, entry.standby, COLS.standby, y);
@@ -207,14 +226,14 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
     const label = `${dd}.${mm}.${data.year}. ${DAY_NAMES[date.getDay()]}`;
     const y = ROWS_P2[i];
 
-    draw(page2, label, COLS.date, y, 8);
+    drawL(page2, label, COLS.date, y, 8);
 
     const entry = data.days[i + 22];
     if (entry) {
       const xMark = entry.absence && !entry.startTime && !entry.endTime;
       draw(page2, xMark ? "x" : entry.startTime, COLS.startTime, y);
       draw(page2, xMark ? "x" : entry.endTime, COLS.endTime, y);
-      draw(page2, entry.zastoj, COLS.zastoj, y);
+      draw(page2, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
       draw(page2, calcTotalDaily(entry), COLS.totalDaily, y);
       draw(page2, entry.fieldWork, COLS.fieldWork, y);
       draw(page2, entry.standby, COLS.standby, y);

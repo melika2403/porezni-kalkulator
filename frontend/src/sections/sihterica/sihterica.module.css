@@ -857,6 +857,36 @@
   transform: none;
 }
 
+.exportBtnSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.exportBtnSecondary:hover:not(:disabled) {
+  background: var(--paper);
+  border-color: var(--sage);
+}
+
+.exportBtnSecondary svg {
+  width: 18px;
+  height: 18px;
+}
+
+.exportBtnSecondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Notice ── */
 .dataNapomena {
   font-size: 11px;
