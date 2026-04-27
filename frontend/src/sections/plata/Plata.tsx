@@ -111,11 +111,12 @@ export default function PreracunPlate() {
       <div className={styles.header}>
         <div className={styles.label}>Kalkulator plate — FBiH</div>
         <h1 className={styles.h1}>
-          Preračun <em>neto / bruto</em> plate
+          Kalkulator plate FBiH — preračun <em>neto i bruto</em>
         </h1>
         <p className={styles.subtitle}>
-          Doprinosi i porez po važećim stopama u Federaciji BiH.
-          Unesite iznos i dobijte kompletan pregled obustava.
+          Online kalkulator plate za Federaciju BiH — preračunajte neto u bruto
+          i bruto u neto po važećim stopama poreza i doprinosa. Unesite iznos i
+          dobijete kompletan pregled obustava, besplatno i bez registracije.
         </p>
       </div>
 

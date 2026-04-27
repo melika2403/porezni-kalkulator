@@ -299,13 +299,14 @@ export default function SprForm() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac SPR-1053</div>
         <h1 className={styles.h1}>
-          Specifikacija za utvrđivanje dohotka od{" "}
+          SPR-1053 obrazac — specifikacija dohotka od{" "}
           <em>samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
-          Obračun dohotka od obrta, slobodnih zanimanja i poljoprivrede za
-          godišnju poreznu prijavu (GPD-1051). Popunite obrazac online i
-          preuzmite popunjeni SPR-1053 PDF — besplatno.
+          Kako popuniti SPR-1053 obrazac? Obračun dohotka od obrta, slobodnih
+          zanimanja i poljoprivrede za godišnju poreznu prijavu GPD-1051.
+          Popunite SPR-1053 obrazac online i preuzmite popunjeni PDF, besplatno
+          i bez registracije.
         </p>
       </div>
 

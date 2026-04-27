@@ -133,6 +133,16 @@ async function update(req, res) {
   if (phone !== undefined) data.phone = phone?.trim() || null;
   if (address !== undefined) data.address = address?.trim() || null;
 
+  const { defaultStartTime, defaultEndTime, defaultDaysOff, defaultPause } = req.body ?? {};
+  if (defaultStartTime !== undefined)
+    data.defaultStartTime = defaultStartTime?.trim() || null;
+  if (defaultEndTime !== undefined)
+    data.defaultEndTime = defaultEndTime?.trim() || null;
+  if (defaultDaysOff !== undefined)
+    data.defaultDaysOff = defaultDaysOff?.trim() || null;
+  if (defaultPause !== undefined)
+    data.defaultPause = defaultPause?.trim() || null;
+
   const finalStart = data.startDate !== undefined ? data.startDate : existing.startDate;
   const finalEnd = data.endDate !== undefined ? data.endDate : existing.endDate;
   if (finalStart && finalEnd && finalEnd <= finalStart)

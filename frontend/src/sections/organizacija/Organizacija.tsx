@@ -22,6 +22,7 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import DateInput from "src/components/DateInput/DateInput";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -144,22 +145,19 @@ function WorkerFormFields({
         <label className={styles.fieldLabel}>
           Početak radnog odnosa{isVlasnik ? " (opciono)" : ""}
         </label>
-        <input
+        <DateInput
           className={styles.input}
-          type="date"
           value={value.startDate}
-          onChange={set("startDate")}
+          onValueChange={(iso) => onChange({ ...value, startDate: iso })}
           required={!isVlasnik}
         />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Kraj radnog odnosa</label>
-        <input
+        <DateInput
           className={styles.input}
-          type="date"
           value={value.endDate}
-          onChange={set("endDate")}
-          min={value.startDate || undefined}
+          onValueChange={(iso) => onChange({ ...value, endDate: iso })}
         />
       </div>
     </div>

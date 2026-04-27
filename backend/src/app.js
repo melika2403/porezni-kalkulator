@@ -11,6 +11,7 @@ const organizationsRoutes = require("./routes/organizationsRoutes");
 const formsRoutes = require("./routes/formsRoutes");
 const clientsRoutes = require("./routes/clientsRoutes");
 const amortizacijaRoutes = require("./routes/amortizacijaRoutes");
+const sihtericaRoutes = require("./routes/sihtericaRoutes");
 const documentsRoutes = require("./routes/documentsRoutes");
 const subscriptionsRoutes = require("./routes/subscriptionsRoutes");
 const contactRoutes = require("./routes/contactRoutes");
@@ -45,13 +46,14 @@ app.use("/api/organizations", organizationsRoutes);
 app.use("/api/forms", formsRoutes);
 app.use("/api/clients", clientsRoutes);
 app.use("/api/amortizacija", amortizacijaRoutes);
+app.use("/api/sihterica", sihtericaRoutes);
 app.use("/api/documents", documentsRoutes);
 app.use("/api/users", subscriptionsRoutes);
 app.use("/api/contact", contactRoutes);
 
 // Sync database tables and start server
 sequelize
-  .sync({ alter: false })
+  .sync({ alter: true })
   .then(() => {
     console.log("Database synced successfully");
     app.listen(port, () => {

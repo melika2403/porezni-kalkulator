@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = {
-  title: "SPR-1053 Obrazac — Automatska izrada i PDF preuzimanje",
+  title: "SPR-1053 obrazac — specifikacija dohotka od samostalne djelatnosti | Porezni Kalkulator BiH",
   description:
-    "Popunite SPR-1053 obrazac online i preuzmite popunjeni PDF. Specifikacija za utvrđivanje dohotka od samostalne djelatnosti — besplatno, bez registracije.",
+    "Kako popuniti SPR-1053 obrazac? Online popuna obrasca za specifikaciju dohotka od obrta, slobodnih zanimanja i poljoprivrede u FBiH. Preuzmite popunjeni PDF besplatno, bez registracije.",
   alternates: { canonical: "https://poreznikalkulator.ba/spr" },
 };
 

@@ -367,12 +367,12 @@ export default function Zo3Form() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac ZO 3</div>
         <h1 className={styles.h1}>
-          Prijava o promjeni u tijeku <em>osiguranja</em>
+          ZO3 obrazac — prijava člana porodice na <em>zdravstveno osiguranje</em>
         </h1>
         <p className={styles.subtitle}>
-          Prijavite supružnika, dijete ili roditelja na zdravstveno osiguranje u
-          FBiH. Popunite ZO3 obrazac online i preuzmite popunjeni PDF —
-          besplatno, bez registracije.
+          Kako ispuniti ZO3 obrazac? Prijavite supružnika, dijete ili roditelja na
+          zdravstveno osiguranje u FBiH — popunite ZO3 obrazac online i preuzmite
+          popunjeni PDF, besplatno i bez registracije.
         </p>
       </div>
 
