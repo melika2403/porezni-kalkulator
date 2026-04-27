@@ -17,6 +17,7 @@ import {
   getClientYears,
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import SaveToast from "src/components/SaveToast/SaveToast";
 import { type PersonClient, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
@@ -261,7 +262,6 @@ export default function Amortizacija() {
   ]);
   const [deletedYears, setDeletedYears] = useState<Set<number>>(new Set());
   const [isDirty, setIsDirty] = useState(false);
-  const [pendingYear, setPendingYear] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<
@@ -387,6 +387,17 @@ export default function Amortizacija() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
+  /* ── Auto-save (debounced) ── */
+  const handleSaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  useEffect(() => {
+    if (!isDirty) return;
+    if (isLoadingRef.current) return;
+    const handle = setTimeout(() => {
+      void handleSaveRef.current();
+    }, 1500);
+    return () => clearTimeout(handle);
+  }, [isDirty, obveznik, rows]);
+
   /* ── Load helpers ── */
   const applyLoadedData = useCallback(
     (data: { obveznik?: ObveznikData; rows?: AssetRow[] }) => {
@@ -506,13 +517,12 @@ export default function Amortizacija() {
   );
 
   const handleYearClick = useCallback(
-    (yr: number) => {
+    async (yr: number) => {
       if (parseInt(obveznik.godina) === yr) return;
       if (isDirty) {
-        setPendingYear(String(yr));
-      } else {
-        doSwitchYear(String(yr));
+        await handleSaveRef.current();
       }
+      doSwitchYear(String(yr));
     },
     [isDirty, obveznik.godina, doSwitchYear],
   );
@@ -545,6 +555,10 @@ export default function Amortizacija() {
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
   }, [obveznik, rows, currentYear, clientsQuery]);
+
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
 
   /* ── Carryover ── */
   const handleCarryover = useCallback(async () => {
@@ -950,7 +964,6 @@ export default function Amortizacija() {
       setVisitedYears([parseInt(currentYear)]);
       setDeletedYears(new Set());
       setSaveStatus("idle");
-      setPendingYear(null);
       isLoadingRef.current = true;
       setRows([newRow()]);
       setObveznik(makeObveznik(currentYear));
@@ -1113,16 +1126,18 @@ export default function Amortizacija() {
 
   return (
     <div className={styles.pageOuter}>
+      <SaveToast status={saveStatus} />
       {/* Header — full width, above sidebar layout */}
       <div className={styles.header}>
         <p className={styles.label}>Obrazac PLDI-1043</p>
         <h1 className={styles.h1}>
-          Popisna lista <em>dugotrajne imovine</em>
+          PLDI-1043 obrazac — popisna lista <em>dugotrajne imovine i amortizacija</em>
         </h1>
         <p className={styles.subtitle}>
-          Evidencija dugotrajne imovine i automatski obračun amortizacije po
-          porezno priznatim stopama. Generišite PLDI-1043 obrazac za godišnju
-          poreznu prijavu — besplatno.
+          Kako popuniti PLDI-1043 obrazac? Evidencija dugotrajne imovine i
+          automatski obračun amortizacije po porezno priznatim stopama u FBiH.
+          Generišite popunjeni PLDI-1043 PDF za godišnju poreznu prijavu,
+          besplatno i bez registracije.
         </p>
       </div>
 
@@ -1178,39 +1193,6 @@ export default function Amortizacija() {
     <div className={styles.pageLayout}>
     {sidebar}
     <div className={styles.page}>
-
-      {/* Pending year switch warning */}
-      {pendingYear && (
-        <div className={styles.dirtyWarning}>
-          <span>Imate nespremljene promjene. Šta želite uraditi?</span>
-          <button
-            className={styles.dirtyWarnSave}
-            onClick={async () => {
-              await handleSave();
-              setPendingYear(null);
-              doSwitchYear(pendingYear);
-            }}
-          >
-            Sačuvaj i prijeđi
-          </button>
-          <button
-            className={styles.dirtyWarnDiscard}
-            onClick={() => {
-              setPendingYear(null);
-              setIsDirty(false);
-              doSwitchYear(pendingYear!);
-            }}
-          >
-            Zanemari promjene
-          </button>
-          <button
-            className={styles.dirtyWarnCancel}
-            onClick={() => setPendingYear(null)}
-          >
-            Ostani
-          </button>
-        </div>
-      )}
 
       {/* Dio 1 — Podaci */}
       <section className={styles.section}>
@@ -1722,7 +1704,6 @@ export default function Amortizacija() {
       </section>
 
       {/* Actions */}
-      {isDirty && <p className={styles.dirtyBadge}>Promjene nisu spremljene</p>}
       <div className={styles.actionsRow}>
         <div className={styles.carryoverWrap}>
           <button

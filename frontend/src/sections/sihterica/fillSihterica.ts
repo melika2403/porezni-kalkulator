@@ -16,6 +16,9 @@ export interface SihtenicaData {
   month: number;
   year: number;
   days: (DayEntry | null)[];
+  orgName?: string;
+  orgAddress?: string;
+  orgTaxNumber?: string;
 }
 
 const BLACK = rgb(0, 0, 0);
@@ -65,19 +68,7 @@ function calcTotalDaily(entry: DayEntry): string {
 }
 
 function calcTotalHrs(entry: DayEntry): string {
-  const daily = calcTotalDaily(entry);
-  if (!daily) return "";
-  const extras = [entry.fieldWork, entry.standby, entry.absence, entry.other]
-    .map((v) => {
-      const n = parseFloat(v.replace(",", "."));
-      return isNaN(n) ? 0 : n;
-    });
-  const hasExtras = extras.some((v) => v > 0);
-  if (hasExtras) {
-    const total = extras.reduce((a, b) => a + b, 0);
-    return total % 1 === 0 ? `${total}h` : `${total.toFixed(2)}h`;
-  }
-  return daily;
+  return calcTotalDaily(entry);
 }
 
 function drawCentered(
@@ -110,6 +101,61 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   doc.registerFontkit(fontkit);
   const font = await doc.embedFont(fontBytes);
 
+  // Find named FreeText annotations on page 1 (T = OrgName / OrgAddress / OrgJIB)
+  // and draw the values left-aligned inside their boxes.
+  const headerByName: Record<string, string> = {
+    OrgName: data.orgName ?? "",
+    OrgAddress: data.orgAddress ?? "",
+    OrgJIB: data.orgTaxNumber ?? "",
+  };
+  try {
+    const page0 = doc.getPage(0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const node = page0.node as any;
+    const annotsAny = node.Annots?.();
+    if (annotsAny) {
+      const arr: unknown[] = annotsAny.asArray ? annotsAny.asArray() : annotsAny;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctx = doc.context as any;
+
+      const indicesToRemove: number[] = [];
+      for (let i = 0; i < arr.length; i++) {
+        const obj = ctx.lookup(arr[i]);
+        if (!obj || !obj.get) continue;
+        const subtypeStr = obj.get(ctx.obj("Subtype"))?.toString?.() ?? "";
+        if (!subtypeStr.includes("FreeText")) continue;
+        const tRaw = obj.get(ctx.obj("T"))?.toString?.() ?? "";
+        const t = tRaw.replace(/^\(|\)$/g, "").trim();
+        if (!(t in headerByName)) continue;
+        const text = headerByName[t];
+        const rectObj = obj.get(ctx.obj("Rect"));
+        if (!rectObj || !rectObj.asArray) continue;
+        const rArr = rectObj.asArray();
+        const x1 = rArr[0]?.asNumber?.();
+        const y1 = rArr[1]?.asNumber?.();
+        const y2 = rArr[3]?.asNumber?.();
+        if (
+          typeof x1 !== "number" ||
+          typeof y1 !== "number" ||
+          typeof y2 !== "number"
+        ) continue;
+        if (text) {
+          const size = t === "OrgName" ? 15 : 13;
+          const x = x1 + 4;
+          const y = (y1 + y2) / 2 - size / 3;
+          page0.drawText(text, { x, y, size, font, color: BLACK });
+        }
+        indicesToRemove.push(i);
+      }
+      // Remove the annotations so their visual overlay (border/icon) doesn't cover our text
+      indicesToRemove.sort((a, b) => b - a).forEach((idx) => {
+        if (typeof annotsAny.remove === "function") annotsAny.remove(idx);
+      });
+    }
+  } catch {
+    /* silently ignore */
+  }
+
   const page1 = doc.getPage(0);
   const page2 = doc.getPage(1);
 
@@ -120,8 +166,8 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
 
   // Header
   const monthStr = MONTH_NAMES[data.month - 1];
-  draw(page1, monthStr, [452, 518], 508);
-  draw(page1, String(data.year), [566, 625], 508);
+  draw(page1, monthStr, [430, 545], 509);
+  draw(page1, String(data.year), [545, 605], 509);
   draw(page1, data.workerName, [197, 344], 495);
 
   const daysInMonth = new Date(data.year, data.month, 0).getDate();
@@ -139,8 +185,9 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
 
     const entry = data.days[i];
     if (entry) {
-      draw(page1, entry.startTime, COLS.startTime, y);
-      draw(page1, entry.endTime, COLS.endTime, y);
+      const xMark = entry.absence && !entry.startTime && !entry.endTime;
+      draw(page1, xMark ? "x" : entry.startTime, COLS.startTime, y);
+      draw(page1, xMark ? "x" : entry.endTime, COLS.endTime, y);
       draw(page1, entry.zastoj, COLS.zastoj, y);
       draw(page1, calcTotalDaily(entry), COLS.totalDaily, y);
       draw(page1, entry.fieldWork, COLS.fieldWork, y);
@@ -164,8 +211,9 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
 
     const entry = data.days[i + 22];
     if (entry) {
-      draw(page2, entry.startTime, COLS.startTime, y);
-      draw(page2, entry.endTime, COLS.endTime, y);
+      const xMark = entry.absence && !entry.startTime && !entry.endTime;
+      draw(page2, xMark ? "x" : entry.startTime, COLS.startTime, y);
+      draw(page2, xMark ? "x" : entry.endTime, COLS.endTime, y);
       draw(page2, entry.zastoj, COLS.zastoj, y);
       draw(page2, calcTotalDaily(entry), COLS.totalDaily, y);
       draw(page2, entry.fieldWork, COLS.fieldWork, y);
@@ -174,6 +222,26 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
       draw(page2, entry.other, COLS.other, y);
       draw(page2, calcTotalHrs(entry), COLS.totalHrs, y);
     }
+  }
+
+  // Total monthly hours — sum of daily minutes across all days
+  let totalMins = 0;
+  for (let i = 0; i < daysInMonth; i++) {
+    const entry = data.days[i];
+    if (!entry) continue;
+    const start = parseTimeToMins(entry.startTime);
+    const end = parseTimeToMins(entry.endTime);
+    if (start === null || end === null) continue;
+    const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
+    const total = end - start - zastojMins;
+    if (total > 0) totalMins += total;
+  }
+  if (totalMins > 0) {
+    draw(page2, minsToHM(totalMins), COLS.totalHrs, 365);
+  }
+
+  while (doc.getPageCount() > 2) {
+    doc.removePage(doc.getPageCount() - 1);
   }
 
   return doc.save();

@@ -3,9 +3,10 @@ import UgovorOPozajmici from "src/sections/ugovor-o-pozajmici/UgovorOPozajmici";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Ugovor o pozajmici — Generator | Porezni Kalkulator BiH",
+  title: "Ugovor o pozajmici novca — predložak i online popuna | Porezni Kalkulator BiH",
   description:
-    "Kreiraj ugovor o pozajmici novca po standardnom predlošku u nekoliko koraka. Popunite podatke i preuzmite gotov ugovor spreman za potpis i arhiviranje.",
+    "Kako napisati ugovor o pozajmici novca? Kreirajte pravno validan ugovor između fizičkih ili pravnih lica u BiH — definirajte iznos, kamatu, rok i uslove. Preuzmite gotov ugovor u PDF ili Word formatu, besplatno.",
+  alternates: { canonical: "https://poreznikalkulator.ba/ugovor-o-pozajmici" },
 };
 
 const faqSchema = {

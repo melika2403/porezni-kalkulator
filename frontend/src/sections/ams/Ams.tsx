@@ -280,14 +280,14 @@ export default function AmsForm() {
       <div className={styles.header}>
         <p className={styles.label}>Obrazac AMS-1035</p>
         <h1 className={styles.h1}>
-          AMS - 1035 <em>Generator</em>
+          AMS-1035 obrazac — akontacija poreza po odbitku na <em>druge samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
-          Brza i jednostavna popuna AMS‑1035 obrazca. Sa našim generatorom
-          jednostavno u par koraka popunite AMS obrazac za akontaciju poreza po
-          odbitku na druge samostalne djelatnosti na prihod iz inostranstva. Kad
-          kreirate obrazac imate mogućnost štampanja automatski popunjenih
-          uplatnica spremnih za banku, ili elektronsko plaćanje.
+          Kako popuniti AMS-1035 obrazac? Brz i jednostavan AMS-1035 generator —
+          u par koraka popunite obrazac za akontaciju poreza po odbitku na druge
+          samostalne djelatnosti i prihod iz inostranstva. Kad kreirate obrazac
+          dobijete i automatski popunjene uplatnice spremne za banku ili
+          elektronsko plaćanje, besplatno i bez registracije.
         </p>
       </div>
 

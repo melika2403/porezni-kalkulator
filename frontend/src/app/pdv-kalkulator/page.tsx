@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = {
-  title: "PDV Kalkulator BiH — Preračun PDV-a u oba smjera",
+  title: "PDV kalkulator BiH — preračun PDV-a u oba smjera (stopa 17%) | Porezni Kalkulator BiH",
   description:
-    "Besplatni PDV kalkulator za Bosnu i Hercegovinu. Preračunajte PDV iz cijene bez PDV-a ili iz maloprodajne cijene. Stopa PDV-a 17%. Podrška za KM i EUR.",
+    "Online PDV kalkulator za Bosnu i Hercegovinu (stopa 17%). Preračunajte PDV iz cijene bez PDV-a ili iz maloprodajne cijene, podrška za KM i EUR — besplatno i bez registracije.",
   alternates: { canonical: "https://poreznikalkulator.ba/pdv-kalkulator" },
 };
 

@@ -1,9 +1,592 @@
-.page {
+.pageOuter {
   padding: 3rem 2rem 5rem;
-  max-width: 1320px;
+  max-width: 1380px;
   margin: 0 auto;
   animation: fadeUp 0.5s ease both;
 }
+
+.pageLayout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.page {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  max-width: none;
+  animation: none;
+  margin: 0;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 1rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.sidebarHeader {
+  padding: 0.75rem 1rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+}
+
+.sidebarOrgWrap {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebarOrgSelect {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--ink);
+  outline: none;
+}
+
+.sidebarEmpty {
+  padding: 1rem;
+  font-size: 12px;
+  color: var(--mid);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.sidebarList {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.sidebarItemWrap {
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebarItemWrap:last-child {
+  border-bottom: none;
+}
+
+.sidebarItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  font-size: 13px;
+  font-family: inherit;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background 0.12s;
+}
+
+.sidebarItem:hover {
+  background: var(--paper);
+}
+
+.sidebarItemActive {
+  background: var(--sage-pale);
+  color: var(--sage);
+  font-weight: 600;
+}
+
+.sidebarDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sage);
+  flex-shrink: 0;
+}
+
+.sidebarDotEmpty {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.sidebarName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarCount {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mid);
+  background: var(--paper);
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+}
+
+.sidebarItemActive .sidebarCount {
+  background: var(--white);
+  color: var(--sage);
+}
+
+.sidebarHint {
+  padding: 0.75rem 0.85rem 0.85rem;
+  border-top: 1px solid var(--border);
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sidebarHintText {
+  font-size: 11.5px;
+  color: var(--mid);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.sidebarHintLink {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sage);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.sidebarHintLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Period bar (year + month chips) ── */
+.periodBar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.yearChips {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.yearChip {
+  padding: 0.35rem 0.85rem;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  background: var(--paper);
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.yearChip:hover {
+  color: var(--ink);
+}
+
+.yearChipActive {
+  background: var(--sage);
+  color: #fff;
+  border-color: var(--sage);
+}
+
+.yearChipNew {
+  border-style: dashed;
+  color: var(--sage);
+}
+
+.yearChipNew:hover {
+  background: var(--paper);
+  color: var(--sage);
+}
+
+.yearInput {
+  width: 70px;
+  padding: 0.35rem 0.5rem;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+.monthChips {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.monthChip {
+  padding: 0.3rem 0.6rem;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+  min-width: 50px;
+}
+
+.monthChip:hover {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.monthChipHasData {
+  color: var(--ink);
+  border-color: var(--sage);
+}
+
+.monthChipActive {
+  background: var(--sage);
+  color: #fff !important;
+  border-color: var(--sage);
+}
+
+.saveBadge {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.85rem;
+  font-size: 11px;
+  color: var(--mid);
+}
+
+.saveOk {
+  color: var(--sage);
+}
+
+.saveErr {
+  color: #c0392b;
+}
+
+/* ── Worker header inside editor ── */
+.workerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.workerName {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.workerPeriod {
+  color: var(--mid);
+  font-size: 0.9em;
+  font-style: italic;
+}
+
+.deleteMonthBtn {
+  padding: 0.4rem 0.85rem;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.deleteMonthBtn:hover {
+  color: #c0392b;
+  border-color: #c0392b;
+}
+
+.deleteInline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.deleteInlineConfirm {
+  padding: 0.35rem 0.7rem;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.deleteInlineCancel {
+  padding: 0.35rem 0.7rem;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* ── Auto-fill panel ── */
+.autoFillPanel {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.autoFillHeader {
+  margin-bottom: 0.6rem;
+}
+
+.autoFillTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+
+.autoFillRow {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.autoFillRow2 {
+  margin-top: 0.85rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.autoFillField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 100px;
+}
+
+.autoFillLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mid);
+}
+
+.autoFillInput {
+  padding: 0.4rem 0.55rem;
+  font-family: inherit;
+  font-size: 13px;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+.autoFillInput:focus {
+  border-color: var(--sage);
+}
+
+.autoFillRange {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.autoFillInputSm {
+  width: 50px;
+  padding: 0.4rem 0.5rem;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: center;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+.autoFillInputSm:focus {
+  border-color: var(--sage);
+}
+
+.autoFillRangeSep {
+  color: var(--mid);
+  font-size: 13px;
+}
+
+.autoFillDays {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.autoFillDayChip {
+  padding: 0.3rem 0.55rem;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--white);
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.autoFillDayChip:hover {
+  color: var(--ink);
+}
+
+.autoFillDayChipActive {
+  background: var(--sage);
+  color: #fff;
+  border-color: var(--sage);
+}
+
+.autoFillActions {
+  margin-top: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.autoFillCheckbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 12px;
+  color: var(--mid);
+  cursor: pointer;
+}
+
+.autoFillCheckboxLeft {
+  margin-right: auto;
+}
+
+.autoFillBtn {
+  padding: 0.55rem 1.1rem;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--sage);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.autoFillBtn:hover {
+  opacity: 0.9;
+}
+
+/* ── Empty editor state ── */
+.emptyState {
+  padding: 4rem 2rem;
+  text-align: center;
+  background: var(--white);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--mid);
+}
+
+.emptyIcon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.emptyText {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ── Upgrade gate ── */
+.upgradeCard {
+  max-width: 540px;
+  margin: 2rem auto 0;
+  padding: 2.5rem 2rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.upgradeIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.upgradeTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.5rem;
+  margin: 0 0 0.75rem;
+  color: var(--ink);
+}
+
+.upgradeText {
+  font-size: 14px;
+  color: var(--mid);
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+}
+
+.upgradeBtn {
+  display: inline-block;
+  padding: 0.7rem 1.5rem;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--sage);
+  color: #fff;
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.upgradeBtn:hover {
+  opacity: 0.9;
+}
+
 
 .header {
   margin-bottom: 2.5rem;
@@ -121,7 +704,7 @@
 
 .table {
   width: 100%;
-  min-width: 1000px;
+  min-width: 880px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -281,6 +864,54 @@
   text-align: center;
   margin-top: 1.5rem;
   font-style: italic;
+}
+
+.napomenaSection {
+  margin-top: 3rem;
+  padding: 1.5rem 1.75rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.napomenaTitle {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  margin: 0 0 1rem;
+}
+
+.napomenaBlock {
+  margin-bottom: 1.25rem;
+}
+
+.napomenaBlock:last-child {
+  margin-bottom: 0;
+}
+
+.napomenaIntro {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.55;
+  margin: 0 0 0.5rem;
+}
+
+.napomenaIntro em {
+  font-style: italic;
+}
+
+.napomenaList {
+  margin: 0;
+  padding-left: 1.5rem;
+  font-size: 12.5px;
+  color: var(--mid);
+  line-height: 1.6;
+}
+
+.napomenaList li {
+  margin-bottom: 0.2rem;
 }
 
 /* ── Empty state ── */

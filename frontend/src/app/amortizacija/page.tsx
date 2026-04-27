@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Amortizacija from "../../sections/amortizacija/Amortizacija";
 
 export const metadata: Metadata = {
-  title: "Obračun amortizacije stalnih sredstava — PLDI-1043 Generator | Porezni Kalkulator BiH",
+  title: "PLDI-1043 obrazac — popisna lista dugotrajne imovine i obračun amortizacije | Porezni Kalkulator BiH",
   description:
-    "Besplatna izrada PLDI-1043 obrasca — popisna lista dugotrajne imovine i obračun amortizacije stalnih sredstava u FBiH. Automatski prenos podataka iz godine u godinu, jednostavno upravljanje imovinom.",
+    "Kako popuniti PLDI-1043 obrazac? Online popis dugotrajne imovine i automatski obračun amortizacije stalnih sredstava u FBiH. Automatski prenos podataka iz godine u godinu — preuzmite popunjeni PDF besplatno.",
+  alternates: { canonical: "https://poreznikalkulator.ba/amortizacija" },
 };
 
 const faqSchema = {

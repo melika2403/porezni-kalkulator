@@ -469,12 +469,13 @@ export default function GpdForm() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac GPD-1051</div>
         <h1 className={styles.h1}>
-          Godišnja prijava <em>poreza na dohodak</em>
+          GPD-1051 obrazac — godišnja prijava <em>poreza na dohodak</em>
         </h1>
         <p className={styles.subtitle}>
-          Godišnja prijava poreza na dohodak za fizičke osobe u FBiH. Unesite
-          prihode od plaće, obrta, najma ili kapitala — automatski obračun i PDF
-          preuzimanje, besplatno.
+          Kako popuniti GPD-1051 obrazac? Godišnja prijava poreza na dohodak za
+          fizičke osobe u FBiH. Unesite prihode od plaće, obrta, najma ili
+          kapitala — automatski obračun i preuzimanje popunjenog PDF-a,
+          besplatno i bez registracije.
         </p>
       </div>
 
