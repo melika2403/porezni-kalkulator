@@ -53,7 +53,7 @@ app.use("/api/contact", contactRoutes);
 
 // Sync database tables and start server
 sequelize
-  .sync({ alter: true })
+  .sync({ alter: false })
   .then(() => {
     console.log("Database synced successfully");
     app.listen(port, () => {
