@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = {
-  title: "GPD-1051 Obrazac — Godišnja prijava poreza na dohodak",
+  title: "GPD-1051 obrazac — godišnja prijava poreza na dohodak | Porezni Kalkulator BiH",
   description:
     "Popunite GPD-1051 obrazac online i preuzmite popunjeni PDF. Godišnja prijava poreza na dohodak fizičkih lica — besplatno, bez registracije.",
   alternates: { canonical: "https://poreznikalkulator.ba/gpd" },

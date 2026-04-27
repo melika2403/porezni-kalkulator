@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import AmsForm from "src/sections/ams/Ams";
 
 export const metadata: Metadata = {
-  title: "AMS-1035 Generator — Akontacija poreza po odbitku | Porezni Kalkulator BiH",
+  title: "AMS-1035 obrazac — akontacija poreza po odbitku na prihod iz inostranstva | Porezni Kalkulator BiH",
   description:
-    "Generiši AMS-1035 obrazac za akontaciju poreza po odbitku na prihod iz inostranstva. Automatski obračun poreza, doprinosa i uplatnica spremnih za banku.",
+    "Kako popuniti AMS-1035 obrazac? Online generator AMS-1035 obrasca za akontaciju poreza po odbitku na druge samostalne djelatnosti i prihod iz inostranstva u FBiH. Automatski obračun, popunjene uplatnice spremne za banku — besplatno, bez registracije.",
+  alternates: { canonical: "https://poreznikalkulator.ba/ams" },
 };
 
 const faqSchema = {

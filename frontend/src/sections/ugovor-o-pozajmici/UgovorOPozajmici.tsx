@@ -111,10 +111,13 @@ export default function UgovorOPozajmici() {
       <div className={styles.header}>
         <p className={styles.label}>Ugovori</p>
         <h1 className={styles.h1}>
-          Ugovor o <em>pozajmici</em>
+          Ugovor o pozajmici novca — <em>predložak i online popuna</em>
         </h1>
         <p className={styles.subtitle}>
-          Kreirajte pravno validan ugovor o pozajmici novca između fizičkih ili pravnih lica. Definirajte iznos, kamatnu stopu, rok otplate i uslove vraćanja — preuzmite u PDF ili Word formatu.
+          Kako napisati ugovor o pozajmici? Kreirajte pravno validan ugovor o
+          pozajmici novca između fizičkih ili pravnih lica u BiH — definirajte
+          iznos, kamatnu stopu, rok otplate i uslove vraćanja, pa preuzmite
+          gotov ugovor u PDF ili Word formatu, besplatno.
         </p>
       </div>
 

@@ -265,6 +265,10 @@ export type Worker = {
   idCardNumber: string | null;
   startDate: string | null;
   endDate: string | null;
+  defaultStartTime: string | null;
+  defaultEndTime: string | null;
+  defaultDaysOff: string | null;
+  defaultPause: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -279,6 +283,10 @@ export type WorkerPayload = {
   address?: string;
   startDate?: string | null;
   endDate?: string | null;
+  defaultStartTime?: string | null;
+  defaultEndTime?: string | null;
+  defaultDaysOff?: string | null;
+  defaultPause?: string | null;
 };
 
 export function getWorkers(orgId: number) {

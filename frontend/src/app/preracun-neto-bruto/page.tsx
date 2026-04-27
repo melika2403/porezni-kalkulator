@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = {
-  title: "Obračun Neto / Bruto Plate — Kalkulator plate FBiH",
+  title: "Kalkulator plate FBiH — preračun neto u bruto i bruto u neto | Porezni Kalkulator BiH",
   description:
-    "Kalkulator za obračun neto i bruto plate u Federaciji BiH. Prikaz svih doprinosa radnika i poslodavca, poreza na dohodak i ukupnog troška poslodavca po važećim stopama.",
+    "Online kalkulator plate za Federaciju BiH — preračun neto u bruto i bruto u neto po važećim stopama. Pregled doprinosa radnika i poslodavca, poreza na dohodak i ukupnog troška poslodavca, besplatno.",
   alternates: { canonical: "https://poreznikalkulator.ba/preracun-neto-bruto" },
 };
 

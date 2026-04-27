@@ -156,9 +156,10 @@
   transform: translate(4px, -1px);
 }
 
-.badge_free   { background: var(--sage-pale);   color: var(--sage);   }
-.badge_reg    { background: var(--accent-pale);  color: var(--accent); }
-.badge_pro    { background: #e8e4dc;             color: var(--ink);    }
+.badge_free     { background: var(--sage-pale);   color: var(--sage);  }
+.badge_reg      { background: var(--accent-pale);  color: var(--accent);}
+.badge_pro      { background: var(--sage);         color: #fff;         }
+.badge_business { background: #1a4480;             color: #fff;         }
 
 /* ── Quick Tools ── */
 .quickToolsSection {

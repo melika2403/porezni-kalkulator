@@ -94,6 +94,10 @@ const Worker = sequelize.define(
       defaultValue: "RADNIK",
     },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
+    defaultStartTime: { type: DataTypes.STRING(5), allowNull: true },
+    defaultEndTime: { type: DataTypes.STRING(5), allowNull: true },
+    defaultDaysOff: { type: DataTypes.STRING(20), allowNull: true }, // comma-separated weekdays e.g. "0,6"
+    defaultPause: { type: DataTypes.STRING(5), allowNull: true }, // pause hours, e.g. "1" or "0.5"
   },
   { tableName: "workers", timestamps: true }
 );
@@ -145,7 +149,7 @@ const Form = sequelize.define(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
     type: {
-      type: DataTypes.ENUM("GPD", "SPR", "ZO3", "UGOVOR", "PLDI", "AMS"),
+      type: DataTypes.ENUM("GPD", "SPR", "ZO3", "UGOVOR", "PLDI", "AMS", "SIH"),
       allowNull: false,
     },
     status: {
@@ -156,6 +160,7 @@ const Form = sequelize.define(
     month: { type: DataTypes.INTEGER, allowNull: true },
     title: { type: DataTypes.STRING(255), allowNull: true },
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    workerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     clientId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     updatedById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
@@ -215,6 +220,9 @@ Form.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" 
 
 Client.hasMany(Form, { foreignKey: "clientId" });
 Form.belongsTo(Client, { foreignKey: "clientId", as: "client" });
+
+Worker.hasMany(Form, { foreignKey: "workerId", as: "forms" });
+Form.belongsTo(Worker, { foreignKey: "workerId", as: "worker" });
 
 User.hasMany(Form, { foreignKey: "createdById", as: "createdForms" });
 Form.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
