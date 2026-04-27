@@ -587,7 +587,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
                   </div>
                 </div>
                 <div className={styles.ownOrgActions}>
-                  <RoleGuard roles={["BUSINESS", "ADMIN"]} mode="hide">
+                  <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
                     <Link
                       href={`/organizacija/${org.id}`}
                       className={styles.btnEditInline}
@@ -1746,9 +1746,15 @@ function DjelatnostTab() {
                 <PersonFormFields value={addPerson} onChange={setAddPerson} />
                 {personLimitReached && (
                   <div className={styles.upgradeNotice}>
-                    <strong>Dosegli ste limit od {PRO_CLIENT_LIMIT} fizičkih lica</strong> na Pro pretplati.
-                    Ako želite dodati više klijenata, nadogradite pretplatu na Business.
-                    <Link href="/profil#pretplata" className={styles.upgradeLink}>
+                    <strong>
+                      Dosegli ste limit od {PRO_CLIENT_LIMIT} fizičkih lica
+                    </strong>{" "}
+                    na Pro pretplati. Ako želite dodati više klijenata,
+                    nadogradite pretplatu na Business.
+                    <Link
+                      href="/profil#pretplata"
+                      className={styles.upgradeLink}
+                    >
                       Nadogradi na Business →
                     </Link>
                   </div>
@@ -1771,7 +1777,9 @@ function DjelatnostTab() {
                   <button
                     type="submit"
                     className={styles.btnPrimary}
-                    disabled={createPersonMutation.isPending || personLimitReached}
+                    disabled={
+                      createPersonMutation.isPending || personLimitReached
+                    }
                   >
                     {createPersonMutation.isPending ? "Dodavanje..." : "Dodaj"}
                   </button>
@@ -2690,7 +2698,11 @@ function PretplataTab({ user }: { user: AuthUser }) {
         </div>
 
         <div className={styles.planCard}>
-          <div className={`${styles.planBadge} ${plan === "PRO" ? styles.planBadgePro : plan === "BUSINESS" ? styles.planBadgeBusiness : plan === "ADMIN" ? styles.planBadgeAdmin : ""}`}>{PLAN_LABELS[plan] ?? plan}</div>
+          <div
+            className={`${styles.planBadge} ${plan === "PRO" ? styles.planBadgePro : plan === "BUSINESS" ? styles.planBadgeBusiness : plan === "ADMIN" ? styles.planBadgeAdmin : ""}`}
+          >
+            {PLAN_LABELS[plan] ?? plan}
+          </div>
           <p className={styles.planDesc}>
             {isAdmin
               ? "Puni administratorski pristup — uvijek aktivan."
@@ -2827,7 +2839,9 @@ export default function Profil() {
               {user.firstName} <em>{user.lastName}</em>
             </div>
             {user.email && <div className={styles.email}>{user.email}</div>}
-            <div className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}>
+            <div
+              className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}
+            >
               {user.role}
             </div>
           </div>

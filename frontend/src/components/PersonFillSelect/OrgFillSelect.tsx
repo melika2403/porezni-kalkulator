@@ -117,6 +117,16 @@ export default function OrgFillSelect({ onFill }: Props) {
   const noneFound = filteredOwn.length === 0 && filteredClient.length === 0;
 
   function pick(org: Organization) {
+    const isOwnOrg = ownOrgs.some((o) => o.id === org.id);
+    const fallbackOwner =
+      isOwnOrg && !org.owner && user
+        ? {
+            jmbg: user.jmbg,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            address: user.address,
+          }
+        : null;
     onFill({
       name: org.name,
       taxNumber: org.taxNumber,
@@ -124,7 +134,7 @@ export default function OrgFillSelect({ onFill }: Props) {
       activityName: org.activityName,
       address: org.address,
       sourceOrgId: org.id,
-      owner: org.owner,
+      owner: org.owner ?? fallbackOwner,
     });
     setOpen(false);
     setFilter("");

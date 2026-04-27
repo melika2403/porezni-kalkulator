@@ -23,6 +23,7 @@ import {
 import { unwrap } from "src/api/auth";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
+import { useRole } from "src/hooks/useRole";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -166,15 +167,16 @@ function WorkerFormFields({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const PRO_WORKERS_LIMIT = 5;
+
 export default function Organizacija({ orgId }: { orgId: number }) {
   const queryClient = useQueryClient();
+  const { role: userRole } = useRole();
 
   const { data: org, isLoading: orgLoading } = useQuery<Organization>({
     queryKey: ["organization", orgId],
     queryFn: () => unwrap(getOrganization(orgId)),
   });
-
-  console.log("ORG", org);
 
   const { data: workers = [], isLoading: workersLoading } = useQuery<Worker[]>({
     queryKey: ["workers", orgId],
@@ -188,6 +190,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const canEdit = org?.memberRole === "OWNER" || org?.memberRole === "ADMIN";
+  const isProLimitReached = userRole === "PRO" && workers.length >= PRO_WORKERS_LIMIT;
 
   const createMutation = useMutation({
     mutationFn: (payload: WorkerPayload) =>
@@ -254,7 +257,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
 
   return (
     <div className={styles.page}>
-      <RoleGuard roles={["BUSINESS", "ADMIN"]} mode="hide">
+      <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
         <Link href="/profil" className={styles.back}>
           ← Nazad na profil
         </Link>
@@ -279,7 +282,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
             <span className={styles.cardTitle}>
               Radnici{workers.length > 0 ? ` (${workers.length})` : ""}
             </span>
-            {canEdit && !showAdd && (
+            {canEdit && !showAdd && !isProLimitReached && (
               <button
                 className={styles.btnPrimary}
                 onClick={() => {
@@ -290,6 +293,11 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               >
                 + Dodaj radnika
               </button>
+            )}
+            {isProLimitReached && (
+              <span className={styles.limitNotice}>
+                PRO plan: maksimalno {PRO_WORKERS_LIMIT} radnika po organizaciji
+              </span>
             )}
           </div>
 
@@ -305,7 +313,9 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               <WorkerFormFields value={addForm} onChange={setAddForm} />
               {createMutation.error && (
                 <div className={styles.errorMsg}>
-                  {createMutation.error.message}
+                  {createMutation.error.message === "WORKERS_LIMIT_REACHED"
+                    ? `PRO plan dozvoljava najviše ${PRO_WORKERS_LIMIT} radnika po organizaciji.`
+                    : createMutation.error.message}
                 </div>
               )}
               <div className={styles.formActions}>

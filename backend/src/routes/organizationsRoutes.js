@@ -17,7 +17,7 @@ router.get(
 router.get(
   "/workers/mine",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   workersController.listAllForUser,
 );
 router.post("/", requireAuth, organizationsController.create);
@@ -57,25 +57,25 @@ router.delete(
 router.get(
   "/:orgId/workers",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   workersController.list,
 );
 router.post(
   "/:orgId/workers",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   workersController.create,
 );
 router.put(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   workersController.update,
 );
 router.delete(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   workersController.remove,
 );
 

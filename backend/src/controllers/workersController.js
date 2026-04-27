@@ -54,6 +54,13 @@ async function create(req, res) {
   const membership = await assertMembership(orgId, req.user.id, ["OWNER", "ADMIN"]);
   if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
+  if (req.user.role === "PRO") {
+    const count = await Worker.count({ where: { organizationId: orgId } });
+    if (count >= 5) {
+      return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
+    }
+  }
+
   const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address } = req.body ?? {};
   const resolvedRole = role ?? "RADNIK";
 

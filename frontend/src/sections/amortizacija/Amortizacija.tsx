@@ -18,7 +18,7 @@ import {
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import SaveToast from "src/components/SaveToast/SaveToast";
-import { type PersonClient, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
+import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -759,9 +759,18 @@ export default function Amortizacija() {
           : {}),
       }));
       if (data.sourceOrgId !== undefined) setSourceOrgId(data.sourceOrgId);
-      if (selectedClientIdRef.current !== null && data.name) {
-        updatePersonClient(selectedClientIdRef.current, { firstName: data.name })
-          .then(() => clientsQuery.refetch());
+      if (selectedClientIdRef.current !== null) {
+        const clientPayload: Partial<PersonClientPayload> = {};
+        if (data.owner?.firstName) clientPayload.firstName = data.owner.firstName;
+        if (data.owner?.lastName) clientPayload.lastName = data.owner.lastName;
+        if (data.owner?.jmbg) clientPayload.jmbg = data.owner.jmbg;
+        if (data.owner?.address) clientPayload.address = data.owner.address;
+        if (data.taxNumber) clientPayload.taxNumber = data.taxNumber;
+        if (!data.owner?.firstName && data.name) clientPayload.firstName = data.name;
+        if (Object.keys(clientPayload).length > 0) {
+          updatePersonClient(selectedClientIdRef.current, clientPayload)
+            .then(() => clientsQuery.refetch());
+        }
       }
       markDirty();
     },
