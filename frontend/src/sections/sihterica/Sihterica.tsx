@@ -535,6 +535,62 @@ function SihtericaApp() {
     URL.revokeObjectURL(url);
   }, [workerName, month, year, entries, daysInMonth, selectedOrg]);
 
+  // ─── Bulk export — all workers in selected org for current month ───────────
+  const [bulkExporting, setBulkExporting] = useState(false);
+
+  const handleBulkExport = useCallback(async () => {
+    if (!orgId || !workersQuery.data || workersQuery.data.length === 0) return;
+    setBulkExporting(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      for (const w of workersQuery.data) {
+        const res = await getSihterica(w.id, year, month);
+        const data = res.ok ? res.data : null;
+        const dim = getDaysInMonth(year, month);
+        const days: (DayEntry | null)[] = Array.from({ length: dim }, (_, i) => {
+          const d = data?.days?.[i];
+          if (!d) return null;
+          if (isEntryEmpty(d)) return null;
+          return { ...EMPTY_ENTRY, ...d };
+        });
+        // Skip workers that have no data for this month
+        const hasAny = days.some((d) => d !== null);
+        if (!hasAny) continue;
+
+        const pdfBytes = await fillSihterica({
+          workerName: `${w.firstName} ${w.lastName}`.trim(),
+          month,
+          year,
+          days,
+          orgName: selectedOrg?.name ?? "",
+          orgAddress: selectedOrg?.address ?? "",
+          orgTaxNumber: selectedOrg?.taxNumber ?? "",
+        });
+        const safeName = `${w.firstName}_${w.lastName}`.replace(/\s+/g, "_");
+        zip.file(`Sihterica_${safeName}_${String(month).padStart(2, "0")}_${year}.pdf`, pdfBytes);
+      }
+
+      const fileCount = Object.keys(zip.files).length;
+      if (fileCount === 0) {
+        alert("Nijedan radnik nema sačuvane podatke za odabrani mjesec.");
+        return;
+      }
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(/\s+/g, "_");
+      a.download = `Sihterice_${orgSafe}_${String(month).padStart(2, "0")}_${year}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBulkExporting(false);
+    }
+  }, [orgId, workersQuery.data, year, month, selectedOrg]);
+
   // ─── Delete current month ──────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
     if (!workerId) return;
@@ -1031,6 +1087,19 @@ function SihtericaApp() {
               </div>
 
               <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={styles.exportBtnSecondary}
+                  onClick={handleBulkExport}
+                  disabled={bulkExporting || !workersQuery.data || workersQuery.data.length === 0}
+                  title="Generiše ZIP sa šihtericama svih radnika ove organizacije za odabrani mjesec"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+                  </svg>
+                  {bulkExporting ? "Generišem ZIP…" : "Preuzmi za sve radnike (ZIP)"}
+                </button>
                 <button type="button" className={styles.exportBtn} onClick={handleExport}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />

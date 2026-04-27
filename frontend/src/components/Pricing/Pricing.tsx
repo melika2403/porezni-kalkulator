@@ -42,7 +42,7 @@ const PLANS: Plan[] = [
       'Šihterica — Evidencija radnog vremena',
       'Višestruke vlastite djelatnosti',
       'Mogućnost dodavanja do 20 klijenata i fizičkih lica',
-      'Prijave/odjake radika, izrada JS3000 obrasca',
+      'Prijave/odjave radnika, izrada JS3000 obrasca',
       'Obračun plata i doprinosa za vlasnika obrta i zaposlene',
       'Generisanje uplatnica za plate i doprinose',
     ],
