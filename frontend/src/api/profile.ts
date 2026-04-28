@@ -28,6 +28,7 @@ export type ProfileUpdatePayload = {
   lastName?: string;
   phone?: string;
   address?: string;
+  city?: string;
   jmbg?: string | null;
   idCardNumber?: string | null;
 };
@@ -54,6 +55,7 @@ export type Users = {
   role: "USER" | "PRO" | "ADMIN" | "BUSINESS";
   phone: string | null;
   address: string | null;
+  city: string | null;
   createdAt: string;
   isEmailVerified: boolean;
   subscription: Subscription | null;
@@ -64,6 +66,7 @@ export type UserUpdatePayload = {
   lastName?: string;
   phone?: string;
   address?: string;
+  city?: string;
   role?: "USER" | "PRO" | "ADMIN" | "BUSINESS";
 };
 
@@ -134,6 +137,7 @@ export type OrgOwner = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
   idCardNumber: string | null;
 };
 
@@ -144,6 +148,7 @@ export type OrgOwnerPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
   idCardNumber?: string;
 };
 
@@ -157,6 +162,7 @@ export type Organization = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   createdAt: string;
@@ -172,6 +178,7 @@ export type OrgPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -262,6 +269,7 @@ export type Worker = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
   idCardNumber: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -281,6 +289,7 @@ export type WorkerPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
   startDate?: string | null;
   endDate?: string | null;
   defaultStartTime?: string | null;
@@ -354,6 +363,20 @@ export function getForms(type?: FormType) {
   return request<FormRecord[]>(`/api/forms${qs}`);
 }
 
+// ─── Cities (lookup) ─────────────────────────────────────────────────────────
+
+export type City = {
+  id: number;
+  name: string;
+  municipalityCode: string;
+  postalCode: string | null;
+  kanton: string;
+};
+
+export function getCities() {
+  return request<City[]>("/api/cities");
+}
+
 // ─── Person clients (fizičko lice) ───────────────────────────────────────────
 
 export type PersonClient = {
@@ -365,6 +388,7 @@ export type PersonClient = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
   idCardNumber: string | null;
   createdAt: string;
   updatedAt: string;
@@ -378,6 +402,7 @@ export type PersonClientPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
   idCardNumber?: string;
 };
 

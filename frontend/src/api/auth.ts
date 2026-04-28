@@ -6,6 +6,7 @@ export type AuthUser = {
   lastName: string;
   phone: string | null;
   address: string | null;
+  city: string | null;
   role: string;
   createdAt: string;
   updatedAt: string;
@@ -62,6 +63,7 @@ export type RegisterPayload = {
   lastName: string;
   phone: string;
   address?: string;
+  city?: string;
 };
 
 export function register(payload: RegisterPayload) {

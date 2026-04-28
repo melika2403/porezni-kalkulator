@@ -23,6 +23,7 @@ import {
 import { unwrap } from "src/api/auth";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
 import { useRole } from "src/hooks/useRole";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +33,8 @@ type WorkerForm = {
   firstName: string;
   lastName: string;
   jmbg: string;
+  address: string;
+  city: string;
   startDate: string;
   endDate: string;
 };
@@ -41,6 +44,8 @@ const emptyForm = (): WorkerForm => ({
   firstName: "",
   lastName: "",
   jmbg: "",
+  address: "",
+  city: "",
   startDate: "",
   endDate: "",
 });
@@ -51,6 +56,8 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     firstName: f.firstName.trim(),
     lastName: f.lastName.trim(),
     jmbg: f.jmbg.trim() || undefined,
+    address: f.address.trim() || undefined,
+    city: f.city.trim() || undefined,
     startDate: f.startDate || null,
     endDate: f.endDate.trim() || null,
   };
@@ -62,6 +69,8 @@ function workerToForm(w: Worker): WorkerForm {
     firstName: w.firstName,
     lastName: w.lastName,
     jmbg: w.jmbg ?? "",
+    address: w.address ?? "",
+    city: w.city ?? "",
     startDate: w.startDate ?? "",
     endDate: w.endDate ?? "",
   };
@@ -159,6 +168,23 @@ function WorkerFormFields({
           className={styles.input}
           value={value.endDate}
           onValueChange={(iso) => onChange({ ...value, endDate: iso })}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Adresa</label>
+        <input
+          className={styles.input}
+          value={value.address}
+          onChange={set("address")}
+          placeholder="Ulica i broj"
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Grad</label>
+        <CitySelect
+          value={value.city}
+          onChange={(v) => onChange({ ...value, city: v })}
+          className={styles.input}
         />
       </div>
     </div>

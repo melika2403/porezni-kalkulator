@@ -52,6 +52,7 @@ const userAttributes = [
   "lastName",
   "phone",
   "address",
+  "city",
   "role",
   "createdAt",
   "updatedAt",
@@ -97,7 +98,7 @@ function signJwtForUser(user) {
 }
 
 async function register(req, res) {
-  const { email, password, firstName, lastName, phone, address } =
+  const { email, password, firstName, lastName, phone, address, city } =
     req.body ?? {};
 
   if (!isNonEmptyString(email))
@@ -114,6 +115,10 @@ async function register(req, res) {
     return res
       .status(400)
       .json({ ok: false, error: "address must be a string" });
+  if (city != null && typeof city !== "string")
+    return res
+      .status(400)
+      .json({ ok: false, error: "city must be a string" });
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
@@ -131,6 +136,7 @@ async function register(req, res) {
       lastName: lastName.trim(),
       phone: phone.trim(),
       address: typeof address === "string" ? address.trim() : null,
+      city: typeof city === "string" ? city.trim() : null,
       role: "USER",
       isEmailVerified: false,
       emailVerificationToken: hashedToken,

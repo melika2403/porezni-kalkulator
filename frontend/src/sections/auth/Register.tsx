@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import styles from "./auth.module.css";
 import { register, resendVerification, unwrap } from "src/api/auth";
+import CitySelect from "src/components/CitySelect/CitySelect";
 
 export default function Register() {
   const [firstName, setFirstName] = useState("");
@@ -11,6 +12,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export default function Register() {
       lastName: lastName.trim(),
       phone: phone.trim(),
       address: address.trim() || undefined,
+      city: city.trim() || undefined,
     });
   };
 
@@ -173,18 +176,32 @@ export default function Register() {
           />
         </div>
 
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="address">
-            Adresa (opcionalno)
-          </label>
-          <input
-            id="address"
-            className={styles.input}
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            autoComplete="street-address"
-          />
+        <div className={styles.row}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="address">
+              Adresa (opcionalno)
+            </label>
+            <input
+              id="address"
+              className={styles.input}
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              autoComplete="street-address"
+              placeholder="Ulica i broj"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="city">
+              Grad (opcionalno)
+            </label>
+            <CitySelect
+              id="city"
+              value={city}
+              onChange={setCity}
+              className={styles.input}
+            />
+          </div>
         </div>
 
         <div className={styles.row}>

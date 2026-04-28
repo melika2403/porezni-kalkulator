@@ -17,6 +17,7 @@ import styles from "./PersonFillSelect.module.css";
 export type UgovorFillData = {
   name: string;
   address: string;
+  city: string;
   id: string;
 };
 
@@ -174,6 +175,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                     pick({
                       name: `${user.firstName} ${user.lastName}`.trim(),
                       address: user.address ?? "",
+                      city: user.city ?? "",
                       id: user.idCardNumber ?? "",
                     })
                   }
@@ -190,7 +192,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                       key={o.id}
                       type="button"
                       className={styles.dropdownItem}
-                      onClick={() => pick({ name: o.name, address: o.address ?? "", id: o.taxNumber ?? "" })}
+                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "" })}
                     >
                       {orgLabel(o)}{o.taxNumber ? ` (${o.taxNumber})` : ""}
                     </button>
@@ -206,7 +208,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                       key={o.id}
                       type="button"
                       className={styles.dropdownItem}
-                      onClick={() => pick({ name: o.name, address: o.address ?? "", id: o.taxNumber ?? "" })}
+                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "" })}
                     >
                       {orgLabel(o)}{o.taxNumber ? ` (${o.taxNumber})` : ""}
                     </button>
@@ -226,6 +228,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                         pick({
                           name: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim(),
                           address: c.address ?? "",
+                          city: c.city ?? "",
                           id: c.idCardNumber ?? "",
                         })
                       }
@@ -248,6 +251,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                         pick({
                           name: `${w.firstName} ${w.lastName}`.trim(),
                           address: w.address ?? "",
+                          city: w.city ?? "",
                           id: w.idCardNumber ?? "",
                         })
                       }

@@ -45,6 +45,7 @@ import {
   type PersonClientPayload,
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import CitySelect from "src/components/CitySelect/CitySelect";
 import { useRole } from "src/hooks/useRole";
 import Link from "next/link";
 import {
@@ -203,6 +204,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
       email: org.email ?? "",
       phone: org.phone ?? "",
       address: org.address ?? "",
+      city: org.city ?? "",
     });
     updateOwnOrgMutation.reset();
   };
@@ -210,6 +212,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
   const [lastName, setLastName] = useState(user.lastName);
   const [phone, setPhone] = useState(user.phone ?? "");
   const [address, setAddress] = useState(user.address ?? "");
+  const [city, setCity] = useState(user.city ?? "");
   const [jmbg, setJmbg] = useState(user.jmbg ?? "");
   const [idCardNumber, setIdCardNumber] = useState(user.idCardNumber ?? "");
   const [success, setSuccess] = useState(false);
@@ -233,6 +236,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
       lastName: lastName.trim(),
       phone: phone.trim() || undefined,
       address: address.trim() || undefined,
+      city: city.trim() || undefined,
       ...(jmbg.trim() && { jmbg: jmbg.trim() }),
       idCardNumber: idCardNumber.trim() || null,
     });
@@ -243,6 +247,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
     setLastName(user.lastName);
     setPhone(user.phone ?? "");
     setAddress(user.address ?? "");
+    setCity(user.city ?? "");
     setJmbg(user.jmbg ?? "");
     setIdCardNumber(user.idCardNumber ?? "");
     mutation.reset();
@@ -319,6 +324,14 @@ function ProfilTab({ user }: { user: AuthUser }) {
               <span className={styles.infoValue}>
                 {user.address || (
                   <span className={styles.infoEmpty}>Nije unesena</span>
+                )}
+              </span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Grad</span>
+              <span className={styles.infoValue}>
+                {user.city || (
+                  <span className={styles.infoEmpty}>Nije unesen</span>
                 )}
               </span>
             </div>
@@ -408,22 +421,33 @@ function ProfilTab({ user }: { user: AuthUser }) {
                   className={styles.input}
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Ulica bb, Grad"
+                  placeholder="Ulica i broj"
                 />
               </div>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="idCardNumber">
-                  Broj lične karte
+                <label className={styles.fieldLabel} htmlFor="city">
+                  Grad
                 </label>
-                <input
-                  id="idCardNumber"
+                <CitySelect
+                  id="city"
+                  value={city}
+                  onChange={setCity}
                   className={styles.input}
-                  value={idCardNumber}
-                  onChange={(e) => setIdCardNumber(e.target.value)}
-                  placeholder="AB123456"
-                  maxLength={9}
                 />
               </div>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="idCardNumber">
+                Broj lične karte
+              </label>
+              <input
+                id="idCardNumber"
+                className={styles.input}
+                value={idCardNumber}
+                onChange={(e) => setIdCardNumber(e.target.value)}
+                placeholder="AB123456"
+                maxLength={9}
+              />
             </div>
             {errorMsg && <div className={styles.errorMsg}>{errorMsg}</div>}
             <div className={styles.formActions}>
@@ -693,6 +717,7 @@ type OwnerFormState = {
   email: string;
   phone: string;
   address: string;
+  city: string;
   idCardNumber: string;
 };
 
@@ -703,6 +728,7 @@ const emptyOwner: OwnerFormState = {
   email: "",
   phone: "",
   address: "",
+  city: "",
   idCardNumber: "",
 };
 
@@ -714,6 +740,7 @@ function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
     ...(o.email.trim() && { email: o.email.trim() }),
     ...(o.phone.trim() && { phone: o.phone.trim() }),
     ...(o.address.trim() && { address: o.address.trim() }),
+    ...(o.city.trim() && { city: o.city.trim() }),
     ...(o.idCardNumber.trim() && { idCardNumber: o.idCardNumber.trim() }),
   };
 }
@@ -795,17 +822,6 @@ function OwnerFields({
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Adresa vlasnika</label>
-          <input
-            className={styles.input}
-            value={value.address}
-            onChange={set("address")}
-            placeholder="Ulica bb, Grad"
-          />
-        </div>
-      </div>
-      <div className={styles.row}>
-        <div className={styles.field}>
           <label className={styles.fieldLabel}>
             Broj lične karte (opciono)
           </label>
@@ -815,6 +831,25 @@ function OwnerFields({
             onChange={set("idCardNumber")}
             placeholder="AB123456"
             maxLength={9}
+          />
+        </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Adresa vlasnika</label>
+          <input
+            className={styles.input}
+            value={value.address}
+            onChange={set("address")}
+            placeholder="Ulica i broj"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Grad vlasnika</label>
+          <CitySelect
+            value={value.city}
+            onChange={(v) => onChange({ ...value, city: v })}
+            className={styles.input}
           />
         </div>
       </div>
@@ -833,6 +868,7 @@ type OrgFormState = {
   email: string;
   phone: string;
   address: string;
+  city: string;
 };
 
 const emptyOrgForm: OrgFormState = {
@@ -844,6 +880,7 @@ const emptyOrgForm: OrgFormState = {
   email: "",
   phone: "",
   address: "",
+  city: "",
 };
 
 function orgFormToPayload(
@@ -859,6 +896,7 @@ function orgFormToPayload(
     ...(f.email.trim() && { email: f.email.trim() }),
     ...(f.phone.trim() && { phone: f.phone.trim() }),
     ...(f.address.trim() && { address: f.address.trim() }),
+    ...(f.city.trim() && { city: f.city.trim() }),
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
 }
@@ -1051,14 +1089,24 @@ function OrgFormFields({
           />
         </div>
       </div>
-      <div className={styles.field}>
-        <label className={styles.fieldLabel}>Adresa</label>
-        <input
-          className={styles.input}
-          value={value.address}
-          onChange={set("address")}
-          placeholder="Ulica bb, Sarajevo"
-        />
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Adresa</label>
+          <input
+            className={styles.input}
+            value={value.address}
+            onChange={set("address")}
+            placeholder="Ulica i broj"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Grad</label>
+          <CitySelect
+            value={value.city}
+            onChange={(v) => onChange({ ...value, city: v })}
+            className={styles.input}
+          />
+        </div>
       </div>
     </>
   );
@@ -1074,6 +1122,7 @@ type PersonFormState = {
   email: string;
   phone: string;
   address: string;
+  city: string;
   idCardNumber: string;
 };
 
@@ -1085,6 +1134,7 @@ const emptyPersonForm: PersonFormState = {
   email: "",
   phone: "",
   address: "",
+  city: "",
   idCardNumber: "",
 };
 
@@ -1097,6 +1147,7 @@ function personFormToPayload(f: PersonFormState): PersonClientPayload {
     ...(f.email.trim() && { email: f.email.trim() }),
     ...(f.phone.trim() && { phone: f.phone.trim() }),
     ...(f.address.trim() && { address: f.address.trim() }),
+    ...(f.city.trim() && { city: f.city.trim() }),
     ...(f.idCardNumber.trim() && { idCardNumber: f.idCardNumber.trim() }),
   };
 }
@@ -1195,21 +1246,29 @@ function PersonFormFields({
             className={styles.input}
             value={value.address}
             onChange={set("address")}
-            placeholder="Ulica bb, Grad"
+            placeholder="Ulica i broj"
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>
-            Broj lične karte (opciono)
-          </label>
-          <input
+          <label className={styles.fieldLabel}>Grad</label>
+          <CitySelect
+            value={value.city}
+            onChange={(v) => onChange({ ...value, city: v })}
             className={styles.input}
-            value={value.idCardNumber}
-            onChange={set("idCardNumber")}
-            placeholder="AB123456"
-            maxLength={9}
           />
         </div>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>
+          Broj lične karte (opciono)
+        </label>
+        <input
+          className={styles.input}
+          value={value.idCardNumber}
+          onChange={set("idCardNumber")}
+          placeholder="AB123456"
+          maxLength={9}
+        />
       </div>
     </>
   );
@@ -1348,6 +1407,7 @@ function DjelatnostTab() {
       email: org.email ?? "",
       phone: org.phone ?? "",
       address: org.address ?? "",
+      city: org.city ?? "",
     });
     const ow = org.owner;
     setEditHasOwner(!!ow);
@@ -1360,6 +1420,7 @@ function DjelatnostTab() {
             email: ow.email ?? "",
             phone: ow.phone ?? "",
             address: ow.address ?? "",
+            city: ow.city ?? "",
             idCardNumber: ow.idCardNumber ?? "",
           }
         : emptyOwner,
@@ -1378,6 +1439,7 @@ function DjelatnostTab() {
       email: p.email ?? "",
       phone: p.phone ?? "",
       address: p.address ?? "",
+      city: p.city ?? "",
       idCardNumber: p.idCardNumber ?? "",
     });
     updatePersonMutation.reset();

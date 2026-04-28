@@ -6,7 +6,7 @@ function isNonEmptyString(v) {
 }
 
 function validateOrgData(body, requireName = true) {
-  const { name, type, taxNumber, email, phone, address } = body ?? {};
+  const { name, type, taxNumber, email, phone, address, city } = body ?? {};
   const data = {};
 
   if (requireName || name != null) {
@@ -37,6 +37,8 @@ function validateOrgData(body, requireName = true) {
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
   if (address !== undefined)
     data.address = address ? String(address).trim() : null;
+  if (city !== undefined)
+    data.city = city ? String(city).trim() : null;
 
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
@@ -70,6 +72,7 @@ function validateOwnerData(owner, requireJmbg = true) {
   if (owner.email) data.email = String(owner.email).trim();
   if (owner.phone) data.phone = String(owner.phone).trim();
   if (owner.address) data.address = String(owner.address).trim();
+  if (owner.city) data.city = String(owner.city).trim();
   if (owner.idCardNumber) {
     const idn = String(owner.idCardNumber).trim();
     if (idn.length > 9) return { ok: false, message: "Broj lične karte može imati najviše 9 znakova" };

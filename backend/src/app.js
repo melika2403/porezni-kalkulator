@@ -15,6 +15,7 @@ const sihtericaRoutes = require("./routes/sihtericaRoutes");
 const documentsRoutes = require("./routes/documentsRoutes");
 const subscriptionsRoutes = require("./routes/subscriptionsRoutes");
 const contactRoutes = require("./routes/contactRoutes");
+const citiesRoutes = require("./routes/citiesRoutes");
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use("/api/sihterica", sihtericaRoutes);
 app.use("/api/documents", documentsRoutes);
 app.use("/api/users", subscriptionsRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/cities", citiesRoutes);
 
 // Sync database tables and start server
 sequelize

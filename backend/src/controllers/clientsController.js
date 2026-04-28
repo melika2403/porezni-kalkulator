@@ -36,7 +36,7 @@ async function create(req, res) {
     }
   }
 
-  const { firstName, lastName, jmbg, taxNumber, email, phone, address, idCardNumber } = req.body ?? {};
+  const { firstName, lastName, jmbg, taxNumber, email, phone, address, city, idCardNumber } = req.body ?? {};
   const data = {
     firstName: isNonEmptyString(firstName) ? firstName.trim() : null,
     lastName: isNonEmptyString(lastName) ? lastName.trim() : null,
@@ -51,6 +51,7 @@ async function create(req, res) {
   if (email !== undefined) data.email = email ? String(email).trim() : null;
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
   if (address !== undefined) data.address = address ? String(address).trim() : null;
+  if (city !== undefined) data.city = city ? String(city).trim() : null;
   if (idCardNumber !== undefined) data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
 
   try {
@@ -67,7 +68,7 @@ async function update(req, res) {
   if (!Number.isInteger(id) || id <= 0)
     return res.status(400).json({ ok: false, error: "Invalid id" });
 
-  const { firstName, lastName, jmbg, taxNumber, email, phone, address, idCardNumber } = req.body ?? {};
+  const { firstName, lastName, jmbg, taxNumber, email, phone, address, city, idCardNumber } = req.body ?? {};
   const data = {};
 
   if (firstName != null) {
@@ -87,6 +88,7 @@ async function update(req, res) {
   if (email !== undefined) data.email = email ? String(email).trim() : null;
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
   if (address !== undefined) data.address = address ? String(address).trim() : null;
+  if (city !== undefined) data.city = city ? String(city).trim() : null;
   if (idCardNumber !== undefined) data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
 
   if (Object.keys(data).length === 0)

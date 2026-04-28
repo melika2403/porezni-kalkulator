@@ -16,12 +16,14 @@ export type OrgFillData = {
   activityCode: string | null;
   activityName: string | null;
   address: string | null;
+  city: string | null;
   sourceOrgId?: number | null;
   owner?: {
     jmbg: string | null;
     firstName: string;
     lastName: string;
     address: string | null;
+    city: string | null;
   } | null;
 };
 
@@ -125,6 +127,7 @@ export default function OrgFillSelect({ onFill }: Props) {
             firstName: user.firstName,
             lastName: user.lastName,
             address: user.address,
+            city: user.city,
           }
         : null;
     onFill({
@@ -133,6 +136,7 @@ export default function OrgFillSelect({ onFill }: Props) {
       activityCode: org.activityCode,
       activityName: org.activityName,
       address: org.address,
+      city: org.city,
       sourceOrgId: org.id,
       owner: org.owner ?? fallbackOwner,
     });

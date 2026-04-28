@@ -25,6 +25,7 @@ const User = sequelize.define(
     lastName: { type: DataTypes.STRING(100), allowNull: false },
     phone: { type: DataTypes.STRING(30), allowNull: true },
     address: { type: DataTypes.STRING(255), allowNull: true },
+    city: { type: DataTypes.STRING(100), allowNull: true },
     role: {
       type: DataTypes.ENUM("USER", "PRO", "BUSINESS", "ADMIN"),
       defaultValue: "USER",
@@ -63,6 +64,7 @@ const Organization = sequelize.define(
     email: { type: DataTypes.STRING(255), allowNull: true },
     phone: { type: DataTypes.STRING(50), allowNull: true },
     address: { type: DataTypes.STRING(255), allowNull: true },
+    city: { type: DataTypes.STRING(100), allowNull: true },
     createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     type: {
       type: DataTypes.ENUM("COMPANY", "BUSINESS"),
@@ -87,6 +89,7 @@ const Worker = sequelize.define(
     startDate: { type: DataTypes.DATEONLY, allowNull: true },
     endDate: { type: DataTypes.DATEONLY, allowNull: true },
     address: { type: DataTypes.STRING(255), allowNull: true },
+    city: { type: DataTypes.STRING(100), allowNull: true },
     email: { type: DataTypes.STRING(255), allowNull: true },
     phone: { type: DataTypes.STRING(50), allowNull: true },
     role: {
@@ -134,6 +137,7 @@ const Client = sequelize.define(
     email: { type: DataTypes.STRING(255), allowNull: true },
     phone: { type: DataTypes.STRING(50), allowNull: true },
     address: { type: DataTypes.STRING(255), allowNull: true },
+    city: { type: DataTypes.STRING(100), allowNull: true },
     jmbg: { type: DataTypes.STRING(500), allowNull: true },
     taxNumber: { type: DataTypes.STRING(100), allowNull: true },
     createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
@@ -196,6 +200,19 @@ const FormAttachment = sequelize.define(
   { tableName: "form_attachments", timestamps: true, updatedAt: false }
 );
 
+// ─── CITY ─────────────────────────────────────────────────────────────────────
+const City = sequelize.define(
+  "City",
+  {
+    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    name: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+    municipalityCode: { type: DataTypes.STRING(10), allowNull: false, unique: true },
+    postalCode: { type: DataTypes.STRING(10), allowNull: true },
+    kanton: { type: DataTypes.STRING(10), allowNull: false },
+  },
+  { tableName: "cities", timestamps: true }
+);
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 User.hasOne(Subscription, { foreignKey: "userId", as: "subscription" });
 Subscription.belongsTo(User, { foreignKey: "userId" });
@@ -244,4 +261,5 @@ module.exports = {
   Form,
   FormVersion,
   FormAttachment,
+  City,
 };

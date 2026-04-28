@@ -2,7 +2,7 @@ const { Op } = require("sequelize");
 const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const orgAttributes = ["id", "name", "type", "taxNumber", "activityCode", "activityName", "email", "phone", "address", "createdAt", "updatedAt"];
+const orgAttributes = ["id", "name", "type", "taxNumber", "activityCode", "activityName", "email", "phone", "address", "city", "createdAt", "updatedAt"];
 
 function toPublicOrg(org, memberRole, ownerWorker) {
   if (!org) return null;
@@ -17,7 +17,7 @@ function toPublicOrg(org, memberRole, ownerWorker) {
   return { ...rest, owner, memberRole: memberRole || plain.memberRole || null };
 }
 
-const ownerWorkerAttributes = ["id", "organizationId", "firstName", "lastName", "jmbg", "email", "phone", "address"];
+const ownerWorkerAttributes = ["id", "organizationId", "firstName", "lastName", "jmbg", "email", "phone", "address", "city"];
 
 async function fetchOwnerWorkers(orgIds) {
   if (orgIds.length === 0) return new Map();
@@ -97,7 +97,7 @@ async function createOrganization(data, ownerData, userId) {
     if (ownerData) {
       await Worker.create({ organizationId: org.id, role: "VLASNIK", ...ownerData }, { transaction: t });
     } else {
-      const user = await User.findOne({ where: { id: userId }, attributes: ["firstName", "lastName", "jmbg", "email", "phone", "address"], transaction: t });
+      const user = await User.findOne({ where: { id: userId }, attributes: ["firstName", "lastName", "jmbg", "email", "phone", "address", "city"], transaction: t });
       await Worker.create({
         organizationId: org.id,
         role: "VLASNIK",
@@ -107,6 +107,7 @@ async function createOrganization(data, ownerData, userId) {
         email: user.email || null,
         phone: user.phone || null,
         address: user.address || null,
+        city: user.city || null,
       }, { transaction: t });
     }
 

@@ -4,6 +4,8 @@ import styles from "./zo3.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
 import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
@@ -171,6 +173,7 @@ const EMPTY_MEMBER = { jmbg: "", fullName: "", srodstvo: "" };
 /* ── Component ── */
 
 export default function Zo3Form() {
+  const { findByName: findCity } = useCityLookup();
   const formRef = useRef<HTMLFormElement | null>(null);
 
   /* ── Header ── */
@@ -198,6 +201,7 @@ export default function Zo3Form() {
     ime: "",
     djevojackoPrezime: "",
     ulicaBroj: "",
+    grad: "",
     brojPoste: "",
     zanimanje: "",
     zamanjanjeKod: "",
@@ -225,18 +229,24 @@ export default function Zo3Form() {
   /* ── Fill from profile/client ── */
 
   const fillInsured = useCallback((data: FillData) => {
-    setInsured((p) => ({
-      ...p,
-      jmbg: data.jmbg ?? p.jmbg,
-      ime: data.firstName ?? p.ime,
-      prezime: data.lastName ?? p.prezime,
-      ulicaBroj: data.address ?? p.ulicaBroj,
-    }));
+    setInsured((p) => {
+      const cityResolved = data.city ?? p.grad;
+      const postalCode = cityResolved ? findCity(cityResolved)?.postalCode ?? "" : "";
+      return {
+        ...p,
+        jmbg: data.jmbg ?? p.jmbg,
+        ime: data.firstName ?? p.ime,
+        prezime: data.lastName ?? p.prezime,
+        ulicaBroj: data.address ?? p.ulicaBroj,
+        grad: cityResolved,
+        brojPoste: postalCode || p.brojPoste,
+      };
+    });
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);
     if (data.sourceWorkerOrgId !== undefined)
       setSourceOrgId(data.sourceWorkerOrgId);
-  }, []);
+  }, [findCity]);
 
   const fillEmployer = useCallback((data: OrgFillData) => {
     setEmployer((p) => ({
@@ -603,7 +613,7 @@ export default function Zo3Form() {
               }
             />
           </div>
-          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+          <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>
               9) Ulica i broj prebivališta
             </label>
@@ -614,6 +624,21 @@ export default function Zo3Form() {
               onChange={(e) =>
                 setInsured((s) => ({ ...s, ulicaBroj: e.target.value }))
               }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Grad prebivališta</label>
+            <CitySelect
+              value={insured.grad}
+              onChange={(v) => {
+                const postalCode = v ? findCity(v)?.postalCode ?? "" : "";
+                setInsured((s) => ({
+                  ...s,
+                  grad: v,
+                  brojPoste: postalCode || s.brojPoste,
+                }));
+              }}
+              className={styles.fieldInput}
             />
           </div>
           <div className={styles.fieldGroup}>
