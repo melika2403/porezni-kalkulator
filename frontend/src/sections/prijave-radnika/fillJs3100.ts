@@ -13,6 +13,7 @@ export interface Js3100Data {
 
   // ── Prvi dio — Obveznik uplate doprinosa ──
   jib: string; // 13 cifara
+  sifraOpcine: string; // 3 cifre — comb field "undefined"
   naziv: string;
   adresa: string;
   gradPoste: string; // npr. "71000 Sarajevo"
@@ -22,14 +23,19 @@ export interface Js3100Data {
   // ── Drugi dio — Podaci o osiguraniku ──
   jmbg: string; // 13 cifara
   prezimeIme: string;
+  djevojackoPrezime: string; // red 3 — fill_2
   datumRodjenjaDan: string; // 2 cifre
   datumRodjenjaMjesec: string;
   datumRodjenjaGodina: string; // 4 cifre
   spol: Js3100Spol;
   adresaPrebivalista: string;
+  sifraOpcineOsiguranika: string; // 3 cifre — comb_5
   postanskiBroj: string;
   mjestoPrebivalista: string;
+  postanskiMjestoCombined: string; // npr. "71300 Visoko"
+  kontaktAdresa: string; // ulica i broj kontakt adrese
   emailOsiguranika: string;
+  strucnaSpremaIdx: number | null; // 0..9 → Check Box2..11 (DR, MR, VSS, VŠS, SSS, Niža, VKV, KV, PK, NK)
 
   // ── Footer ──
   popunioImeIPrezime: string;
@@ -59,6 +65,22 @@ export interface Js3100Data {
   datumPrestankaMjesec: string;
   datumPrestankaGodina: string;
 }
+
+/* ── Pozicije kvačica za Stručnu spremu (Drugi dio, red 11) ──
+   Odgovaraju Check Box100..109 (y=385, w=10, h=11)
+   Redoslijed: 0=DR, 1=MR, 2=VSS, 3=VŠS, 4=SSS, 5=Niža, 6=VKV, 7=KV, 8=PK, 9=NK */
+const STRUCNA_SPREMA_POS = [
+  { x: 263, y: 385 },
+  { x: 294, y: 385 },
+  { x: 324, y: 385 },
+  { x: 354, y: 385 },
+  { x: 384, y: 385 },
+  { x: 415, y: 386 },
+  { x: 446, y: 385 },
+  { x: 478, y: 385 },
+  { x: 508, y: 385 },
+  { x: 539, y: 385 },
+];
 
 /* ── Helpers ── */
 
@@ -120,11 +142,11 @@ export async function fillJs3100Template(data: Js3100Data): Promise<Uint8Array> 
   setBold("Promjena podataka o osiguranju", data.vrsta === "PROMJENA" ? "X" : "", 11);
   setBold("Odjava osiguranja", data.vrsta === "ODJAVA" ? "X" : "", 11);
 
-  // Datum prijave (polje "undefined" pored "6 Vrsta prijave" na (327, 664))
-  setBold("undefined", data.datumPrijave, 9);
+  // Polje "undefined" (x=327, y=664, maxLen=3, comb) → 5) Šifra općine
+  setBold("undefined", data.sifraOpcine.slice(0, 3), 11);
 
   /* ── Prvi dio — Obveznik uplate doprinosa ── */
-  setBold("1 JIBJMB", data.jib, 11);
+  setBold("1 JIBJMB", data.jib.replace(/\D/g, "").slice(0, 13), 11);
   setBold("2 Naziv obveznika uplate doprinosa", data.naziv, 10);
   setBold("3 Adresa obveznika uplate doprinosa", data.adresa, 10);
   setBold("4 Grad i poštanski broj", data.gradPoste, 10);
@@ -133,8 +155,10 @@ export async function fillJs3100Template(data: Js3100Data): Promise<Uint8Array> 
 
   /* ── Drugi dio — Podaci o osiguraniku ── */
   // "Drugi dio  Podaci o osiguraniku" je polje na (268, 555) širina 185 → vjerovatno JMBG
-  setBold("Drugi dio  Podaci o osiguraniku", data.jmbg, 11);
+  setBold("Drugi dio  Podaci o osiguraniku", data.jmbg.replace(/\D/g, "").slice(0, 13), 11);
   setBold("Prezime i ime osiguranika", data.prezimeIme, 11);
+  // fill_2 (y=521, w=309) → red 3: Djevojačko prezime
+  setBold("fill_2", data.djevojackoPrezime, 11);
 
   // Datum rođenja — 3 polja u istom redu (y=507): undefined_2/3/4 = dan/mjesec/godina
   setBold("undefined_2", data.datumRodjenjaDan, 11);
@@ -145,11 +169,16 @@ export async function fillJs3100Template(data: Js3100Data): Promise<Uint8Array> 
   setBold("Ženski", data.spol === "Z" ? "X" : "", 11);
   setBold("Muški", data.spol === "M" ? "X" : "", 11);
 
-  // Adresa prebivališta + poštanski + mjesto + email
+  // Adresa prebivališta + šifra općine + kontakt + poštanski + mjesto + email
   setBold("Adresa prebivališta", data.adresaPrebivalista, 10);
+  // comb_5: 3-cifreni comb field → šifra općine osiguranika
+  setBold("comb_5", data.sifraOpcineOsiguranika.replace(/\D/g, "").slice(0, 3), 11);
+  // fill_3: kontakt adresa — ulica i broj
+  setBold("fill_3", data.kontaktAdresa, 10);
   setBold("Poštanski broj", data.postanskiBroj, 10);
-  setBold("Poštanski broj Email adresa", data.postanskiBroj, 10);
-  setBold("MjestoEmail adresa", data.mjestoPrebivalista, 10);
+  // Email row (y=397): lijevo polje = email, desno = "71300 Visoko"
+  setBold("Poštanski broj Email adresa", data.emailOsiguranika, 10);
+  setBold("MjestoEmail adresa", data.postanskiMjestoCombined, 10);
 
   /* ── Tip ugovora (Check Box100..109) ── */
   if (data.tipUgovoraIdx !== null && data.tipUgovoraIdx >= 0 && data.tipUgovoraIdx <= 9) {
@@ -189,6 +218,22 @@ export async function fillJs3100Template(data: Js3100Data): Promise<Uint8Array> 
   /* ── Re-render appearances + flatten ── */
   form.updateFieldAppearances(boldFont);
   form.flatten();
+
+  /* ── Stručna sprema (red 11) ── crtamo "X" NAKON flatten-a da prazna
+     kvačica iz form-flattenovanja ne pokrije naš X */
+  if (
+    data.strucnaSpremaIdx !== null &&
+    data.strucnaSpremaIdx >= 0 &&
+    data.strucnaSpremaIdx <= 9
+  ) {
+    const pos = STRUCNA_SPREMA_POS[data.strucnaSpremaIdx];
+    doc.getPage(0).drawText("X", {
+      x: pos.x + 1.5,
+      y: pos.y + 2,
+      size: 9,
+      font: boldFont,
+    });
+  }
 
   return doc.save();
 }

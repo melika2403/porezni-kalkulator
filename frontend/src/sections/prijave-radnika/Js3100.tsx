@@ -6,7 +6,7 @@ import {
   type Js3100Data,
   type Js3100Vrsta,
   type Js3100Spol,
-} from "src/sections/js3100/fillJs3100";
+} from "src/sections/prijave-radnika/fillJs3100";
 import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
@@ -38,7 +38,9 @@ function isoToDDMMYYYY(iso: string) {
 }
 
 function downloadPdf(bytes: Uint8Array, filename: string) {
-  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+  const blob = new Blob([bytes.buffer as ArrayBuffer], {
+    type: "application/pdf",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -59,6 +61,20 @@ const TIP_UGOVORA = [
   "Ostalo 1",
   "Ostalo 2",
   "Ostalo 3",
+];
+
+/* ── Stručna sprema opcije (Check Box2..11) — red 11 u Drugom dijelu ── */
+const STRUCNA_SPREMA = [
+  "DR — Doktor nauka",
+  "MR — Magistar",
+  "VSS — Visoka stručna sprema",
+  "VŠS — Viša stručna sprema",
+  "SSS — Srednja stručna sprema",
+  "Niža",
+  "VKV — Visokokvalifikovani",
+  "KV — Kvalifikovani",
+  "PK — Polukvalifikovani",
+  "NK — Nekvalifikovani",
 ];
 
 /* ── Osnov osiguranja opcije (Check Box2..11) ── */
@@ -99,11 +115,15 @@ export default function Js3100Form() {
     jmbg: "",
     prezime: "",
     ime: "",
+    djevojackoPrezime: "",
     datumRodjenjaIso: "",
     spol: "" as Js3100Spol,
     adresa: "",
     grad: "",
+    kontaktAdresa: "",
+    kontaktGrad: "",
     emailOsiguranika: "",
+    strucnaSpremaIdx: null as number | null,
   });
 
   /* ── Sredina forme — TODO precizirati ── */
@@ -120,7 +140,9 @@ export default function Js3100Form() {
   /* ── Footer ── */
   const [popunioImeIPrezime, setPopunioImeIPrezime] = useState("");
   const [popunioTelefon, setPopunioTelefon] = useState("");
-  const [datumPopunjavanjaIso, setDatumPopunjavanjaIso] = useState(() => getTodayIso());
+  const [datumPopunjavanjaIso, setDatumPopunjavanjaIso] = useState(() =>
+    getTodayIso(),
+  );
 
   const [loading, setLoading] = useState(false);
 
@@ -153,31 +175,49 @@ export default function Js3100Form() {
     const prest = isoToDDMMYYYY(datumPrestankaIso);
     const employerCityInfo = findCity(employer.grad);
     const workerCityInfo = findCity(worker.grad);
+    const kontaktCityInfo = findCity(worker.kontaktGrad);
+    const effectivePostal = kontaktCityInfo?.postalCode ?? workerCityInfo?.postalCode ?? "";
+    const effectiveCity = worker.kontaktGrad || worker.grad;
+    const postanskiMjestoCombined = [effectivePostal, effectiveCity]
+      .filter(Boolean)
+      .join(" ");
 
     return {
       vrsta,
       datumPrijave: isoToDisplay(datumPrijaveIso),
 
       jib: employer.jib,
+      sifraOpcine: employerCityInfo?.municipalityCode ?? "",
       naziv: employer.naziv,
       adresa: employer.adresa,
-      gradPoste: [employerCityInfo?.postalCode, employer.grad].filter(Boolean).join(" "),
+      gradPoste: [employerCityInfo?.postalCode, employer.grad]
+        .filter(Boolean)
+        .join(" "),
       telefon: employer.telefon,
       email: employer.email,
 
       jmbg: worker.jmbg,
       prezimeIme: [worker.prezime, worker.ime].filter(Boolean).join(" "),
+      djevojackoPrezime: worker.djevojackoPrezime,
       datumRodjenjaDan: rod.dd,
       datumRodjenjaMjesec: rod.mm,
       datumRodjenjaGodina: rod.yyyy,
       spol: worker.spol,
-      adresaPrebivalista: formatAddress(worker.adresa, worker.grad, workerCityInfo?.postalCode),
-      postanskiBroj: workerCityInfo?.postalCode ?? "",
-      mjestoPrebivalista: worker.grad,
+      adresaPrebivalista: formatAddress(
+        worker.adresa,
+        worker.grad,
+        workerCityInfo?.postalCode,
+      ),
+      sifraOpcineOsiguranika: workerCityInfo?.municipalityCode ?? "",
+      postanskiBroj: effectivePostal,
+      mjestoPrebivalista: effectiveCity,
+      postanskiMjestoCombined,
+      kontaktAdresa: worker.kontaktAdresa,
       emailOsiguranika: worker.emailOsiguranika,
 
       tipUgovoraIdx,
       osnovOsiguranjaIdx: osnovIdx,
+      strucnaSpremaIdx: worker.strucnaSpremaIdx,
       napomenaText1,
       napomenaText2,
       napomenaText3,
@@ -218,7 +258,12 @@ export default function Js3100Form() {
     setLoading(true);
     try {
       const bytes = await fillJs3100Template(buildData());
-      const suffix = vrsta === "PRIJAVA" ? "Prijava" : vrsta === "ODJAVA" ? "Odjava" : "Promjena";
+      const suffix =
+        vrsta === "PRIJAVA"
+          ? "Prijava"
+          : vrsta === "ODJAVA"
+            ? "Odjava"
+            : "Promjena";
       const last = worker.prezime || worker.jmbg || "radnik";
       downloadPdf(bytes, `JS3100_${suffix}_${last}.pdf`);
     } finally {
@@ -234,7 +279,8 @@ export default function Js3100Form() {
           Prijava / Odjava <em>radnika</em>
         </h1>
         <p className={styles.subtitle}>
-          Jedinstveni sistem registracije, kontrole i naplate doprinosa — JS3100.
+          Jedinstveni sistem registracije, kontrole i naplate doprinosa —
+          JS3100.
         </p>
       </div>
 
@@ -254,18 +300,32 @@ export default function Js3100Form() {
             <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
               <label className={styles.fieldLabel}>Tip</label>
               <div style={{ display: "flex", gap: "1.5rem" }}>
-                {(["PRIJAVA", "PROMJENA", "ODJAVA"] as Js3100Vrsta[]).map((v) => (
-                  <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="vrsta"
-                      value={v}
-                      checked={vrsta === v}
-                      onChange={() => setVrsta(v)}
-                    />
-                    {v === "PRIJAVA" ? "Prijava osiguranja" : v === "PROMJENA" ? "Promjena podataka" : "Odjava osiguranja"}
-                  </label>
-                ))}
+                {(["PRIJAVA", "PROMJENA", "ODJAVA"] as Js3100Vrsta[]).map(
+                  (v) => (
+                    <label
+                      key={v}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="vrsta"
+                        value={v}
+                        checked={vrsta === v}
+                        onChange={() => setVrsta(v)}
+                      />
+                      {v === "PRIJAVA"
+                        ? "Prijava osiguranja"
+                        : v === "PROMJENA"
+                          ? "Promjena podataka"
+                          : "Odjava osiguranja"}
+                    </label>
+                  ),
+                )}
               </div>
             </div>
             <div className={styles.fieldGroup}>
@@ -291,7 +351,9 @@ export default function Js3100Form() {
               <input
                 className={styles.fieldInput}
                 value={employer.jib}
-                onChange={(e) => setEmployer((p) => ({ ...p, jib: e.target.value }))}
+                onChange={(e) =>
+                  setEmployer((p) => ({ ...p, jib: e.target.value }))
+                }
                 maxLength={13}
                 placeholder="13 cifara"
               />
@@ -301,16 +363,22 @@ export default function Js3100Form() {
               <input
                 className={styles.fieldInput}
                 value={employer.telefon}
-                onChange={(e) => setEmployer((p) => ({ ...p, telefon: e.target.value }))}
+                onChange={(e) =>
+                  setEmployer((p) => ({ ...p, telefon: e.target.value }))
+                }
                 placeholder="+387..."
               />
             </div>
             <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>2) Naziv obveznika uplate doprinosa</label>
+              <label className={styles.fieldLabel}>
+                2) Naziv obveznika uplate doprinosa
+              </label>
               <input
                 className={styles.fieldInput}
                 value={employer.naziv}
-                onChange={(e) => setEmployer((p) => ({ ...p, naziv: e.target.value }))}
+                onChange={(e) =>
+                  setEmployer((p) => ({ ...p, naziv: e.target.value }))
+                }
               />
             </div>
             <div className={styles.fieldGroup}>
@@ -318,25 +386,31 @@ export default function Js3100Form() {
               <input
                 className={styles.fieldInput}
                 value={employer.adresa}
-                onChange={(e) => setEmployer((p) => ({ ...p, adresa: e.target.value }))}
+                onChange={(e) =>
+                  setEmployer((p) => ({ ...p, adresa: e.target.value }))
+                }
                 placeholder="Ulica i broj"
               />
             </div>
             <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>4) Grad i poštanski broj</label>
+              <label className={styles.fieldLabel}>
+                4) Grad i poštanski broj
+              </label>
               <CitySelect
                 value={employer.grad}
                 onChange={(v) => setEmployer((p) => ({ ...p, grad: v }))}
                 className={styles.fieldInput}
               />
             </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+<div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
               <label className={styles.fieldLabel}>8) Email</label>
               <input
                 type="email"
                 className={styles.fieldInput}
                 value={employer.email}
-                onChange={(e) => setEmployer((p) => ({ ...p, email: e.target.value }))}
+                onChange={(e) =>
+                  setEmployer((p) => ({ ...p, email: e.target.value }))
+                }
               />
             </div>
           </div>
@@ -354,7 +428,12 @@ export default function Js3100Form() {
               <input
                 className={styles.fieldInput}
                 value={worker.jmbg}
-                onChange={(e) => setWorker((p) => ({ ...p, jmbg: e.target.value.replace(/\D/g, "").slice(0, 13) }))}
+                onChange={(e) =>
+                  setWorker((p) => ({
+                    ...p,
+                    jmbg: e.target.value.replace(/\D/g, "").slice(0, 13),
+                  }))
+                }
                 maxLength={13}
                 placeholder="13 cifara"
               />
@@ -364,7 +443,9 @@ export default function Js3100Form() {
               <DateInput
                 className={styles.fieldInput}
                 value={worker.datumRodjenjaIso}
-                onValueChange={(iso) => setWorker((p) => ({ ...p, datumRodjenjaIso: iso }))}
+                onValueChange={(iso) =>
+                  setWorker((p) => ({ ...p, datumRodjenjaIso: iso }))
+                }
               />
             </div>
             <div className={styles.fieldGroup}>
@@ -372,7 +453,9 @@ export default function Js3100Form() {
               <input
                 className={styles.fieldInput}
                 value={worker.prezime}
-                onChange={(e) => setWorker((p) => ({ ...p, prezime: e.target.value }))}
+                onChange={(e) =>
+                  setWorker((p) => ({ ...p, prezime: e.target.value }))
+                }
               />
             </div>
             <div className={styles.fieldGroup}>
@@ -380,14 +463,37 @@ export default function Js3100Form() {
               <input
                 className={styles.fieldInput}
                 value={worker.ime}
-                onChange={(e) => setWorker((p) => ({ ...p, ime: e.target.value }))}
+                onChange={(e) =>
+                  setWorker((p) => ({ ...p, ime: e.target.value }))
+                }
+              />
+            </div>
+            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+              <label className={styles.fieldLabel}>Djevojačko prezime</label>
+              <input
+                className={styles.fieldInput}
+                value={worker.djevojackoPrezime}
+                onChange={(e) =>
+                  setWorker((p) => ({
+                    ...p,
+                    djevojackoPrezime: e.target.value,
+                  }))
+                }
               />
             </div>
             <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
               <label className={styles.fieldLabel}>Spol</label>
               <div style={{ display: "flex", gap: "1.5rem" }}>
                 {(["M", "Z"] as Js3100Spol[]).map((s) => (
-                  <label key={s} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
+                  <label
+                    key={s}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="radio"
                       name="spol"
@@ -405,7 +511,9 @@ export default function Js3100Form() {
               <input
                 className={styles.fieldInput}
                 value={worker.adresa}
-                onChange={(e) => setWorker((p) => ({ ...p, adresa: e.target.value }))}
+                onChange={(e) =>
+                  setWorker((p) => ({ ...p, adresa: e.target.value }))
+                }
                 placeholder="Ulica i broj"
               />
             </div>
@@ -418,13 +526,68 @@ export default function Js3100Form() {
               />
             </div>
             <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+              <p
+                className={styles.fieldLabel}
+                style={{ marginTop: "0.5rem", marginBottom: "-0.25rem" }}
+              >
+                Kontakt adresa — popuniti samo ako se razlikuje od adrese
+                prebivališta
+              </p>
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>
+                Kontakt adresa — ulica i broj
+              </label>
+              <input
+                className={styles.fieldInput}
+                value={worker.kontaktAdresa}
+                onChange={(e) =>
+                  setWorker((p) => ({ ...p, kontaktAdresa: e.target.value }))
+                }
+                placeholder="Ulica i broj"
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>
+                Kontakt — Mjesto / Grad
+              </label>
+              <CitySelect
+                value={worker.kontaktGrad}
+                onChange={(v) => setWorker((p) => ({ ...p, kontaktGrad: v }))}
+                className={styles.fieldInput}
+              />
+            </div>
+            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
               <label className={styles.fieldLabel}>Email osiguranika</label>
               <input
                 type="email"
                 className={styles.fieldInput}
                 value={worker.emailOsiguranika}
-                onChange={(e) => setWorker((p) => ({ ...p, emailOsiguranika: e.target.value }))}
+                onChange={(e) =>
+                  setWorker((p) => ({ ...p, emailOsiguranika: e.target.value }))
+                }
               />
+            </div>
+            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+              <label className={styles.fieldLabel}>Stručna sprema</label>
+              <select
+                className={styles.fieldInput}
+                value={worker.strucnaSpremaIdx ?? ""}
+                onChange={(e) =>
+                  setWorker((p) => ({
+                    ...p,
+                    strucnaSpremaIdx:
+                      e.target.value === "" ? null : parseInt(e.target.value),
+                  }))
+                }
+              >
+                <option value="">— Odaberite —</option>
+                {STRUCNA_SPREMA.map((t, i) => (
+                  <option key={i} value={i}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </section>
@@ -440,11 +603,17 @@ export default function Js3100Form() {
               <select
                 className={styles.fieldInput}
                 value={tipUgovoraIdx ?? ""}
-                onChange={(e) => setTipUgovoraIdx(e.target.value === "" ? null : parseInt(e.target.value))}
+                onChange={(e) =>
+                  setTipUgovoraIdx(
+                    e.target.value === "" ? null : parseInt(e.target.value),
+                  )
+                }
               >
                 <option value="">— Odaberite —</option>
                 {TIP_UGOVORA.map((t, i) => (
-                  <option key={i} value={i}>{t}</option>
+                  <option key={i} value={i}>
+                    {t}
+                  </option>
                 ))}
               </select>
             </div>
@@ -453,11 +622,17 @@ export default function Js3100Form() {
               <select
                 className={styles.fieldInput}
                 value={osnovIdx ?? ""}
-                onChange={(e) => setOsnovIdx(e.target.value === "" ? null : parseInt(e.target.value))}
+                onChange={(e) =>
+                  setOsnovIdx(
+                    e.target.value === "" ? null : parseInt(e.target.value),
+                  )
+                }
               >
                 <option value="">— Odaberite —</option>
                 {OSNOV_OSIGURANJA.map((t, i) => (
-                  <option key={i} value={i}>{t}</option>
+                  <option key={i} value={i}>
+                    {t}
+                  </option>
                 ))}
               </select>
             </div>
@@ -470,7 +645,9 @@ export default function Js3100Form() {
               />
             </div>
             <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Datum prestanka rada (za odjavu)</label>
+              <label className={styles.fieldLabel}>
+                Datum prestanka rada (za odjavu)
+              </label>
               <DateInput
                 className={styles.fieldInput}
                 value={datumPrestankaIso}
@@ -483,7 +660,9 @@ export default function Js3100Form() {
                 className={styles.fieldInput}
                 inputMode="numeric"
                 value={satiSedmicno}
-                onChange={(e) => setSatiSedmicno(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                onChange={(e) =>
+                  setSatiSedmicno(e.target.value.replace(/\D/g, "").slice(0, 2))
+                }
                 placeholder="40"
                 maxLength={2}
               />
@@ -494,13 +673,19 @@ export default function Js3100Form() {
                 className={styles.fieldInput}
                 inputMode="numeric"
                 value={minutaSedmicno}
-                onChange={(e) => setMinutaSedmicno(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                onChange={(e) =>
+                  setMinutaSedmicno(
+                    e.target.value.replace(/\D/g, "").slice(0, 2),
+                  )
+                }
                 placeholder="00"
                 maxLength={2}
               />
             </div>
             <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Napomena 1 (text1 polje)</label>
+              <label className={styles.fieldLabel}>
+                Napomena 1 (text1 polje)
+              </label>
               <input
                 className={styles.fieldInput}
                 value={napomenaText1}
@@ -508,7 +693,9 @@ export default function Js3100Form() {
               />
             </div>
             <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Napomena 2 (text2 polje)</label>
+              <label className={styles.fieldLabel}>
+                Napomena 2 (text2 polje)
+              </label>
               <input
                 className={styles.fieldInput}
                 value={napomenaText2}
@@ -516,7 +703,9 @@ export default function Js3100Form() {
               />
             </div>
             <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Napomena 3 (text3 polje)</label>
+              <label className={styles.fieldLabel}>
+                Napomena 3 (text3 polje)
+              </label>
               <input
                 className={styles.fieldInput}
                 value={napomenaText3}
@@ -560,7 +749,13 @@ export default function Js3100Form() {
           </div>
         </section>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginTop: "1.5rem",
+          }}
+        >
           <button
             type="submit"
             className={styles.fieldInput}
