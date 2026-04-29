@@ -177,7 +177,8 @@ export const KANTONI: Record<KantonKey, KantonData> = {
   },
 };
 
-const FBIH_ZO_RACUN = "102-050-00000640-18";
+export const FBIH_ZO_RACUN = "102-050-00000640-18";
+export const FBIH_BUDZET_RACUN = "102-050-00001066-98"; // Budžet Federacije BiH (PIO i sl.)
 
 export interface UplatnicaData {
   imeIPrezime: string;
@@ -408,7 +409,7 @@ const A_PRORAC: Box[] = [
 
 /* ── Fill a single uplatnica page ── */
 
-interface FillPageOpts {
+export interface FillPageOpts {
   uplatio: string[];
   svrha: string;
   primatelj: string[];
@@ -427,7 +428,7 @@ interface FillPageOpts {
   customPoziv?: string;
 }
 
-function fillPage(
+export function fillPage(
   page: ReturnType<PDFDocument["getPage"]>,
   font: Awaited<ReturnType<PDFDocument["embedFont"]>>,
   opts: FillPageOpts

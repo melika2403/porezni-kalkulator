@@ -61,7 +61,7 @@ async function create(req, res) {
     }
   }
 
-  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address, city } = req.body ?? {};
+  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address, city, idCardNumber, bankAccount } = req.body ?? {};
   const resolvedRole = role ?? "RADNIK";
 
   if (!VALID_ROLES.includes(resolvedRole))
@@ -93,6 +93,8 @@ async function create(req, res) {
       phone: phone?.trim() || null,
       address: address?.trim() || null,
       city: city?.trim() || null,
+      idCardNumber: idCardNumber?.trim() ? idCardNumber.trim().slice(0, 9) : null,
+      bankAccount: bankAccount?.trim() || null,
     });
     return res.status(201).json({ ok: true, data: toPublicWorker(worker) });
   } catch (error) {
@@ -111,7 +113,7 @@ async function update(req, res) {
   const existing = await Worker.findOne({ where: { id: workerId, organizationId: orgId } });
   if (!existing) return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
 
-  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address, city } = req.body ?? {};
+  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address, city, idCardNumber, bankAccount } = req.body ?? {};
   const data = {};
 
   if (role !== undefined) {
@@ -141,6 +143,10 @@ async function update(req, res) {
   if (phone !== undefined) data.phone = phone?.trim() || null;
   if (address !== undefined) data.address = address?.trim() || null;
   if (city !== undefined) data.city = city?.trim() || null;
+  if (idCardNumber !== undefined)
+    data.idCardNumber = idCardNumber?.trim() ? idCardNumber.trim().slice(0, 9) : null;
+  if (bankAccount !== undefined)
+    data.bankAccount = bankAccount?.trim() || null;
 
   const { defaultStartTime, defaultEndTime, defaultDaysOff, defaultPause } = req.body ?? {};
   if (defaultStartTime !== undefined)

@@ -39,6 +39,8 @@ function validateOrgData(body, requireName = true) {
     data.address = address ? String(address).trim() : null;
   if (city !== undefined)
     data.city = city ? String(city).trim() : null;
+  if (body.bankAccount !== undefined)
+    data.bankAccount = body.bankAccount ? String(body.bankAccount).trim() : null;
 
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };

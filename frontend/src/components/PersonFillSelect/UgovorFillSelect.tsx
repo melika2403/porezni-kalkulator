@@ -19,6 +19,7 @@ export type UgovorFillData = {
   address: string;
   city: string;
   id: string;
+  bankAccount?: string;
 };
 
 type Props = {
@@ -129,6 +130,9 @@ export default function UgovorFillSelect({ onFill }: Props) {
   const vlasnici = workers
     .filter((w) => w.role === "VLASNIK" && workerLabel(w).toLowerCase().includes(q))
     .sort((a, b) => workerLabel(a).localeCompare(workerLabel(b), "bs"));
+  const radnici = workers
+    .filter((w) => w.role === "RADNIK" && workerLabel(w).toLowerCase().includes(q))
+    .sort((a, b) => workerLabel(a).localeCompare(workerLabel(b), "bs"));
 
   const filteredOwn = ownOrgs.filter((o) => orgLabel(o).toLowerCase().includes(q));
   const filteredClient = clientOrgs.filter((o) => orgLabel(o).toLowerCase().includes(q));
@@ -140,7 +144,8 @@ export default function UgovorFillSelect({ onFill }: Props) {
     filteredOwn.length === 0 &&
     filteredClient.length === 0 &&
     filteredPersons.length === 0 &&
-    vlasnici.length === 0;
+    vlasnici.length === 0 &&
+    radnici.length === 0;
 
   function pick(data: UgovorFillData) {
     onFill(data);
@@ -192,7 +197,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                       key={o.id}
                       type="button"
                       className={styles.dropdownItem}
-                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "" })}
+                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "", bankAccount: o.bankAccount ?? "" })}
                     >
                       {orgLabel(o)}{o.taxNumber ? ` (${o.taxNumber})` : ""}
                     </button>
@@ -208,7 +213,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                       key={o.id}
                       type="button"
                       className={styles.dropdownItem}
-                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "" })}
+                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "", bankAccount: o.bankAccount ?? "" })}
                     >
                       {orgLabel(o)}{o.taxNumber ? ` (${o.taxNumber})` : ""}
                     </button>
@@ -252,7 +257,32 @@ export default function UgovorFillSelect({ onFill }: Props) {
                           name: `${w.firstName} ${w.lastName}`.trim(),
                           address: w.address ?? "",
                           city: w.city ?? "",
-                          id: w.idCardNumber ?? "",
+                          id: w.jmbg ?? w.idCardNumber ?? "",
+                          bankAccount: w.bankAccount ?? "",
+                        })
+                      }
+                    >
+                      {workerLabel(w)}
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {radnici.length > 0 && (
+                <>
+                  <div className={styles.dropdownGroup}>Radnici</div>
+                  {radnici.map((w) => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      className={styles.dropdownItem}
+                      onClick={() =>
+                        pick({
+                          name: `${w.firstName} ${w.lastName}`.trim(),
+                          address: w.address ?? "",
+                          city: w.city ?? "",
+                          id: w.jmbg ?? w.idCardNumber ?? "",
+                          bankAccount: w.bankAccount ?? "",
                         })
                       }
                     >
@@ -264,7 +294,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
             </div>
             {!isProOrBusiness && (
               <div className={styles.dropdownTeaser}>
-                <p className={styles.dropdownTeaserText}>Uz pretplatu: klijentske organizacije, fizička lica, vlasnici</p>
+                <p className={styles.dropdownTeaserText}>Uz pretplatu: klijentske organizacije, fizička lica, vlasnici i radnici</p>
                 <a href="/profil#pretplata" className={styles.dropdownTeaserLink}>Pretplatite se →</a>
               </div>
             )}
