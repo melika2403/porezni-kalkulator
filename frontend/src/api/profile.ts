@@ -163,6 +163,7 @@ export type Organization = {
   phone: string | null;
   address: string | null;
   city: string | null;
+  bankAccount: string | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   createdAt: string;
@@ -179,6 +180,7 @@ export type OrgPayload = {
   phone?: string;
   address?: string;
   city?: string;
+  bankAccount?: string;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -271,6 +273,7 @@ export type Worker = {
   address: string | null;
   city: string | null;
   idCardNumber: string | null;
+  bankAccount: string | null;
   startDate: string | null;
   endDate: string | null;
   defaultStartTime: string | null;
@@ -290,6 +293,8 @@ export type WorkerPayload = {
   phone?: string;
   address?: string;
   city?: string;
+  idCardNumber?: string;
+  bankAccount?: string;
   startDate?: string | null;
   endDate?: string | null;
   defaultStartTime?: string | null;

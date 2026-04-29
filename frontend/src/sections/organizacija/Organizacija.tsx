@@ -33,6 +33,8 @@ type WorkerForm = {
   firstName: string;
   lastName: string;
   jmbg: string;
+  idCardNumber: string;
+  bankAccount: string;
   address: string;
   city: string;
   startDate: string;
@@ -44,6 +46,8 @@ const emptyForm = (): WorkerForm => ({
   firstName: "",
   lastName: "",
   jmbg: "",
+  idCardNumber: "",
+  bankAccount: "",
   address: "",
   city: "",
   startDate: "",
@@ -56,6 +60,8 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     firstName: f.firstName.trim(),
     lastName: f.lastName.trim(),
     jmbg: f.jmbg.trim() || undefined,
+    idCardNumber: f.idCardNumber.trim() || undefined,
+    bankAccount: f.bankAccount.trim() || undefined,
     address: f.address.trim() || undefined,
     city: f.city.trim() || undefined,
     startDate: f.startDate || null,
@@ -69,6 +75,8 @@ function workerToForm(w: Worker): WorkerForm {
     firstName: w.firstName,
     lastName: w.lastName,
     jmbg: w.jmbg ?? "",
+    idCardNumber: w.idCardNumber ?? "",
+    bankAccount: w.bankAccount ?? "",
     address: w.address ?? "",
     city: w.city ?? "",
     startDate: w.startDate ?? "",
@@ -146,9 +154,34 @@ function WorkerFormFields({
         <input
           className={styles.input}
           value={value.jmbg}
-          onChange={set("jmbg")}
+          onChange={(e) => onChange({ ...value, jmbg: e.target.value.replace(/\D/g, "").slice(0, 13) })}
           placeholder="1234567890123"
+          inputMode="numeric"
           maxLength={13}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Broj lične karte</label>
+        <input
+          className={styles.input}
+          value={value.idCardNumber}
+          onChange={(e) => onChange({ ...value, idCardNumber: e.target.value.slice(0, 9) })}
+          placeholder="npr. 12ABC3456"
+          maxLength={9}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Broj tekućeg računa</label>
+        <input
+          className={styles.input}
+          value={value.bankAccount}
+          onChange={(e) => {
+            const d = e.target.value.replace(/\D/g, "").slice(0, 16);
+            const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+            onChange({ ...value, bankAccount: parts.join("-") });
+          }}
+          placeholder="XXX-XXX-XXXXXXXX-XX"
+          inputMode="numeric"
         />
       </div>
       <div className={styles.field}>

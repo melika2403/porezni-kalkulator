@@ -214,6 +214,61 @@
   border-color: var(--sage);
 }
 
+.yearDeleteRight {
+  margin-left: auto;
+  padding: 0.35rem 0.7rem;
+  font-size: 12px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.yearDeleteRight:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.yearDeleteConfirm {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 11.5px;
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius);
+}
+
+.yearDeleteConfirmYes {
+  padding: 0.25rem 0.6rem;
+  font-size: 11.5px;
+  font-family: inherit;
+  font-weight: 600;
+  background: #b91c1c;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.yearDeleteConfirmNo {
+  padding: 0.25rem 0.6rem;
+  font-size: 11.5px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
 .yearChipNew {
   border-style: dashed;
   color: var(--sage);

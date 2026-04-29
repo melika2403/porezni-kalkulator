@@ -178,10 +178,11 @@ export default function UgovorOPozajmici() {
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Popuni zajmoprimca</label>
             <UgovorFillSelect
-              onFill={({ name, address, city, id }) => {
+              onFill={({ name, address, city, id, bankAccount }) => {
                 set("zajmoprimac", name);
                 set("zajmoprimacAdresa", formatAddress(address, city, findCity(city)?.postalCode));
                 set("zajmoprimacID", id);
+                if (bankAccount) set("ziroRacun", bankAccount);
               }}
             />
           </div>
