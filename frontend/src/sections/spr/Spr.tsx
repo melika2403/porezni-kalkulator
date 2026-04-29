@@ -4,6 +4,9 @@ import styles from "./spr.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { formatAddress } from "src/utils/formatAddress";
 import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
@@ -90,6 +93,7 @@ function monthsBetween(start: string, end: string) {
 /* ── Component ── */
 
 export default function SprForm() {
+  const { findByName: findCity } = useCityLookup();
   const formRef = useRef<HTMLFormElement | null>(null);
 
   /* ── Dio 1 — Podaci o poreznom obvezniku ── */
@@ -97,6 +101,7 @@ export default function SprForm() {
     jmbOsobni: "",
     fullName: "",
     address: "",
+    city: "",
   });
 
   /* ── Dio 2 — Podaci o djelatnosti ── */
@@ -107,6 +112,7 @@ export default function SprForm() {
     contactChanged: false,
     name: "",
     address: "",
+    city: "",
     activityCode: "",
     activityName: "",
   });
@@ -152,6 +158,7 @@ export default function SprForm() {
       fullName:
         [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
       address: data.address ?? p.address,
+      city: data.city ?? p.city,
     }));
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);
@@ -165,6 +172,7 @@ export default function SprForm() {
       jibJmb: data.taxNumber ?? p.jibJmb,
       name: data.name ?? p.name,
       address: data.address ?? p.address,
+      city: data.city ?? p.city,
       activityCode: data.activityCode ?? p.activityCode,
       activityName: data.activityName ?? p.activityName,
     }));
@@ -211,14 +219,14 @@ export default function SprForm() {
     return {
       jmbOsobni: personal.jmbOsobni,
       fullName: personal.fullName,
-      address: personal.address,
+      address: formatAddress(personal.address, personal.city, findCity(personal.city)?.postalCode),
 
       jibJmb: business.jibJmb,
       periodFrom: isoToCompact(business.periodFrom),
       periodTo: isoToCompact(business.periodTo),
       contactChanged: business.contactChanged,
       businessName: business.name,
-      businessAddress: business.address,
+      businessAddress: formatAddress(business.address, business.city, findCity(business.city)?.postalCode),
       activityType: [business.activityCode, business.activityName]
         .filter(Boolean)
         .join(" - "),
@@ -360,11 +368,11 @@ export default function SprForm() {
               }
             />
           </div>
-          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+          <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>3) Adresa</label>
             <input
               className={styles.fieldInput}
-              placeholder="Ulica, broj, grad, poštanski broj"
+              placeholder="Ulica i broj"
               value={personal.address}
               onInvalid={(e) => {
                 const el = e.currentTarget;
@@ -376,6 +384,14 @@ export default function SprForm() {
               onChange={(e) =>
                 setPersonal((s) => ({ ...s, address: e.target.value }))
               }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Grad</label>
+            <CitySelect
+              value={personal.city}
+              onChange={(v) => setPersonal((s) => ({ ...s, city: v }))}
+              className={styles.fieldInput}
             />
           </div>
         </div>
@@ -471,13 +487,13 @@ export default function SprForm() {
               }
             />
           </div>
-          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+          <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>
               9) Adresa poslovne djelatnosti
             </label>
             <input
               className={styles.fieldInput}
-              placeholder="Adresa obavljanja djelatnosti"
+              placeholder="Ulica i broj"
               value={business.address}
               onInvalid={(e) => {
                 const el = e.currentTarget;
@@ -489,6 +505,14 @@ export default function SprForm() {
               onChange={(e) =>
                 setBusiness((s) => ({ ...s, address: e.target.value }))
               }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Grad djelatnosti</label>
+            <CitySelect
+              value={business.city}
+              onChange={(v) => setBusiness((s) => ({ ...s, city: v }))}
+              className={styles.fieldInput}
             />
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>

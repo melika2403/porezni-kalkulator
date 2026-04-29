@@ -10,6 +10,9 @@ import {
   type KantonKey,
 } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { formatAddress } from "src/utils/formatAddress";
 import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
@@ -79,6 +82,7 @@ interface PersonalData {
   jmb: string;
   fullName: string;
   address: string;
+  city: string;
   contactChanged: boolean;
   taxYear: string;
   phone: string;
@@ -172,6 +176,7 @@ const isoToFormatted = (isoDate: string): string => {
 /* ── Component ── */
 
 export default function GpdForm() {
+  const { findByName: findCity } = useCityLookup();
   const formRef = useRef<HTMLFormElement | null>(null);
   const refundRequiredRef = useRef<HTMLInputElement | null>(null);
 
@@ -179,6 +184,7 @@ export default function GpdForm() {
     jmb: "",
     fullName: "",
     address: "",
+    city: "",
     contactChanged: false,
     taxYear: "",
     phone: "",
@@ -306,6 +312,7 @@ export default function GpdForm() {
       fullName:
         [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
       address: data.address ?? p.address,
+      city: data.city ?? p.city,
     }));
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);
@@ -321,7 +328,7 @@ export default function GpdForm() {
       jmb: personal.jmb,
       fullName: personal.fullName,
       taxYear: personal.taxYear,
-      address: personal.address,
+      address: formatAddress(personal.address, personal.city, findCity(personal.city)?.postalCode),
       contactChanged: personal.contactChanged,
       phone: personal.phone,
       email: personal.email,
@@ -427,7 +434,7 @@ export default function GpdForm() {
     try {
       const bytes = await fillGpdUplatnica({
         imeIPrezime: personal.fullName,
-        adresa: personal.address,
+        adresa: formatAddress(personal.address, personal.city, findCity(personal.city)?.postalCode),
         jmbg: personal.jmb,
         godina: personal.taxYear,
         porez: computed.difference,
@@ -578,11 +585,11 @@ export default function GpdForm() {
               }
             />
           </div>
-          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+          <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>3) Adresa</label>
             <input
               className={styles.fieldInput}
-              placeholder="Ulica, broj, grad, poštanski broj"
+              placeholder="Ulica i broj"
               value={personal.address}
               onInvalid={(e) => {
                 const el = e.currentTarget;
@@ -594,6 +601,14 @@ export default function GpdForm() {
               onChange={(e) =>
                 setPersonal((s) => ({ ...s, address: e.target.value }))
               }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Grad</label>
+            <CitySelect
+              value={personal.city}
+              onChange={(v) => setPersonal((s) => ({ ...s, city: v }))}
+              className={styles.fieldInput}
             />
           </div>
           <div className={styles.fieldGroup}>

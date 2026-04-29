@@ -3,7 +3,10 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
 const { decryptJmbg } = require("../utils/encryptJmbg");
-const { sendPasswordResetEmail, sendVerificationEmail } = require("../utils/mailer");
+const {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} = require("../utils/mailer");
 const { User, Subscription } = require("../models/index");
 const googleAuth = require("../auth/googleAuth");
 
@@ -42,15 +45,34 @@ function clearAuthCookie(res) {
 }
 
 const userAttributes = [
-  "id", "email", "jmbg", "firstName", "lastName", "phone", "address",
-  "role", "createdAt", "updatedAt", "googleId", "isEmailVerified", "password", "idCardNumber",
+  "id",
+  "email",
+  "jmbg",
+  "firstName",
+  "lastName",
+  "phone",
+  "address",
+  "city",
+  "role",
+  "createdAt",
+  "updatedAt",
+  "googleId",
+  "isEmailVerified",
+  "password",
+  "idCardNumber",
 ];
 
 async function findUserWithSub(where) {
   return User.findOne({
     where,
     attributes: userAttributes,
-    include: [{ model: Subscription, as: "subscription", attributes: ["id", "startDate", "endDate", "isActive"] }],
+    include: [
+      {
+        model: Subscription,
+        as: "subscription",
+        attributes: ["id", "startDate", "endDate", "isActive"],
+      },
+    ],
   });
 }
 
@@ -76,21 +98,35 @@ function signJwtForUser(user) {
 }
 
 async function register(req, res) {
-  const { email, password, firstName, lastName, phone, address } = req.body ?? {};
+  const { email, password, firstName, lastName, phone, address, city } =
+    req.body ?? {};
 
-  if (!isNonEmptyString(email)) return res.status(400).json({ ok: false, error: "email is required" });
+  if (!isNonEmptyString(email))
+    return res.status(400).json({ ok: false, error: "email is required" });
   if (!isNonEmptyString(password) || password.trim().length < 6)
-    return res.status(400).json({ ok: false, error: "password must be at least 6 characters" });
-  if (!isNonEmptyString(firstName)) return res.status(400).json({ ok: false, error: "firstName is required" });
-  if (!isNonEmptyString(lastName)) return res.status(400).json({ ok: false, error: "lastName is required" });
-  if (!isNonEmptyString(phone)) return res.status(400).json({ ok: false, error: "phone is required" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "password must be at least 6 characters" });
+  if (!isNonEmptyString(firstName))
+    return res.status(400).json({ ok: false, error: "firstName is required" });
+  if (!isNonEmptyString(lastName))
+    return res.status(400).json({ ok: false, error: "lastName is required" });
   if (address != null && typeof address !== "string")
-    return res.status(400).json({ ok: false, error: "address must be a string" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "address must be a string" });
+  if (city != null && typeof city !== "string")
+    return res
+      .status(400)
+      .json({ ok: false, error: "city must be a string" });
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
     const plainToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(plainToken).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(plainToken)
+      .digest("hex");
     const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const user = await User.create({
@@ -100,6 +136,7 @@ async function register(req, res) {
       lastName: lastName.trim(),
       phone: phone.trim(),
       address: typeof address === "string" ? address.trim() : null,
+      city: typeof city === "string" ? city.trim() : null,
       role: "USER",
       isEmailVerified: false,
       emailVerificationToken: hashedToken,
@@ -128,23 +165,31 @@ async function login(req, res) {
   const { email, password, rememberMe } = req.body ?? {};
 
   if (!isNonEmptyString(email) || !isNonEmptyString(password))
-    return res.status(400).json({ ok: false, error: "email and password are required" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "email and password are required" });
 
   try {
-    const user = await User.findOne({ where: { email: email.trim().toLowerCase() } });
+    const user = await User.findOne({
+      where: { email: email.trim().toLowerCase() },
+    });
 
     if (!user || !user.password)
       return res.status(401).json({ ok: false, error: "INVALID_CREDENTIALS" });
 
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ ok: false, error: "INVALID_CREDENTIALS" });
+    if (!ok)
+      return res.status(401).json({ ok: false, error: "INVALID_CREDENTIALS" });
 
     if (!user.isEmailVerified)
       return res.status(403).json({ ok: false, error: "EMAIL_NOT_VERIFIED" });
 
     const secret = getJwtSecret();
     const expiresIn = rememberMe ? REMEMBER_ME_JWT_EXPIRES : getJwtExpiresIn();
-    const token = jwt.sign({ role: user.role }, secret, { subject: String(user.id), expiresIn });
+    const token = jwt.sign({ role: user.role }, secret, {
+      subject: String(user.id),
+      expiresIn,
+    });
 
     setAuthCookie(res, token, Boolean(rememberMe));
 
@@ -163,33 +208,44 @@ async function logout(_req, res) {
 
 async function me(req, res) {
   const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+  if (!userId)
+    return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
 
   const user = await findUserWithSub({ id: userId });
-  if (!user) return res.status(404).json({ ok: false, error: "User not found" });
+  if (!user)
+    return res.status(404).json({ ok: false, error: "User not found" });
 
   return res.status(200).json({ ok: true, data: toPublicUser(user) });
 }
 
 async function forgotPassword(req, res) {
   const { email } = req.body ?? {};
-  if (!isNonEmptyString(email)) return res.status(400).json({ ok: false, error: "email is required" });
+  if (!isNonEmptyString(email))
+    return res.status(400).json({ ok: false, error: "email is required" });
 
   try {
-    const user = await User.findOne({ where: { email: email.trim().toLowerCase() } });
+    const user = await User.findOne({
+      where: { email: email.trim().toLowerCase() },
+    });
 
     if (user && user.password) {
       const plainToken = crypto.randomBytes(32).toString("hex");
-      const hashedToken = crypto.createHash("sha256").update(plainToken).digest("hex");
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(plainToken)
+        .digest("hex");
       const expiry = new Date(Date.now() + 60 * 60 * 1000);
 
       await User.update(
         { passwordResetToken: hashedToken, passwordResetTokenExpiry: expiry },
-        { where: { id: user.id } }
+        { where: { id: user.id } },
       );
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-      await sendPasswordResetEmail(user.email, `${frontendUrl}/reset-lozinke?token=${plainToken}`);
+      await sendPasswordResetEmail(
+        user.email,
+        `${frontendUrl}/reset-lozinke?token=${plainToken}`,
+      );
     }
   } catch (error) {
     console.error("forgotPassword error:", error);
@@ -201,12 +257,18 @@ async function forgotPassword(req, res) {
 async function resetPassword(req, res) {
   const { token, newPassword } = req.body ?? {};
 
-  if (!isNonEmptyString(token)) return res.status(400).json({ ok: false, error: "token is required" });
+  if (!isNonEmptyString(token))
+    return res.status(400).json({ ok: false, error: "token is required" });
   if (!isNonEmptyString(newPassword) || newPassword.trim().length < 6)
-    return res.status(400).json({ ok: false, error: "password must be at least 6 characters" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "password must be at least 6 characters" });
 
   try {
-    const hashedToken = crypto.createHash("sha256").update(token.trim()).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token.trim())
+      .digest("hex");
 
     const user = await User.findOne({
       where: {
@@ -215,12 +277,19 @@ async function resetPassword(req, res) {
       },
     });
 
-    if (!user) return res.status(400).json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
+    if (!user)
+      return res
+        .status(400)
+        .json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await User.update(
-      { password: passwordHash, passwordResetToken: null, passwordResetTokenExpiry: null },
-      { where: { id: user.id } }
+      {
+        password: passwordHash,
+        passwordResetToken: null,
+        passwordResetTokenExpiry: null,
+      },
+      { where: { id: user.id } },
     );
 
     return res.status(200).json({ ok: true });
@@ -232,10 +301,14 @@ async function resetPassword(req, res) {
 
 async function verifyEmail(req, res) {
   const { token } = req.query ?? {};
-  if (!isNonEmptyString(token)) return res.status(400).json({ ok: false, error: "INVALID_TOKEN" });
+  if (!isNonEmptyString(token))
+    return res.status(400).json({ ok: false, error: "INVALID_TOKEN" });
 
   try {
-    const hashedToken = crypto.createHash("sha256").update(token.trim()).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token.trim())
+      .digest("hex");
 
     const user = await User.findOne({
       where: {
@@ -245,11 +318,18 @@ async function verifyEmail(req, res) {
       },
     });
 
-    if (!user) return res.status(400).json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
+    if (!user)
+      return res
+        .status(400)
+        .json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
 
     await User.update(
-      { isEmailVerified: true, emailVerificationToken: null, emailVerificationExpiry: null },
-      { where: { id: user.id } }
+      {
+        isEmailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null,
+      },
+      { where: { id: user.id } },
     );
 
     const jwtToken = signJwtForUser(user);
@@ -263,24 +343,37 @@ async function verifyEmail(req, res) {
 
 async function resendVerification(req, res) {
   const { email } = req.body ?? {};
-  if (!isNonEmptyString(email)) return res.status(400).json({ ok: false, error: "email is required" });
+  if (!isNonEmptyString(email))
+    return res.status(400).json({ ok: false, error: "email is required" });
 
   try {
-    const user = await User.findOne({ where: { email: email.trim().toLowerCase() } });
+    const user = await User.findOne({
+      where: { email: email.trim().toLowerCase() },
+    });
 
     if (user && user.password && !user.isEmailVerified) {
       const plainToken = crypto.randomBytes(32).toString("hex");
-      const hashedToken = crypto.createHash("sha256").update(plainToken).digest("hex");
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(plainToken)
+        .digest("hex");
       const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       await User.update(
-        { emailVerificationToken: hashedToken, emailVerificationExpiry: expiry },
-        { where: { id: user.id } }
+        {
+          emailVerificationToken: hashedToken,
+          emailVerificationExpiry: expiry,
+        },
+        { where: { id: user.id } },
       );
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
       try {
-        await sendVerificationEmail(user.email, user.firstName, `${frontendUrl}/verifikacija?token=${plainToken}`);
+        await sendVerificationEmail(
+          user.email,
+          user.firstName,
+          `${frontendUrl}/verifikacija?token=${plainToken}`,
+        );
       } catch (mailErr) {
         console.error("Greška pri ponovnom slanju:", mailErr);
       }
@@ -296,7 +389,13 @@ async function googleStart(_req, res) {
   try {
     const state = googleAuth.createStateToken();
     const isProd = process.env.NODE_ENV === "production";
-    res.cookie(GOOGLE_STATE_COOKIE, state, { httpOnly: true, secure: isProd, sameSite: isProd ? "none" : "lax", path: "/", maxAge: 10 * 60 * 1000 });
+    res.cookie(GOOGLE_STATE_COOKIE, state, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+      path: "/",
+      maxAge: 10 * 60 * 1000,
+    });
     return res.redirect(googleAuth.buildAuthUrl(state));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
@@ -313,8 +412,14 @@ async function googleCallback(req, res) {
   const cookieState = req.cookies?.[GOOGLE_STATE_COOKIE];
   res.clearCookie(GOOGLE_STATE_COOKIE, { path: "/" });
 
-  if (googleError) return redirectToFrontend(res, "/prijava?error=google_denied");
-  if (typeof code !== "string" || typeof state !== "string" || !cookieState || state !== cookieState)
+  if (googleError)
+    return redirectToFrontend(res, "/prijava?error=google_denied");
+  if (
+    typeof code !== "string" ||
+    typeof state !== "string" ||
+    !cookieState ||
+    state !== cookieState
+  )
     return redirectToFrontend(res, "/prijava?error=invalid_state");
 
   try {
@@ -333,10 +438,20 @@ async function googleCallback(req, res) {
     if (!user) {
       const existingByEmail = await User.findOne({ where: { email } });
       if (existingByEmail) {
-        await User.update({ googleId: profile.sub }, { where: { id: existingByEmail.id } });
+        await User.update(
+          { googleId: profile.sub },
+          { where: { id: existingByEmail.id } },
+        );
         user = await findUserWithSub({ id: existingByEmail.id });
       } else {
-        const created = await User.create({ email, googleId: profile.sub, firstName, lastName, role: "USER", isEmailVerified: true });
+        const created = await User.create({
+          email,
+          googleId: profile.sub,
+          firstName,
+          lastName,
+          role: "USER",
+          isEmailVerified: true,
+        });
         user = await findUserWithSub({ id: created.id });
       }
     }
@@ -352,18 +467,27 @@ async function googleCallback(req, res) {
 
 async function changePassword(req, res) {
   const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+  if (!userId)
+    return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
 
   const { currentPassword, newPassword } = req.body ?? {};
-  if (!isNonEmptyString(currentPassword)) return res.status(400).json({ ok: false, error: "CURRENT_PASSWORD_REQUIRED" });
+  if (!isNonEmptyString(currentPassword))
+    return res
+      .status(400)
+      .json({ ok: false, error: "CURRENT_PASSWORD_REQUIRED" });
   if (!isNonEmptyString(newPassword) || newPassword.trim().length < 6)
     return res.status(400).json({ ok: false, error: "PASSWORD_TOO_SHORT" });
 
-  const user = await User.findOne({ where: { id: userId }, attributes: ["password"] });
-  if (!user || !user.password) return res.status(400).json({ ok: false, error: "NO_PASSWORD" });
+  const user = await User.findOne({
+    where: { id: userId },
+    attributes: ["password"],
+  });
+  if (!user || !user.password)
+    return res.status(400).json({ ok: false, error: "NO_PASSWORD" });
 
   const valid = await bcrypt.compare(currentPassword, user.password);
-  if (!valid) return res.status(400).json({ ok: false, error: "WRONG_PASSWORD" });
+  if (!valid)
+    return res.status(400).json({ ok: false, error: "WRONG_PASSWORD" });
 
   const hash = await bcrypt.hash(newPassword.trim(), 10);
   await User.update({ password: hash }, { where: { id: userId } });
@@ -371,4 +495,16 @@ async function changePassword(req, res) {
   return res.status(200).json({ ok: true, data: null });
 }
 
-module.exports = { register, login, logout, me, forgotPassword, resetPassword, verifyEmail, resendVerification, googleStart, googleCallback, changePassword };
+module.exports = {
+  register,
+  login,
+  logout,
+  me,
+  forgotPassword,
+  resetPassword,
+  verifyEmail,
+  resendVerification,
+  googleStart,
+  googleCallback,
+  changePassword,
+};

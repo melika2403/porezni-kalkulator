@@ -4,6 +4,9 @@ import styles from "./ams.module.css";
 import { fillAmsTemplate, type AmsData } from "./fillAms";
 import { fillUplatnice, KANTONI, type KantonKey } from "./fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { formatAddress } from "src/utils/formatAddress";
 import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
@@ -91,10 +94,12 @@ const downloadPdf = (bytes: Uint8Array, filename: string) => {
 /* ── Component ── */
 
 export default function AmsForm() {
+  const { findByName: findCity } = useCityLookup();
   // Dio 1
   const [imeIPrezime, setImeIPrezime] = useState("");
   const [jmbg, setJmbg] = useState("");
   const [adresa, setAdresa] = useState("");
+  const [grad, setGrad] = useState("");
   const [datumIsplate, setDatumIsplate] = useState("");
   const [periodMjesec, setPeriodMjesec] = useState("");
   const [periodGodina, setPeriodGodina] = useState("");
@@ -102,6 +107,7 @@ export default function AmsForm() {
   // Dio 2
   const [naziv, setNaziv] = useState("");
   const [adresaIsplatioca, setAdresaIsplatioca] = useState("");
+  const [gradIsplatioca, setGradIsplatioca] = useState("");
   const [drzava, setDrzava] = useState("");
 
   // Dio 3
@@ -130,6 +136,7 @@ export default function AmsForm() {
     const name = [data.firstName, data.lastName].filter(Boolean).join(" ");
     if (name) setImeIPrezime(name);
     if (data.address) setAdresa(data.address);
+    if (data.city) setGrad(data.city);
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);
     if (data.sourceWorkerOrgId !== undefined)
@@ -139,6 +146,7 @@ export default function AmsForm() {
   const fillIsplatilac = useCallback((data: OrgFillData) => {
     if (data.name) setNaziv(data.name);
     if (data.address) setAdresaIsplatioca(data.address);
+    if (data.city) setGradIsplatioca(data.city);
   }, []);
 
   /* ── Computed ── */
@@ -183,12 +191,12 @@ export default function AmsForm() {
     return {
       imeIPrezime,
       jmbg,
-      adresa,
+      adresa: formatAddress(adresa, grad, findCity(grad)?.postalCode),
       datumIsplate,
       periodMjesec,
       periodGodina,
       naziv,
-      adresaIsplatioca,
+      adresaIsplatioca: formatAddress(adresaIsplatioca, gradIsplatioca, findCity(gradIsplatioca)?.postalCode),
       drzava,
       rows: [row1, EMPTY_ROW, EMPTY_ROW, EMPTY_ROW, EMPTY_ROW],
       ukupnoZdravstveno: computed.zdravstveno,
@@ -202,14 +210,17 @@ export default function AmsForm() {
     imeIPrezime,
     jmbg,
     adresa,
+    grad,
     datumIsplate,
     periodMjesec,
     periodGodina,
     naziv,
     adresaIsplatioca,
+    gradIsplatioca,
     drzava,
     computed,
     datum,
+    findCity,
   ]);
 
   /* ── Export AMS ── */
@@ -244,7 +255,7 @@ export default function AmsForm() {
     try {
       const bytes = await fillUplatnice({
         imeIPrezime,
-        adresa,
+        adresa: formatAddress(adresa, grad, findCity(grad)?.postalCode),
         jmbg,
         periodMjesec,
         periodGodina,
@@ -328,13 +339,21 @@ export default function AmsForm() {
               onValueChange={setDatumIsplate}
             />
           </div>
-          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+          <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>3) Adresa</label>
             <input
               className={styles.fieldInput}
-              placeholder="Ulica, broj, grad"
+              placeholder="Ulica i broj"
               value={adresa}
               onChange={(e) => setAdresa(e.target.value)}
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Grad</label>
+            <CitySelect
+              value={grad}
+              onChange={setGrad}
+              className={styles.fieldInput}
             />
           </div>
           <div className={styles.fieldGroup}>
@@ -395,9 +414,17 @@ export default function AmsForm() {
             <label className={styles.fieldLabel}>7) Adresa</label>
             <input
               className={styles.fieldInput}
-              placeholder="Adresa isplatioca"
+              placeholder="Ulica i broj"
               value={adresaIsplatioca}
               onChange={(e) => setAdresaIsplatioca(e.target.value)}
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Grad isplatioca</label>
+            <CitySelect
+              value={gradIsplatioca}
+              onChange={setGradIsplatioca}
+              className={styles.fieldInput}
             />
           </div>
           <div className={styles.fieldGroup}>

@@ -16,12 +16,14 @@ export type OrgFillData = {
   activityCode: string | null;
   activityName: string | null;
   address: string | null;
+  city: string | null;
   sourceOrgId?: number | null;
   owner?: {
     jmbg: string | null;
     firstName: string;
     lastName: string;
     address: string | null;
+    city: string | null;
   } | null;
 };
 
@@ -117,14 +119,26 @@ export default function OrgFillSelect({ onFill }: Props) {
   const noneFound = filteredOwn.length === 0 && filteredClient.length === 0;
 
   function pick(org: Organization) {
+    const isOwnOrg = ownOrgs.some((o) => o.id === org.id);
+    const fallbackOwner =
+      isOwnOrg && !org.owner && user
+        ? {
+            jmbg: user.jmbg,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            address: user.address,
+            city: user.city,
+          }
+        : null;
     onFill({
       name: org.name,
       taxNumber: org.taxNumber,
       activityCode: org.activityCode,
       activityName: org.activityName,
       address: org.address,
+      city: org.city,
       sourceOrgId: org.id,
-      owner: org.owner,
+      owner: org.owner ?? fallbackOwner,
     });
     setOpen(false);
     setFilter("");

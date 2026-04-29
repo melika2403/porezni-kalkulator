@@ -8,7 +8,7 @@ const userInclude = [
 
 const userAttributes = [
   "id", "email", "jmbg", "idCardNumber", "firstName", "lastName",
-  "phone", "address", "role", "createdAt", "updatedAt", "isEmailVerified",
+  "phone", "address", "city", "role", "createdAt", "updatedAt", "isEmailVerified",
 ];
 
 function toPublicUser(user) {

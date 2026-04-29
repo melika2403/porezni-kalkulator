@@ -38,7 +38,9 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(node scripts/inspect-js3100.mjs)",
+      "Bash(node scripts/label-js3100.mjs)"
     ]
   }
 }

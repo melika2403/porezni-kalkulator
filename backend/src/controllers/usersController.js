@@ -10,7 +10,7 @@ function isAdmin(req) {
 }
 
 function validateUserUpdatePayload(body) {
-  const { firstName, lastName, phone, address, jmbg, role } = body ?? {};
+  const { firstName, lastName, phone, address, city, jmbg, role } = body ?? {};
 
   const data = {};
 
@@ -40,6 +40,13 @@ function validateUserUpdatePayload(body) {
       return { ok: false, message: "address must be a string" };
     }
     data.address = typeof address === "string" ? address.trim() : null;
+  }
+
+  if (city !== undefined) {
+    if (city != null && typeof city !== "string") {
+      return { ok: false, message: "city must be a string" };
+    }
+    data.city = typeof city === "string" ? city.trim() : null;
   }
 
   if (jmbg !== undefined) {

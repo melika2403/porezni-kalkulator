@@ -3,7 +3,7 @@ const { decryptJmbg } = require("../utils/encryptJmbg");
 
 const clientAttributes = [
   "id", "type", "firstName", "lastName", "email", "phone",
-  "address", "jmbg", "taxNumber", "createdById", "createdAt", "updatedAt",
+  "address", "city", "jmbg", "taxNumber", "createdById", "createdAt", "updatedAt",
 ];
 
 function toPublicClient(c) {

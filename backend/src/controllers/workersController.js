@@ -54,7 +54,14 @@ async function create(req, res) {
   const membership = await assertMembership(orgId, req.user.id, ["OWNER", "ADMIN"]);
   if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
-  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address } = req.body ?? {};
+  if (req.user.role === "PRO") {
+    const count = await Worker.count({ where: { organizationId: orgId } });
+    if (count >= 5) {
+      return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
+    }
+  }
+
+  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address, city } = req.body ?? {};
   const resolvedRole = role ?? "RADNIK";
 
   if (!VALID_ROLES.includes(resolvedRole))
@@ -85,6 +92,7 @@ async function create(req, res) {
       email: email?.trim() || null,
       phone: phone?.trim() || null,
       address: address?.trim() || null,
+      city: city?.trim() || null,
     });
     return res.status(201).json({ ok: true, data: toPublicWorker(worker) });
   } catch (error) {
@@ -103,7 +111,7 @@ async function update(req, res) {
   const existing = await Worker.findOne({ where: { id: workerId, organizationId: orgId } });
   if (!existing) return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
 
-  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address } = req.body ?? {};
+  const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address, city } = req.body ?? {};
   const data = {};
 
   if (role !== undefined) {
@@ -132,6 +140,7 @@ async function update(req, res) {
   if (email !== undefined) data.email = email?.trim() || null;
   if (phone !== undefined) data.phone = phone?.trim() || null;
   if (address !== undefined) data.address = address?.trim() || null;
+  if (city !== undefined) data.city = city?.trim() || null;
 
   const { defaultStartTime, defaultEndTime, defaultDaysOff, defaultPause } = req.body ?? {};
   if (defaultStartTime !== undefined)

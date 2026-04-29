@@ -6,6 +6,9 @@ import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { formatAddress } from "src/utils/formatAddress";
 import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
@@ -18,7 +21,7 @@ import {
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import SaveToast from "src/components/SaveToast/SaveToast";
-import { type PersonClient, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
+import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -40,9 +43,11 @@ export interface ObveznikData {
   jmb: string;
   imeIPrezime: string;
   adresa: string;
+  grad: string;
   jib: string;
   naziv: string;
   adresaDjelatnosti: string;
+  gradDjelatnosti: string;
   vrstaSifra: string;
   vrstaNaziv: string;
   godina: string;
@@ -222,9 +227,11 @@ function makeObveznik(year: string): ObveznikData {
     jmb: "",
     imeIPrezime: "",
     adresa: "",
+    grad: "",
     jib: "",
     naziv: "",
     adresaDjelatnosti: "",
+    gradDjelatnosti: "",
     vrstaSifra: "",
     vrstaNaziv: "",
     godina: year,
@@ -251,6 +258,7 @@ function sortIcon(
 /* ── Component ── */
 export default function Amortizacija() {
   const currentYear = new Date().getFullYear().toString();
+  const { findByName: findCity } = useCityLookup();
 
   const [obveznik, setObveznik] = useState<ObveznikData>(
     makeObveznik(currentYear),
@@ -407,9 +415,11 @@ export default function Amortizacija() {
         jmb: data.obveznik.jmb ?? "",
         imeIPrezime: data.obveznik.imeIPrezime ?? "",
         adresa: data.obveznik.adresa ?? "",
+        grad: data.obveznik.grad ?? "",
         jib: data.obveznik.jib ?? "",
         naziv: data.obveznik.naziv ?? "",
         adresaDjelatnosti: data.obveznik.adresaDjelatnosti ?? "",
+        gradDjelatnosti: data.obveznik.gradDjelatnosti ?? "",
         vrstaSifra: data.obveznik.vrstaSifra ?? "",
         vrstaNaziv: data.obveznik.vrstaNaziv ?? "",
         godina: data.obveznik.godina ?? "",
@@ -748,6 +758,7 @@ export default function Amortizacija() {
         jib: data.taxNumber ?? p.jib,
         naziv: data.name ?? p.naziv,
         adresaDjelatnosti: data.address ?? p.adresaDjelatnosti,
+        gradDjelatnosti: data.city ?? p.gradDjelatnosti,
         vrstaSifra: data.activityCode ?? p.vrstaSifra,
         vrstaNaziv: data.activityName ?? p.vrstaNaziv,
         ...(data.owner
@@ -755,13 +766,24 @@ export default function Amortizacija() {
               jmb: data.owner.jmbg ?? p.jmb,
               imeIPrezime: [data.owner.firstName, data.owner.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
               adresa: data.owner.address ?? p.adresa,
+              grad: data.owner.city ?? p.grad,
             }
           : {}),
       }));
       if (data.sourceOrgId !== undefined) setSourceOrgId(data.sourceOrgId);
-      if (selectedClientIdRef.current !== null && data.name) {
-        updatePersonClient(selectedClientIdRef.current, { firstName: data.name })
-          .then(() => clientsQuery.refetch());
+      if (selectedClientIdRef.current !== null) {
+        const clientPayload: Partial<PersonClientPayload> = {};
+        if (data.owner?.firstName) clientPayload.firstName = data.owner.firstName;
+        if (data.owner?.lastName) clientPayload.lastName = data.owner.lastName;
+        if (data.owner?.jmbg) clientPayload.jmbg = data.owner.jmbg;
+        if (data.owner?.address) clientPayload.address = data.owner.address;
+        if (data.owner?.city) clientPayload.city = data.owner.city;
+        if (data.taxNumber) clientPayload.taxNumber = data.taxNumber;
+        if (!data.owner?.firstName && data.name) clientPayload.firstName = data.name;
+        if (Object.keys(clientPayload).length > 0) {
+          updatePersonClient(selectedClientIdRef.current, clientPayload)
+            .then(() => clientsQuery.refetch());
+        }
       }
       markDirty();
     },
@@ -907,10 +929,10 @@ export default function Amortizacija() {
       const data: PldiData = {
         jmb: obveznik.jmb,
         imeIPrezime: obveznik.imeIPrezime,
-        adresa: obveznik.adresa,
+        adresa: formatAddress(obveznik.adresa, obveznik.grad, findCity(obveznik.grad)?.postalCode),
         jib: obveznik.jib,
         naziv: obveznik.naziv,
-        adresaDjelatnosti: obveznik.adresaDjelatnosti,
+        adresaDjelatnosti: formatAddress(obveznik.adresaDjelatnosti, obveznik.gradDjelatnosti, findCity(obveznik.gradDjelatnosti)?.postalCode),
         vrstaSifra: obveznik.vrstaSifra,
         vrstaNaziv: obveznik.vrstaNaziv,
         godina: obveznik.godina,
@@ -978,6 +1000,7 @@ export default function Amortizacija() {
             jmb: client.jmbg ?? p.jmb,
             imeIPrezime: [client.firstName, client.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
             adresa: client.address ?? p.adresa,
+            grad: client.city ?? p.grad,
           }));
           setTimeout(() => { isLoadingRef.current = false; }, 0);
         }
@@ -1297,7 +1320,15 @@ export default function Amortizacija() {
                 className={styles.fieldInput}
                 value={obveznik.adresa}
                 onChange={setO("adresa")}
-                placeholder="Ulica bb, Grad"
+                placeholder="Ulica i broj"
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Grad</label>
+              <CitySelect
+                value={obveznik.grad}
+                onChange={(v) => setObveznik((p) => ({ ...p, grad: v }))}
+                className={styles.fieldInput}
               />
             </div>
           </div>
@@ -1333,7 +1364,15 @@ export default function Amortizacija() {
                 className={styles.fieldInput}
                 value={obveznik.adresaDjelatnosti}
                 onChange={setO("adresaDjelatnosti")}
-                placeholder="Ulica bb, Grad"
+                placeholder="Ulica i broj"
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Grad djelatnosti</label>
+              <CitySelect
+                value={obveznik.gradDjelatnosti}
+                onChange={(v) => setObveznik((p) => ({ ...p, gradDjelatnosti: v }))}
+                className={styles.fieldInput}
               />
             </div>
             <div className={styles.fieldRow}>
