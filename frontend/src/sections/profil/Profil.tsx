@@ -90,6 +90,7 @@ const FORM_TYPE_LABELS: Record<FormType, string> = {
   UGOVOR: "Ugovor",
   PLDI: "PLDI",
   AMS: "AMS",
+  JS3100: "JS3100",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -127,6 +128,7 @@ function typeBadgeClass(type: FormType, s: Record<string, string>) {
     UGOVOR: s.badgeUgovor,
     PLDI: s.badgePldi,
     AMS: s.badgeAms ?? s.badgeUgovor,
+    JS3100: s.badgeJs3100 ?? s.badgeUgovor,
   };
   return `${s.formTypeBadge} ${map[type] ?? ""}`;
 }
@@ -1124,7 +1126,12 @@ function OrgFormFields({
             value={value.bankAccount}
             onChange={(e) => {
               const d = e.target.value.replace(/\D/g, "").slice(0, 16);
-              const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+              const parts = [
+                d.slice(0, 3),
+                d.slice(3, 6),
+                d.slice(6, 14),
+                d.slice(14, 16),
+              ].filter(Boolean);
               onChange({ ...value, bankAccount: parts.join("-") });
             }}
             placeholder="XXX-XXX-XXXXXXXX-XX"
@@ -1283,9 +1290,7 @@ function PersonFormFields({
         </div>
       </div>
       <div className={styles.field}>
-        <label className={styles.fieldLabel}>
-          Broj lične karte (opciono)
-        </label>
+        <label className={styles.fieldLabel}>Broj lične karte (opciono)</label>
         <input
           className={styles.input}
           value={value.idCardNumber}
