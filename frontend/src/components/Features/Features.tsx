@@ -182,6 +182,24 @@ const FEATURES: Feature[] = [
     soon: true,
   },
   {
+    title: "Generator članskih kartica",
+    desc: "Kreirajte profesionalne članske kartice sa QR kodom za svoju organizaciju (Pro) ili klijente (Business). Format kreditne kartice — spremno za štampanje ili pokazivanje na mobitelu.",
+    badge: "pro",
+    iconColor: "accent",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <rect x="2" y="6" width="20" height="13" rx="2" />
+        <path d="M2 10h20M6 15h4" />
+      </svg>
+    ),
+    dest: "/clanske-kartice",
+  },
+  {
     title: "Ugovor o djelu",
     desc: "Kalkulator poreza i doprinosa na honorar (NETO ↔ BRUTO), automatski obračun PIO/zdravstva/zaštite, predložak ugovora i 6 uplatnica spremnih za banku.",
     badge: "business",

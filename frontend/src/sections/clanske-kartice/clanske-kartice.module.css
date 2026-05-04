@@ -1,0 +1,238 @@
+.page {
+  padding: 3rem 2rem 5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+  margin-bottom: 2.5rem;
+}
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 0.5rem;
+}
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+.subtitle {
+  font-size: 14px;
+  color: var(--mid);
+  line-height: 1.55;
+  max-width: 720px;
+}
+
+/* ── Layout ── */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+@media (max-width: 880px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.formSection,
+.previewSection {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.75rem;
+}
+
+.sectionTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 1rem;
+}
+.sectionTitle em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+/* ── Fields ── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+.fieldLabel {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+.input {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 0.55rem 0.7rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus {
+  border-color: var(--sage);
+}
+.colorInput {
+  width: 60px;
+  height: 36px;
+  padding: 2px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.hint {
+  font-size: 11.5px;
+  color: var(--mid);
+  margin: 0.2rem 0 0;
+  line-height: 1.45;
+}
+
+.logoUpload {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Buttons ── */
+.btnPrimary,
+.btnSecondary,
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid var(--border);
+  text-decoration: none;
+}
+.btnPrimary {
+  background: var(--sage);
+  color: #fff;
+  border-color: var(--sage);
+  padding: 0.75rem 1.5rem;
+}
+.btnPrimary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btnSecondary {
+  background: transparent;
+  color: var(--ink);
+}
+.btnSecondary:hover {
+  background: var(--paper);
+  border-color: var(--sage);
+}
+.btnGhost {
+  background: transparent;
+  color: var(--mid);
+  font-weight: 500;
+  padding: 0.4rem 0.8rem;
+}
+.btnGhost:hover {
+  color: #c0392b;
+}
+
+.actions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Preview ── */
+.previewWrap {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+.previewFrame {
+  width: 100%;
+  max-width: 380px;
+  height: 220px;
+  border: none;
+  border-radius: 6px;
+  background: #fff;
+}
+.previewPlaceholder {
+  font-size: 12px;
+  color: var(--mid);
+  font-style: italic;
+}
+.previewNote {
+  font-size: 11.5px;
+  color: var(--mid);
+  margin: 0.85rem 0 0;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* ── Gate (locked state) ── */
+.gateCard {
+  max-width: 540px;
+  margin: 2rem auto 0;
+  padding: 2.5rem 2rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.gateIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+.gateTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.4rem;
+  margin: 0 0 0.75rem;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.gateText {
+  font-size: 14px;
+  color: var(--mid);
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+}
