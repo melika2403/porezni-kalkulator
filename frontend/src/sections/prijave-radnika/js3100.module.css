@@ -336,3 +336,50 @@
   line-height: 1.6;
   font-weight: 300;
 }
+
+/* ── Upgrade gate ── */
+.upgradeCard {
+  max-width: 540px;
+  margin: 2rem auto 0;
+  padding: 2.5rem 2rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.upgradeIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.upgradeTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.5rem;
+  margin: 0 0 0.75rem;
+  color: var(--ink);
+}
+
+.upgradeText {
+  font-size: 14px;
+  color: var(--mid);
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+}
+
+.upgradeBtn {
+  display: inline-block;
+  padding: 0.7rem 1.5rem;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--sage);
+  color: #fff;
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.upgradeBtn:hover {
+  opacity: 0.9;
+}
+

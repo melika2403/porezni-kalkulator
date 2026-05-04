@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import styles from './Features.module.css';
-import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
+import { useState } from "react";
+import Link from "next/link";
+import styles from "./Features.module.css";
+import ComingSoonModal from "../ComingSoonModal/ComingSoonModal";
 
 type Badge = "free" | "reg" | "pro" | "business";
 
@@ -179,7 +179,7 @@ const FEATURES: Feature[] = [
       </svg>
     ),
     dest: "/prijave-radnika",
-    soon: true,
+    soon: false,
   },
   {
     title: "Generator članskih kartica",
@@ -298,7 +298,9 @@ export default function Features() {
         <div className={styles.grid}>
           {FEATURES.map((f) => (
             <div key={f.title} className={styles.cell}>
-              <div className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}>
+              <div
+                className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}
+              >
                 {f.icon}
               </div>
               <div className={styles.cellTitle}>{f.title}</div>

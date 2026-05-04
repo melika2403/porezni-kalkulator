@@ -63,6 +63,10 @@ import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
 import {
+  fillJs3100Template,
+  type Js3100Data,
+} from "src/sections/prijave-radnika/fillJs3100";
+import {
   calcRow,
   parseDec,
   isoToDisplay,
@@ -86,6 +90,7 @@ const FORM_TYPE_LABELS: Record<FormType, string> = {
   UGOVOR: "Ugovor",
   PLDI: "PLDI",
   AMS: "AMS",
+  JS3100: "JS3100",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -123,6 +128,7 @@ function typeBadgeClass(type: FormType, s: Record<string, string>) {
     UGOVOR: s.badgeUgovor,
     PLDI: s.badgePldi,
     AMS: s.badgeAms ?? s.badgeUgovor,
+    JS3100: s.badgeJs3100 ?? s.badgeUgovor,
   };
   return `${s.formTypeBadge} ${map[type] ?? ""}`;
 }
@@ -1120,7 +1126,12 @@ function OrgFormFields({
             value={value.bankAccount}
             onChange={(e) => {
               const d = e.target.value.replace(/\D/g, "").slice(0, 16);
-              const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+              const parts = [
+                d.slice(0, 3),
+                d.slice(3, 6),
+                d.slice(6, 14),
+                d.slice(14, 16),
+              ].filter(Boolean);
               onChange({ ...value, bankAccount: parts.join("-") });
             }}
             placeholder="XXX-XXX-XXXXXXXX-XX"
@@ -1279,9 +1290,7 @@ function PersonFormFields({
         </div>
       </div>
       <div className={styles.field}>
-        <label className={styles.fieldLabel}>
-          Broj lične karte (opciono)
-        </label>
+        <label className={styles.fieldLabel}>Broj lične karte (opciono)</label>
         <input
           className={styles.input}
           value={value.idCardNumber}
@@ -2004,6 +2013,12 @@ async function regenerateAndDownload(form: FormRecord) {
     };
     bytes = await fillPldiTemplate(pldiData);
     filename = `PLDI-1043_${form.year}.pdf`;
+  } else if (form.type === "JS3100") {
+    bytes = await fillJs3100Template(raw as Js3100Data);
+    const safeTitle = (form.title ?? "JS3100")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .slice(0, 80);
+    filename = `${safeTitle || "JS3100"}.pdf`;
   }
   if (!bytes) return;
   const ab =
@@ -2035,7 +2050,8 @@ function FormDownloadButton({
     form.type === "SPR" ||
     form.type === "ZO3" ||
     form.type === "GPD" ||
-    form.type === "PLDI";
+    form.type === "PLDI" ||
+    form.type === "JS3100";
   if (!supported) return null;
   return (
     <button

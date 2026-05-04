@@ -342,7 +342,14 @@ export function deleteWorker(orgId: number, workerId: number) {
 
 // ─── Forms history ────────────────────────────────────────────────────────────
 
-export type FormType = "GPD" | "SPR" | "ZO3" | "UGOVOR" | "PLDI" | "AMS";
+export type FormType =
+  | "GPD"
+  | "SPR"
+  | "ZO3"
+  | "UGOVOR"
+  | "PLDI"
+  | "AMS"
+  | "JS3100";
 export type FormStatus = "DRAFT" | "GENERATED" | "SUBMITTED" | "ARCHIVED";
 
 export type FormRecord = {
