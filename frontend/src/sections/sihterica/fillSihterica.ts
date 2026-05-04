@@ -19,6 +19,9 @@ export interface SihtenicaData {
   orgName?: string;
   orgAddress?: string;
   orgTaxNumber?: string;
+  /** Set of weekday numbers (0=Ned, 1=Pon, ..., 6=Sub) that are weekly days off.
+   *  On these days, absence code "9.1" is treated as sedmični odmor (0h). */
+  weeklyDaysOff?: number[];
 }
 
 const BLACK = rgb(0, 0, 0);
@@ -58,18 +61,33 @@ function minsToHM(mins: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}min`;
 }
 
-function calcTotalDaily(entry: DayEntry): string {
-  const start = parseTimeToMins(entry.startTime);
-  const end = parseTimeToMins(entry.endTime);
-  if (start === null || end === null) return "";
-  const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
-  const total = end - start - zastojMins;
-  if (total <= 0) return "";
-  return minsToHM(total);
+// Codes that represent PAID absence — count as standard 8h workday in totals
+const PAID_ABSENCE_CODES = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
+const PAID_ABSENCE_MINS = 8 * 60;
+
+function isPaidAbsence(entry: DayEntry, isWeeklyDayOff: boolean = false): boolean {
+  if (!entry.absence) return false;
+  const code = entry.absence.trim();
+  if (code === "9.1" && isWeeklyDayOff) return false;
+  return PAID_ABSENCE_CODES.has(code);
 }
 
-function calcTotalHrs(entry: DayEntry): string {
-  return calcTotalDaily(entry);
+function calcDailyMins(entry: DayEntry, isWeeklyDayOff: boolean = false): number {
+  if (isPaidAbsence(entry, isWeeklyDayOff)) return PAID_ABSENCE_MINS;
+  const start = parseTimeToMins(entry.startTime);
+  const end = parseTimeToMins(entry.endTime);
+  if (start === null || end === null) return 0;
+  const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
+  return Math.max(0, end - start - zastojMins);
+}
+
+function calcTotalDaily(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
+  const mins = calcDailyMins(entry, isWeeklyDayOff);
+  return mins > 0 ? minsToHM(mins) : "";
+}
+
+function calcTotalHrs(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
+  return calcTotalDaily(entry, isWeeklyDayOff);
 }
 
 function drawCentered(
@@ -190,6 +208,9 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   draw(page1, data.workerName, [197, 344], 495);
 
   const daysInMonth = new Date(data.year, data.month, 0).getDate();
+  const weeklyOffSet = new Set(data.weeklyDaysOff ?? []);
+  const isWeeklyOff = (dayNum: number) =>
+    weeklyOffSet.has(new Date(data.year, data.month - 1, dayNum).getDay());
 
   // Page 1: days 1–22
   for (let i = 0; i < 22 && i + 1 <= daysInMonth; i++) {
@@ -204,16 +225,17 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
 
     const entry = data.days[i];
     if (entry) {
+      const wOff = isWeeklyOff(dayNum);
       const xMark = entry.absence && !entry.startTime && !entry.endTime;
       draw(page1, xMark ? "x" : entry.startTime, COLS.startTime, y);
       draw(page1, xMark ? "x" : entry.endTime, COLS.endTime, y);
       draw(page1, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
-      draw(page1, calcTotalDaily(entry), COLS.totalDaily, y);
+      draw(page1, calcTotalDaily(entry, wOff), COLS.totalDaily, y);
       draw(page1, entry.fieldWork, COLS.fieldWork, y);
       draw(page1, entry.standby, COLS.standby, y);
       draw(page1, entry.absence, COLS.absence, y);
       draw(page1, entry.other, COLS.other, y);
-      draw(page1, calcTotalHrs(entry), COLS.totalHrs, y);
+      draw(page1, calcTotalHrs(entry, wOff), COLS.totalHrs, y);
     }
   }
 
@@ -230,30 +252,27 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
 
     const entry = data.days[i + 22];
     if (entry) {
+      const wOff = isWeeklyOff(dayNum);
       const xMark = entry.absence && !entry.startTime && !entry.endTime;
       draw(page2, xMark ? "x" : entry.startTime, COLS.startTime, y);
       draw(page2, xMark ? "x" : entry.endTime, COLS.endTime, y);
       draw(page2, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
-      draw(page2, calcTotalDaily(entry), COLS.totalDaily, y);
+      draw(page2, calcTotalDaily(entry, wOff), COLS.totalDaily, y);
       draw(page2, entry.fieldWork, COLS.fieldWork, y);
       draw(page2, entry.standby, COLS.standby, y);
       draw(page2, entry.absence, COLS.absence, y);
       draw(page2, entry.other, COLS.other, y);
-      draw(page2, calcTotalHrs(entry), COLS.totalHrs, y);
+      draw(page2, calcTotalHrs(entry, wOff), COLS.totalHrs, y);
     }
   }
 
   // Total monthly hours — sum of daily minutes across all days
+  // (includes paid absences like godišnji/bolovanje as 8h)
   let totalMins = 0;
   for (let i = 0; i < daysInMonth; i++) {
     const entry = data.days[i];
     if (!entry) continue;
-    const start = parseTimeToMins(entry.startTime);
-    const end = parseTimeToMins(entry.endTime);
-    if (start === null || end === null) continue;
-    const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
-    const total = end - start - zastojMins;
-    if (total > 0) totalMins += total;
+    totalMins += calcDailyMins(entry, isWeeklyOff(i + 1));
   }
   if (totalMins > 0) {
     draw(page2, minsToHM(totalMins), COLS.totalHrs, 365);

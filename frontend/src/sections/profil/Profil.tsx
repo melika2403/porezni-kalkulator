@@ -209,6 +209,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
       phone: org.phone ?? "",
       address: org.address ?? "",
       city: org.city ?? "",
+      bankAccount: org.bankAccount ?? "",
     });
     updateOwnOrgMutation.reset();
   };
@@ -873,6 +874,7 @@ type OrgFormState = {
   phone: string;
   address: string;
   city: string;
+  bankAccount: string;
 };
 
 const emptyOrgForm: OrgFormState = {
@@ -885,6 +887,7 @@ const emptyOrgForm: OrgFormState = {
   phone: "",
   address: "",
   city: "",
+  bankAccount: "",
 };
 
 function orgFormToPayload(
@@ -901,6 +904,7 @@ function orgFormToPayload(
     ...(f.phone.trim() && { phone: f.phone.trim() }),
     ...(f.address.trim() && { address: f.address.trim() }),
     ...(f.city.trim() && { city: f.city.trim() }),
+    ...(f.bankAccount.trim() && { bankAccount: f.bankAccount.trim() }),
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
 }
@@ -1109,6 +1113,22 @@ function OrgFormFields({
             value={value.city}
             onChange={(v) => onChange({ ...value, city: v })}
             className={styles.input}
+          />
+        </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Žiro račun</label>
+          <input
+            className={styles.input}
+            value={value.bankAccount}
+            onChange={(e) => {
+              const d = e.target.value.replace(/\D/g, "").slice(0, 16);
+              const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+              onChange({ ...value, bankAccount: parts.join("-") });
+            }}
+            placeholder="XXX-XXX-XXXXXXXX-XX"
+            inputMode="numeric"
           />
         </div>
       </div>
@@ -1412,6 +1432,7 @@ function DjelatnostTab() {
       phone: org.phone ?? "",
       address: org.address ?? "",
       city: org.city ?? "",
+      bankAccount: org.bankAccount ?? "",
     });
     const ow = org.owner;
     setEditHasOwner(!!ow);

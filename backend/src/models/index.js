@@ -73,6 +73,7 @@ const Organization = sequelize.define(
     activityCode: { type: DataTypes.STRING(20), allowNull: true },
     activityName: { type: DataTypes.STRING(255), allowNull: true },
     isClientOrg: { type: DataTypes.BOOLEAN, defaultValue: false },
+    bankAccount: { type: DataTypes.STRING(25), allowNull: true },
   },
   { tableName: "organizations", timestamps: true }
 );
@@ -97,6 +98,7 @@ const Worker = sequelize.define(
       defaultValue: "RADNIK",
     },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
+    bankAccount: { type: DataTypes.STRING(25), allowNull: true }, // tekući/žiro račun
     defaultStartTime: { type: DataTypes.STRING(5), allowNull: true },
     defaultEndTime: { type: DataTypes.STRING(5), allowNull: true },
     defaultDaysOff: { type: DataTypes.STRING(20), allowNull: true }, // comma-separated weekdays e.g. "0,6"

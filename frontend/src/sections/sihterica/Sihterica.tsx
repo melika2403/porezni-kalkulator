@@ -66,7 +66,22 @@ function parseTimeToMins(hhmm: string): number | null {
   return h * 60 + m;
 }
 
-function calcDailyMins(entry: DayEntry): number {
+// Codes that represent PAID absence — count as standard 8h workday in totals
+const PAID_ABSENCE_CODES = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
+const PAID_ABSENCE_MINS = 8 * 60;
+
+function isPaidAbsence(entry: DayEntry, isWeeklyDayOff: boolean = false): boolean {
+  if (!entry.absence) return false;
+  const code = entry.absence.trim();
+  // 9.1 covers both weekly day off (no pay) and annual leave (paid).
+  // If the day already falls on a weekly day off → treat as sedmični → 0 hours.
+  if (code === "9.1" && isWeeklyDayOff) return false;
+  return PAID_ABSENCE_CODES.has(code);
+}
+
+function calcDailyMins(entry: DayEntry, isWeeklyDayOff: boolean = false): number {
+  // Paid absence (godišnji 9.1, praznik 9.2, bolovanje 9.3, porodiljsko 9.4, plaćeno 9.5) → fixed 8h
+  if (isPaidAbsence(entry, isWeeklyDayOff)) return PAID_ABSENCE_MINS;
   const start = parseTimeToMins(entry.startTime);
   const end = parseTimeToMins(entry.endTime);
   if (start === null || end === null) return 0;
@@ -83,12 +98,12 @@ function minsToLabel(mins: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}min`;
 }
 
-function calcTotalDaily(entry: DayEntry): string {
-  return minsToLabel(calcDailyMins(entry));
+function calcTotalDaily(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
+  return minsToLabel(calcDailyMins(entry, isWeeklyDayOff));
 }
 
-function calcTotalHrs(entry: DayEntry): string {
-  return calcTotalDaily(entry);
+function calcTotalHrs(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
+  return calcTotalDaily(entry, isWeeklyDayOff);
 }
 
 function isEntryEmpty(e: DayEntry): boolean {
@@ -446,6 +461,15 @@ function SihtericaApp() {
     setAutoSickTo("");
   }, [selectedWorker]);
 
+  // Reset month-specific auto-popuna fields whenever month/year changes
+  useEffect(() => {
+    setAutoHolidays("");
+    setAutoVacationFrom("");
+    setAutoVacationTo("");
+    setAutoSickFrom("");
+    setAutoSickTo("");
+  }, [year, month]);
+
   const toggleDayOff = (d: number) => {
     setAutoDaysOff((prev) => {
       const next = new Set(prev);
@@ -620,6 +644,7 @@ function SihtericaApp() {
       orgName: selectedOrg?.name ?? "",
       orgAddress: selectedOrg?.address ?? "",
       orgTaxNumber: selectedOrg?.taxNumber ?? "",
+      weeklyDaysOff: [...autoDaysOff],
     });
 
     const blob = new Blob([new Uint8Array(pdfBytes)], {
@@ -661,6 +686,9 @@ function SihtericaApp() {
         const hasAny = days.some((d) => d !== null);
         if (!hasAny) continue;
 
+        const workerDaysOff = w.defaultDaysOff
+          ? w.defaultDaysOff.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n))
+          : [0, 6];
         const pdfBytes = await fillSihterica({
           workerName: `${w.firstName} ${w.lastName}`.trim(),
           month,
@@ -669,6 +697,7 @@ function SihtericaApp() {
           orgName: selectedOrg?.name ?? "",
           orgAddress: selectedOrg?.address ?? "",
           orgTaxNumber: selectedOrg?.taxNumber ?? "",
+          weeklyDaysOff: workerDaysOff,
         });
         const safeName = `${w.firstName}_${w.lastName}`.replace(/\s+/g, "_");
         zip.file(
@@ -724,13 +753,48 @@ function SihtericaApp() {
   }, [workerId, year, month, savedMonths, queryClient, orgId, now]);
 
   // ─── Year/month picker ─────────────────────────────────────────────────────
+  // Years added via "Nova godina" that don't yet have any months — kept visible until explicitly deleted
+  const [localYears, setLocalYears] = useState<Set<number>>(new Set());
+  const [confirmDeleteYear, setConfirmDeleteYear] = useState<number | null>(null);
+
+  // Reset local years when worker changes
+  useEffect(() => {
+    setLocalYears(new Set());
+    setConfirmDeleteYear(null);
+  }, [workerId]);
+
   const allYears = useMemo(() => {
     const set = new Set<number>();
     savedMonths.forEach((m) => set.add(m.year));
+    localYears.forEach((y) => set.add(y));
     set.add(year);
     set.add(now.getFullYear());
     return [...set].sort((a, b) => a - b);
-  }, [savedMonths, year, now]);
+  }, [savedMonths, localYears, year, now]);
+
+  const handleDeleteYear = useCallback(async (yr: number) => {
+    if (!workerId) return;
+    const monthsForYear = savedMonths.filter((m) => m.year === yr);
+    // Delete each saved month for this year
+    for (const m of monthsForYear) {
+      await deleteSihterica(workerId, m.year, m.month);
+    }
+    setLocalYears((prev) => {
+      const next = new Set(prev);
+      next.delete(yr);
+      return next;
+    });
+    setConfirmDeleteYear(null);
+    queryClient.invalidateQueries({ queryKey: ["sihtericaMonths", workerId] });
+    queryClient.invalidateQueries({ queryKey: ["sihtericaWorkerMonths", orgId] });
+    // If we deleted the active year, switch to nearest remaining
+    if (year === yr) {
+      const remaining = [...new Set(savedMonths.filter((m) => m.year !== yr).map((m) => m.year))];
+      const nextYear = remaining.length > 0 ? Math.max(...remaining) : now.getFullYear();
+      setYear(nextYear);
+      setMonth(1);
+    }
+  }, [workerId, savedMonths, queryClient, orgId, year, now]);
 
   const monthsInYear = useMemo(() => {
     return savedMonths.filter((m) => m.year === year).map((m) => m.month);
@@ -915,10 +979,44 @@ function SihtericaApp() {
                   ) : (
                     <button
                       className={`${styles.yearChip} ${styles.yearChipNew}`}
-                      onClick={() => setShowNewYear(true)}
-                      title="Dodaj novu godinu"
+                      onClick={() => {
+                        const nextYear = (allYears.length > 0 ? Math.max(...allYears) : new Date().getFullYear()) + 1;
+                        setLocalYears((prev) => new Set(prev).add(nextYear));
+                        setYear(nextYear);
+                        setMonth(1);
+                      }}
+                      title="Otvori narednu godinu"
                     >
                       + Nova godina
+                    </button>
+                  )}
+
+                  {confirmDeleteYear !== null ? (
+                    <span className={styles.yearDeleteConfirm}>
+                      Obrisati cijelu {confirmDeleteYear}. godinu?
+                      <button
+                        type="button"
+                        className={styles.yearDeleteConfirmYes}
+                        onClick={() => handleDeleteYear(confirmDeleteYear)}
+                      >
+                        Da, obriši
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.yearDeleteConfirmNo}
+                        onClick={() => setConfirmDeleteYear(null)}
+                      >
+                        Odustani
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.yearDeleteRight}
+                      onClick={() => setConfirmDeleteYear(year)}
+                      title={`Obriši godinu ${year}`}
+                    >
+                      🗑 Obriši godinu
                     </button>
                   )}
                 </div>
@@ -1202,9 +1300,7 @@ function SihtericaApp() {
                             />
                           </td>
                           <td>
-                            <span className={styles.cellAuto}>
-                              {calcTotalDaily(entry)}
-                            </span>
+                            <span className={styles.cellAuto}>{calcTotalDaily(entry, autoDaysOff.has(dow))}</span>
                           </td>
                           <td>
                             <HourInput
@@ -1243,9 +1339,7 @@ function SihtericaApp() {
                             />
                           </td>
                           <td>
-                            <span className={styles.cellAuto}>
-                              {calcTotalHrs(entry)}
-                            </span>
+                            <span className={styles.cellAuto}>{calcTotalHrs(entry, autoDaysOff.has(dow))}</span>
                           </td>
                         </tr>
                       );
@@ -1258,9 +1352,10 @@ function SihtericaApp() {
                       </td>
                       <td colSpan={1} className={styles.totalValue}>
                         {minsToLabel(
-                          Array.from({ length: daysInMonth }, (_, i) =>
-                            calcDailyMins(entries[i]),
-                          ).reduce((a, b) => a + b, 0),
+                          Array.from({ length: daysInMonth }, (_, i) => {
+                            const dayDow = getDayOfWeek(year, month, i + 1);
+                            return calcDailyMins(entries[i], autoDaysOff.has(dayDow));
+                          }).reduce((a, b) => a + b, 0)
                         )}
                       </td>
                     </tr>
@@ -1321,6 +1416,37 @@ function SihtericaApp() {
           {/* Napomena (uvijek vidljiva) */}
           <section className={styles.napomenaSection}>
             <h3 className={styles.napomenaTitle}>Napomena</h3>
+
+            <div className={styles.napomenaBlock}>
+              <p className={styles.napomenaIntro}>
+                <strong>Kako se računaju ukupni sati:</strong>
+              </p>
+              <ul className={styles.napomenaList}>
+                <li>
+                  <strong>Radni dan</strong> — ukupni sati = (Kraj − Početak) − Pauza.
+                </li>
+                <li>
+                  <strong>Plaćena odsustva</strong> (kodovi 9.1 godišnji odmor,
+                  9.2 praznik, 9.3 bolovanje, 9.4 porodiljsko, 9.5 plaćeno
+                  odsustvo) → polja Početak/Kraj se prikazuju kao &ldquo;x&rdquo;
+                  ali se računa <strong>8h</strong> u ukupni fond sati.
+                </li>
+                <li>
+                  <strong>Sedmični odmor</strong> (kod 9.1 na danima koji su
+                  označeni kao slobodni u sedmici, npr. subota/nedjelja) → 0
+                  sati, ne ulazi u zbir.
+                </li>
+                <li>
+                  <strong>Neplaćena odsustva</strong> (9.6 neplaćeno, 9.9
+                  štrajk, 9.10 lockout, itd.) → 0 sati, ne ulazi u zbir.
+                </li>
+                <li>
+                  <strong>Terenski rad</strong> i <strong>pripravnost</strong>{" "}
+                  evidentiraju se zasebno i ne dodaju se na ukupni fond
+                  radnih sati.
+                </li>
+              </ul>
+            </div>
 
             <div className={styles.napomenaBlock}>
               <p className={styles.napomenaIntro}>

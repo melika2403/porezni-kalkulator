@@ -165,8 +165,8 @@ const FEATURES: Feature[] = [
   {
     title: "Prijave / odjave radnika",
     desc: "Unos i evidencija radnika s automatskim ispisom JS3100 obrasca i ostalih prijavnih obrazaca u PDF formatu.",
-    badge: "business",
-    iconColor: "dark",
+    badge: "pro",
+    iconColor: "accent",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -182,8 +182,8 @@ const FEATURES: Feature[] = [
     soon: false,
   },
   {
-    title: "Ugovori o djelu i ostali ugovori",
-    desc: "Izrada ugovora o djelu s obračunom poreza i doprinosa na honorar, te ugovora o zakupu, kupoprodajnih i ostalih poslovnih ugovora.",
+    title: "Ugovor o djelu",
+    desc: "Kalkulator poreza i doprinosa na honorar (NETO ↔ BRUTO), automatski obračun PIO/zdravstva/zaštite, predložak ugovora i 6 uplatnica spremnih za banku.",
     badge: "business",
     iconColor: "dark",
     icon: (
@@ -197,8 +197,7 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
       </svg>
     ),
-    dest: "/ugovori",
-    soon: true,
+    dest: "/ugovor-o-djelu",
   },
 ];
 
