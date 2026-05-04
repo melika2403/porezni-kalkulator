@@ -42,28 +42,29 @@ export interface Js3100Data {
   popunioTelefon: string;
   datumPopunjavanja: string; // formatirano za PDF
 
-  // ── TODO: precizirati nakon screenshot-a labeled PDF-a ──
-  // tipUgovora: number 0-9 (Check Box100-109)
-  // osnovOsiguranja: number 0-9 (Check Box2-11)
-  // datumStupanjaNaRad / datumPrestanka
-  // sati/minuta sedmično radno vrijeme
-  // text1 / text2 / text3 — slobodna polja
-  tipUgovoraIdx: number | null;       // -1..9 ili null = ne čekiraj
-  osnovOsiguranjaIdx: number | null;  // -1..9 ili null = ne čekiraj
-  napomenaText1: string;
-  napomenaText2: string;
-  napomenaText3: string;
-  // Datum stupanja na rad (3 cifre polja)
-  datumStupanjaDan: string;
-  datumStupanjaMjesec: string;
-  datumStupanjaGodina: string;
-  // Sedmično radno vrijeme
-  satiSedmicno: string;
-  minutaSedmicno: string;
-  // Datum prestanka rada (za ODJAVA)
-  datumPrestankaDan: string;
-  datumPrestankaMjesec: string;
-  datumPrestankaGodina: string;
+  // ── Treći dio — Podaci o osiguranju ──
+  // Red 1: Dnevno radno vrijeme
+  sati: string; // 2 cifre — undefined_5
+  minuta: string; // 2 cifre — undefined_6
+  // Red 2: Osnov osiguranja
+  osnovOsiguranjaOpis: string; // Text2 — opis
+  osnovOsiguranjaSifra: string; // 2 cifre — undefined_7
+  // Red 3: Zanimanje
+  zanimanjeOpis: string; // Text3
+  zanimanjeSifra: string; // 7 cifara — undefined_8
+  // Red 4: Stručna sprema koja se traži na radnom mjestu (Check Box2..11)
+  strucnaSpremaTraziSeIdx: number | null;
+  // Red 5: Datum prijave/odjave/promjene osiguranja
+  datumPromjeneDan: string; // 2 cifre — undefined_9
+  datumPromjeneMjesec: string; // 2 cifre — undefined_10
+  datumPromjeneGodina: string; // 4 cifre — undefined_11
+  napomenaPromjene: string; // fill_22 — slobodno polje desno
+  // Red 6: Osnov za uplatu doprinosa
+  osnovUplateOpis: string; // Text1
+  osnovUplateSifra: string; // 2 cifre — undefined_12
+  // Red 7: Staž sa uvećanim trajanjem
+  sifraRadnogMjesta: string; // 4 cifre — undefined_13
+  stepenUvecanja: string; // 2 cifre — undefined_14
 }
 
 /* ── Pozicije kvačica za Stručnu spremu (Drugi dio, red 11) ──
@@ -80,6 +81,21 @@ const STRUCNA_SPREMA_POS = [
   { x: 478, y: 385 },
   { x: 508, y: 385 },
   { x: 539, y: 385 },
+];
+
+/* ── Pozicije za "Stručna sprema koja se traži na radnom mjestu" (Treći dio, red 4) ──
+   Odgovaraju Check Box2..11 (y=302, w=10, h=18) */
+const STRUCNA_SPREMA_TRAZI_POS = [
+  { x: 264, y: 302 },
+  { x: 295, y: 302 },
+  { x: 325, y: 302 },
+  { x: 357, y: 302 },
+  { x: 389, y: 302 },
+  { x: 419, y: 302 },
+  { x: 450, y: 302 },
+  { x: 482, y: 301 },
+  { x: 512, y: 302 },
+  { x: 544, y: 302 },
 ];
 
 /* ── Helpers ── */
@@ -180,37 +196,35 @@ export async function fillJs3100Template(data: Js3100Data): Promise<Uint8Array> 
   setBold("Poštanski broj Email adresa", data.emailOsiguranika, 10);
   setBold("MjestoEmail adresa", data.postanskiMjestoCombined, 10);
 
-  /* ── Tip ugovora (Check Box100..109) ── */
-  if (data.tipUgovoraIdx !== null && data.tipUgovoraIdx >= 0 && data.tipUgovoraIdx <= 9) {
-    checkBox(form, `Check Box${100 + data.tipUgovoraIdx}`, true);
-  }
+  /* ── Treći dio — Podaci o osiguranju ── */
+  // Red 1: Dnevno radno vrijeme (undefined_5 = sati, undefined_6 = minuta)
+  setBold("undefined_5", data.sati.replace(/\D/g, "").slice(0, 2), 11);
+  setBold("undefined_6", data.minuta.replace(/\D/g, "").slice(0, 2), 11);
 
-  /* ── Osnov osiguranja (Check Box2..11) ── */
-  if (data.osnovOsiguranjaIdx !== null && data.osnovOsiguranjaIdx >= 0 && data.osnovOsiguranjaIdx <= 9) {
-    checkBox(form, `Check Box${2 + data.osnovOsiguranjaIdx}`, true);
-  }
+  // Red 2: Osnov osiguranja (Text2 = opis, undefined_7 = 2-cifreni kod)
+  setBold("Text2", data.osnovOsiguranjaOpis, 10);
+  setBold("undefined_7", data.osnovOsiguranjaSifra.replace(/\D/g, "").slice(0, 2), 11);
 
-  /* ── Datumi i dodatna polja u sredini — TODO: potvrditi semantiku ── */
-  // Datum stupanja na rad (undefined_5, undefined_6, undefined_7 ili 9/10/11)
-  setBold("undefined_5", data.datumStupanjaDan, 11);
-  setBold("undefined_6", data.datumStupanjaMjesec, 11);
-  // undefined_7 je sam po sebi (538, 337) — vjerovatno minute sedmičnog vremena
-  setBold("undefined_7", data.minutaSedmicno, 11);
+  // Red 3: Zanimanje (Text3 = opis, undefined_8 = 7-cifreni kod)
+  setBold("Text3", data.zanimanjeOpis, 10);
+  setBold("undefined_8", data.zanimanjeSifra.replace(/\D/g, "").slice(0, 7), 11);
 
-  setBold("Sati Minuta", data.satiSedmicno, 11);
+  // Red 5: Datum prijave/odjave/promjene osiguranja
+  setBold("undefined_9", data.datumPromjeneDan, 11);
+  setBold("undefined_10", data.datumPromjeneMjesec, 11);
+  setBold("undefined_11", data.datumPromjeneGodina, 11);
+  setBold("fill_22", data.napomenaPromjene, 10);
 
-  // Slobodna tekst polja
-  setBold("Text1", data.napomenaText1, 10);
-  setBold("Text2", data.napomenaText2, 10);
-  setBold("Text3", data.napomenaText3, 10);
+  // Red 6: Osnov za uplatu doprinosa (Text1 = opis, undefined_12 = 2-cifreni kod)
+  setBold("Text1", data.osnovUplateOpis, 10);
+  setBold("undefined_12", data.osnovUplateSifra.replace(/\D/g, "").slice(0, 2), 11);
 
-  // Datum prestanka (undefined_9, _10, _11) — TODO potvrditi
-  setBold("undefined_9", data.datumPrestankaDan, 11);
-  setBold("undefined_10", data.datumPrestankaMjesec, 11);
-  setBold("undefined_11", data.datumPrestankaGodina, 11);
+  // Red 7: Staž sa uvećanim trajanjem
+  setBold("undefined_13", data.sifraRadnogMjesta.replace(/\D/g, "").slice(0, 4), 11);
+  setBold("undefined_14", data.stepenUvecanja.replace(/\D/g, "").slice(0, 2), 11);
 
   /* ── Footer ── */
-  setBold("Datum", data.datumPopunjavanja, 11);
+  setBold("Datum", data.datumPopunjavanja, 8);
   setBold("Datum_2", data.datumPopunjavanja, 11);
   setBold("Ime i prezime lica koje je popunilo prijavu", data.popunioImeIPrezime, 10);
   setBold("Telefonski broj lica koje je popunilo prijavu", data.popunioTelefon, 10);
@@ -219,18 +233,36 @@ export async function fillJs3100Template(data: Js3100Data): Promise<Uint8Array> 
   form.updateFieldAppearances(boldFont);
   form.flatten();
 
-  /* ── Stručna sprema (red 11) ── crtamo "X" NAKON flatten-a da prazna
-     kvačica iz form-flattenovanja ne pokrije naš X */
+  /* ── X kvačice crtamo NAKON flatten-a da prazna kvačica iz form-flattenovanja
+     ne pokrije naš X ── */
+  const page = doc.getPage(0);
+
+  // Drugi dio, red 11 — Stručna sprema (osiguranika)
   if (
     data.strucnaSpremaIdx !== null &&
     data.strucnaSpremaIdx >= 0 &&
     data.strucnaSpremaIdx <= 9
   ) {
     const pos = STRUCNA_SPREMA_POS[data.strucnaSpremaIdx];
-    doc.getPage(0).drawText("X", {
+    page.drawText("X", {
       x: pos.x + 1.5,
       y: pos.y + 2,
       size: 9,
+      font: boldFont,
+    });
+  }
+
+  // Treći dio, red 4 — Stručna sprema koja se traži na radnom mjestu
+  if (
+    data.strucnaSpremaTraziSeIdx !== null &&
+    data.strucnaSpremaTraziSeIdx >= 0 &&
+    data.strucnaSpremaTraziSeIdx <= 9
+  ) {
+    const pos = STRUCNA_SPREMA_TRAZI_POS[data.strucnaSpremaTraziSeIdx];
+    page.drawText("X", {
+      x: pos.x + 1,
+      y: pos.y + 5,
+      size: 11,
       font: boldFont,
     });
   }

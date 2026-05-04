@@ -153,7 +153,7 @@ const Form = sequelize.define(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
     type: {
-      type: DataTypes.ENUM("GPD", "SPR", "ZO3", "UGOVOR", "PLDI", "AMS", "SIH"),
+      type: DataTypes.ENUM("GPD", "SPR", "ZO3", "UGOVOR", "PLDI", "AMS", "SIH", "JS3100"),
       allowNull: false,
     },
     status: {

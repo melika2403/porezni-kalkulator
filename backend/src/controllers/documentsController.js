@@ -1,6 +1,6 @@
 const { OrganizationMember, Client, Form, FormVersion } = require("../models/index");
 
-const VALID_TYPES = ["AMS", "SPR", "ZO3", "GPD", "PLDI"];
+const VALID_TYPES = ["AMS", "SPR", "ZO3", "GPD", "PLDI", "JS3100"];
 
 function parseYear(v) {
   const n = parseInt(v);
