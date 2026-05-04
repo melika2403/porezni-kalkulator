@@ -63,6 +63,10 @@ import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
 import {
+  fillJs3100Template,
+  type Js3100Data,
+} from "src/sections/prijave-radnika/fillJs3100";
+import {
   calcRow,
   parseDec,
   isoToDisplay,
@@ -2004,6 +2008,12 @@ async function regenerateAndDownload(form: FormRecord) {
     };
     bytes = await fillPldiTemplate(pldiData);
     filename = `PLDI-1043_${form.year}.pdf`;
+  } else if (form.type === "JS3100") {
+    bytes = await fillJs3100Template(raw as Js3100Data);
+    const safeTitle = (form.title ?? "JS3100")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .slice(0, 80);
+    filename = `${safeTitle || "JS3100"}.pdf`;
   }
   if (!bytes) return;
   const ab =
@@ -2035,7 +2045,8 @@ function FormDownloadButton({
     form.type === "SPR" ||
     form.type === "ZO3" ||
     form.type === "GPD" ||
-    form.type === "PLDI";
+    form.type === "PLDI" ||
+    form.type === "JS3100";
   if (!supported) return null;
   return (
     <button

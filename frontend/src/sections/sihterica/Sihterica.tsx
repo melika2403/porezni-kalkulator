@@ -11,14 +11,25 @@ import {
   saveSihterica,
   deleteSihterica,
 } from "src/api/sihterica";
-import { useRole } from "src/hooks/useRole";
+import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
 import Link from "next/link";
 
 const MONTHS = [
-  "Januar", "Februar", "Mart", "April", "Maj", "Juni",
-  "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar",
+  "Januar",
+  "Februar",
+  "Mart",
+  "April",
+  "Maj",
+  "Juni",
+  "Juli",
+  "August",
+  "Septembar",
+  "Oktobar",
+  "Novembar",
+  "Decembar",
 ];
 
 const DAY_NAMES_SHORT = ["Ned", "Pon", "Uto", "Sri", "Čet", "Pet", "Sub"];
@@ -74,7 +85,9 @@ function calcDailyMins(entry: DayEntry, isWeeklyDayOff: boolean = false): number
   const start = parseTimeToMins(entry.startTime);
   const end = parseTimeToMins(entry.endTime);
   if (start === null || end === null) return 0;
-  const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
+  const zastojMins = Math.round(
+    (parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60,
+  );
   return Math.max(0, end - start - zastojMins);
 }
 
@@ -94,8 +107,15 @@ function calcTotalHrs(entry: DayEntry, isWeeklyDayOff: boolean = false): string 
 }
 
 function isEntryEmpty(e: DayEntry): boolean {
-  return !e.startTime && !e.endTime && !e.zastoj &&
-    !e.fieldWork && !e.standby && !e.absence && !e.other;
+  return (
+    !e.startTime &&
+    !e.endTime &&
+    !e.zastoj &&
+    !e.fieldWork &&
+    !e.standby &&
+    !e.absence &&
+    !e.other
+  );
 }
 
 function TimeOrXInput({
@@ -185,28 +205,39 @@ function HourInput({
 type ColKey = keyof DayEntry;
 
 const COL_HEADERS = [
-  { key: "rbr",        label: "Rbr.", width: 32 },
-  { key: "date",       label: "Datum", width: 140 },
-  { key: "startTime",  label: "Početak", width: 64 },
-  { key: "endTime",    label: "Kraj", width: 64 },
-  { key: "zastoj",     label: "Zastoj/Prekid/Pauza (h)", width: 100 },
+  { key: "rbr", label: "Rbr.", width: 32 },
+  { key: "date", label: "Datum", width: 140 },
+  { key: "startTime", label: "Početak", width: 64 },
+  { key: "endTime", label: "Kraj", width: 64 },
+  { key: "zastoj", label: "Zastoj/Prekid/Pauza (h)", width: 100 },
   { key: "totalDaily", label: "Uk. dnevnih sati", width: 110 },
-  { key: "fieldWork",  label: "Terenski (h)", width: 62 },
-  { key: "standby",    label: "Pripravnost (h)", width: 64 },
-  { key: "absence",    label: "Odsustvo (šifra)", width: 80 },
-  { key: "other",      label: "Ostalo (šifra)", width: 80 },
-  { key: "totalHrs",   label: "Uk. sati", width: 110 },
+  { key: "fieldWork", label: "Terenski (h)", width: 62 },
+  { key: "standby", label: "Pripravnost (h)", width: 64 },
+  { key: "absence", label: "Odsustvo (šifra)", width: 80 },
+  { key: "other", label: "Ostalo (šifra)", width: 80 },
+  { key: "totalHrs", label: "Uk. sati", width: 110 },
 ] as const;
 
 export default function Sihterica() {
-  const { hasRole } = useRole();
-  const isAllowed = hasRole("PRO", "BUSINESS", "ADMIN");
-
-  if (!isAllowed) return <UpgradeGate />;
-  return <SihtericaApp />;
+  return (
+    <RoleGuard
+      roles={["PRO", "BUSINESS", "ADMIN"]}
+      mode="hide"
+      fallback={<UpgradeGate />}
+    >
+      <SihtericaApp />
+    </RoleGuard>
+  );
 }
 
 function UpgradeGate() {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()).catch(() => null),
+    retry: false,
+  });
+  const isLoggedIn = !!user;
+
   return (
     <div className={styles.pageOuter}>
       <div className={styles.header}>
@@ -221,15 +252,34 @@ function UpgradeGate() {
       </div>
       <div className={styles.upgradeCard}>
         <div className={styles.upgradeIcon}>🔒</div>
-        <h2 className={styles.upgradeTitle}>Šihterica je dostupna uz pretplatu</h2>
+        <h2 className={styles.upgradeTitle}>
+          Šihterica je dostupna uz pretplatu
+        </h2>
         <p className={styles.upgradeText}>
-          Vođenje evidencije radnog vremena, čuvanje podataka po mjesecima i
-          generisanje PDF obrazaca dostupno je uz <strong>Pro</strong> ili{" "}
-          <strong>Business</strong> pretplatu.
+          {isLoggedIn ? (
+            <>
+              Vođenje evidencije radnog vremena, čuvanje podataka po mjesecima i
+              generisanje PDF obrazaca dostupno je uz <strong>Pro</strong> ili{" "}
+              <strong>Business</strong> pretplatu.
+            </>
+          ) : (
+            <>
+              Prijavite se na svoj račun ili se besplatno registrujte, a zatim
+              aktivirajte <strong>Pro</strong> ili <strong>Business</strong>{" "}
+              pretplatu kako biste koristili šihtericu.
+            </>
+          )}
         </p>
-        <a href="/profil#pretplata" className={styles.upgradeBtn}>
-          Pogledaj pretplate →
-        </a>
+        {!isLoading &&
+          (isLoggedIn ? (
+            <a href="/profil#pretplata" className={styles.upgradeBtn}>
+              Pogledaj pretplate →
+            </a>
+          ) : (
+            <a href="/prijava" className={styles.upgradeBtn}>
+              Prijavi se →
+            </a>
+          ))}
       </div>
     </div>
   );
@@ -245,7 +295,9 @@ function SihtericaApp() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [entries, setEntries] = useState<DayEntry[]>(() => emptyMonth());
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
   const [showNewYear, setShowNewYear] = useState(false);
   const [newYearVal, setNewYearVal] = useState("");
   const newYearRef = useRef<HTMLInputElement>(null);
@@ -360,7 +412,8 @@ function SihtericaApp() {
     }
   }, [workerId, monthsQuery.data, monthsQuery.isLoading, now]);
 
-  const selectedWorker = workersQuery.data?.find((w) => w.id === workerId) ?? null;
+  const selectedWorker =
+    workersQuery.data?.find((w) => w.id === workerId) ?? null;
   const workerName = selectedWorker
     ? `${selectedWorker.firstName} ${selectedWorker.lastName}`
     : "";
@@ -386,7 +439,8 @@ function SihtericaApp() {
   // load defaults from worker
   const lastLoadedWorkerPrefs = useRef<number | null>(null);
   useEffect(() => {
-    if (!selectedWorker || lastLoadedWorkerPrefs.current === selectedWorker.id) return;
+    if (!selectedWorker || lastLoadedWorkerPrefs.current === selectedWorker.id)
+      return;
     lastLoadedWorkerPrefs.current = selectedWorker.id;
     setAutoStart(selectedWorker.defaultStartTime ?? "08:00");
     setAutoEnd(selectedWorker.defaultEndTime ?? "16:00");
@@ -457,8 +511,14 @@ function SihtericaApp() {
       const isHoliday = holidayDays.has(dayNum);
       const isDayOff = autoDaysOff.has(dow);
       const e = next[i];
-      const hasAny = e.startTime || e.endTime || e.zastoj ||
-        e.fieldWork || e.standby || e.absence || e.other;
+      const hasAny =
+        e.startTime ||
+        e.endTime ||
+        e.zastoj ||
+        e.fieldWork ||
+        e.standby ||
+        e.absence ||
+        e.other;
       if (!autoOverwrite && hasAny) continue;
       if (autoOverwrite) {
         next[i] = { ...EMPTY_ENTRY };
@@ -487,10 +547,30 @@ function SihtericaApp() {
         defaultPause: autoPause || null,
         defaultDaysOff: [...autoDaysOff].sort().join(","),
       }).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["workers", selectedWorker.organizationId] });
+        queryClient.invalidateQueries({
+          queryKey: ["workers", selectedWorker.organizationId],
+        });
       });
     }
-  }, [workerId, entries, daysInMonth, year, month, autoStart, autoEnd, autoPause, autoDaysOff, autoOverwrite, autoHolidays, autoVacationFrom, autoVacationTo, autoSickFrom, autoSickTo, selectedWorker, queryClient]);
+  }, [
+    workerId,
+    entries,
+    daysInMonth,
+    year,
+    month,
+    autoStart,
+    autoEnd,
+    autoPause,
+    autoDaysOff,
+    autoOverwrite,
+    autoHolidays,
+    autoVacationFrom,
+    autoVacationTo,
+    autoSickFrom,
+    autoSickTo,
+    selectedWorker,
+    queryClient,
+  ]);
 
   const updateEntry = useCallback(
     (dayIdx: number, field: ColKey, value: string) => {
@@ -521,19 +601,34 @@ function SihtericaApp() {
       const allEmpty = entries.every(isEntryEmpty);
       if (allEmpty && !currentMonthSaved) return;
       setSaveStatus("saving");
-      const days = entries.slice(0, daysInMonth).map((e) => (isEntryEmpty(e) ? null : e));
+      const days = entries
+        .slice(0, daysInMonth)
+        .map((e) => (isEntryEmpty(e) ? null : e));
       const res = await saveSihterica({ workerId, year, month, days });
       if (res.ok) {
         setSaveStatus("saved");
         isDirty.current = false;
-        queryClient.invalidateQueries({ queryKey: ["sihtericaMonths", workerId] });
-        queryClient.invalidateQueries({ queryKey: ["sihtericaWorkerMonths", orgId] });
+        queryClient.invalidateQueries({
+          queryKey: ["sihtericaMonths", workerId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["sihtericaWorkerMonths", orgId],
+        });
       } else {
         setSaveStatus("error");
       }
     }, 1000);
     return () => clearTimeout(handle);
-  }, [entries, workerId, year, month, daysInMonth, currentMonthSaved, orgId, queryClient]);
+  }, [
+    entries,
+    workerId,
+    year,
+    month,
+    daysInMonth,
+    currentMonthSaved,
+    orgId,
+    queryClient,
+  ]);
 
   // ─── PDF export ────────────────────────────────────────────────────────────
   const selectedOrg = orgsQuery.data?.find((o) => o.id === orgId) ?? null;
@@ -543,14 +638,18 @@ function SihtericaApp() {
       workerName,
       month,
       year,
-      days: entries.slice(0, daysInMonth).map((e) => (isEntryEmpty(e) ? null : e)),
+      days: entries
+        .slice(0, daysInMonth)
+        .map((e) => (isEntryEmpty(e) ? null : e)),
       orgName: selectedOrg?.name ?? "",
       orgAddress: selectedOrg?.address ?? "",
       orgTaxNumber: selectedOrg?.taxNumber ?? "",
       weeklyDaysOff: [...autoDaysOff],
     });
 
-    const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
+    const blob = new Blob([new Uint8Array(pdfBytes)], {
+      type: "application/pdf",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -574,12 +673,15 @@ function SihtericaApp() {
         const res = await getSihterica(w.id, year, month);
         const data = res.ok ? res.data : null;
         const dim = getDaysInMonth(year, month);
-        const days: (DayEntry | null)[] = Array.from({ length: dim }, (_, i) => {
-          const d = data?.days?.[i];
-          if (!d) return null;
-          if (isEntryEmpty(d)) return null;
-          return { ...EMPTY_ENTRY, ...d };
-        });
+        const days: (DayEntry | null)[] = Array.from(
+          { length: dim },
+          (_, i) => {
+            const d = data?.days?.[i];
+            if (!d) return null;
+            if (isEntryEmpty(d)) return null;
+            return { ...EMPTY_ENTRY, ...d };
+          },
+        );
         // Skip workers that have no data for this month
         const hasAny = days.some((d) => d !== null);
         if (!hasAny) continue;
@@ -598,7 +700,10 @@ function SihtericaApp() {
           weeklyDaysOff: workerDaysOff,
         });
         const safeName = `${w.firstName}_${w.lastName}`.replace(/\s+/g, "_");
-        zip.file(`Sihterica_${safeName}_${String(month).padStart(2, "0")}_${year}.pdf`, pdfBytes);
+        zip.file(
+          `Sihterica_${safeName}_${String(month).padStart(2, "0")}_${year}.pdf`,
+          pdfBytes,
+        );
       }
 
       const fileCount = Object.keys(zip.files).length;
@@ -611,7 +716,10 @@ function SihtericaApp() {
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement("a");
       a.href = url;
-      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(/\s+/g, "_");
+      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(
+        /\s+/g,
+        "_",
+      );
       a.download = `Sihterice_${orgSafe}_${String(month).padStart(2, "0")}_${year}.zip`;
       a.click();
       URL.revokeObjectURL(url);
@@ -628,9 +736,13 @@ function SihtericaApp() {
     if (!res.ok) return;
     setConfirmDelete(false);
     queryClient.invalidateQueries({ queryKey: ["sihtericaMonths", workerId] });
-    queryClient.invalidateQueries({ queryKey: ["sihtericaWorkerMonths", orgId] });
+    queryClient.invalidateQueries({
+      queryKey: ["sihtericaWorkerMonths", orgId],
+    });
     // jump to next remaining month
-    const remaining = savedMonths.filter((m) => !(m.year === year && m.month === month));
+    const remaining = savedMonths.filter(
+      (m) => !(m.year === year && m.month === month),
+    );
     if (remaining.length > 0) {
       setYear(remaining[0].year);
       setMonth(remaining[0].month);
@@ -707,7 +819,9 @@ function SihtericaApp() {
         >
           <option value="">— Odaberi —</option>
           {orgsQuery.data?.map((org) => (
-            <option key={org.id} value={org.id}>{org.name}</option>
+            <option key={org.id} value={org.id}>
+              {org.name}
+            </option>
           ))}
         </select>
       </div>
@@ -719,9 +833,13 @@ function SihtericaApp() {
       {orgId && workersQuery.isLoading && (
         <div className={styles.sidebarEmpty}>Učitavam…</div>
       )}
-      {orgId && !workersQuery.isLoading && (workersQuery.data?.length ?? 0) === 0 && (
-        <div className={styles.sidebarEmpty}>Ova organizacija nema radnika.</div>
-      )}
+      {orgId &&
+        !workersQuery.isLoading &&
+        (workersQuery.data?.length ?? 0) === 0 && (
+          <div className={styles.sidebarEmpty}>
+            Ova organizacija nema radnika.
+          </div>
+        )}
       {orgId && (workersQuery.data?.length ?? 0) > 0 && (
         <div className={styles.sidebarList}>
           {workersQuery.data!.map((w) => {
@@ -740,9 +858,17 @@ function SihtericaApp() {
                     }
                   }}
                 >
-                  <span className={hasData ? styles.sidebarDot : styles.sidebarDotEmpty} />
+                  <span
+                    className={
+                      hasData ? styles.sidebarDot : styles.sidebarDotEmpty
+                    }
+                  />
                   <span className={styles.sidebarName}>{label}</span>
-                  {hasData && <span className={styles.sidebarCount}>{wMonths.length}</span>}
+                  {hasData && (
+                    <span className={styles.sidebarCount}>
+                      {wMonths.length}
+                    </span>
+                  )}
                 </button>
               </div>
             );
@@ -754,7 +880,10 @@ function SihtericaApp() {
           <p className={styles.sidebarHintText}>
             Radnike dodajte i uređujte na stranici svoje djelatnosti.
           </p>
-          <Link href={`/organizacija/${orgId}`} className={styles.sidebarHintLink}>
+          <Link
+            href={`/organizacija/${orgId}`}
+            className={styles.sidebarHintLink}
+          >
             Otvori djelatnost →
           </Link>
         </div>
@@ -803,7 +932,10 @@ function SihtericaApp() {
                       onClick={() => {
                         setYear(y);
                         const ms = savedMonths.filter((m) => m.year === y);
-                        if (ms.length > 0 && !ms.some((m) => m.month === month)) {
+                        if (
+                          ms.length > 0 &&
+                          !ms.some((m) => m.month === month)
+                        ) {
                           setMonth(ms[0].month);
                         }
                       }}
@@ -820,7 +952,9 @@ function SihtericaApp() {
                       placeholder="GGGG"
                       maxLength={4}
                       inputMode="numeric"
-                      onChange={(e) => setNewYearVal(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) =>
+                        setNewYearVal(e.target.value.replace(/\D/g, ""))
+                      }
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && newYearVal.length === 4) {
                           setYear(parseInt(newYearVal));
@@ -904,7 +1038,6 @@ function SihtericaApp() {
                     );
                   })}
                 </div>
-
               </div>
 
               {/* Worker title */}
@@ -912,24 +1045,33 @@ function SihtericaApp() {
                 <h2 className={styles.workerName}>
                   {workerName}
                   <span className={styles.workerPeriod}>
-                    {" — "}{MONTHS[month - 1]} {year}
+                    {" — "}
+                    {MONTHS[month - 1]} {year}
                   </span>
                 </h2>
-                {currentMonthSaved && savedMonths.length > 1 && !confirmDelete && (
-                  <button
-                    className={styles.deleteMonthBtn}
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    🗑 Obriši mjesec
-                  </button>
-                )}
+                {currentMonthSaved &&
+                  savedMonths.length > 1 &&
+                  !confirmDelete && (
+                    <button
+                      className={styles.deleteMonthBtn}
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      🗑 Obriši mjesec
+                    </button>
+                  )}
                 {confirmDelete && (
                   <div className={styles.deleteInline}>
                     <span>Sigurni ste?</span>
-                    <button className={styles.deleteInlineConfirm} onClick={handleDelete}>
+                    <button
+                      className={styles.deleteInlineConfirm}
+                      onClick={handleDelete}
+                    >
                       Da, obriši
                     </button>
-                    <button className={styles.deleteInlineCancel} onClick={() => setConfirmDelete(false)}>
+                    <button
+                      className={styles.deleteInlineCancel}
+                      onClick={() => setConfirmDelete(false)}
+                    >
                       Odustani
                     </button>
                   </div>
@@ -939,7 +1081,9 @@ function SihtericaApp() {
               {/* Auto-fill panel */}
               <div className={styles.autoFillPanel}>
                 <div className={styles.autoFillHeader}>
-                  <span className={styles.autoFillTitle}>Auto-popuna mjeseca</span>
+                  <span className={styles.autoFillTitle}>
+                    Auto-popuna mjeseca
+                  </span>
                 </div>
                 <div className={styles.autoFillRow}>
                   <label className={styles.autoFillField}>
@@ -976,26 +1120,32 @@ function SihtericaApp() {
                     />
                   </label>
                   <div className={styles.autoFillField}>
-                    <span className={styles.autoFillLabel}>Slobodni dani (9.1)</span>
+                    <span className={styles.autoFillLabel}>
+                      Slobodni dani (9.1)
+                    </span>
                     <div className={styles.autoFillDays}>
-                      {["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"].map((label, idx) => {
-                        const dow = idx === 6 ? 0 : idx + 1; // map Pon..Ned to Date.getDay()
-                        const checked = autoDaysOff.has(dow);
-                        return (
-                          <button
-                            key={label}
-                            type="button"
-                            className={`${styles.autoFillDayChip}${checked ? ` ${styles.autoFillDayChipActive}` : ""}`}
-                            onClick={() => toggleDayOff(dow)}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
+                      {["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"].map(
+                        (label, idx) => {
+                          const dow = idx === 6 ? 0 : idx + 1; // map Pon..Ned to Date.getDay()
+                          const checked = autoDaysOff.has(dow);
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              className={`${styles.autoFillDayChip}${checked ? ` ${styles.autoFillDayChipActive}` : ""}`}
+                              onClick={() => toggleDayOff(dow)}
+                            >
+                              {label}
+                            </button>
+                          );
+                        },
+                      )}
                     </div>
                   </div>
                   <label className={styles.autoFillField} style={{ flex: 1 }}>
-                    <span className={styles.autoFillLabel}>Praznici u mjesecu (9.2) — dani</span>
+                    <span className={styles.autoFillLabel}>
+                      Praznici u mjesecu (9.2) — dani
+                    </span>
                     <input
                       type="text"
                       className={styles.autoFillInput}
@@ -1007,7 +1157,9 @@ function SihtericaApp() {
                 </div>
 
                 <div className={styles.autoFillRow2}>
-                  <label className={`${styles.autoFillCheckbox} ${styles.autoFillCheckboxLeft}`}>
+                  <label
+                    className={`${styles.autoFillCheckbox} ${styles.autoFillCheckboxLeft}`}
+                  >
                     <input
                       type="checkbox"
                       checked={autoOverwrite}
@@ -1017,13 +1169,17 @@ function SihtericaApp() {
                   </label>
 
                   <div className={styles.autoFillField}>
-                    <span className={styles.autoFillLabel}>Godišnji odmor (9.1)</span>
+                    <span className={styles.autoFillLabel}>
+                      Godišnji odmor (9.1)
+                    </span>
                     <div className={styles.autoFillRange}>
                       <input
                         type="text"
                         className={styles.autoFillInputSm}
                         value={autoVacationFrom}
-                        onChange={(e) => setAutoVacationFrom(e.target.value.replace(/\D/g, ""))}
+                        onChange={(e) =>
+                          setAutoVacationFrom(e.target.value.replace(/\D/g, ""))
+                        }
                         placeholder="od"
                         maxLength={2}
                         inputMode="numeric"
@@ -1033,7 +1189,9 @@ function SihtericaApp() {
                         type="text"
                         className={styles.autoFillInputSm}
                         value={autoVacationTo}
-                        onChange={(e) => setAutoVacationTo(e.target.value.replace(/\D/g, ""))}
+                        onChange={(e) =>
+                          setAutoVacationTo(e.target.value.replace(/\D/g, ""))
+                        }
                         placeholder="do"
                         maxLength={2}
                         inputMode="numeric"
@@ -1041,13 +1199,17 @@ function SihtericaApp() {
                     </div>
                   </div>
                   <div className={styles.autoFillField}>
-                    <span className={styles.autoFillLabel}>Bolovanje (9.3)</span>
+                    <span className={styles.autoFillLabel}>
+                      Bolovanje (9.3)
+                    </span>
                     <div className={styles.autoFillRange}>
                       <input
                         type="text"
                         className={styles.autoFillInputSm}
                         value={autoSickFrom}
-                        onChange={(e) => setAutoSickFrom(e.target.value.replace(/\D/g, ""))}
+                        onChange={(e) =>
+                          setAutoSickFrom(e.target.value.replace(/\D/g, ""))
+                        }
                         placeholder="od"
                         maxLength={2}
                         inputMode="numeric"
@@ -1057,7 +1219,9 @@ function SihtericaApp() {
                         type="text"
                         className={styles.autoFillInputSm}
                         value={autoSickTo}
-                        onChange={(e) => setAutoSickTo(e.target.value.replace(/\D/g, ""))}
+                        onChange={(e) =>
+                          setAutoSickTo(e.target.value.replace(/\D/g, ""))
+                        }
                         placeholder="do"
                         maxLength={2}
                         inputMode="numeric"
@@ -1081,7 +1245,9 @@ function SihtericaApp() {
                   <thead>
                     <tr>
                       {COL_HEADERS.map((col) => (
-                        <th key={col.key} style={{ minWidth: col.width }}>{col.label}</th>
+                        <th key={col.key} style={{ minWidth: col.width }}>
+                          {col.label}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -1098,12 +1264,16 @@ function SihtericaApp() {
                       return (
                         <tr key={dayNum}>
                           <td>
-                            <div className={`${styles.dayCell}${isWeekend ? ` ${styles.weekend}` : ""}`}>
+                            <div
+                              className={`${styles.dayCell}${isWeekend ? ` ${styles.weekend}` : ""}`}
+                            >
                               {dayNum}.
                             </div>
                           </td>
                           <td>
-                            <div className={`${styles.dayCell} ${styles.dayCellFull}${isWeekend ? ` ${styles.weekend}` : ""}`}>
+                            <div
+                              className={`${styles.dayCell} ${styles.dayCellFull}${isWeekend ? ` ${styles.weekend}` : ""}`}
+                            >
                               {dateLabel}
                             </div>
                           </td>
@@ -1150,7 +1320,9 @@ function SihtericaApp() {
                               type="text"
                               placeholder="npr. 9.1"
                               value={entry.absence}
-                              onChange={(e) => updateEntry(i, "absence", e.target.value)}
+                              onChange={(e) =>
+                                updateEntry(i, "absence", e.target.value)
+                              }
                               maxLength={6}
                             />
                           </td>
@@ -1160,7 +1332,9 @@ function SihtericaApp() {
                               type="text"
                               placeholder="npr. 10.2"
                               value={entry.other}
-                              onChange={(e) => updateEntry(i, "other", e.target.value)}
+                              onChange={(e) =>
+                                updateEntry(i, "other", e.target.value)
+                              }
                               maxLength={6}
                             />
                           </td>
@@ -1173,7 +1347,9 @@ function SihtericaApp() {
                   </tbody>
                   <tfoot>
                     <tr className={styles.totalRow}>
-                      <td colSpan={10} className={styles.totalLabel}>Ukupno radnih sati u mjesecu</td>
+                      <td colSpan={10} className={styles.totalLabel}>
+                        Ukupno radnih sati u mjesecu
+                      </td>
                       <td colSpan={1} className={styles.totalValue}>
                         {minsToLabel(
                           Array.from({ length: daysInMonth }, (_, i) => {
@@ -1192,17 +1368,37 @@ function SihtericaApp() {
                   type="button"
                   className={styles.exportBtnSecondary}
                   onClick={handleBulkExport}
-                  disabled={bulkExporting || !workersQuery.data || workersQuery.data.length === 0}
+                  disabled={
+                    bulkExporting ||
+                    !workersQuery.data ||
+                    workersQuery.data.length === 0
+                  }
                   title="Generiše ZIP sa šihtericama svih radnika ove organizacije za odabrani mjesec"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
                     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
                     <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
                   </svg>
-                  {bulkExporting ? "Generišem ZIP…" : "Preuzmi za sve radnike (ZIP)"}
+                  {bulkExporting
+                    ? "Generišem ZIP…"
+                    : "Preuzmi za sve radnike (ZIP)"}
                 </button>
-                <button type="button" className={styles.exportBtn} onClick={handleExport}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <button
+                  type="button"
+                  className={styles.exportBtn}
+                  onClick={handleExport}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
                   </svg>
@@ -1211,7 +1407,8 @@ function SihtericaApp() {
               </div>
 
               <p className={styles.dataNapomena}>
-                Vaši podaci se automatski čuvaju i ostaju dostupni za naredne posjete.
+                Vaši podaci se automatski čuvaju i ostaju dostupni za naredne
+                posjete.
               </p>
             </>
           )}
@@ -1254,12 +1451,19 @@ function SihtericaApp() {
             <div className={styles.napomenaBlock}>
               <p className={styles.napomenaIntro}>
                 U kolonu 9) <em>Vrijeme neprisustva na poslu</em>, potrebno je
-                evidentirati vrijeme neprisustva i oznaku (broj) vrste neprisustva:
+                evidentirati vrijeme neprisustva i oznaku (broj) vrste
+                neprisustva:
               </p>
               <ol className={styles.napomenaList}>
                 <li>vrijeme korištenja odmora (sedmičnog i godišnjeg),</li>
-                <li>vrijeme za dane u koje se ne radi i praznike utvrđene posebnim propisom,</li>
-                <li>vrijeme spriječenosti za rad zbog privremene nesposobnosti za rad,</li>
+                <li>
+                  vrijeme za dane u koje se ne radi i praznike utvrđene posebnim
+                  propisom,
+                </li>
+                <li>
+                  vrijeme spriječenosti za rad zbog privremene nesposobnosti za
+                  rad,
+                </li>
                 <li>
                   vrijeme porođajnog odsustva, roditeljskih dopusta, mirovanja
                   radnog odnosa ili korištenja drugih prava u skladu s posebnim
@@ -1267,10 +1471,13 @@ function SihtericaApp() {
                 </li>
                 <li>vrijeme plaćenog odsustva,</li>
                 <li>vrijeme neplaćenog odsustva,</li>
-                <li>vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena po zahtjevu radnika,</li>
                 <li>
-                  vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena u
-                  kojima radnik svojom krivnjom ne obavlja ugovorene poslove,
+                  vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena
+                  po zahtjevu radnika,
+                </li>
+                <li>
+                  vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena
+                  u kojima radnik svojom krivnjom ne obavlja ugovorene poslove,
                 </li>
                 <li>vrijeme provedeno u štrajku,</li>
                 <li>vrijeme isključenja s rada (lockout).</li>
@@ -1279,8 +1486,8 @@ function SihtericaApp() {
 
             <div className={styles.napomenaBlock}>
               <p className={styles.napomenaIntro}>
-                U kolonu 10) <em>Ostali podaci o radnom vremenu</em>, potrebno je
-                evidentirati vrijeme i oznaku (broj) za sljedeće podatke:
+                U kolonu 10) <em>Ostali podaci o radnom vremenu</em>, potrebno
+                je evidentirati vrijeme i oznaku (broj) za sljedeće podatke:
               </p>
               <ol className={styles.napomenaList}>
                 <li>noćni rad,</li>
