@@ -2862,13 +2862,9 @@ function PretplataTab({ user }: { user: AuthUser }) {
               Nadogradite na <strong>Pro</strong> ili <strong>Business</strong>{" "}
               plan za pristup svim funkcionalnostima.
             </p>
-            <button
-              className={styles.btnPrimary}
-              disabled
-              style={{ opacity: 0.6 }}
-            >
-              Nadogradi — uskoro dostupno
-            </button>
+            <Link className={styles.btnPrimary} href="/pretplate">
+              Nadogradi
+            </Link>
             <p className={styles.planComingSoon}>
               Online pretplata je u pripremi. Za aktivaciju plana kontaktirajte
               nas putem{" "}
