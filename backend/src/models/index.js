@@ -215,6 +215,55 @@ const City = sequelize.define(
   { tableName: "cities", timestamps: true }
 );
 
+// ─── PREDRACUN COUNTER (po godini) ────────────────────────────────────────────
+const PredracunCounter = sequelize.define(
+  "PredracunCounter",
+  {
+    year: { type: DataTypes.INTEGER, primaryKey: true },
+    lastNumber: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+  },
+  { tableName: "predracun_counters", timestamps: true }
+);
+
+// ─── PREDRACUN ────────────────────────────────────────────────────────────────
+const Predracun = sequelize.define(
+  "Predracun",
+  {
+    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    // broj predračuna kompozitno polje za jednoznačnu pretragu
+    year: { type: DataTypes.INTEGER, allowNull: false },
+    sequence: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    fullNumber: { type: DataTypes.STRING(40), allowNull: false, unique: true },
+    // plan
+    plan: { type: DataTypes.ENUM("PRO", "BUSINESS"), allowNull: false },
+    // iznosi (KM)
+    netAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+    vatAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+    grossAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+    // datumi
+    issueDate: { type: DataTypes.DATEONLY, allowNull: false },
+    dueDate: { type: DataTypes.DATEONLY, allowNull: false },
+    // kupac (snapshot u trenutku izdavanja)
+    buyerCode: { type: DataTypes.STRING(10), allowNull: true },
+    buyerName: { type: DataTypes.STRING(255), allowNull: false },
+    buyerAddress: { type: DataTypes.STRING(255), allowNull: true },
+    buyerCity: { type: DataTypes.STRING(120), allowNull: true },
+    buyerPostalCode: { type: DataTypes.STRING(10), allowNull: true },
+    buyerPhone: { type: DataTypes.STRING(50), allowNull: true },
+    buyerEmail: { type: DataTypes.STRING(255), allowNull: false },
+    buyerIdNumber: { type: DataTypes.STRING(30), allowNull: true },
+    buyerVatNumber: { type: DataTypes.STRING(30), allowNull: true },
+    // veze (opcionalno — nije obavezno biti ulogovan)
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // status
+    status: {
+      type: DataTypes.ENUM("ISSUED", "PAID", "CANCELLED"),
+      defaultValue: "ISSUED",
+    },
+  },
+  { tableName: "predracuni", timestamps: true }
+);
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 User.hasOne(Subscription, { foreignKey: "userId", as: "subscription" });
 Subscription.belongsTo(User, { foreignKey: "userId" });
@@ -252,6 +301,9 @@ FormVersion.belongsTo(Form, { foreignKey: "formId" });
 Form.hasMany(FormAttachment, { foreignKey: "formId", as: "attachments" });
 FormAttachment.belongsTo(Form, { foreignKey: "formId" });
 
+User.hasMany(Predracun, { foreignKey: "userId", as: "predracuni" });
+Predracun.belongsTo(User, { foreignKey: "userId", as: "user" });
+
 module.exports = {
   sequelize,
   User,
@@ -264,4 +316,6 @@ module.exports = {
   FormVersion,
   FormAttachment,
   City,
+  Predracun,
+  PredracunCounter,
 };

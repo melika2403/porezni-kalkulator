@@ -313,6 +313,8 @@ export default function GpdForm() {
         [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
       address: data.address ?? p.address,
       city: data.city ?? p.city,
+      phone: data.phone ?? p.phone,
+      email: data.email ?? p.email,
     }));
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);

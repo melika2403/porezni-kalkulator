@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './Pricing.module.css';
 import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
 
@@ -12,7 +13,8 @@ interface Plan {
   ctaStyle: 'outline' | 'white' | 'blue-white';
   variant?: 'pro' | 'business';
   tag?: string;
-  action: 'scroll' | 'soon';
+  action: 'scroll' | 'soon' | 'subscribe';
+  planId?: 'PRO' | 'BUSINESS';
 }
 
 const PLANS: Plan[] = [
@@ -35,7 +37,7 @@ const PLANS: Plan[] = [
   },
   {
     tier: 'Pro',
-    price: '--,-- KM',
+    price: '250,00 KM',
     period: 'godišnje / po korisniku',
     features: [
       'Sve iz besplatnog plana',
@@ -50,11 +52,12 @@ const PLANS: Plan[] = [
     ctaStyle: 'white',
     variant: 'pro',
     tag: 'Najpopularnije',
-    action: 'soon',
+    action: 'subscribe',
+    planId: 'PRO',
   },
   {
     tier: 'Business',
-    price: '--,-- KM',
+    price: '500,00 KM',
     period: 'godišnje / po korisniku',
     features: [
       'Sve iz Pro plana',
@@ -68,16 +71,20 @@ const PLANS: Plan[] = [
     ctaStyle: 'blue-white',
     variant: 'business',
     tag: 'Najbolja vrijednost',
-    action: 'soon',
+    action: 'subscribe',
+    planId: 'BUSINESS',
   },
 ];
 
 export default function Pricing() {
   const [showModal, setShowModal] = useState(false);
+  const router = useRouter();
 
-  const handleCta = (action: Plan['action']) => {
-    if (action === 'scroll') {
+  const handleCta = (plan: Plan) => {
+    if (plan.action === 'scroll') {
       document.getElementById('funkcije')?.scrollIntoView({ behavior: 'smooth' });
+    } else if (plan.action === 'subscribe' && plan.planId) {
+      router.push(`/pretplate?plan=${plan.planId.toLowerCase()}`);
     } else {
       setShowModal(true);
     }
@@ -111,7 +118,7 @@ export default function Pricing() {
                 </ul>
                 <button
                   className={`${styles.cta} ${plan.ctaStyle === 'outline' ? styles.outline : plan.ctaStyle === 'white' ? styles.white : styles.blueWhite}`}
-                  onClick={() => handleCta(plan.action)}
+                  onClick={() => handleCta(plan)}
                 >
                   {plan.cta}
                 </button>

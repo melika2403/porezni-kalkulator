@@ -16,6 +16,7 @@ const documentsRoutes = require("./routes/documentsRoutes");
 const subscriptionsRoutes = require("./routes/subscriptionsRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const citiesRoutes = require("./routes/citiesRoutes");
+const predracunRoutes = require("./routes/predracunRoutes");
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use("/api/documents", documentsRoutes);
 app.use("/api/users", subscriptionsRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/cities", citiesRoutes);
+app.use("/api/predracun", predracunRoutes);
 
 // Sync database tables and start server
 sequelize
