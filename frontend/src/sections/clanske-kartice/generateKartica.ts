@@ -65,14 +65,11 @@ export async function generateKartica(data: KarticaData): Promise<Uint8Array> {
 
   const accent = hexToRgb(data.accentColor ?? "#e88a1a");
 
-  // ── Top row: Logo (large) + QR (smaller) ─────────────────────────────────
-  const topY = PAGE_H - MARGIN; // top of card
-  const logoSize = 85; // bigger logo
-  const qrSize = 55;   // smaller QR
-  const logoY = topY - logoSize;
-  const qrY = logoY + (logoSize - qrSize) / 2; // QR vertically centered with logo
+  // ── Left column: Logo + contact directly below ───────────────────────────
+  const logoSize = 85;
+  const logoY = PAGE_H - MARGIN - logoSize;
+  let logoBottomY = logoY; // tracks where logo image actually ends (for contact placement)
 
-  // Logo (top-left)
   if (data.logoDataUrl) {
     try {
       const m = data.logoDataUrl.match(/^data:image\/(png|jpe?g);base64,(.+)$/);
@@ -83,20 +80,48 @@ export async function generateKartica(data: KarticaData): Promise<Uint8Array> {
         const ratio = Math.min(logoSize / img.width, logoSize / img.height);
         const w = img.width * ratio;
         const h = img.height * ratio;
-        page.drawImage(img, {
-          x: MARGIN,
-          y: logoY + (logoSize - h) / 2,
-          width: w,
-          height: h,
-        });
+        const drawX = MARGIN + (logoSize - w) / 2;
+        const drawY = logoY + (logoSize - h) / 2;
+        page.drawImage(img, { x: drawX, y: drawY, width: w, height: h });
+        logoBottomY = drawY;
       }
     } catch {
-      // ignore image errors
+      /* ignore */
     }
   }
 
-  // QR code (right of logo)
-  const qrX = MARGIN + logoSize + 10;
+  // Phone / email directly below logo image
+  const orgContactSize = 10;
+  let cy = logoBottomY - 4 - orgContactSize;
+  if (data.orgPhone) {
+    page.drawText(`tel: ${data.orgPhone}`, {
+      x: MARGIN,
+      y: cy,
+      size: orgContactSize,
+      font: fontReg,
+      color: rgb(0.4, 0.4, 0.4),
+    });
+    cy -= orgContactSize + 2;
+  }
+  if (data.orgEmail) {
+    page.drawText(data.orgEmail, {
+      x: MARGIN,
+      y: cy,
+      size: orgContactSize,
+      font: fontReg,
+      color: rgb(0.4, 0.4, 0.4),
+    });
+  }
+
+  // ── Right column: QR (top) + Member name + Club name ────────────────────
+  const rightColX = MARGIN + logoSize + 10;
+  const rightColW = PAGE_W - rightColX - MARGIN;
+  const rightColCenter = rightColX + rightColW / 2;
+
+  // QR code top-right (centered horizontally with name/club below)
+  const qrSize = 60;
+  const qrX = rightColCenter - qrSize / 2;
+  const qrY = PAGE_H - MARGIN - qrSize;
   if (data.code) {
     try {
       const qrDataUrl = await QRCode.toDataURL(data.code, {
@@ -109,38 +134,50 @@ export async function generateKartica(data: KarticaData): Promise<Uint8Array> {
         (c) => c.charCodeAt(0),
       );
       const qrImg = await doc.embedPng(qrBytes);
-      page.drawImage(qrImg, {
-        x: qrX,
-        y: qrY,
-        width: qrSize,
-        height: qrSize,
-      });
+      page.drawImage(qrImg, { x: qrX, y: qrY, width: qrSize, height: qrSize });
     } catch {
       /* ignore */
     }
   }
 
-  // ── Bottom area: Member name + Club name (CENTERED horizontally) ─────────
-  const nameSize = 16;
+  // Member name + club name — centered in right column, just below QR
+  const maxNameSize = 16;
+  const minNameSize = 10;
   const clubSize = 18;
-  const bottomTextY = logoY - 8;
+  const textTopY = qrY - 14;
 
   const memberText = data.memberName || "—";
+  // Auto-shrink so long names fit on one line within the right column
+  let nameSize = maxNameSize;
+  while (
+    nameSize > minNameSize &&
+    fontBold.widthOfTextAtSize(memberText, nameSize) > rightColW
+  ) {
+    nameSize -= 0.5;
+  }
   const memberW = fontBold.widthOfTextAtSize(memberText, nameSize);
   page.drawText(memberText, {
-    x: (PAGE_W - memberW) / 2,
-    y: bottomTextY - nameSize,
+    x: rightColCenter - memberW / 2,
+    y: textTopY - nameSize,
     size: nameSize,
     font: fontBold,
     color: BLACK,
   });
 
   const clubText = data.clubName || "Klub";
-  const clubW = fontBold.widthOfTextAtSize(clubText, clubSize);
+  let clubSizeFit = clubSize;
+  const minClubSize = 12;
+  while (
+    clubSizeFit > minClubSize &&
+    fontBold.widthOfTextAtSize(clubText, clubSizeFit) > rightColW
+  ) {
+    clubSizeFit -= 0.5;
+  }
+  const clubW = fontBold.widthOfTextAtSize(clubText, clubSizeFit);
   page.drawText(clubText, {
-    x: (PAGE_W - clubW) / 2,
-    y: bottomTextY - nameSize - clubSize - 2,
-    size: clubSize,
+    x: rightColCenter - clubW / 2,
+    y: textTopY - nameSize - clubSizeFit - 2,
+    size: clubSizeFit,
     font: fontBold,
     color: rgb(accent.r, accent.g, accent.b),
   });
@@ -156,29 +193,6 @@ export async function generateKartica(data: KarticaData): Promise<Uint8Array> {
     font: fontBold,
     color: BLACK,
   });
-
-  // ── Org contact (bottom-left corner, small) ─────────────────────────────
-  const orgContactSize = 7;
-  let cy = MARGIN;
-  if (data.orgEmail) {
-    page.drawText(data.orgEmail, {
-      x: MARGIN,
-      y: cy,
-      size: orgContactSize,
-      font: fontReg,
-      color: rgb(0.4, 0.4, 0.4),
-    });
-    cy += orgContactSize + 2;
-  }
-  if (data.orgPhone) {
-    page.drawText(`tel: ${data.orgPhone}`, {
-      x: MARGIN,
-      y: cy,
-      size: orgContactSize,
-      font: fontReg,
-      color: rgb(0.4, 0.4, 0.4),
-    });
-  }
 
   return doc.save();
 }

@@ -202,6 +202,31 @@ const FormAttachment = sequelize.define(
   { tableName: "form_attachments", timestamps: true, updatedAt: false }
 );
 
+// ─── KARTICA MEMBER (članovi za generator članskih kartica) ─────────────────
+const KarticaMember = sequelize.define(
+  "KarticaMember",
+  {
+    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    name: { type: DataTypes.STRING(255), allowNull: false },
+    code: { type: DataTypes.STRING(100), allowNull: false },
+    clubName: { type: DataTypes.STRING(255), allowNull: true },
+    validUntil: { type: DataTypes.DATEONLY, allowNull: true },
+  },
+  {
+    tableName: "kartica_members",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["createdById"] },
+      { fields: ["createdById", "organizationId"] },
+      { fields: ["createdById", "organizationId", "code"] },
+    ],
+  }
+);
+
 // ─── CITY ─────────────────────────────────────────────────────────────────────
 const City = sequelize.define(
   "City",
@@ -252,6 +277,12 @@ FormVersion.belongsTo(Form, { foreignKey: "formId" });
 Form.hasMany(FormAttachment, { foreignKey: "formId", as: "attachments" });
 FormAttachment.belongsTo(Form, { foreignKey: "formId" });
 
+User.hasMany(KarticaMember, { foreignKey: "createdById", as: "karticaMembers" });
+KarticaMember.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
+
+Organization.hasMany(KarticaMember, { foreignKey: "organizationId", as: "karticaMembers" });
+KarticaMember.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" });
+
 module.exports = {
   sequelize,
   User,
@@ -264,4 +295,5 @@ module.exports = {
   FormVersion,
   FormAttachment,
   City,
+  KarticaMember,
 };

@@ -42,7 +42,9 @@
       "Bash(node scripts/inspect-js3100.mjs)",
       "Bash(node scripts/label-js3100.mjs)",
       "Bash(node --input-type=module)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(dir \"c:\\\\Users\\\\User\\\\Desktop\\\\porezni kalkulator\\\\porezni-kalkulator\\\\frontend\\\\src\\\\sections\" /b)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {sequelize} = require\\('./src/models'\\); \\(async \\(\\) => { try { const r = await sequelize.query\\('DROP TABLE IF EXISTS kartica_members'\\); console.log\\('DROPPED:', r\\); } catch\\(e\\){ console.error\\('ERR:', e.message\\);} await sequelize.close\\(\\); }\\)\\(\\);\")"
     ]
   }
 }
