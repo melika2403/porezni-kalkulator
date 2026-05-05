@@ -10,7 +10,7 @@ function isAdmin(req) {
 }
 
 function validateUserUpdatePayload(body) {
-  const { firstName, lastName, phone, address, jmbg, role } = body ?? {};
+  const { firstName, lastName, phone, address, city, jmbg, role } = body ?? {};
 
   const data = {};
 
@@ -42,6 +42,13 @@ function validateUserUpdatePayload(body) {
     data.address = typeof address === "string" ? address.trim() : null;
   }
 
+  if (city !== undefined) {
+    if (city != null && typeof city !== "string") {
+      return { ok: false, message: "city must be a string" };
+    }
+    data.city = typeof city === "string" ? city.trim() : null;
+  }
+
   if (jmbg !== undefined) {
     if (jmbg != null) {
       if (typeof jmbg !== "string" || !/^\d{13}$/.test(jmbg.trim())) {
@@ -58,6 +65,11 @@ function validateUserUpdatePayload(body) {
       return { ok: false, message: "role must be a non-empty string" };
     }
     data.role = role.trim();
+  }
+
+  const { idCardNumber } = body ?? {};
+  if (idCardNumber !== undefined) {
+    data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
   }
 
   if (Object.keys(data).length === 0) {
@@ -145,7 +157,7 @@ async function update(req, res) {
       return res.status(404).json({ ok: false, error: "User not found" });
     res.status(200).json({ ok: true, data: user });
   } catch (error) {
-    if (error && typeof error === "object" && error.code === "P2002") {
+    if (error && error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ ok: false, error: "DUPLICATE_VALUE" });
     }
     const message = error instanceof Error ? error.message : String(error);

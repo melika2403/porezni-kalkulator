@@ -33,8 +33,18 @@
       "Bash(taskkill /F /IM node.exe)",
       "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
       "Bash(node -e 'require\\('\\\\''dotenv'\\\\''\\).config\\(\\); const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.user.updateMany\\({ where: { isEmailVerified: false }, data: { isEmailVerified: true } }\\).then\\(r => console.log\\('\\\\''Ažurirano korisnika:'\\\\'', r.count\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
-      "Bash(dir \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\frontend\\\\src\\\\sections\\\\profil\\\\\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3000/profil\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3000/profil\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(xargs grep *)",
+      "Bash(node scripts/inspect-js3100.mjs)",
+      "Bash(node scripts/label-js3100.mjs)",
+      "Bash(node --input-type=module)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(dir \"c:\\\\Users\\\\User\\\\Desktop\\\\porezni kalkulator\\\\porezni-kalkulator\\\\frontend\\\\src\\\\sections\" /b)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {sequelize} = require\\('./src/models'\\); \\(async \\(\\) => { try { const r = await sequelize.query\\('DROP TABLE IF EXISTS kartica_members'\\); console.log\\('DROPPED:', r\\); } catch\\(e\\){ console.error\\('ERR:', e.message\\);} await sequelize.close\\(\\); }\\)\\(\\);\")"
     ]
   }
 }

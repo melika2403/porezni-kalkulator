@@ -3,8 +3,10 @@ import { useState } from "react";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./ugovor.module.css";
 import type { UgovorData } from "./generateDocx";
-import { useEffect } from "react";
 import DateInput from "src/components/DateInput/DateInput";
+import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { formatAddress } from "src/utils/formatAddress";
 
 const isoToDisplay = (iso: string) => {
   if (!iso || !iso.includes("-")) return iso;
@@ -69,6 +71,7 @@ const formatZiroRacun = (value: string) => {
 };
 
 export default function UgovorOPozajmici() {
+  const { findByName: findCity } = useCityLookup();
   const [form, setForm] = useState<UgovorData>(INITIAL);
   const [loadingDocx, setLoadingDocx] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -111,10 +114,13 @@ export default function UgovorOPozajmici() {
       <div className={styles.header}>
         <p className={styles.label}>Ugovori</p>
         <h1 className={styles.h1}>
-          Ugovor o <em>pozajmici</em>
+          Ugovor o pozajmici novca — <em>predložak i online popuna</em>
         </h1>
         <p className={styles.subtitle}>
-          Kreirajte pravno validan ugovor o pozajmici novca između fizičkih ili pravnih lica. Definirajte iznos, kamatnu stopu, rok otplate i uslove vraćanja — preuzmite u PDF ili Word formatu.
+          Kako napisati ugovor o pozajmici? Kreirajte pravno validan ugovor o
+          pozajmici novca između fizičkih ili pravnih lica u BiH — definirajte
+          iznos, kamatnu stopu, rok otplate i uslove vraćanja, pa preuzmite
+          gotov ugovor u PDF ili Word formatu, besplatno.
         </p>
       </div>
 
@@ -158,6 +164,29 @@ export default function UgovorOPozajmici() {
         <h2 className={styles.sectionTitle}>
           Ugovorne <em>strane</em>
         </h2>
+        <div className={styles.fieldGrid}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Popuni zajmodavca</label>
+            <UgovorFillSelect
+              onFill={({ name, address, city, id }) => {
+                set("zajmodavac", name);
+                set("zajmodavacAdresa", formatAddress(address, city, findCity(city)?.postalCode));
+                set("zajmodavacID", id);
+              }}
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Popuni zajmoprimca</label>
+            <UgovorFillSelect
+              onFill={({ name, address, city, id, bankAccount }) => {
+                set("zajmoprimac", name);
+                set("zajmoprimacAdresa", formatAddress(address, city, findCity(city)?.postalCode));
+                set("zajmoprimacID", id);
+                if (bankAccount) set("ziroRacun", bankAccount);
+              }}
+            />
+          </div>
+        </div>
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>

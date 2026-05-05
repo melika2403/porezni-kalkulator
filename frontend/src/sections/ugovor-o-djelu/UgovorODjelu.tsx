@@ -1,0 +1,823 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import styles from "./uod.module.css";
+import {
+  calcFromBruto,
+  calcFromNeto,
+  VRSTA_OPTIONS,
+  nettoBrutoMultiplier,
+  type VrstaNaknade,
+} from "./uodCalc";
+import { fillUodUplatnice } from "./fillUodUplatnice";
+import { KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
+import DateInput from "src/components/DateInput/DateInput";
+import { iznosUSlova } from "./iznosSlovima";
+import { useRole } from "src/hooks/useRole";
+import { fillUodDocx, type UodTemplateData } from "./fillUodDocx";
+import { fillUodPdf } from "./fillUodPdf";
+import { fillAug1031 } from "./fillAug1031";
+import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { formatAddress } from "src/utils/formatAddress";
+import FaqSection from "src/components/FaqSection/FaqSection";
+
+type Mode = "neto" | "bruto";
+
+// Format number as "1.000,00 KM"
+const fmtKm = (n: number) =>
+  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " KM";
+
+// Parse user input "1.000,00" or "1000" → 1000
+const parseAmount = (s: string): number => {
+  if (!s) return 0;
+  const cleaned = s.replace(/\./g, "").replace(",", ".");
+  return parseFloat(cleaned) || 0;
+};
+
+// XXX-XXX-XXXXXXXX-XX (16 digits with dashes)
+const formatZiroRacun = (raw: string): string => {
+  const d = raw.replace(/\D/g, "").slice(0, 16);
+  const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+  return parts.join("-");
+};
+
+// Digits only, max 13
+const formatJib = (raw: string): string => raw.replace(/\D/g, "").slice(0, 13);
+
+// Format number to display in input: "1.000,00"
+const formatAmountForInput = (s: string): string => {
+  if (!s) return "";
+  // Allow user to type freely while having decimal entry
+  // Split on comma; format integer part with dots
+  const parts = s.replace(/\./g, "").split(",");
+  const intPart = parts[0].replace(/\D/g, "");
+  const intFmt = intPart ? Number(intPart).toLocaleString("de-DE") : "";
+  if (parts.length === 1) return intFmt;
+  const decPart = parts[1].replace(/\D/g, "").slice(0, 2);
+  return `${intFmt},${decPart}`;
+};
+
+export default function UgovorODjelu() {
+  const { role } = useRole();
+  if (role !== "BUSINESS" && role !== "ADMIN") {
+    return <UgovorODjeluGate role={role} />;
+  }
+  return <UgovorODjeluApp />;
+}
+
+function UgovorODjeluGate({ role }: { role: string | null }) {
+  const isPro = role === "PRO";
+  const isLoggedIn = role !== null;
+
+  let title: string;
+  let text: string;
+  let cta: string;
+  let href: string;
+  if (isPro) {
+    title = "Ugovor o djelu zahtijeva Business pretplatu";
+    text = "Vaš Pro plan pokriva većinu alata, ali ugovori o djelu (kalkulator, predložak ugovora i uplatnice) dostupni su samo uz Business pretplatu.";
+    cta = "Nadogradi na Business →";
+    href = "/profil#pretplata";
+  } else if (isLoggedIn) {
+    title = "Ugovor o djelu je dostupan uz pretplatu";
+    text = "Kalkulator poreza i doprinosa, generisanje ugovora (DOCX/PDF) i 6 uplatnica spremnih za banku dostupno je uz Business pretplatu.";
+    cta = "Pogledaj pretplate →";
+    href = "/profil#pretplata";
+  } else {
+    title = "Ugovor o djelu je dostupan uz pretplatu";
+    text = "Da biste koristili kalkulator i generator ugovora o djelu, registrujte se i pretplatite na Business plan.";
+    cta = "Registrirajte se besplatno →";
+    href = "/registracija";
+  }
+
+  return (
+    <main className={styles.page}>
+      <div className={styles.header}>
+        <p className={styles.label}>Ugovori</p>
+        <h1 className={styles.h1}>
+          Ugovor o djelu — kalkulator i <em>predložak</em>
+        </h1>
+        <p className={styles.subtitle}>
+          Obračun poreza i doprinosa, predložak ugovora i uplatnice spremne za banku.
+        </p>
+      </div>
+      <div className={styles.gateCard}>
+        <div className={styles.gateIcon}>🔒</div>
+        <h2 className={styles.gateTitle}>{title}</h2>
+        <p className={styles.gateText}>{text}</p>
+        <a href={href} className={styles.btnPrimary}>{cta}</a>
+      </div>
+    </main>
+  );
+}
+
+function UgovorODjeluApp() {
+  const { findByName: findCity } = useCityLookup();
+  const [mode, setMode] = useState<Mode>("neto");
+  const [vrsta, setVrsta] = useState<VrstaNaknade>("standard");
+  const [iznosStr, setIznosStr] = useState("1.000,00");
+
+  const troskoviPct = VRSTA_OPTIONS[vrsta].troskoviPct;
+
+  // Naručilac
+  const [naruciIme, setNaruciIme] = useState("");
+  const [naruciAdresa, setNaruciAdresa] = useState("");
+  const [naruciId, setNaruciId] = useState("");
+
+  // Izvršilac
+  const [izvrIme, setIzvrIme] = useState("");
+  const [izvrAdresa, setIzvrAdresa] = useState("");
+  const [izvrJmbg, setIzvrJmbg] = useState("");
+
+  // Ostalo
+  const [predmet, setPredmet] = useState("");
+  const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rok, setRok] = useState("");
+  const [mjestoZakljucenja, setMjestoZakljucenja] = useState("");
+  const [brojUgovora, setBrojUgovora] = useState("");
+  const [izvrZiro, setIzvrZiro] = useState("");
+  const [nadlezniSud, setNadlezniSud] = useState("");
+
+  // Uplatnice
+  const [naruciZiro, setNaruciZiro] = useState("");
+  const [kantonKey, setKantonKey] = useState<KantonKey | "">("");
+  const [opcinaKod, setOpcinaKod] = useState<string>("");
+  const [generatingUplatnice, setGeneratingUplatnice] = useState(false);
+
+  // Derive period (mjesec/godina) from datum
+  const periodMjesec = (datum?.slice(5, 7) ?? String(new Date().getMonth() + 1).padStart(2, "0"));
+  const periodGodina = (datum?.slice(0, 4) ?? String(new Date().getFullYear()));
+
+  const opcine = kantonKey ? KANTONI[kantonKey].opcine : [];
+  const opcinaIme = opcine.find((o) => o.kod === opcinaKod)?.ime ?? "";
+
+  const handleKantonChange = (k: KantonKey | "") => {
+    setKantonKey(k);
+    setOpcinaKod("");
+  };
+
+  // Try to map a city name to (kantonKey, opcinaKod)
+  const findKantonAndOpcina = (city: string): { kantonKey: KantonKey; opcinaKod: string } | null => {
+    if (!city) return null;
+    const target = city.trim().toLowerCase();
+    for (const k of Object.keys(KANTONI) as KantonKey[]) {
+      const found = KANTONI[k].opcine.find(
+        (o) => o.ime.toLowerCase() === target || target.includes(o.ime.toLowerCase()),
+      );
+      if (found) return { kantonKey: k, opcinaKod: found.kod };
+    }
+    return null;
+  };
+
+  const formatDatumDDMMYYYY = (iso: string): string => {
+    if (!iso) return "";
+    const [y, m, d] = iso.slice(0, 10).split("-");
+    if (!y || !m || !d) return "";
+    return `${d}.${m}.${y}`;
+  };
+
+  const buildTemplateData = (): UodTemplateData => ({
+    brojUgovora,
+    datumFormatted: formatDatumDDMMYYYY(datum),
+    mjestoZakljucenja,
+    naruciIme,
+    naruciAdresa,
+    naruciId,
+    izvrIme,
+    izvrAdresa,
+    izvrJmbg,
+    izvrZiro,
+    predmet,
+    rok,
+    netoFmt: fmtKm(calc.neto).replace(" KM", ""),
+    iznosSlovima: iznosUSlova(calc.neto),
+    nadlezniSud,
+  });
+
+  const [generatingDocx, setGeneratingDocx] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [generatingAug, setGeneratingAug] = useState(false);
+  const [showAugInfo, setShowAugInfo] = useState(false);
+
+  const handleDownloadDocx = async () => {
+    setGeneratingDocx(true);
+    try {
+      const blob = await fillUodDocx(buildTemplateData());
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Ugovor-o-djelu${brojUgovora ? "_" + brojUgovora.replace(/\//g, "-") : ""}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Greška pri generisanju DOCX-a: " + (e as Error).message);
+    } finally {
+      setGeneratingDocx(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setGeneratingPdf(true);
+    try {
+      const bytes = await fillUodPdf(buildTemplateData());
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Ugovor-o-djelu${brojUgovora ? "_" + brojUgovora.replace(/\//g, "-") : ""}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Greška pri generisanju PDF-a: " + (e as Error).message);
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadAug = async () => {
+    if (!naruciIme || !naruciId) {
+      alert("Unesite naziv i JIB naručioca.");
+      return;
+    }
+    if (!izvrIme || !izvrJmbg) {
+      alert("Unesite ime i JMBG izvršioca.");
+      return;
+    }
+    setGeneratingAug(true);
+    try {
+      const bytes = await fillAug1031({
+        naruciIme,
+        naruciAdresa,
+        naruciId,
+        izvrIme,
+        izvrJmbg,
+        datum,
+        vrsta,
+        brutoPrihod: calc.bruto,
+        rashodi: calc.priznatiTroskovi,
+        dohodak: calc.brutoUmanjenZaTroskove,
+        zdravstveno: calc.zdravstveno,
+        osnovicaPorez: calc.osnovicaZaPorez,
+        porez: calc.porez,
+        pio: calc.pio,
+      });
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `AUG-1031${brojUgovora ? "_" + brojUgovora.replace(/\//g, "-") : ""}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Greška pri generisanju AUG-1031: " + (e as Error).message);
+    } finally {
+      setGeneratingAug(false);
+    }
+  };
+
+  const handleDownloadUplatnice = async () => {
+    if (!izvrJmbg || izvrJmbg.length !== 13) {
+      alert("JMBG izvršioca mora imati 13 cifara.");
+      return;
+    }
+    if (!naruciIme) {
+      alert("Unesite naziv naručioca.");
+      return;
+    }
+    if (!kantonKey) {
+      alert("Odaberite kanton naručioca.");
+      return;
+    }
+    if (!opcinaKod) {
+      alert("Odaberite općinu naručioca.");
+      return;
+    }
+    setGeneratingUplatnice(true);
+    try {
+      const bytes = await fillUodUplatnice({
+        naruciNaziv: naruciIme,
+        naruciAdresa: naruciAdresa,
+        naruciZiroRacun: naruciZiro || undefined,
+        izvrJmbg,
+        kantonKey: kantonKey as KantonKey,
+        opcinaKod,
+        opcinaIme,
+        zdravstvenoKanton: calc.zdravstvenoKanton,
+        zdravstvenoFbih: calc.zdravstvenoFbih,
+        porez: calc.porez,
+        pio: calc.pio,
+        zastita: calc.zastita,
+        voda: calc.voda,
+        datum,
+        periodMjesec,
+        periodGodina,
+      });
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Uplatnice_UoD_${periodMjesec}_${periodGodina}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setGeneratingUplatnice(false);
+    }
+  };
+
+  const iznos = parseAmount(iznosStr);
+  const calc = useMemo(() => {
+    const c = mode === "neto" ? calcFromNeto(iznos, troskoviPct) : calcFromBruto(iznos, troskoviPct);
+    // When user knows the NET amount, keep the exact input as displayed neto
+    // (avoids rounding drift like 1000 → 999.99)
+    if (mode === "neto" && iznos > 0) {
+      const naknadaZaIsplatu = Math.round(iznos * 100) / 100;
+      const zastita = Math.round(naknadaZaIsplatu * 0.005 * 100) / 100;
+      const voda = Math.round(naknadaZaIsplatu * 0.005 * 100) / 100;
+      const ukupniTroskovi = Math.round((c.bruto + c.pio + zastita + voda) * 100) / 100;
+      return {
+        ...c,
+        neto: naknadaZaIsplatu,
+        naknadaZaIsplatu,
+        zastita,
+        voda,
+        ukupniTroskovi,
+        porezDoprinosNaNetoPct: Math.round(((ukupniTroskovi - naknadaZaIsplatu) / naknadaZaIsplatu) * 10000) / 100,
+      };
+    }
+    return c;
+  }, [mode, iznos, troskoviPct]);
+
+  return (
+    <main className={styles.page}>
+      <div className={styles.header}>
+        <p className={styles.label}>Ugovori</p>
+        <h1 className={styles.h1}>
+          Ugovor o djelu (FBiH) — kalkulator poreza i <em>predložak</em>
+        </h1>
+        <p className={styles.subtitle}>
+          Kako popuniti ugovor o djelu u FBiH? Online kalkulator poreza i
+          doprinosa (NETO ↔ BRUTO), automatski obračun PIO, zdravstva i zaštite,
+          predložak ugovora u Word i PDF formatu te 6 uplatnica spremnih za
+          banku — besplatno i bez registracije.
+        </p>
+      </div>
+
+      {/* Mode toggle + iznos */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Iznos <em>naknade</em>
+        </h2>
+        <div className={styles.fieldGrid} style={{ marginBottom: "1rem" }}>
+          <label className={`${styles.field} ${styles.fieldFull}`}>
+            <span className={styles.fieldLabel}>Vrsta naknade</span>
+            <select
+              className={styles.input}
+              value={vrsta}
+              onChange={(e) => setVrsta(e.target.value as VrstaNaknade)}
+            >
+              {(Object.keys(VRSTA_OPTIONS) as VrstaNaknade[]).map((k) => (
+                <option key={k} value={k}>{VRSTA_OPTIONS[k].label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className={styles.modeRow}>
+          <div className={styles.modeChips}>
+            <button
+              type="button"
+              className={`${styles.modeChip} ${mode === "neto" ? styles.modeChipActive : ""}`}
+              onClick={() => setMode("neto")}
+            >
+              Poznat NETO
+            </button>
+            <button
+              type="button"
+              className={`${styles.modeChip} ${mode === "bruto" ? styles.modeChipActive : ""}`}
+              onClick={() => setMode("bruto")}
+            >
+              Poznat BRUTO
+            </button>
+          </div>
+
+          <div className={styles.amountWrap}>
+            <input
+              className={styles.amountInput}
+              type="text"
+              inputMode="decimal"
+              value={iznosStr}
+              onChange={(e) => setIznosStr(formatAmountForInput(e.target.value))}
+              placeholder="0,00"
+            />
+            <span className={styles.amountSuffix}>KM</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Calc results */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Obračun <em>ugovora o djelu</em>
+        </h2>
+        <div className={styles.calcGrid}>
+          <table className={styles.calcTable}>
+            <tbody>
+              <tr><td>1</td><td>Neto iznos naknade</td><td className={styles.calcVal}>{fmtKm(calc.neto)}</td></tr>
+              <tr><td>2</td><td>Bruto iznos UoD <span className={styles.calcFormula}>(rb. 1 × {nettoBrutoMultiplier(troskoviPct).toFixed(6).replace(".", ",")})</span></td><td className={styles.calcVal}>{fmtKm(calc.bruto)}</td></tr>
+              <tr className={styles.calcDeduction}><td>3</td><td>Priznati troškovi {(troskoviPct * 100).toFixed(0)}%</td><td className={styles.calcVal}>{fmtKm(calc.priznatiTroskovi)}</td></tr>
+              <tr><td>4</td><td>Bruto naknada umanjena za troškove</td><td className={styles.calcVal}>{fmtKm(calc.brutoUmanjenZaTroskove)}</td></tr>
+              <tr className={styles.calcDeduction}><td>5</td><td>Doprinos za zdravstveno 4%</td><td className={styles.calcVal}>{fmtKm(calc.zdravstveno)}</td></tr>
+              <tr><td>6</td><td>Osnovica za porez</td><td className={styles.calcVal}>{fmtKm(calc.osnovicaZaPorez)}</td></tr>
+              <tr><td>7</td><td>Porez na dohodak 10%</td><td className={styles.calcVal}>{fmtKm(calc.porez)}</td></tr>
+              <tr><td>8</td><td>Naknada po odbitku zdravstva i poreza</td><td className={styles.calcVal}>{fmtKm(calc.naknadaPoOdbitku)}</td></tr>
+              <tr><td>9</td><td>Priznati troškovi (vraćeni)</td><td className={styles.calcVal}>{fmtKm(calc.priznatiTroskovi)}</td></tr>
+              <tr className={styles.calcHighlight}><td>10</td><td>Naknada za isplatu</td><td className={styles.calcVal}>{fmtKm(calc.naknadaZaIsplatu)}</td></tr>
+              <tr className={styles.calcDeduction}><td>11</td><td>PIO 6% (na teret naručioca)</td><td className={styles.calcVal}>{fmtKm(calc.pio)}</td></tr>
+              <tr className={styles.calcDeduction}><td>12</td><td>Zaštita od prirodnih nepogoda 0,5%</td><td className={styles.calcVal}>{fmtKm(calc.zastita)}</td></tr>
+              <tr className={styles.calcDeduction}><td>13</td><td>Opšta vodna naknada 0,5%</td><td className={styles.calcVal}>{fmtKm(calc.voda)}</td></tr>
+              <tr className={styles.calcTotal}><td>14</td><td>Ukupni troškovi naručioca</td><td className={styles.calcVal}>{fmtKm(calc.ukupniTroskovi)}</td></tr>
+              <tr><td>15</td><td>Isplata izvršiocu</td><td className={styles.calcVal}>{fmtKm(calc.neto)}</td></tr>
+              <tr><td>16</td><td>Porezi i doprinosi (% na neto)</td><td className={styles.calcVal}>{calc.porezDoprinosNaNetoPct.toFixed(2).replace(".", ",")}%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Stranke */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Ugovorne <em>strane</em>
+        </h2>
+
+        <div className={styles.partyGrid}>
+          <div className={styles.party}>
+            <h3 className={styles.partyTitle}>Naručilac (poslodavac)</h3>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Popuni naručioca</span>
+              <UgovorFillSelect
+                onFill={({ name, address, city, id, bankAccount }) => {
+                  setNaruciIme(name);
+                  setNaruciAdresa(formatAddress(address, city, findCity(city)?.postalCode));
+                  setNaruciId(id);
+                  if (bankAccount) setNaruciZiro(bankAccount);
+                  const ko = findKantonAndOpcina(city);
+                  if (ko) {
+                    setKantonKey(ko.kantonKey);
+                    setOpcinaKod(ko.opcinaKod);
+                  }
+                }}
+              />
+            </div>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Naziv / ime i prezime</span>
+              <input className={styles.input} value={naruciIme} onChange={(e) => setNaruciIme(e.target.value)} />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Adresa</span>
+              <input className={styles.input} value={naruciAdresa} onChange={(e) => setNaruciAdresa(e.target.value)} />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>JIB / ID broj</span>
+              <input
+                className={styles.input}
+                value={naruciId}
+                onChange={(e) => setNaruciId(formatJib(e.target.value))}
+                inputMode="numeric"
+                maxLength={13}
+              />
+            </label>
+          </div>
+
+          <div className={styles.party}>
+            <h3 className={styles.partyTitle}>Izvršilac (radnik)</h3>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Popuni izvršioca</span>
+              <UgovorFillSelect
+                onFill={({ name, address, city, id, bankAccount }) => {
+                  setIzvrIme(name);
+                  setIzvrAdresa(formatAddress(address, city, findCity(city)?.postalCode));
+                  setIzvrJmbg(id);
+                  if (bankAccount) setIzvrZiro(bankAccount);
+                }}
+              />
+            </div>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Ime i prezime</span>
+              <input className={styles.input} value={izvrIme} onChange={(e) => setIzvrIme(e.target.value)} />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Adresa</span>
+              <input className={styles.input} value={izvrAdresa} onChange={(e) => setIzvrAdresa(e.target.value)} />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>JMBG</span>
+              <input
+                className={styles.input}
+                value={izvrJmbg}
+                onChange={(e) => setIzvrJmbg(formatJib(e.target.value))}
+                inputMode="numeric"
+                maxLength={13}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Žiro račun (transakcijski)</span>
+              <input
+                className={styles.input}
+                value={izvrZiro}
+                onChange={(e) => setIzvrZiro(formatZiroRacun(e.target.value))}
+                inputMode="numeric"
+                placeholder="XXX-XXX-XXXXXXXX-XX"
+              />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      {/* Predmet i rokovi */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Predmet ugovora i <em>rokovi</em>
+        </h2>
+        <div className={styles.fieldGrid}>
+          <label className={`${styles.field} ${styles.fieldFull}`}>
+            <span className={styles.fieldLabel}>Opis posla / predmet ugovora</span>
+            <textarea
+              className={styles.textarea}
+              rows={3}
+              value={predmet}
+              onChange={(e) => setPredmet(e.target.value)}
+              placeholder="Npr. izradi web stranicu prema specifikaciji, izvrši teoretsku obuku u autoškoli..."
+            />
+            <p className={styles.hint}>
+              Tekst se direktno nadovezuje na &ldquo;Izvršilac posla prihvata...&rdquo; — započnite glagolom (&ldquo;izvrši&rdquo;, &ldquo;izradi&rdquo;, &ldquo;obavi&rdquo;).
+            </p>
+          </label>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Datum zaključenja</span>
+            <DateInput
+              className={styles.input}
+              value={datum}
+              onValueChange={setDatum}
+            />
+          </div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Rok izvršenja</span>
+            <input
+              className={styles.input}
+              value={rok}
+              onChange={(e) => setRok(e.target.value)}
+              placeholder="Npr. 30 dana od potpisivanja"
+            />
+          </label>
+        </div>
+      </section>
+
+      {/* Detalji ugovora */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Detalji <em>ugovora</em>
+        </h2>
+        <div className={styles.fieldGrid}>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Broj ugovora</span>
+            <input
+              className={styles.input}
+              value={brojUgovora}
+              onChange={(e) => setBrojUgovora(e.target.value)}
+              placeholder="Npr. 12/2026"
+            />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Mjesto zaključenja</span>
+            <input
+              className={styles.input}
+              value={mjestoZakljucenja}
+              onChange={(e) => setMjestoZakljucenja(e.target.value)}
+              placeholder="Npr. Sarajevo"
+            />
+          </label>
+          <label className={`${styles.field} ${styles.fieldFull}`}>
+            <span className={styles.fieldLabel}>Iznos slovima (auto)</span>
+            <input
+              className={styles.input}
+              value={iznosUSlova(calc.neto)}
+              readOnly
+              tabIndex={-1}
+            />
+          </label>
+          <label className={`${styles.field} ${styles.fieldFull}`}>
+            <span className={styles.fieldLabel}>Nadležni sud (u slučaju spora)</span>
+            <input
+              className={styles.input}
+              value={nadlezniSud}
+              onChange={(e) => setNadlezniSud(e.target.value)}
+              placeholder="Npr. Općinski sud u Sarajevu"
+            />
+          </label>
+        </div>
+      </section>
+
+      {/* Ugovor download buttons */}
+      <div className={`${styles.actions} ${styles.actionsCenter}`}>
+        <button
+          type="button"
+          className={styles.btnPrimary}
+          onClick={handleDownloadDocx}
+          disabled={generatingDocx}
+        >
+          📄 {generatingDocx ? "Generišem…" : "Preuzmi ugovor (DOCX)"}
+        </button>
+        <button
+          type="button"
+          className={styles.btnOutline}
+          onClick={handleDownloadPdf}
+          disabled={generatingPdf}
+        >
+          📄 {generatingPdf ? "Generišem…" : "Preuzmi ugovor (PDF)"}
+        </button>
+        <div className={styles.augWrap}>
+          <button
+            type="button"
+            className={styles.btnOutline}
+            onClick={handleDownloadAug}
+            disabled={generatingAug}
+          >
+            📑 {generatingAug ? "Generišem…" : "Preuzmi AUG-1031 (PDF)"}
+          </button>
+          <button
+            type="button"
+            className={styles.augInfoBtn}
+            onClick={() => setShowAugInfo((v) => !v)}
+            aria-label="Šta je AUG-1031?"
+            aria-expanded={showAugInfo}
+          >
+            ?
+          </button>
+          {showAugInfo && (
+            <div className={styles.augInfoPopover} role="dialog">
+              <button
+                type="button"
+                className={styles.augInfoClose}
+                onClick={() => setShowAugInfo(false)}
+                aria-label="Zatvori"
+              >
+                ×
+              </button>
+              <strong>Šta je AUG-1031?</strong>
+              <p>
+                AUG-1031 je obrazac &ldquo;Akontacija poreza po odbitku za povremene
+                samostalne djelatnosti&rdquo; koji naručilac (isplatilac) popunjava i{" "}
+                <strong>obavezno uručuje izvršiocu</strong> uz isplatu naknade po ugovoru o djelu.
+              </p>
+              <p>
+                Obrazac sadrži sve podatke o isplaćenom prihodu, priznatim rashodima,
+                doprinosu za zdravstveno, porezu na dohodak i PIO doprinosu.
+              </p>
+              <p>
+                Izvršilac ga koristi pri podnošenju <strong>godišnje prijave dohotka (GPD-1051)</strong>{" "}
+                na kraju godine kao dokaz o uplaćenoj akontaciji poreza.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Uplatnice settings */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Podaci za <em>uplatnice</em>
+        </h2>
+        <div className={styles.fieldGrid}>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Kanton</span>
+            <select
+              className={styles.input}
+              value={kantonKey}
+              onChange={(e) => handleKantonChange(e.target.value as KantonKey | "")}
+            >
+              <option value="">— Odaberite kanton —</option>
+              {(Object.keys(KANTONI) as KantonKey[]).map((k) => (
+                <option key={k} value={k}>{KANTONI[k].ime}</option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Općina (poslodavca)</span>
+            <select
+              className={styles.input}
+              value={opcinaKod}
+              onChange={(e) => setOpcinaKod(e.target.value)}
+              disabled={!kantonKey}
+            >
+              <option value="">— Odaberite općinu —</option>
+              {opcine.map((o) => (
+                <option key={o.kod} value={o.kod}>{o.ime}</option>
+              ))}
+            </select>
+          </label>
+          <label className={`${styles.field} ${styles.fieldFull}`}>
+            <span className={styles.fieldLabel}>Žiro račun naručioca</span>
+            <input
+              className={styles.input}
+              value={naruciZiro}
+              onChange={(e) => setNaruciZiro(formatZiroRacun(e.target.value))}
+              inputMode="numeric"
+              placeholder="XXX-XXX-XXXXXXXX-XX"
+            />
+            <p className={styles.hint}>
+              Ukoliko plaćate preko žiro računa, unesite vaš žiro račun. Ako plaćate u gotovini, ostavite prazno.
+            </p>
+          </label>
+        </div>
+
+        {/* Pregled uplatnica */}
+        <div className={styles.uplCardsList}>
+          {(() => {
+            const k = kantonKey ? KANTONI[kantonKey] : null;
+            const placeholderRacun = "Odaberite kanton";
+            const placeholderPrimalac = k ? "" : "Odaberite kanton";
+            return [
+              { title: "Zdravstveno osiguranje — kanton", racun: k?.zoRacun ?? placeholderRacun, primalac: k ? `ZZO ${k.genitiv}` : placeholderPrimalac, vrsta: "712116", iznos: calc.zdravstvenoKanton },
+              { title: "Zdravstveno osiguranje — FBiH", racun: "102-050-00000640-18", primalac: "ZZO FBiH", vrsta: "712116", iznos: calc.zdravstvenoFbih },
+              { title: "Porez na dohodak — kantonalni budžet", racun: k?.budzet ?? placeholderRacun, primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac, vrsta: "716116", iznos: calc.porez },
+              { title: "PIO/MIO doprinos", racun: "102-050-00001066-98", primalac: "Budžet Federacije BiH", vrsta: "712126", iznos: calc.pio },
+              { title: "Zaštita od prirodnih nepogoda", racun: k?.budzet ?? placeholderRacun, primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac, vrsta: "722582", iznos: calc.zastita },
+              { title: "Opšta vodna naknada", racun: k?.budzet ?? placeholderRacun, primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac, vrsta: "722582", iznos: calc.voda },
+            ];
+          })().map((u, i) => (
+            <div key={i} className={styles.uplCard}>
+              <span className={styles.uplCardNum}>{i + 1}</span>
+              <div className={styles.uplCardBody}>
+                <div className={styles.uplCardTitle}>{u.title}</div>
+                <div className={styles.uplCardSub}>
+                  {u.racun}
+                  {u.primalac && ` · ${u.primalac}`}
+                  {opcinaKod && ` · Općina: ${opcinaKod}`}
+                  {` · Vrsta prihoda: ${u.vrsta}`}
+                </div>
+              </div>
+              <span className={styles.uplCardIznos}>{fmtKm(u.iznos)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className={styles.printNapomena}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>
+            <strong>Napomena za štampanje:</strong> Pri štampanju uplatnica u PDF pregledaču, pod opcijom skaliranja odaberite{" "}
+            <strong>Fit to Paper</strong> ili <strong>Fit to Printable Area</strong> kako bi uplatnica bila ispravno skalirana na stranici.
+          </span>
+        </div>
+      </section>
+
+      <div className={`${styles.actions} ${styles.actionsCenter}`}>
+        <button
+          type="button"
+          className={styles.btnPrimary}
+          onClick={handleDownloadUplatnice}
+          disabled={generatingUplatnice}
+        >
+          💳 {generatingUplatnice ? "Generišem…" : "Preuzmi uplatnice (PDF)"}
+        </button>
+      </div>
+
+      <p className={styles.disclaimer}>
+        Stope i formula su informativne, prema važećem Zakonu o porezu na dohodak FBiH.
+        Provjerite tačnost prije korištenja u finalnim dokumentima.
+      </p>
+
+      <FaqSection
+        items={[
+          {
+            q: "Šta je ugovor o djelu?",
+            a: "Ugovor o djelu je vrsta autorskog ugovora kojim se izvršilac obavezuje da naručiocu obavi određeni posao (npr. izrada projekta, sastavljanje teksta, pružanje usluge), a naručilac da mu za to plati ugovorenu naknadu. Razlikuje se od ugovora o radu po tome što ne zasniva radni odnos.",
+          },
+          {
+            q: "Koji porezi i doprinosi se plaćaju na ugovor o djelu u FBiH?",
+            a: "Iz bruto naknade priznaju se 20% normirani rashodi (ili 30% za autorska djela, 0% za naknade članovima komisija). Na umanjenu osnovicu plaća se 4% doprinos za zdravstveno (radnik) i 10% porez na dohodak. Naručilac dodatno plaća 6% PIO doprinos te 0,5% zaštita od prirodnih nepogoda i 0,5% opšta vodna naknada na neto iznos.",
+          },
+          {
+            q: "Ko podnosi i plaća poreze i doprinose?",
+            a: "Naručilac (poslodavac) ima obavezu da obračuna i uplati sve poreze i doprinose pri isplati naknade izvršiocu. Naknada se isplaćuje neto, a sve dažbine idu na zaseban budžetski račun preko uplatnica.",
+          },
+          {
+            q: "Kako se računa neto iz bruto iznosa?",
+            a: "Neto = Bruto × 0,8912 za standardni UoD (20% troškova). Za autorska djela (30% troškova) faktor je oko 0,927, a za komisije i nadzorne odbore (0% troškova) je 0,864. Suprotno, za pretvorbu neto u bruto koristi se faktor 1,122083 odnosno 1,157407 za komisije.",
+          },
+          {
+            q: "Mogu li sklopiti ugovor o djelu sa zaposlenom osobom?",
+            a: "Da. Ugovor o djelu može se sklopiti i sa licem koje je već u radnom odnosu kod drugog poslodavca. Stope poreza i doprinosa su iste. Bitno je da posao po UoD-u nije iste prirode kao redovni posao kod osnovnog poslodavca.",
+          },
+          {
+            q: "Koji je rok za uplatu poreza i doprinosa?",
+            a: "Porezi i doprinosi se uplaćuju istovremeno sa isplatom naknade izvršiocu, najkasnije isti dan kad se neto iznos isplaćuje na njegov račun. Naručilac je odgovoran za pravovremeno podnošenje obrazaca i uplatu na nadležne račune.",
+          },
+        ]}
+      />
+    </main>
+  );
+}

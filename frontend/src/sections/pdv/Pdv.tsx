@@ -78,11 +78,12 @@ export default function PdvKalkulator() {
       <div className={styles.header}>
         <div className={styles.label}>PDV Kalkulator</div>
         <h1 className={styles.h1}>
-          Preračun <em>PDV-a</em> u oba smjera
+          PDV kalkulator BiH — preračun PDV-a <em>u oba smjera</em>
         </h1>
         <p className={styles.subtitle}>
-          Stopa PDV-a u Bosni i Hercegovini iznosi <strong>17%</strong>.
-          Unesite cijenu i dobijte rezultat odmah.
+          Online PDV kalkulator za Bosnu i Hercegovinu — stopa PDV-a iznosi{" "}
+          <strong>17%</strong>. Izračunajte iznos PDV-a iz neto ili bruto cijene
+          i dobijete rezultat odmah, besplatno i bez registracije.
         </p>
       </div>
 

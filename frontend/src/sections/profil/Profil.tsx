@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
 import { KD_BIH, type KdBihEntry } from "src/data/kd-bih";
-import { me, unwrap, type AuthUser } from "src/api/auth";
+import {
+  me,
+  unwrap,
+  changePassword,
+  resendVerification,
+  type AuthUser,
+} from "src/api/auth";
 import {
   LuPencil,
   LuSquareArrowUpRight,
@@ -14,6 +20,9 @@ import {
   LuFileDown,
   LuHistory,
   LuBuilding,
+  LuShield,
+  LuCreditCard,
+  LuSettings,
 } from "react-icons/lu";
 import {
   updateProfile,
@@ -26,6 +35,7 @@ import {
   getPersonClients,
   createPersonClient,
   updatePersonClient,
+  deletePersonClient,
   type Organization,
   type OrgPayload,
   type OrgOwnerPayload,
@@ -35,9 +45,15 @@ import {
   type PersonClientPayload,
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useRole } from "src/hooks/useRole";
 import Link from "next/link";
-import { getAmortizacijaYears, getAmortizacija } from "src/api/amortizacija";
-import { getDocument } from "src/api/documents";
+import {
+  getAmortizacijaYears,
+  getAmortizacija,
+  deleteAmortizacija,
+} from "src/api/amortizacija";
+import { getDocument, deleteDocument } from "src/api/documents";
 import {
   fillPldiTemplate,
   type PldiData,
@@ -46,6 +62,10 @@ import { fillAmsTemplate, type AmsData } from "src/sections/ams/fillAms";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
+import {
+  fillJs3100Template,
+  type Js3100Data,
+} from "src/sections/prijave-radnika/fillJs3100";
 import {
   calcRow,
   parseDec,
@@ -70,6 +90,7 @@ const FORM_TYPE_LABELS: Record<FormType, string> = {
   UGOVOR: "Ugovor",
   PLDI: "PLDI",
   AMS: "AMS",
+  JS3100: "JS3100",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -107,6 +128,7 @@ function typeBadgeClass(type: FormType, s: Record<string, string>) {
     UGOVOR: s.badgeUgovor,
     PLDI: s.badgePldi,
     AMS: s.badgeAms ?? s.badgeUgovor,
+    JS3100: s.badgeJs3100 ?? s.badgeUgovor,
   };
   return `${s.formTypeBadge} ${map[type] ?? ""}`;
 }
@@ -121,7 +143,13 @@ function statusClass(status: string, s: Record<string, string>) {
   return `${s.formStatus} ${map[status] ?? ""}`;
 }
 
-type Tab = "profil" | "klijenti" | "historija";
+type Tab =
+  | "profil"
+  | "klijenti"
+  | "historija"
+  | "sigurnost"
+  | "pretplata"
+  | "admin";
 
 // ─── Profile tab ──────────────────────────────────────────────────────────────
 
@@ -182,6 +210,8 @@ function ProfilTab({ user }: { user: AuthUser }) {
       email: org.email ?? "",
       phone: org.phone ?? "",
       address: org.address ?? "",
+      city: org.city ?? "",
+      bankAccount: org.bankAccount ?? "",
     });
     updateOwnOrgMutation.reset();
   };
@@ -189,7 +219,9 @@ function ProfilTab({ user }: { user: AuthUser }) {
   const [lastName, setLastName] = useState(user.lastName);
   const [phone, setPhone] = useState(user.phone ?? "");
   const [address, setAddress] = useState(user.address ?? "");
+  const [city, setCity] = useState(user.city ?? "");
   const [jmbg, setJmbg] = useState(user.jmbg ?? "");
+  const [idCardNumber, setIdCardNumber] = useState(user.idCardNumber ?? "");
   const [success, setSuccess] = useState(false);
 
   const mutation = useMutation({
@@ -211,7 +243,9 @@ function ProfilTab({ user }: { user: AuthUser }) {
       lastName: lastName.trim(),
       phone: phone.trim() || undefined,
       address: address.trim() || undefined,
+      city: city.trim() || undefined,
       ...(jmbg.trim() && { jmbg: jmbg.trim() }),
+      idCardNumber: idCardNumber.trim() || null,
     });
   };
 
@@ -220,7 +254,9 @@ function ProfilTab({ user }: { user: AuthUser }) {
     setLastName(user.lastName);
     setPhone(user.phone ?? "");
     setAddress(user.address ?? "");
+    setCity(user.city ?? "");
     setJmbg(user.jmbg ?? "");
+    setIdCardNumber(user.idCardNumber ?? "");
     mutation.reset();
     setEditing(false);
   };
@@ -290,11 +326,27 @@ function ProfilTab({ user }: { user: AuthUser }) {
                 administrator sistema nema pristup ovom podatku.
               </p>
             </div>
-            <div className={styles.infoRow} style={{ borderBottom: "none" }}>
+            <div className={styles.infoRow}>
               <span className={styles.infoLabel}>Adresa</span>
               <span className={styles.infoValue}>
                 {user.address || (
                   <span className={styles.infoEmpty}>Nije unesena</span>
+                )}
+              </span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Grad</span>
+              <span className={styles.infoValue}>
+                {user.city || (
+                  <span className={styles.infoEmpty}>Nije unesen</span>
+                )}
+              </span>
+            </div>
+            <div className={styles.infoRow} style={{ borderBottom: "none" }}>
+              <span className={styles.infoLabel}>Broj lične karte</span>
+              <span className={styles.infoValue}>
+                {user.idCardNumber || (
+                  <span className={styles.infoEmpty}>Nije unesen</span>
                 )}
               </span>
             </div>
@@ -366,16 +418,42 @@ function ProfilTab({ user }: { user: AuthUser }) {
                 </span>
               </div>
             </div>
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="address">
+                  Adresa
+                </label>
+                <input
+                  id="address"
+                  className={styles.input}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Ulica i broj"
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="city">
+                  Grad
+                </label>
+                <CitySelect
+                  id="city"
+                  value={city}
+                  onChange={setCity}
+                  className={styles.input}
+                />
+              </div>
+            </div>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="address">
-                Adresa
+              <label className={styles.fieldLabel} htmlFor="idCardNumber">
+                Broj lične karte
               </label>
               <input
-                id="address"
+                id="idCardNumber"
                 className={styles.input}
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Ulica bb, Grad"
+                value={idCardNumber}
+                onChange={(e) => setIdCardNumber(e.target.value)}
+                placeholder="AB123456"
+                maxLength={9}
               />
             </div>
             {errorMsg && <div className={styles.errorMsg}>{errorMsg}</div>}
@@ -540,7 +618,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
                   </div>
                 </div>
                 <div className={styles.ownOrgActions}>
-                  <RoleGuard roles={["BUSINESS"]} mode="hide">
+                  <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
                     <Link
                       href={`/organizacija/${org.id}`}
                       className={styles.btnEditInline}
@@ -584,7 +662,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
               <span>🔒</span>
               <span>
                 Više djelatnosti dostupno uz pretplatu na{" "}
-                <strong>Accountant plan</strong>.
+                <strong>PRO i BUSINESS plan</strong>.
               </span>
             </div>
           )}
@@ -600,7 +678,15 @@ function ProfilTab({ user }: { user: AuthUser }) {
             <OrgFormFields value={addOrg} onChange={setAddOrg} />
             {createOwnOrgMutation.error && (
               <div className={styles.errorMsg}>
-                {createOwnOrgMutation.error.message}
+                {createOwnOrgMutation.error.message ===
+                "ALREADY_HAS_OWN_ORG_LIMIT"
+                  ? "Možete imati najviše dvije vlastite djelatnosti."
+                  : createOwnOrgMutation.error.message === "ALREADY_HAS_OWN_ORG"
+                    ? "Možete imati samo jednu vlastitu organizaciju."
+                    : createOwnOrgMutation.error.message ===
+                        "ACCOUNTANT_CANNOT_OWN_ORG"
+                      ? "Računovođe ne mogu imati vlastitu organizaciju."
+                      : createOwnOrgMutation.error.message}
               </div>
             )}
             <div className={styles.formActions}>
@@ -638,6 +724,8 @@ type OwnerFormState = {
   email: string;
   phone: string;
   address: string;
+  city: string;
+  idCardNumber: string;
 };
 
 const emptyOwner: OwnerFormState = {
@@ -647,6 +735,8 @@ const emptyOwner: OwnerFormState = {
   email: "",
   phone: "",
   address: "",
+  city: "",
+  idCardNumber: "",
 };
 
 function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
@@ -657,6 +747,8 @@ function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
     ...(o.email.trim() && { email: o.email.trim() }),
     ...(o.phone.trim() && { phone: o.phone.trim() }),
     ...(o.address.trim() && { address: o.address.trim() }),
+    ...(o.city.trim() && { city: o.city.trim() }),
+    ...(o.idCardNumber.trim() && { idCardNumber: o.idCardNumber.trim() }),
   };
 }
 
@@ -737,12 +829,34 @@ function OwnerFields({
           />
         </div>
         <div className={styles.field}>
+          <label className={styles.fieldLabel}>
+            Broj lične karte (opciono)
+          </label>
+          <input
+            className={styles.input}
+            value={value.idCardNumber}
+            onChange={set("idCardNumber")}
+            placeholder="AB123456"
+            maxLength={9}
+          />
+        </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
           <label className={styles.fieldLabel}>Adresa vlasnika</label>
           <input
             className={styles.input}
             value={value.address}
             onChange={set("address")}
-            placeholder="Ulica bb, Grad"
+            placeholder="Ulica i broj"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Grad vlasnika</label>
+          <CitySelect
+            value={value.city}
+            onChange={(v) => onChange({ ...value, city: v })}
+            className={styles.input}
           />
         </div>
       </div>
@@ -761,6 +875,8 @@ type OrgFormState = {
   email: string;
   phone: string;
   address: string;
+  city: string;
+  bankAccount: string;
 };
 
 const emptyOrgForm: OrgFormState = {
@@ -772,6 +888,8 @@ const emptyOrgForm: OrgFormState = {
   email: "",
   phone: "",
   address: "",
+  city: "",
+  bankAccount: "",
 };
 
 function orgFormToPayload(
@@ -787,6 +905,8 @@ function orgFormToPayload(
     ...(f.email.trim() && { email: f.email.trim() }),
     ...(f.phone.trim() && { phone: f.phone.trim() }),
     ...(f.address.trim() && { address: f.address.trim() }),
+    ...(f.city.trim() && { city: f.city.trim() }),
+    ...(f.bankAccount.trim() && { bankAccount: f.bankAccount.trim() }),
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
 }
@@ -979,14 +1099,45 @@ function OrgFormFields({
           />
         </div>
       </div>
-      <div className={styles.field}>
-        <label className={styles.fieldLabel}>Adresa</label>
-        <input
-          className={styles.input}
-          value={value.address}
-          onChange={set("address")}
-          placeholder="Ulica bb, Sarajevo"
-        />
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Adresa</label>
+          <input
+            className={styles.input}
+            value={value.address}
+            onChange={set("address")}
+            placeholder="Ulica i broj"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Grad</label>
+          <CitySelect
+            value={value.city}
+            onChange={(v) => onChange({ ...value, city: v })}
+            className={styles.input}
+          />
+        </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Žiro račun</label>
+          <input
+            className={styles.input}
+            value={value.bankAccount}
+            onChange={(e) => {
+              const d = e.target.value.replace(/\D/g, "").slice(0, 16);
+              const parts = [
+                d.slice(0, 3),
+                d.slice(3, 6),
+                d.slice(6, 14),
+                d.slice(14, 16),
+              ].filter(Boolean);
+              onChange({ ...value, bankAccount: parts.join("-") });
+            }}
+            placeholder="XXX-XXX-XXXXXXXX-XX"
+            inputMode="numeric"
+          />
+        </div>
       </div>
     </>
   );
@@ -1002,6 +1153,8 @@ type PersonFormState = {
   email: string;
   phone: string;
   address: string;
+  city: string;
+  idCardNumber: string;
 };
 
 const emptyPersonForm: PersonFormState = {
@@ -1012,6 +1165,8 @@ const emptyPersonForm: PersonFormState = {
   email: "",
   phone: "",
   address: "",
+  city: "",
+  idCardNumber: "",
 };
 
 function personFormToPayload(f: PersonFormState): PersonClientPayload {
@@ -1023,6 +1178,8 @@ function personFormToPayload(f: PersonFormState): PersonClientPayload {
     ...(f.email.trim() && { email: f.email.trim() }),
     ...(f.phone.trim() && { phone: f.phone.trim() }),
     ...(f.address.trim() && { address: f.address.trim() }),
+    ...(f.city.trim() && { city: f.city.trim() }),
+    ...(f.idCardNumber.trim() && { idCardNumber: f.idCardNumber.trim() }),
   };
 }
 
@@ -1078,6 +1235,7 @@ function PersonFormFields({
             🔒 JMBG se kriptira i nikad nije vidljiv drugima
           </span>
         </div>
+        {/*
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Porezni broj (JMB/JMBG)</label>
           <input
@@ -1088,6 +1246,7 @@ function PersonFormFields({
             maxLength={13}
           />
         </div>
+        */}
       </div>
       <div className={styles.row}>
         <div className={styles.field}>
@@ -1111,13 +1270,33 @@ function PersonFormFields({
           />
         </div>
       </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Adresa</label>
+          <input
+            className={styles.input}
+            value={value.address}
+            onChange={set("address")}
+            placeholder="Ulica i broj"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Grad</label>
+          <CitySelect
+            value={value.city}
+            onChange={(v) => onChange({ ...value, city: v })}
+            className={styles.input}
+          />
+        </div>
+      </div>
       <div className={styles.field}>
-        <label className={styles.fieldLabel}>Adresa</label>
+        <label className={styles.fieldLabel}>Broj lične karte (opciono)</label>
         <input
           className={styles.input}
-          value={value.address}
-          onChange={set("address")}
-          placeholder="Ulica bb, Grad"
+          value={value.idCardNumber}
+          onChange={set("idCardNumber")}
+          placeholder="AB123456"
+          maxLength={9}
         />
       </div>
     </>
@@ -1128,8 +1307,13 @@ function PersonFormFields({
 
 type AddMode = "client-org" | "person";
 
+const PRO_CLIENT_LIMIT = 20;
+
 function DjelatnostTab() {
   const queryClient = useQueryClient();
+  const { role } = useRole();
+  const isPro = role === "PRO";
+
   const { data: clientOrgs = [], isLoading: orgsLoading } = useQuery<
     Organization[]
   >({
@@ -1143,6 +1327,8 @@ function DjelatnostTab() {
     queryKey: ["personClients"],
     queryFn: () => unwrap(getPersonClients()),
   });
+
+  const personLimitReached = isPro && persons.length >= PRO_CLIENT_LIMIT;
 
   // add form state
   const [showAdd, setShowAdd] = useState(false);
@@ -1161,6 +1347,14 @@ function DjelatnostTab() {
   const [editPersonId, setEditPersonId] = useState<number | null>(null);
   const [editPerson, setEditPerson] =
     useState<PersonFormState>(emptyPersonForm);
+
+  // delete confirm state
+  const [confirmDeleteOrgId, setConfirmDeleteOrgId] = useState<number | null>(
+    null,
+  );
+  const [confirmDeletePersonId, setConfirmDeletePersonId] = useState<
+    number | null
+  >(null);
 
   const createOrgMutation = useMutation({
     mutationFn: (payload: OrgPayload) => unwrap(createOrganization(payload)),
@@ -1202,6 +1396,24 @@ function DjelatnostTab() {
     },
   });
 
+  const deleteClientOrgMutation = useMutation({
+    mutationFn: (id: number) => unwrap(deleteOrganization(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clientOrganizations"] });
+      setConfirmDeleteOrgId(null);
+      setEditId(null);
+    },
+  });
+
+  const deletePersonMutation = useMutation({
+    mutationFn: (id: number) => unwrap(deletePersonClient(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["personClients"] });
+      setConfirmDeletePersonId(null);
+      setEditPersonId(null);
+    },
+  });
+
   const resetAddForm = () => {
     setShowAdd(false);
     setAddMode("client-org");
@@ -1224,6 +1436,8 @@ function DjelatnostTab() {
       email: org.email ?? "",
       phone: org.phone ?? "",
       address: org.address ?? "",
+      city: org.city ?? "",
+      bankAccount: org.bankAccount ?? "",
     });
     const ow = org.owner;
     setEditHasOwner(!!ow);
@@ -1236,6 +1450,8 @@ function DjelatnostTab() {
             email: ow.email ?? "",
             phone: ow.phone ?? "",
             address: ow.address ?? "",
+            city: ow.city ?? "",
+            idCardNumber: ow.idCardNumber ?? "",
           }
         : emptyOwner,
     );
@@ -1253,6 +1469,8 @@ function DjelatnostTab() {
       email: p.email ?? "",
       phone: p.phone ?? "",
       address: p.address ?? "",
+      city: p.city ?? "",
+      idCardNumber: p.idCardNumber ?? "",
     });
     updatePersonMutation.reset();
   };
@@ -1327,22 +1545,59 @@ function DjelatnostTab() {
                       {updateOrgMutation.error.message}
                     </div>
                   )}
-                  <div className={styles.formActions}>
-                    <button
-                      type="button"
-                      className={styles.btnGhost}
-                      onClick={() => setEditId(null)}
-                    >
-                      Odustani
-                    </button>
-                    <button
-                      type="submit"
-                      className={styles.btnPrimary}
-                      disabled={updateOrgMutation.isPending}
-                    >
-                      {updateOrgMutation.isPending ? "Snimanje..." : "Sačuvaj"}
-                    </button>
-                  </div>
+                  {confirmDeleteOrgId === org.id ? (
+                    <div className={styles.deleteConfirm}>
+                      <span className={styles.deleteConfirmText}>
+                        Brisanjem se brišu i svi sačuvani obrasci ovog klijenta.
+                        Sigurni ste?
+                      </span>
+                      <div className={styles.deleteConfirmActions}>
+                        <button
+                          type="button"
+                          className={styles.btnGhost}
+                          onClick={() => setConfirmDeleteOrgId(null)}
+                        >
+                          Odustani
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.btnDanger}
+                          disabled={deleteClientOrgMutation.isPending}
+                          onClick={() => deleteClientOrgMutation.mutate(org.id)}
+                        >
+                          {deleteClientOrgMutation.isPending
+                            ? "Brisanje..."
+                            : "Obriši"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={styles.formActions}>
+                      <button
+                        type="button"
+                        className={styles.btnDanger}
+                        onClick={() => setConfirmDeleteOrgId(org.id)}
+                      >
+                        Obriši klijenta
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => setEditId(null)}
+                      >
+                        Odustani
+                      </button>
+                      <button
+                        type="submit"
+                        className={styles.btnPrimary}
+                        disabled={updateOrgMutation.isPending}
+                      >
+                        {updateOrgMutation.isPending
+                          ? "Snimanje..."
+                          : "Sačuvaj"}
+                      </button>
+                    </div>
+                  )}
                 </form>
               ) : (
                 <div key={org.id} className={styles.orgItem}>
@@ -1360,18 +1615,18 @@ function DjelatnostTab() {
                   <div className={styles.orgActions}>
                     <Link
                       href={`/organizacija/${org.id}`}
-                      className={styles.btnIcon}
+                      className={styles.btnEditInline}
                     >
-                      <LuSquareArrowUpRight />
+                      <LuSquareArrowUpRight size={14} /> Otvori
                     </Link>
                     {(org.memberRole === "OWNER" ||
                       org.memberRole === "ADMIN") && (
                       <button
                         type="button"
-                        className={styles.btnIcon}
+                        className={styles.btnEditInline}
                         onClick={() => startEditOrg(org)}
                       >
-                        <LuPencil />
+                        <LuPencil size={14} /> Izmijeni
                       </button>
                     )}
                   </div>
@@ -1422,24 +1677,59 @@ function DjelatnostTab() {
                           {updatePersonMutation.error.message}
                         </div>
                       )}
-                      <div className={styles.formActions}>
-                        <button
-                          type="button"
-                          className={styles.btnGhost}
-                          onClick={() => setEditPersonId(null)}
-                        >
-                          Odustani
-                        </button>
-                        <button
-                          type="submit"
-                          className={styles.btnPrimary}
-                          disabled={updatePersonMutation.isPending}
-                        >
-                          {updatePersonMutation.isPending
-                            ? "Snimanje..."
-                            : "Sačuvaj"}
-                        </button>
-                      </div>
+                      {confirmDeletePersonId === p.id ? (
+                        <div className={styles.deleteConfirm}>
+                          <span className={styles.deleteConfirmText}>
+                            Brisanjem se brišu i svi sačuvani obrasci ovog
+                            klijenta. Sigurni ste?
+                          </span>
+                          <div className={styles.deleteConfirmActions}>
+                            <button
+                              type="button"
+                              className={styles.btnGhost}
+                              onClick={() => setConfirmDeletePersonId(null)}
+                            >
+                              Odustani
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.btnDanger}
+                              disabled={deletePersonMutation.isPending}
+                              onClick={() => deletePersonMutation.mutate(p.id)}
+                            >
+                              {deletePersonMutation.isPending
+                                ? "Brisanje..."
+                                : "Obriši"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={styles.formActions}>
+                          <button
+                            type="button"
+                            className={styles.btnDanger}
+                            onClick={() => setConfirmDeletePersonId(p.id)}
+                          >
+                            Obriši klijenta
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.btnGhost}
+                            onClick={() => setEditPersonId(null)}
+                          >
+                            Odustani
+                          </button>
+                          <button
+                            type="submit"
+                            className={styles.btnPrimary}
+                            disabled={updatePersonMutation.isPending}
+                          >
+                            {updatePersonMutation.isPending
+                              ? "Snimanje..."
+                              : "Sačuvaj"}
+                          </button>
+                        </div>
+                      )}
                     </form>
                   ) : (
                     <div key={p.id} className={styles.orgItem}>
@@ -1456,10 +1746,10 @@ function DjelatnostTab() {
                       <div className={styles.orgActions}>
                         <button
                           type="button"
-                          className={styles.btnGhost}
+                          className={styles.btnEditInline}
                           onClick={() => startEditPerson(p)}
                         >
-                          Uredi
+                          <LuPencil size={14} /> Izmijeni
                         </button>
                       </div>
                     </div>
@@ -1541,13 +1831,31 @@ function DjelatnostTab() {
                 className={styles.form}
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (personLimitReached) return;
                   createPersonMutation.mutate(personFormToPayload(addPerson));
                 }}
               >
                 <PersonFormFields value={addPerson} onChange={setAddPerson} />
-                {createPersonMutation.error && (
+                {personLimitReached && (
+                  <div className={styles.upgradeNotice}>
+                    <strong>
+                      Dosegli ste limit od {PRO_CLIENT_LIMIT} fizičkih lica
+                    </strong>{" "}
+                    na Pro pretplati. Ako želite dodati više klijenata,
+                    nadogradite pretplatu na Business.
+                    <Link
+                      href="/profil#pretplata"
+                      className={styles.upgradeLink}
+                    >
+                      Nadogradi na Business →
+                    </Link>
+                  </div>
+                )}
+                {createPersonMutation.error && !personLimitReached && (
                   <div className={styles.errorMsg}>
-                    {createPersonMutation.error.message}
+                    {createPersonMutation.error.message === "PRO_LIMIT_REACHED"
+                      ? `Dosegli ste limit od ${PRO_CLIENT_LIMIT} fizičkih lica. Nadogradite na Business.`
+                      : createPersonMutation.error.message}
                   </div>
                 )}
                 <div className={styles.formActions}>
@@ -1561,7 +1869,9 @@ function DjelatnostTab() {
                   <button
                     type="submit"
                     className={styles.btnPrimary}
-                    disabled={createPersonMutation.isPending}
+                    disabled={
+                      createPersonMutation.isPending || personLimitReached
+                    }
                   >
                     {createPersonMutation.isPending ? "Dodavanje..." : "Dodaj"}
                   </button>
@@ -1630,7 +1940,6 @@ const FILTER_OPTIONS: Array<{ label: string; value: HistorijaFilter }> = [
   { label: "Stalna sredstva (PLDI)", value: "PLDI" },
 ];
 
-
 async function regenerateAndDownload(form: FormRecord) {
   const res = await getDocument(form.id);
   if (!res.ok || !res.data?.data) return;
@@ -1650,10 +1959,16 @@ async function regenerateAndDownload(form: FormRecord) {
     bytes = await fillGpdTemplate(raw as GpdData);
     filename = `GPD-1051_${form.year}.pdf`;
   } else if (form.type === "PLDI") {
-    const { obveznik, rows } = raw as { obveznik: ObveznikData; rows: AssetRow[] };
+    const { obveznik, rows } = raw as {
+      obveznik: ObveznikData;
+      rows: AssetRow[];
+    };
     const odISO = obveznik.periodOd || `${form.year}-01-01`;
     const doISO = obveznik.periodDo || `${form.year}-12-31`;
-    let nabavna = 0, kv = 0, iznos = 0, kvKraj = 0;
+    let nabavna = 0,
+      kv = 0,
+      iznos = 0,
+      kvKraj = 0;
     const pldiRows = rows.map((row) => {
       const calc = calcRow(row, odISO, doISO);
       if (!row.prodano) {
@@ -1698,6 +2013,12 @@ async function regenerateAndDownload(form: FormRecord) {
     };
     bytes = await fillPldiTemplate(pldiData);
     filename = `PLDI-1043_${form.year}.pdf`;
+  } else if (form.type === "JS3100") {
+    bytes = await fillJs3100Template(raw as Js3100Data);
+    const safeTitle = (form.title ?? "JS3100")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .slice(0, 80);
+    filename = `${safeTitle || "JS3100"}.pdf`;
   }
   if (!bytes) return;
   const ab =
@@ -1729,7 +2050,8 @@ function FormDownloadButton({
     form.type === "SPR" ||
     form.type === "ZO3" ||
     form.type === "GPD" ||
-    form.type === "PLDI";
+    form.type === "PLDI" ||
+    form.type === "JS3100";
   if (!supported) return null;
   return (
     <button
@@ -1754,8 +2076,19 @@ function FormDownloadButton({
   );
 }
 
-function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
+function AmortizacijaFormItem({
+  year,
+  name,
+  onDelete,
+  deleteLoading,
+}: {
+  year: number;
+  name: string;
+  onDelete: () => void;
+  deleteLoading: boolean;
+}) {
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleDownload = async () => {
     setLoading(true);
@@ -1765,7 +2098,10 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
       const { obveznik, rows } = res.data;
       const odISO = obveznik.periodOd || `${year}-01-01`;
       const doISO = obveznik.periodDo || `${year}-12-31`;
-      let nabavna = 0, kv = 0, iznos = 0, kvKraj = 0;
+      let nabavna = 0,
+        kv = 0,
+        iznos = 0,
+        kvKraj = 0;
       const pldiRows = rows.map((row) => {
         const calc = calcRow(row, odISO, doISO);
         if (!row.prodano) {
@@ -1809,7 +2145,9 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
         totalKvKraj: r2(kvKraj),
       };
       const bytes = await fillPldiTemplate(data);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+      const blob = new Blob([bytes.buffer as ArrayBuffer], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1825,7 +2163,9 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
 
   return (
     <div className={styles.formItem}>
-      <span className={`${styles.formTypeBadge} ${styles.badgePldi}`}>PLDI</span>
+      <span className={`${styles.formTypeBadge} ${styles.badgePldi}`}>
+        PLDI
+      </span>
       <div className={styles.formDetails}>
         <div className={styles.formTitle}>{title}</div>
         <div className={styles.formMeta}>Obrazac PLDI-1043</div>
@@ -1836,9 +2176,45 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
         disabled={loading}
         style={{ fontSize: 12 }}
       >
-        <LuFileDown size={14} style={{ marginRight: 4, verticalAlign: "middle" }} />
+        <LuFileDown
+          size={14}
+          style={{ marginRight: 4, verticalAlign: "middle" }}
+        />
         {loading ? "Generišem…" : "Preuzmi PDF"}
       </button>
+      {confirmDelete ? (
+        <div className={styles.deleteConfirm}>
+          <span className={styles.deleteConfirmText}>
+            Sigurno želite obrisati?
+          </span>
+          <div className={styles.deleteConfirmActions}>
+            <button
+              type="button"
+              className={styles.btnGhost}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              className={styles.btnDanger}
+              disabled={deleteLoading}
+              onClick={onDelete}
+            >
+              {deleteLoading ? "Brisanje..." : "Da, obriši"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.btnGhost}
+          style={{ fontSize: 12, color: "var(--color-danger, #e53e3e)" }}
+          onClick={() => setConfirmDelete(true)}
+        >
+          Obriši
+        </button>
+      )}
     </div>
   );
 }
@@ -1846,14 +2222,43 @@ function AmortizacijaFormItem({ year, name }: { year: number; name: string }) {
 const PAGE_SIZE = 5;
 
 function HistorijaTab() {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<HistorijaFilter>("ALL");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [nameByYear, setNameByYear] = useState<Record<number, string>>({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      deleteDocument(id).then((res) => {
+        if (!res.ok) throw new Error(res.error);
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forms"] });
+      setConfirmDeleteId(null);
+    },
+  });
+
+  const [deletingAmortYear, setDeletingAmortYear] = useState<number | null>(
+    null,
+  );
+  const deleteAmortMutation = useMutation({
+    mutationFn: (year: number) =>
+      deleteAmortizacija(String(year)).then((res) => {
+        if (!res.ok) throw new Error(res.error);
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["amortizacijaYears"] });
+      setDeletingAmortYear(null);
+    },
+  });
 
   const showAmortizacija = filter === "ALL" || filter === "PLDI";
 
-  useEffect(() => { setPage(0); }, [filter, search]);
+  useEffect(() => {
+    setPage(0);
+  }, [filter, search]);
 
   const { data: amortYears = [] } = useQuery<number[]>({
     queryKey: ["amortizacijaYears"],
@@ -1867,12 +2272,17 @@ function HistorijaTab() {
       amortYears.map((yr) =>
         getAmortizacija(String(yr)).then((res) => ({
           yr,
-          name: (res.ok && res.data?.obveznik?.imeIPrezime) ? res.data.obveznik.imeIPrezime : "",
+          name:
+            res.ok && res.data?.obveznik
+              ? res.data.obveznik.naziv || res.data.obveznik.imeIPrezime || ""
+              : "",
         })),
       ),
     ).then((results) => {
       const map: Record<number, string> = {};
-      results.forEach(({ yr, name }) => { map[yr] = name; });
+      results.forEach(({ yr, name }) => {
+        map[yr] = name;
+      });
       setNameByYear(map);
     });
   }, [amortYears]);
@@ -1913,10 +2323,17 @@ function HistorijaTab() {
     const title = displayTitle(f).toLowerCase();
     const cli = f.client
       ? [f.client.firstName, f.client.lastName, f.client.companyName]
-          .filter(Boolean).join(" ").toLowerCase()
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
       : "";
     const org = f.organization?.name.toLowerCase() ?? "";
-    return title.includes(q) || cli.includes(q) || org.includes(q) || String(f.year).includes(q);
+    return (
+      title.includes(q) ||
+      cli.includes(q) ||
+      org.includes(q) ||
+      String(f.year).includes(q)
+    );
   });
 
   const totalItems = filteredAmort.length + filteredForms.length;
@@ -1925,7 +2342,10 @@ function HistorijaTab() {
   const start = page * PAGE_SIZE;
   const end = start + PAGE_SIZE;
 
-  const pagedAmort = filteredAmort.slice(start, Math.min(end, filteredAmort.length));
+  const pagedAmort = filteredAmort.slice(
+    start,
+    Math.min(end, filteredAmort.length),
+  );
   const formsStart = Math.max(0, start - filteredAmort.length);
   const formsEnd = Math.max(0, end - filteredAmort.length);
   const pagedForms = filteredForms.slice(formsStart, formsEnd);
@@ -1974,6 +2394,13 @@ function HistorijaTab() {
                 key={`amort-${year}`}
                 year={year}
                 name={nameByYear[year] || ""}
+                onDelete={() => {
+                  setDeletingAmortYear(year);
+                  deleteAmortMutation.mutate(year);
+                }}
+                deleteLoading={
+                  deleteAmortMutation.isPending && deletingAmortYear === year
+                }
               />
             ))}
             {pagedForms.map((f) => (
@@ -1985,7 +2412,10 @@ function HistorijaTab() {
                   <div className={styles.formTitle}>{displayTitle(f)}</div>
                   <div className={styles.formMeta}>
                     {recipientLabel(f)}
-                    {new Date(f.createdAt).toLocaleDateString("bs-BA")}
+                    {(() => {
+                      const d = new Date(f.createdAt);
+                      return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}.`;
+                    })()}
                   </div>
                 </div>
                 <span className={statusClass(f.status, styles)}>
@@ -2002,6 +2432,47 @@ function HistorijaTab() {
                   >
                     PDF
                   </a>
+                )}
+                {confirmDeleteId === f.id ? (
+                  <div className={styles.deleteConfirm}>
+                    <span className={styles.deleteConfirmText}>
+                      Sigurno želite obrisati dokument?
+                    </span>
+                    <div className={styles.deleteConfirmActions}>
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        Odustani
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btnDanger}
+                        disabled={deleteMutation.isPending}
+                        onClick={() => deleteMutation.mutate(f.id)}
+                      >
+                        {deleteMutation.isPending
+                          ? "Brisanje..."
+                          : "Da, obriši"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.btnGhost}
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-danger, #e53e3e)",
+                    }}
+                    onClick={() => {
+                      deleteMutation.reset();
+                      setConfirmDeleteId(f.id);
+                    }}
+                  >
+                    Obriši
+                  </button>
                 )}
               </div>
             ))}
@@ -2030,6 +2501,385 @@ function HistorijaTab() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ─── Sigurnost tab ────────────────────────────────────────────────────────────
+
+function SigurnostTab({ user }: { user: AuthUser }) {
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [resentEmail, setResentEmail] = useState(false);
+
+  const changePwMutation = useMutation({
+    mutationFn: () =>
+      changePassword(currentPw, newPw).then((r) => {
+        if (!r.ok) throw new Error(r.error);
+      }),
+    onSuccess: () => {
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+      setPwSuccess(true);
+      setTimeout(() => setPwSuccess(false), 4000);
+    },
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: () => {
+      if (!user.email) throw new Error("No email");
+      return resendVerification(user.email).then((r) => {
+        if (!r.ok) throw new Error(r.error);
+      });
+    },
+    onSuccess: () => setResentEmail(true),
+  });
+
+  const pwMismatch = confirmPw.length > 0 && newPw !== confirmPw;
+  const pwTooShort = newPw.length > 0 && newPw.length < 6;
+
+  const changePwError = changePwMutation.error
+    ? changePwMutation.error.message === "WRONG_PASSWORD"
+      ? "Trenutna lozinka nije ispravna."
+      : changePwMutation.error.message === "PASSWORD_TOO_SHORT"
+        ? "Nova lozinka mora imati najmanje 6 znakova."
+        : "Greška. Pokušajte ponovo."
+    : null;
+
+  return (
+    <div className={styles.panel}>
+      {/* Email */}
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <p className={styles.cardTitle}>Email adresa</p>
+        </div>
+        <div className={styles.infoList}>
+          <div className={styles.infoRow} style={{ borderBottom: "none" }}>
+            <span className={styles.infoLabel}>Email</span>
+            <span
+              className={styles.infoValue}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+              }}
+            >
+              {user.email ?? "—"}
+              {user.isEmailVerified ? (
+                <span className={styles.verifiedBadge}>✓ Verificiran</span>
+              ) : (
+                <span className={styles.unverifiedBadge}>Nije verificiran</span>
+              )}
+            </span>
+          </div>
+        </div>
+        {!user.isEmailVerified && user.email && (
+          <div className={styles.verifyActions}>
+            <p className={styles.verifyHint}>
+              Niste verificirali email adresu. Možete ponovo poslati
+              verifikacijski email.
+            </p>
+            {resentEmail ? (
+              <p className={styles.successMsg}>
+                Email je poslan. Provjerite inbox.
+              </p>
+            ) : (
+              <button
+                className={styles.btnPrimary}
+                disabled={resendMutation.isPending}
+                onClick={() => resendMutation.mutate()}
+              >
+                {resendMutation.isPending
+                  ? "Šalje se…"
+                  : "Ponovo pošalji verifikacijski email"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Google */}
+      {user.isGoogleUser && (
+        <div className={styles.card} style={{ marginTop: "1.5rem" }}>
+          <div className={styles.cardHeader}>
+            <p className={styles.cardTitle}>Google nalog</p>
+          </div>
+          <div className={styles.googleInfo}>
+            <svg
+              viewBox="0 0 48 48"
+              width="22"
+              height="22"
+              style={{ flexShrink: 0 }}
+            >
+              <path
+                fill="#EA4335"
+                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+              />
+              <path
+                fill="#4285F4"
+                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+              />
+              <path
+                fill="#34A853"
+                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+              />
+            </svg>
+            <p className={styles.googleInfoText}>
+              Vaš nalog je vezan za Google. Prijava se vrši putem Google dugmeta
+              — lokalna lozinka nije potrebna.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Change password */}
+      {user.hasPassword && (
+        <div className={styles.card} style={{ marginTop: "1.5rem" }}>
+          <div className={styles.cardHeader}>
+            <p className={styles.cardTitle}>Promjena lozinke</p>
+          </div>
+          {pwSuccess && (
+            <div className={styles.successMsg}>
+              Lozinka je uspješno promijenjena.
+            </div>
+          )}
+          <form
+            className={styles.form}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!pwMismatch && !pwTooShort) changePwMutation.mutate();
+            }}
+          >
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Trenutna lozinka</label>
+              <input
+                type="password"
+                className={styles.input}
+                value={currentPw}
+                onChange={(e) => {
+                  setCurrentPw(e.target.value);
+                  changePwMutation.reset();
+                }}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Nova lozinka</label>
+                <input
+                  type="password"
+                  className={styles.input}
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+                {pwTooShort && (
+                  <span className={styles.fieldError}>Minimalno 6 znakova</span>
+                )}
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  Potvrdi novu lozinku
+                </label>
+                <input
+                  type="password"
+                  className={`${styles.input}${pwMismatch ? ` ${styles.inputError}` : ""}`}
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+                {pwMismatch && (
+                  <span className={styles.fieldError}>
+                    Lozinke se ne podudaraju
+                  </span>
+                )}
+              </div>
+            </div>
+            {changePwError && (
+              <div className={styles.errorMsg}>{changePwError}</div>
+            )}
+            <div className={styles.formActions}>
+              <button
+                type="submit"
+                className={styles.btnPrimary}
+                disabled={
+                  changePwMutation.isPending ||
+                  pwMismatch ||
+                  pwTooShort ||
+                  !currentPw ||
+                  !newPw ||
+                  !confirmPw
+                }
+              >
+                {changePwMutation.isPending ? "Mijenjam…" : "Promijeni lozinku"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Pretplata tab ────────────────────────────────────────────────────────────
+
+const PLAN_LABELS: Record<string, string> = {
+  USER: "Besplatan",
+  PRO: "Pro",
+  BUSINESS: "Business",
+  ADMIN: "Admin",
+};
+
+const PLAN_FEATURES: Record<string, string[]> = {
+  USER: [
+    "SPR-1053 i GPD-1051 obrazac",
+    "Izrada i automatska popuna ZO3 obrazca",
+    "AMS-1035 generator zajedno sa uplatnicama",
+    "Stalna sredstva i amortizacija kroz godine",
+    "Historija svih dokumenata po godinama ili obrascima",
+    "Pohrana podataka obrta u svim dokumentima",
+    "Izvoz u Docx / PDF",
+  ],
+  PRO: [
+    "Sve iz besplatnog plana",
+    "Šihterica — Evidencija radnog vremena",
+    "Višestruke vlastite djelatnosti",
+    "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
+    "Prijave/odjake radnika, izrada JS3000 obrasca",
+    "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
+    "Generisanje uplatnica za plate i doprinose",
+  ],
+  BUSINESS: [
+    "Sve iz Pro plana",
+    "Upravljanje neograničenim brojem klijenata i fizičkih lica",
+    "Višekorisnički pristup (tim)",
+    "Ugovori o djelu i automatski obračun poreza i doprinosa",
+    "Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima",
+    "Prioritetna podrška",
+  ],
+  ADMIN: ["Puni administratorski pristup"],
+};
+
+function fmtDate(iso: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}.`;
+}
+
+function PretplataTab({ user }: { user: AuthUser }) {
+  const plan = user.role in PLAN_LABELS ? user.role : "USER";
+  const isPaid = plan === "PRO" || plan === "BUSINESS";
+  const isAdmin = plan === "ADMIN";
+  const sub = user.subscription;
+  const isActive = isAdmin || (sub?.isActive ?? false);
+  const isExpired = !isAdmin && sub && !sub.isActive;
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <p className={styles.cardTitle}>Moja pretplata</p>
+        </div>
+
+        <div className={styles.planCard}>
+          <div
+            className={`${styles.planBadge} ${plan === "PRO" ? styles.planBadgePro : plan === "BUSINESS" ? styles.planBadgeBusiness : plan === "ADMIN" ? styles.planBadgeAdmin : ""}`}
+          >
+            {PLAN_LABELS[plan] ?? plan}
+          </div>
+          <p className={styles.planDesc}>
+            {isAdmin
+              ? "Puni administratorski pristup — uvijek aktivan."
+              : isPaid && isActive
+                ? "Imate aktivan plaćeni plan."
+                : isPaid && isExpired
+                  ? "Vaša pretplata je istekla."
+                  : "Trenutno koristite besplatan plan."}
+          </p>
+          <ul className={styles.planFeatures}>
+            {(PLAN_FEATURES[plan] ?? []).map((f) => (
+              <li key={f} className={styles.planFeatureItem}>
+                <span className={styles.planCheck}>✓</span>
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {sub && (
+          <div className={styles.subInfo}>
+            <div className={styles.subDates}>
+              <div className={styles.subDateItem}>
+                <span className={styles.subDateLabel}>Vrijedi od</span>
+                <span className={styles.subDateValue}>
+                  {fmtDate(sub.startDate)}
+                </span>
+              </div>
+              <div className={styles.subDateItem}>
+                <span className={styles.subDateLabel}>Vrijedi do</span>
+                <span className={styles.subDateValue}>
+                  {fmtDate(sub.endDate)}
+                </span>
+              </div>
+            </div>
+            <div className={styles.subStatusRow}>
+              {isActive ? (
+                <span className={styles.subActive}>● Aktivna</span>
+              ) : (
+                <span className={styles.subExpired}>● Istekla</span>
+              )}
+              {isExpired && (
+                <span className={styles.subStatusNote}>
+                  Za obnovu kontaktirajte nas putem{" "}
+                  <a href="/kontakt" className={styles.planLink}>
+                    kontakt forme
+                  </a>
+                  .
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!isPaid && (
+          <div className={styles.planUpgrade}>
+            <p className={styles.planUpgradeText}>
+              Nadogradite na <strong>Pro</strong> ili <strong>Business</strong>{" "}
+              plan za pristup svim funkcionalnostima.
+            </p>
+            <button
+              className={styles.btnPrimary}
+              disabled
+              style={{ opacity: 0.6 }}
+            >
+              Nadogradi — uskoro dostupno
+            </button>
+            <p className={styles.planComingSoon}>
+              Online pretplata je u pripremi. Za aktivaciju plana kontaktirajte
+              nas putem{" "}
+              <a href="/kontakt" className={styles.planLink}>
+                kontakt forme
+              </a>
+              .
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2072,7 +2922,10 @@ export default function Profil() {
   const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "profil", label: "Profil", icon: <LuUser size={17} /> },
     { key: "klijenti", label: "Klijenti", icon: <LuUsers size={17} /> },
-    { key: "historija", label: "Historija", icon: <LuHistory size={17} /> },
+    { key: "historija", label: "Dokumenti", icon: <LuHistory size={17} /> },
+    { key: "sigurnost", label: "Sigurnost", icon: <LuShield size={17} /> },
+    { key: "pretplata", label: "Pretplata", icon: <LuCreditCard size={17} /> },
+    { key: "admin", label: "Admin", icon: <LuSettings size={17} /> },
   ];
 
   return (
@@ -2085,21 +2938,43 @@ export default function Profil() {
               {user.firstName} <em>{user.lastName}</em>
             </div>
             {user.email && <div className={styles.email}>{user.email}</div>}
-            <div className={styles.roleChip}>{user.role}</div>
+            <div
+              className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}
+            >
+              {user.role}
+            </div>
           </div>
         </div>
 
         <nav className={styles.sidebarNav}>
-          {NAV_ITEMS.map(({ key, label, icon }) => (
-            <button
-              key={key}
-              className={`${styles.navItem} ${tab === key ? styles.navItemActive : ""}`}
-              onClick={() => setTab(key)}
-            >
-              <span className={styles.navIcon}>{icon}</span>
-              {label}
-            </button>
-          ))}
+          {NAV_ITEMS.map(({ key, label, icon }) => {
+            const btn = (
+              <button
+                key={key}
+                className={`${styles.navItem} ${tab === key ? styles.navItemActive : ""}`}
+                onClick={() => {
+                  if (key === "admin") {
+                    router.push("/admin/korisnici");
+                    return;
+                  }
+                  setTab(key);
+                }}
+              >
+                <span className={styles.navIcon}>{icon}</span>
+                {label}
+              </button>
+            );
+
+            if (key === "admin") {
+              return (
+                <RoleGuard key={key} roles={["ADMIN"]} mode="hide">
+                  {btn}
+                </RoleGuard>
+              );
+            }
+
+            return btn;
+          })}
         </nav>
       </aside>
 
@@ -2107,6 +2982,8 @@ export default function Profil() {
         {tab === "profil" && <ProfilTab key={user.id} user={user} />}
         {tab === "klijenti" && <DjelatnostTab />}
         {tab === "historija" && <HistorijaTab />}
+        {tab === "sigurnost" && <SigurnostTab user={user} />}
+        {tab === "pretplata" && <PretplataTab user={user} />}
       </main>
     </div>
   );

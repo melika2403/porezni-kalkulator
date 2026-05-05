@@ -9,6 +9,9 @@ function createTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 }
 
@@ -95,4 +98,61 @@ async function sendContactEmail({ ime, email, poruka }) {
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendContactEmail };
+async function sendPredracunEmail({ to, buyerName, fullNumber, plan, gross, pdfBuffer }) {
+  const transporter = createTransporter();
+  const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
+  const from = `"${displayName}" <${process.env.SMTP_USER}>`;
+  const grossStr = Number(gross).toFixed(2).replace(".", ",");
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: `Predračun br. ${fullNumber} — Porezni Kalkulator`,
+    text:
+`Poštovani${buyerName ? ` ${buyerName}` : ""},
+
+U prilogu se nalazi predračun br. ${fullNumber} za godišnju pretplatu ${plan} na poreznikalkulator.ba.
+
+Iznos za naplatu: ${grossStr} KM (sa PDV-om).
+
+Nakon evidentiranja uplate, vaš nalog će biti aktiviran.
+
+Hvala vam na povjerenju!
+— Porezni Kalkulator`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Predračun br. ${fullNumber}</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+          Poštovani${buyerName ? ` <strong>${buyerName}</strong>` : ""},<br/>
+          u prilogu se nalazi predračun za godišnju pretplatu
+          <strong>${plan}</strong> na <strong>poreznikalkulator.ba</strong>.
+        </p>
+        <div style="background:#f5f2eb; border:1px solid #d4cfc4; border-radius:8px; padding:16px 20px; margin: 20px 0;">
+          <div style="font-size:12px; color:#7a8a7d; text-transform:uppercase; letter-spacing:.06em;">Iznos za naplatu</div>
+          <div style="font-size:28px; font-weight:600; color:#3a5c42; margin-top:4px;">${grossStr} KM</div>
+          <div style="font-size:12px; color:#7a8a7d; margin-top:2px;">sa PDV-om (17%)</div>
+        </div>
+        <p style="color:#666; font-size:14px; line-height:1.6;">
+          Nakon evidentiranja uplate, vaš nalog će biti aktiviran.
+        </p>
+        <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
+          Hvala vam na povjerenju!<br/>— Porezni Kalkulator
+        </p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `Predracun-${fullNumber.replace(/\//g, "-")}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+}
+
+module.exports = {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+  sendContactEmail,
+  sendPredracunEmail,
+};

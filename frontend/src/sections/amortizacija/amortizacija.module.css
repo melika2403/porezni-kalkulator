@@ -1,8 +1,373 @@
-.page {
+.pageOuter {
   padding: 3rem 2rem 5rem;
-  max-width: 1100px;
+  max-width: 1380px;
   margin: 0 auto;
   animation: fadeUp 0.5s ease both;
+}
+
+.pageLayout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.page {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Client sidebar ── */
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 1rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.sidebarHeader {
+  padding: 0.75rem 1rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+}
+
+.sidebarList {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.sidebarItemWrap {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.sidebarItemWrap:last-child {
+  border-bottom: none;
+}
+
+.sidebarItemWrap.dragOver {
+  border-top: 2px solid var(--sage);
+}
+
+.sidebarItemWrap:hover .deleteClientBtn {
+  opacity: 1;
+}
+
+.sidebarItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  padding: 0.65rem 0.5rem 0.65rem 1rem;
+  font-size: 13px;
+  font-family: inherit;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background 0.12s;
+  min-width: 0;
+}
+
+.sidebarItem:hover {
+  background: var(--paper);
+}
+
+.sidebarItem.active {
+  background: var(--sage-pale);
+  color: var(--sage);
+  font-weight: 600;
+}
+
+.deleteClientBtn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.6rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--mid);
+}
+
+.deleteClientBtn:hover {
+  color: #c0392b;
+}
+
+.deletePopup {
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--paper);
+}
+
+.deletePopupText {
+  font-size: 12px;
+  color: var(--ink);
+  margin: 0 0 0.6rem;
+  line-height: 1.4;
+}
+
+.deletePopupActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.deletePopupConfirm {
+  flex: 1;
+  padding: 0.35rem 0;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.deletePopupCancel {
+  flex: 1;
+  padding: 0.35rem 0;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--mid);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.dragHandle {
+  font-size: 12px;
+  color: var(--border);
+  cursor: grab;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.12s;
+}
+
+.sidebarItem:hover .dragHandle {
+  color: var(--mid);
+}
+
+.sidebarDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sage);
+  flex-shrink: 0;
+}
+
+.sidebarDotEmpty {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.sidebarName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarNameEmpty {
+  color: var(--mid);
+  font-style: italic;
+}
+
+.sidebarLock {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebarLockIcon {
+  font-size: 18px;
+}
+
+.sidebarLockText {
+  font-size: 12px;
+  color: var(--mid);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.sidebarLockBtn {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.3rem 0.9rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebarLockBtn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.sidebarLocked {
+  opacity: 0.35;
+  pointer-events: none;
+  user-select: none;
+}
+
+.addClientBtn {
+  display: block;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--sage);
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.addClientBtn:hover:not(:disabled) {
+  background: var(--sage-pale);
+}
+
+.addClientBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sidebarUpgrade {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: #f4f1ea;
+  border-top: 1px solid var(--border);
+  border-left: 3px solid #1a4480;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sidebarUpgradeLink {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a4480;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  align-self: flex-start;
+}
+
+.sidebarUpgradeLink:hover {
+  text-decoration: underline;
+}
+
+.addClientForm {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.addClientFillBtn {
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--sage);
+  background: none;
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background 0.12s, color 0.12s;
+}
+
+.addClientFillBtn:hover {
+  background: var(--sage);
+  color: var(--white);
+}
+
+.addClientInput {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--ink);
+  box-sizing: border-box;
+}
+
+.addClientInput:focus {
+  outline: none;
+  border-color: var(--sage);
+}
+
+.addClientActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.addClientSave {
+  flex: 1;
+  padding: 0.4rem 0;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  background: var(--sage);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.addClientSave:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.addClientCancel {
+  flex: 1;
+  padding: 0.4rem 0;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--mid);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.addClientCancel:hover {
+  background: var(--paper);
 }
 
 /* ── Header ── */
@@ -633,11 +998,70 @@
   margin-left: auto;
 }
 
+/* ── How to fill guide ── */
+.guideToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sage);
+  background: transparent;
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background 0.15s;
+}
+
+.guideToggleBtn:hover {
+  background: var(--sage-pale);
+}
+
+.guideBox {
+  background: var(--sage-pale, #f0f5f0);
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.guideList {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.guideList li {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink, #1a1a1a);
+}
+
+.guideList strong {
+  color: var(--ink, #1a1a1a);
+}
+
+.guideLink {
+  color: var(--sage);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── Column label row (for profile fill button) ── */
 .colLabelRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.colLabelRow > * {
   margin-bottom: 0;
 }
 
@@ -781,6 +1205,69 @@
 }
 .carryoverBtn:active { transform: scale(0.97); }
 .carryoverBtn:disabled { opacity: 0.5; cursor: default; }
+
+.carryoverWrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.carryoverConfirm {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  min-width: 280px;
+}
+
+.carryoverConfirmText {
+  font-size: 13px;
+  color: var(--ink);
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+}
+
+.carryoverConfirmActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.carryoverConfirmYes {
+  flex: 1;
+  padding: 0.45rem 0;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.carryoverConfirmYes:hover { opacity: 0.85; }
+
+.carryoverConfirmNo {
+  flex: 1;
+  padding: 0.45rem 0;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--mid);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.carryoverConfirmNo:hover { background: var(--paper); }
 
 /* Export button */
 .exportBtn {

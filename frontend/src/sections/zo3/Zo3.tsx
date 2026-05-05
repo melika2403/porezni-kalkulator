@@ -4,6 +4,8 @@ import styles from "./zo3.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
 import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
@@ -11,6 +13,7 @@ import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 
 /* ── Constants ── */
 
@@ -170,6 +173,7 @@ const EMPTY_MEMBER = { jmbg: "", fullName: "", srodstvo: "" };
 /* ── Component ── */
 
 export default function Zo3Form() {
+  const { findByName: findCity } = useCityLookup();
   const formRef = useRef<HTMLFormElement | null>(null);
 
   /* ── Header ── */
@@ -186,6 +190,7 @@ export default function Zo3Form() {
     jib: "",
     regBroj: "",
     sifraDjelatnosti: "",
+    nazivDjelatnosti: "",
     radnoVrijeme: "",
   });
 
@@ -196,6 +201,7 @@ export default function Zo3Form() {
     ime: "",
     djevojackoPrezime: "",
     ulicaBroj: "",
+    grad: "",
     brojPoste: "",
     zanimanje: "",
     zamanjanjeKod: "",
@@ -223,18 +229,24 @@ export default function Zo3Form() {
   /* ── Fill from profile/client ── */
 
   const fillInsured = useCallback((data: FillData) => {
-    setInsured((p) => ({
-      ...p,
-      jmbg: data.jmbg ?? p.jmbg,
-      ime: data.firstName ?? p.ime,
-      prezime: data.lastName ?? p.prezime,
-      ulicaBroj: data.address ?? p.ulicaBroj,
-    }));
+    setInsured((p) => {
+      const cityResolved = data.city ?? p.grad;
+      const postalCode = cityResolved ? findCity(cityResolved)?.postalCode ?? "" : "";
+      return {
+        ...p,
+        jmbg: data.jmbg ?? p.jmbg,
+        ime: data.firstName ?? p.ime,
+        prezime: data.lastName ?? p.prezime,
+        ulicaBroj: data.address ?? p.ulicaBroj,
+        grad: cityResolved,
+        brojPoste: postalCode || p.brojPoste,
+      };
+    });
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);
     if (data.sourceWorkerOrgId !== undefined)
       setSourceOrgId(data.sourceWorkerOrgId);
-  }, []);
+  }, [findCity]);
 
   const fillEmployer = useCallback((data: OrgFillData) => {
     setEmployer((p) => ({
@@ -242,6 +254,7 @@ export default function Zo3Form() {
       naziv: data.name ?? p.naziv,
       jib: data.taxNumber ?? p.jib,
       sifraDjelatnosti: data.activityCode ?? p.sifraDjelatnosti,
+      nazivDjelatnosti: data.activityName ?? p.nazivDjelatnosti,
     }));
   }, []);
 
@@ -364,12 +377,12 @@ export default function Zo3Form() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac ZO 3</div>
         <h1 className={styles.h1}>
-          Prijava o promjeni u tijeku <em>osiguranja</em>
+          ZO3 obrazac — prijava člana porodice na <em>zdravstveno osiguranje</em>
         </h1>
         <p className={styles.subtitle}>
-          Prijavite supružnika, dijete ili roditelja na zdravstveno osiguranje u
-          FBiH. Popunite ZO3 obrazac online i preuzmite popunjeni PDF —
-          besplatno, bez registracije.
+          Kako ispuniti ZO3 obrazac? Prijavite supružnika, dijete ili roditelja na
+          zdravstveno osiguranje u FBiH — popunite ZO3 obrazac online i preuzmite
+          popunjeni PDF, besplatno i bez registracije.
         </p>
       </div>
 
@@ -498,18 +511,21 @@ export default function Zo3Form() {
               }
             />
           </div>
-          <div className={styles.fieldGroup}>
+          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>3) Šifra djelatnosti</label>
-            <input
-              className={styles.fieldInput}
-              placeholder="Npr. 69.20"
-              value={employer.sifraDjelatnosti}
-              onChange={(e) =>
+            <ShifraCombobox
+              code={employer.sifraDjelatnosti}
+              name={employer.nazivDjelatnosti}
+              onChange={(code, name) =>
                 setEmployer((s) => ({
                   ...s,
-                  sifraDjelatnosti: e.target.value,
+                  sifraDjelatnosti: code,
+                  nazivDjelatnosti: name,
                 }))
               }
+              inputClassName={styles.fieldInput}
+              codeLabel="Šifra"
+              nameLabel="Naziv"
             />
           </div>
           <div className={styles.fieldGroup}>
@@ -597,7 +613,7 @@ export default function Zo3Form() {
               }
             />
           </div>
-          <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+          <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>
               9) Ulica i broj prebivališta
             </label>
@@ -608,6 +624,21 @@ export default function Zo3Form() {
               onChange={(e) =>
                 setInsured((s) => ({ ...s, ulicaBroj: e.target.value }))
               }
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Grad prebivališta</label>
+            <CitySelect
+              value={insured.grad}
+              onChange={(v) => {
+                const postalCode = v ? findCity(v)?.postalCode ?? "" : "";
+                setInsured((s) => ({
+                  ...s,
+                  grad: v,
+                  brojPoste: postalCode || s.brojPoste,
+                }));
+              }}
+              className={styles.fieldInput}
             />
           </div>
           <div className={styles.fieldGroup}>

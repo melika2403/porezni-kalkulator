@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useRole } from "src/hooks/useRole";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
 import DateInput from "src/components/DateInput/DateInput";
-import PersonFillSelect, {
-  type FillData,
-} from "src/components/PersonFillSelect/PersonFillSelect";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { formatAddress } from "src/utils/formatAddress";
 import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
@@ -15,10 +17,11 @@ import {
   getAmortizacija,
   saveAmortizacija,
   deleteAmortizacija,
+  getClientYears,
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
-import { getForms, type FormRecord } from "src/api/profile";
-import { getDocument } from "src/api/documents";
+import SaveToast from "src/components/SaveToast/SaveToast";
+import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -40,9 +43,11 @@ export interface ObveznikData {
   jmb: string;
   imeIPrezime: string;
   adresa: string;
+  grad: string;
   jib: string;
   naziv: string;
   adresaDjelatnosti: string;
+  gradDjelatnosti: string;
   vrstaSifra: string;
   vrstaNaziv: string;
   godina: string;
@@ -222,9 +227,11 @@ function makeObveznik(year: string): ObveznikData {
     jmb: "",
     imeIPrezime: "",
     adresa: "",
+    grad: "",
     jib: "",
     naziv: "",
     adresaDjelatnosti: "",
+    gradDjelatnosti: "",
     vrstaSifra: "",
     vrstaNaziv: "",
     godina: year,
@@ -251,6 +258,7 @@ function sortIcon(
 /* ── Component ── */
 export default function Amortizacija() {
   const currentYear = new Date().getFullYear().toString();
+  const { findByName: findCity } = useCityLookup();
 
   const [obveznik, setObveznik] = useState<ObveznikData>(
     makeObveznik(currentYear),
@@ -262,23 +270,114 @@ export default function Amortizacija() {
   ]);
   const [deletedYears, setDeletedYears] = useState<Set<number>>(new Set());
   const [isDirty, setIsDirty] = useState(false);
-  const [pendingYear, setPendingYear] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
-  const [sourceClientId, setSourceClientId] = useState<number | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
-  const [pldiDocs, setPldiDocs] = useState<FormRecord[]>([]);
-  const [loadingDoc, setLoadingDoc] = useState(false);
   const [showNewYear, setShowNewYear] = useState(false);
   const [newYearVal, setNewYearVal] = useState("");
   const [yearToDelete, setYearToDelete] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [savingClient, setSavingClient] = useState(false);
+  const [showCarryoverConfirm, setShowCarryoverConfirm] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [confirmDeleteClientId, setConfirmDeleteClientId] = useState<number | null>(null);
+  const [clientOrder, setClientOrder] = useState<number[]>(() => {
+    try { return JSON.parse(localStorage.getItem("amortizacija-client-order") ?? "[]"); }
+    catch { return []; }
+  });
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const dragItemId = useRef<number | null>(null);
+  const didAutoSelectRef = useRef(false);
   const isLoadingRef = useRef(false);
   const newYearRef = useRef<HTMLInputElement>(null);
+  const selectedClientIdRef = useRef(selectedClientId);
+  useEffect(() => { selectedClientIdRef.current = selectedClientId; }, [selectedClientId]);
+
+  const { hasRole, role } = useRole();
+  const isClientUser = hasRole("PRO", "BUSINESS", "ADMIN");
+  const isPro = role === "PRO";
+  const PRO_CLIENT_LIMIT = 20;
+  const isClientUserRef = useRef(isClientUser);
+  useEffect(() => { isClientUserRef.current = isClientUser; }, [isClientUser]);
+
+  const obveznikRef = useRef(obveznik);
+  useEffect(() => { obveznikRef.current = obveznik; }, [obveznik]);
+
+  /* ── Client sidebar ── */
+  const clientsQuery = useQuery<PersonClient[]>({
+    queryKey: ["amortizacijaClients"],
+    queryFn: async () => {
+      const res = await getAmortizacijaClients();
+      if (!res.ok) return [];
+      return res.data ?? [];
+    },
+  });
+
+  const clientYearsQuery = useQuery({
+    queryKey: ["amortizacijaClientYears"],
+    queryFn: async () => {
+      const res = await getClientYears();
+      return res.ok ? res.data : {};
+    },
+  });
+
+  /* ── Client order (drag-and-drop, persisted in localStorage) ── */
+  useEffect(() => {
+    if (!clientsQuery.data) return;
+    setClientOrder((prev) => {
+      const ids = clientsQuery.data.map((c) => c.id);
+      const kept = prev.filter((id) => ids.includes(id));
+      const added = ids.filter((id) => !kept.includes(id));
+      return [...kept, ...added];
+    });
+  }, [clientsQuery.data]);
+
+  useEffect(() => {
+    localStorage.setItem("amortizacija-client-order", JSON.stringify(clientOrder));
+  }, [clientOrder]);
+
+  const sortedClients = useMemo(() => {
+    if (!clientsQuery.data) return [];
+    return [...clientsQuery.data].sort((a, b) => {
+      const ai = clientOrder.indexOf(a.id);
+      const bi = clientOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [clientsQuery.data, clientOrder]);
+
+  const handleDragStart = useCallback((id: number) => {
+    dragItemId.current = id;
+  }, []);
+
+  const handleDragEnter = useCallback((id: number) => {
+    setDragOverId(id);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    const from = dragItemId.current;
+    const to = dragOverId;
+    if (from !== null && to !== null && from !== to) {
+      setClientOrder((prev) => {
+        const next = [...prev];
+        const fi = next.indexOf(from);
+        const ti = next.indexOf(to);
+        if (fi === -1 || ti === -1) return prev;
+        next.splice(fi, 1);
+        next.splice(ti, 0, from);
+        return next;
+      });
+    }
+    dragItemId.current = null;
+    setDragOverId(null);
+  }, [dragOverId]);
 
   /* ── Dirty tracking ── */
   const markDirty = useCallback(() => {
@@ -296,6 +395,17 @@ export default function Amortizacija() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
+  /* ── Auto-save (debounced) ── */
+  const handleSaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  useEffect(() => {
+    if (!isDirty) return;
+    if (isLoadingRef.current) return;
+    const handle = setTimeout(() => {
+      void handleSaveRef.current();
+    }, 1500);
+    return () => clearTimeout(handle);
+  }, [isDirty, obveznik, rows]);
+
   /* ── Load helpers ── */
   const applyLoadedData = useCallback(
     (data: { obveznik?: ObveznikData; rows?: AssetRow[] }) => {
@@ -305,9 +415,11 @@ export default function Amortizacija() {
         jmb: data.obveznik.jmb ?? "",
         imeIPrezime: data.obveznik.imeIPrezime ?? "",
         adresa: data.obveznik.adresa ?? "",
+        grad: data.obveznik.grad ?? "",
         jib: data.obveznik.jib ?? "",
         naziv: data.obveznik.naziv ?? "",
         adresaDjelatnosti: data.obveznik.adresaDjelatnosti ?? "",
+        gradDjelatnosti: data.obveznik.gradDjelatnosti ?? "",
         vrstaSifra: data.obveznik.vrstaSifra ?? "",
         vrstaNaziv: data.obveznik.vrstaNaziv ?? "",
         godina: data.obveznik.godina ?? "",
@@ -341,19 +453,18 @@ export default function Amortizacija() {
 
   useEffect(() => {
     (async () => {
-      const [yearsRes, docsRes] = await Promise.all([
-        getAmortizacijaYears(),
-        getForms("PLDI"),
-      ]);
+      // PRO+ users always work within a client — skip null-client slot
+      if (isClientUserRef.current && selectedClientId === null) return;
+
+      const yearsRes = await getAmortizacijaYears(selectedClientId);
       if (yearsRes.ok) setSavedYears(yearsRes.data);
-      if (docsRes.ok) setPldiDocs(docsRes.data);
 
       setDataLoading(true);
-      const res = await getAmortizacija(currentYear);
+      const res = await getAmortizacija(currentYear, selectedClientId);
       setDataLoading(false);
       if (res.ok && res.data) applyLoadedData(res.data);
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (showNewYear) newYearRef.current?.focus();
@@ -371,6 +482,15 @@ export default function Amortizacija() {
     });
   }, [obveznik.godina]);
 
+  // Auto-select first client for PRO+ users on initial load
+  useEffect(() => {
+    if (!isClientUser) return;
+    if (sortedClients.length === 0) return;
+    if (didAutoSelectRef.current) return;
+    didAutoSelectRef.current = true;
+    handleSelectClient(sortedClients[0].id);
+  }, [isClientUser, sortedClients]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Year switching ── */
   const doSwitchYear = useCallback(
     async (year: string) => {
@@ -382,7 +502,7 @@ export default function Amortizacija() {
         return next;
       });
       setDataLoading(true);
-      const res = await getAmortizacija(year);
+      const res = await getAmortizacija(year, selectedClientIdRef.current);
       setDataLoading(false);
       if (res.ok && res.data) {
         applyLoadedData(res.data);
@@ -407,13 +527,12 @@ export default function Amortizacija() {
   );
 
   const handleYearClick = useCallback(
-    (yr: number) => {
+    async (yr: number) => {
       if (parseInt(obveznik.godina) === yr) return;
       if (isDirty) {
-        setPendingYear(String(yr));
-      } else {
-        doSwitchYear(String(yr));
+        await handleSaveRef.current();
       }
+      doSwitchYear(String(yr));
     },
     [isDirty, obveznik.godina, doSwitchYear],
   );
@@ -421,8 +540,18 @@ export default function Amortizacija() {
   /* ── Save ── */
   const handleSave = useCallback(async () => {
     setSaveStatus("saving");
+    let clientId = selectedClientIdRef.current;
+    if (isClientUserRef.current && clientId === null) {
+      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      if (clientRes.ok && clientRes.data) {
+        clientId = clientRes.data.id;
+        setSelectedClientId(clientId);
+        selectedClientIdRef.current = clientId;
+        void clientsQuery.refetch();
+      }
+    }
     const godina = obveznik.godina || currentYear;
-    const res = await saveAmortizacija(godina, { obveznik, rows });
+    const res = await saveAmortizacija(godina, { obveznik, rows }, clientId);
     if (res.ok) {
       setSaveStatus("saved");
       setIsDirty(false);
@@ -435,11 +564,37 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, currentYear]);
+  }, [obveznik, rows, currentYear, clientsQuery]);
+
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
 
   /* ── Carryover ── */
   const handleCarryover = useCallback(async () => {
-    const nextYear = String(parseInt(obveznik.godina || currentYear) + 1);
+    const currentGodina = obveznik.godina || currentYear;
+    const nextYear = String(parseInt(currentGodina) + 1);
+
+    setSaveStatus("saving");
+
+    let clientId = selectedClientIdRef.current;
+    if (isClientUserRef.current && clientId === null) {
+      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      if (clientRes.ok && clientRes.data) {
+        clientId = clientRes.data.id;
+        setSelectedClientId(clientId);
+        selectedClientIdRef.current = clientId;
+        void clientsQuery.refetch();
+      }
+    }
+
+    // Save current year first so nothing is lost
+    await saveAmortizacija(currentGodina, { obveznik, rows }, clientId);
+    setSavedYears((prev) => {
+      const yr = parseInt(currentGodina);
+      return prev.includes(yr) ? prev : [...prev, yr].sort((a, b) => a - b);
+    });
+
     const carryoverObveznik: ObveznikData = {
       ...obveznik,
       godina: nextYear,
@@ -475,11 +630,10 @@ export default function Amortizacija() {
       isLoadingRef.current = false;
     }, 0);
 
-    setSaveStatus("saving");
     const res = await saveAmortizacija(nextYear, {
       obveznik: carryoverObveznik,
       rows: carryoverRows,
-    });
+    }, clientId);
     if (res.ok) {
       setSavedYears((prev) => {
         const yr = parseInt(nextYear);
@@ -492,12 +646,12 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [obveznik, rows, selectedClientId, currentYear, clientsQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Delete year ── */
   const handleDeleteYear = useCallback(
     async (yr: number) => {
-      await deleteAmortizacija(String(yr));
+      await deleteAmortizacija(String(yr), selectedClientIdRef.current);
       const newSaved = savedYears.filter((y) => y !== yr);
       const newVisited = visitedYears.filter((y) => y !== yr);
       setSavedYears(newSaved);
@@ -509,7 +663,7 @@ export default function Amortizacija() {
         const remaining = [...new Set([...newSaved, ...newVisited])].sort(
           (a, b) => a - b,
         );
-        const fallback = remaining[0];
+        const fallback = [...remaining].reverse().find((y) => y < yr) ?? remaining[remaining.length - 1];
         if (fallback !== undefined) {
           await doSwitchYear(String(fallback));
         } else {
@@ -597,24 +751,6 @@ export default function Amortizacija() {
     markDirty();
   };
 
-  /* ── Profile / client fill ── */
-  const fillObveznik = useCallback(
-    (data: FillData) => {
-      setObveznik((p) => ({
-        ...p,
-        jmb: data.jmbg ?? p.jmb,
-        imeIPrezime:
-          [data.firstName, data.lastName].filter(Boolean).join(" ") ||
-          p.imeIPrezime,
-        adresa: data.address ?? p.adresa,
-      }));
-      if (data.sourceClientId !== undefined)
-        setSourceClientId(data.sourceClientId);
-      markDirty();
-    },
-    [markDirty],
-  );
-
   const fillDjelatnost = useCallback(
     (data: OrgFillData) => {
       setObveznik((p) => ({
@@ -622,13 +758,36 @@ export default function Amortizacija() {
         jib: data.taxNumber ?? p.jib,
         naziv: data.name ?? p.naziv,
         adresaDjelatnosti: data.address ?? p.adresaDjelatnosti,
+        gradDjelatnosti: data.city ?? p.gradDjelatnosti,
         vrstaSifra: data.activityCode ?? p.vrstaSifra,
         vrstaNaziv: data.activityName ?? p.vrstaNaziv,
+        ...(data.owner
+          ? {
+              jmb: data.owner.jmbg ?? p.jmb,
+              imeIPrezime: [data.owner.firstName, data.owner.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
+              adresa: data.owner.address ?? p.adresa,
+              grad: data.owner.city ?? p.grad,
+            }
+          : {}),
       }));
       if (data.sourceOrgId !== undefined) setSourceOrgId(data.sourceOrgId);
+      if (selectedClientIdRef.current !== null) {
+        const clientPayload: Partial<PersonClientPayload> = {};
+        if (data.owner?.firstName) clientPayload.firstName = data.owner.firstName;
+        if (data.owner?.lastName) clientPayload.lastName = data.owner.lastName;
+        if (data.owner?.jmbg) clientPayload.jmbg = data.owner.jmbg;
+        if (data.owner?.address) clientPayload.address = data.owner.address;
+        if (data.owner?.city) clientPayload.city = data.owner.city;
+        if (data.taxNumber) clientPayload.taxNumber = data.taxNumber;
+        if (!data.owner?.firstName && data.name) clientPayload.firstName = data.name;
+        if (Object.keys(clientPayload).length > 0) {
+          updatePersonClient(selectedClientIdRef.current, clientPayload)
+            .then(() => clientsQuery.refetch());
+        }
+      }
       markDirty();
     },
-    [markDirty],
+    [markDirty, clientsQuery],
   );
 
   /* ── Period ── */
@@ -739,6 +898,7 @@ export default function Amortizacija() {
   const handleExport = async () => {
     setExportLoading(true);
     try {
+      await handleSave();
       const pldiRows = rows.map((row, idx) => {
         const prodajaNapomena =
           row.prodano && row.datumProdaje
@@ -769,10 +929,10 @@ export default function Amortizacija() {
       const data: PldiData = {
         jmb: obveznik.jmb,
         imeIPrezime: obveznik.imeIPrezime,
-        adresa: obveznik.adresa,
+        adresa: formatAddress(obveznik.adresa, obveznik.grad, findCity(obveznik.grad)?.postalCode),
         jib: obveznik.jib,
         naziv: obveznik.naziv,
-        adresaDjelatnosti: obveznik.adresaDjelatnosti,
+        adresaDjelatnosti: formatAddress(obveznik.adresaDjelatnosti, obveznik.gradDjelatnosti, findCity(obveznik.gradDjelatnosti)?.postalCode),
         vrstaSifra: obveznik.vrstaSifra,
         vrstaNaziv: obveznik.vrstaNaziv,
         godina: obveznik.godina,
@@ -810,22 +970,82 @@ export default function Amortizacija() {
 
   const activeYear = parseInt(obveznik.godina || currentYear);
 
-  const handleLoadFromProfile = useCallback(
-    async (id: number) => {
-      setLoadingDoc(true);
-      const res = await getDocument<{ obveznik?: ObveznikData; rows?: AssetRow[] }>(id);
-      setLoadingDoc(false);
-      if (res.ok && res.data?.data) applyLoadedData(res.data.data);
-    },
-    [applyLoadedData],
-  );
-
   const pldiYear = obveznik.godina.length === 4 ? parseInt(obveznik.godina) : null;
 
   const buildPldiData = useCallback(
     () => ({ obveznik, rows }),
     [obveznik, rows],
   );
+
+  /* ── Client switch ── */
+  const handleSelectClient = useCallback(
+    async (clientId: number | null) => {
+      if (clientId === selectedClientId) return;
+      setSelectedClientId(clientId);
+      setSavedYears([]);
+      setVisitedYears([parseInt(currentYear)]);
+      setDeletedYears(new Set());
+      setSaveStatus("idle");
+      isLoadingRef.current = true;
+      setRows([newRow()]);
+      setObveznik(makeObveznik(currentYear));
+      setTimeout(() => { isLoadingRef.current = false; setIsDirty(false); }, 0);
+
+      if (clientId !== null) {
+        const client = clientsQuery.data?.find((c) => c.id === clientId);
+        if (client) {
+          isLoadingRef.current = true;
+          setObveznik((p) => ({
+            ...p,
+            jmb: client.jmbg ?? p.jmb,
+            imeIPrezime: [client.firstName, client.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
+            adresa: client.address ?? p.adresa,
+            grad: client.city ?? p.grad,
+          }));
+          setTimeout(() => { isLoadingRef.current = false; }, 0);
+        }
+      }
+    },
+    [selectedClientId, currentYear, clientsQuery.data],
+  );
+
+  const handleNazivBlur = useCallback(() => {
+    const clientId = selectedClientIdRef.current;
+    if (clientId === null || !obveznik.naziv.trim()) return;
+    updatePersonClient(clientId, { firstName: obveznik.naziv.trim() })
+      .then(() => clientsQuery.refetch());
+  }, [obveznik.naziv, clientsQuery]);
+
+  const handleConfirmDeleteClient = useCallback(async () => {
+    if (confirmDeleteClientId === null) return;
+    await deletePersonClient(confirmDeleteClientId);
+    setConfirmDeleteClientId(null);
+    if (selectedClientId === confirmDeleteClientId) {
+      const remaining = sortedClients.filter((c) => c.id !== confirmDeleteClientId);
+      const idx = sortedClients.findIndex((c) => c.id === confirmDeleteClientId);
+      const next = remaining[Math.max(0, idx - 1)] ?? remaining[0];
+      handleSelectClient(next?.id ?? null);
+    }
+    setClientOrder((prev) => prev.filter((id) => id !== confirmDeleteClientId));
+    clientsQuery.refetch();
+  }, [confirmDeleteClientId, selectedClientId, sortedClients, handleSelectClient, clientsQuery]);
+
+  const [addLimitError, setAddLimitError] = useState(false);
+
+  const handleAddClient = useCallback(async () => {
+    setSavingClient(true);
+    setAddLimitError(false);
+    const res = await createAmortizacijaClient({ firstName: "" });
+    setSavingClient(false);
+    if (res.ok && res.data) {
+      await clientsQuery.refetch();
+      handleSelectClient(res.data.id);
+    } else if (!res.ok && res.error === "PRO_LIMIT_REACHED") {
+      setAddLimitError(true);
+    }
+  }, [clientsQuery, handleSelectClient]);
+
+  const personLimitReached = isPro && sortedClients.length >= PRO_CLIENT_LIMIT;
 
   const thSort = (key: SortKey, label: React.ReactNode) => (
     <th
@@ -840,22 +1060,111 @@ export default function Amortizacija() {
     </th>
   );
 
+  const sidebar = (
+    <aside className={styles.sidebar}>
+      <div className={styles.sidebarHeader}>Klijenti</div>
+      {!isClientUser && (
+        <div className={styles.sidebarLock}>
+          <span className={styles.sidebarLockIcon}>🔒</span>
+          <p className={styles.sidebarLockText}>Dostupno uz Pro ili Business pretplatu</p>
+          <a href="/profil" className={styles.sidebarLockBtn}>Pretplatite se</a>
+        </div>
+      )}
+      <div className={`${styles.sidebarList}${!isClientUser ? ` ${styles.sidebarLocked}` : ""}`}>
+        {sortedClients.map((client) => {
+          const hasData = !!clientYearsQuery.data?.[String(client.id)]?.length;
+          const isActive = selectedClientId === client.id;
+          const isDragOver = dragOverId === client.id;
+          const label = [client.firstName, client.lastName].filter(Boolean).join(" ") || "Prazan obrazac";
+          return (
+            <div
+              key={client.id}
+              draggable
+              className={`${styles.sidebarItemWrap}${isDragOver ? ` ${styles.dragOver}` : ""}`}
+              onDragStart={() => handleDragStart(client.id)}
+              onDragEnter={() => handleDragEnter(client.id)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <button
+                className={`${styles.sidebarItem}${isActive ? ` ${styles.active}` : ""}`}
+                onClick={() => handleSelectClient(client.id)}
+              >
+                <span className={styles.dragHandle}>⠿</span>
+                <span className={hasData ? styles.sidebarDot : styles.sidebarDotEmpty} />
+                <span className={`${styles.sidebarName}${label === "Prazan obrazac" ? ` ${styles.sidebarNameEmpty}` : ""}`}>
+                  {label}
+                </span>
+              </button>
+              {sortedClients.length > 1 && (
+                <button
+                  className={styles.deleteClientBtn}
+                  title="Obriši klijenta"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteClientId(client.id); }}
+                >
+                  🗑
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {isClientUser && (
+        <>
+          <button
+            className={styles.addClientBtn}
+            type="button"
+            disabled={savingClient || personLimitReached}
+            onClick={handleAddClient}
+          >
+            {savingClient ? "Dodajem…" : "+ Dodaj klijenta"}
+          </button>
+          {(personLimitReached || addLimitError) && (
+            <div className={styles.sidebarUpgrade}>
+              <strong>Limit od {PRO_CLIENT_LIMIT} klijenata</strong> na Pro pretplati je dosegnut.
+              Nadogradite na Business za više klijenata.
+              <a href="/profil#pretplata" className={styles.sidebarUpgradeLink}>
+                Nadogradi na Business →
+              </a>
+            </div>
+          )}
+        </>
+      )}
+
+      {confirmDeleteClientId !== null && (
+        <div className={styles.deletePopup}>
+          <p className={styles.deletePopupText}>Obrisati klijenta? Ova radnja se ne može poništiti.</p>
+          <div className={styles.deletePopupActions}>
+            <button className={styles.deletePopupConfirm} onClick={handleConfirmDeleteClient}>
+              Obriši
+            </button>
+            <button className={styles.deletePopupCancel} onClick={() => setConfirmDeleteClientId(null)}>
+              Odustani
+            </button>
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+
   return (
-    <div className={styles.page}>
-      {/* Header */}
+    <div className={styles.pageOuter}>
+      <SaveToast status={saveStatus} />
+      {/* Header — full width, above sidebar layout */}
       <div className={styles.header}>
         <p className={styles.label}>Obrazac PLDI-1043</p>
         <h1 className={styles.h1}>
-          Popisna lista <em>dugotrajne imovine</em>
+          PLDI-1043 obrazac — popisna lista <em>dugotrajne imovine i amortizacija</em>
         </h1>
         <p className={styles.subtitle}>
-          Evidencija dugotrajne imovine i automatski obračun amortizacije po
-          porezno priznatim stopama. Generišite PLDI-1043 obrazac za godišnju
-          poreznu prijavu — besplatno.
+          Kako popuniti PLDI-1043 obrazac? Evidencija dugotrajne imovine i
+          automatski obračun amortizacije po porezno priznatim stopama u FBiH.
+          Generišite popunjeni PLDI-1043 PDF za godišnju poreznu prijavu,
+          besplatno i bez registracije.
         </p>
       </div>
 
-      {/* Year switcher */}
+      {/* Year switcher — full width, above sidebar/content row */}
       <div className={styles.yearBar}>
         {allYears.map((yr) => (
           <button
@@ -904,38 +1213,9 @@ export default function Amortizacija() {
         {dataLoading && <span className={styles.yearLoading}>Učitavam…</span>}
       </div>
 
-      {/* Pending year switch warning */}
-      {pendingYear && (
-        <div className={styles.dirtyWarning}>
-          <span>Imate nespremljene promjene. Šta želite uraditi?</span>
-          <button
-            className={styles.dirtyWarnSave}
-            onClick={async () => {
-              await handleSave();
-              setPendingYear(null);
-              doSwitchYear(pendingYear);
-            }}
-          >
-            Sačuvaj i prijeđi
-          </button>
-          <button
-            className={styles.dirtyWarnDiscard}
-            onClick={() => {
-              setPendingYear(null);
-              setIsDirty(false);
-              doSwitchYear(pendingYear!);
-            }}
-          >
-            Zanemari promjene
-          </button>
-          <button
-            className={styles.dirtyWarnCancel}
-            onClick={() => setPendingYear(null)}
-          >
-            Ostani
-          </button>
-        </div>
-      )}
+    <div className={styles.pageLayout}>
+    {sidebar}
+    <div className={styles.page}>
 
       {/* Dio 1 — Podaci */}
       <section className={styles.section}>
@@ -971,26 +1251,42 @@ export default function Amortizacija() {
           )}
         </div>
 
-        {pldiDocs.length > 0 && (
-          <div className={styles.loadFromProfileRow}>
-            <select
-              className={styles.loadFromProfileSelect}
-              value=""
-              disabled={loadingDoc}
-              onChange={(e) => {
-                const id = parseInt(e.target.value);
-                if (!isNaN(id)) handleLoadFromProfile(id);
-              }}
-            >
-              <option value="">
-                {loadingDoc ? "Učitavam…" : "Učitaj s profila…"}
-              </option>
-              {pldiDocs.map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.title ?? `PLDI · ${doc.year}`}
-                </option>
-              ))}
-            </select>
+        <button
+          type="button"
+          className={styles.guideToggleBtn}
+          onClick={() => setShowGuide((v) => !v)}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+            <circle cx="8" cy="8" r="7" />
+            <line x1="8" y1="7" x2="8" y2="11" />
+            <circle cx="8" cy="5" r="0.5" fill="currentColor" stroke="none" />
+          </svg>
+          {showGuide ? "Sakrij uputstvo" : "Kako ispravno popuniti?"}
+        </button>
+
+        {showGuide && (
+          <div className={styles.guideBox}>
+            <ol className={styles.guideList}>
+              <li>
+                <strong>Dodajte svoju djelatnost</strong> — Ako još nemate dodanu organizaciju, idite na{" "}
+                <a href="/profil" className={styles.guideLink}>Profil → Moje organizacije</a>{" "}
+                i dodajte je. Ako popunjavate za klijenta, idite na{" "}
+                <a href="/profil" className={styles.guideLink}>Profil → Klijenti</a>{" "}
+                i tamo dodajte klijenta sa njegovim podacima.
+              </li>
+              <li>
+                <strong>Odaberite ili dodajte klijenta u sidebaru</strong> — Kliknite <em>+ Dodaj klijenta</em> u lijevoj bočnoj traci da otvorite novi prazan obrazac. Ako popunjavate za sebe, možete raditi i bez klijenta.
+              </li>
+              <li>
+                <strong>Popunite djelatnost</strong> — Kliknite dugme <em>Popuni djelatnost</em> i odaberite organizaciju sa liste. Podaci o djelatnosti i vlasniku bit će automatski upisani u obrazac.
+              </li>
+              <li>
+                <strong>Unesite osnovna sredstva</strong> — U tabeli ispod dodajte svako stalno sredstvo: naziv, datum nabavke, broj dokumenta, nabavnu vrijednost, početnu knjigovodstvenu vrijednost i vijek trajanja. Iznos amortizacije se računa automatski.
+              </li>
+              <li>
+                <strong>Sačuvajte i preuzmite obrazac</strong> — Kliknite <em>Sačuvaj na profil</em> da pohranite podatke na vaš nalog gdje im možete pristupiti u svakom trenutku. Kliknite <em>Preuzmi obrazac</em> da preuzmete popunjeni PLDI-1043 PDF — obrazac se automatski sačuva na profilu i klijent se kreira ako već nije upisan. Kada prenesete podatke u narednu godinu klikom na <em>Prenesi u godinu</em>, obrazac tekuće i naredne godine se automatski sačuva.
+              </li>
+            </ol>
           </div>
         )}
 
@@ -998,7 +1294,6 @@ export default function Amortizacija() {
           <div className={styles.colGroup}>
             <div className={styles.colLabelRow}>
               <p className={styles.colLabel}>Porezni obveznik</p>
-              <PersonFillSelect onFill={fillObveznik} />
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>1. JMB</label>
@@ -1025,7 +1320,15 @@ export default function Amortizacija() {
                 className={styles.fieldInput}
                 value={obveznik.adresa}
                 onChange={setO("adresa")}
-                placeholder="Ulica bb, Grad"
+                placeholder="Ulica i broj"
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Grad</label>
+              <CitySelect
+                value={obveznik.grad}
+                onChange={(v) => setObveznik((p) => ({ ...p, grad: v }))}
+                className={styles.fieldInput}
               />
             </div>
           </div>
@@ -1033,7 +1336,7 @@ export default function Amortizacija() {
           <div className={styles.colGroup}>
             <div className={styles.colLabelRow}>
               <p className={styles.colLabel}>Registrovana djelatnost</p>
-              <OrgFillSelect onFill={fillDjelatnost} />
+              {(selectedClientId === null || savedYears.length === 0) && <OrgFillSelect onFill={fillDjelatnost} />}
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>4. JIB</label>
@@ -1051,6 +1354,7 @@ export default function Amortizacija() {
                 className={styles.fieldInput}
                 value={obveznik.naziv}
                 onChange={setO("naziv")}
+                onBlur={handleNazivBlur}
                 placeholder='Obrt "Naziv"'
               />
             </div>
@@ -1060,7 +1364,15 @@ export default function Amortizacija() {
                 className={styles.fieldInput}
                 value={obveznik.adresaDjelatnosti}
                 onChange={setO("adresaDjelatnosti")}
-                placeholder="Ulica bb, Grad"
+                placeholder="Ulica i broj"
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Grad djelatnosti</label>
+              <CitySelect
+                value={obveznik.gradDjelatnosti}
+                onChange={(v) => setObveznik((p) => ({ ...p, gradDjelatnosti: v }))}
+                className={styles.fieldInput}
               />
             </div>
             <div className={styles.fieldRow}>
@@ -1431,26 +1743,57 @@ export default function Amortizacija() {
       </section>
 
       {/* Actions */}
-      {isDirty && <p className={styles.dirtyBadge}>Promjene nisu spremljene</p>}
       <div className={styles.actionsRow}>
-        <button
-          className={styles.carryoverBtn}
-          onClick={handleCarryover}
-          disabled={saveStatus === "saving"}
-          title={`Prenesi sva aktivna sredstva u ${parseInt(obveznik.godina || currentYear) + 1}. godinu`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className={styles.carryoverWrap}>
+          <button
+            className={styles.carryoverBtn}
+            onClick={() => {
+              const next = parseInt(obveznik.godina || currentYear) + 1;
+              if (savedYears.includes(next)) {
+                setShowCarryoverConfirm(true);
+              } else {
+                handleCarryover();
+              }
+            }}
+            disabled={saveStatus === "saving"}
+            title={`Prenesi sva aktivna sredstva u ${parseInt(obveznik.godina || currentYear) + 1}. godinu`}
           >
-            <path d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
-          Prenesi u {parseInt(obveznik.godina || currentYear) + 1}.
-        </button>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+            Prenesi u {parseInt(obveznik.godina || currentYear) + 1}.
+          </button>
+
+          {showCarryoverConfirm && (
+            <div className={styles.carryoverConfirm}>
+              <p className={styles.carryoverConfirmText}>
+                Godina {parseInt(obveznik.godina || currentYear) + 1}. već ima sačuvane podatke.
+                Prenos će ih zamijeniti novim stanjem.
+              </p>
+              <div className={styles.carryoverConfirmActions}>
+                <button
+                  className={styles.carryoverConfirmYes}
+                  onClick={() => { setShowCarryoverConfirm(false); handleCarryover(); }}
+                >
+                  Prenesi i zamijeni
+                </button>
+                <button
+                  className={styles.carryoverConfirmNo}
+                  onClick={() => setShowCarryoverConfirm(false)}
+                >
+                  Odustani
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <button
           className={styles.exportBtn}
@@ -1489,11 +1832,12 @@ export default function Amortizacija() {
         <SaveToProfileButton
           type="PLDI"
           year={pldiYear}
-          title={`PLDI-1043 · ${obveznik.imeIPrezime} · ${pldiYear ?? "?"}`}
+          title={`PLDI-1043 · ${obveznik.naziv || obveznik.imeIPrezime} · ${pldiYear ?? "?"}`}
           buildData={buildPldiData}
           disabled={pldiYear === null}
           defaultOrganizationId={sourceOrgId}
-          defaultClientId={sourceClientId}
+          defaultClientId={selectedClientId}
+          onSuccess={handleSave}
         />
       </div>
 
@@ -1530,5 +1874,7 @@ export default function Amortizacija() {
         ]}
       />
     </div>
+    </div>
+  </div>
   );
 }

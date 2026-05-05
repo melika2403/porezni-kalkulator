@@ -27,21 +27,28 @@ export type PldiSaveData = {
   rows: AssetRow[];
 };
 
-export function getAmortizacijaYears() {
-  return request<number[]>("/api/amortizacija/years");
+export function getAmortizacijaYears(clientId?: number | null) {
+  const qs = clientId != null ? `?clientId=${clientId}` : "";
+  return request<number[]>(`/api/amortizacija/years${qs}`);
 }
 
-export function getAmortizacija(godina: string) {
-  return request<PldiSaveData | null>(`/api/amortizacija?godina=${godina}`);
+export function getAmortizacija(godina: string, clientId?: number | null) {
+  const qs = clientId != null ? `&clientId=${clientId}` : "";
+  return request<PldiSaveData | null>(`/api/amortizacija?godina=${godina}${qs}`);
 }
 
-export function deleteAmortizacija(godina: string) {
-  return request<null>(`/api/amortizacija?godina=${godina}`, { method: "DELETE" });
+export function deleteAmortizacija(godina: string, clientId?: number | null) {
+  const qs = clientId != null ? `&clientId=${clientId}` : "";
+  return request<null>(`/api/amortizacija?godina=${godina}${qs}`, { method: "DELETE" });
 }
 
-export function saveAmortizacija(godina: string, data: PldiSaveData) {
+export function saveAmortizacija(godina: string, data: PldiSaveData, clientId?: number | null) {
   return request<{ id: number }>("/api/amortizacija", {
     method: "POST",
-    body: JSON.stringify({ godina, ...data }),
+    body: JSON.stringify({ godina, ...data, clientId: clientId ?? null }),
   });
+}
+
+export function getClientYears() {
+  return request<Record<string, number[]>>("/api/amortizacija/client-years");
 }

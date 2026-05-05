@@ -22,6 +22,9 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import DateInput from "src/components/DateInput/DateInput";
+import CitySelect from "src/components/CitySelect/CitySelect";
+import { useRole } from "src/hooks/useRole";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +33,10 @@ type WorkerForm = {
   firstName: string;
   lastName: string;
   jmbg: string;
+  idCardNumber: string;
+  bankAccount: string;
+  address: string;
+  city: string;
   startDate: string;
   endDate: string;
 };
@@ -39,6 +46,10 @@ const emptyForm = (): WorkerForm => ({
   firstName: "",
   lastName: "",
   jmbg: "",
+  idCardNumber: "",
+  bankAccount: "",
+  address: "",
+  city: "",
   startDate: "",
   endDate: "",
 });
@@ -49,6 +60,10 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     firstName: f.firstName.trim(),
     lastName: f.lastName.trim(),
     jmbg: f.jmbg.trim() || undefined,
+    idCardNumber: f.idCardNumber.trim() || undefined,
+    bankAccount: f.bankAccount.trim() || undefined,
+    address: f.address.trim() || undefined,
+    city: f.city.trim() || undefined,
     startDate: f.startDate || null,
     endDate: f.endDate.trim() || null,
   };
@@ -60,6 +75,10 @@ function workerToForm(w: Worker): WorkerForm {
     firstName: w.firstName,
     lastName: w.lastName,
     jmbg: w.jmbg ?? "",
+    idCardNumber: w.idCardNumber ?? "",
+    bankAccount: w.bankAccount ?? "",
+    address: w.address ?? "",
+    city: w.city ?? "",
     startDate: w.startDate ?? "",
     endDate: w.endDate ?? "",
   };
@@ -135,31 +154,70 @@ function WorkerFormFields({
         <input
           className={styles.input}
           value={value.jmbg}
-          onChange={set("jmbg")}
+          onChange={(e) => onChange({ ...value, jmbg: e.target.value.replace(/\D/g, "").slice(0, 13) })}
           placeholder="1234567890123"
+          inputMode="numeric"
           maxLength={13}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Broj lične karte</label>
+        <input
+          className={styles.input}
+          value={value.idCardNumber}
+          onChange={(e) => onChange({ ...value, idCardNumber: e.target.value.slice(0, 9) })}
+          placeholder="npr. 12ABC3456"
+          maxLength={9}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Broj tekućeg računa</label>
+        <input
+          className={styles.input}
+          value={value.bankAccount}
+          onChange={(e) => {
+            const d = e.target.value.replace(/\D/g, "").slice(0, 16);
+            const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+            onChange({ ...value, bankAccount: parts.join("-") });
+          }}
+          placeholder="XXX-XXX-XXXXXXXX-XX"
+          inputMode="numeric"
         />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel}>
           Početak radnog odnosa{isVlasnik ? " (opciono)" : ""}
         </label>
-        <input
+        <DateInput
           className={styles.input}
-          type="date"
           value={value.startDate}
-          onChange={set("startDate")}
+          onValueChange={(iso) => onChange({ ...value, startDate: iso })}
           required={!isVlasnik}
         />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Kraj radnog odnosa</label>
+        <DateInput
+          className={styles.input}
+          value={value.endDate}
+          onValueChange={(iso) => onChange({ ...value, endDate: iso })}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Adresa</label>
         <input
           className={styles.input}
-          type="date"
-          value={value.endDate}
-          onChange={set("endDate")}
-          min={value.startDate || undefined}
+          value={value.address}
+          onChange={set("address")}
+          placeholder="Ulica i broj"
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Grad</label>
+        <CitySelect
+          value={value.city}
+          onChange={(v) => onChange({ ...value, city: v })}
+          className={styles.input}
         />
       </div>
     </div>
@@ -168,15 +226,16 @@ function WorkerFormFields({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const PRO_WORKERS_LIMIT = 5;
+
 export default function Organizacija({ orgId }: { orgId: number }) {
   const queryClient = useQueryClient();
+  const { role: userRole } = useRole();
 
   const { data: org, isLoading: orgLoading } = useQuery<Organization>({
     queryKey: ["organization", orgId],
     queryFn: () => unwrap(getOrganization(orgId)),
   });
-
-  console.log("ORG", org);
 
   const { data: workers = [], isLoading: workersLoading } = useQuery<Worker[]>({
     queryKey: ["workers", orgId],
@@ -190,6 +249,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const canEdit = org?.memberRole === "OWNER" || org?.memberRole === "ADMIN";
+  const isProLimitReached = userRole === "PRO" && workers.length >= PRO_WORKERS_LIMIT;
 
   const createMutation = useMutation({
     mutationFn: (payload: WorkerPayload) =>
@@ -256,7 +316,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
 
   return (
     <div className={styles.page}>
-      <RoleGuard roles={["BUSINESS"]} mode="hide">
+      <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
         <Link href="/profil" className={styles.back}>
           ← Nazad na profil
         </Link>
@@ -281,7 +341,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
             <span className={styles.cardTitle}>
               Radnici{workers.length > 0 ? ` (${workers.length})` : ""}
             </span>
-            {canEdit && !showAdd && (
+            {canEdit && !showAdd && !isProLimitReached && (
               <button
                 className={styles.btnPrimary}
                 onClick={() => {
@@ -292,6 +352,11 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               >
                 + Dodaj radnika
               </button>
+            )}
+            {isProLimitReached && (
+              <span className={styles.limitNotice}>
+                PRO plan: maksimalno {PRO_WORKERS_LIMIT} radnika po organizaciji
+              </span>
             )}
           </div>
 
@@ -307,7 +372,9 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               <WorkerFormFields value={addForm} onChange={setAddForm} />
               {createMutation.error && (
                 <div className={styles.errorMsg}>
-                  {createMutation.error.message}
+                  {createMutation.error.message === "WORKERS_LIMIT_REACHED"
+                    ? `PRO plan dozvoljava najviše ${PRO_WORKERS_LIMIT} radnika po organizaciji.`
+                    : createMutation.error.message}
                 </div>
               )}
               <div className={styles.formActions}>

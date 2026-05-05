@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import styles from './Features.module.css';
-import ComingSoonModal from '../ComingSoonModal/ComingSoonModal';
+import { useState } from "react";
+import Link from "next/link";
+import styles from "./Features.module.css";
+import ComingSoonModal from "../ComingSoonModal/ComingSoonModal";
 
-type Badge = "free" | "reg" | "pro";
+type Badge = "free" | "reg" | "pro" | "business";
 
 interface Feature {
   title: string;
@@ -20,7 +20,8 @@ interface Feature {
 const BADGE_LABELS: Record<Badge, string> = {
   free: "Besplatno",
   reg: "Registracija",
-  pro: "Godišnja pretplata",
+  pro: "Pro pretplata",
+  business: "Business pretplata",
 };
 
 const FEATURES: Feature[] = [
@@ -144,7 +145,7 @@ const FEATURES: Feature[] = [
   {
     title: "Šihterica — Evidencija radnog vremena",
     desc: "Unos i pregled radnog vremena po zaposlenima. Automatski obračun sati, prekovremenih i slobodnih dana.",
-    badge: "reg",
+    badge: "pro",
     iconColor: "accent",
     icon: (
       <svg
@@ -159,14 +160,13 @@ const FEATURES: Feature[] = [
       </svg>
     ),
     dest: "/sihterica",
-    soon: true,
   },
-  // ── Pro ──────────────────────────────────────────────
+  // ── Business ─────────────────────────────────────────
   {
     title: "Prijave / odjave radnika",
     desc: "Unos i evidencija radnika s automatskim ispisom JS3100 obrasca i ostalih prijavnih obrazaca u PDF formatu.",
     badge: "pro",
-    iconColor: "dark",
+    iconColor: "accent",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -179,12 +179,50 @@ const FEATURES: Feature[] = [
       </svg>
     ),
     dest: "/prijave-radnika",
+    soon: false,
+  },
+  {
+    title: "Generator članskih kartica",
+    desc: "Kreirajte profesionalne članske kartice sa QR kodom za svoju organizaciju (Pro) ili klijente (Business). Format kreditne kartice — spremno za štampanje ili pokazivanje na mobitelu.",
+    badge: "pro",
+    iconColor: "accent",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <rect x="2" y="6" width="20" height="13" rx="2" />
+        <path d="M2 10h20M6 15h4" />
+      </svg>
+    ),
+    dest: "/clanske-kartice",
+  },
+  {
+    title: "Fakture i predračuni",
+    desc: "Izrada profesionalnih računa (faktura) i predračuna sa automatskim obračunom PDV-a, podacima vašeg obrta i klijenata. Numeracija, historija i izvoz u PDF — spremno za slanje klijentu.",
+    badge: "pro",
+    iconColor: "accent",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+        <path d="M14 2v6h6" />
+        <path d="M9 13h6M9 17h6M9 9h2" />
+      </svg>
+    ),
+    dest: "#",
     soon: true,
   },
   {
-    title: "Ugovori o djelu i ostali ugovori",
-    desc: "Izrada ugovora o djelu s obračunom poreza i doprinosa na honorar, te ugovora o zakupu, kupoprodajnih i ostalih poslovnih ugovora.",
-    badge: "pro",
+    title: "Ugovor o djelu",
+    desc: "Kalkulator poreza i doprinosa na honorar (NETO ↔ BRUTO), automatski obračun PIO/zdravstva/zaštite, predložak ugovora i 6 uplatnica spremnih za banku.",
+    badge: "business",
     iconColor: "dark",
     icon: (
       <svg
@@ -197,7 +235,27 @@ const FEATURES: Feature[] = [
         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
       </svg>
     ),
-    dest: "/ugovori",
+    dest: "/ugovor-o-djelu",
+  },
+  {
+    title: "Ugovor o radu",
+    desc: "Generator ugovora o radu sa popunjavanjem podataka iz Prijava radnika. Spremite vlastiti predložak i koristite ga za buduće ugovore.",
+    badge: "business",
+    iconColor: "dark",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <path d="M9 13h6M9 17h4" />
+        <circle cx="9" cy="10" r="1.2" />
+      </svg>
+    ),
+    dest: "#",
     soon: true,
   },
 ];
@@ -281,7 +339,9 @@ export default function Features() {
         <div className={styles.grid}>
           {FEATURES.map((f) => (
             <div key={f.title} className={styles.cell}>
-              <div className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}>
+              <div
+                className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}
+              >
                 {f.icon}
               </div>
               <div className={styles.cellTitle}>{f.title}</div>

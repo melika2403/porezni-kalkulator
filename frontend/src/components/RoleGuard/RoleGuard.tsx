@@ -9,6 +9,8 @@ type Props = {
   /** "disable" = prikaži ali onemogući (default), "hide" = sakrij */
   mode?: "disable" | "hide";
   label?: string;
+  /** Ako je proslijeđen, renderuje se umjesto disable/hide ponašanja kad korisnik nema ulogu. */
+  fallback?: React.ReactNode;
 };
 
 export default function RoleGuard({
@@ -16,10 +18,13 @@ export default function RoleGuard({
   children,
   mode = "disable",
   label = "Pretplati se",
+  fallback,
 }: Props) {
   const { hasRole } = useRole();
 
   if (hasRole(...roles)) return <>{children}</>;
+
+  if (fallback !== undefined) return <>{fallback}</>;
 
   if (mode === "hide") return null;
 

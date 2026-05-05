@@ -6,9 +6,20 @@ export type AuthUser = {
   lastName: string;
   phone: string | null;
   address: string | null;
+  city: string | null;
   role: string;
   createdAt: string;
   updatedAt: string;
+  hasPassword: boolean;
+  isGoogleUser: boolean;
+  isEmailVerified: boolean;
+  idCardNumber: string | null;
+  subscription: {
+    id: number;
+    startDate: string;
+    endDate: string;
+    isActive: boolean;
+  } | null;
 };
 
 export type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -52,6 +63,7 @@ export type RegisterPayload = {
   lastName: string;
   phone: string;
   address?: string;
+  city?: string;
 };
 
 export function register(payload: RegisterPayload) {
@@ -101,4 +113,11 @@ export function logout() {
 
 export function me() {
   return request<AuthUser>("/api/auth/me", { method: "GET" });
+}
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return request<null>("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
 }

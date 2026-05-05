@@ -8,6 +8,8 @@ interface Props {
   className?: string;
   id?: string;
   required?: boolean;
+  disabled?: boolean;
+  title?: string;
 }
 
 const isoToDisplay = (iso: string) => {
@@ -36,7 +38,7 @@ const displayToIso = (display: string) => {
   return `${y}-${m}-${d}`;
 };
 
-export default function DateInput({ value, onValueChange, className, id, required }: Props) {
+export default function DateInput({ value, onValueChange, className, id, required, disabled, title }: Props) {
   const [display, setDisplay] = useState(() => isoToDisplay(value));
   const pickerRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +70,8 @@ export default function DateInput({ value, onValueChange, className, id, require
         onChange={handleChange}
         placeholder="DD.MM.GGGG."
         required={required}
+        disabled={disabled}
+        title={title}
       />
       <input
         ref={pickerRef}

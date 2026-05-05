@@ -28,7 +28,9 @@ export type ProfileUpdatePayload = {
   lastName?: string;
   phone?: string;
   address?: string;
+  city?: string;
   jmbg?: string | null;
+  idCardNumber?: string | null;
 };
 
 export type Subscription = {
@@ -53,7 +55,9 @@ export type Users = {
   role: "USER" | "PRO" | "ADMIN" | "BUSINESS";
   phone: string | null;
   address: string | null;
+  city: string | null;
   createdAt: string;
+  isEmailVerified: boolean;
   subscription: Subscription | null;
 };
 
@@ -62,6 +66,7 @@ export type UserUpdatePayload = {
   lastName?: string;
   phone?: string;
   address?: string;
+  city?: string;
   role?: "USER" | "PRO" | "ADMIN" | "BUSINESS";
 };
 
@@ -102,6 +107,10 @@ export function adminUpdateUser(userId: number, payload: UserUpdatePayload) {
   });
 }
 
+export function deleteUser(userId: number) {
+  return request<null>(`/api/users/${userId}`, { method: "DELETE" });
+}
+
 export function upsertSubscription(
   userId: number,
   payload: SubscriptionPayload,
@@ -128,6 +137,8 @@ export type OrgOwner = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
+  idCardNumber: string | null;
 };
 
 export type OrgOwnerPayload = {
@@ -137,6 +148,8 @@ export type OrgOwnerPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  idCardNumber?: string;
 };
 
 export type Organization = {
@@ -149,6 +162,8 @@ export type Organization = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
+  bankAccount: string | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   createdAt: string;
@@ -164,6 +179,8 @@ export type OrgPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  bankAccount?: string;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -254,8 +271,15 @@ export type Worker = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
+  idCardNumber: string | null;
+  bankAccount: string | null;
   startDate: string | null;
   endDate: string | null;
+  defaultStartTime: string | null;
+  defaultEndTime: string | null;
+  defaultDaysOff: string | null;
+  defaultPause: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -268,8 +292,15 @@ export type WorkerPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  idCardNumber?: string;
+  bankAccount?: string;
   startDate?: string | null;
   endDate?: string | null;
+  defaultStartTime?: string | null;
+  defaultEndTime?: string | null;
+  defaultDaysOff?: string | null;
+  defaultPause?: string | null;
 };
 
 export function getWorkers(orgId: number) {
@@ -311,7 +342,14 @@ export function deleteWorker(orgId: number, workerId: number) {
 
 // ─── Forms history ────────────────────────────────────────────────────────────
 
-export type FormType = "GPD" | "SPR" | "ZO3" | "UGOVOR" | "PLDI" | "AMS";
+export type FormType =
+  | "GPD"
+  | "SPR"
+  | "ZO3"
+  | "UGOVOR"
+  | "PLDI"
+  | "AMS"
+  | "JS3100";
 export type FormStatus = "DRAFT" | "GENERATED" | "SUBMITTED" | "ARCHIVED";
 
 export type FormRecord = {
@@ -337,6 +375,20 @@ export function getForms(type?: FormType) {
   return request<FormRecord[]>(`/api/forms${qs}`);
 }
 
+// ─── Cities (lookup) ─────────────────────────────────────────────────────────
+
+export type City = {
+  id: number;
+  name: string;
+  municipalityCode: string;
+  postalCode: string | null;
+  kanton: string;
+};
+
+export function getCities() {
+  return request<City[]>("/api/cities");
+}
+
 // ─── Person clients (fizičko lice) ───────────────────────────────────────────
 
 export type PersonClient = {
@@ -348,6 +400,8 @@ export type PersonClient = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
+  idCardNumber: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -360,6 +414,8 @@ export type PersonClientPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  idCardNumber?: string;
 };
 
 export function getPersonClients() {
@@ -379,6 +435,21 @@ export function updatePersonClient(
 ) {
   return request<PersonClient>(`/api/clients/${id}`, {
     method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePersonClient(id: number) {
+  return request<null>(`/api/clients/${id}`, { method: "DELETE" });
+}
+
+export function getAmortizacijaClients() {
+  return request<PersonClient[]>("/api/clients/amortizacija");
+}
+
+export function createAmortizacijaClient(payload: { firstName?: string }) {
+  return request<PersonClient>("/api/clients/amortizacija", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }

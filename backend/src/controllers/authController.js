@@ -1,16 +1,19 @@
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { Op } = require("sequelize");
 const { decryptJmbg } = require("../utils/encryptJmbg");
-const { sendPasswordResetEmail, sendVerificationEmail } = require("../utils/mailer");
-
-const prisma = require("../prisma");
+const {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} = require("../utils/mailer");
+const { User, Subscription } = require("../models/index");
 const googleAuth = require("../auth/googleAuth");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
-const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10; // 10 years
-const REMEMBER_ME_JWT_EXPIRES = "87600h"; // 10 years
-const DEFAULT_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 7; // 7 days
+const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10;
+const REMEMBER_ME_JWT_EXPIRES = "87600h";
+const DEFAULT_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 7;
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -18,9 +21,7 @@ function isNonEmptyString(value) {
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error("Missing JWT_SECRET in environment");
-  }
+  if (!secret) throw new Error("Missing JWT_SECRET in environment");
   return secret;
 }
 
@@ -33,91 +34,117 @@ function setAuthCookie(res, token, rememberMe = false) {
   res.cookie("access_token", token, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: rememberMe ? REMEMBER_ME_DURATION_MS : DEFAULT_COOKIE_MAX_AGE,
   });
 }
 
 function clearAuthCookie(res) {
-  res.clearCookie("access_token", {
-    path: "/",
-  });
+  res.clearCookie("access_token", { path: "/" });
 }
 
-function publicUserSelect() {
-  return {
-    id: true,
-    email: true,
-    jmbg: true,
-    firstName: true,
-    lastName: true,
-    phone: true,
-    address: true,
-    role: true,
-    createdAt: true,
-    updatedAt: true,
-  };
+const userAttributes = [
+  "id",
+  "email",
+  "jmbg",
+  "firstName",
+  "lastName",
+  "phone",
+  "address",
+  "city",
+  "role",
+  "createdAt",
+  "updatedAt",
+  "googleId",
+  "isEmailVerified",
+  "password",
+  "idCardNumber",
+];
+
+async function findUserWithSub(where) {
+  return User.findOne({
+    where,
+    attributes: userAttributes,
+    include: [
+      {
+        model: Subscription,
+        as: "subscription",
+        attributes: ["id", "startDate", "endDate", "isActive"],
+      },
+    ],
+  });
 }
 
 function toPublicUser(user) {
   if (!user) return null;
-  const { jmbg, ...rest } = user;
-  return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
+  const plain = user.toJSON ? user.toJSON() : user;
+  const { jmbg, password, googleId, ...rest } = plain;
+  return {
+    ...rest,
+    jmbg: jmbg ? decryptJmbg(jmbg) : null,
+    hasPassword: !!password,
+    isGoogleUser: !!googleId,
+  };
+}
+
+function signJwtForUser(user) {
+  const plain = user.toJSON ? user.toJSON() : user;
+  const secret = getJwtSecret();
+  return jwt.sign({ role: plain.role }, secret, {
+    subject: String(plain.id),
+    expiresIn: getJwtExpiresIn(),
+  });
 }
 
 async function register(req, res) {
-  const { email, password, firstName, lastName, phone, address } =
+  const { email, password, firstName, lastName, phone, address, city } =
     req.body ?? {};
 
-  if (!isNonEmptyString(email)) {
+  if (!isNonEmptyString(email))
     return res.status(400).json({ ok: false, error: "email is required" });
-  }
-  if (!isNonEmptyString(password) || password.trim().length < 6) {
+  if (!isNonEmptyString(password) || password.trim().length < 6)
     return res
       .status(400)
       .json({ ok: false, error: "password must be at least 6 characters" });
-  }
-  if (!isNonEmptyString(firstName)) {
+  if (!isNonEmptyString(firstName))
     return res.status(400).json({ ok: false, error: "firstName is required" });
-  }
-  if (!isNonEmptyString(lastName)) {
+  if (!isNonEmptyString(lastName))
     return res.status(400).json({ ok: false, error: "lastName is required" });
-  }
-  if (!isNonEmptyString(phone)) {
-    return res.status(400).json({ ok: false, error: "phone is required" });
-  }
-  if (address != null && typeof address !== "string") {
+  if (address != null && typeof address !== "string")
     return res
       .status(400)
       .json({ ok: false, error: "address must be a string" });
-  }
+  if (city != null && typeof city !== "string")
+    return res
+      .status(400)
+      .json({ ok: false, error: "city must be a string" });
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-
     const plainToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(plainToken).digest("hex");
-    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(plainToken)
+      .digest("hex");
+    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const user = await prisma.user.create({
-      data: {
-        email: email.trim().toLowerCase(),
-        password: passwordHash,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: phone.trim(),
-        address: typeof address === "string" ? address.trim() : null,
-        role: "USER",
-        isEmailVerified: false,
-        emailVerificationToken: hashedToken,
-        emailVerificationExpiry: expiry,
-      },
+    const user = await User.create({
+      email: email.trim().toLowerCase(),
+      password: passwordHash,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+      address: typeof address === "string" ? address.trim() : null,
+      city: typeof city === "string" ? city.trim() : null,
+      role: "USER",
+      isEmailVerified: false,
+      emailVerificationToken: hashedToken,
+      emailVerificationExpiry: expiry,
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     const verifyUrl = `${frontendUrl}/verifikacija?token=${plainToken}`;
-
     try {
       await sendVerificationEmail(user.email, user.firstName, verifyUrl);
     } catch (mailErr) {
@@ -126,10 +153,9 @@ async function register(req, res) {
 
     return res.status(201).json({ ok: true, data: { email: user.email } });
   } catch (error) {
-    if (error && typeof error === "object" && error.code === "P2002") {
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ ok: false, error: "DUPLICATE_VALUE" });
     }
-
     const message = error instanceof Error ? error.message : String(error);
     return res.status(500).json({ ok: false, error: message });
   }
@@ -138,29 +164,25 @@ async function register(req, res) {
 async function login(req, res) {
   const { email, password, rememberMe } = req.body ?? {};
 
-  if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
+  if (!isNonEmptyString(email) || !isNonEmptyString(password))
     return res
       .status(400)
       .json({ ok: false, error: "email and password are required" });
-  }
 
   try {
-    const user = await prisma.user.findUnique({
+    const user = await User.findOne({
       where: { email: email.trim().toLowerCase() },
     });
 
-    if (!user || !user.password) {
+    if (!user || !user.password)
       return res.status(401).json({ ok: false, error: "INVALID_CREDENTIALS" });
-    }
 
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) {
+    if (!ok)
       return res.status(401).json({ ok: false, error: "INVALID_CREDENTIALS" });
-    }
 
-    if (!user.isEmailVerified) {
+    if (!user.isEmailVerified)
       return res.status(403).json({ ok: false, error: "EMAIL_NOT_VERIFIED" });
-    }
 
     const secret = getJwtSecret();
     const expiresIn = rememberMe ? REMEMBER_ME_JWT_EXPIRES : getJwtExpiresIn();
@@ -171,11 +193,7 @@ async function login(req, res) {
 
     setAuthCookie(res, token, Boolean(rememberMe));
 
-    const safeUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: publicUserSelect(),
-    });
-
+    const safeUser = await findUserWithSub({ id: user.id });
     return res.status(200).json({ ok: true, data: toPublicUser(safeUser) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -190,40 +208,23 @@ async function logout(_req, res) {
 
 async function me(req, res) {
   const userId = req.user?.id;
-  if (!userId) {
+  if (!userId)
     return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
-  }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: publicUserSelect(),
-  });
-
-  if (!user) {
+  const user = await findUserWithSub({ id: userId });
+  if (!user)
     return res.status(404).json({ ok: false, error: "User not found" });
-  }
 
   return res.status(200).json({ ok: true, data: toPublicUser(user) });
 }
 
-function signJwtForUser(user) {
-  const secret = getJwtSecret();
-  return jwt.sign({ role: user.role }, secret, {
-    subject: String(user.id),
-    expiresIn: getJwtExpiresIn(),
-  });
-}
-
 async function forgotPassword(req, res) {
   const { email } = req.body ?? {};
-
-  if (!isNonEmptyString(email)) {
+  if (!isNonEmptyString(email))
     return res.status(400).json({ ok: false, error: "email is required" });
-  }
 
-  // Always return 200 to avoid revealing whether email exists
   try {
-    const user = await prisma.user.findUnique({
+    const user = await User.findOne({
       where: { email: email.trim().toLowerCase() },
     });
 
@@ -233,24 +234,20 @@ async function forgotPassword(req, res) {
         .createHash("sha256")
         .update(plainToken)
         .digest("hex");
+      const expiry = new Date(Date.now() + 60 * 60 * 1000);
 
-      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordResetToken: hashedToken,
-          passwordResetTokenExpiry: expiry,
-        },
-      });
+      await User.update(
+        { passwordResetToken: hashedToken, passwordResetTokenExpiry: expiry },
+        { where: { id: user.id } },
+      );
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-      const resetUrl = `${frontendUrl}/reset-lozinke?token=${plainToken}`;
-
-      await sendPasswordResetEmail(user.email, resetUrl);
+      await sendPasswordResetEmail(
+        user.email,
+        `${frontendUrl}/reset-lozinke?token=${plainToken}`,
+      );
     }
   } catch (error) {
-    // Log but don't leak error details
     console.error("forgotPassword error:", error);
   }
 
@@ -260,14 +257,12 @@ async function forgotPassword(req, res) {
 async function resetPassword(req, res) {
   const { token, newPassword } = req.body ?? {};
 
-  if (!isNonEmptyString(token)) {
+  if (!isNonEmptyString(token))
     return res.status(400).json({ ok: false, error: "token is required" });
-  }
-  if (!isNonEmptyString(newPassword) || newPassword.trim().length < 6) {
+  if (!isNonEmptyString(newPassword) || newPassword.trim().length < 6)
     return res
       .status(400)
       .json({ ok: false, error: "password must be at least 6 characters" });
-  }
 
   try {
     const hashedToken = crypto
@@ -275,29 +270,27 @@ async function resetPassword(req, res) {
       .update(token.trim())
       .digest("hex");
 
-    const user = await prisma.user.findFirst({
+    const user = await User.findOne({
       where: {
         passwordResetToken: hashedToken,
-        passwordResetTokenExpiry: { gt: new Date() },
+        passwordResetTokenExpiry: { [Op.gt]: new Date() },
       },
     });
 
-    if (!user) {
+    if (!user)
       return res
         .status(400)
         .json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
-    }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
+    await User.update(
+      {
         password: passwordHash,
         passwordResetToken: null,
         passwordResetTokenExpiry: null,
       },
-    });
+      { where: { id: user.id } },
+    );
 
     return res.status(200).json({ ok: true });
   } catch (error) {
@@ -308,39 +301,39 @@ async function resetPassword(req, res) {
 
 async function verifyEmail(req, res) {
   const { token } = req.query ?? {};
-
-  if (!isNonEmptyString(token)) {
+  if (!isNonEmptyString(token))
     return res.status(400).json({ ok: false, error: "INVALID_TOKEN" });
-  }
 
   try {
-    const hashedToken = crypto.createHash("sha256").update(token.trim()).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token.trim())
+      .digest("hex");
 
-    const user = await prisma.user.findFirst({
+    const user = await User.findOne({
       where: {
         emailVerificationToken: hashedToken,
-        emailVerificationExpiry: { gt: new Date() },
+        emailVerificationExpiry: { [Op.gt]: new Date() },
         isEmailVerified: false,
       },
     });
 
-    if (!user) {
-      return res.status(400).json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
-    }
+    if (!user)
+      return res
+        .status(400)
+        .json({ ok: false, error: "INVALID_OR_EXPIRED_TOKEN" });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
+    await User.update(
+      {
         isEmailVerified: true,
         emailVerificationToken: null,
         emailVerificationExpiry: null,
       },
-    });
+      { where: { id: user.id } },
+    );
 
-    // Auto-login after verification
     const jwtToken = signJwtForUser(user);
     setAuthCookie(res, jwtToken);
-
     return res.status(200).json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -350,43 +343,45 @@ async function verifyEmail(req, res) {
 
 async function resendVerification(req, res) {
   const { email } = req.body ?? {};
-
-  if (!isNonEmptyString(email)) {
+  if (!isNonEmptyString(email))
     return res.status(400).json({ ok: false, error: "email is required" });
-  }
 
   try {
-    const user = await prisma.user.findUnique({
+    const user = await User.findOne({
       where: { email: email.trim().toLowerCase() },
     });
 
     if (user && user.password && !user.isEmailVerified) {
       const plainToken = crypto.randomBytes(32).toString("hex");
-      const hashedToken = crypto.createHash("sha256").update(plainToken).digest("hex");
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(plainToken)
+        .digest("hex");
       const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
+      await User.update(
+        {
           emailVerificationToken: hashedToken,
           emailVerificationExpiry: expiry,
         },
-      });
+        { where: { id: user.id } },
+      );
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-      const verifyUrl = `${frontendUrl}/verifikacija?token=${plainToken}`;
-
       try {
-        await sendVerificationEmail(user.email, user.firstName, verifyUrl);
+        await sendVerificationEmail(
+          user.email,
+          user.firstName,
+          `${frontendUrl}/verifikacija?token=${plainToken}`,
+        );
       } catch (mailErr) {
-        console.error("Greška pri ponovnom slanju verifikacijskog emaila:", mailErr);
+        console.error("Greška pri ponovnom slanju:", mailErr);
       }
     }
   } catch (error) {
     console.error("resendVerification error:", error);
   }
 
-  // Always return 200 to not leak whether email exists
   return res.status(200).json({ ok: true });
 }
 
@@ -397,15 +392,13 @@ async function googleStart(_req, res) {
     res.cookie(GOOGLE_STATE_COOKIE, state, {
       httpOnly: true,
       secure: isProd,
-      sameSite: "lax",
+      sameSite: isProd ? "none" : "lax",
       path: "/",
-      maxAge: 10 * 60 * 1000, // 10 min
+      maxAge: 10 * 60 * 1000,
     });
-    const url = googleAuth.buildAuthUrl(state);
-    return res.redirect(url);
+    return res.redirect(googleAuth.buildAuthUrl(state));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return res.status(500).json({ ok: false, error: message });
+    return res.status(500).json({ ok: false, error: error.message });
   }
 }
 
@@ -419,58 +412,47 @@ async function googleCallback(req, res) {
   const cookieState = req.cookies?.[GOOGLE_STATE_COOKIE];
   res.clearCookie(GOOGLE_STATE_COOKIE, { path: "/" });
 
-  if (googleError) {
+  if (googleError)
     return redirectToFrontend(res, "/prijava?error=google_denied");
-  }
   if (
     typeof code !== "string" ||
     typeof state !== "string" ||
     !cookieState ||
     state !== cookieState
-  ) {
+  )
     return redirectToFrontend(res, "/prijava?error=invalid_state");
-  }
 
   try {
     const tokens = await googleAuth.exchangeCodeForToken(code);
     const profile = await googleAuth.fetchUserInfo(tokens.access_token);
 
-    if (!profile.sub || !profile.email_verified) {
+    if (!profile.sub || !profile.email_verified)
       return redirectToFrontend(res, "/prijava?error=email_not_verified");
-    }
 
     const email = String(profile.email).toLowerCase();
     const firstName = profile.given_name || profile.name || "Korisnik";
     const lastName = profile.family_name || "";
 
-    let user = await prisma.user.findUnique({
-      where: { googleId: profile.sub },
-      select: publicUserSelect(),
-    });
+    let user = await findUserWithSub({ googleId: profile.sub });
 
     if (!user) {
-      const existingByEmail = await prisma.user.findUnique({
-        where: { email },
-      });
-
+      const existingByEmail = await User.findOne({ where: { email } });
       if (existingByEmail) {
-        user = await prisma.user.update({
-          where: { id: existingByEmail.id },
-          data: { googleId: profile.sub },
-          select: publicUserSelect(),
-        });
+        await User.update(
+          { googleId: profile.sub },
+          { where: { id: existingByEmail.id } },
+        );
+        user = await findUserWithSub({ id: existingByEmail.id });
       } else {
-        user = await prisma.user.create({
-          data: {
-            email,
-            googleId: profile.sub,
-            firstName,
-            lastName,
-            role: "USER",
-            isEmailVerified: true,
-          },
-          select: publicUserSelect(),
+        const created = await User.create({
+          email,
+          googleId: profile.sub,
+          firstName,
+          lastName,
+          role: "USER",
+          isEmailVerified: true,
         });
+        user = await findUserWithSub({ id: created.id });
       }
     }
 
@@ -478,10 +460,39 @@ async function googleCallback(req, res) {
     setAuthCookie(res, token);
     return redirectToFrontend(res, "/");
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("googleCallback error:", message);
+    console.error("googleCallback error:", error.message);
     return redirectToFrontend(res, "/prijava?error=google_failed");
   }
+}
+
+async function changePassword(req, res) {
+  const userId = req.user?.id;
+  if (!userId)
+    return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (!isNonEmptyString(currentPassword))
+    return res
+      .status(400)
+      .json({ ok: false, error: "CURRENT_PASSWORD_REQUIRED" });
+  if (!isNonEmptyString(newPassword) || newPassword.trim().length < 6)
+    return res.status(400).json({ ok: false, error: "PASSWORD_TOO_SHORT" });
+
+  const user = await User.findOne({
+    where: { id: userId },
+    attributes: ["password"],
+  });
+  if (!user || !user.password)
+    return res.status(400).json({ ok: false, error: "NO_PASSWORD" });
+
+  const valid = await bcrypt.compare(currentPassword, user.password);
+  if (!valid)
+    return res.status(400).json({ ok: false, error: "WRONG_PASSWORD" });
+
+  const hash = await bcrypt.hash(newPassword.trim(), 10);
+  await User.update({ password: hash }, { where: { id: userId } });
+
+  return res.status(200).json({ ok: true, data: null });
 }
 
 module.exports = {
@@ -495,4 +506,5 @@ module.exports = {
   resendVerification,
   googleStart,
   googleCallback,
+  changePassword,
 };
