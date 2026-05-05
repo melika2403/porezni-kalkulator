@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Pretplate from "src/sections/pretplate/Pretplate";
 
@@ -9,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function PretplatePage() {
-  return <Pretplate />;
+  return (
+    <Suspense fallback={null}>
+      <Pretplate />
+    </Suspense>
+  );
 }
