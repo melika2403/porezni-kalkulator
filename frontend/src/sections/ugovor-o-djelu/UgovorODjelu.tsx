@@ -16,6 +16,7 @@ import { iznosUSlova } from "./iznosSlovima";
 import { useRole } from "src/hooks/useRole";
 import { fillUodDocx, type UodTemplateData } from "./fillUodDocx";
 import { fillUodPdf } from "./fillUodPdf";
+import { fillAug1031 } from "./fillAug1031";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
@@ -196,6 +197,8 @@ function UgovorODjeluApp() {
 
   const [generatingDocx, setGeneratingDocx] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [generatingAug, setGeneratingAug] = useState(false);
+  const [showAugInfo, setShowAugInfo] = useState(false);
 
   const handleDownloadDocx = async () => {
     setGeneratingDocx(true);
@@ -229,6 +232,47 @@ function UgovorODjeluApp() {
       alert("Greška pri generisanju PDF-a: " + (e as Error).message);
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadAug = async () => {
+    if (!naruciIme || !naruciId) {
+      alert("Unesite naziv i JIB naručioca.");
+      return;
+    }
+    if (!izvrIme || !izvrJmbg) {
+      alert("Unesite ime i JMBG izvršioca.");
+      return;
+    }
+    setGeneratingAug(true);
+    try {
+      const bytes = await fillAug1031({
+        naruciIme,
+        naruciAdresa,
+        naruciId,
+        izvrIme,
+        izvrJmbg,
+        datum,
+        vrsta,
+        brutoPrihod: calc.bruto,
+        rashodi: calc.priznatiTroskovi,
+        dohodak: calc.brutoUmanjenZaTroskove,
+        zdravstveno: calc.zdravstveno,
+        osnovicaPorez: calc.osnovicaZaPorez,
+        porez: calc.porez,
+        pio: calc.pio,
+      });
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `AUG-1031${brojUgovora ? "_" + brojUgovora.replace(/\//g, "-") : ""}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Greška pri generisanju AUG-1031: " + (e as Error).message);
+    } finally {
+      setGeneratingAug(false);
     }
   };
 
@@ -591,6 +635,51 @@ function UgovorODjeluApp() {
         >
           📄 {generatingPdf ? "Generišem…" : "Preuzmi ugovor (PDF)"}
         </button>
+        <div className={styles.augWrap}>
+          <button
+            type="button"
+            className={styles.btnOutline}
+            onClick={handleDownloadAug}
+            disabled={generatingAug}
+          >
+            📑 {generatingAug ? "Generišem…" : "Preuzmi AUG-1031 (PDF)"}
+          </button>
+          <button
+            type="button"
+            className={styles.augInfoBtn}
+            onClick={() => setShowAugInfo((v) => !v)}
+            aria-label="Šta je AUG-1031?"
+            aria-expanded={showAugInfo}
+          >
+            ?
+          </button>
+          {showAugInfo && (
+            <div className={styles.augInfoPopover} role="dialog">
+              <button
+                type="button"
+                className={styles.augInfoClose}
+                onClick={() => setShowAugInfo(false)}
+                aria-label="Zatvori"
+              >
+                ×
+              </button>
+              <strong>Šta je AUG-1031?</strong>
+              <p>
+                AUG-1031 je obrazac &ldquo;Akontacija poreza po odbitku za povremene
+                samostalne djelatnosti&rdquo; koji naručilac (isplatilac) popunjava i{" "}
+                <strong>obavezno uručuje izvršiocu</strong> uz isplatu naknade po ugovoru o djelu.
+              </p>
+              <p>
+                Obrazac sadrži sve podatke o isplaćenom prihodu, priznatim rashodima,
+                doprinosu za zdravstveno, porezu na dohodak i PIO doprinosu.
+              </p>
+              <p>
+                Izvršilac ga koristi pri podnošenju <strong>godišnje prijave dohotka (GPD-1051)</strong>{" "}
+                na kraju godine kao dokaz o uplaćenoj akontaciji poreza.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Uplatnice settings */}

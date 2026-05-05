@@ -10,14 +10,18 @@ const sequelize = new Sequelize(
     dialect: "mysql",
     logging: false,
     pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
-  }
+  },
 );
 
 // ─── USER ────────────────────────────────────────────────────────────────────
 const User = sequelize.define(
   "User",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     googleId: { type: DataTypes.STRING(255), unique: true, allowNull: true },
     email: { type: DataTypes.STRING(255), unique: true, allowNull: true },
     password: { type: DataTypes.STRING(255), allowNull: true },
@@ -38,27 +42,39 @@ const User = sequelize.define(
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
   },
-  { tableName: "users", timestamps: true }
+  { tableName: "users", timestamps: true },
 );
 
 // ─── SUBSCRIPTION ────────────────────────────────────────────────────────────
 const Subscription = sequelize.define(
   "Subscription",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, unique: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      unique: true,
+    },
     startDate: { type: DataTypes.DATEONLY, allowNull: false },
     endDate: { type: DataTypes.DATEONLY, allowNull: false },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
   },
-  { tableName: "subscriptions", timestamps: true }
+  { tableName: "subscriptions", timestamps: true },
 );
 
 // ─── ORGANIZATION ─────────────────────────────────────────────────────────────
 const Organization = sequelize.define(
   "Organization",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     name: { type: DataTypes.STRING(255), allowNull: false },
     taxNumber: { type: DataTypes.STRING(100), unique: true, allowNull: true },
     email: { type: DataTypes.STRING(255), allowNull: true },
@@ -75,14 +91,18 @@ const Organization = sequelize.define(
     isClientOrg: { type: DataTypes.BOOLEAN, defaultValue: false },
     bankAccount: { type: DataTypes.STRING(25), allowNull: true },
   },
-  { tableName: "organizations", timestamps: true }
+  { tableName: "organizations", timestamps: true },
 );
 
 // ─── WORKER ──────────────────────────────────────────────────────────────────
 const Worker = sequelize.define(
   "Worker",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     firstName: { type: DataTypes.STRING(100), allowNull: false },
     lastName: { type: DataTypes.STRING(100), allowNull: false },
@@ -104,14 +124,18 @@ const Worker = sequelize.define(
     defaultDaysOff: { type: DataTypes.STRING(20), allowNull: true }, // comma-separated weekdays e.g. "0,6"
     defaultPause: { type: DataTypes.STRING(5), allowNull: true }, // pause hours, e.g. "1" or "0.5"
   },
-  { tableName: "workers", timestamps: true }
+  { tableName: "workers", timestamps: true },
 );
 
 // ─── ORGANIZATION MEMBER ──────────────────────────────────────────────────────
 const OrganizationMember = sequelize.define(
   "OrganizationMember",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     role: {
@@ -120,14 +144,18 @@ const OrganizationMember = sequelize.define(
     },
     joinedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   },
-  { tableName: "organization_members", timestamps: false }
+  { tableName: "organization_members", timestamps: false },
 );
 
 // ─── CLIENT ──────────────────────────────────────────────────────────────────
 const Client = sequelize.define(
   "Client",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     type: {
       type: DataTypes.ENUM("PERSON", "COMPANY"),
@@ -146,16 +174,29 @@ const Client = sequelize.define(
     amortizacijaOnly: { type: DataTypes.BOOLEAN, defaultValue: false },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
   },
-  { tableName: "clients", timestamps: true }
+  { tableName: "clients", timestamps: true },
 );
 
 // ─── FORM ─────────────────────────────────────────────────────────────────────
 const Form = sequelize.define(
   "Form",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     type: {
-      type: DataTypes.ENUM("GPD", "SPR", "ZO3", "UGOVOR", "PLDI", "AMS", "SIH", "JS3100"),
+      type: DataTypes.ENUM(
+        "GPD",
+        "SPR",
+        "ZO3",
+        "UGOVOR",
+        "PLDI",
+        "AMS",
+        "SIH",
+        "JS3100",
+      ),
       allowNull: false,
     },
     status: {
@@ -173,46 +214,91 @@ const Form = sequelize.define(
     pdfUrl: { type: DataTypes.STRING(500), allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
   },
-  { tableName: "forms", timestamps: true }
+  { tableName: "forms", timestamps: true },
 );
 
 // ─── FORM VERSION ─────────────────────────────────────────────────────────────
 const FormVersion = sequelize.define(
   "FormVersion",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     formId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     versionNumber: { type: DataTypes.INTEGER, allowNull: false },
     data: { type: DataTypes.TEXT("long"), allowNull: false },
     pdfUrl: { type: DataTypes.STRING(500), allowNull: true },
   },
-  { tableName: "form_versions", timestamps: true, updatedAt: false }
+  { tableName: "form_versions", timestamps: true, updatedAt: false },
 );
 
 // ─── FORM ATTACHMENT ──────────────────────────────────────────────────────────
 const FormAttachment = sequelize.define(
   "FormAttachment",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     formId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     fileName: { type: DataTypes.STRING(255), allowNull: false },
     fileUrl: { type: DataTypes.STRING(500), allowNull: false },
     mimeType: { type: DataTypes.STRING(100), allowNull: true },
   },
-  { tableName: "form_attachments", timestamps: true, updatedAt: false }
+  { tableName: "form_attachments", timestamps: true, updatedAt: false },
+);
+
+// ─── KARTICA MEMBER (članovi za generator članskih kartica) ─────────────────
+const KarticaMember = sequelize.define(
+  "KarticaMember",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    name: { type: DataTypes.STRING(255), allowNull: false },
+    code: { type: DataTypes.STRING(100), allowNull: false },
+    clubName: { type: DataTypes.STRING(255), allowNull: true },
+    validUntil: { type: DataTypes.DATEONLY, allowNull: true },
+  },
+  {
+    tableName: "kartica_members",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["createdById"] },
+      { fields: ["createdById", "organizationId"] },
+      { fields: ["createdById", "organizationId", "code"] },
+    ],
+  },
 );
 
 // ─── CITY ─────────────────────────────────────────────────────────────────────
 const City = sequelize.define(
   "City",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     name: { type: DataTypes.STRING(100), allowNull: false, unique: true },
-    municipalityCode: { type: DataTypes.STRING(10), allowNull: false, unique: true },
+    municipalityCode: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      unique: true,
+    },
     postalCode: { type: DataTypes.STRING(10), allowNull: true },
     kanton: { type: DataTypes.STRING(10), allowNull: false },
   },
-  { tableName: "cities", timestamps: true }
+  { tableName: "cities", timestamps: true },
 );
 
 // ─── PREDRACUN COUNTER (po godini) ────────────────────────────────────────────
@@ -220,16 +306,24 @@ const PredracunCounter = sequelize.define(
   "PredracunCounter",
   {
     year: { type: DataTypes.INTEGER, primaryKey: true },
-    lastNumber: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+    lastNumber: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
   },
-  { tableName: "predracun_counters", timestamps: true }
+  { tableName: "predracun_counters", timestamps: true },
 );
 
 // ─── PREDRACUN ────────────────────────────────────────────────────────────────
 const Predracun = sequelize.define(
   "Predracun",
   {
-    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     // broj predračuna kompozitno polje za jednoznačnu pretragu
     year: { type: DataTypes.INTEGER, allowNull: false },
     sequence: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
@@ -261,7 +355,7 @@ const Predracun = sequelize.define(
       defaultValue: "ISSUED",
     },
   },
-  { tableName: "predracuni", timestamps: true }
+  { tableName: "predracuni", timestamps: true },
 );
 
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
@@ -271,8 +365,14 @@ Subscription.belongsTo(User, { foreignKey: "userId" });
 Organization.hasMany(Worker, { foreignKey: "organizationId", as: "workers" });
 Worker.belongsTo(Organization, { foreignKey: "organizationId" });
 
-Organization.hasMany(OrganizationMember, { foreignKey: "organizationId", as: "members" });
-OrganizationMember.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" });
+Organization.hasMany(OrganizationMember, {
+  foreignKey: "organizationId",
+  as: "members",
+});
+OrganizationMember.belongsTo(Organization, {
+  foreignKey: "organizationId",
+  as: "organization",
+});
 
 User.hasMany(OrganizationMember, { foreignKey: "userId" });
 OrganizationMember.belongsTo(User, { foreignKey: "userId", as: "user" });
@@ -284,7 +384,10 @@ User.hasMany(Client, { foreignKey: "createdById", as: "createdClients" });
 Client.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
 Organization.hasMany(Form, { foreignKey: "organizationId", as: "forms" });
-Form.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" });
+Form.belongsTo(Organization, {
+  foreignKey: "organizationId",
+  as: "organization",
+});
 
 Client.hasMany(Form, { foreignKey: "clientId" });
 Form.belongsTo(Client, { foreignKey: "clientId", as: "client" });
@@ -303,6 +406,20 @@ FormAttachment.belongsTo(Form, { foreignKey: "formId" });
 
 User.hasMany(Predracun, { foreignKey: "userId", as: "predracuni" });
 Predracun.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasMany(KarticaMember, {
+  foreignKey: "createdById",
+  as: "karticaMembers",
+});
+KarticaMember.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
+
+Organization.hasMany(KarticaMember, {
+  foreignKey: "organizationId",
+  as: "karticaMembers",
+});
+KarticaMember.belongsTo(Organization, {
+  foreignKey: "organizationId",
+  as: "organization",
+});
 
 module.exports = {
   sequelize,
@@ -318,4 +435,5 @@ module.exports = {
   City,
   Predracun,
   PredracunCounter,
+  KarticaMember,
 };
