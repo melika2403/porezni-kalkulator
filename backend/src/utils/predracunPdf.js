@@ -22,11 +22,7 @@ const FONTS_DIR = path.join(__dirname, "..", "assets", "fonts");
 const FONT_REG = path.join(FONTS_DIR, "arial.ttf");
 const FONT_BOLD = path.join(FONTS_DIR, "arialbd.ttf");
 // Logo se traži u nizu — prvi koji postoji i validan je se koristi.
-const LOGO_CANDIDATES = [
-  path.join(__dirname, "..", "assets", "logo.jpg"),
-  path.join(__dirname, "..", "assets", "logo.jpeg"),
-  path.join(__dirname, "..", "assets", "logo.png"),
-];
+const LOGO_CANDIDATES = [path.join(__dirname, "..", "assets", "logo.jpg")];
 
 // ── CIJENE ───────────────────────────────────────────────────────────────────
 // Pricing model: BRUTO iznosi (cijena sa PDV-om) — ono što kupac plaća.
@@ -584,7 +580,7 @@ async function generatePredracunPdf({
   // ── FOOTER (zakonska napomena) ────────────────────────────────────────────
   hLine(MARGIN_L, MARGIN_R, 130, 0.6);
   drawText(
-    "Ovaj predračun je punovažan bez potpisa i pečata, i važi 7 dana od datuma izdavanja.",
+    "Ovaj predračun je punovažan bez potpisa i pečata i važi 30 dana od datuma izdavanja.",
     MARGIN_L,
     118,
     { size: 7.5 },

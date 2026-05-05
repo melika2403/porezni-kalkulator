@@ -371,6 +371,8 @@
   font-family: "DM Sans", sans-serif;
   font-size: 13px;
   font-weight: 500;
+  text-decoration: none;
+  text-align: center;
   padding: 0.7rem 1.5rem;
   background: var(--sage);
   color: white;
@@ -620,8 +622,12 @@
   min-width: 0;
 }
 
-.searchInput::placeholder { color: var(--mid); }
-.searchInput:focus { border-color: var(--sage); }
+.searchInput::placeholder {
+  color: var(--mid);
+}
+.searchInput:focus {
+  border-color: var(--sage);
+}
 
 .pagination {
   display: flex;
@@ -643,8 +649,14 @@
   cursor: pointer;
   transition: border-color 0.15s;
 }
-.pageBtn:hover:not(:disabled) { border-color: var(--sage); color: var(--sage); }
-.pageBtn:disabled { opacity: 0.4; cursor: default; }
+.pageBtn:hover:not(:disabled) {
+  border-color: var(--sage);
+  color: var(--sage);
+}
+.pageBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .pageInfo {
   font-size: 13px;
