@@ -17,6 +17,8 @@ export type FillData = {
   lastName: string | null;
   address: string | null;
   city: string | null;
+  phone?: string | null;
+  email?: string | null;
   sourceClientId?: number | null;
   sourceWorkerOrgId?: number | null;
 };
@@ -120,6 +122,8 @@ export default function PersonFillSelect({ onFill }: Props) {
               lastName: user.lastName,
               address: user.address,
               city: user.city,
+              phone: user.phone,
+              email: user.email,
               sourceClientId: null,
             })
           }
@@ -199,6 +203,8 @@ export default function PersonFillSelect({ onFill }: Props) {
                       lastName: user.lastName,
                       address: user.address,
                       city: user.city,
+                      phone: user.phone,
+                      email: user.email,
                       sourceClientId: null,
                     })
                   }
@@ -221,6 +227,8 @@ export default function PersonFillSelect({ onFill }: Props) {
                           lastName: w.lastName,
                           address: w.address,
                           city: w.city,
+                          phone: w.phone,
+                          email: w.email,
                           sourceWorkerOrgId: w.organizationId,
                         })
                       }
@@ -245,6 +253,8 @@ export default function PersonFillSelect({ onFill }: Props) {
                           lastName: w.lastName,
                           address: w.address,
                           city: w.city,
+                          phone: w.phone,
+                          email: w.email,
                           sourceWorkerOrgId: w.organizationId,
                         })
                       }
@@ -269,6 +279,8 @@ export default function PersonFillSelect({ onFill }: Props) {
                           lastName: c.lastName,
                           address: c.address,
                           city: c.city,
+                          phone: c.phone,
+                          email: c.email,
                           sourceClientId: c.id,
                         })
                       }
