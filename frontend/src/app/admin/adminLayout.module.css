@@ -1,0 +1,222 @@
+/* ── Pomjeranje ispod fiksiranog Navbar-a (64px) ─────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  min-height: calc(100vh - 64px);
+  background: var(--paper);
+  padding-top: 64px; /* navbar je position: fixed */
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+.sidebar {
+  background: white;
+  border-right: 1px solid var(--border);
+  padding: 1.5rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 64px; /* odmah ispod navbara */
+  height: calc(100vh - 64px);
+  align-self: start;
+}
+
+/* ── Brand ──────────────────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brandIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--sage);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brandIcon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brandLabel {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.brandTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+/* ── Nav ──────────────────────────────────────────────────────────────── */
+.navHeader {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--mid);
+  text-transform: uppercase;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+  position: relative;
+}
+
+.navLink:hover {
+  background: var(--sage-pale);
+  color: var(--sage);
+}
+
+.navLinkActive {
+  background: var(--sage);
+  color: white;
+  font-weight: 500;
+  box-shadow: 0 6px 14px -6px rgba(58, 92, 66, 0.5);
+}
+
+.navLinkActive:hover {
+  background: var(--sage);
+  color: white;
+  opacity: 0.95;
+}
+
+.navIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.navIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.navLabel {
+  flex: 1;
+}
+
+.navBadge {
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 1px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.navLink:not(.navLinkActive) .navBadge {
+  background: var(--paper);
+  color: var(--mid);
+}
+
+/* ── Sidebar footer ───────────────────────────────────────────────────── */
+.sidebarFoot {
+  padding: 0.75rem 0.5rem 0;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--mid);
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  transition: color 0.15s, background 0.15s;
+}
+
+.backLink:hover {
+  color: var(--sage);
+  background: var(--sage-pale);
+}
+
+/* ── Content area ─────────────────────────────────────────────────────── */
+.content {
+  min-width: 0; /* sprečava overflow tabele u grid-u */
+}
+
+/* ── Mobile (≤880px) — sidebar postaje horizontalni tab-bar ─────────── */
+@media (max-width: 880px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 64px;
+    height: auto;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    gap: 0.5rem;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+  }
+
+  .brand,
+  .navHeader,
+  .sidebarFoot {
+    display: none;
+  }
+
+  .nav {
+    flex-direction: row;
+    flex: 1;
+    gap: 4px;
+  }
+
+  .navLink {
+    white-space: nowrap;
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+}
