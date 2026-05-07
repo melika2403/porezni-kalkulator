@@ -14,6 +14,7 @@ export type AuthUser = {
   isGoogleUser: boolean;
   isEmailVerified: boolean;
   idCardNumber: string | null;
+  trialUsedAt: string | null;
   subscription: {
     id: number;
     startDate: string;
@@ -120,4 +121,13 @@ export function changePassword(currentPassword: string, newPassword: string) {
     method: "POST",
     body: JSON.stringify({ currentPassword, newPassword }),
   });
+}
+
+export function startTrial() {
+  return request<{
+    id: number;
+    startDate: string;
+    endDate: string;
+    isActive: boolean;
+  }>("/api/subscriptions/trial", { method: "POST" });
 }

@@ -216,8 +216,7 @@ const FEATURES: Feature[] = [
         <path d="M9 13h6M9 17h6M9 9h2" />
       </svg>
     ),
-    dest: "#",
-    soon: true,
+    dest: "/fakture",
   },
   {
     title: "Ugovor o djelu",

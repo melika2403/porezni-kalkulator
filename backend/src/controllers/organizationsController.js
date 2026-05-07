@@ -1,5 +1,7 @@
 const organizationRepository = require("../repositories/organizationRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
+const { Organization } = require("../models/index");
+const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
@@ -25,6 +27,13 @@ function validateOrgData(body, requireName = true) {
 
   if (taxNumber !== undefined)
     data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
+  if (body.pdvNumber !== undefined) {
+    const pdv = body.pdvNumber ? String(body.pdvNumber).replace(/\D/g, "") : "";
+    if (pdv && pdv.length !== 12) {
+      return { ok: false, message: "PDV broj mora imati tačno 12 cifara" };
+    }
+    data.pdvNumber = pdv || null;
+  }
   if (body.activityCode !== undefined)
     data.activityCode = body.activityCode
       ? String(body.activityCode).trim()
@@ -240,4 +249,44 @@ async function getById(req, res) {
   return res.status(200).json({ ok: true, data: org });
 }
 
-module.exports = { list, listClients, create, update, remove, getById };
+async function uploadLogo(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  if (!req.file) return res.status(400).json({ ok: false, error: "Nedostaje fajl" });
+
+  const org = await organizationRepository.getOrganizationForUser(id, req.user.id);
+  if (!org) {
+    safeUnlink(req.file.path);
+    return res.status(404).json({ ok: false, error: "Organizacija nije pronađena" });
+  }
+
+  const oldRow = await Organization.findByPk(id);
+  const oldUrl = oldRow?.logoUrl || null;
+
+  const newUrl = publicUrlFor("logos", req.file.filename);
+  await Organization.update({ logoUrl: newUrl }, { where: { id } });
+
+  if (oldUrl) safeUnlink(absPathFor(oldUrl));
+
+  res.status(200).json({ ok: true, data: { id, logoUrl: newUrl } });
+}
+
+async function removeLogo(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+
+  const org = await organizationRepository.getOrganizationForUser(id, req.user.id);
+  if (!org) return res.status(404).json({ ok: false, error: "Organizacija nije pronađena" });
+
+  const row = await Organization.findByPk(id);
+  if (row?.logoUrl) {
+    safeUnlink(absPathFor(row.logoUrl));
+    await Organization.update({ logoUrl: null }, { where: { id } });
+  }
+
+  res.status(200).json({ ok: true, data: { id, logoUrl: null } });
+}
+
+module.exports = { list, listClients, create, update, remove, getById, uploadLogo, removeLogo };

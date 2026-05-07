@@ -157,6 +157,7 @@ export type Organization = {
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber: string | null;
+  pdvNumber: string | null;
   activityCode: string | null;
   activityName: string | null;
   email: string | null;
@@ -164,6 +165,7 @@ export type Organization = {
   address: string | null;
   city: string | null;
   bankAccount: string | null;
+  logoUrl: string | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   createdAt: string;
@@ -174,6 +176,7 @@ export type OrgPayload = {
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber?: string;
+  pdvNumber?: string;
   activityCode?: string;
   activityName?: string;
   email?: string;

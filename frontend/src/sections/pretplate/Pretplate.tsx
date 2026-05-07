@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { me, unwrap, type AuthUser } from "src/api/auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { me, unwrap, startTrial, type AuthUser } from "src/api/auth";
 import styles from "./pretplate.module.css";
 import {
   createPredracun,
@@ -80,6 +80,12 @@ export default function Pretplate() {
   // Ako korisnik nije ulogovan, redirect na /prijava (sa returnTo back-om).
   const router = useRouter();
   const params = useSearchParams();
+  const queryClient = useQueryClient();
+  const showTrialBanner = params.get("trial") === "1";
+  const [trialStatus, setTrialStatus] = useState<
+    "idle" | "starting" | "done" | "error"
+  >("idle");
+  const [trialError, setTrialError] = useState("");
 
   const {
     data: user,
@@ -149,6 +155,7 @@ export default function Pretplate() {
       idNumber: data.idNumber ?? prev.idNumber,
       vatNumber: data.vatNumber ?? prev.vatNumber,
     }));
+    if (data.vatNumber) setIsPdvObveznik(true);
   };
 
   // počisti object URL prilikom unmount-a (curi memorija inače)
@@ -212,6 +219,28 @@ export default function Pretplate() {
     );
   }
 
+  const trialAvailable = user.role === "USER" && !user.trialUsedAt;
+  const showTrialCard = trialAvailable && (showTrialBanner || trialStatus === "done");
+
+  const handleStartTrial = async () => {
+    setTrialError("");
+    setTrialStatus("starting");
+    const res = await startTrial();
+    if (!res.ok) {
+      setTrialStatus("error");
+      setTrialError(
+        res.error === "TRIAL_ALREADY_USED"
+          ? "Već ste iskoristili besplatan probni period."
+          : res.error === "ALREADY_SUBSCRIBED"
+          ? "Već imate aktivnu pretplatu."
+          : res.error || "Greška pri aktiviranju.",
+      );
+      return;
+    }
+    setTrialStatus("done");
+    await queryClient.invalidateQueries({ queryKey: ["me"] });
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -224,6 +253,51 @@ export default function Pretplate() {
           aktiviramo vaš nalog.
         </p>
       </div>
+
+      {showTrialCard && (
+        <div className={styles.trialCard}>
+          {trialStatus === "done" ? (
+            <>
+              <div className={styles.trialIcon}>✓</div>
+              <h2 className={styles.trialTitle}>Probni period aktiviran!</h2>
+              <p className={styles.trialText}>
+                Imate <strong>30 dana</strong> PRO pretplate besplatno.
+                Krenite od šihterice.
+              </p>
+              <a href="/sihterica" className={styles.trialBtn}>
+                Otvori šihtericu →
+              </a>
+            </>
+          ) : (
+            <>
+              <div className={styles.trialIcon}>🎁</div>
+              <h2 className={styles.trialTitle}>
+                Probaj PRO besplatno 30 dana
+              </h2>
+              <p className={styles.trialText}>
+                Bez kartice, bez automatske naplate. Aktivirajte odmah i
+                koristite šihtericu, fakture, klijente i sve PRO funkcije.
+              </p>
+              {trialStatus === "error" && (
+                <p className={styles.trialError}>{trialError}</p>
+              )}
+              <button
+                type="button"
+                className={styles.trialBtn}
+                onClick={handleStartTrial}
+                disabled={trialStatus === "starting"}
+              >
+                {trialStatus === "starting"
+                  ? "Aktiviram..."
+                  : "Aktiviraj 30 dana besplatno →"}
+              </button>
+              <p className={styles.trialFineprint}>
+                Nakon 30 dana automatski se vraćate na besplatan plan.
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Plan picker ─────────────────────────────────────────────────── */}
       <div className={styles.plansGrid}>
@@ -351,7 +425,7 @@ export default function Pretplate() {
             <input
               className={styles.input}
               type="text"
-              placeholder="4263257570008"
+              placeholder="XXXXXXXXXXXXX"
               value={buyer.idNumber}
               onChange={handleField("idNumber")}
               maxLength={13}
@@ -382,7 +456,7 @@ export default function Pretplate() {
               <input
                 className={styles.input}
                 type="text"
-                placeholder="263257570008"
+                placeholder="XXXXXXXXXXXX"
                 value={buyer.vatNumber}
                 onChange={handleField("vatNumber")}
                 maxLength={12}

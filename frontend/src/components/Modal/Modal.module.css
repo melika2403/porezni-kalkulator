@@ -1,0 +1,104 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 20, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.18s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dialog {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 460px;
+  padding: 1.4rem 1.5rem 1.2rem;
+  animation: slideUp 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+  font-family: inherit;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 .35rem;
+  color: var(--ink, #1a1a1a);
+  font-family: 'DM Serif Display', serif;
+  letter-spacing: -0.01em;
+}
+
+.message {
+  font-size: .9rem;
+  color: var(--mid, #5a5a5a);
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--border, #e5e1d8);
+  border-radius: 8px;
+  padding: .6rem .75rem;
+  font-size: .95rem;
+  font-family: inherit;
+  color: inherit;
+  background: #fff;
+  margin-bottom: 1.2rem;
+  transition: border-color .15s;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--sage);
+}
+
+.actions {
+  display: flex;
+  gap: .6rem;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: .55rem 1.1rem;
+  border-radius: 8px;
+  font-size: .88rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .15s, border-color .15s, color .15s, transform .1s;
+  font-family: inherit;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.btnGhost {
+  background: transparent;
+  color: var(--ink, #1a1a1a);
+  border-color: var(--border, #e5e1d8);
+}
+.btnGhost:hover { background: #f5f2eb; }
+
+.btnPrimary {
+  background: var(--sage);
+  color: #fff;
+}
+.btnPrimary:hover { background: var(--sage-light, #2f4a35); }
+
+.btnDanger {
+  background: #c44;
+  color: #fff;
+}
+.btnDanger:hover { background: #a93636; }

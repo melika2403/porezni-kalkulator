@@ -6,7 +6,7 @@ import { me, unwrap } from "src/api/auth";
 export type AppRole = "USER" | "PRO" | "BUSINESS" | "ADMIN";
 
 export function useRole() {
-  const { data: user } = useQuery({
+  const { data: user, isLoading } = useQuery({
     queryKey: ["me"],
     queryFn: () => unwrap(me()),
     retry: false,
@@ -16,6 +16,7 @@ export function useRole() {
 
   return {
     role,
+    isLoading,
     hasRole: (...roles: AppRole[]) => role !== null && roles.includes(role),
   };
 }

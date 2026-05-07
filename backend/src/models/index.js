@@ -41,6 +41,7 @@ const User = sequelize.define(
     emailVerificationExpiry: { type: DataTypes.DATE, allowNull: true },
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
+    trialUsedAt: { type: DataTypes.DATE, allowNull: true },
   },
   { tableName: "users", timestamps: true },
 );
@@ -77,6 +78,7 @@ const Organization = sequelize.define(
     },
     name: { type: DataTypes.STRING(255), allowNull: false },
     taxNumber: { type: DataTypes.STRING(100), unique: true, allowNull: true },
+    pdvNumber: { type: DataTypes.STRING(20), allowNull: true },
     email: { type: DataTypes.STRING(255), allowNull: true },
     phone: { type: DataTypes.STRING(50), allowNull: true },
     address: { type: DataTypes.STRING(255), allowNull: true },
@@ -90,6 +92,7 @@ const Organization = sequelize.define(
     activityName: { type: DataTypes.STRING(255), allowNull: true },
     isClientOrg: { type: DataTypes.BOOLEAN, defaultValue: false },
     bankAccount: { type: DataTypes.STRING(25), allowNull: true },
+    logoUrl: { type: DataTypes.STRING(500), allowNull: true },
   },
   { tableName: "organizations", timestamps: true },
 );
@@ -358,6 +361,180 @@ const Predracun = sequelize.define(
   { tableName: "predracuni", timestamps: true },
 );
 
+// ─── INVOICE COUNTER (po useru/godini) ────────────────────────────────────────
+const InvoiceCounter = sequelize.define(
+  "InvoiceCounter",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    year: { type: DataTypes.INTEGER, allowNull: false },
+    type: {
+      type: DataTypes.ENUM("INVOICE", "PROFORMA"),
+      allowNull: false,
+      defaultValue: "INVOICE",
+    },
+    lastNumber: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+  },
+  {
+    tableName: "invoice_counters",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ unique: true, fields: ["userId", "year", "type"] }],
+  },
+);
+
+// ─── INVOICE ──────────────────────────────────────────────────────────────────
+const Invoice = sequelize.define(
+  "Invoice",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    clientId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+
+    type: {
+      type: DataTypes.ENUM("INVOICE", "PROFORMA"),
+      allowNull: false,
+      defaultValue: "INVOICE",
+    },
+    year: { type: DataTypes.INTEGER, allowNull: false },
+    sequence: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    fullNumber: { type: DataTypes.STRING(40), allowNull: false }, // npr. "0001-2026"
+
+    issueDate: { type: DataTypes.DATEONLY, allowNull: false },
+    dueDate: { type: DataTypes.DATEONLY, allowNull: true },
+    paidAt: { type: DataTypes.DATEONLY, allowNull: true },
+    emailSentAt: { type: DataTypes.DATE, allowNull: true },
+    emailSentTo: { type: DataTypes.STRING(255), allowNull: true },
+
+    applyVat: { type: DataTypes.BOOLEAN, defaultValue: true },
+
+    currency: {
+      type: DataTypes.ENUM("BAM", "EUR"),
+      defaultValue: "BAM",
+      allowNull: false,
+    },
+
+    status: {
+      type: DataTypes.ENUM("DRAFT", "ISSUED", "PAID", "CANCELLED"),
+      defaultValue: "ISSUED",
+    },
+
+    // ── snapshot prodavca (da se ne mijenja kad user kasnije izmijeni profil)
+    sellerName: { type: DataTypes.STRING(255), allowNull: false },
+    sellerAddress: { type: DataTypes.STRING(255), allowNull: true },
+    sellerCity: { type: DataTypes.STRING(120), allowNull: true },
+    sellerPhone: { type: DataTypes.STRING(50), allowNull: true },
+    sellerEmail: { type: DataTypes.STRING(255), allowNull: true },
+    sellerTaxNumber: { type: DataTypes.STRING(30), allowNull: true },
+    sellerVatNumber: { type: DataTypes.STRING(30), allowNull: true },
+    sellerBankAccount: { type: DataTypes.STRING(50), allowNull: true },
+    sellerLogoUrl: { type: DataTypes.STRING(500), allowNull: true },
+
+    // ── snapshot kupca
+    buyerName: { type: DataTypes.STRING(255), allowNull: false },
+    buyerAddress: { type: DataTypes.STRING(255), allowNull: true },
+    buyerCity: { type: DataTypes.STRING(120), allowNull: true },
+    buyerPostalCode: { type: DataTypes.STRING(10), allowNull: true },
+    buyerPhone: { type: DataTypes.STRING(50), allowNull: true },
+    buyerEmail: { type: DataTypes.STRING(255), allowNull: true },
+    buyerIdNumber: { type: DataTypes.STRING(30), allowNull: true },
+    buyerVatNumber: { type: DataTypes.STRING(30), allowNull: true },
+
+    // ── totali (snapshot, računati iz stavki)
+    netTotal: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    discountTotal: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    vatTotal: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    grossTotal: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+
+    notes: { type: DataTypes.TEXT, allowNull: true },
+
+    convertedFromProformaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "invoices",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["userId"] },
+      { fields: ["userId", "year", "type"] },
+      { unique: true, fields: ["userId", "fullNumber", "type"] },
+    ],
+  },
+);
+
+// ─── INVOICE ITEM ─────────────────────────────────────────────────────────────
+const InvoiceItem = sequelize.define(
+  "InvoiceItem",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    invoiceId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    ordinal: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false }, // 1, 2, 3...
+    name: { type: DataTypes.STRING(500), allowNull: false }, // naziv robe / usluge
+    unit: { type: DataTypes.STRING(20), allowNull: true }, // jed. mjere (kom, h, m, ...)
+    quantity: { type: DataTypes.DECIMAL(12, 3), allowNull: false, defaultValue: 1 },
+    unitPrice: { type: DataTypes.DECIMAL(12, 4), allowNull: false, defaultValue: 0 }, // cijena bez PDV
+    discountPct: { type: DataTypes.DECIMAL(6, 2), allowNull: false, defaultValue: 0 },
+    vatPct: { type: DataTypes.DECIMAL(6, 2), allowNull: false, defaultValue: 0 },
+    // computed snapshot
+    netLine: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    discountLine: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    vatLine: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    grossLine: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+  },
+  {
+    tableName: "invoice_items",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["invoiceId"] }],
+  },
+);
+
+// ─── INVOICE ITEM TEMPLATE (per-user "biblioteka stavki") ─────────────────────
+const InvoiceItemTemplate = sequelize.define(
+  "InvoiceItemTemplate",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    name: { type: DataTypes.STRING(500), allowNull: false },
+    unit: { type: DataTypes.STRING(20), allowNull: true, defaultValue: "kom" },
+    quantity: { type: DataTypes.DECIMAL(12, 3), allowNull: false, defaultValue: 1 },
+    unitPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    discountPct: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0 },
+    vatPct: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 17 },
+  },
+  {
+    tableName: "invoice_item_templates",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["userId"] }],
+  },
+);
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 User.hasOne(Subscription, { foreignKey: "userId", as: "subscription" });
 Subscription.belongsTo(User, { foreignKey: "userId" });
@@ -406,6 +583,21 @@ FormAttachment.belongsTo(Form, { foreignKey: "formId" });
 
 User.hasMany(Predracun, { foreignKey: "userId", as: "predracuni" });
 Predracun.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+User.hasMany(Invoice, { foreignKey: "userId", as: "invoices" });
+Invoice.belongsTo(User, { foreignKey: "userId", as: "user" });
+Organization.hasMany(Invoice, { foreignKey: "organizationId", as: "invoices" });
+Invoice.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" });
+Client.hasMany(Invoice, { foreignKey: "clientId", as: "invoices" });
+Invoice.belongsTo(Client, { foreignKey: "clientId", as: "client" });
+Invoice.hasMany(InvoiceItem, { foreignKey: "invoiceId", as: "items", onDelete: "CASCADE", hooks: true });
+InvoiceItem.belongsTo(Invoice, { foreignKey: "invoiceId" });
+User.hasMany(InvoiceItemTemplate, {
+  foreignKey: "userId",
+  as: "invoiceItemTemplates",
+});
+InvoiceItemTemplate.belongsTo(User, { foreignKey: "userId", as: "user" });
+
 User.hasMany(KarticaMember, {
   foreignKey: "createdById",
   as: "karticaMembers",
@@ -436,4 +628,8 @@ module.exports = {
   Predracun,
   PredracunCounter,
   KarticaMember,
+  Invoice,
+  InvoiceItem,
+  InvoiceCounter,
+  InvoiceItemTemplate,
 };
