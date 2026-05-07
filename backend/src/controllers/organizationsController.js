@@ -1,5 +1,7 @@
 const organizationRepository = require("../repositories/organizationRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
+const { Organization } = require("../models/index");
+const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
@@ -25,6 +27,13 @@ function validateOrgData(body, requireName = true) {
 
   if (taxNumber !== undefined)
     data.taxNumber = taxNumber ? String(taxNumber).trim() : null;
+  if (body.pdvNumber !== undefined) {
+    const pdv = body.pdvNumber ? String(body.pdvNumber).replace(/\D/g, "") : "";
+    if (pdv && pdv.length !== 12) {
+      return { ok: false, message: "PDV broj mora imati tačno 12 cifara" };
+    }
+    data.pdvNumber = pdv || null;
+  }
   if (body.activityCode !== undefined)
     data.activityCode = body.activityCode
       ? String(body.activityCode).trim()
@@ -37,10 +46,11 @@ function validateOrgData(body, requireName = true) {
   if (phone !== undefined) data.phone = phone ? String(phone).trim() : null;
   if (address !== undefined)
     data.address = address ? String(address).trim() : null;
-  if (city !== undefined)
-    data.city = city ? String(city).trim() : null;
+  if (city !== undefined) data.city = city ? String(city).trim() : null;
   if (body.bankAccount !== undefined)
-    data.bankAccount = body.bankAccount ? String(body.bankAccount).trim() : null;
+    data.bankAccount = body.bankAccount
+      ? String(body.bankAccount).trim()
+      : null;
 
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
@@ -77,7 +87,11 @@ function validateOwnerData(owner, requireJmbg = true) {
   if (owner.city) data.city = String(owner.city).trim();
   if (owner.idCardNumber) {
     const idn = String(owner.idCardNumber).trim();
-    if (idn.length > 9) return { ok: false, message: "Broj lične karte može imati najviše 9 znakova" };
+    if (idn.length > 9)
+      return {
+        ok: false,
+        message: "Broj lične karte može imati najviše 9 znakova",
+      };
     data.idCardNumber = idn;
   }
 
@@ -241,12 +255,87 @@ async function getById(req, res) {
 }
 
 async function adminListAll(req, res) {
-  const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+  const search =
+    typeof req.query.search === "string" ? req.query.search.trim() : undefined;
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 20), 100);
 
-  const result = await organizationRepository.getAllOrganizationsForAdmin({ search, page, limit });
+  const result = await organizationRepository.getAllOrganizationsForAdmin({
+    search,
+    page,
+    limit,
+  });
   res.status(200).json({ ok: true, data: result });
 }
 
-module.exports = { list, listClients, create, update, remove, getById, adminListAll };
+module.exports = {
+  list,
+  listClients,
+  create,
+  update,
+  remove,
+  getById,
+  adminListAll,
+};
+async function uploadLogo(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  if (!req.file)
+    return res.status(400).json({ ok: false, error: "Nedostaje fajl" });
+
+  const org = await organizationRepository.getOrganizationForUser(
+    id,
+    req.user.id,
+  );
+  if (!org) {
+    safeUnlink(req.file.path);
+    return res
+      .status(404)
+      .json({ ok: false, error: "Organizacija nije pronađena" });
+  }
+
+  const oldRow = await Organization.findByPk(id);
+  const oldUrl = oldRow?.logoUrl || null;
+
+  const newUrl = publicUrlFor("logos", req.file.filename);
+  await Organization.update({ logoUrl: newUrl }, { where: { id } });
+
+  if (oldUrl) safeUnlink(absPathFor(oldUrl));
+
+  res.status(200).json({ ok: true, data: { id, logoUrl: newUrl } });
+}
+
+async function removeLogo(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+
+  const org = await organizationRepository.getOrganizationForUser(
+    id,
+    req.user.id,
+  );
+  if (!org)
+    return res
+      .status(404)
+      .json({ ok: false, error: "Organizacija nije pronađena" });
+
+  const row = await Organization.findByPk(id);
+  if (row?.logoUrl) {
+    safeUnlink(absPathFor(row.logoUrl));
+    await Organization.update({ logoUrl: null }, { where: { id } });
+  }
+
+  res.status(200).json({ ok: true, data: { id, logoUrl: null } });
+}
+
+module.exports = {
+  list,
+  listClients,
+  create,
+  update,
+  remove,
+  getById,
+  uploadLogo,
+  removeLogo,
+};

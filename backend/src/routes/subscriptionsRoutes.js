@@ -17,4 +17,9 @@ router.delete(
   subscriptionsController.remove,
 );
 
+// Self-service 30-day PRO trial
+const trialRouter = express.Router();
+trialRouter.post("/trial", requireAuth, subscriptionsController.startTrial);
+
 module.exports = router;
+module.exports.trialRouter = trialRouter;

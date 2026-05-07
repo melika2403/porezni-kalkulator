@@ -227,6 +227,7 @@ function WorkerFormFields({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const PRO_WORKERS_LIMIT = 5;
+const USER_WORKERS_LIMIT = 1;
 
 export default function Organizacija({ orgId }: { orgId: number }) {
   const queryClient = useQueryClient();
@@ -250,6 +251,8 @@ export default function Organizacija({ orgId }: { orgId: number }) {
 
   const canEdit = org?.memberRole === "OWNER" || org?.memberRole === "ADMIN";
   const isProLimitReached = userRole === "PRO" && workers.length >= PRO_WORKERS_LIMIT;
+  const isUserLimitReached = userRole === "USER" && workers.length >= USER_WORKERS_LIMIT;
+  const isLimitReached = isProLimitReached || isUserLimitReached;
 
   const createMutation = useMutation({
     mutationFn: (payload: WorkerPayload) =>
@@ -316,7 +319,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
 
   return (
     <div className={styles.page}>
-      <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
+      <RoleGuard roles={["USER", "PRO", "BUSINESS", "ADMIN"]} mode="hide">
         <Link href="/profil" className={styles.back}>
           ← Nazad na profil
         </Link>
@@ -341,7 +344,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
             <span className={styles.cardTitle}>
               Radnici{workers.length > 0 ? ` (${workers.length})` : ""}
             </span>
-            {canEdit && !showAdd && !isProLimitReached && (
+            {canEdit && !showAdd && !isLimitReached && (
               <button
                 className={styles.btnPrimary}
                 onClick={() => {
@@ -356,6 +359,11 @@ export default function Organizacija({ orgId }: { orgId: number }) {
             {isProLimitReached && (
               <span className={styles.limitNotice}>
                 PRO plan: maksimalno {PRO_WORKERS_LIMIT} radnika po organizaciji
+              </span>
+            )}
+            {isUserLimitReached && (
+              <span className={styles.limitNotice}>
+                Besplatan preview: 1 radnik. Pretplatite se za neograničeno radnika.
               </span>
             )}
           </div>
@@ -373,7 +381,9 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               {createMutation.error && (
                 <div className={styles.errorMsg}>
                   {createMutation.error.message === "WORKERS_LIMIT_REACHED"
-                    ? `PRO plan dozvoljava najviše ${PRO_WORKERS_LIMIT} radnika po organizaciji.`
+                    ? userRole === "USER"
+                      ? "Besplatan preview dozvoljava 1 radnika. Pretplatite se za neograničeno radnika."
+                      : `PRO plan dozvoljava najviše ${PRO_WORKERS_LIMIT} radnika po organizaciji.`
                     : createMutation.error.message}
                 </div>
               )}

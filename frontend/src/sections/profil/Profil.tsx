@@ -45,6 +45,7 @@ import {
   type PersonClientPayload,
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import OrganizationLogoUpload from "./OrganizationLogoUpload";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useRole } from "src/hooks/useRole";
 import Link from "next/link";
@@ -205,6 +206,7 @@ function ProfilTab({ user }: { user: AuthUser }) {
       name: org.name,
       type: org.type,
       taxNumber: org.taxNumber ?? "",
+      pdvNumber: org.pdvNumber ?? "",
       activityCode: org.activityCode ?? "",
       activityName: org.activityName ?? "",
       email: org.email ?? "",
@@ -617,6 +619,9 @@ function ProfilTab({ user }: { user: AuthUser }) {
                     </span>
                   </div>
                 </div>
+                <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
+                  <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+                </RoleGuard>
                 <div className={styles.ownOrgActions}>
                   <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
                     <Link
@@ -870,6 +875,7 @@ type OrgFormState = {
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber: string;
+  pdvNumber: string;
   activityCode: string;
   activityName: string;
   email: string;
@@ -883,6 +889,7 @@ const emptyOrgForm: OrgFormState = {
   name: "",
   type: "COMPANY",
   taxNumber: "",
+  pdvNumber: "",
   activityCode: "",
   activityName: "",
   email: "",
@@ -900,6 +907,7 @@ function orgFormToPayload(
     name: f.name.trim(),
     type: f.type,
     ...(f.taxNumber.trim() && { taxNumber: f.taxNumber.trim() }),
+    ...(f.pdvNumber.trim() && { pdvNumber: f.pdvNumber.trim() }),
     activityCode: f.activityCode.trim() || undefined,
     activityName: f.activityName.trim() || undefined,
     ...(f.email.trim() && { email: f.email.trim() }),
@@ -971,8 +979,9 @@ function ActivityCombobox({
             className={styles.input}
             value={taxNumber}
             onChange={onTaxNumberChange}
-            placeholder="4200000000000"
+            placeholder="XXXXXXXXXXXXX"
             maxLength={13}
+            inputMode="numeric"
           />
         </div>
         <div className={styles.field}>
@@ -1069,7 +1078,7 @@ function OrgFormFields({
       <ActivityCombobox
         taxNumber={value.taxNumber}
         onTaxNumberChange={(e) =>
-          onChange({ ...value, taxNumber: e.target.value })
+          onChange({ ...value, taxNumber: e.target.value.replace(/\D/g, "").slice(0, 13) })
         }
         activityCode={value.activityCode}
         activityName={value.activityName}
@@ -1078,6 +1087,17 @@ function OrgFormFields({
         }
       />
       <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>PDV broj</label>
+          <input
+            className={styles.input}
+            value={value.pdvNumber}
+            onChange={(e) => onChange({ ...value, pdvNumber: e.target.value.replace(/\D/g, "").slice(0, 12) })}
+            placeholder="XXXXXXXXXXXX"
+            maxLength={12}
+            inputMode="numeric"
+          />
+        </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Email</label>
           <input
@@ -1228,8 +1248,9 @@ function PersonFormFields({
             className={styles.input}
             value={value.jmbg}
             onChange={set("jmbg")}
-            placeholder="1234567890123"
+            placeholder="XXXXXXXXXXXXX"
             maxLength={13}
+            inputMode="numeric"
           />
           <span className={styles.secureHint}>
             🔒 JMBG se kriptira i nikad nije vidljiv drugima
@@ -1431,6 +1452,7 @@ function DjelatnostTab() {
       name: org.name,
       type: org.type,
       taxNumber: org.taxNumber ?? "",
+      pdvNumber: org.pdvNumber ?? "",
       activityCode: org.activityCode ?? "",
       activityName: org.activityName ?? "",
       email: org.email ?? "",
@@ -1612,6 +1634,9 @@ function DjelatnostTab() {
                         ` · Vlasnik: ${org.owner.firstName} ${org.owner.lastName}`}
                     </div>
                   </div>
+                  {(org.memberRole === "OWNER" || org.memberRole === "ADMIN") && (
+                    <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+                  )}
                   <div className={styles.orgActions}>
                     <Link
                       href={`/organizacija/${org.id}`}
@@ -2744,7 +2769,7 @@ const PLAN_LABELS: Record<string, string> = {
 const PLAN_FEATURES: Record<string, string[]> = {
   USER: [
     "SPR-1053 i GPD-1051 obrazac",
-    "Izrada i automatska popuna ZO3 obrazca",
+    "izrada i automatska popuna ZO3 obrazca",
     "AMS-1035 generator zajedno sa uplatnicama",
     "Stalna sredstva i amortizacija kroz godine",
     "Historija svih dokumenata po godinama ili obrascima",
@@ -2754,18 +2779,22 @@ const PLAN_FEATURES: Record<string, string[]> = {
   PRO: [
     "Sve iz besplatnog plana",
     "Šihterica — Evidencija radnog vremena",
-    "Višestruke vlastite djelatnosti",
+    "Generator članskih kartica",
+    "Fakture/računi i predračuni/ponude za vaše djelatnosti ili vaše klijente",
     "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
-    "Prijave/odjake radnika, izrada JS3000 obrasca",
+    "Maksimalno 5 radnika po organizaciji/klijentu",
+    "Prijave/odjave radnika, izrada JS3000 obrasca",
     "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
     "Generisanje uplatnica za plate i doprinose",
   ],
   BUSINESS: [
     "Sve iz Pro plana",
     "Upravljanje neograničenim brojem klijenata i fizičkih lica",
+    "Neograničen broj radnika po organizaciji/klijentu",
     "Višekorisnički pristup (tim)",
     "Ugovori o djelu i automatski obračun poreza i doprinosa",
-    "Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima",
+    "Automatsko generisanje AUG-1031 obrasca uz ugovor o djelu",
+    "Ugovor o radu i mogućnost prilagođavanja ugovora po Vašim potrebama",
     "Prioritetna podrška",
   ],
   ADMIN: ["Puni administratorski pristup"],

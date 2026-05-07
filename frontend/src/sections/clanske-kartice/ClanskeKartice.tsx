@@ -9,7 +9,7 @@ import {
   getClientOrganizations,
   type Organization,
 } from "src/api/profile";
-import { unwrap } from "src/api/auth";
+import { me, unwrap } from "src/api/auth";
 import {
   listKarticaMembers,
   createKarticaMember,
@@ -246,42 +246,65 @@ function ClanskeKarticeApp() {
   const [generating, setGenerating] = useState(false);
 
   // ── Persisted form prefs (org, club, accent, logo) ────────────────────────
-  const ORG_KEY = "kartice.lastOrgId";
-  const CLUB_KEY = "kartice.clubName";
-  const ACCENT_KEY = "kartice.accentColor";
-  const LOGO_KEY = "kartice.logoDataUrl";
+  // Keys are namespaced per user so prefs don't leak across accounts
+  // sharing the same browser.
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()),
+    retry: false,
+  });
+  const userId = meQuery.data?.id ?? null;
+  const ORG_KEY = userId ? `kartice.${userId}.lastOrgId` : null;
+  const CLUB_KEY = userId ? `kartice.${userId}.clubName` : null;
+  const ACCENT_KEY = userId ? `kartice.${userId}.accentColor` : null;
+  const LOGO_KEY = userId ? `kartice.${userId}.logoDataUrl` : null;
 
-  // Restore on mount
+  // One-time cleanup of legacy global keys (pre-namespacing) so previous
+  // user's data on shared browsers can't leak into new accounts.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const cn = window.localStorage.getItem(CLUB_KEY);
-    if (cn) setClubName(cn);
-    const ac = window.localStorage.getItem(ACCENT_KEY);
-    if (ac) setAccentColor(ac);
-    const lg = window.localStorage.getItem(LOGO_KEY);
-    if (lg) setLogoDataUrl(lg);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const legacyKeys = [
+      "kartice.lastOrgId",
+      "kartice.clubName",
+      "kartice.accentColor",
+      "kartice.logoDataUrl",
+    ];
+    legacyKeys.forEach((k) => window.localStorage.removeItem(k));
   }, []);
 
-  // Persist on change
+  // Restore prefs once we know which user we are
+  const restoredForUser = useRef<number | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!userId || restoredForUser.current === userId) return;
+    restoredForUser.current = userId;
+    const cn = window.localStorage.getItem(`kartice.${userId}.clubName`);
+    setClubName(cn || "");
+    const ac = window.localStorage.getItem(`kartice.${userId}.accentColor`);
+    setAccentColor(ac || "#e88a1a");
+    const lg = window.localStorage.getItem(`kartice.${userId}.logoDataUrl`);
+    setLogoDataUrl(lg || "");
+  }, [userId]);
+
+  // Persist on change (only after user is loaded)
+  useEffect(() => {
+    if (typeof window === "undefined" || !CLUB_KEY) return;
     if (clubName) window.localStorage.setItem(CLUB_KEY, clubName);
     else window.localStorage.removeItem(CLUB_KEY);
-  }, [clubName]);
+  }, [clubName, CLUB_KEY]);
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !ACCENT_KEY) return;
     window.localStorage.setItem(ACCENT_KEY, accentColor);
-  }, [accentColor]);
+  }, [accentColor, ACCENT_KEY]);
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !LOGO_KEY) return;
     try {
       if (logoDataUrl) window.localStorage.setItem(LOGO_KEY, logoDataUrl);
       else window.localStorage.removeItem(LOGO_KEY);
     } catch {
       // QuotaExceeded — logo too big, skip silently
     }
-  }, [logoDataUrl]);
+  }, [logoDataUrl, LOGO_KEY]);
 
   // ── Trajanje članstva (preset) — persisted across cards ───────────────────
   const TRAJANJE_KEY = "kartice.trajanjeMonths";
@@ -353,7 +376,7 @@ function ClanskeKarticeApp() {
   // if only one org exists.
   const [orgRestored, setOrgRestored] = useState(false);
   useEffect(() => {
-    if (orgRestored || allOrgs.length === 0) return;
+    if (orgRestored || allOrgs.length === 0 || !ORG_KEY) return;
     if (typeof window !== "undefined") {
       const stored = window.localStorage.getItem(ORG_KEY);
       const storedId = stored ? Number(stored) : NaN;
@@ -367,14 +390,14 @@ function ClanskeKarticeApp() {
       setOrgId(allOrgs[0].id);
     }
     setOrgRestored(true);
-  }, [allOrgs, orgRestored, orgId]);
+  }, [allOrgs, orgRestored, orgId, ORG_KEY]);
 
   // Persist orgId on change
   useEffect(() => {
-    if (typeof window === "undefined" || !orgRestored) return;
+    if (typeof window === "undefined" || !orgRestored || !ORG_KEY) return;
     if (orgId !== null) window.localStorage.setItem(ORG_KEY, String(orgId));
     else window.localStorage.removeItem(ORG_KEY);
-  }, [orgId, orgRestored]);
+  }, [orgId, orgRestored, ORG_KEY]);
 
   // ── Members sidebar ────────────────────────────────────────────────────────
   const queryClient = useQueryClient();

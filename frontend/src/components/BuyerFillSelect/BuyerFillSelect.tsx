@@ -15,6 +15,10 @@ export type BuyerFillData = {
   email: string | null;
   idNumber: string | null; // ID broj (jmbg za fizičko, taxNumber za organizaciju)
   vatNumber?: string | null; // PDV broj — derivira se iz taxNumber-a
+  // Dodatna polja korisna kada se popunjava prodavac na fakturi:
+  bankAccount?: string | null;
+  logoUrl?: string | null;
+  organizationId?: number | null;
 };
 
 type Props = {
@@ -124,6 +128,9 @@ export default function BuyerFillSelect({ onFill }: Props) {
       email: user.email ?? null,
       idNumber: user.jmbg ?? null,
       vatNumber: null,
+      bankAccount: null,
+      logoUrl: null,
+      organizationId: null,
     });
     setOpen(false);
     setFilter("");
@@ -138,7 +145,10 @@ export default function BuyerFillSelect({ onFill }: Props) {
       phone: org.phone ?? null,
       email: org.email ?? user?.email ?? null,
       idNumber: org.taxNumber ?? null,
-      vatNumber: null, // ne derivirati iz ID broja — korisnik unosi ručno
+      vatNumber: org.pdvNumber ?? null,
+      bankAccount: org.bankAccount ?? null,
+      logoUrl: org.logoUrl ?? null,
+      organizationId: org.id,
     });
     setOpen(false);
     setFilter("");
