@@ -48,8 +48,9 @@ export const metadata: Metadata = {
 };
 
 export default function NovaFakturaPage() {
-  return 
-  <Suspense>
-  <InvoiceForm />;
-  </Suspense>
+  return (
+    <Suspense>
+      <InvoiceForm />
+    </Suspense>
+  );
 }
