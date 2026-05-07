@@ -450,6 +450,81 @@ export function getAmortizacijaClients() {
   return request<PersonClient[]>("/api/clients/amortizacija");
 }
 
+// ─── Admin: sve organizacije ──────────────────────────────────────────────────
+
+export type AdminOrgCreator = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+};
+
+export type AdminOrganization = {
+  id: number;
+  name: string;
+  type: "COMPANY" | "BUSINESS";
+  taxNumber: string | null;
+  activityCode: string | null;
+  activityName: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  bankAccount: string | null;
+  isClientOrg: boolean;
+  createdById: number;
+  createdBy: AdminOrgCreator | null;
+  owner: OrgOwner | null;
+  workerCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminOrgsListResponse = {
+  items: AdminOrganization[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export function adminGetOrganizations(params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const sp = new URLSearchParams();
+  if (params?.search) sp.set("search", params.search);
+  sp.set("page", String(params?.page ?? 1));
+  sp.set("limit", String(params?.limit ?? 20));
+  return request<AdminOrgsListResponse>(`/api/organizations/admin/all?${sp.toString()}`);
+}
+
+// ─── Admin: sva fizička lica ──────────────────────────────────────────────────
+
+export type AdminPersonClient = PersonClient & {
+  idCardNumber: string | null;
+  createdBy: AdminOrgCreator | null;
+};
+
+export type AdminPersonClientsListResponse = {
+  items: AdminPersonClient[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export function adminGetPersonClients(params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const sp = new URLSearchParams();
+  if (params?.search) sp.set("search", params.search);
+  sp.set("page", String(params?.page ?? 1));
+  sp.set("limit", String(params?.limit ?? 20));
+  return request<AdminPersonClientsListResponse>(`/api/clients/admin/all?${sp.toString()}`);
+}
+
 export function createAmortizacijaClient(payload: { firstName?: string }) {
   return request<PersonClient>("/api/clients/amortizacija", {
     method: "POST",

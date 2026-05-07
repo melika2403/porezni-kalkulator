@@ -566,6 +566,38 @@ export default function Pretplate() {
           Predračun se otvara u novom tabu.
         </p>
       </form>
+
+      <div className={styles.bankBox}>
+        <div className={styles.bankBoxHeader}>
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={styles.bankIcon}>
+            <rect x="2" y="7" width="16" height="11" rx="1.5" />
+            <path d="M5 7V5a5 5 0 0110 0v2" />
+            <circle cx="10" cy="13" r="1.5" />
+          </svg>
+          <span>Podaci za uplatu</span>
+        </div>
+        <div className={styles.bankFields}>
+          <div className={styles.bankField}>
+            <span className={styles.bankLabel}>Banka</span>
+            <span className={styles.bankValue}>KIB BANKA</span>
+          </div>
+          <div className={styles.bankField}>
+            <span className={styles.bankLabel}>Žiro račun</span>
+            <span className={styles.bankValue}>198-201-20200826-04</span>
+          </div>
+          <div className={styles.bankField}>
+            <span className={styles.bankLabel}>Svrha uplate</span>
+            <span className={styles.bankValue}>Pretplata — Porezni kalkulator</span>
+          </div>
+        </div>
+        <p className={styles.bankNote}>
+          Pretplata će biti aktivirana čim primijetimo uplatu. Ukoliko imate pitanja, kontaktirajte nas na{" "}
+          <a href="mailto:info@poreznikalkulator.ba" className={styles.bankEmail}>
+            info@poreznikalkulator.ba
+          </a>
+          .
+        </p>
+      </div>
     </div>
   );
 }

@@ -542,6 +542,9 @@ Subscription.belongsTo(User, { foreignKey: "userId" });
 Organization.hasMany(Worker, { foreignKey: "organizationId", as: "workers" });
 Worker.belongsTo(Organization, { foreignKey: "organizationId" });
 
+User.hasMany(Organization, { foreignKey: "createdById", as: "createdOrganizations" });
+Organization.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
+
 Organization.hasMany(OrganizationMember, {
   foreignKey: "organizationId",
   as: "members",

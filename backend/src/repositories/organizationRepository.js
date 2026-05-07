@@ -180,6 +180,58 @@ async function deleteOrganization(id, userId) {
   return true;
 }
 
+async function getAllOrganizationsForAdmin({ search, page = 1, limit = 20 } = {}) {
+  const where = {};
+  if (search) {
+    where.name = { [Op.like]: `%${search}%` };
+  }
+
+  const offset = (page - 1) * limit;
+
+  const [orgs, total] = await Promise.all([
+    Organization.findAll({
+      where,
+      attributes: [...orgAttributes, "createdById", "isClientOrg"],
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: ["id", "firstName", "lastName", "email"],
+        },
+        {
+          model: Worker,
+          as: "workers",
+          attributes: ["id", "role"],
+          required: false,
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+    }),
+    Organization.count({ where }),
+  ]);
+
+  const orgIds = orgs.map((o) => o.id);
+  const ownerByOrgId = await fetchOwnerWorkers(orgIds);
+
+  const items = orgs.map((org) => {
+    const plain = org.toJSON();
+    const workerCount = (plain.workers || []).filter((w) => w.role === "RADNIK").length;
+    const owner = ownerByOrgId.get(org.id) || null;
+    const { workers: _w, ...rest } = plain;
+    return {
+      ...rest,
+      owner: owner
+        ? { ...(owner.toJSON ? owner.toJSON() : owner), jmbg: owner.jmbg ? decryptJmbg(owner.jmbg) : null }
+        : null,
+      workerCount,
+    };
+  });
+
+  return { items, total, page, limit };
+}
+
 module.exports = {
   getUserOrganizations,
   getClientOrganizations,
@@ -188,4 +240,5 @@ module.exports = {
   updateOrganization,
   countOwnedOrganizations,
   deleteOrganization,
+  getAllOrganizationsForAdmin,
 };

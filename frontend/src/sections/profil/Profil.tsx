@@ -2904,6 +2904,22 @@ function PretplataTab({ user }: { user: AuthUser }) {
             </p>
           </div>
         )}
+
+        {plan === "PRO" && (
+          <div className={styles.planUpgrade}>
+            <p className={styles.planUpgradeText}>
+              Nadogradite na <strong>Business</strong> plan za pristup
+              neograničenom broju klijenata, višekorisničkom pristupu i
+              prioritetnoj podršci.
+            </p>
+            <Link
+              className={styles.btnPrimary}
+              href="/pretplate?plan=BUSINESS"
+            >
+              Nadogradi na Business
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
