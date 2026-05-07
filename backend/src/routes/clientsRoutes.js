@@ -1,9 +1,10 @@
 const express = require("express");
-const { requireAuth } = require("../middlewares/authMiddleware");
+const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
 const clientsController = require("../controllers/clientsController");
 
 const router = express.Router();
 
+router.get("/admin/all", requireAuth, requireRole("ADMIN"), clientsController.adminListAll);
 router.get("/", requireAuth, clientsController.list);
 router.post("/", requireAuth, clientsController.create);
 router.get("/amortizacija", requireAuth, clientsController.listAmortizacija);

@@ -1,12 +1,14 @@
 const express = require("express");
 const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
 const organizationsController = require("../controllers/organizationsController");
+
 const workersController = require("../controllers/workersController");
 const membersController = require("../controllers/membersController");
 const organizationRepository = require("../repositories/organizationRepository");
 
 const router = express.Router();
 
+router.get("/admin/all", requireAuth, requireRole("ADMIN"), organizationsController.adminListAll);
 router.get("/", requireAuth, organizationsController.list);
 router.get(
   "/clients",

@@ -1,4 +1,5 @@
-const { sequelize, Client, Form, FormVersion, FormAttachment } = require("../models/index");
+const { Op } = require("sequelize");
+const { sequelize, Client, User, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
 const clientAttributes = [
@@ -69,6 +70,46 @@ async function deletePersonClient(id, userId) {
   return true;
 }
 
+async function getAllPersonClientsForAdmin({ search, page = 1, limit = 20 } = {}) {
+  const where = { type: "PERSON", organizationId: null, amortizacijaOnly: false };
+  if (search) {
+    where[Op.or] = [
+      { firstName: { [Op.like]: `%${search}%` } },
+      { lastName: { [Op.like]: `%${search}%` } },
+    ];
+  }
+
+  const offset = (page - 1) * limit;
+
+  const [clients, total] = await Promise.all([
+    Client.findAll({
+      where,
+      attributes: [...clientAttributes, "idCardNumber"],
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: ["id", "firstName", "lastName", "email"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+    }),
+    Client.count({ where }),
+  ]);
+
+  return {
+    items: clients.map((c) => {
+      const plain = c.toJSON();
+      return { ...plain, jmbg: plain.jmbg ? decryptJmbg(plain.jmbg) : null };
+    }),
+    total,
+    page,
+    limit,
+  };
+}
+
 module.exports = {
   getPersonClients,
   getAmortizacijaClients,
@@ -76,4 +117,5 @@ module.exports = {
   createAmortizacijaClient,
   updatePersonClient,
   deletePersonClient,
+  getAllPersonClientsForAdmin,
 };

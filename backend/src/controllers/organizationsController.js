@@ -240,4 +240,13 @@ async function getById(req, res) {
   return res.status(200).json({ ok: true, data: org });
 }
 
-module.exports = { list, listClients, create, update, remove, getById };
+async function adminListAll(req, res) {
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 20), 100);
+
+  const result = await organizationRepository.getAllOrganizationsForAdmin({ search, page, limit });
+  res.status(200).json({ ok: true, data: result });
+}
+
+module.exports = { list, listClients, create, update, remove, getById, adminListAll };
