@@ -22,6 +22,9 @@ export interface SihtenicaData {
   /** Set of weekday numbers (0=Ned, 1=Pon, ..., 6=Sub) that are weekly days off.
    *  On these days, absence code "9.1" is treated as sedmični odmor (0h). */
   weeklyDaysOff?: number[];
+  /** Paid-absence codes that count as 8h in totals. Defaults to all 5
+   *  (9.1 godišnji, 9.2 praznik, 9.3 bolovanje, 9.4 porodiljsko, 9.5 plaćeno). */
+  countAbsenceCodes?: string[];
 }
 
 const BLACK = rgb(0, 0, 0);
@@ -62,32 +65,38 @@ function minsToHM(mins: number): string {
 }
 
 // Codes that represent PAID absence — count as standard 8h workday in totals
-const PAID_ABSENCE_CODES = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
+const PAID_ABSENCE_DEFAULT = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
 const PAID_ABSENCE_MINS = 8 * 60;
 
-function isPaidAbsence(entry: DayEntry, isWeeklyDayOff: boolean = false): boolean {
-  if (!entry.absence) return false;
-  const code = entry.absence.trim();
-  if (code === "9.1" && isWeeklyDayOff) return false;
-  return PAID_ABSENCE_CODES.has(code);
-}
-
-function calcDailyMins(entry: DayEntry, isWeeklyDayOff: boolean = false): number {
-  if (isPaidAbsence(entry, isWeeklyDayOff)) return PAID_ABSENCE_MINS;
+function calcDailyMins(
+  entry: DayEntry,
+  isWeeklyDayOff: boolean,
+  countCodes: Set<string>,
+): number {
+  // Manually entered times override absence code semantics.
   const start = parseTimeToMins(entry.startTime);
   const end = parseTimeToMins(entry.endTime);
-  if (start === null || end === null) return 0;
-  const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
-  return Math.max(0, end - start - zastojMins);
+  if (start !== null && end !== null) {
+    const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
+    return Math.max(0, end - start - zastojMins);
+  }
+  if (entry.absence) {
+    const code = entry.absence.trim();
+    if (PAID_ABSENCE_DEFAULT.has(code)) {
+      if (code === "9.1" && isWeeklyDayOff) return 0;
+      return countCodes.has(code) ? PAID_ABSENCE_MINS : 0;
+    }
+  }
+  return 0;
 }
 
-function calcTotalDaily(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
-  const mins = calcDailyMins(entry, isWeeklyDayOff);
+function calcTotalDaily(
+  entry: DayEntry,
+  isWeeklyDayOff: boolean,
+  countCodes: Set<string>,
+): string {
+  const mins = calcDailyMins(entry, isWeeklyDayOff, countCodes);
   return mins > 0 ? minsToHM(mins) : "";
-}
-
-function calcTotalHrs(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
-  return calcTotalDaily(entry, isWeeklyDayOff);
 }
 
 function drawCentered(
@@ -211,6 +220,9 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   const weeklyOffSet = new Set(data.weeklyDaysOff ?? []);
   const isWeeklyOff = (dayNum: number) =>
     weeklyOffSet.has(new Date(data.year, data.month - 1, dayNum).getDay());
+  const countCodes = data.countAbsenceCodes
+    ? new Set(data.countAbsenceCodes)
+    : PAID_ABSENCE_DEFAULT;
 
   // Page 1: days 1–22
   for (let i = 0; i < 22 && i + 1 <= daysInMonth; i++) {
@@ -230,12 +242,12 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
       draw(page1, xMark ? "x" : entry.startTime, COLS.startTime, y);
       draw(page1, xMark ? "x" : entry.endTime, COLS.endTime, y);
       draw(page1, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
-      draw(page1, calcTotalDaily(entry, wOff), COLS.totalDaily, y);
+      draw(page1, calcTotalDaily(entry, wOff, countCodes), COLS.totalDaily, y);
       draw(page1, entry.fieldWork, COLS.fieldWork, y);
       draw(page1, entry.standby, COLS.standby, y);
       draw(page1, entry.absence, COLS.absence, y);
       draw(page1, entry.other, COLS.other, y);
-      draw(page1, calcTotalHrs(entry, wOff), COLS.totalHrs, y);
+      draw(page1, calcTotalDaily(entry, wOff, countCodes), COLS.totalHrs, y);
     }
   }
 
@@ -257,12 +269,12 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
       draw(page2, xMark ? "x" : entry.startTime, COLS.startTime, y);
       draw(page2, xMark ? "x" : entry.endTime, COLS.endTime, y);
       draw(page2, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
-      draw(page2, calcTotalDaily(entry, wOff), COLS.totalDaily, y);
+      draw(page2, calcTotalDaily(entry, wOff, countCodes), COLS.totalDaily, y);
       draw(page2, entry.fieldWork, COLS.fieldWork, y);
       draw(page2, entry.standby, COLS.standby, y);
       draw(page2, entry.absence, COLS.absence, y);
       draw(page2, entry.other, COLS.other, y);
-      draw(page2, calcTotalHrs(entry, wOff), COLS.totalHrs, y);
+      draw(page2, calcTotalDaily(entry, wOff, countCodes), COLS.totalHrs, y);
     }
   }
 
@@ -272,7 +284,7 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   for (let i = 0; i < daysInMonth; i++) {
     const entry = data.days[i];
     if (!entry) continue;
-    totalMins += calcDailyMins(entry, isWeeklyOff(i + 1));
+    totalMins += calcDailyMins(entry, isWeeklyOff(i + 1), countCodes);
   }
   if (totalMins > 0) {
     draw(page2, minsToHM(totalMins), COLS.totalHrs, 365);

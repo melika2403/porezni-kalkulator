@@ -60,6 +60,12 @@ async function create(req, res) {
       return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
     }
   }
+  if (req.user.role === "USER") {
+    const count = await Worker.count({ where: { organizationId: orgId } });
+    if (count >= 1) {
+      return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
+    }
+  }
 
   const { firstName, lastName, jmbg, role, startDate, endDate, email, phone, address, city, idCardNumber, bankAccount } = req.body ?? {};
   const resolvedRole = role ?? "RADNIK";

@@ -133,18 +133,14 @@ export default function Korisnici() {
     <RoleGuard roles={["ADMIN"]} label="Nemate pristup" mode="hide">
       <div className={styles.page}>
         <div className={styles.orgHeader}>
-          <h1 className={styles.orgTitle}>Korisnici</h1>
-          <div className={styles.orgMeta}>
-            <span>
-              Ukupno: <strong>{total}</strong>
-            </span>
-            <span>
-              Stranica:{" "}
-              <strong>
-                {page}/{totalPages}
-              </strong>
-            </span>
-            {query.isFetching && <span>Učitavanje…</span>}
+          <div>
+            <h1 className={styles.orgTitle}>Korisnici</h1>
+            <div className={styles.orgMeta}>
+              <span>
+                Ukupno: <strong>{total}</strong>
+              </span>
+              {query.isFetching && <span>Učitavanje…</span>}
+            </div>
           </div>
         </div>
 
@@ -208,34 +204,38 @@ export default function Korisnici() {
 
         {/* Table / empty states */}
         {query.isLoading ? (
-          <div className={styles.empty}>Učitavanje...</div>
+          <div className={styles.loading}>Učitavanje…</div>
         ) : users.length === 0 ? (
           <div className={styles.empty}>Nema korisnika.</div>
         ) : (
           <>
-            <UsersTable users={users} />
-
-            <div className={styles.formActions}>
-              <button
-                className={styles.btnGhost}
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={!canPrev}
-                title="Prethodna stranica"
-              >
-                Prethodna
-              </button>
-
-              <button
-                className={styles.btnGhost}
-                type="button"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={!canNext}
-                title="Sljedeća stranica"
-              >
-                Sljedeća
-              </button>
+            <div className={styles.tableWrap}>
+              <UsersTable users={users} />
             </div>
+
+            {totalPages > 1 && (
+              <div className={styles.pagination}>
+                <button
+                  className={styles.btnGhost}
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={!canPrev}
+                >
+                  ← Prethodna
+                </button>
+                <span className={styles.pageInfo}>
+                  Stranica {page} od {totalPages}
+                </span>
+                <button
+                  className={styles.btnGhost}
+                  type="button"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!canNext}
+                >
+                  Sljedeća →
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

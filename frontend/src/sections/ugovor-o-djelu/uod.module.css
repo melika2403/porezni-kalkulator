@@ -448,3 +448,70 @@
     align-items: stretch;
   }
 }
+
+.augWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.augInfoBtn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+.augInfoBtn:hover,
+.augInfoBtn[aria-expanded="true"] {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.augInfoPopover {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  width: min(360px, 92vw);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.15);
+  padding: 1rem 1.1rem 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #334155;
+  text-align: left;
+}
+.augInfoPopover strong {
+  color: #0f172a;
+}
+.augInfoPopover p {
+  margin: 0.5rem 0 0;
+}
+.augInfoClose {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.4rem;
+  background: transparent;
+  border: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+}
+.augInfoClose:hover {
+  color: #0f172a;
+}

@@ -1,0 +1,333 @@
+.page {
+  padding: 2.5rem 2rem 5rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.3rem;
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--mid);
+  font-weight: 300;
+}
+
+/* ── Filteri ─────────────────────────────────────────────────────────── */
+.filters {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.input,
+.select {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-height: 38px;
+}
+
+.input {
+  flex: 1;
+  min-width: 240px;
+}
+
+.select {
+  min-width: 160px;
+  cursor: pointer;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.btnPrimary,
+.btnGhost {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.btnPrimary {
+  background: var(--sage);
+  color: white;
+  border: none;
+}
+
+.btnPrimary:hover {
+  opacity: 0.9;
+}
+
+.btnGhost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink);
+}
+
+.btnGhost:hover:not(:disabled) {
+  background: var(--sage-pale);
+  border-color: var(--sage);
+  color: var(--sage);
+}
+
+.btnGhost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Tabela ──────────────────────────────────────────────────────────── */
+.tableWrap {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead {
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+}
+
+.table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  padding: 0.85rem 1rem;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--sage-pale);
+}
+
+.numCell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.numberCell {
+  font-family: "DM Sans", sans-serif;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.buyerName {
+  font-weight: 500;
+}
+
+.metaCell {
+  font-size: 12px;
+  color: var(--mid);
+  margin-top: 2px;
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────── */
+.planBadge,
+.statusBadge,
+.roleBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Status dropdown — izgleda kao badge ali je <select> */
+.statusSelect {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 4px 22px 4px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' stroke='currentColor' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  transition: filter 0.15s, opacity 0.15s;
+}
+
+.statusSelect:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.statusSelect:focus {
+  outline: 2px solid var(--sage-pale);
+  outline-offset: 1px;
+}
+
+.statusSelect:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.planPro {
+  background: var(--sage-pale);
+  color: var(--sage);
+}
+
+.planBusiness {
+  background: #e0e9f7;
+  color: #1a4480;
+}
+
+.statusIssued {
+  background: #fff4e3;
+  color: #b45309;
+}
+
+.statusPaid {
+  background: var(--sage-pale);
+  color: var(--sage);
+}
+
+.statusCancelled {
+  background: #fde8e8;
+  color: #c0392b;
+}
+
+.roleUSER {
+  background: #f1f1f1;
+  color: #555;
+  margin-top: 4px;
+}
+
+.rolePRO {
+  background: var(--sage-pale);
+  color: var(--sage);
+  margin-top: 4px;
+}
+
+.roleBUSINESS {
+  background: #e0e9f7;
+  color: #1a4480;
+  margin-top: 4px;
+}
+
+.roleADMIN {
+  background: #fce5d8;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+/* ── States ──────────────────────────────────────────────────────────── */
+.loading,
+.empty,
+.errorBox {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 3rem 2rem;
+  text-align: center;
+  font-size: 14px;
+  color: var(--mid);
+}
+
+.errorBox {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fcd34d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ── Paginacija ──────────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.pageInfo {
+  font-size: 13px;
+  color: var(--mid);
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 1.5rem 1rem 3rem;
+  }
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .input {
+    min-width: 0;
+  }
+  .table {
+    font-size: 12px;
+  }
+  .table th,
+  .table td {
+    padding: 0.6rem 0.5rem;
+  }
+}

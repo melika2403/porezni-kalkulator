@@ -85,7 +85,7 @@ const OSNOV_OSIGURANJA = [
 export default function Js3100Form() {
   return (
     <RoleGuard
-      roles={["BUSINESS", "ADMIN"]}
+      roles={["PRO", "BUSINESS", "ADMIN"]}
       mode="hide"
       fallback={<UpgradeGate />}
     >

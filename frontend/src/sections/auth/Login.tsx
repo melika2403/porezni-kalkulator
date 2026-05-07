@@ -1,13 +1,23 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./auth.module.css";
 import { login, resendVerification, unwrap } from "src/api/auth";
 
+// Whitelist: dozvoli redirect samo na interne (relative) putanje, ne na vanjske
+// URL-ove (sigurnosna mjera protiv open-redirect napada).
+function safeNext(raw: string | null): string {
+  if (!raw) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
 export default function Login() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextUrl = safeNext(searchParams.get("next"));
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,7 +28,7 @@ export default function Login() {
       unwrap(login(email, password, rememberMe)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push("/");
+      router.push(nextUrl);
       router.refresh();
     },
   });
@@ -31,6 +41,12 @@ export default function Login() {
   const handleGoogle = () => {
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+    // sačuvaj next u sessionStorage (Google OAuth callback gubi query param)
+    if (typeof window !== "undefined" && nextUrl !== "/") {
+      try {
+        sessionStorage.setItem("postLoginNext", nextUrl);
+      } catch {}
+    }
     window.location.href = `${backendUrl}/api/auth/google`;
   };
 
