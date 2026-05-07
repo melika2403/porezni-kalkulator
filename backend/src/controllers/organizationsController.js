@@ -336,6 +336,7 @@ module.exports = {
   update,
   remove,
   getById,
+  adminListAll,
   uploadLogo,
   removeLogo,
 };
