@@ -1067,7 +1067,7 @@ export default function Amortizacija() {
         <div className={styles.sidebarLock}>
           <span className={styles.sidebarLockIcon}>🔒</span>
           <p className={styles.sidebarLockText}>Dostupno uz Pro ili Business pretplatu</p>
-          <a href="/profil" className={styles.sidebarLockBtn}>Pretplatite se</a>
+          <a href="/pretplate?plan=pro" className={styles.sidebarLockBtn}>Pretplatite se</a>
         </div>
       )}
       <div className={`${styles.sidebarList}${!isClientUser ? ` ${styles.sidebarLocked}` : ""}`}>
@@ -1123,7 +1123,7 @@ export default function Amortizacija() {
             <div className={styles.sidebarUpgrade}>
               <strong>Limit od {PRO_CLIENT_LIMIT} klijenata</strong> na Pro pretplati je dosegnut.
               Nadogradite na Business za više klijenata.
-              <a href="/profil#pretplata" className={styles.sidebarUpgradeLink}>
+              <a href="/pretplate?plan=business" className={styles.sidebarUpgradeLink}>
                 Nadogradi na Business →
               </a>
             </div>
