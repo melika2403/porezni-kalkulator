@@ -8,7 +8,7 @@ const router = express.Router();
 // Pošto je POST /api/documents dijeljena ruta za sve obrasce, kondicionalno
 // pozivamo requireRole tek kad type spada u zaštićene tipove.
 const RESTRICTED_TYPES = {
-  JS3100: ["BUSINESS", "ADMIN"],
+  JS3100: ["PRO", "BUSINESS", "ADMIN"],
 };
 
 function guardRestrictedType(req, res, next) {

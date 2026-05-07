@@ -4,6 +4,7 @@ const organizationsController = require("../controllers/organizationsController"
 const workersController = require("../controllers/workersController");
 const membersController = require("../controllers/membersController");
 const organizationRepository = require("../repositories/organizationRepository");
+const { logoUpload } = require("../utils/uploads");
 
 const router = express.Router();
 
@@ -26,6 +27,29 @@ router.delete("/:id", requireAuth, organizationsController.remove);
 
 // Single organization detail
 router.get("/:id", requireAuth, organizationsController.getById);
+
+// Logo upload (PRO/BUSINESS/ADMIN)
+router.post(
+  "/:id/logo",
+  requireAuth,
+  requireRole("PRO", "BUSINESS", "ADMIN"),
+  (req, res, next) => {
+    logoUpload.single("logo")(req, res, (err) => {
+      if (err) {
+        const code = err?.message === "INVALID_IMAGE_TYPE" ? "INVALID_IMAGE_TYPE" : "UPLOAD_ERROR";
+        return res.status(400).json({ ok: false, error: code });
+      }
+      next();
+    });
+  },
+  organizationsController.uploadLogo,
+);
+router.delete(
+  "/:id/logo",
+  requireAuth,
+  requireRole("PRO", "BUSINESS", "ADMIN"),
+  organizationsController.removeLogo,
+);
 
 // Members
 router.get(
@@ -53,29 +77,29 @@ router.delete(
   membersController.remove,
 );
 
-// Workers
+// Workers — USER role allowed (sihterica preview, with limit enforced in controller)
 router.get(
   "/:orgId/workers",
   requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
+  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
   workersController.list,
 );
 router.post(
   "/:orgId/workers",
   requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
+  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
   workersController.create,
 );
 router.put(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
+  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
   workersController.update,
 );
 router.delete(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
+  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
   workersController.remove,
 );
 

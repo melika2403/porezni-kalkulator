@@ -6,6 +6,7 @@ const { decryptJmbg } = require("../utils/encryptJmbg");
 const {
   sendPasswordResetEmail,
   sendVerificationEmail,
+  sendWelcomeEmail,
 } = require("../utils/mailer");
 const { User, Subscription } = require("../models/index");
 const googleAuth = require("../auth/googleAuth");
@@ -60,6 +61,7 @@ const userAttributes = [
   "isEmailVerified",
   "password",
   "idCardNumber",
+  "trialUsedAt",
 ];
 
 async function findUserWithSub(where) {
@@ -211,9 +213,27 @@ async function me(req, res) {
   if (!userId)
     return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
 
-  const user = await findUserWithSub({ id: userId });
+  let user = await findUserWithSub({ id: userId });
   if (!user)
     return res.status(404).json({ ok: false, error: "User not found" });
+
+  // Lazy expiry: if subscription endDate has passed and is still active,
+  // deactivate it and downgrade role to USER. Runs on each /me call.
+  const sub = user.subscription;
+  if (sub && sub.isActive && sub.endDate) {
+    const end = new Date(sub.endDate);
+    end.setHours(23, 59, 59, 999);
+    if (end.getTime() < Date.now()) {
+      await Subscription.update(
+        { isActive: false },
+        { where: { userId } },
+      );
+      if (user.role === "PRO" || user.role === "BUSINESS") {
+        await User.update({ role: "USER" }, { where: { id: userId } });
+      }
+      user = await findUserWithSub({ id: userId });
+    }
+  }
 
   return res.status(200).json({ ok: true, data: toPublicUser(user) });
 }
@@ -334,6 +354,18 @@ async function verifyEmail(req, res) {
 
     const jwtToken = signJwtForUser(user);
     setAuthCookie(res, jwtToken);
+
+    // Welcome email with 30-day PRO trial CTA (fire-and-forget)
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const trialUrl = `${frontendUrl}/pretplate?trial=1`;
+      void sendWelcomeEmail(user.email, user.firstName, trialUrl).catch(
+        (err) => console.error("sendWelcomeEmail failed:", err?.message || err),
+      );
+    } catch (err) {
+      console.error("welcome email dispatch error:", err?.message || err);
+    }
+
     return res.status(200).json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

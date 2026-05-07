@@ -1,6 +1,6 @@
 const { Form, FormVersion, Worker } = require("../models/index");
 
-const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
+const ALLOWED_ROLES = ["USER", "PRO", "BUSINESS", "ADMIN"];
 
 function checkRole(req, res) {
   if (!ALLOWED_ROLES.includes(req.user?.role)) {
