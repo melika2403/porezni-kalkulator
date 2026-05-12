@@ -168,6 +168,9 @@ export type Organization = {
   logoUrl: string | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
+  // Plan tier of the org's OWNER. In-org features (workers, members,
+  // logo, JS3100, …) are gated by this rather than the viewer's own role.
+  effectiveTier: "USER" | "PRO" | "BUSINESS" | "ADMIN" | null;
   createdAt: string;
   updatedAt: string;
 };

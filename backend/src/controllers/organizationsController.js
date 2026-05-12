@@ -103,12 +103,8 @@ async function list(req, res) {
   res.status(200).json({ ok: true, data: orgs });
 }
 
-const CLIENT_ORG_ROLES = ["PRO", "BUSINESS", "ADMIN"];
-
 async function listClients(req, res) {
-  if (!CLIENT_ORG_ROLES.includes(req.user?.role)) {
-    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
-  }
+  // Repository filters to orgs where this user has membership; no role gate needed.
   const orgs = await organizationRepository.getClientOrganizations(req.user.id);
   res.status(200).json({ ok: true, data: orgs });
 }

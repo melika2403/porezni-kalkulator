@@ -1,19 +1,34 @@
 const express = require("express");
 const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
+const { getOrgOwnerRole } = require("../services/tierService");
 const ctrl = require("../controllers/documentsController");
 
 const router = express.Router();
 
-// Guard za tipove dokumenata koji su dostupni samo višim ulogama.
-// Pošto je POST /api/documents dijeljena ruta za sve obrasce, kondicionalno
-// pozivamo requireRole tek kad type spada u zaštićene tipove.
+// Restricted document types: which plan is required to save them.
+// When a document is saved against an `organizationId`, the OWNER's plan tier
+// is the source of truth (so a free MEMBER of a BUSINESS owner's org can save
+// JS3100 forms for that org). Without orgId, we fall back to the caller's role.
 const RESTRICTED_TYPES = {
   JS3100: ["PRO", "BUSINESS", "ADMIN"],
 };
 
-function guardRestrictedType(req, res, next) {
+async function guardRestrictedType(req, res, next) {
   const allowed = RESTRICTED_TYPES[req.body?.type];
   if (!allowed) return next();
+
+  if (req.user?.role === "ADMIN") return next();
+
+  const orgId = Number(req.body?.organizationId);
+  if (Number.isInteger(orgId) && orgId > 0) {
+    const ownerRole = await getOrgOwnerRole(orgId);
+    if (!ownerRole) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+    if (!allowed.includes(ownerRole)) {
+      return res.status(403).json({ ok: false, error: "FORBIDDEN_OWNER_TIER" });
+    }
+    return next();
+  }
+
   return requireRole(...allowed)(req, res, next);
 }
 

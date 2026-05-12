@@ -1,5 +1,10 @@
 const express = require("express");
-const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
+const {
+  requireAuth,
+  requireRole,
+  requireOrgRole,
+  requireOwnerTier,
+} = require("../middlewares/authMiddleware");
 const organizationsController = require("../controllers/organizationsController");
 
 const workersController = require("../controllers/workersController");
@@ -11,18 +16,11 @@ const router = express.Router();
 
 router.get("/admin/all", requireAuth, requireRole("ADMIN"), organizationsController.adminListAll);
 router.get("/", requireAuth, organizationsController.list);
-router.get(
-  "/clients",
-  requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
-  organizationsController.listClients,
-);
-router.get(
-  "/workers/mine",
-  requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
-  workersController.listAllForUser,
-);
+// Cross-org listings — gated by membership (filtered in repository).
+// A USER may legitimately be a member of a BUSINESS owner's org, so we don't
+// gate by user role here.
+router.get("/clients", requireAuth, organizationsController.listClients);
+router.get("/workers/mine", requireAuth, workersController.listAllForUser);
 router.post("/", requireAuth, organizationsController.create);
 router.put("/:id", requireAuth, organizationsController.update);
 router.delete("/:id", requireAuth, organizationsController.remove);
@@ -30,11 +28,12 @@ router.delete("/:id", requireAuth, organizationsController.remove);
 // Single organization detail
 router.get("/:id", requireAuth, organizationsController.getById);
 
-// Logo upload (PRO/BUSINESS/ADMIN)
+// Logo upload — owner of org must be PRO or BUSINESS, and caller must be OWNER/ADMIN
 router.post(
   "/:id/logo",
   requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN"),
+  requireOwnerTier("PRO", "BUSINESS"),
   (req, res, next) => {
     logoUpload.single("logo")(req, res, (err) => {
       if (err) {
@@ -49,59 +48,64 @@ router.post(
 router.delete(
   "/:id/logo",
   requireAuth,
-  requireRole("PRO", "BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN"),
+  requireOwnerTier("PRO", "BUSINESS"),
   organizationsController.removeLogo,
 );
 
-// Members
+// Members — only OWNER may manage; owner's plan must be BUSINESS
 router.get(
   "/:id/members",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER"),
+  requireOwnerTier("BUSINESS"),
   membersController.list,
 );
 router.post(
   "/:id/members",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER"),
+  requireOwnerTier("BUSINESS"),
   membersController.add,
 );
 router.put(
   "/:id/members/:userId",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER"),
+  requireOwnerTier("BUSINESS"),
   membersController.updateRole,
 );
 router.delete(
   "/:id/members/:userId",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER"),
+  requireOwnerTier("BUSINESS"),
   membersController.remove,
 );
 
-// Workers — USER role allowed (sihterica preview, with limit enforced in controller)
+// Workers — any org member can read; OWNER/ADMIN can write. Limits applied in controller via owner tier.
 router.get(
   "/:orgId/workers",
   requireAuth,
-  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
   workersController.list,
 );
 router.post(
   "/:orgId/workers",
   requireAuth,
-  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN"),
   workersController.create,
 );
 router.put(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN"),
   workersController.update,
 );
 router.delete(
   "/:orgId/workers/:workerId",
   requireAuth,
-  requireRole("USER", "PRO", "BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN"),
   workersController.remove,
 );
 

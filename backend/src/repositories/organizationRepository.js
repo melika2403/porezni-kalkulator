@@ -4,7 +4,7 @@ const { decryptJmbg } = require("../utils/encryptJmbg");
 
 const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "createdAt", "updatedAt"];
 
-function toPublicOrg(org, memberRole, ownerWorker) {
+function toPublicOrg(org, memberRole, ownerWorker, effectiveTier) {
   if (!org) return null;
   const plain = org.toJSON ? org.toJSON() : org;
   const owner = ownerWorker
@@ -14,7 +14,12 @@ function toPublicOrg(org, memberRole, ownerWorker) {
       }
     : null;
   const { workers: _w, ...rest } = plain;
-  return { ...rest, owner, memberRole: memberRole || plain.memberRole || null };
+  return {
+    ...rest,
+    owner,
+    memberRole: memberRole || plain.memberRole || null,
+    effectiveTier: effectiveTier ?? null,
+  };
 }
 
 const ownerWorkerAttributes = ["id", "organizationId", "firstName", "lastName", "jmbg", "email", "phone", "address", "city"];
@@ -28,6 +33,21 @@ async function fetchOwnerWorkers(orgIds) {
   const byOrgId = new Map();
   for (const w of workers) {
     if (!byOrgId.has(w.organizationId)) byOrgId.set(w.organizationId, w);
+  }
+  return byOrgId;
+}
+
+// Returns Map<organizationId, ownerUserRole> — the User.role of the OWNER
+// of each organization. This is the "effective tier" used for in-org gating.
+async function fetchOwnerTiers(orgIds) {
+  if (orgIds.length === 0) return new Map();
+  const ownerMemberships = await OrganizationMember.findAll({
+    where: { organizationId: { [Op.in]: orgIds }, role: "OWNER" },
+    include: [{ model: User, as: "user", attributes: ["role"] }],
+  });
+  const byOrgId = new Map();
+  for (const m of ownerMemberships) {
+    byOrgId.set(m.organizationId, m.user?.role ?? null);
   }
   return byOrgId;
 }
@@ -46,9 +66,17 @@ async function getUserOrganizations(userId) {
     order: [[{ model: Organization, as: "organization" }, "name", "ASC"]],
   });
   const orgIds = memberships.map((m) => m.organization?.id).filter(Boolean);
-  const ownerByOrgId = await fetchOwnerWorkers(orgIds);
+  const [ownerByOrgId, tierByOrgId] = await Promise.all([
+    fetchOwnerWorkers(orgIds),
+    fetchOwnerTiers(orgIds),
+  ]);
   return memberships.map((m) =>
-    toPublicOrg(m.organization, m.role, ownerByOrgId.get(m.organization?.id) ?? null),
+    toPublicOrg(
+      m.organization,
+      m.role,
+      ownerByOrgId.get(m.organization?.id) ?? null,
+      tierByOrgId.get(m.organization?.id) ?? null,
+    ),
   );
 }
 
@@ -66,9 +94,17 @@ async function getClientOrganizations(userId) {
     order: [[{ model: Organization, as: "organization" }, "name", "ASC"]],
   });
   const orgIds = memberships.map((m) => m.organization?.id).filter(Boolean);
-  const ownerByOrgId = await fetchOwnerWorkers(orgIds);
+  const [ownerByOrgId, tierByOrgId] = await Promise.all([
+    fetchOwnerWorkers(orgIds),
+    fetchOwnerTiers(orgIds),
+  ]);
   return memberships.map((m) =>
-    toPublicOrg(m.organization, m.role, ownerByOrgId.get(m.organization?.id) ?? null),
+    toPublicOrg(
+      m.organization,
+      m.role,
+      ownerByOrgId.get(m.organization?.id) ?? null,
+      tierByOrgId.get(m.organization?.id) ?? null,
+    ),
   );
 }
 
@@ -84,8 +120,16 @@ async function getOrganizationForUser(id, userId) {
     ],
   });
   if (!membership) return null;
-  const ownerByOrgId = await fetchOwnerWorkers([id]);
-  return toPublicOrg(membership.organization, membership.role, ownerByOrgId.get(id) ?? null);
+  const [ownerByOrgId, tierByOrgId] = await Promise.all([
+    fetchOwnerWorkers([id]),
+    fetchOwnerTiers([id]),
+  ]);
+  return toPublicOrg(
+    membership.organization,
+    membership.role,
+    ownerByOrgId.get(id) ?? null,
+    tierByOrgId.get(id) ?? null,
+  );
 }
 
 async function createOrganization(data, ownerData, userId) {
@@ -117,7 +161,8 @@ async function createOrganization(data, ownerData, userId) {
       attributes: ownerWorkerAttributes,
       transaction: t,
     });
-    return toPublicOrg(created, "OWNER", ownerWorker);
+    const ownerUser = await User.findOne({ where: { id: userId }, attributes: ["role"], transaction: t });
+    return toPublicOrg(created, "OWNER", ownerWorker, ownerUser?.role ?? null);
   });
 }
 
@@ -147,7 +192,12 @@ async function updateOrganization(id, orgData, ownerData, userId) {
       attributes: ownerWorkerAttributes,
       transaction: t,
     });
-    return toPublicOrg(updated, membership.role, ownerWorker);
+    const ownerMembership = await OrganizationMember.findOne({
+      where: { organizationId: id, role: "OWNER" },
+      include: [{ model: User, as: "user", attributes: ["role"] }],
+      transaction: t,
+    });
+    return toPublicOrg(updated, membership.role, ownerWorker, ownerMembership?.user?.role ?? null);
   });
 }
 

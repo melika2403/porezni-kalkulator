@@ -1,6 +1,10 @@
 const { Op } = require("sequelize");
 const { Worker, OrganizationMember } = require("../models/index");
 const { encryptJmbg, decryptJmbg } = require("../utils/encryptJmbg");
+const { getOrgOwnerRole } = require("../services/tierService");
+
+const PRO_WORKERS_LIMIT = 5;
+const USER_WORKERS_LIMIT = 1;
 
 const VALID_ROLES = ["VLASNIK", "RADNIK"];
 
@@ -54,15 +58,17 @@ async function create(req, res) {
   const membership = await assertMembership(orgId, req.user.id, ["OWNER", "ADMIN"]);
   if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
-  if (req.user.role === "PRO") {
+  // Worker count limits follow the OWNER's plan, not the caller's.
+  // A free MEMBER inside a BUSINESS owner's org enjoys BUSINESS limits (unlimited).
+  const ownerTier = req.orgOwnerTier ?? (await getOrgOwnerRole(orgId));
+  if (ownerTier === "USER") {
     const count = await Worker.count({ where: { organizationId: orgId } });
-    if (count >= 5) {
+    if (count >= USER_WORKERS_LIMIT) {
       return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
     }
-  }
-  if (req.user.role === "USER") {
+  } else if (ownerTier === "PRO") {
     const count = await Worker.count({ where: { organizationId: orgId } });
-    if (count >= 1) {
+    if (count >= PRO_WORKERS_LIMIT) {
       return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
     }
   }
