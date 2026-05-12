@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Override marketing globals.css za /app/* rute.
+   Marketing DM Sans/DM Serif Display fontovi su već loadovani u root layout-u
+   kroz globals.css — samo ih ovdje aktiviramo na body. */
+body {
+  display: block;
+  background: transparent;
+  font-family: 'DM Sans', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  font-size: 14px;
+  overflow-x: visible;
+  font-feature-settings: "ss01", "cv02";
+}
+
+/* Editorial naslovi i brand mark — usklađeno sa marketing dijelom */
+.font-serif-display {
+  font-family: 'DM Serif Display', ui-serif, Georgia, serif;
+  letter-spacing: -0.012em;
+  font-weight: 400;
+}
+
+@theme {
+  /* Sage paleta (usklađeno sa marketing --sage = #3a5c42) */
+  --color-brand-50: #eef2eb;
+  --color-brand-100: #d6e8d9;
+  --color-brand-200: #a8c1a4;
+  --color-brand-400: #5a7c62;
+  --color-brand-600: #3a5c42;
+  --color-brand-700: #2d4633;
+  --color-brand-800: #1a2c20;
+
+  /* Paper paleta — pozadina, chrome, kartice, hover */
+  --color-cream-50: #f5f2eb;   /* glavna app pozadina (marketing --paper) */
+  --color-cream-100: #ffffff;   /* sidebar, header, kartice */
+  --color-cream-200: #ede8db;   /* hover surface */
+  --color-cream-300: #d4cfc4;   /* border (marketing --border) */
+
+  /* Tekst */
+  --color-text-primary: #0f1a12;   /* marketing --ink */
+  --color-text-secondary: #4a5a4d;
+  --color-text-tertiary: #7a8a7d;  /* marketing --mid */
+
+  /* Accent (orange) — za pulse hint-ove i highlights */
+  --color-accent-500: #c8622a;
+  --color-accent-bg: #f5e0d3;
+
+  /* Semantic — usklađeno tonu zemlje */
+  --color-success: #2d6e54;
+  --color-success-bg: #d8ebe1;
+  --color-warning: #8a4f10;
+  --color-warning-bg: #f2dec0;
+  --color-danger: #9b2e2e;
+  --color-danger-bg: #f3d8d8;
+  --color-info: #1f5a8c;
+  --color-info-bg: #d8e6f1;
+
+  /* Marketing dizajn koristi --radius=4px za buttone/inpute i --radius-lg=12px za kartice.
+     Tailwind defaultni `rounded`=4px i `rounded-xl`=12px već matche to. */
+}
+
+/* Dark mode override-i */
+.dark {
+  --color-cream-50: #0e110e;
+  --color-cream-100: #181b18;
+  --color-cream-200: #232723;
+  --color-cream-300: #2f342f;
+  --color-text-primary: #f5f2eb;
+  --color-text-secondary: #b8baad;
+  --color-text-tertiary: #888780;
+  --color-brand-100: #2d4633;
+  --color-brand-600: #7ea185;
+  --color-brand-700: #a8c1a4;
+  --color-accent-bg: #3a2418;
+  --color-success-bg: #1f3328;
+  --color-warning-bg: #3a2a14;
+  --color-danger-bg: #3a1f1f;
+  --color-info-bg: #1a2a3a;
+}

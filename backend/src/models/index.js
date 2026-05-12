@@ -63,6 +63,23 @@ const Subscription = sequelize.define(
     startDate: { type: DataTypes.DATEONLY, allowNull: false },
     endDate: { type: DataTypes.DATEONLY, allowNull: false },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+    plan: {
+      type: DataTypes.ENUM("free", "pro", "business"),
+      allowNull: false,
+      defaultValue: "free",
+    },
+    status: {
+      type: DataTypes.ENUM("active", "cancelled", "expired", "past_due", "trialing"),
+      allowNull: false,
+      defaultValue: "active",
+    },
+    billingCycle: {
+      type: DataTypes.ENUM("monthly", "yearly"),
+      allowNull: true,
+    },
+    cancelAtPeriodEnd: { type: DataTypes.BOOLEAN, defaultValue: false },
+    cancelledAt: { type: DataTypes.DATE, allowNull: true },
+    externalSubscriptionId: { type: DataTypes.STRING(255), allowNull: true },
   },
   { tableName: "subscriptions", timestamps: true },
 );
@@ -79,6 +96,11 @@ const Organization = sequelize.define(
     name: { type: DataTypes.STRING(255), allowNull: false },
     taxNumber: { type: DataTypes.STRING(100), unique: true, allowNull: true },
     pdvNumber: { type: DataTypes.STRING(20), allowNull: true },
+    isPdvObveznik: { type: DataTypes.BOOLEAN, defaultValue: false },
+    jurisdiction: {
+      type: DataTypes.ENUM("FBIH", "RS", "BD"),
+      allowNull: true,
+    },
     email: { type: DataTypes.STRING(255), allowNull: true },
     phone: { type: DataTypes.STRING(50), allowNull: true },
     address: { type: DataTypes.STRING(255), allowNull: true },
@@ -93,6 +115,12 @@ const Organization = sequelize.define(
     isClientOrg: { type: DataTypes.BOOLEAN, defaultValue: false },
     bankAccount: { type: DataTypes.STRING(25), allowNull: true },
     logoUrl: { type: DataTypes.STRING(500), allowNull: true },
+    // Porezni režim za obrte u PK Office (utiče na stope doprinosa).
+    // Null dok korisnik ne izabere u app dijelu.
+    taxRegime: {
+      type: DataTypes.ENUM("PAUSALAC", "SLOBODNO_ZANIMANJE"),
+      allowNull: true,
+    },
   },
   { tableName: "organizations", timestamps: true },
 );
@@ -509,6 +537,33 @@ const InvoiceItem = sequelize.define(
   },
 );
 
+// ─── USER PREFERENCE (PK Office: aktivna org + UI postavke) ──────────────────
+const UserPreference = sequelize.define(
+  "UserPreference",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      unique: true,
+    },
+    activeOrganizationId: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+    },
+    theme: {
+      type: DataTypes.ENUM("light", "dark", "system"),
+      defaultValue: "system",
+    },
+    commandPaletteEnabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+  },
+  { tableName: "user_preferences", timestamps: true },
+);
+
 // ─── INVOICE ITEM TEMPLATE (per-user "biblioteka stavki") ─────────────────────
 const InvoiceItemTemplate = sequelize.define(
   "InvoiceItemTemplate",
@@ -601,6 +656,13 @@ User.hasMany(InvoiceItemTemplate, {
 });
 InvoiceItemTemplate.belongsTo(User, { foreignKey: "userId", as: "user" });
 
+User.hasOne(UserPreference, { foreignKey: "userId", as: "preferences" });
+UserPreference.belongsTo(User, { foreignKey: "userId" });
+UserPreference.belongsTo(Organization, {
+  foreignKey: "activeOrganizationId",
+  as: "activeOrganization",
+});
+
 User.hasMany(KarticaMember, {
   foreignKey: "createdById",
   as: "karticaMembers",
@@ -635,4 +697,5 @@ module.exports = {
   InvoiceItem,
   InvoiceCounter,
   InvoiceItemTemplate,
+  UserPreference,
 };

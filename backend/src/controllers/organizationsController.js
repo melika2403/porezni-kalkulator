@@ -1,6 +1,10 @@
 const organizationRepository = require("../repositories/organizationRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
-const { Organization } = require("../models/index");
+const {
+  Organization,
+  OrganizationMember,
+  UserPreference,
+} = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
 function isNonEmptyString(v) {
@@ -51,6 +55,36 @@ function validateOrgData(body, requireName = true) {
     data.bankAccount = body.bankAccount
       ? String(body.bankAccount).trim()
       : null;
+
+  if (body.jurisdiction !== undefined) {
+    if (body.jurisdiction === null || body.jurisdiction === "") {
+      data.jurisdiction = null;
+    } else if (["FBIH", "RS", "BD"].includes(body.jurisdiction)) {
+      data.jurisdiction = body.jurisdiction;
+    } else {
+      return {
+        ok: false,
+        message: "jurisdiction mora biti FBIH, RS ili BD",
+      };
+    }
+  }
+
+  if (body.isPdvObveznik !== undefined) {
+    data.isPdvObveznik = Boolean(body.isPdvObveznik);
+  }
+
+  if (body.taxRegime !== undefined) {
+    if (body.taxRegime === null || body.taxRegime === "") {
+      data.taxRegime = null;
+    } else if (["PAUSALAC", "SLOBODNO_ZANIMANJE"].includes(body.taxRegime)) {
+      data.taxRegime = body.taxRegime;
+    } else {
+      return {
+        ok: false,
+        message: "taxRegime mora biti PAUSALAC ili SLOBODNO_ZANIMANJE",
+      };
+    }
+  }
 
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
@@ -329,6 +363,37 @@ async function removeLogo(req, res) {
   res.status(200).json({ ok: true, data: { id, logoUrl: null } });
 }
 
+// Postavlja aktivnu organizaciju za PK Office (sidebar org switcher).
+// Provjerava da user ima membership prije aktivacije.
+async function activate(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  }
+
+  const membership = await OrganizationMember.findOne({
+    where: { userId: req.user.id, organizationId: id },
+  });
+  if (!membership) {
+    return res
+      .status(403)
+      .json({ ok: false, error: "FORBIDDEN_ORGANIZATION" });
+  }
+
+  const [pref] = await UserPreference.findOrCreate({
+    where: { userId: req.user.id },
+    defaults: { userId: req.user.id, activeOrganizationId: id },
+  });
+  if (pref.activeOrganizationId !== id) {
+    pref.activeOrganizationId = id;
+    await pref.save();
+  }
+
+  res
+    .status(200)
+    .json({ ok: true, data: { activeOrganizationId: id } });
+}
+
 module.exports = {
   list,
   listClients,
@@ -339,4 +404,5 @@ module.exports = {
   adminListAll,
   uploadLogo,
   removeLogo,
+  activate,
 };

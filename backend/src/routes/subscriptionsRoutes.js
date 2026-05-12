@@ -21,5 +21,15 @@ router.delete(
 const trialRouter = express.Router();
 trialRouter.post("/trial", requireAuth, subscriptionsController.startTrial);
 
+// Endpoints za trenutnog korisnika — /api/subscription/*
+const currentRouter = express.Router();
+currentRouter.get("/", requireAuth, subscriptionsController.getCurrent);
+currentRouter.get("/plans", requireAuth, subscriptionsController.listPlans);
+currentRouter.get("/invoices", requireAuth, subscriptionsController.listInvoices);
+currentRouter.post("/change-plan", requireAuth, subscriptionsController.changePlan);
+currentRouter.post("/cancel", requireAuth, subscriptionsController.cancelCurrent);
+currentRouter.post("/reactivate", requireAuth, subscriptionsController.reactivateCurrent);
+
 module.exports = router;
 module.exports.trialRouter = trialRouter;
+module.exports.currentRouter = currentRouter;

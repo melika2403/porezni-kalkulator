@@ -16,13 +16,14 @@ const amortizacijaRoutes = require("./routes/amortizacijaRoutes");
 const sihtericaRoutes = require("./routes/sihtericaRoutes");
 const documentsRoutes = require("./routes/documentsRoutes");
 const subscriptionsRoutes = require("./routes/subscriptionsRoutes");
-const { trialRouter } = require("./routes/subscriptionsRoutes");
+const { trialRouter, currentRouter: subscriptionCurrentRouter } = require("./routes/subscriptionsRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const citiesRoutes = require("./routes/citiesRoutes");
 const predracunRoutes = require("./routes/predracunRoutes");
 const karticaMembersRoutes = require("./routes/karticaMembersRoutes");
 const invoicesRoutes = require("./routes/invoicesRoutes");
 const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes");
+const profileRoutes = require("./routes/profileRoutes");
 
 const app = express();
 
@@ -63,12 +64,14 @@ app.use("/api/sihterica", sihtericaRoutes);
 app.use("/api/documents", documentsRoutes);
 app.use("/api/users", subscriptionsRoutes);
 app.use("/api/subscriptions", trialRouter);
+app.use("/api/subscription", subscriptionCurrentRouter);
 app.use("/api/contact", contactRoutes);
 app.use("/api/cities", citiesRoutes);
 app.use("/api/predracun", predracunRoutes);
 app.use("/api/kartica-members", karticaMembersRoutes);
 app.use("/api/invoices", invoicesRoutes);
 app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
+app.use("/api/profile", profileRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -107,6 +110,56 @@ async function ensureColumns() {
       table: "users",
       column: "trialUsedAt",
       ddl: "ALTER TABLE users ADD COLUMN trialUsedAt DATETIME NULL",
+    },
+    {
+      table: "organizations",
+      column: "taxRegime",
+      ddl: "ALTER TABLE organizations ADD COLUMN taxRegime ENUM('PAUSALAC','SLOBODNO_ZANIMANJE') NULL",
+    },
+    {
+      table: "organizations",
+      column: "jurisdiction",
+      ddl: "ALTER TABLE organizations ADD COLUMN jurisdiction ENUM('FBIH','RS','BD') NULL",
+    },
+    {
+      table: "organizations",
+      column: "isPdvObveznik",
+      ddl: "ALTER TABLE organizations ADD COLUMN isPdvObveznik TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "subscriptions",
+      column: "plan",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN plan ENUM('free','pro','business') NOT NULL DEFAULT 'free'",
+    },
+    {
+      table: "subscriptions",
+      column: "status",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN status ENUM('active','cancelled','expired','past_due','trialing') NOT NULL DEFAULT 'active'",
+    },
+    {
+      table: "subscriptions",
+      column: "billingCycle",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN billingCycle ENUM('monthly','yearly') NULL",
+    },
+    {
+      table: "subscriptions",
+      column: "cancelAtPeriodEnd",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN cancelAtPeriodEnd TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "subscriptions",
+      column: "cancelledAt",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN cancelledAt DATETIME NULL",
+    },
+    {
+      table: "subscriptions",
+      column: "externalSubscriptionId",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN externalSubscriptionId VARCHAR(255) NULL",
+    },
+    {
+      table: "user_preferences",
+      column: "commandPaletteEnabled",
+      ddl: "ALTER TABLE user_preferences ADD COLUMN commandPaletteEnabled TINYINT(1) NOT NULL DEFAULT 0",
     },
   ];
   for (const c of checks) {

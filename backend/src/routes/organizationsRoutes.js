@@ -30,6 +30,13 @@ router.delete("/:id", requireAuth, organizationsController.remove);
 // Single organization detail
 router.get("/:id", requireAuth, organizationsController.getById);
 
+// PK Office: postavi aktivnu organizaciju u user_preferences
+router.post("/:id/activate", requireAuth, organizationsController.activate);
+
+// Aliases za PK Office (settings stranica) — koriste isti getById/update controller
+router.get("/:id/settings", requireAuth, organizationsController.getById);
+router.patch("/:id/settings", requireAuth, organizationsController.update);
+
 // Logo upload (PRO/BUSINESS/ADMIN)
 router.post(
   "/:id/logo",
@@ -57,25 +64,25 @@ router.delete(
 router.get(
   "/:id/members",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   membersController.list,
 );
 router.post(
   "/:id/members",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   membersController.add,
 );
 router.put(
   "/:id/members/:userId",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   membersController.updateRole,
 );
 router.delete(
   "/:id/members/:userId",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireRole("PRO", "BUSINESS", "ADMIN"),
   membersController.remove,
 );
 

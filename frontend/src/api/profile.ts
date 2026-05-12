@@ -152,12 +152,18 @@ export type OrgOwnerPayload = {
   idCardNumber?: string;
 };
 
+export type Jurisdiction = "FBIH" | "RS" | "BD";
+export type TaxRegime = "PAUSALAC" | "SLOBODNO_ZANIMANJE";
+
 export type Organization = {
   id: number;
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber: string | null;
   pdvNumber: string | null;
+  isPdvObveznik: boolean;
+  jurisdiction: Jurisdiction | null;
+  taxRegime: TaxRegime | null;
   activityCode: string | null;
   activityName: string | null;
   email: string | null;
@@ -177,6 +183,9 @@ export type OrgPayload = {
   type: "COMPANY" | "BUSINESS";
   taxNumber?: string;
   pdvNumber?: string;
+  isPdvObveznik?: boolean;
+  jurisdiction?: Jurisdiction | null;
+  taxRegime?: TaxRegime | null;
   activityCode?: string;
   activityName?: string;
   email?: string;
@@ -186,6 +195,85 @@ export type OrgPayload = {
   bankAccount?: string;
   ownerData?: OrgOwnerPayload;
 };
+
+export type OrgSettingsPayload = Partial<Omit<OrgPayload, "ownerData">>;
+
+export function getOrganizationSettings(id: number) {
+  return request<Organization>(`/api/organizations/${id}/settings`);
+}
+
+export function updateOrganizationSettings(
+  id: number,
+  payload: OrgSettingsPayload,
+) {
+  return request<Organization>(`/api/organizations/${id}/settings`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── PK Office: /api/profile (current user) ─────────────────────────────────
+
+export type ProfilePreferences = {
+  activeOrganizationId: number | null;
+  theme: "light" | "dark" | "system";
+  commandPaletteEnabled: boolean;
+};
+
+export type Profile = {
+  id: number;
+  email: string | null;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  role: string;
+  isEmailVerified: boolean;
+  createdAt: string;
+  preferences: ProfilePreferences;
+};
+
+export type ProfilePatchPayload = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+};
+
+export type PreferencesPatchPayload = {
+  theme?: "light" | "dark" | "system";
+  commandPaletteEnabled?: boolean;
+};
+
+export function getMyProfile() {
+  return request<Profile>("/api/profile");
+}
+
+export function patchMyProfile(payload: ProfilePatchPayload) {
+  return request<Profile>("/api/profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function changeProfilePassword(
+  currentPassword: string,
+  newPassword: string,
+) {
+  return request<null>("/api/profile/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function patchPreferences(payload: PreferencesPatchPayload) {
+  return request<ProfilePreferences>("/api/profile/preferences", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
 
 export function getOrganizations() {
   return request<Organization[]>("/api/organizations");

@@ -20,6 +20,11 @@ export type AuthUser = {
     startDate: string;
     endDate: string;
     isActive: boolean;
+    plan: "free" | "pro" | "business";
+    status: "active" | "cancelled" | "expired" | "past_due" | "trialing";
+    billingCycle: "monthly" | "yearly" | null;
+    cancelAtPeriodEnd: boolean;
+    cancelledAt: string | null;
   } | null;
 };
 

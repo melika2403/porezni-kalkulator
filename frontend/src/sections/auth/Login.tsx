@@ -6,12 +6,24 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./auth.module.css";
 import { login, resendVerification, unwrap } from "src/api/auth";
 
-// Whitelist: dozvoli redirect samo na interne (relative) putanje, ne na vanjske
-// URL-ove (sigurnosna mjera protiv open-redirect napada).
+// Whitelist: dozvoli interne (relative) putanje ili apsolutne URL-ove na
+// vlastite subdomene (app.localhost u dev-u, *.poreznikalkulator.ba u prod-u).
+// Štiti od open-redirect napada.
 function safeNext(raw: string | null): string {
   if (!raw) return "/";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
-  return raw;
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase();
+    const ok =
+      host === "app.localhost" ||
+      host === "localhost" ||
+      host === "poreznikalkulator.ba" ||
+      host.endsWith(".poreznikalkulator.ba");
+    return ok ? u.toString() : "/";
+  } catch {
+    return "/";
+  }
 }
 
 export default function Login() {
@@ -28,8 +40,14 @@ export default function Login() {
       unwrap(login(email, password, rememberMe)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push(nextUrl);
-      router.refresh();
+      // Cross-host (npr. app.localhost) zahtijeva full reload — router.push
+      // ne ide kroz Next runtime na drugu subdomenu.
+      if (/^https?:\/\//.test(nextUrl)) {
+        window.location.href = nextUrl;
+      } else {
+        router.push(nextUrl);
+        router.refresh();
+      }
     },
   });
 

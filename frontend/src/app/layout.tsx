@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Navbar from "src/components/Navbar/Navbar";
-import Footer from "src/components/Footer/Footer";
+import Script from "next/script";
 import Providers from "src/components/Providers/Providers";
+import ConditionalChrome from "src/components/ConditionalChrome/ConditionalChrome";
 import "./globals.css";
 
 // ── Replace with your real domain ─────────────────────────────────────────
@@ -328,20 +328,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bs">
-      <head>
-        <script
+    <html lang="bs" suppressHydrationWarning>
+      <body>
+        <Script
+          id="ld-json"
           type="application/ld+json"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
-          crossOrigin="anonymous"></script>
-      </head>
-      <body>
+        <Script
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
         <Providers>
-          <Navbar />
-          <div className="pageContent">{children}</div>
-          <Footer />
+          <ConditionalChrome>{children}</ConditionalChrome>
         </Providers>
       </body>
     </html>

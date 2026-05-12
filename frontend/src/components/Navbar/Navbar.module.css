@@ -342,6 +342,38 @@
   color: var(--sage);
 }
 
+.btnApp {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px 8px 12px;
+  border-radius: var(--radius);
+  background: var(--sage);
+  color: #fff !important;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid var(--sage);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.btnApp:hover {
+  background: var(--sage-light);
+}
+
+.btnApp svg {
+  flex-shrink: 0;
+}
+
+.btnAppArrow {
+  transition: transform 0.18s ease;
+}
+
+.btnApp:hover .btnAppArrow {
+  transform: translateX(2px);
+}
+
 @media (max-width: 640px) {
   .nav {
     padding: 0 1rem;
