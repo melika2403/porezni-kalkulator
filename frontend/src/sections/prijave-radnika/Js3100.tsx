@@ -1,6 +1,11 @@
 "use client";
-import { useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import styles from "./js3100.module.css";
+import uorStyles from "src/sections/ugovor-o-radu/uor.module.css";
+import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
+import { getOrganization, getWorkers, type Worker } from "src/api/profile";
+import { spolFromJmbg } from "src/utils/jmbg";
 import {
   fillJs3100Template,
   type Js3100Data,
@@ -18,7 +23,8 @@ import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
-import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
+import { useRole } from "src/hooks/useRole";
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 
@@ -83,15 +89,18 @@ const OSNOV_OSIGURANJA = [
 
 /* ── Component ── */
 export default function Js3100Form() {
-  return (
-    <RoleGuard
-      roles={["PRO", "BUSINESS", "ADMIN"]}
-      mode="hide"
-      fallback={<UpgradeGate />}
-    >
-      <Js3100App />
-    </RoleGuard>
-  );
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()).catch(() => null),
+    retry: false,
+  });
+  if (isLoading) {
+    return <div className={styles.page} />;
+  }
+  if (!user) {
+    return <UpgradeGate />;
+  }
+  return <Js3100App />;
 }
 
 function UpgradeGate() {
@@ -149,9 +158,30 @@ function UpgradeGate() {
 function Js3100App() {
   const formRef = useRef<HTMLFormElement | null>(null);
   const { findByName: findCity } = useCityLookup();
+  const searchParams = useSearchParams();
+  const { hasRole } = useRole();
+  const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
+
+  const initialOrgId = (() => {
+    const v = searchParams.get("org");
+    return v ? Number(v) || null : null;
+  })();
+  const initialWorkerId = (() => {
+    const v = searchParams.get("worker");
+    return v ? Number(v) || null : null;
+  })();
+  const initialVrsta: Js3100Vrsta = (() => {
+    const v = searchParams.get("vrsta");
+    if (v === "PRIJAVA" || v === "PROMJENA" || v === "ODJAVA") return v;
+    return "PRIJAVA";
+  })();
+
+  /* ── Sidebar state ── */
+  const [sidebarOrgId, setSidebarOrgId] = useState<number | null>(initialOrgId);
+  const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(initialWorkerId);
 
   /* ── Vrsta prijave ── */
-  const [vrsta, setVrsta] = useState<Js3100Vrsta>("PRIJAVA");
+  const [vrsta, setVrsta] = useState<Js3100Vrsta>(initialVrsta);
   const [datumPrijaveIso, setDatumPrijaveIso] = useState(() => getTodayIso());
 
   /* ── Prvi dio — Obveznik ── */
@@ -205,6 +235,103 @@ function Js3100App() {
   );
 
   const [loading, setLoading] = useState(false);
+
+  /* ── Sidebar auto-popuna: organizacija ── */
+  const orgQuery = useQuery({
+    queryKey: ["organization", sidebarOrgId],
+    queryFn: () => unwrap(getOrganization(sidebarOrgId!)),
+    enabled: !!sidebarOrgId,
+  });
+
+  /* ── Deep-link: auto-popuna radnika iz URL parametra ── */
+  const workersQuery = useQuery({
+    queryKey: ["workers", sidebarOrgId],
+    queryFn: () => unwrap(getWorkers(sidebarOrgId!)),
+    enabled: !!sidebarOrgId && !!initialWorkerId,
+  });
+  const deepLinkAppliedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkAppliedRef.current) return;
+    if (!initialWorkerId) return;
+    const w = workersQuery.data?.find((x) => x.id === initialWorkerId);
+    if (!w) return;
+    deepLinkAppliedRef.current = true;
+    handleWorkerPick(w.id, w);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workersQuery.data, initialWorkerId]);
+
+  useEffect(() => {
+    const org = orgQuery.data;
+    if (!org) return;
+    setEmployer((p) => ({
+      ...p,
+      jib: org.taxNumber ?? p.jib,
+      naziv: org.name ?? p.naziv,
+      adresa: org.address ?? p.adresa,
+      grad: org.city ?? p.grad,
+      email: org.email ?? p.email,
+      telefon: org.phone ?? p.telefon,
+    }));
+    if (org.owner) {
+      setPopunioImeIPrezime(
+        `${org.owner.firstName} ${org.owner.lastName}`.trim(),
+      );
+    }
+  }, [orgQuery.data]);
+
+  /* ── Sidebar auto-popuna: radnik ── */
+  const handleWorkerPick = (workerId: number | null, w: Worker | null) => {
+    setSidebarWorkerId(workerId);
+    if (!w) return;
+
+    // Default vrsta: ako je worker DRAFT/ODJAVLJEN → PRIJAVA, ako je PRIJAVLJEN → ODJAVA
+    setVrsta(w.employmentStatus === "PRIJAVLJEN" ? "ODJAVA" : "PRIJAVA");
+
+    // Datum rođenja iz JMBG-a
+    let datumRodjenjaIso = "";
+    if (w.jmbg && w.jmbg.length === 13) {
+      const dd = w.jmbg.slice(0, 2);
+      const mm = w.jmbg.slice(2, 4);
+      const ggg = parseInt(w.jmbg.slice(4, 7), 10);
+      const year = ggg < 800 ? 2000 + ggg : 1000 + ggg;
+      datumRodjenjaIso = `${year}-${mm}-${dd}`;
+    }
+
+    setWorker({
+      jmbg: w.jmbg ?? "",
+      prezime: w.lastName,
+      ime: w.firstName,
+      djevojackoPrezime: "",
+      datumRodjenjaIso,
+      spol: w.spol ?? (w.jmbg ? (spolFromJmbg(w.jmbg) ?? "") : ""),
+      adresa: w.address ?? "",
+      grad: w.city ?? "",
+      kontaktAdresa: "",
+      kontaktGrad: "",
+      emailOsiguranika: w.email ?? "",
+      strucnaSpremaIdx: w.strucnaSpremaIdx,
+    });
+
+    // Treći dio — datum promjene
+    const datumPromjeneIso =
+      w.employmentStatus === "PRIJAVLJEN"
+        ? w.odjavaDate ?? w.endDate ?? getTodayIso()
+        : w.startDate ?? getTodayIso();
+
+    setTreci((p) => ({
+      ...p,
+      sati: p.sati || "08",
+      minuta: p.minuta || "00",
+      osnovOsiguranjaOpis: p.osnovOsiguranjaOpis || "Zaposleni — puno radno vrijeme",
+      osnovOsiguranjaSifra: p.osnovOsiguranjaSifra || "01",
+      zanimanjeOpis: w.position ?? p.zanimanjeOpis,
+      strucnaSpremaTraziSeIdx: w.strucnaSpremaIdx ?? p.strucnaSpremaTraziSeIdx,
+      datumPromjeneIso,
+      osnovUplateOpis: w.salaryBruto != null
+        ? `${w.salaryBruto.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM`
+        : p.osnovUplateOpis,
+    }));
+  };
 
   /* ── Fill from profile ── */
   const fillEmployer = useCallback((data: OrgFillData) => {
@@ -311,6 +438,7 @@ function Js3100App() {
   ]);
 
   const handleExport = async () => {
+    if (!canGenerate) return;
     setLoading(true);
     try {
       const bytes = await fillJs3100Template(buildData());
@@ -328,17 +456,27 @@ function Js3100App() {
   };
 
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <div className={styles.label}>Obrazac JS3100</div>
-        <h1 className={styles.h1}>
-          Prijava / Odjava <em>radnika</em>
-        </h1>
-        <p className={styles.subtitle}>
-          Jedinstveni sistem registracije, kontrole i naplate doprinosa —
-          JS3100.
-        </p>
-      </div>
+    <div className={uorStyles.pageOuter}>
+      <div className={uorStyles.pageLayout}>
+        <WorkersSidebar
+          selectedOrgId={sidebarOrgId}
+          onOrgChange={setSidebarOrgId}
+          selectedWorkerId={sidebarWorkerId}
+          onWorkerSelect={handleWorkerPick}
+          bottomHint="Klik na radnika auto-popunjava JS3100 obrazac (poslodavac + osiguranik + datum)."
+          enableQuickAdd
+        />
+        <div className={`${styles.page} ${uorStyles.pageContent}`}>
+          <div className={styles.header}>
+            <div className={styles.label}>Obrazac JS3100</div>
+            <h1 className={styles.h1}>
+              Prijava / Odjava <em>radnika</em>
+            </h1>
+            <p className={styles.subtitle}>
+              Jedinstveni sistem registracije, kontrole i naplate doprinosa —
+              JS3100. Odaberite radnika u sidebar-u za auto-popunu.
+            </p>
+          </div>
 
       <form
         ref={formRef}
@@ -930,6 +1068,9 @@ function Js3100App() {
           </div>
         </section>
 
+        {!canGenerate && (
+          <GeneratePaywall tier="PRO" what="Preuzimanje JS3100 obrasca" />
+        )}
         <div className={styles.actions}>
           <SaveToProfileButton
             type="JS3100"
@@ -944,9 +1085,14 @@ function Js3100App() {
                   : "Promjena"
             }`}
             buildData={buildData}
-            disabled={loading || !worker.prezime}
+            disabled={loading || !worker.prezime || !canGenerate}
           />
-          <button type="submit" className={styles.exportBtn} disabled={loading}>
+          <button
+            type="submit"
+            className={styles.exportBtn}
+            disabled={loading || !canGenerate}
+            title={canGenerate ? undefined : "Dostupno uz Pro ili Business pretplatu"}
+          >
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -960,6 +1106,8 @@ function Js3100App() {
           </button>
         </div>
       </form>
+        </div>
+      </div>
     </div>
   );
 }

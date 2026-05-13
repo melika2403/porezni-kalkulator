@@ -34,6 +34,37 @@ const logoUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
 });
 
+// Document uploads (DOCX/PDF) za worker documents
+function makeDocStorage(subdir) {
+  const dir = path.join(UPLOADS_ROOT, subdir);
+  ensureDir(dir);
+  return multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, dir),
+    filename: (_req, file, cb) => {
+      const ext = (path.extname(file.originalname) || "").toLowerCase();
+      const safeExt = [".pdf", ".docx", ".doc"].includes(ext) ? ext : ".bin";
+      const stamp = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      cb(null, `${stamp}${safeExt}`);
+    },
+  });
+}
+
+const docFileFilter = (_req, file, cb) => {
+  const ok = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+  ].includes(file.mimetype);
+  if (!ok) return cb(new Error("INVALID_DOC_TYPE"));
+  cb(null, true);
+};
+
+const workerDocUpload = multer({
+  storage: makeDocStorage("worker-documents"),
+  fileFilter: docFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
+
 function publicUrlFor(subdir, filename) {
   return `/uploads/${subdir}/${filename}`;
 }
@@ -56,6 +87,7 @@ function safeUnlink(absPath) {
 module.exports = {
   UPLOADS_ROOT,
   logoUpload,
+  workerDocUpload,
   publicUrlFor,
   absPathFor,
   safeUnlink,

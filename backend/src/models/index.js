@@ -126,8 +126,90 @@ const Worker = sequelize.define(
     defaultEndTime: { type: DataTypes.STRING(5), allowNull: true },
     defaultDaysOff: { type: DataTypes.STRING(20), allowNull: true }, // comma-separated weekdays e.g. "0,6"
     defaultPause: { type: DataTypes.STRING(5), allowNull: true }, // pause hours, e.g. "1" or "0.5"
+    // ── Employment / ugovor o radu ──
+    position: { type: DataTypes.STRING(120), allowNull: true },
+    salaryBruto: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    salaryNeto: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    contractType: {
+      type: DataTypes.ENUM("NEODREDJENO", "ODREDJENO"),
+      allowNull: true,
+    },
+    contractEndDate: { type: DataTypes.DATEONLY, allowNull: true },
+    probationMonths: { type: DataTypes.TINYINT.UNSIGNED, allowNull: true },
+    noticePeriod: { type: DataTypes.STRING(50), allowNull: true },
+    contractNumber: { type: DataTypes.STRING(50), allowNull: true },
+    employmentStatus: {
+      type: DataTypes.ENUM("DRAFT", "PRIJAVLJEN", "ODJAVLJEN"),
+      defaultValue: "DRAFT",
+    },
+    prijavaDate: { type: DataTypes.DATEONLY, allowNull: true },
+    odjavaDate: { type: DataTypes.DATEONLY, allowNull: true },
+    spol: { type: DataTypes.ENUM("M", "Z"), allowNull: true },
+    strucnaSpremaIdx: { type: DataTypes.TINYINT.UNSIGNED, allowNull: true },
   },
   { tableName: "workers", timestamps: true },
+);
+
+// ─── WORKER DOCUMENT ──────────────────────────────────────────────────────────
+// Generisani dokumenti vezani za radnika (ugovor o radu, otkaz, JS3100).
+const WorkerDocument = sequelize.define(
+  "WorkerDocument",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    workerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    type: {
+      // UGOVOR=ugovor o radu, OTKAZ=odluka o prestanku, JS3100_PRIJAVA, JS3100_ODJAVA
+      type: DataTypes.ENUM("UGOVOR", "OTKAZ", "JS3100_PRIJAVA", "JS3100_ODJAVA"),
+      allowNull: false,
+    },
+    format: {
+      type: DataTypes.ENUM("DOCX", "PDF"),
+      allowNull: false,
+    },
+    /** Broj ugovora/otkaza (referenca, ne unique). */
+    number: { type: DataTypes.STRING(64), allowNull: true },
+    /** Filename na disku (samo basename, ne path). */
+    filename: { type: DataTypes.STRING(255), allowNull: false },
+    /** Originalno ime fajla kao bi se prikazalo korisniku pri downloadu. */
+    originalName: { type: DataTypes.STRING(255), allowNull: false },
+    mimeType: { type: DataTypes.STRING(120), allowNull: false },
+    sizeBytes: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "worker_documents",
+    timestamps: true,
+    indexes: [{ fields: ["workerId"] }, { fields: ["organizationId"] }],
+  },
+);
+
+// ─── CONTRACT COUNTER ─────────────────────────────────────────────────────────
+// Per-organization, per-year counter za brojeve ugovora o radu (UoR).
+const ContractCounter = sequelize.define(
+  "ContractCounter",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    year: { type: DataTypes.INTEGER, allowNull: false },
+    lastNumber: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+  },
+  {
+    tableName: "contract_counters",
+    timestamps: true,
+    indexes: [{ unique: true, fields: ["organizationId", "year"] }],
+  },
 );
 
 // ─── ORGANIZATION MEMBER ──────────────────────────────────────────────────────
@@ -573,6 +655,8 @@ Client.hasMany(Form, { foreignKey: "clientId" });
 Form.belongsTo(Client, { foreignKey: "clientId", as: "client" });
 
 Worker.hasMany(Form, { foreignKey: "workerId", as: "forms" });
+Worker.hasMany(WorkerDocument, { foreignKey: "workerId", as: "documents" });
+WorkerDocument.belongsTo(Worker, { foreignKey: "workerId" });
 Form.belongsTo(Worker, { foreignKey: "workerId", as: "worker" });
 
 User.hasMany(Form, { foreignKey: "createdById", as: "createdForms" });
@@ -634,5 +718,7 @@ module.exports = {
   Invoice,
   InvoiceItem,
   InvoiceCounter,
+  ContractCounter,
+  WorkerDocument,
   InvoiceItemTemplate,
 };

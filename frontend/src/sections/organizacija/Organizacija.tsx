@@ -39,6 +39,20 @@ type WorkerForm = {
   city: string;
   startDate: string;
   endDate: string;
+  // Ugovor o radu
+  position: string;
+  salaryBruto: string;
+  salaryNeto: string;
+  contractType: "" | "NEODREDJENO" | "ODREDJENO";
+  contractEndDate: string;
+  probationMonths: string; // "" | "0".."6"
+  noticePeriod: string;
+  contractNumber: string;
+  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
+  prijavaDate: string;
+  odjavaDate: string;
+  spol: "" | "M" | "Z";
+  strucnaSpremaIdx: string; // "" | "0".."9"
 };
 
 const emptyForm = (): WorkerForm => ({
@@ -52,9 +66,23 @@ const emptyForm = (): WorkerForm => ({
   city: "",
   startDate: "",
   endDate: "",
+  position: "",
+  salaryBruto: "",
+  salaryNeto: "",
+  contractType: "",
+  contractEndDate: "",
+  probationMonths: "",
+  noticePeriod: "",
+  contractNumber: "",
+  employmentStatus: "DRAFT",
+  prijavaDate: "",
+  odjavaDate: "",
+  spol: "",
+  strucnaSpremaIdx: "",
 });
 
 function formToPayload(f: WorkerForm): WorkerPayload {
+  const probation = f.probationMonths.trim();
   return {
     role: f.role,
     firstName: f.firstName.trim(),
@@ -66,10 +94,30 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     city: f.city.trim() || undefined,
     startDate: f.startDate || null,
     endDate: f.endDate.trim() || null,
+    position: f.position.trim() || null,
+    salaryBruto: f.salaryBruto.trim() ? Number(f.salaryBruto.replace(/\./g, "").replace(",", ".")) : null,
+    salaryNeto: f.salaryNeto.trim() ? Number(f.salaryNeto.replace(/\./g, "").replace(",", ".")) : null,
+    contractType: f.contractType === "" ? null : f.contractType,
+    contractEndDate: f.contractEndDate || null,
+    probationMonths: probation === "" ? null : Number(probation),
+    noticePeriod: f.noticePeriod.trim() || null,
+    contractNumber: f.contractNumber.trim() || null,
+    employmentStatus: f.employmentStatus,
+    prijavaDate: f.prijavaDate || null,
+    odjavaDate: f.odjavaDate || null,
+    spol: f.spol === "" ? null : f.spol,
+    strucnaSpremaIdx: f.strucnaSpremaIdx === "" ? null : Number(f.strucnaSpremaIdx),
   };
 }
 
 function workerToForm(w: Worker): WorkerForm {
+  const fmt = (n: number | null) =>
+    n == null
+      ? ""
+      : n.toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
   return {
     role: w.role,
     firstName: w.firstName,
@@ -81,6 +129,19 @@ function workerToForm(w: Worker): WorkerForm {
     city: w.city ?? "",
     startDate: w.startDate ?? "",
     endDate: w.endDate ?? "",
+    position: w.position ?? "",
+    salaryBruto: fmt(w.salaryBruto),
+    salaryNeto: fmt(w.salaryNeto),
+    contractType: w.contractType ?? "",
+    contractEndDate: w.contractEndDate ?? "",
+    probationMonths: w.probationMonths == null ? "" : String(w.probationMonths),
+    noticePeriod: w.noticePeriod ?? "",
+    contractNumber: w.contractNumber ?? "",
+    employmentStatus: w.employmentStatus ?? "DRAFT",
+    prijavaDate: w.prijavaDate ?? "",
+    odjavaDate: w.odjavaDate ?? "",
+    spol: w.spol ?? "",
+    strucnaSpremaIdx: w.strucnaSpremaIdx == null ? "" : String(w.strucnaSpremaIdx),
   };
 }
 
@@ -99,6 +160,22 @@ const ORG_TYPE_LABELS: Record<string, string> = {
   COMPANY: "Privredno društvo",
   BUSINESS: "Obrt / Samostalna djelatnost",
 };
+
+import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
+
+// Iste opcije kao u JS3100 (Drugi dio red 11), index = vrijednost koju treba slati
+const STRUCNA_SPREMA_OPCIJE = [
+  "DR — Doktor nauka",
+  "MR — Magistar",
+  "VSS — Visoka stručna sprema",
+  "VŠS — Viša stručna sprema",
+  "SSS — Srednja stručna sprema",
+  "Niža",
+  "VKV — Visokokvalifikovani",
+  "KV — Kvalifikovani",
+  "PK — Polukvalifikovani",
+  "NK — Nekvalifikovani",
+];
 
 // ─── Worker row form (add or edit) ────────────────────────────────────────────
 
@@ -154,11 +231,30 @@ function WorkerFormFields({
         <input
           className={styles.input}
           value={value.jmbg}
-          onChange={(e) => onChange({ ...value, jmbg: e.target.value.replace(/\D/g, "").slice(0, 13) })}
+          onChange={(e) => {
+            const jmbg = e.target.value.replace(/\D/g, "").slice(0, 13);
+            const next: WorkerForm = { ...value, jmbg };
+            // Auto-popuna spola iz JMBG-a (ako spol nije ručno odabran)
+            if (jmbg.length >= 12 && !value.spol) {
+              const inferred = spolFromJmbg(jmbg);
+              if (inferred) next.spol = inferred;
+            }
+            onChange(next);
+          }}
           placeholder="1234567890123"
           inputMode="numeric"
           maxLength={13}
+          style={
+            value.jmbg.length > 0 && value.jmbg.length === 13 && !isJmbgValid(value.jmbg)
+              ? { borderColor: "#dc2626" }
+              : undefined
+          }
         />
+        {value.jmbg.length === 13 && !isJmbgValid(value.jmbg) && (
+          <p style={{ fontSize: 12, color: "#dc2626", margin: "0.3rem 0 0" }}>
+            {parseJmbg(value.jmbg).error}
+          </p>
+        )}
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Broj lične karte</label>
@@ -220,6 +316,143 @@ function WorkerFormFields({
           className={styles.input}
         />
       </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Spol</label>
+        <select
+          className={styles.input}
+          value={value.spol}
+          onChange={(e) =>
+            onChange({ ...value, spol: e.target.value as WorkerForm["spol"] })
+          }
+        >
+          <option value="">— Odaberi —</option>
+          <option value="M">Muški</option>
+          <option value="Z">Ženski</option>
+        </select>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Stručna sprema</label>
+        <select
+          className={styles.input}
+          value={value.strucnaSpremaIdx}
+          onChange={set("strucnaSpremaIdx")}
+        >
+          <option value="">— Odaberi —</option>
+          {STRUCNA_SPREMA_OPCIJE.map((t, i) => (
+            <option key={i} value={i}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {!isVlasnik && (
+        <>
+          <div className={styles.field} style={{ gridColumn: "1 / -1", marginTop: "1rem" }}>
+            <label className={styles.fieldLabel} style={{ fontWeight: 600, color: "var(--ink)" }}>
+              — Ugovor o radu (za auto-popunjavanje formi) —
+            </label>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Radno mjesto / pozicija</label>
+            <input
+              className={styles.input}
+              value={value.position}
+              onChange={set("position")}
+              placeholder="Npr. Programer, konobar..."
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Vrsta ugovora</label>
+            <select
+              className={styles.input}
+              value={value.contractType}
+              onChange={(e) =>
+                onChange({ ...value, contractType: e.target.value as WorkerForm["contractType"] })
+              }
+            >
+              <option value="">— Odaberi —</option>
+              <option value="NEODREDJENO">Neodređeno</option>
+              <option value="ODREDJENO">Određeno</option>
+            </select>
+          </div>
+          {value.contractType === "ODREDJENO" && (
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Datum isteka ugovora</label>
+              <DateInput
+                className={styles.input}
+                value={value.contractEndDate}
+                onValueChange={(iso) => onChange({ ...value, contractEndDate: iso })}
+              />
+            </div>
+          )}
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Bruto plata (KM)</label>
+            <input
+              className={styles.input}
+              value={value.salaryBruto}
+              onChange={set("salaryBruto")}
+              placeholder="0,00"
+              inputMode="decimal"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Neto plata (KM)</label>
+            <input
+              className={styles.input}
+              value={value.salaryNeto}
+              onChange={set("salaryNeto")}
+              placeholder="0,00"
+              inputMode="decimal"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Probni rad (mjeseci, 0–6)</label>
+            <select
+              className={styles.input}
+              value={value.probationMonths}
+              onChange={set("probationMonths")}
+            >
+              <option value="">— Nema —</option>
+              {[1, 2, 3, 4, 5, 6].map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Otkazni rok</label>
+            <input
+              className={styles.input}
+              value={value.noticePeriod}
+              onChange={set("noticePeriod")}
+              placeholder="Npr. 30 dana"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Broj ugovora</label>
+            <input
+              className={styles.input}
+              value={value.contractNumber}
+              onChange={set("contractNumber")}
+              placeholder="Npr. 15/2026"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Status</label>
+            <select
+              className={styles.input}
+              value={value.employmentStatus}
+              onChange={set("employmentStatus")}
+            >
+              <option value="DRAFT">Draft (još nije prijavljen)</option>
+              <option value="PRIJAVLJEN">Prijavljen kod PIO/ZZO</option>
+              <option value="ODJAVLJEN">Odjavljen</option>
+            </select>
+          </div>
+        </>
+      )}
     </div>
   );
 }

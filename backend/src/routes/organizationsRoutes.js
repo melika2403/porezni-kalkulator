@@ -105,4 +105,18 @@ router.delete(
   workersController.remove,
 );
 
+// Contract counter (UoR) — peek & take next number per organization+year
+router.get(
+  "/:orgId/contract-counter",
+  requireAuth,
+  requireRole("BUSINESS", "ADMIN"),
+  workersController.peekContractNumber,
+);
+router.post(
+  "/:orgId/contract-counter/take",
+  requireAuth,
+  requireRole("BUSINESS", "ADMIN"),
+  workersController.takeContractNumber,
+);
+
 module.exports = router;

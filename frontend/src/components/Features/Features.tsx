@@ -64,7 +64,7 @@ const FEATURES: Feature[] = [
   },
   {
     title: "ZO3 obrazac",
-    desc: "Automatska izrada ZO3 obrasca za prijavu doprinosa. Unesite podatke o zaposlenima i preuzmite popunjeni obrazac.",
+    desc: "Prijavite člana porodice (supružnika, dijete ili roditelja) na zdravstveno osiguranje u FBiH — popunite ZO3 obrazac online i preuzmite popunjeni PDF.",
     badge: "free",
     iconColor: "sage",
     icon: (
@@ -237,8 +237,8 @@ const FEATURES: Feature[] = [
     dest: "/ugovor-o-djelu",
   },
   {
-    title: "Ugovor o radu",
-    desc: "Generator ugovora o radu sa popunjavanjem podataka iz Prijava radnika. Spremite vlastiti predložak i koristite ga za buduće ugovore.",
+    title: "Ugovor o radu i otkaz",
+    desc: "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Probni rad, određeno/neodređeno trajanje, automatski broj ugovora — u Word i PDF formatu.",
     badge: "business",
     iconColor: "dark",
     icon: (
@@ -254,8 +254,7 @@ const FEATURES: Feature[] = [
         <circle cx="9" cy="10" r="1.2" />
       </svg>
     ),
-    dest: "#",
-    soon: true,
+    dest: "/ugovor-o-radu",
   },
 ];
 

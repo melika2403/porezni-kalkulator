@@ -264,6 +264,9 @@ export function removeMember(orgId: number, userId: number) {
 
 // ─── Workers ─────────────────────────────────────────────────────────────────
 
+export type ContractType = "NEODREDJENO" | "ODREDJENO";
+export type EmploymentStatus = "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
+
 export type Worker = {
   id: number;
   organizationId: number;
@@ -283,6 +286,20 @@ export type Worker = {
   defaultEndTime: string | null;
   defaultDaysOff: string | null;
   defaultPause: string | null;
+  // Employment / ugovor o radu
+  position: string | null;
+  salaryBruto: number | null;
+  salaryNeto: number | null;
+  contractType: ContractType | null;
+  contractEndDate: string | null;
+  probationMonths: number | null;
+  noticePeriod: string | null;
+  contractNumber: string | null;
+  employmentStatus: EmploymentStatus;
+  prijavaDate: string | null;
+  odjavaDate: string | null;
+  spol: "M" | "Z" | null;
+  strucnaSpremaIdx: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -304,6 +321,20 @@ export type WorkerPayload = {
   defaultEndTime?: string | null;
   defaultDaysOff?: string | null;
   defaultPause?: string | null;
+  // Employment
+  position?: string | null;
+  salaryBruto?: number | string | null;
+  salaryNeto?: number | string | null;
+  contractType?: ContractType | null;
+  contractEndDate?: string | null;
+  probationMonths?: number | null;
+  noticePeriod?: string | null;
+  contractNumber?: string | null;
+  employmentStatus?: EmploymentStatus;
+  prijavaDate?: string | null;
+  odjavaDate?: string | null;
+  spol?: "M" | "Z" | null;
+  strucnaSpremaIdx?: number | null;
 };
 
 export function getWorkers(orgId: number) {
@@ -341,6 +372,101 @@ export function deleteWorker(orgId: number, workerId: number) {
   return request<null>(`/api/organizations/${orgId}/workers/${workerId}`, {
     method: "DELETE",
   });
+}
+
+// ─── Contract counter (broj ugovora o radu) ──────────────────────────────────
+
+export type ContractCounterResult = {
+  number: string; // npr. "5/2026"
+  year: number;
+  next: number;
+};
+
+export function peekContractNumber(orgId: number, year?: number) {
+  const qs = year ? `?year=${year}` : "";
+  return request<ContractCounterResult>(
+    `/api/organizations/${orgId}/contract-counter${qs}`,
+  );
+}
+
+export function takeContractNumber(orgId: number, year?: number) {
+  return request<ContractCounterResult>(
+    `/api/organizations/${orgId}/contract-counter/take`,
+    {
+      method: "POST",
+      body: JSON.stringify(year ? { year } : {}),
+    },
+  );
+}
+
+// ─── Worker documents (ugovori / otkazi / JS3100 arhiva) ─────────────────────
+
+export type WorkerDocumentType =
+  | "UGOVOR"
+  | "OTKAZ"
+  | "JS3100_PRIJAVA"
+  | "JS3100_ODJAVA";
+
+export type WorkerDocumentFormat = "DOCX" | "PDF";
+
+export type WorkerDocument = {
+  id: number;
+  workerId: number;
+  organizationId: number;
+  type: WorkerDocumentType;
+  format: WorkerDocumentFormat;
+  number: string | null;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number | null;
+  createdAt: string;
+};
+
+/** Upload generisanog dokumenta. Šalje multipart/form-data. */
+export async function uploadWorkerDocument(
+  workerId: number,
+  blob: Blob,
+  meta: {
+    type: WorkerDocumentType;
+    format: WorkerDocumentFormat;
+    number?: string;
+    originalName: string;
+  },
+): Promise<{ ok: true; data: WorkerDocument } | { ok: false; error: string }> {
+  const fd = new FormData();
+  fd.append("file", blob, meta.originalName);
+  fd.append("type", meta.type);
+  fd.append("format", meta.format);
+  if (meta.number) fd.append("number", meta.number);
+  fd.append("originalName", meta.originalName);
+
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/workers/${workerId}/documents`,
+      {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      },
+    );
+    const json = await res.json();
+    return json as { ok: true; data: WorkerDocument } | { ok: false; error: string };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+export function listWorkerDocuments(workerId: number) {
+  return request<WorkerDocument[]>(`/api/workers/${workerId}/documents`);
+}
+
+export function deleteWorkerDocument(docId: number) {
+  return request<null>(`/api/workers/documents/${docId}`, { method: "DELETE" });
+}
+
+/** URL za direktan download (auth cookie se prosljeđuje). */
+export function workerDocumentDownloadUrl(docId: number): string {
+  return `${BACKEND_URL}/api/workers/documents/${docId}/download`;
 }
 
 // ─── Forms history ────────────────────────────────────────────────────────────
