@@ -106,7 +106,13 @@
       "Bash(curl -s -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiVVNFUiIsImlhdCI6MTc3ODQzMzMxNiwiZXhwIjoxNzc4NDM2OTE2LCJzdWIiOiI0OSJ9.ZSrPMSssEaHQX-psi8cwF5mEa_9SOXbRLtpO04nrWQo' http://localhost:4000/api/organizations/52/settings)",
       "Bash(curl -s -X PATCH -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiVVNFUiIsImlhdCI6MTc3ODQzMzMxNiwiZXhwIjoxNzc4NDM2OTE2LCJzdWIiOiI0OSJ9.ZSrPMSssEaHQX-psi8cwF5mEa_9SOXbRLtpO04nrWQo' -H 'Content-Type: application/json' -d '{\"jurisdiction\":\"FBIH\",\"isPdvObveznik\":true}' http://localhost:4000/api/organizations/52/settings)",
       "PowerShell(Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, @{n='CommandLine';e={\\(Get-CimInstance Win32_Process -Filter \"ProcessId=$\\($_.Id\\)\"\\).CommandLine}} | Format-Table -AutoSize -Wrap)",
-      "PowerShell($frontendPids = @\\(40732, 41916, 73076, 73840, 79632\\); foreach \\($p in $frontendPids\\) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2; Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, @{n='Path';e={\\(Get-CimInstance Win32_Process -Filter \"ProcessId=$\\($_.Id\\)\"\\).CommandLine}} | Format-Table -AutoSize -Wrap)"
+      "PowerShell($frontendPids = @\\(40732, 41916, 73076, 73840, 79632\\); foreach \\($p in $frontendPids\\) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2; Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, @{n='Path';e={\\(Get-CimInstance Win32_Process -Filter \"ProcessId=$\\($_.Id\\)\"\\).CommandLine}} | Format-Table -AutoSize -Wrap)",
+      "Bash(findstr /i tailwind)",
+      "Bash(curl -s -o nul -w \"%{http_code}\" http://localhost:3000/app/dashboard)",
+      "Bash(findstr :3000)",
+      "Bash(curl -s http://localhost:3000/_next/static/css/app/layout.css)",
+      "Bash(findstr -i \"css styles tailwind\")",
+      "Bash(rm \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\dashboard.html\" \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\page.html\" \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\pk-office-built.css\" \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\globals-built.css\" 2>&1)"
     ]
   }
 }
