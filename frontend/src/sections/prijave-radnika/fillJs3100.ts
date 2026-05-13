@@ -192,9 +192,20 @@ export async function fillJs3100Template(data: Js3100Data): Promise<Uint8Array> 
   // fill_3: kontakt adresa — ulica i broj
   setBold("fill_3", data.kontaktAdresa, 10);
   setBold("Poštanski broj", data.postanskiBroj, 10);
-  // Email row (y=397): lijevo polje = email, desno = "71300 Visoko"
+  // "Mjesto" pored Poštanskog broja u redu 9 nema PDF form field — crtaj direktno.
+  // Koordinate iz template-a: red 9 je na y≈418, "Mjesto" počinje x≈460.
+  if (data.mjestoPrebivalista) {
+    const page = doc.getPages()[0];
+    page.drawText(data.mjestoPrebivalista, {
+      x: 462,
+      y: 420,
+      size: 10,
+      font: boldFont,
+    });
+  }
+  // Email red (y=397) — lijevo polje = email osiguranika, desno polje (ime "MjestoEmail adresa")
+  // ostavljamo prazno jer se mjesto već crta u redu 9 iznad.
   setBold("Poštanski broj Email adresa", data.emailOsiguranika, 10);
-  setBold("MjestoEmail adresa", data.postanskiMjestoCombined, 10);
 
   /* ── Treći dio — Podaci o osiguranju ── */
   // Red 1: Dnevno radno vrijeme (undefined_5 = sati, undefined_6 = minuta)

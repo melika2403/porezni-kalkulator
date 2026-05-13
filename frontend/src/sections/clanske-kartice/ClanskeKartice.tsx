@@ -19,6 +19,7 @@ import {
   type KarticaMember,
 } from "src/api/karticaMembers";
 import DateInput from "src/components/DateInput/DateInput";
+import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { generateKartica } from "./generateKartica";
 import QRCode from "qrcode";
 
@@ -182,21 +183,22 @@ function safeFileName(s: string, fallback: string): string {
 }
 
 export default function ClanskeKartice() {
-  const { role } = useRole();
-  if (role !== "PRO" && role !== "BUSINESS" && role !== "ADMIN") {
-    return <Gate role={role} />;
+  const { role, isLoading } = useRole();
+  if (isLoading) {
+    return <main className={styles.page} />;
+  }
+  if (role === null) {
+    return <Gate />;
   }
   return <ClanskeKarticeApp />;
 }
 
-function Gate({ role }: { role: string | null }) {
-  const isLoggedIn = role !== null;
-  const title = "Generator članskih kartica je dostupan uz pretplatu";
-  const text = isLoggedIn
-    ? "Kreirajte članske kartice sa QR kodom za svoju organizaciju. Funkcija je dostupna uz Pro pretplatu (vlastite organizacije) ili Business (i klijentske)."
-    : "Kreirajte članske kartice sa QR kodom za svoju organizaciju ili klijente. Registrujte se i pretplatite na Pro ili Business plan.";
-  const cta = isLoggedIn ? "Pogledaj pretplate →" : "Registrirajte se besplatno →";
-  const href = isLoggedIn ? "/profil#pretplata" : "/registracija";
+function Gate() {
+  const title = "Generator članskih kartica";
+  const text =
+    "Kreirajte članske kartice sa QR kodom za svoju organizaciju ili klijente. Registrujte se besplatno da probate preview, ili odmah aktivirajte Pro pretplatu.";
+  const cta = "Registrirajte se besplatno →";
+  const href = "/registracija";
 
   return (
     <main className={styles.page}>
@@ -221,8 +223,9 @@ function Gate({ role }: { role: string | null }) {
 }
 
 function ClanskeKarticeApp() {
-  const { role } = useRole();
+  const { role, hasRole } = useRole();
   const isBusiness = role === "BUSINESS" || role === "ADMIN";
+  const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
 
   const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],
@@ -675,6 +678,7 @@ function ClanskeKarticeApp() {
   };
 
   const handleBulkGenerate = async () => {
+    if (!canGenerate) return;
     if (bulkRows.length === 0) return;
     const missing = bulkRows.filter((r) => !r.name || !r.code).length;
     if (missing > 0) {
@@ -750,6 +754,7 @@ function ClanskeKarticeApp() {
 
   // ── Download ───────────────────────────────────────────────────────────────
   const handleDownload = async () => {
+    if (!canGenerate) return;
     if (!memberName) {
       alert("Unesite ime člana.");
       return;
@@ -1112,11 +1117,15 @@ function ClanskeKarticeApp() {
               type="button"
               className={styles.btnPrimary}
               onClick={handleDownload}
-              disabled={generating}
+              disabled={generating || !canGenerate}
+              title={canGenerate ? undefined : "Dostupno uz Pro ili Business pretplatu"}
             >
               {generating ? "Generišem…" : "📄 Preuzmi karticu (PDF)"}
             </button>
           </div>
+          {!canGenerate && (
+            <GeneratePaywall tier="PRO" what="Preuzimanje članske kartice" />
+          )}
         </section>
 
         {/* ── Preview ──────────────────────────────────────────────── */}
@@ -1292,12 +1301,16 @@ function ClanskeKarticeApp() {
               )}
             </div>
 
+            {!canGenerate && (
+              <GeneratePaywall tier="PRO" what="Bulk generisanje kartica" />
+            )}
             <div className={styles.actions}>
               <button
                 type="button"
                 className={styles.btnPrimary}
                 onClick={handleBulkGenerate}
-                disabled={generating}
+                disabled={generating || !canGenerate}
+                title={canGenerate ? undefined : "Dostupno uz Pro ili Business pretplatu"}
               >
                 {bulkProgress
                   ? `Generišem… ${bulkProgress.done}/${bulkProgress.total}`

@@ -1,0 +1,57 @@
+.paywall {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0 0.75rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.paywallBusiness {
+  background: linear-gradient(135deg, #eef4ff, var(--paper));
+  border-color: #93b8ff;
+}
+
+.icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.btn {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 0.55rem 1.1rem;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--sage);
+  color: #fff;
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.btnBusiness {
+  background: #2b62d9;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+@media (max-width: 640px) {
+  .paywall {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+}

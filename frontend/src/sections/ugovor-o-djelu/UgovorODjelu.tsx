@@ -21,6 +21,7 @@ import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import FaqSection from "src/components/FaqSection/FaqSection";
+import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 
 type Mode = "neto" | "bruto";
 
@@ -45,6 +46,27 @@ const formatZiroRacun = (raw: string): string => {
 // Digits only, max 13
 const formatJib = (raw: string): string => raw.replace(/\D/g, "").slice(0, 13);
 
+const IconDownload = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+  </svg>
+);
+
+const IconReceipt = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 3h14v18l-2.5-2-2.5 2-2.5-2-2.5 2L5 21z" />
+    <path d="M9 8h6M9 12h6M9 16h4" />
+  </svg>
+);
+
+const IconCard = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="6" width="18" height="13" rx="2" />
+    <path d="M3 10h18M7 15h3" />
+  </svg>
+);
+
 // Format number to display in input: "1.000,00"
 const formatAmountForInput = (s: string): string => {
   if (!s) return "";
@@ -59,37 +81,22 @@ const formatAmountForInput = (s: string): string => {
 };
 
 export default function UgovorODjelu() {
-  const { role } = useRole();
-  if (role !== "BUSINESS" && role !== "ADMIN") {
-    return <UgovorODjeluGate role={role} />;
+  const { role, isLoading } = useRole();
+  if (isLoading) {
+    return <main className={styles.page} />;
+  }
+  if (role === null) {
+    return <UgovorODjeluGate />;
   }
   return <UgovorODjeluApp />;
 }
 
-function UgovorODjeluGate({ role }: { role: string | null }) {
-  const isPro = role === "PRO";
-  const isLoggedIn = role !== null;
-
-  let title: string;
-  let text: string;
-  let cta: string;
-  let href: string;
-  if (isPro) {
-    title = "Ugovor o djelu zahtijeva Business pretplatu";
-    text = "Vaš Pro plan pokriva većinu alata, ali ugovori o djelu (kalkulator, predložak ugovora i uplatnice) dostupni su samo uz Business pretplatu.";
-    cta = "Nadogradi na Business →";
-    href = "/profil#pretplata";
-  } else if (isLoggedIn) {
-    title = "Ugovor o djelu je dostupan uz pretplatu";
-    text = "Kalkulator poreza i doprinosa, generisanje ugovora (DOCX/PDF) i 6 uplatnica spremnih za banku dostupno je uz Business pretplatu.";
-    cta = "Pogledaj pretplate →";
-    href = "/profil#pretplata";
-  } else {
-    title = "Ugovor o djelu je dostupan uz pretplatu";
-    text = "Da biste koristili kalkulator i generator ugovora o djelu, registrujte se i pretplatite na Business plan.";
-    cta = "Registrirajte se besplatno →";
-    href = "/registracija";
-  }
+function UgovorODjeluGate() {
+  const title = "Ugovor o djelu je dostupan uz pretplatu";
+  const text =
+    "Da biste koristili kalkulator i generator ugovora o djelu, registrujte se besplatno i probajte preview obrasca, ili odmah aktivirajte Business pretplatu.";
+  const cta = "Registrirajte se besplatno →";
+  const href = "/registracija";
 
   return (
     <main className={styles.page}>
@@ -113,6 +120,8 @@ function UgovorODjeluGate({ role }: { role: string | null }) {
 }
 
 function UgovorODjeluApp() {
+  const { hasRole } = useRole();
+  const canGenerate = hasRole("BUSINESS", "ADMIN");
   const { findByName: findCity } = useCityLookup();
   const [mode, setMode] = useState<Mode>("neto");
   const [vrsta, setVrsta] = useState<VrstaNaknade>("standard");
@@ -201,6 +210,7 @@ function UgovorODjeluApp() {
   const [showAugInfo, setShowAugInfo] = useState(false);
 
   const handleDownloadDocx = async () => {
+    if (!canGenerate) return;
     setGeneratingDocx(true);
     try {
       const blob = await fillUodDocx(buildTemplateData());
@@ -218,6 +228,7 @@ function UgovorODjeluApp() {
   };
 
   const handleDownloadPdf = async () => {
+    if (!canGenerate) return;
     setGeneratingPdf(true);
     try {
       const bytes = await fillUodPdf(buildTemplateData());
@@ -236,6 +247,7 @@ function UgovorODjeluApp() {
   };
 
   const handleDownloadAug = async () => {
+    if (!canGenerate) return;
     if (!naruciIme || !naruciId) {
       alert("Unesite naziv i JIB naručioca.");
       return;
@@ -277,6 +289,7 @@ function UgovorODjeluApp() {
   };
 
   const handleDownloadUplatnice = async () => {
+    if (!canGenerate) return;
     if (!izvrJmbg || izvrJmbg.length !== 13) {
       alert("JMBG izvršioca mora imati 13 cifara.");
       return;
@@ -618,31 +631,37 @@ function UgovorODjeluApp() {
       </section>
 
       {/* Ugovor download buttons */}
+      {!canGenerate && (
+        <GeneratePaywall tier="BUSINESS" what="Generisanje ugovora o djelu" />
+      )}
       <div className={`${styles.actions} ${styles.actionsCenter}`}>
         <button
           type="button"
           className={styles.btnPrimary}
           onClick={handleDownloadDocx}
-          disabled={generatingDocx}
+          disabled={generatingDocx || !canGenerate}
+          title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
         >
-          📄 {generatingDocx ? "Generišem…" : "Preuzmi ugovor (DOCX)"}
+          {IconDownload} {generatingDocx ? "Generišem…" : "Preuzmi ugovor (DOCX)"}
         </button>
         <button
           type="button"
           className={styles.btnOutline}
           onClick={handleDownloadPdf}
-          disabled={generatingPdf}
+          disabled={generatingPdf || !canGenerate}
+          title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
         >
-          📄 {generatingPdf ? "Generišem…" : "Preuzmi ugovor (PDF)"}
+          {IconDownload} {generatingPdf ? "Generišem…" : "Preuzmi ugovor (PDF)"}
         </button>
         <div className={styles.augWrap}>
           <button
             type="button"
             className={styles.btnOutline}
             onClick={handleDownloadAug}
-            disabled={generatingAug}
+            disabled={generatingAug || !canGenerate}
+            title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
           >
-            📑 {generatingAug ? "Generišem…" : "Preuzmi AUG-1031 (PDF)"}
+            {IconReceipt} {generatingAug ? "Generišem…" : "Preuzmi AUG-1031 (PDF)"}
           </button>
           <button
             type="button"
@@ -774,14 +793,18 @@ function UgovorODjeluApp() {
         </div>
       </section>
 
+      {!canGenerate && (
+        <GeneratePaywall tier="BUSINESS" what="Generisanje uplatnica za ugovor o djelu" />
+      )}
       <div className={`${styles.actions} ${styles.actionsCenter}`}>
         <button
           type="button"
           className={styles.btnPrimary}
           onClick={handleDownloadUplatnice}
-          disabled={generatingUplatnice}
+          disabled={generatingUplatnice || !canGenerate}
+          title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
         >
-          💳 {generatingUplatnice ? "Generišem…" : "Preuzmi uplatnice (PDF)"}
+          {IconCard} {generatingUplatnice ? "Generišem…" : "Preuzmi uplatnice (PDF)"}
         </button>
       </div>
 

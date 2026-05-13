@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./fakture.module.css";
 import Modal from "src/components/Modal/Modal";
 import { useRole } from "src/hooks/useRole";
+import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import BuyerFillSelect, { type BuyerFillData } from "src/components/BuyerFillSelect/BuyerFillSelect";
@@ -497,10 +498,7 @@ export default function InvoiceForm() {
   return (
     <div className={styles.page}>
       {!isAllowed && (
-        <div className={styles.upgradeBox}>
-          <strong>Preview mode.</strong> Možete unositi sve podatke i vidjeti kako izgleda faktura/predračun.
-          Za snimanje i preuzimanje PDF-a potrebna je <Link href="/pretplate">PRO ili BUSINESS pretplata →</Link>
-        </div>
+        <GeneratePaywall tier="PRO" what="Snimanje i preuzimanje fakture/predračuna" />
       )}
       {duplicateNotice && (
         <div className={styles.duplicateNotice}>

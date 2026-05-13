@@ -23,6 +23,7 @@ const predracunRoutes = require("./routes/predracunRoutes");
 const karticaMembersRoutes = require("./routes/karticaMembersRoutes");
 const invoicesRoutes = require("./routes/invoicesRoutes");
 const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes");
+const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use("/api/predracun", predracunRoutes);
 app.use("/api/kartica-members", karticaMembersRoutes);
 app.use("/api/invoices", invoicesRoutes);
 app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
+app.use("/api/workers", workerDocumentsRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -107,6 +109,72 @@ async function ensureColumns() {
       table: "users",
       column: "trialUsedAt",
       ddl: "ALTER TABLE users ADD COLUMN trialUsedAt DATETIME NULL",
+    },
+    // ─── Workers: employment / ugovor o radu podaci ───────────────────────────
+    {
+      table: "workers",
+      column: "position",
+      ddl: "ALTER TABLE workers ADD COLUMN position VARCHAR(120) NULL",
+    },
+    {
+      table: "workers",
+      column: "salaryBruto",
+      ddl: "ALTER TABLE workers ADD COLUMN salaryBruto DECIMAL(10,2) NULL",
+    },
+    {
+      table: "workers",
+      column: "salaryNeto",
+      ddl: "ALTER TABLE workers ADD COLUMN salaryNeto DECIMAL(10,2) NULL",
+    },
+    {
+      table: "workers",
+      column: "contractType",
+      ddl: "ALTER TABLE workers ADD COLUMN contractType ENUM('NEODREDJENO','ODREDJENO') NULL",
+    },
+    {
+      table: "workers",
+      column: "contractEndDate",
+      ddl: "ALTER TABLE workers ADD COLUMN contractEndDate DATE NULL",
+    },
+    {
+      table: "workers",
+      column: "probationMonths",
+      ddl: "ALTER TABLE workers ADD COLUMN probationMonths TINYINT UNSIGNED NULL",
+    },
+    {
+      table: "workers",
+      column: "noticePeriod",
+      ddl: "ALTER TABLE workers ADD COLUMN noticePeriod VARCHAR(50) NULL",
+    },
+    {
+      table: "workers",
+      column: "contractNumber",
+      ddl: "ALTER TABLE workers ADD COLUMN contractNumber VARCHAR(50) NULL",
+    },
+    {
+      table: "workers",
+      column: "employmentStatus",
+      ddl: "ALTER TABLE workers ADD COLUMN employmentStatus ENUM('DRAFT','PRIJAVLJEN','ODJAVLJEN') NOT NULL DEFAULT 'DRAFT'",
+    },
+    {
+      table: "workers",
+      column: "prijavaDate",
+      ddl: "ALTER TABLE workers ADD COLUMN prijavaDate DATE NULL",
+    },
+    {
+      table: "workers",
+      column: "odjavaDate",
+      ddl: "ALTER TABLE workers ADD COLUMN odjavaDate DATE NULL",
+    },
+    {
+      table: "workers",
+      column: "spol",
+      ddl: "ALTER TABLE workers ADD COLUMN spol ENUM('M','Z') NULL",
+    },
+    {
+      table: "workers",
+      column: "strucnaSpremaIdx",
+      ddl: "ALTER TABLE workers ADD COLUMN strucnaSpremaIdx TINYINT UNSIGNED NULL",
     },
   ];
   for (const c of checks) {
