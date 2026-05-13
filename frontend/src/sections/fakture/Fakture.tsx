@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./fakture.module.css";
 import { useRole } from "src/hooks/useRole";
@@ -44,8 +45,17 @@ function fmtDate(iso: string | null) {
 export default function Fakture() {
   const { hasRole, isLoading: roleLoading } = useRole();
   const isAllowed = hasRole("PRO", "BUSINESS", "ADMIN");
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("ALL");
   const qc = useQueryClient();
+
+  // Korisnici bez PRO/BUSINESS nemaju listu — ali mogu da koriste preview formu.
+  // Umjesto intermediate "Probaj preview" ekrana, otvori formu direktno.
+  useEffect(() => {
+    if (!roleLoading && !isAllowed) {
+      router.replace("/fakture/nova");
+    }
+  }, [roleLoading, isAllowed, router]);
 
   const { data: invoices = [], isLoading, error } = useQuery({
     queryKey: ["invoices", tab],
@@ -120,39 +130,11 @@ export default function Fakture() {
     return m;
   }, [invoices]);
 
-  if (roleLoading) {
+  if (roleLoading || !isAllowed) {
+    // Tokom učitavanja, ili dok redirect-na-formu okine, prikaži minimalni placeholder.
     return (
       <div className={styles.page}>
-        <div className={styles.empty}>
-          Učitavanje…
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAllowed) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <div>
-            <div className={styles.label}>Fakture</div>
-            <h1 className={styles.h1}>Fakture i <em>predračuni</em></h1>
-            <p className={styles.subtitle}>Izrada profesionalnih računa i predračuna sa PDV-om i numeracijom.</p>
-          </div>
-        </div>
-        <div className={styles.upgradeBox}>
-          Ova funkcija je dostupna uz <strong>PRO</strong> ili <strong>BUSINESS</strong> pretplatu.
-          {" "}
-          <Link href="/pretplate">Pogledajte pretplate →</Link>
-        </div>
-        <div style={{ display: "flex", gap: ".75rem", flexWrap: "wrap" }}>
-          <Link href="/fakture/nova" className={`${styles.btn} ${styles.btnGhost}`}>
-            Probaj preview formu →
-          </Link>
-          <Link href="/pretplate" className={`${styles.btn} ${styles.btnPrimary}`}>
-            Pogledaj pretplate
-          </Link>
-        </div>
+        <div className={styles.empty}>Učitavanje…</div>
       </div>
     );
   }

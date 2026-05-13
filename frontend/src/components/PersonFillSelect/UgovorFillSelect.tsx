@@ -20,6 +20,8 @@ export type UgovorFillData = {
   city: string;
   id: string;
   bankAccount?: string;
+  /** Ime vlasnika organizacije (zastupnik); prazno za fizička lica i radnike. */
+  ownerName?: string;
 };
 
 type Props = {
@@ -197,7 +199,14 @@ export default function UgovorFillSelect({ onFill }: Props) {
                       key={o.id}
                       type="button"
                       className={styles.dropdownItem}
-                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "", bankAccount: o.bankAccount ?? "" })}
+                      onClick={() => pick({
+                        name: o.name,
+                        address: o.address ?? "",
+                        city: o.city ?? "",
+                        id: o.taxNumber ?? "",
+                        bankAccount: o.bankAccount ?? "",
+                        ownerName: o.owner ? `${o.owner.firstName} ${o.owner.lastName}`.trim() : "",
+                      })}
                     >
                       {orgLabel(o)}{o.taxNumber ? ` (${o.taxNumber})` : ""}
                     </button>
@@ -213,7 +222,14 @@ export default function UgovorFillSelect({ onFill }: Props) {
                       key={o.id}
                       type="button"
                       className={styles.dropdownItem}
-                      onClick={() => pick({ name: o.name, address: o.address ?? "", city: o.city ?? "", id: o.taxNumber ?? "", bankAccount: o.bankAccount ?? "" })}
+                      onClick={() => pick({
+                        name: o.name,
+                        address: o.address ?? "",
+                        city: o.city ?? "",
+                        id: o.taxNumber ?? "",
+                        bankAccount: o.bankAccount ?? "",
+                        ownerName: o.owner ? `${o.owner.firstName} ${o.owner.lastName}`.trim() : "",
+                      })}
                     >
                       {orgLabel(o)}{o.taxNumber ? ` (${o.taxNumber})` : ""}
                     </button>
