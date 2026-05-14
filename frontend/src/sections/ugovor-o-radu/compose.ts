@@ -7,6 +7,8 @@ export type TipUgovora = "neodredjeno" | "odredjeno";
 
 export type TipPrestanka = "od_poslodavca" | "od_radnika" | "sporazumni";
 
+export type TrajanjeJedinica = "mjeseci" | "godine";
+
 export function formatDdMmYyyy(iso: string): string {
   if (!iso) return "";
   const [y, m, d] = iso.slice(0, 10).split("-");
@@ -14,17 +16,52 @@ export function formatDdMmYyyy(iso: string): string {
   return `${d}.${m}.${y}.`;
 }
 
-export function trajanjeClan1(tip: TipUgovora, datumIstekaIso: string): string {
+// Genitivni oblik za "u trajanju od X mjeseca/mjeseci".
+// 1, 2, 3, 4 (osim 11-19) → "mjeseca"; ostalo → "mjeseci".
+function mjesecOblik(broj: number): string {
+  const lastTwo = broj % 100;
+  if (lastTwo >= 11 && lastTwo <= 19) return "mjeseci";
+  const lastDigit = broj % 10;
+  if (lastDigit >= 1 && lastDigit <= 4) return "mjeseca";
+  return "mjeseci";
+}
+
+function godinaOblik(broj: number): string {
+  // Max 3 godine, ali držimo se pravila: 1-4 → "godine", 5+ → "godina".
+  const lastTwo = broj % 100;
+  if (lastTwo >= 11 && lastTwo <= 19) return "godina";
+  const lastDigit = broj % 10;
+  if (lastDigit >= 1 && lastDigit <= 4) return "godine";
+  return "godina";
+}
+
+export function trajanjeFormat(broj: number, jedinica: TrajanjeJedinica): string {
+  if (broj <= 0) return "";
+  const oblik = jedinica === "mjeseci" ? mjesecOblik(broj) : godinaOblik(broj);
+  return `${broj} ${oblik}`;
+}
+
+export function trajanjeClan1(
+  tip: TipUgovora,
+  datumIstekaIso: string,
+  trajanjeBroj?: number,
+  trajanjeJedinica?: TrajanjeJedinica,
+): string {
   if (tip === "neodredjeno") return "neodređeno vrijeme";
   const dat = formatDdMmYyyy(datumIstekaIso);
-  if (!dat) return "određeno vrijeme";
-  // formatDdMmYyyy već vraća sa tačkom na kraju (npr. "31.12.2026.")
-  return `određeno vrijeme, do ${dat} godine`;
+  const trajanjeTxt =
+    trajanjeBroj && trajanjeJedinica ? trajanjeFormat(trajanjeBroj, trajanjeJedinica) : "";
+  if (trajanjeTxt && dat) {
+    return `određeno vrijeme, u trajanju od ${trajanjeTxt}, do ${dat} godine`;
+  }
+  if (trajanjeTxt) return `određeno vrijeme, u trajanju od ${trajanjeTxt}`;
+  if (dat) return `određeno vrijeme, do ${dat} godine`;
+  return "određeno vrijeme";
 }
 
 // Sastavlja cijeli tekst Člana 1.
 //   Bez probnog: "Ugovor o radu zaključuje se na neodređeno vrijeme."
-//                ili "...na određeno vrijeme, do 31.12.2026. godine."
+//                ili "...na određeno vrijeme, u trajanju od 6 mjeseci, do 14.11.2026. godine."
 //   Sa probnim:  "Ugovor o probnom radu se zaključuje na period od 3 (tri) mjeseca,
 //                počev od dana zasnivanja radnog odnosa."
 //                (probni rad je sam po sebi ograničen — ne traži tip ugovora)
@@ -33,6 +70,8 @@ export function clan1Tekst(
   datumIstekaIso: string,
   probniRadEnabled: boolean,
   probniRadMjeseci: number,
+  trajanjeBroj?: number,
+  trajanjeJedinica?: TrajanjeJedinica,
 ): string {
   if (probniRadEnabled) {
     const n = Math.max(1, Math.min(6, Math.round(probniRadMjeseci || 3)));
@@ -40,7 +79,7 @@ export function clan1Tekst(
     const oblik = n >= 5 ? "mjeseci" : "mjeseca";
     return `Ugovor o probnom radu se zaključuje na period od ${n} (${slovima}) ${oblik}, počev od dana zasnivanja radnog odnosa.`;
   }
-  const trajanje = trajanjeClan1(tip, datumIstekaIso);
+  const trajanje = trajanjeClan1(tip, datumIstekaIso, trajanjeBroj, trajanjeJedinica);
   return `Ugovor o radu zaključuje se na ${trajanje}.`;
 }
 

@@ -35,6 +35,7 @@ import {
   tipUgovoraRijec,
   type TipPrestanka,
   type TipUgovora,
+  type TrajanjeJedinica,
 } from "./compose";
 import { fillUorDocx, type UorTemplateData } from "./fillUorDocx";
 import { fillUorPdf } from "./fillUorPdf";
@@ -65,6 +66,29 @@ const formatAmountForInput = (s: string): string => {
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+
+// Računa zadnji dan ugovora na osnovu početka + trajanja.
+// Dodaje N mjeseci/godina pa oduzme 1 dan (npr. 14.05 + 6 mjeseci → 13.11).
+const computeEndIso = (
+  startIso: string,
+  broj: number,
+  jedinica: "mjeseci" | "godine",
+): string => {
+  if (!startIso || !broj) return "";
+  const [y, m, d] = startIso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (jedinica === "mjeseci") {
+    dt.setUTCMonth(dt.getUTCMonth() + broj);
+  } else {
+    dt.setUTCFullYear(dt.getUTCFullYear() + broj);
+  }
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+};
+
+const maxTrajanjeBroj = (jedinica: "mjeseci" | "godine") =>
+  jedinica === "godine" ? 3 : 36;
 
 const IconDownload = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -160,6 +184,8 @@ function UgovorORaduApp() {
   // ── Ugovor o radu (tab) ──
   const [tipUgovora, setTipUgovora] = useState<TipUgovora>("neodredjeno");
   const [datumIstekaIso, setDatumIstekaIso] = useState("");
+  const [trajanjeBroj, setTrajanjeBroj] = useState(1);
+  const [trajanjeJedinica, setTrajanjeJedinica] = useState<TrajanjeJedinica>("godine");
   const [datumPocetkaIso, setDatumPocetkaIso] = useState(todayIso());
   const [probniRadEnabled, setProbniRadEnabled] = useState(false);
   const [probniRadMjeseci, setProbniRadMjeseci] = useState(3);
@@ -324,6 +350,8 @@ function UgovorORaduApp() {
         datumIstekaIso,
         probniRadEnabled,
         probniRadMjeseci,
+        tipUgovora === "odredjeno" ? trajanjeBroj : undefined,
+        tipUgovora === "odredjeno" ? trajanjeJedinica : undefined,
       ),
       broj_ugovora: broj,
       naziv_firme: nazivFirme,
@@ -753,6 +781,7 @@ function UgovorORaduApp() {
                 onChange={(e) => setJibPoslodavca(formatJib(e.target.value))}
                 inputMode="numeric"
                 maxLength={13}
+                placeholder="XXXXXXXXXXXXX"
               />
             </label>
             <label className={styles.field}>
@@ -761,7 +790,7 @@ function UgovorORaduApp() {
                 className={styles.input}
                 value={imePoslodavca}
                 onChange={(e) => setImePoslodavca(e.target.value)}
-                placeholder="Npr. Amar Pjanić"
+                placeholder="Ime i prezime"
               />
               <p className={styles.hint}>
                 Automatski se popunjava iz vlasnika organizacije. U dokumentu se ispisuje „kojeg zastupa direktor …&ldquo;.
@@ -806,6 +835,7 @@ function UgovorORaduApp() {
                 onChange={(e) => setJmbgRadnika(formatJib(e.target.value))}
                 inputMode="numeric"
                 maxLength={13}
+                placeholder="XXXXXXXXXXXXX"
                 style={
                   jmbgRadnika.length === 13 && !isJmbgValid(jmbgRadnika)
                     ? { borderColor: "#dc2626" }
@@ -889,28 +919,96 @@ function UgovorORaduApp() {
                 <select
                   className={styles.input}
                   value={tipUgovora}
-                  onChange={(e) => setTipUgovora(e.target.value as TipUgovora)}
+                  onChange={(e) => {
+                    const t = e.target.value as TipUgovora;
+                    setTipUgovora(t);
+                    if (t === "odredjeno" && !datumIstekaIso) {
+                      const end = computeEndIso(
+                        datumPocetkaIso,
+                        trajanjeBroj,
+                        trajanjeJedinica,
+                      );
+                      if (end) setDatumIstekaIso(end);
+                    }
+                  }}
                 >
                   <option value="neodredjeno">Neodređeno vrijeme</option>
                   <option value="odredjeno">Određeno vrijeme</option>
                 </select>
               </label>
               {tipUgovora === "odredjeno" && (
-                <div className={styles.field}>
-                  <span className={styles.fieldLabel}>Datum isteka ugovora</span>
-                  <DateInput
-                    className={styles.input}
-                    value={datumIstekaIso}
-                    onValueChange={setDatumIstekaIso}
-                  />
-                </div>
+                <>
+                  <div className={styles.field}>
+                    <span className={styles.fieldLabel}>Trajanje ugovora</span>
+                    <div className={uorStyles.inlineFields}>
+                      <select
+                        className={styles.input}
+                        style={{ flex: "0 0 90px" }}
+                        value={trajanjeBroj}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setTrajanjeBroj(v);
+                          const end = computeEndIso(datumPocetkaIso, v, trajanjeJedinica);
+                          if (end) setDatumIstekaIso(end);
+                        }}
+                      >
+                        {Array.from(
+                          { length: maxTrajanjeBroj(trajanjeJedinica) },
+                          (_, i) => i + 1,
+                        ).map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className={styles.input}
+                        style={{ flex: "1 1 auto" }}
+                        value={trajanjeJedinica}
+                        onChange={(e) => {
+                          const j = e.target.value as TrajanjeJedinica;
+                          setTrajanjeJedinica(j);
+                          const capped = Math.min(trajanjeBroj, maxTrajanjeBroj(j));
+                          if (capped !== trajanjeBroj) setTrajanjeBroj(capped);
+                          const end = computeEndIso(datumPocetkaIso, capped, j);
+                          if (end) setDatumIstekaIso(end);
+                        }}
+                      >
+                        <option value="mjeseci">mjeseci</option>
+                        <option value="godine">godine</option>
+                      </select>
+                    </div>
+                    <p className={styles.hint}>
+                      Zakon o radu FBiH dopušta ugovor na određeno do 3 godine
+                      (kumulativno).
+                    </p>
+                  </div>
+                  <div className={styles.field}>
+                    <span className={styles.fieldLabel}>Datum isteka ugovora</span>
+                    <DateInput
+                      className={styles.input}
+                      value={datumIstekaIso}
+                      onValueChange={setDatumIstekaIso}
+                    />
+                    <p className={styles.hint}>
+                      Automatski se računa iz početka + trajanja, ali ga možete ručno
+                      izmijeniti.
+                    </p>
+                  </div>
+                </>
               )}
               <div className={styles.field}>
                 <span className={styles.fieldLabel}>Datum početka rada</span>
                 <DateInput
                   className={styles.input}
                   value={datumPocetkaIso}
-                  onValueChange={setDatumPocetkaIso}
+                  onValueChange={(iso) => {
+                    setDatumPocetkaIso(iso);
+                    if (tipUgovora === "odredjeno") {
+                      const end = computeEndIso(iso, trajanjeBroj, trajanjeJedinica);
+                      if (end) setDatumIstekaIso(end);
+                    }
+                  }}
                 />
               </div>
               <div className={`${styles.field} ${styles.fieldFull}`}>
