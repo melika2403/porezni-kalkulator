@@ -352,7 +352,9 @@ export type FormType =
   | "GPD"
   | "SPR"
   | "ZO3"
-  | "UGOVOR"
+  | "UGOVOR" // ugovor o pozajmici (legacy)
+  | "UOD"    // ugovor o djelu (Faza 3)
+  | "SIH"
   | "PLDI"
   | "AMS"
   | "JS3100";
@@ -367,6 +369,9 @@ export type FormRecord = {
   title: string | null;
   pdfUrl: string | null;
   createdAt: string;
+  // Faza 3B: backend sad vraća autora forme; koristi se za "Autor" kolonu kad
+  // pregledamo team-shared forme.
+  createdById: number | null;
   organization: { id: number; name: string } | null;
   client: {
     id: number;
@@ -528,7 +533,13 @@ export function adminGetPersonClients(params?: {
   return request<AdminPersonClientsListResponse>(`/api/clients/admin/all?${sp.toString()}`);
 }
 
-export function createAmortizacijaClient(payload: { firstName?: string }) {
+// Faza 3: payload prima organizationId — klijent se kreira kao team-shared
+// kad je org-id poslat (svi članovi te org-e vide klijenta). Ako nije, klijent
+// je "lični" (legacy ponašanje, vidi samo tvorac).
+export function createAmortizacijaClient(payload: {
+  firstName?: string;
+  organizationId?: number | null;
+}) {
   return request<PersonClient>("/api/clients/amortizacija", {
     method: "POST",
     body: JSON.stringify(payload),

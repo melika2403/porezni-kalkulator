@@ -21,7 +21,7 @@ async function request<T>(
   }
 }
 
-export type DocumentType = "AMS" | "SPR" | "ZO3" | "GPD" | "PLDI" | "JS3100";
+export type DocumentType = "AMS" | "SPR" | "ZO3" | "GPD" | "PLDI" | "JS3100" | "UOD";
 
 export type SavedDocument<T = unknown> = {
   id: number;

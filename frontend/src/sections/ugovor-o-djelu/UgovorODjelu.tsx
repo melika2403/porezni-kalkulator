@@ -13,7 +13,8 @@ import { fillUodUplatnice } from "./fillUodUplatnice";
 import { KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
 import { iznosUSlova } from "./iznosSlovima";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
+import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import { fillUodDocx, type UodTemplateData } from "./fillUodDocx";
 import { fillUodPdf } from "./fillUodPdf";
 import { fillAug1031 } from "./fillAug1031";
@@ -58,10 +59,15 @@ const formatAmountForInput = (s: string): string => {
   return `${intFmt},${decPart}`;
 };
 
+// Faza 3B: korisnik vidi formu ako (a) ima BUSINESS plan, ili (b) je član bilo
+// koje organizacije čiji je vlasnik BUSINESS. ADMIN super-admin uvijek prolazi.
+// Sam DOCX/PDF se generišu lokalno; Save-to-profile zove backend koji dodatno
+// gating-uje po owner-tier-u kad ima organizationId.
 export default function UgovorODjelu() {
-  const { role } = useRole();
-  if (role !== "BUSINESS" && role !== "ADMIN") {
-    return <UgovorODjeluGate role={role} />;
+  const { tier, hasAccessToTier, isLoading } = useMaxAccessibleTier();
+  if (isLoading) return null;
+  if (!hasAccessToTier("BUSINESS")) {
+    return <UgovorODjeluGate role={tier} />;
   }
   return <UgovorODjeluApp />;
 }
@@ -619,6 +625,36 @@ function UgovorODjeluApp() {
 
       {/* Ugovor download buttons */}
       <div className={`${styles.actions} ${styles.actionsCenter}`}>
+        <SaveToProfileButton
+          type="UOD"
+          year={parseInt(periodGodina) || new Date().getFullYear()}
+          month={parseInt(periodMjesec) || null}
+          title={`Ugovor o djelu · ${naruciIme || "Naručilac"} → ${izvrIme || "Izvršilac"}${brojUgovora ? ` · ${brojUgovora}` : ""}`}
+          buildData={() => ({
+            // Snapshot cijele forme kao JSON — može se kasnije re-renderovati
+            mode,
+            vrsta,
+            iznosStr,
+            naruciIme,
+            naruciAdresa,
+            naruciId,
+            naruciZiro,
+            izvrIme,
+            izvrAdresa,
+            izvrJmbg,
+            izvrZiro,
+            predmet,
+            datum,
+            rok,
+            mjestoZakljucenja,
+            brojUgovora,
+            nadlezniSud,
+            kantonKey,
+            opcinaKod,
+            calc,
+          })}
+          disabled={!naruciIme || !izvrIme}
+        />
         <button
           type="button"
           className={styles.btnPrimary}

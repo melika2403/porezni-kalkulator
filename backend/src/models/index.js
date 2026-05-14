@@ -194,7 +194,8 @@ const Form = sequelize.define(
         "GPD",
         "SPR",
         "ZO3",
-        "UGOVOR",
+        "UGOVOR", // ugovor o pozajmici (legacy use)
+        "UOD",    // ugovor o djelu (Faza 3)
         "PLDI",
         "AMS",
         "SIH",
@@ -370,7 +371,11 @@ const InvoiceCounter = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
-    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // Faza 3: brojač se vodi po organizaciji. Postojeći redovi sa userId-em
+    // ostaju za legacy fakture (one bez organizationId). Nove fakture uvijek
+    // imaju organizationId i koriste org-based counter.
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     year: { type: DataTypes.INTEGER, allowNull: false },
     type: {
       type: DataTypes.ENUM("INVOICE", "PROFORMA"),
@@ -388,7 +393,11 @@ const InvoiceCounter = sequelize.define(
     timestamps: true,
     charset: "utf8mb4",
     collate: "utf8mb4_unicode_ci",
-    indexes: [{ unique: true, fields: ["userId", "year", "type"] }],
+    indexes: [
+      // Legacy unique (per-user) i novi unique (per-org). Sequelize tolerira oba.
+      { unique: true, fields: ["userId", "year", "type"], name: "uniq_invoice_counter_user_year_type" },
+      { unique: true, fields: ["organizationId", "year", "type"], name: "uniq_invoice_counter_org_year_type" },
+    ],
   },
 );
 

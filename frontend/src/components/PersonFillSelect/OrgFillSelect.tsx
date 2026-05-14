@@ -7,7 +7,7 @@ import {
   getClientOrganizations,
   type Organization,
 } from "src/api/profile";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import styles from "./PersonFillSelect.module.css";
 
 export type OrgFillData = {
@@ -36,13 +36,15 @@ function optionText(org: Organization): string {
 }
 
 export default function OrgFillSelect({ onFill }: Props) {
-  const { hasRole } = useRole();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const isProOrBusiness = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Faza 3B: pristup klijent-org-ima imamo ako vlastiti plan ili bilo koja
+  // moja org-a je PRO+.
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const isProOrBusiness = hasAccessToTier("PRO");
 
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["me"],

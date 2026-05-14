@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./clanske-kartice.module.css";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import {
   getOrganizations,
   getClientOrganizations,
@@ -181,10 +182,12 @@ function safeFileName(s: string, fallback: string): string {
   return cleaned || fallback;
 }
 
+// Faza 3B: page-gate gledamo kroz max accessible tier (vlastiti ili preko org-e).
 export default function ClanskeKartice() {
-  const { role } = useRole();
-  if (role !== "PRO" && role !== "BUSINESS" && role !== "ADMIN") {
-    return <Gate role={role} />;
+  const { tier, hasAccessToTier, isLoading } = useMaxAccessibleTier();
+  if (isLoading) return null;
+  if (!hasAccessToTier("PRO")) {
+    return <Gate role={tier} />;
   }
   return <ClanskeKarticeApp />;
 }
@@ -222,7 +225,10 @@ function Gate({ role }: { role: string | null }) {
 
 function ClanskeKarticeApp() {
   const { role } = useRole();
-  const isBusiness = role === "BUSINESS" || role === "ADMIN";
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  // BUSINESS feature: prikaz klijent-org-a + bulk upload. Pristup imamo ako bilo
+  // koja moja org ima BUSINESS-tier vlasnika, ili sami imamo BUSINESS.
+  const isBusiness = hasAccessToTier("BUSINESS");
 
   const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./fakture.module.css";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { unwrap } from "src/api/auth";
 import Modal from "src/components/Modal/Modal";
 import {
@@ -42,8 +42,10 @@ function fmtDate(iso: string | null) {
 }
 
 export default function Fakture() {
-  const { hasRole, isLoading: roleLoading } = useRole();
-  const isAllowed = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Faza 3B: pristup imamo ako vlastiti plan je PRO+, ILI smo član bilo koje
+  // organizacije čiji je vlasnik PRO+. Backend već vraća uniju u listingu.
+  const { hasAccessToTier, isLoading: roleLoading } = useMaxAccessibleTier();
+  const isAllowed = hasAccessToTier("PRO");
   const [tab, setTab] = useState<Tab>("ALL");
   const qc = useQueryClient();
 

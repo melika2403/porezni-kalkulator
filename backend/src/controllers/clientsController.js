@@ -1,17 +1,38 @@
-const { Client } = require("../models/index");
+const { Client, OrganizationMember } = require("../models/index");
 const clientRepository = require("../repositories/clientRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
+const { getOrgOwnerRole } = require("../services/tierService");
 
-const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
-const AMORTIZACIJA_ROLES = ["PRO", "BUSINESS", "ADMIN"];
 const PRO_CLIENT_LIMIT = 20;
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
 
-function checkRole(req, res) {
-  if (!ALLOWED_ROLES.includes(req.user?.role)) {
+// Faza 3: provjera org-tier umjesto user-role. Bilo koji član PRO+ orga može
+// rukovati klijentima te org-e. Kreiranje bez orga (legacy) zahtijeva da
+// pozivaoc lično ima PRO+ pretplatu.
+async function ensureAccessForCreate(req, res, organizationId, ownerTierAllowed = ["PRO", "BUSINESS", "ADMIN"]) {
+  if (req.user.role === "ADMIN") return true;
+
+  if (organizationId) {
+    const member = await OrganizationMember.findOne({
+      where: { userId: req.user.id, organizationId },
+    });
+    if (!member) {
+      res.status(403).json({ ok: false, error: "FORBIDDEN" });
+      return false;
+    }
+    const ownerTier = await getOrgOwnerRole(organizationId);
+    if (!ownerTierAllowed.includes(ownerTier)) {
+      res.status(403).json({ ok: false, error: "FORBIDDEN_OWNER_TIER" });
+      return false;
+    }
+    return true;
+  }
+
+  // Legacy (no org): require caller's own role to be allowed
+  if (!ownerTierAllowed.includes(req.user.role)) {
     res.status(403).json({ ok: false, error: "FORBIDDEN" });
     return false;
   }
@@ -19,20 +40,30 @@ function checkRole(req, res) {
 }
 
 async function list(req, res) {
-  if (!checkRole(req, res)) return;
   const clients = await clientRepository.getPersonClients(req.user.id);
   res.status(200).json({ ok: true, data: clients });
 }
 
 async function create(req, res) {
-  if (!checkRole(req, res)) return;
+  const rawOrgId = req.body?.organizationId;
+  const orgId = rawOrgId ? Number(rawOrgId) : null;
+  if (rawOrgId !== undefined && rawOrgId !== null && rawOrgId !== "" && !Number.isInteger(orgId)) {
+    return res.status(400).json({ ok: false, error: "Invalid organizationId" });
+  }
 
-  if (req.user.role === "PRO") {
-    const count = await Client.count({
-      where: { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: false },
-    });
-    if (count >= PRO_CLIENT_LIMIT) {
-      return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
+  if (!(await ensureAccessForCreate(req, res, orgId))) return;
+
+  // PRO limit (20) — broji se per-org kada je orgId postavljen, inače per-user (legacy).
+  if (req.user.role !== "ADMIN") {
+    const limitOwnerTier = orgId ? await getOrgOwnerRole(orgId) : req.user.role;
+    if (limitOwnerTier === "PRO") {
+      const where = orgId
+        ? { organizationId: orgId, type: "PERSON", amortizacijaOnly: false }
+        : { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: false };
+      const count = await Client.count({ where });
+      if (count >= PRO_CLIENT_LIMIT) {
+        return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
+      }
     }
   }
 
@@ -55,7 +86,7 @@ async function create(req, res) {
   if (idCardNumber !== undefined) data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
 
   try {
-    const client = await clientRepository.createPersonClient(data, req.user.id);
+    const client = await clientRepository.createPersonClient(data, req.user.id, orgId);
     res.status(201).json({ ok: true, data: client });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -63,7 +94,6 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
-  if (!checkRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0)
     return res.status(400).json({ ok: false, error: "Invalid id" });
@@ -104,7 +134,6 @@ async function update(req, res) {
 }
 
 async function remove(req, res) {
-  if (!checkRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0)
     return res.status(400).json({ ok: false, error: "Invalid id" });
@@ -119,28 +148,36 @@ async function remove(req, res) {
 }
 
 async function listAmortizacija(req, res) {
-  if (!AMORTIZACIJA_ROLES.includes(req.user?.role))
-    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
   const clients = await clientRepository.getAmortizacijaClients(req.user.id);
   res.status(200).json({ ok: true, data: clients });
 }
 
 async function createAmortizacija(req, res) {
-  if (!AMORTIZACIJA_ROLES.includes(req.user?.role))
-    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  const rawOrgId = req.body?.organizationId;
+  const orgId = rawOrgId ? Number(rawOrgId) : null;
+  if (rawOrgId !== undefined && rawOrgId !== null && rawOrgId !== "" && !Number.isInteger(orgId)) {
+    return res.status(400).json({ ok: false, error: "Invalid organizationId" });
+  }
 
-  if (req.user.role === "PRO") {
-    const count = await Client.count({
-      where: { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: true },
-    });
-    if (count >= PRO_CLIENT_LIMIT)
-      return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
+  if (!(await ensureAccessForCreate(req, res, orgId))) return;
+
+  if (req.user.role !== "ADMIN") {
+    const limitOwnerTier = orgId ? await getOrgOwnerRole(orgId) : req.user.role;
+    if (limitOwnerTier === "PRO") {
+      const where = orgId
+        ? { organizationId: orgId, type: "PERSON", amortizacijaOnly: true }
+        : { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: true };
+      const count = await Client.count({ where });
+      if (count >= PRO_CLIENT_LIMIT) {
+        return res.status(403).json({ ok: false, error: "PRO_LIMIT_REACHED" });
+      }
+    }
   }
 
   const { firstName } = req.body ?? {};
   const data = { firstName: firstName ? String(firstName).trim() : "", lastName: "" };
   try {
-    const client = await clientRepository.createAmortizacijaClient(data, req.user.id);
+    const client = await clientRepository.createAmortizacijaClient(data, req.user.id, orgId);
     res.status(201).json({ ok: true, data: client });
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });

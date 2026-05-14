@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./fakture.module.css";
 import Modal from "src/components/Modal/Modal";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import BuyerFillSelect, { type BuyerFillData } from "src/components/BuyerFillSelect/BuyerFillSelect";
@@ -79,8 +80,11 @@ export default function InvoiceForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const duplicateFromId = searchParams.get("duplicateFrom");
-  const { role, hasRole } = useRole();
-  const isAllowed = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Faza 3B: pristup imamo ako vlastiti plan ili bilo koja moja org-a ima PRO+.
+  // `role` zadržan jer ga koristi neka inline logika nizvodno (npr. limiti).
+  const { role } = useRole();
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const isAllowed = hasAccessToTier("PRO");
   const { findByName: findCity } = useCityLookup();
   const [duplicateNotice, setDuplicateNotice] = useState<string | null>(null);
 

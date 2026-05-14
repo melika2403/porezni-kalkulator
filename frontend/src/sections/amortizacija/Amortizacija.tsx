@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
@@ -21,7 +22,7 @@ import {
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import SaveToast from "src/components/SaveToast/SaveToast";
-import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
+import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient, getOrganizations, getClientOrganizations } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -298,15 +299,46 @@ export default function Amortizacija() {
   const selectedClientIdRef = useRef(selectedClientId);
   useEffect(() => { selectedClientIdRef.current = selectedClientId; }, [selectedClientId]);
 
-  const { hasRole, role } = useRole();
-  const isClientUser = hasRole("PRO", "BUSINESS", "ADMIN");
-  const isPro = role === "PRO";
+  // Faza 3B: pristup amortizaciji za klijente imamo ako sami imamo PRO+
+  // ILI smo član bilo koje organizacije čiji je vlasnik PRO+. `isPro` se
+  // koristi za prikaz limita; ostavljen je vezan za vlastiti plan jer se
+  // klijent limit od 20 računa per-org u backendu (a frontend tu samo
+  // informativno prikazuje).
+  const { role } = useRole();
+  const { hasAccessToTier, tier: maxTier } = useMaxAccessibleTier();
+  const isClientUser = hasAccessToTier("PRO");
+  const isPro = maxTier === "PRO";
   const PRO_CLIENT_LIMIT = 20;
   const isClientUserRef = useRef(isClientUser);
   useEffect(() => { isClientUserRef.current = isClientUser; }, [isClientUser]);
 
   const obveznikRef = useRef(obveznik);
   useEffect(() => { obveznikRef.current = obveznik; }, [obveznik]);
+
+  /* ── Org context (Faza 3): kad korisnik dodaje klijenta na PLDI-ju,
+     automatski ga vežemo za njegovu primarnu org-u (ili prvu klijent-org-u
+     ako nema primarnu) da bi klijent bio vidljiv svim članovima te org-e.
+     Bez toga klijent ostaje "lični" i nevidljiv kolegama. */
+  const ownOrgsQuery = useQuery({
+    queryKey: ["organizations"],
+    queryFn: async () => {
+      const res = await getOrganizations();
+      return res.ok ? (res.data ?? []) : [];
+    },
+  });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["organizations-clients"],
+    queryFn: async () => {
+      const res = await getClientOrganizations();
+      return res.ok ? (res.data ?? []) : [];
+    },
+  });
+  const defaultOrgId =
+    ownOrgsQuery.data?.[0]?.id ?? clientOrgsQuery.data?.[0]?.id ?? null;
+  // Ref tako da stari callbackovi (handleCarryover) imaju aktuelnu vrijednost
+  // i kad org query kasnije završi.
+  const defaultOrgIdRef = useRef(defaultOrgId);
+  useEffect(() => { defaultOrgIdRef.current = defaultOrgId; }, [defaultOrgId]);
 
   /* ── Client sidebar ── */
   const clientsQuery = useQuery<PersonClient[]>({
@@ -542,7 +574,10 @@ export default function Amortizacija() {
     setSaveStatus("saving");
     let clientId = selectedClientIdRef.current;
     if (isClientUserRef.current && clientId === null) {
-      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      const clientRes = await createAmortizacijaClient({
+        firstName: obveznikRef.current.naziv || "",
+        organizationId: defaultOrgIdRef.current,
+      });
       if (clientRes.ok && clientRes.data) {
         clientId = clientRes.data.id;
         setSelectedClientId(clientId);
@@ -564,7 +599,7 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, currentYear, clientsQuery]);
+  }, [obveznik, rows, currentYear, clientsQuery, defaultOrgId]);
 
   useEffect(() => {
     handleSaveRef.current = handleSave;
@@ -579,7 +614,10 @@ export default function Amortizacija() {
 
     let clientId = selectedClientIdRef.current;
     if (isClientUserRef.current && clientId === null) {
-      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      const clientRes = await createAmortizacijaClient({
+        firstName: obveznikRef.current.naziv || "",
+        organizationId: defaultOrgIdRef.current,
+      });
       if (clientRes.ok && clientRes.data) {
         clientId = clientRes.data.id;
         setSelectedClientId(clientId);
@@ -1035,7 +1073,10 @@ export default function Amortizacija() {
   const handleAddClient = useCallback(async () => {
     setSavingClient(true);
     setAddLimitError(false);
-    const res = await createAmortizacijaClient({ firstName: "" });
+    const res = await createAmortizacijaClient({
+      firstName: "",
+      organizationId: defaultOrgId, // team-shared kad je user u nekoj org-i
+    });
     setSavingClient(false);
     if (res.ok && res.data) {
       await clientsQuery.refetch();
@@ -1043,7 +1084,7 @@ export default function Amortizacija() {
     } else if (!res.ok && res.error === "PRO_LIMIT_REACHED") {
       setAddLimitError(true);
     }
-  }, [clientsQuery, handleSelectClient]);
+  }, [clientsQuery, handleSelectClient, defaultOrgId]);
 
   const personLimitReached = isPro && sortedClients.length >= PRO_CLIENT_LIMIT;
 

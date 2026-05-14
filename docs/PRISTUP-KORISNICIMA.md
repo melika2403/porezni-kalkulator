@@ -261,7 +261,319 @@ const tier = org?.effectiveTier ?? null;
 const isProLimitReached = tier === "PRO" && workers.length >= 5;
 ```
 
-## 6. Migracija — šta nije pokrivena (kasnije)
+---
+
+## 6. Faza 2 — JS3100, Sihterica, OrgTierGuard
+
+Druga runda izmjena, u istom branch-u. Adresira problem koji je ostao iza Faze 1:
+mnogi feature-i preko frontenda još uvijek imaju `RoleGuard` koji blokira USER-a
+koji je legitimni član BUSINESS organizacije.
+
+### 6.1 Princip — koji guard za koji feature
+
+Tri vrste guard-ova, biraj po tome **u čijem kontekstu se feature dešava**:
+
+| Vrsta feature-a | Guard | Primjer |
+|-----------------|-------|---------|
+| Lično (korisnikov račun) | `RoleGuard roles={[...]}` po `user.role` | Profil, pretplata, admin panel |
+| Vezano za konkretnu org | `OrgTierGuard organizationId tiers={[...]}` po `org.effectiveTier` | Worker forme, members card, JS3100 vezan za jednu org |
+| "Bilo gdje" — page koji ne fiksira jednu org | `useMaxAccessibleTier().hasAccessToTier("PRO")` | JS3100 (pre nego što korisnik izabere employer) |
+
+### 6.2 Novi frontend artefakti
+
+**`frontend/src/hooks/useAccessibleTier.ts`** — hook `useMaxAccessibleTier()`:
+
+```ts
+const { tier, hasAccessToTier, isLoading } = useMaxAccessibleTier();
+// tier = najviša pretplata koja je korisniku dostupna:
+//   max(user.role, max(org.effectiveTier za sve org gdje je član))
+// hasAccessToTier("PRO") = true ako tier >= PRO
+```
+
+Učitava `getOrganizations()` (već cache-ovano kroz React Query) i kombinira sa
+`useRole()`. Tier rank: USER=0, PRO=1, BUSINESS=2, ADMIN=3.
+
+**`frontend/src/components/OrgTierGuard/OrgTierGuard.tsx`** — komponenta:
+
+```tsx
+<OrgTierGuard organizationId={orgId} tiers={["BUSINESS"]} fallback={<Upsell/>}>
+  <MembersCard />
+</OrgTierGuard>
+```
+
+Sa istim modovima kao `RoleGuard` (`hide` / `disable`) + opcioni `fallback`.
+Super-admin (`user.role === "ADMIN"`) prolazi uvijek.
+
+### 6.3 JS3100 (Prijava / odjava radnika)
+
+**Frontend** — `frontend/src/sections/prijave-radnika/Js3100.tsx`:
+
+Prije:
+```tsx
+<RoleGuard roles={["PRO","BUSINESS","ADMIN"]} mode="hide" fallback={<UpgradeGate/>}>
+  <Js3100App />
+</RoleGuard>
+```
+
+Sada:
+```tsx
+const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
+if (isLoading) return null;
+if (!hasAccessToTier("PRO")) return <UpgradeGate />;
+return <Js3100App />;
+```
+
+Posljedica: FREE korisnik koji je član PRO/BUSINESS owner-ove organizacije vidi
+formu. Sam PDF download radi lokalno (bez backend-a). Save-to-profile poziv već
+ide kroz `POST /documents` koji u Fazi 1 dobio gate po owner-tier-u za JS3100 tip.
+
+**Backend** — već urađeno u Fazi 1 ([documentsRoutes.js](backend/src/routes/documentsRoutes.js)).
+
+### 6.4 Sihterica
+
+**Frontend** — `frontend/src/sections/sihterica/Sihterica.tsx`:
+
+Promijenjeno:
+- Uklonjen `canExport = hasRole("PRO","BUSINESS","ADMIN")` na vrhu komponente
+- Dodan `isSuperAdmin = hasRole("ADMIN")`
+- `canExport` se sad računa pored `selectedOrg`:
+  ```ts
+  const canExport = isSuperAdmin
+    || selectedOrg?.effectiveTier === "PRO"
+    || selectedOrg?.effectiveTier === "BUSINESS";
+  ```
+
+Posljedica: gating prati izabranu organizaciju. Ako BUSINESS owner pozove
+FREE korisnika kao member-a, member može da exportuje sihtericu za **tu** org.
+Ako member izabere svoju ličnu (FREE) org, export se gasi.
+
+**Outer guard** (`RoleGuard roles={["USER","PRO","BUSINESS","ADMIN"]}`) ostavljen
+kao prag prijavljenog korisnika — to praktično znači "any logged-in user".
+
+**Backend** — `backend/src/controllers/sihtericaController.js`:
+
+Veliki cleanup:
+
+| Bilo | Sada |
+|------|------|
+| `ALLOWED_ROLES = ["USER","PRO","BUSINESS","ADMIN"]` i `checkRole()` na svakom endpointu | Uklonjeno — nije ništa stvarno gate-ovalo |
+| `ensureWorkerOwned(workerId, userId)` koji provjerava `org.createdById === userId` | `ensureWorkerAccess(workerId, userId)` koji provjerava `OrganizationMember` |
+| `getWorkerMonths` filtrirano po `org.createdById === userId` | Filtrirano po `OrganizationMember` (`hasOrgAccess`) |
+| Sve `Form.findOne` upite su gledali `createdById: req.user.id` | Skinut taj filter — bilo koji član org-e može čitati sihtericu (ali samo članovi prolaze membership check) |
+
+Posljedica: sihterica je sad sharing-aware u okviru jedne organizacije. Ako
+sihtericu kreira jedan member, drugi članovi te org-e je vide. To je željeno
+ponašanje: tim radi zajednički.
+
+### 6.5 Šta još nije dirano (i zašto)
+
+| Page | Status | Zašto |
+|------|--------|-------|
+| `InvoiceForm.tsx`, `Fakture.tsx` | Nije migrirano | Biznis logika fakturisanja kompleksna (snapshot prodavca po izboru orga); treba odluka prije implementacije |
+| `Amortizacija.tsx` | Nije migrirano | Slično — client list i amortizacija; treba odluka |
+| `UgovorODjelu.tsx` | Nije migrirano | Slično — provjeriti da li je org-scoped |
+| `Profil.tsx` | OSTAJE `RoleGuard` | Sekcije profila su lične — to je tačno |
+| Admin pages | OSTAJE `RoleGuard ADMIN` | Super-admin only |
+| `formsRoutes.js`, `invoicesRoutes.js`, `clientsRoutes.js`, `amortizacijaRoutes.js` | Nije migrirano | Idu uz odgovarajuće frontend stranice u sljedećoj fazi |
+| `documentsController.save/get/remove` Form upite | Skopir `createdById: req.user.id` filter | Forme su trenutno per-user; razmotriti kasnije da li trebaju biti org-scoped kao SIH |
+
+---
+
+## 6.6 Faza 3A — Fakture, Klijenti, Amortizacija, UOD, Forme team-shared
+
+Treća runda izmjena fokusirana na backend. Frontend dolazi u Fazi 3B.
+
+### Pravilo (poslednje proširenje)
+
+- **Fakture, klijenti, amortizacija**: per-organization data; gating po `effectiveTier` te org-e; team-shared između svih članova org-e
+- **Forme (GPD, SPR, ZO3, AMS, SIH, JS3100, UOD, PLDI)** sa `organizationId`: team-shared
+- **Forme bez `organizationId`** (legacy lične): vidi samo `createdById`
+
+### Novi tip dokumenta — UOD (Ugovor o djelu)
+
+`UGOVOR` enum vrijednost je već zauzeta za "Ugovor o pozajmici" (legacy). Za "Ugovor o djelu" uveden je **novi tip `UOD`**.
+
+| Lokacija | Izmjena |
+|----------|---------|
+| `backend/src/models/index.js` | `Form.type` enum proširen sa `"UOD"` |
+| `backend/src/controllers/documentsController.js` | `VALID_TYPES` proširen sa `"UOD"` |
+| `backend/src/routes/documentsRoutes.js` | `RESTRICTED_TYPES.UOD = ["BUSINESS","ADMIN"]` — BUSINESS-only gate |
+| `backend/src/controllers/formsController.js` | `VALID_TYPES` proširen sa `"UOD"` (i `"SIH"`, `"JS3100"` koje su nedostajale) |
+
+### InvoiceCounter — per-organization
+
+| Bilo | Sada |
+|------|------|
+| `userId + year + type` unique | `userId` allowNull. **Novo polje** `organizationId` allowNull. **Dva** unique indexa: `(userId, year, type)` za legacy + `(organizationId, year, type)` za nove |
+| `nextSequence(userId, year, type)` | `nextSequence({ organizationId, userId }, year, type)` — bira granu po `organizationId` (default) ili fallback na `userId` (legacy) |
+
+**Migracija postojećih podataka:** nema scripta. Kad prva nova faktura izađe iz neke org-e, `nextSequence` automatski **seed-uje counter** sa `MAX(invoices.sequence)` za tu org/year/type — tako nove numeracije nastavljaju gdje su postojeće stale.
+
+### invoicesController — najveća izmjena
+
+Sve `userId: req.user.id` filtere zamijenjeni sa membership/owner-tier provjerom (`userCanAccessInvoice`):
+
+```js
+async function userCanAccessInvoice(invoice, userId, userRole) {
+  if (userRole === "ADMIN") return true;
+  if (invoice.organizationId) {
+    // mora biti član + owner PRO+
+    ...
+  }
+  // legacy: tvorac + njegov role PRO+
+  return invoice.userId === userId && ["PRO","BUSINESS","ADMIN"].includes(userRole);
+}
+```
+
+Listing (`list`) sad vraća uniju:
+- legacy lične fakture (`organizationId IS NULL AND userId = me`)
+- sve fakture iz svih org-a u kojima sam član **i** owner je PRO+
+
+Funkcije pogođene: `list`, `getById`, `create`, `patch`, `remove`, `pdf`, `emailToBuyer`, `convertProforma`. Stari `ALLOWED_ROLES` + `requireRole(req,res)` u kontroleru uklonjen.
+
+**Posljedica za PRO klijent limit (20):** kad faktura ima org → broji se po `organizationId`; inače po `createdById` (legacy).
+
+### clientsController — per-org sa legacy fallback
+
+Repozitorij (`clientRepository`):
+
+- `getPersonClients`, `getAmortizacijaClients` sad pune iz unije:
+  - klijenti svih moje org-e (`organizationId IN [...]`)
+  - moji legacy klijenti (`organizationId IS NULL AND createdById = me`)
+- Novi helper `canUserAccessClient(client, userId)` — provjeri pristup po istoj logici
+
+Kontroler:
+
+- `create`/`createAmortizacija` čitaju `organizationId` iz body-ja. Ako je prisutan, mora biti pozivaoc član te org-e i owner PRO+. Bez `organizationId` (legacy), pozivaoc lično mora imati PRO+.
+- PRO klijent-limit od 20 prati owner-tier kad ima org, inače user-role
+- `update`/`remove` koriste `canUserAccessClient` (svaki član PRO+ org-e može)
+
+### amortizacijaController — team-shared kroz klijenta
+
+PLDI forma nije vezana direktno za `organizationId` — vezana je za `clientId`. Pristup prati klijenta:
+- Ako klijent ima `organizationId` → bilo koji član te org-e ima pristup (`canUserAccessClient`)
+- Inače legacy (`createdById` filter)
+
+`getClientYears` sad vraća sve PLDI forme klijenata u svim mojim org-a, plus moje legacy lične.
+
+### documentsController — team-shared get/remove
+
+Novi helper `userCanAccessForm(form, userId)`:
+- Ako form ima `organizationId` → bilo koji član te org-e
+- Inače → samo `createdById`
+
+`get` i `remove` koriste ovo umjesto starog `createdById: req.user.id` filtera.
+
+`save` (upsert) — kad postoji `organizationId`, search where bez `createdById`, tako da team-shared forme jedan član kreira a drugi update-uje (npr. SIH dva člana kolaborativno popunjavaju).
+
+### formsController.list — team-shared listing
+
+`formRepository.getUserForms(userId, type)` sad vraća uniju:
+- lične forme (`organizationId IS NULL AND createdById = me`)
+- sve forme iz org-a u kojima sam član
+
+`VALID_TYPES` u kontroleru proširen sa `"UOD"`, `"SIH"`, `"JS3100"` (prije nedostajali — to su tipovi koji nisu mogli kroz filter).
+
+### workersController — count samo RADNIK
+
+`Worker.count` sad filtrira sa `role: "RADNIK"` — VLASNIK (auto-kreiran pri stvaranju org-e) **ne ulazi** u limit. Tako PRO ima čistih 5 RADNIK + 1 auto VLASNIK = 6 total.
+
+Implicitno potvrđuje da `5 radnika` = 5 employed, ne 5 total.
+
+### Šta nije dirano u 3A (ide u 3B)
+
+| Komponenta | Razlog |
+|------------|--------|
+| Frontend stranice (Fakture, Amortizacija, UgovorODjelu, ClanskeKartice) | Posebna faza, predviđa novu komponentu `OrgTierGuard` u Pretplate-mode |
+| `UgovorODjelu` Save-to-profile sa novim UOD tipom | Treba dodati `<SaveToProfileButton type="UOD" ...>` u UI |
+| Fill helperi (PersonFillSelect, OrgFillSelect, ClientFillSelect, UgovorFillSelect) | Trebaju `useMaxAccessibleTier` umjesto `hasRole` |
+| Profil document history team view | Backend već vraća team docs; frontend treba prikazati "Autor" kolonu |
+| ClanskeKartice migracija (per-org + bulk = BUSINESS) | Posebna faza, treba i model provjeriti |
+| **Sequelize sync** za nova polja | Treba pokrenuti `sequelize.sync({ alter: true })` ili migracioni script u dev DB-u |
+
+---
+
+## 6.7 Faza 3B — Frontend migracija (Fakture, Amortizacija, UgovorODjelu, ClanskeKartice, fill helpers, profil historija)
+
+Druga polovina Faze 3 — frontend dosljedno koristi `useMaxAccessibleTier` umjesto `useRole` na svim org-scoped stranicama.
+
+### Princip — koji helper za koji slučaj
+
+| Slučaj | Helper | Primjer |
+|--------|--------|---------|
+| Page-level entry kad user nije izabrao konkretnu org | `useMaxAccessibleTier().hasAccessToTier("PRO")` | Fakture, Amortizacija, Fakture form, UgovorODjelu |
+| Per-organization feature na detalj stranici | `org.effectiveTier === "BUSINESS"` (čita iz backend response) | MembersCard u Organizacija |
+| Lično / admin-only | `useRole().hasRole(...)` | Profil sekcije, admin panel |
+
+### Migrirani frontend fajlovi
+
+| Fajl | Šta je promijenjeno |
+|------|---------------------|
+| `frontend/src/api/documents.ts` | `DocumentType` proširen sa `"UOD"` |
+| `frontend/src/api/profile.ts` | `FormType` proširen sa `"UOD"` i `"SIH"`. `FormRecord.createdById` dodato (za "Tim" indikator) |
+| `frontend/src/sections/fakture/Fakture.tsx` | `hasRole(...)` → `hasAccessToTier("PRO")` |
+| `frontend/src/sections/fakture/InvoiceForm.tsx` | `hasRole(...)` → `hasAccessToTier("PRO")`. `useRole().role` zadržan za inline logiku |
+| `frontend/src/sections/amortizacija/Amortizacija.tsx` | `hasRole(...)` → `hasAccessToTier("PRO")`. `isPro` čita iz `maxTier` umjesto `role` |
+| `frontend/src/sections/ugovor-o-djelu/UgovorODjelu.tsx` | `role !== BUSINESS` → `hasAccessToTier("BUSINESS")`. **Novo: `SaveToProfileButton type="UOD"`** dodato u actions sekciju |
+| `frontend/src/sections/clanske-kartice/ClanskeKartice.tsx` | Page gate i `isBusiness` koriste `hasAccessToTier` |
+| `frontend/src/components/PersonFillSelect/PersonFillSelect.tsx` | `hasRole(...)` → `hasAccessToTier("PRO")` |
+| `frontend/src/components/PersonFillSelect/OrgFillSelect.tsx` | Isto |
+| `frontend/src/components/BuyerFillSelect/ClientFillSelect.tsx` | Isto |
+| `frontend/src/components/PersonFillSelect/UgovorFillSelect.tsx` | Isto |
+| `frontend/src/sections/profil/Profil.tsx` | `FORM_TYPE_LABELS` + `FILTER_OPTIONS` + `typeBadgeClass` prošireni za `UOD` i `SIH`. **Novo: "Tim" badge** se prikazuje pored naslova kad team-member otvori istoriju i vidi formu koju je kreirao drugi član iste org-e |
+
+### UOD (Ugovor o djelu) — kompletan flow
+
+1. Korisnik otvara `/ugovor-o-djelu`
+2. `useMaxAccessibleTier().hasAccessToTier("BUSINESS")` — prolaz ako vlastiti BUSINESS, ili član bilo koje BUSINESS owner org-e
+3. Popunjava formu (lokalno, bez backend-a)
+4. Klikne "Sačuvaj na profil" → `<SaveToProfileButton type="UOD" />` → `POST /documents`
+5. Backend `documentsRoutes.guardRestrictedType` provjeri `RESTRICTED_TYPES.UOD = ["BUSINESS","ADMIN"]`:
+   - Ako body ima `organizationId` → provjeri owner-tier te org-e
+   - Inače → provjeri vlastiti role
+6. Form zapisan u `forms` tabelu sa `type: "UOD"`, snapshot u `form_versions.data` kao JSON
+7. Korisnik vidi u Profil → Historija → "Ugovor o djelu" badge
+
+### Profil historija — "Tim" indikator
+
+Backend već (Faza 3A) vraća unionu team docs + lične u `formRepository.getUserForms`. Frontend dodaje:
+- Novi `useQuery("me")` u `HistorijaTab` (već postoji u parent-u, ali ovdje treba mu vlastiti)
+- Ako `f.organization && f.createdById !== null && f.createdById !== myUserId` → mali "Tim" badge pored naslova
+- Tooltip: *"Dokument kreiran od strane drugog člana organizacije"*
+
+### Filter opcije proširene
+
+Filter u Profil/Historija sad ima:
+- AMS, GPD, SPR, ZO3 (free)
+- Ugovor o pozajmici (`UGOVOR` legacy)
+- **Ugovor o djelu (`UOD`) — novo**
+- **Šihterica (`SIH`) — prije nedostajao u filteru**
+- **JS3100 — prije nedostajao u filteru**
+- Stalna sredstva (PLDI)
+
+### CSS — opcioni stilovi za nove badge-ove
+
+`typeBadgeClass` koristi `s.badgeUod` i `s.badgeSih` ako postoje, inače fallback na `s.badgeUgovor`. Ako želiš posebne boje za nove tipove, dodaj u `profil.module.css`:
+
+```css
+.badgeUod { background: #c084fc; color: white; }
+.badgeSih { background: #6ee7b7; color: black; }
+```
+
+Bez tih klasa, badge će izgledati kao Ugovor o pozajmici badge.
+
+### Šta nije dirano (sljedeća Faza 4, ako bude potrebno)
+
+| Komponenta | Razlog |
+|------------|--------|
+| Klijenti stranica unutar profila — UI za izbor org-e pri kreiranju klijenta | Backend prima `organizationId` ali frontend forma još ne traži izbor org-e. Hot-fix radi tako što novi klijent ide kao "lični" |
+| Bulk member upload UI za ClanskeKartice | Postoji ali nije provjereno da gating prati org owner-tier (samo "any BUSINESS access") |
+| `OrgTierGuard` komponenta | Postoji od Faze 2 ali se rijetko koristi — većina migracija je inline (effectiveTier provjera u render) |
+| InvoiceCounter migracioni script za prebacivanje legacy zapisa na org | Nije potrebno — postojeći `nextSequence` automatski seed-uje iz `MAX(invoices.sequence)` pri prvom pozivu |
+
+---
+
+## 7. Migracija — šta nije pokriveno (kasnije)
 
 - **Premještanje vlasništva** (`transferOwnership`): još nema rute za promjenu OWNER-a.
   Ako se vlasnik briše, organizacija nema "tier source". Trebati će dodati prije
@@ -271,8 +583,11 @@ const isProLimitReached = tier === "PRO" && workers.length >= 5;
   trenutno kartica se ne renderuje. Razmotriti zaključanu varijantu sa upsell porukom
   (*"BUSINESS feature — upgrade →"*).
 - **Audit log** dodavanja/uklanjanja članova: nije implementirano.
+- **Faza 3:** Fakture, Klijenti, Amortizacija, UgovorODjelu — paralelno frontend
+  (`OrgTierGuard` / `useMaxAccessibleTier`) i backend rute (`requireOrgRole` /
+  `requireOwnerTier`).
 
-## 7. Testne scenarije za QA
+## 8. Testne scenarije za QA
 
 1. **Owner BUSINESS, član FREE — happy path**
    - Owner X (BUSINESS) → kreira Org A → poziva korisnika Y (USER) kao MEMBER.
@@ -296,7 +611,17 @@ const isProLimitReached = tier === "PRO" && workers.length >= 5;
    - Stranac (nema membership) pokuša bilo koju `/organizations/:id/...` rutu → 403 `FORBIDDEN`.
    - Bez orgId u URL-u → 400 `INVALID_ORG_ID`.
 
-## 8. Ključni invariant-i
+6. **JS3100 — page-level gating (Faza 2)**
+   - USER bez ijedne PRO+ organizacije → `<UpgradeGate>`.
+   - USER član BUSINESS owner-ove org → vidi formu, može snimiti za tu org.
+   - PRO korisnik (vlastiti račun) → vidi formu, može snimiti za svoju org.
+
+7. **Sihterica — selectedOrg gating (Faza 2)**
+   - Korisnik izabere FREE owner-ovu org → `canExport === false`, gumbi `disabled`.
+   - Korisnik izabere BUSINESS owner-ovu org → `canExport === true`.
+   - Dva člana iste org → kreiraju sihtericu, oba je vide.
+
+## 9. Ključni invariant-i
 
 - **Jedan OWNER po organizaciji.** Trenutno se enforce-uje kreiranjem (createOrganization
   uvijek pravi tačno jedan OWNER zapis) i činjenicom da remove member ne smije ukloniti

@@ -18,7 +18,7 @@ import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
-import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 
@@ -82,16 +82,18 @@ const OSNOV_OSIGURANJA = [
 ];
 
 /* ── Component ── */
+//
+// Access rule: korisnik vidi formu ako ima PRO/BUSINESS pretplatu ILI ako je
+// član bilo koje organizacije čiji je vlasnik PRO/BUSINESS — u tom slučaju može
+// snimiti JS3100 protiv te org-e (server gate-uje po owner-tier-u te org-e).
+//
+// Sam PDF export ne ide preko backenda pa ne treba dodatni gate.
 export default function Js3100Form() {
-  return (
-    <RoleGuard
-      roles={["PRO", "BUSINESS", "ADMIN"]}
-      mode="hide"
-      fallback={<UpgradeGate />}
-    >
-      <Js3100App />
-    </RoleGuard>
-  );
+  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
+
+  if (isLoading) return null;
+  if (!hasAccessToTier("PRO")) return <UpgradeGate />;
+  return <Js3100App />;
 }
 
 function UpgradeGate() {
