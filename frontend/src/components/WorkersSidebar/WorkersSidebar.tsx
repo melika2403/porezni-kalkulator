@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
+  getClientOrganizations,
   getOrganizations,
   getWorkers,
   type Worker,
@@ -79,9 +80,16 @@ export default function WorkersSidebar({
   const { hasRole } = useRole();
   // Dodavanje radnika zahtijeva Pro/Business (kao na sihterici).
   const canCreateWorker = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Pristup klijentskim organizacijama imaju i PRO i BUSINESS planovi.
+  const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
   const orgsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: () => unwrap(getOrganizations()),
+  });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["clientOrganizations"],
+    queryFn: () => unwrap(getClientOrganizations()),
+    enabled: canSeeClients,
   });
 
   const workersQuery = useQuery({
@@ -108,15 +116,30 @@ export default function WorkersSidebar({
           }}
         >
           <option value="">— Odaberi —</option>
-          {orgsQuery.data?.map((org) => (
-            <option key={org.id} value={org.id}>
-              {orgLabel(org)}
-            </option>
-          ))}
+          {(orgsQuery.data?.length ?? 0) > 0 && (
+            <optgroup label="Moje organizacije">
+              {orgsQuery.data!.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {orgLabel(org)}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {canSeeClients && (clientOrgsQuery.data?.length ?? 0) > 0 && (
+            <optgroup label="Klijentske organizacije">
+              {clientOrgsQuery.data!.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {orgLabel(org)}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </div>
 
-      {!orgsQuery.isLoading && (orgsQuery.data?.length ?? 0) === 0 && (
+      {!orgsQuery.isLoading &&
+        (orgsQuery.data?.length ?? 0) === 0 &&
+        (clientOrgsQuery.data?.length ?? 0) === 0 && (
         <div className={styles.hint}>
           <p className={styles.hintText}>{noOrgsHint}</p>
           <Link href="/profil" className={styles.hintLink}>
@@ -191,7 +214,10 @@ export default function WorkersSidebar({
         <div className={styles.hint}>
           <p className={styles.hintText}>{bottomHint}</p>
           <div className={styles.hintLinks}>
-            <Link href="/aktivni-radnici" className={styles.hintBtn}>
+            <Link
+              href={`/aktivni-radnici${selectedOrgId ? `?org=${selectedOrgId}` : ""}`}
+              className={styles.hintBtn}
+            >
               Svi aktivni radnici
             </Link>
             <Link

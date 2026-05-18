@@ -20,6 +20,7 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
   { path: "/clanske-kartice", priority: 0.7, changeFrequency: "monthly" },
   { path: "/prijave-radnika", priority: 0.7, changeFrequency: "monthly" },
   { path: "/sifre-djelatnosti", priority: 0.9, changeFrequency: "yearly" },
+  { path: "/javni-prihodi", priority: 0.9, changeFrequency: "yearly" },
   { path: "/o-nama", priority: 0.5, changeFrequency: "yearly" },
   { path: "/kontakt", priority: 0.5, changeFrequency: "yearly" },
   { path: "/uvjeti", priority: 0.3, changeFrequency: "yearly" },

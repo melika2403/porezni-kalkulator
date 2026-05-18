@@ -13,6 +13,7 @@ import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import {
   getOrganization,
   getWorkers,
@@ -116,31 +117,16 @@ export default function UgovorORadu() {
 }
 
 function UgovorORaduGate() {
-  const title = "Ugovor o radu je dostupan uz pretplatu";
-  const text =
-    "Da biste koristili generator ugovora o radu i otkaza, registrujte se besplatno i probajte preview obrasca, ili odmah aktivirajte Business pretplatu.";
-  const cta = "Registrirajte se besplatno →";
-  const href = "/registracija";
-
   return (
-    <main className={styles.page}>
-      <div className={styles.header}>
-        <p className={styles.label}>Ugovori</p>
-        <h1 className={styles.h1}>
-          Ugovor o radu i <em>otkaz</em> — predložak (FBiH)
-        </h1>
-        <p className={styles.subtitle}>
-          Generator ugovora o radu i odluke o prestanku radnog odnosa, popunjen
-          podacima iz profila, u Word i PDF formatu.
-        </p>
-      </div>
-      <div className={styles.gateCard}>
-        <div className={styles.gateIcon}>🔒</div>
-        <h2 className={styles.gateTitle}>{title}</h2>
-        <p className={styles.gateText}>{text}</p>
-        <a href={href} className={styles.btnPrimary}>{cta}</a>
-      </div>
-    </main>
+    <PreviewRegisterGate
+      pageLabel="Ugovori"
+      pageTitle={<>Ugovor o radu i <em>otkaz</em></>}
+      pageSubtitle="Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Word i PDF format."
+      featureName="generatora ugovora o radu i otkaza"
+      previewDesc="popunjavati podatke o ugovoru, vidjeti preview ugovora i probnog rada"
+      proUnlocks="Preuzimanje Word i PDF dokumenata, automatski broj ugovora"
+      tier="BUSINESS"
+    />
   );
 }
 

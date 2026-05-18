@@ -173,9 +173,7 @@ export default function OrgFillSelect({ onFill }: Props) {
               )}
               {filteredOwn.length > 0 && (
                 <>
-                  {clientOrgs.length > 0 && (
-                    <div className={styles.dropdownGroup}>Moje organizacije</div>
-                  )}
+                  <div className={styles.dropdownGroup}>Moje organizacije</div>
                   {filteredOwn.map((org) => (
                     <button
                       key={org.id}
@@ -189,20 +187,29 @@ export default function OrgFillSelect({ onFill }: Props) {
                   ))}
                 </>
               )}
-              {filteredClient.length > 0 && (
+              {isProOrBusiness && (
                 <>
-                  <div className={styles.dropdownGroup}>Klijentske firme</div>
-                  {filteredClient.map((org) => (
-                    <button
-                      key={org.id}
-                      type="button"
-                      className={styles.dropdownItem}
-                      onClick={() => pick(org)}
-                    >
-                      {optionText(org)}
-                      {org.taxNumber ? ` (${org.taxNumber})` : ""}
-                    </button>
-                  ))}
+                  <div className={styles.dropdownGroup}>Klijentske organizacije</div>
+                  {filteredClient.length > 0 ? (
+                    filteredClient.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        className={styles.dropdownItem}
+                        onClick={() => pick(org)}
+                      >
+                        {optionText(org)}
+                        {org.taxNumber ? ` (${org.taxNumber})` : ""}
+                      </button>
+                    ))
+                  ) : (
+                    <div className={styles.dropdownEmpty} style={{ fontSize: 12 }}>
+                      Nemate dodanu nijednu klijentsku organizaciju.{" "}
+                      <a href="/klijenti" style={{ color: "var(--sage)" }}>
+                        Dodaj →
+                      </a>
+                    </div>
+                  )}
                 </>
               )}
             </div>

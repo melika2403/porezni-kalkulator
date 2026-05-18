@@ -22,6 +22,8 @@ import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
+import { useNotice } from "src/components/Notice/Notice";
 
 type Mode = "neto" | "bruto";
 
@@ -92,30 +94,16 @@ export default function UgovorODjelu() {
 }
 
 function UgovorODjeluGate() {
-  const title = "Ugovor o djelu je dostupan uz pretplatu";
-  const text =
-    "Da biste koristili kalkulator i generator ugovora o djelu, registrujte se besplatno i probajte preview obrasca, ili odmah aktivirajte Business pretplatu.";
-  const cta = "Registrirajte se besplatno →";
-  const href = "/registracija";
-
   return (
-    <main className={styles.page}>
-      <div className={styles.header}>
-        <p className={styles.label}>Ugovori</p>
-        <h1 className={styles.h1}>
-          Ugovor o djelu — kalkulator i <em>predložak</em>
-        </h1>
-        <p className={styles.subtitle}>
-          Obračun poreza i doprinosa, predložak ugovora i uplatnice spremne za banku.
-        </p>
-      </div>
-      <div className={styles.gateCard}>
-        <div className={styles.gateIcon}>🔒</div>
-        <h2 className={styles.gateTitle}>{title}</h2>
-        <p className={styles.gateText}>{text}</p>
-        <a href={href} className={styles.btnPrimary}>{cta}</a>
-      </div>
-    </main>
+    <PreviewRegisterGate
+      pageLabel="Ugovori"
+      pageTitle={<>Ugovor o djelu — kalkulator i <em>predložak</em></>}
+      pageSubtitle="Kalkulator NETO↔BRUTO sa porezima i doprinosima, predložak ugovora i 6 uplatnica spremnih za banku."
+      featureName="ugovora o djelu"
+      previewDesc="izračunati neto/bruto, vidjeti obračun poreza i doprinosa, popuniti podatke izvršioca i naručioca"
+      proUnlocks="Preuzimanje predloška ugovora i 6 uplatnica"
+      tier="BUSINESS"
+    />
   );
 }
 
@@ -123,6 +111,7 @@ function UgovorODjeluApp() {
   const { hasRole } = useRole();
   const canGenerate = hasRole("BUSINESS", "ADMIN");
   const { findByName: findCity } = useCityLookup();
+  const { notify } = useNotice();
   const [mode, setMode] = useState<Mode>("neto");
   const [vrsta, setVrsta] = useState<VrstaNaknade>("standard");
   const [iznosStr, setIznosStr] = useState("1.000,00");
@@ -221,7 +210,7 @@ function UgovorODjeluApp() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Greška pri generisanju DOCX-a: " + (e as Error).message);
+      notify("Greška pri generisanju DOCX-a: " + (e as Error).message, "error");
     } finally {
       setGeneratingDocx(false);
     }
@@ -240,7 +229,7 @@ function UgovorODjeluApp() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Greška pri generisanju PDF-a: " + (e as Error).message);
+      notify("Greška pri generisanju PDF-a: " + (e as Error).message, "error");
     } finally {
       setGeneratingPdf(false);
     }
@@ -249,11 +238,11 @@ function UgovorODjeluApp() {
   const handleDownloadAug = async () => {
     if (!canGenerate) return;
     if (!naruciIme || !naruciId) {
-      alert("Unesite naziv i JIB naručioca.");
+      notify("Unesite naziv i JIB naručioca.", "error");
       return;
     }
     if (!izvrIme || !izvrJmbg) {
-      alert("Unesite ime i JMBG izvršioca.");
+      notify("Unesite ime i JMBG izvršioca.", "error");
       return;
     }
     setGeneratingAug(true);
@@ -282,7 +271,7 @@ function UgovorODjeluApp() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Greška pri generisanju AUG-1031: " + (e as Error).message);
+      notify("Greška pri generisanju AUG-1031: " + (e as Error).message, "error");
     } finally {
       setGeneratingAug(false);
     }
@@ -290,20 +279,20 @@ function UgovorODjeluApp() {
 
   const handleDownloadUplatnice = async () => {
     if (!canGenerate) return;
-    if (!izvrJmbg || izvrJmbg.length !== 13) {
-      alert("JMBG izvršioca mora imati 13 cifara.");
+    if (!naruciIme) {
+      notify("Unesite naziv naručioca.", "error");
       return;
     }
-    if (!naruciIme) {
-      alert("Unesite naziv naručioca.");
+    if (!naruciId || naruciId.length !== 13) {
+      notify("JIB / ID broj naručioca mora imati 13 cifara.", "error");
       return;
     }
     if (!kantonKey) {
-      alert("Odaberite kanton naručioca.");
+      notify("Odaberite kanton naručioca.", "error");
       return;
     }
     if (!opcinaKod) {
-      alert("Odaberite općinu naručioca.");
+      notify("Odaberite općinu naručioca.", "error");
       return;
     }
     setGeneratingUplatnice(true);
@@ -311,8 +300,8 @@ function UgovorODjeluApp() {
       const bytes = await fillUodUplatnice({
         naruciNaziv: naruciIme,
         naruciAdresa: naruciAdresa,
+        naruciId,
         naruciZiroRacun: naruciZiro || undefined,
-        izvrJmbg,
         kantonKey: kantonKey as KantonKey,
         opcinaKod,
         opcinaIme,
@@ -780,17 +769,6 @@ function UgovorODjeluApp() {
           ))}
         </div>
 
-        <div className={styles.printNapomena}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span>
-            <strong>Napomena za štampanje:</strong> Pri štampanju uplatnica u PDF pregledaču, pod opcijom skaliranja odaberite{" "}
-            <strong>Fit to Paper</strong> ili <strong>Fit to Printable Area</strong> kako bi uplatnica bila ispravno skalirana na stranici.
-          </span>
-        </div>
       </section>
 
       {!canGenerate && (

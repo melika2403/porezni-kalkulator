@@ -1,23 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import styles from "./plata.module.css";
-
-// ── Contribution rates ─────────────────────────────────────────────────────
-const EMP_PIO            = 0.17;
-const EMP_ZDRAVSTVO      = 0.125;
-const EMP_NEZAPOSLENOST  = 0.015;
-const EMP_TOTAL          = EMP_PIO + EMP_ZDRAVSTVO + EMP_NEZAPOSLENOST; // 0.31
-
-const ERP_PIO            = 0.025;
-const ERP_ZDRAVSTVO      = 0.02;
-const ERP_NEZAPOSLENOST  = 0.005;
-const ERP_TOTAL          = ERP_PIO + ERP_ZDRAVSTVO + ERP_NEZAPOSLENOST; // 0.05
-
-// Additional charges on net salary
-const VODNA_NAKNADA      = 0.005;
-const NAKNADA_NESRECE    = 0.005;
-
-const TAX_RATE = 0.10;
+import { fromGross, fromNet, deductionFromCoefficient } from "src/utils/payrollFbih";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const fmt = (n: number) => {
@@ -29,47 +13,6 @@ const parse = (v: string) => {
   const n = parseFloat(v.replace(/\.(?=\d{3})/g, "").replace(",", "."));
   return isNaN(n) || n < 0 ? 0 : n;
 };
-
-// ── Calculation ────────────────────────────────────────────────────────────
-interface Result {
-  gross: number;
-  empPio: number; empZdravstvo: number; empNezaposlenost: number; empTotal: number;
-  taxBase: number; incomeTax: number;
-  net: number;
-  erpPio: number; erpZdravstvo: number; erpNezaposlenost: number; erpTotal: number;
-  vodnaNaknada: number; naknadaNesrece: number;
-  totalCost: number;
-}
-
-function fromGross(gross: number, deduction: number): Result {
-  const empPio            = gross * EMP_PIO;
-  const empZdravstvo      = gross * EMP_ZDRAVSTVO;
-  const empNezaposlenost  = gross * EMP_NEZAPOSLENOST;
-  const empTotal          = gross * EMP_TOTAL;
-  const taxBase           = Math.max(gross - empTotal - deduction, 0);
-  const incomeTax         = taxBase * TAX_RATE;
-  const net               = gross - empTotal - incomeTax;
-  const erpPio            = gross * ERP_PIO;
-  const erpZdravstvo      = gross * ERP_ZDRAVSTVO;
-  const erpNezaposlenost  = gross * ERP_NEZAPOSLENOST;
-  const erpTotal          = gross * ERP_TOTAL;
-  const vodnaNaknada      = net * VODNA_NAKNADA;
-  const naknadaNesrece    = net * NAKNADA_NESRECE;
-  const totalCost         = gross + erpTotal + vodnaNaknada + naknadaNesrece;
-  return { gross, empPio, empZdravstvo, empNezaposlenost, empTotal,
-           taxBase, incomeTax, net,
-           erpPio, erpZdravstvo, erpNezaposlenost, erpTotal,
-           vodnaNaknada, naknadaNesrece, totalCost };
-}
-
-function fromNet(net: number, deduction: number): Result {
-  const netCoeff     = (1 - EMP_TOTAL) * (1 - TAX_RATE);
-  const grossWithTax = (net - deduction * TAX_RATE) / netCoeff;
-  if (grossWithTax * (1 - EMP_TOTAL) - deduction > 0.001) {
-    return fromGross(grossWithTax, deduction);
-  }
-  return fromGross(net / (1 - EMP_TOTAL), deduction);
-}
 
 // ── Component ──────────────────────────────────────────────────────────────
 type Mode = "grossToNet" | "netToGross";
@@ -101,7 +44,7 @@ export default function PreracunPlate() {
   };
 
   const salary = parse(input);
-  const ded    = Math.max(parse(coeff), 0) * 300;
+  const ded    = deductionFromCoefficient(parse(coeff));
   const result = salary > 0
     ? (mode === "grossToNet" ? fromGross(salary, ded) : fromNet(salary, ded))
     : null;
