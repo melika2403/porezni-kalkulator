@@ -183,7 +183,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                       name: `${user.firstName} ${user.lastName}`.trim(),
                       address: user.address ?? "",
                       city: user.city ?? "",
-                      id: user.idCardNumber ?? "",
+                      id: user.jmbg ?? user.idCardNumber ?? "",
                     })
                   }
                 >
@@ -250,7 +250,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
                           name: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim(),
                           address: c.address ?? "",
                           city: c.city ?? "",
-                          id: c.idCardNumber ?? "",
+                          id: c.jmbg ?? c.idCardNumber ?? "",
                         })
                       }
                     >

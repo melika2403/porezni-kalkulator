@@ -34,6 +34,15 @@ function toPublicWorker(w) {
     odjavaDate: rest.odjavaDate ? String(rest.odjavaDate).slice(0, 10) : null,
     salaryBruto: rest.salaryBruto != null ? Number(rest.salaryBruto) : null,
     salaryNeto: rest.salaryNeto != null ? Number(rest.salaryNeto) : null,
+    taxCoefficient: rest.taxCoefficient != null ? Number(rest.taxCoefficient) : 1.0,
+    minuliRadRate: rest.minuliRadRate != null ? Number(rest.minuliRadRate) : 0.4,
+    overtimeRate: rest.overtimeRate != null ? Number(rest.overtimeRate) : 25.0,
+    nightRate: rest.nightRate != null ? Number(rest.nightRate) : 25.0,
+    sundayRate: rest.sundayRate != null ? Number(rest.sundayRate) : 20.0,
+    holidayRate: rest.holidayRate != null ? Number(rest.holidayRate) : 50.0,
+    defaultMealAllowance: rest.defaultMealAllowance != null ? Number(rest.defaultMealAllowance) : 0,
+    defaultTravelExpense: rest.defaultTravelExpense != null ? Number(rest.defaultTravelExpense) : 0,
+    contractedHours: rest.contractedHours != null ? Number(rest.contractedHours) : 8,
   };
 }
 
@@ -110,6 +119,63 @@ function pickEmploymentFields(body, target) {
       return "Stručna sprema mora biti 0–9";
     }
     target.strucnaSpremaIdx = n;
+  }
+
+  const { taxCoefficient, minuliRadRate } = body ?? {};
+  if (taxCoefficient !== undefined) {
+    if (taxCoefficient === null || taxCoefficient === "") {
+      target.taxCoefficient = 1.0;
+    } else {
+      const n = Number(taxCoefficient);
+      if (!Number.isFinite(n) || n < 0 || n > 10) {
+        return "Porezni koeficijent mora biti broj između 0 i 10";
+      }
+      target.taxCoefficient = n;
+    }
+  }
+  if (minuliRadRate !== undefined) {
+    if (minuliRadRate === null || minuliRadRate === "") {
+      target.minuliRadRate = 0.4;
+    } else {
+      const n = Number(minuliRadRate);
+      if (!Number.isFinite(n) || n < 0 || n > 10) {
+        return "Stopa minulog rada mora biti broj između 0 i 10";
+      }
+      target.minuliRadRate = n;
+    }
+  }
+
+  const { contractedHours } = body ?? {};
+  if (contractedHours !== undefined) {
+    if (contractedHours === null || contractedHours === "") {
+      target.contractedHours = 8;
+    } else {
+      const n = Number(contractedHours);
+      if (!Number.isInteger(n) || n < 1 || n > 8) {
+        return "Ugovoreno radno vrijeme mora biti cijeli broj 1–8 sati";
+      }
+      target.contractedHours = n;
+    }
+  }
+
+  const rateChecks = [
+    ["overtimeRate", 25.0, "Stopa prekovremenog rada"],
+    ["nightRate", 25.0, "Stopa noćnog rada"],
+    ["sundayRate", 20.0, "Stopa rada nedjeljom"],
+    ["holidayRate", 50.0, "Stopa rada na praznik"],
+  ];
+  for (const [key, def, label] of rateChecks) {
+    const v = body?.[key];
+    if (v === undefined) continue;
+    if (v === null || v === "") {
+      target[key] = def;
+      continue;
+    }
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > 200) {
+      return `${label} mora biti broj između 0 i 200`;
+    }
+    target[key] = n;
   }
   return null;
 }
@@ -281,6 +347,12 @@ async function remove(req, res) {
   const existing = await Worker.findOne({ where: { id: workerId, organizationId: orgId } });
   if (!existing) return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
 
+  // Cascade: obriši sve Payroll zapise vezane za ovog radnika prije brisanja.
+  // Inače ostaju kao orphan zapisi i ulaze u zbirne totale u UI-u.
+  const { Payroll } = require("../models/index");
+  if (Payroll) {
+    await Payroll.destroy({ where: { workerId } });
+  }
   await Worker.destroy({ where: { id: workerId } });
   return res.json({ ok: true });
 }

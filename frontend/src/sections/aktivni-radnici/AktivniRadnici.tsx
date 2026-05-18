@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
+  getClientOrganizations,
   getOrganizations,
   getWorkers,
   type Worker,
@@ -11,6 +12,7 @@ import {
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import QuickAddWorkerModal from "src/components/WorkersSidebar/QuickAddWorkerModal";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import styles from "./aktivniRadnici.module.css";
 
 type Filter = "svi" | "prijavljeni" | "draft" | "odjavljeni";
@@ -47,6 +49,7 @@ export default function AktivniRadnici() {
   const { role, hasRole } = useRole();
   const isLoggedIn = role !== null;
   const canCreateWorker = hasRole("PRO", "BUSINESS", "ADMIN");
+  const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
 
   const [orgId, setOrgId] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>("svi");
@@ -57,10 +60,19 @@ export default function AktivniRadnici() {
     queryFn: () => unwrap(getOrganizations()),
     enabled: isLoggedIn,
   });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["clientOrganizations"],
+    queryFn: () => unwrap(getClientOrganizations()),
+    enabled: isLoggedIn && canSeeClients,
+  });
 
-  // Auto-select first org if not selected
-  if (orgId === null && (orgsQuery.data?.length ?? 0) > 0 && orgsQuery.data?.[0]) {
-    setOrgId(orgsQuery.data[0].id);
+  // Auto-select first available org (own first, then client)
+  if (orgId === null) {
+    if ((orgsQuery.data?.length ?? 0) > 0 && orgsQuery.data?.[0]) {
+      setOrgId(orgsQuery.data[0].id);
+    } else if ((clientOrgsQuery.data?.length ?? 0) > 0 && clientOrgsQuery.data?.[0]) {
+      setOrgId(clientOrgsQuery.data[0].id);
+    }
   }
 
   const workersQuery = useQuery({
@@ -72,8 +84,8 @@ export default function AktivniRadnici() {
   });
 
   const allWorkers = workersQuery.data ?? [];
-  // Filter samo RADNIK (ne VLASNIK)
-  const radnici = allWorkers.filter((w) => w.role === "RADNIK");
+  // Uključi i RADNIK i VLASNIK (vlasnici se prepoznaju po roli i imaju badge).
+  const radnici = allWorkers;
 
   const filtered = radnici.filter((w) => {
     if (filter === "svi") return true;
@@ -92,18 +104,14 @@ export default function AktivniRadnici() {
 
   if (!isLoggedIn) {
     return (
-      <main className={styles.page}>
-        <div className={styles.header}>
-          <p className={styles.label}>Radnici</p>
-          <h1 className={styles.h1}>Aktivni <em>radnici</em></h1>
-        </div>
-        <div className={styles.gate}>
-          <div className={styles.gateIcon}>🔒</div>
-          <h2>Prijavi se da bi vidio listu radnika</h2>
-          <p>Radnici se vežu za organizaciju u tvom profilu.</p>
-          <Link href="/prijava" className={styles.btnPrimary}>Prijavi se →</Link>
-        </div>
-      </main>
+      <PreviewRegisterGate
+        pageLabel="Radnici"
+        pageTitle={<>Aktivni <em>radnici</em></>}
+        pageSubtitle="Centralni pregled radnika i vlasnika obrta sa statusom prijave kod PIO/ZZO, ugovornim podacima i brzim akcijama."
+        featureName="aktivnih radnika"
+        previewDesc="dodavati radnike i vlasnike, vidjeti njihov status, ugovore i historiju dokumenata"
+        proUnlocks="Generisanje JS3100 prijave/odjave i ugovora o radu"
+      />
     );
   }
 
@@ -130,11 +138,24 @@ export default function AktivniRadnici() {
             onChange={(e) => setOrgId(e.target.value ? Number(e.target.value) : null)}
           >
             <option value="">— Odaberi —</option>
-            {orgsQuery.data?.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
+            {(orgsQuery.data?.length ?? 0) > 0 && (
+              <optgroup label="Moje organizacije">
+                {orgsQuery.data!.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {canSeeClients && (clientOrgsQuery.data?.length ?? 0) > 0 && (
+              <optgroup label="Klijentske organizacije">
+                {clientOrgsQuery.data!.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         {orgId && canCreateWorker && (
@@ -213,6 +234,24 @@ export default function AktivniRadnici() {
                       >
                         {w.firstName} {w.lastName}
                       </Link>
+                      {w.role === "VLASNIK" && (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            padding: "2px 7px",
+                            background: "rgba(58, 92, 66, 0.12)",
+                            color: "var(--sage)",
+                            borderRadius: 999,
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            letterSpacing: "0.04em",
+                            textTransform: "uppercase",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          Vlasnik
+                        </span>
+                      )}
                     </td>
                     <td className={styles.muted}>{w.jmbg ?? "—"}</td>
                     <td>{w.position ?? "—"}</td>

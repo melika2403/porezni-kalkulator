@@ -12,6 +12,7 @@ import { formatAddress } from "src/utils/formatAddress";
 import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import {
   getAmortizacijaYears,
   getAmortizacija,
@@ -75,6 +76,16 @@ export const VIJEK_STOPA: Record<string, number> = Object.fromEntries(
 /* ── Helpers ── */
 export function r2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+// crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
+// On LAN-IP dev (http://192.168.x.x) it's undefined — fall back to a sufficient
+// local-id generator (used only as React key / row id, not security-sensitive).
+function genId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function bsFmt(n: number): string {
@@ -207,7 +218,7 @@ export function calcRow(row: AssetRow, odISO: string, doISO: string) {
 
 function newRow(): AssetRow {
   return {
-    id: crypto.randomUUID(),
+    id: genId(),
     naziv: "",
     datumNabavke: "",
     brojDokumenta: "",
@@ -257,6 +268,24 @@ function sortIcon(
 
 /* ── Component ── */
 export default function Amortizacija() {
+  const { role, isLoading: roleLoading } = useRole();
+  if (roleLoading) return null;
+  if (role === null) {
+    return (
+      <PreviewRegisterGate
+        pageLabel="Stalna sredstva"
+        pageTitle={<>Stalna sredstva i <em>amortizacija</em></>}
+        pageSubtitle="Evidencija stalnih sredstava sa automatskim obračunom amortizacije kroz godine. Historija po godinama i export u PLDI obrazac."
+        featureName="evidencije stalnih sredstava"
+        previewDesc="dodavati stalna sredstva, automatski računati amortizaciju i čuvati podatke za sljedeću godinu"
+        tier="REG"
+      />
+    );
+  }
+  return <AmortizacijaApp />;
+}
+
+function AmortizacijaApp() {
   const currentYear = new Date().getFullYear().toString();
   const { findByName: findCity } = useCityLookup();
 
@@ -429,7 +458,7 @@ export default function Amortizacija() {
       });
       setRows(
         (data.rows ?? []).map((r) => ({
-          id: crypto.randomUUID(),
+          id: genId(),
           naziv: r.naziv ?? "",
           datumNabavke: r.datumNabavke ?? "",
           brojDokumenta: r.brojDokumenta ?? "",

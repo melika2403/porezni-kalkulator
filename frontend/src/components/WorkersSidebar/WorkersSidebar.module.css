@@ -215,3 +215,21 @@
   background: var(--sage);
   color: #fff;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Mobile/tablet (≤ 900px) — sidebar drops out of sticky and becomes full-width
+ * above the content. Matches the parent uor.module.css breakpoint that stacks
+ * .pageLayout to column at 900px. Without this, the sticky 250px box "floats"
+ * over the content as the user scrolls.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .sidebar {
+    width: 100%;
+    position: static;
+    top: auto;
+  }
+
+  .list {
+    max-height: 280px;
+  }
+}

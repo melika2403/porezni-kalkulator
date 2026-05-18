@@ -12,10 +12,12 @@ import {
   deleteSihterica,
 } from "src/api/sihterica";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useRole } from "src/hooks/useRole";
 import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
+import { useNotice } from "src/components/Notice/Notice";
 import Link from "next/link";
 
 const MONTHS = [
@@ -342,66 +344,21 @@ function NapomenaSection() {
 }
 
 function UpgradeGate() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => unwrap(me()).catch(() => null),
-    retry: false,
-  });
-  const isLoggedIn = !!user;
-
   return (
-    <div className={styles.pageOuter}>
-      <div className={styles.header}>
-        <div className={styles.label}>Evidencija radnog vremena</div>
-        <h1 className={styles.h1}>
-          Šihterica online — <em>evidencija radnog vremena</em> (FBiH)
-        </h1>
-        <p className={styles.subtitle}>
-          Popunite šihtericu online za sve radnike i preuzmite popunjeni PDF
-          obrazac. Mjesečna evidencija radnog vremena prema propisima FBiH —
-          besplatno za probu.
-        </p>
-      </div>
-      <div className={styles.upgradeCard}>
-        <div className={styles.upgradeIcon}>✨</div>
-        <h2 className={styles.upgradeTitle}>
-          {isLoggedIn
-            ? "Šihterica je dostupna uz pretplatu"
-            : "Isprobajte šihtericu besplatno"}
-        </h2>
-        <p className={styles.upgradeText}>
-          {isLoggedIn ? (
-            <>
-              Generisanje PDF obrazaca dostupno je uz <strong>Pro</strong> ili{" "}
-              <strong>Business</strong> pretplatu.
-            </>
-          ) : (
-            <>
-              <strong>Registrujte se besplatno</strong> i odmah isprobajte
-              šihtericu — unesite radnike, popunite evidenciju radnog vremena i
-              vidite kako izgleda. Plus, dobijate <strong>30 dana PRO
-              besplatno</strong> za sve funkcije, uključujući PDF preuzimanje.
-            </>
-          )}
-        </p>
-        {!isLoading &&
-          (isLoggedIn ? (
-            <a href="/profil#pretplata" className={styles.upgradeBtn}>
-              Pogledaj pretplate →
-            </a>
-          ) : (
-            <a href="/registracija" className={styles.upgradeBtn}>
-              Registruj se besplatno →
-            </a>
-          ))}
-      </div>
-      <NapomenaSection />
-    </div>
+    <PreviewRegisterGate
+      pageLabel="Evidencija radnog vremena"
+      pageTitle={<>Šihterica — <em>evidencija radnog vremena</em></>}
+      pageSubtitle="Mjesečna evidencija radnog vremena za radnike u FBiH. Auto-popuna sa profila, izvoz u PDF i CSV."
+      featureName="šihterice"
+      previewDesc="unositi radnike, popunjavati evidenciju i vidjeti zbirne sate (redovni, prekovremeni, slobodni dani)"
+      proUnlocks="Preuzimanje PDF i CSV obrasca"
+    />
   );
 }
 
 function SihtericaApp() {
   const queryClient = useQueryClient();
+  const { notify } = useNotice();
   const now = new Date();
   const { hasRole } = useRole();
   const canExport = hasRole("PRO", "BUSINESS", "ADMIN");
@@ -887,7 +844,7 @@ function SihtericaApp() {
 
       const fileCount = Object.keys(zip.files).length;
       if (fileCount === 0) {
-        alert("Nijedan radnik nema sačuvane podatke za odabrani mjesec.");
+        notify("Nijedan radnik nema sačuvane podatke za odabrani mjesec.", "warning");
         return;
       }
 
@@ -905,7 +862,7 @@ function SihtericaApp() {
     } finally {
       setBulkExporting(false);
     }
-  }, [orgId, workersQuery.data, year, month, selectedOrg, countCodes]);
+  }, [orgId, workersQuery.data, year, month, selectedOrg, countCodes, notify]);
 
   // ─── Delete current month ──────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {

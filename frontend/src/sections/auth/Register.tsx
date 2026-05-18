@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import styles from "./auth.module.css";
 import { register, resendVerification, unwrap } from "src/api/auth";
 import CitySelect from "src/components/CitySelect/CitySelect";
+import { getBackendUrl } from "src/utils/backendUrl";
 
 export default function Register() {
   const [firstName, setFirstName] = useState("");
@@ -55,8 +56,7 @@ export default function Register() {
   };
 
   const handleGoogle = () => {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+    const backendUrl = getBackendUrl();
     window.location.href = `${backendUrl}/api/auth/google`;
   };
 

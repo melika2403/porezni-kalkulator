@@ -13,6 +13,7 @@ import {
 import { unwrap } from "src/api/auth";
 import styles from "./aktivniRadnici.module.css";
 import { parseJmbg } from "src/utils/jmbg";
+import { useNotice } from "src/components/Notice/Notice";
 
 const DOC_TYPE_LABEL: Record<WorkerDocumentType, string> = {
   UGOVOR: "Ugovor o radu",
@@ -61,6 +62,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function RadnikDossier({ workerId }: { workerId: number }) {
   const queryClient = useQueryClient();
+  const { confirm: confirmDialog } = useNotice();
 
   const workersQuery = useQuery({
     queryKey: ["allMyWorkers"],
@@ -237,10 +239,11 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
                         type="button"
                         className={styles.actionLink}
                         style={{ background: "#fee2e2", color: "#991b1b" }}
-                        onClick={() => {
-                          if (confirm(`Izbrisati dokument "${d.originalName}"?`)) {
-                            deleteMutation.mutate(d.id);
-                          }
+                        onClick={async () => {
+                          const ok = await confirmDialog(
+                            `Izbrisati dokument "${d.originalName}"?`,
+                          );
+                          if (ok) deleteMutation.mutate(d.id);
                         }}
                       >
                         🗑 Briši
