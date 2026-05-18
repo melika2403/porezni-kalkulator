@@ -1,0 +1,127 @@
+.container {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  pointer-events: none;
+  max-width: min(420px, calc(100vw - 48px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: var(--paper, #faf8f3);
+  border: 1px solid var(--border, #d4cfc4);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  color: #1c1c1c;
+  pointer-events: auto;
+  animation: slideIn 0.18s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+}
+
+.msg {
+  flex: 1;
+}
+
+.info .icon    { background: #5b7799; }
+.success .icon { background: #3a5c42; }
+.warning .icon { background: #c08a30; }
+.error   .icon { background: #b91c1c; }
+
+.info    { border-left: 4px solid #5b7799; }
+.success { border-left: 4px solid #3a5c42; }
+.warning { border-left: 4px solid #c08a30; }
+.error   { border-left: 4px solid #b91c1c; }
+
+/* ── Confirm dialog ── */
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.confirmDialog {
+  background: var(--paper, #faf8f3);
+  border-radius: 12px;
+  padding: 1.5rem 1.6rem 1.2rem;
+  max-width: min(440px, calc(100vw - 32px));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border, #d4cfc4);
+}
+
+.confirmMsg {
+  margin: 0 0 1.2rem;
+  font-size: 0.98rem;
+  line-height: 1.45;
+  color: #1c1c1c;
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.confirmCancel,
+.confirmOk {
+  padding: 0.55rem 1.2rem;
+  font-size: 0.92rem;
+  font-family: inherit;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--border, #d4cfc4);
+  background: transparent;
+  color: #1c1c1c;
+  transition: background 0.15s, color 0.15s;
+}
+
+.confirmCancel:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.confirmOk {
+  background: #3a5c42;
+  border-color: #3a5c42;
+  color: #fff;
+  font-weight: 600;
+}
+
+.confirmOk:hover {
+  background: #2f4a36;
+}

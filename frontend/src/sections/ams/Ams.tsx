@@ -788,29 +788,6 @@ export default function AmsForm() {
           </div>
         </div>
 
-        <div className={styles.printNapomena}>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            width="18"
-            height="18"
-            style={{ flexShrink: 0 }}
-          >
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span>
-            <strong>Napomena za štampanje:</strong> Pri štampanju uplatnica u
-            PDF pregledaču, pod opcijom skaliranja odaberite{" "}
-            <strong>Fit to Paper</strong> ili{" "}
-            <strong>Fit to Printable Area</strong> kako bi uplatnica bila
-            ispravno skalirana na stranici.
-          </span>
-        </div>
-
         <div className={styles.actions} style={{ marginTop: "1.5rem" }}>
           <button
             className={styles.exportBtn}

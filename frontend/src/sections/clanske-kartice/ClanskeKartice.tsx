@@ -20,6 +20,8 @@ import {
 } from "src/api/karticaMembers";
 import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
+import { useNotice } from "src/components/Notice/Notice";
 import { generateKartica } from "./generateKartica";
 import QRCode from "qrcode";
 
@@ -194,31 +196,15 @@ export default function ClanskeKartice() {
 }
 
 function Gate() {
-  const title = "Generator članskih kartica";
-  const text =
-    "Kreirajte članske kartice sa QR kodom za svoju organizaciju ili klijente. Registrujte se besplatno da probate preview, ili odmah aktivirajte Pro pretplatu.";
-  const cta = "Registrirajte se besplatno →";
-  const href = "/registracija";
-
   return (
-    <main className={styles.page}>
-      <div className={styles.header}>
-        <p className={styles.label}>Alati</p>
-        <h1 className={styles.h1}>
-          Generator <em>članskih kartica</em>
-        </h1>
-        <p className={styles.subtitle}>
-          Kreirajte profesionalne članske kartice sa QR kodom — savršene za
-          klubove, fitness centre, biblioteke i sve organizacije sa članstvom.
-        </p>
-      </div>
-      <div className={styles.gateCard}>
-        <div className={styles.gateIcon}>🔒</div>
-        <h2 className={styles.gateTitle}>{title}</h2>
-        <p className={styles.gateText}>{text}</p>
-        <a href={href} className={styles.btnPrimary}>{cta}</a>
-      </div>
-    </main>
+    <PreviewRegisterGate
+      pageLabel="Alati"
+      pageTitle={<>Generator <em>članskih kartica</em></>}
+      pageSubtitle="Kreirajte profesionalne članske kartice sa QR kodom — savršene za klubove, fitness centre, biblioteke i organizacije sa članstvom."
+      featureName="generatora članskih kartica"
+      previewDesc="dizajnirati karticu, dodavati članove i vidjeti kako izgleda finalna kartica"
+      proUnlocks="Generisanje PDF kartica spremnih za štampanje"
+    />
   );
 }
 
@@ -226,6 +212,7 @@ function ClanskeKarticeApp() {
   const { role, hasRole } = useRole();
   const isBusiness = role === "BUSINESS" || role === "ADMIN";
   const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
+  const { notify, confirm: confirmDialog } = useNotice();
 
   const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],
@@ -516,7 +503,7 @@ function ClanskeKarticeApp() {
     const newValidUntil = computeValidUntil(months);
     const res = await updateKarticaMember(m.id, { validUntil: newValidUntil });
     if (!res.ok) {
-      alert(`Greška pri produženju: ${res.error}`);
+      notify(`Greška pri produženju: ${res.error}`, "error");
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["karticaMembers", orgId] });
@@ -547,7 +534,7 @@ function ClanskeKarticeApp() {
   const handleDeleteMember = async (id: number) => {
     const res = await deleteKarticaMember(id);
     if (!res.ok) {
-      alert(`Greška pri brisanju: ${res.error}`);
+      notify(`Greška pri brisanju: ${res.error}`, "error");
       return;
     }
     if (selectedMemberId === id) handleNewMember();
@@ -581,7 +568,7 @@ function ClanskeKarticeApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handleLogoUpload = (file: File) => {
     if (!file.type.startsWith("image/")) {
-      alert("Odaberite sliku (PNG ili JPG).");
+      notify("Odaberite sliku (PNG ili JPG).", "error");
       return;
     }
     const reader = new FileReader();
@@ -682,7 +669,7 @@ function ClanskeKarticeApp() {
     if (bulkRows.length === 0) return;
     const missing = bulkRows.filter((r) => !r.name || !r.code).length;
     if (missing > 0) {
-      const ok = window.confirm(
+      const ok = await confirmDialog(
         `${missing} redova nema popunjeno ime ili kod — biti će preskočeni. Nastaviti?`,
       );
       if (!ok) return;
@@ -756,11 +743,11 @@ function ClanskeKarticeApp() {
   const handleDownload = async () => {
     if (!canGenerate) return;
     if (!memberName) {
-      alert("Unesite ime člana.");
+      notify("Unesite ime člana.", "error");
       return;
     }
     if (!code) {
-      alert("Unesite kod (broj članstva ili identifikator).");
+      notify("Unesite kod (broj članstva ili identifikator).", "error");
       return;
     }
     setGenerating(true);
@@ -922,7 +909,7 @@ function ClanskeKarticeApp() {
               className={styles.sidebarAddBtn}
               onClick={async () => {
                 if (!memberName.trim() || !code.trim()) {
-                  alert("Popuni ime i kod prije dodavanja u listu.");
+                  notify("Popuni ime i kod prije dodavanja u listu.", "error");
                   return;
                 }
                 const saved = await saveCurrentMember();
@@ -1102,11 +1089,11 @@ function ClanskeKarticeApp() {
               className={styles.btnSecondary}
               onClick={async () => {
                 if (!memberName.trim() || !code.trim()) {
-                  alert("Popuni ime i kod prije spremanja.");
+                  notify("Popuni ime i kod prije spremanja.", "error");
                   return;
                 }
                 const saved = await saveCurrentMember();
-                if (!saved) alert("Greška pri spremanju člana.");
+                if (!saved) notify("Greška pri spremanju člana.", "error");
               }}
               disabled={generating}
               title="Spremi člana u listu bez preuzimanja PDF-a"

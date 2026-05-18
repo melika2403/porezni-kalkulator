@@ -53,6 +53,7 @@ type WorkerForm = {
   odjavaDate: string;
   spol: "" | "M" | "Z";
   strucnaSpremaIdx: string; // "" | "0".."9"
+  contractedHours: string; // "1".."8"
 };
 
 const emptyForm = (): WorkerForm => ({
@@ -79,6 +80,7 @@ const emptyForm = (): WorkerForm => ({
   odjavaDate: "",
   spol: "",
   strucnaSpremaIdx: "",
+  contractedHours: "8",
 });
 
 function formToPayload(f: WorkerForm): WorkerPayload {
@@ -107,6 +109,7 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     odjavaDate: f.odjavaDate || null,
     spol: f.spol === "" ? null : f.spol,
     strucnaSpremaIdx: f.strucnaSpremaIdx === "" ? null : Number(f.strucnaSpremaIdx),
+    contractedHours: f.contractedHours === "" ? 8 : Number(f.contractedHours),
   };
 }
 
@@ -142,6 +145,7 @@ function workerToForm(w: Worker): WorkerForm {
     odjavaDate: w.odjavaDate ?? "",
     spol: w.spol ?? "",
     strucnaSpremaIdx: w.strucnaSpremaIdx == null ? "" : String(w.strucnaSpremaIdx),
+    contractedHours: w.contractedHours == null ? "8" : String(w.contractedHours),
   };
 }
 
@@ -300,6 +304,27 @@ function WorkerFormFields({
         />
       </div>
       <div className={styles.field}>
+        <label className={styles.fieldLabel}>
+          Datum prijave (JS3100){" "}
+          <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+            — koristi se za period u obrascima 2001/2002
+          </span>
+        </label>
+        <DateInput
+          className={styles.input}
+          value={value.prijavaDate}
+          onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Datum odjave (JS3100)</label>
+        <DateInput
+          className={styles.input}
+          value={value.odjavaDate}
+          onValueChange={(iso) => onChange({ ...value, odjavaDate: iso })}
+        />
+      </div>
+      <div className={styles.field}>
         <label className={styles.fieldLabel}>Adresa</label>
         <input
           className={styles.input}
@@ -386,6 +411,26 @@ function WorkerFormFields({
               />
             </div>
           )}
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              Ugovoreno radno vrijeme (sati dnevno)
+            </label>
+            <select
+              className={styles.input}
+              value={value.contractedHours}
+              onChange={set("contractedHours")}
+              title="Zakon o doprinosima FBiH (čl. 7, izmjene 33/25): za nepuno radno vrijeme > 4h primjenjuje se PUNA minimalna osnovica; za ≤ 4h srazmjerno (min. 50%)."
+            >
+              <option value="8">8h — puno radno vrijeme</option>
+              <option value="7">7h — nepuno (puna min. osnovica)</option>
+              <option value="6">6h — nepuno (puna min. osnovica)</option>
+              <option value="5">5h — nepuno (puna min. osnovica)</option>
+              <option value="4">4h — nepuno (srazmjerno, 50%)</option>
+              <option value="3">3h — nepuno (srazmjerno, 50%)</option>
+              <option value="2">2h — nepuno (srazmjerno, 50%)</option>
+              <option value="1">1h — nepuno (srazmjerno, 50%)</option>
+            </select>
+          </div>
           <div className={styles.field}>
             <label className={styles.fieldLabel}>Bruto plata (KM)</label>
             <input

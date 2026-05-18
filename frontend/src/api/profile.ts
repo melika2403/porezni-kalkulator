@@ -1,7 +1,7 @@
 import { type ApiResponse } from "src/api/auth";
+import { getBackendUrl } from "src/utils/backendUrl";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+const BACKEND_URL = getBackendUrl();
 
 async function request<T>(
   path: string,
@@ -152,6 +152,15 @@ export type OrgOwnerPayload = {
   idCardNumber?: string;
 };
 
+export type TaxRegime = "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
+export type TaxCategory =
+  | "SLOBODNA_ZANIMANJA"
+  | "OBRT_SRODNE"
+  | "POLJOPRIVREDA_SUMARSTVO"
+  | "TRGOVAC_POJEDINAC"
+  | "ESNAFSKI_ZANATI"
+  | "TAXI";
+
 export type Organization = {
   id: number;
   name: string;
@@ -166,6 +175,8 @@ export type Organization = {
   city: string | null;
   bankAccount: string | null;
   logoUrl: string | null;
+  taxRegime: TaxRegime | null;
+  taxCategory: TaxCategory | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   createdAt: string;
@@ -184,6 +195,8 @@ export type OrgPayload = {
   address?: string;
   city?: string;
   bankAccount?: string;
+  taxRegime?: TaxRegime | null;
+  taxCategory?: TaxCategory | null;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -300,6 +313,15 @@ export type Worker = {
   odjavaDate: string | null;
   spol: "M" | "Z" | null;
   strucnaSpremaIdx: number | null;
+  taxCoefficient: number;
+  minuliRadRate: number;
+  overtimeRate: number;
+  nightRate: number;
+  sundayRate: number;
+  holidayRate: number;
+  defaultMealAllowance: number;
+  defaultTravelExpense: number;
+  contractedHours: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -335,6 +357,13 @@ export type WorkerPayload = {
   odjavaDate?: string | null;
   spol?: "M" | "Z" | null;
   strucnaSpremaIdx?: number | null;
+  taxCoefficient?: number | string | null;
+  minuliRadRate?: number | string | null;
+  overtimeRate?: number | string | null;
+  nightRate?: number | string | null;
+  sundayRate?: number | string | null;
+  holidayRate?: number | string | null;
+  contractedHours?: number | string | null;
 };
 
 export function getWorkers(orgId: number) {

@@ -1,0 +1,122 @@
+.section {
+  padding: 4rem 1.5rem;
+  background: var(--paper);
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.inner {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 2.5rem;
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem;
+}
+@media (max-width: 880px) {
+  .inner {
+    grid-template-columns: 1fr;
+    padding: 1.75rem;
+    gap: 1.5rem;
+  }
+}
+
+.text { min-width: 0; }
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--sage);
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
+.h2 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+  line-height: 1.15;
+  margin: 0 0 0.85rem;
+}
+.lead {
+  font-size: 14.5px;
+  color: var(--mid);
+  line-height: 1.65;
+  margin: 0 0 0.75rem;
+}
+.lead strong { color: var(--ink); font-weight: 600; }
+
+.cta {
+  display: inline-block;
+  margin-top: 0.85rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--sage);
+  color: var(--white);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.15s;
+}
+.cta:hover {
+  background: var(--sage-dark, #5d735f);
+  transform: translateY(-1px);
+}
+
+/* Preview tile ─────────────────────────────────────────────── */
+.preview {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+}
+.previewLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin-bottom: 0.85rem;
+}
+.chipList {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.chipLink {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 13px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.chipLink:hover {
+  border-color: var(--sage);
+  background: var(--sage-light, #e8efe9);
+}
+.chipCode {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--sage);
+  min-width: 60px;
+}
+.chipName { font-weight: 500; }
+
+.previewLink {
+  font-size: 12.5px;
+  color: var(--sage);
+  text-decoration: none;
+  font-weight: 600;
+}
+.previewLink:hover { text-decoration: underline; }

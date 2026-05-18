@@ -214,6 +214,8 @@ function ProfilTab({ user }: { user: AuthUser }) {
       address: org.address ?? "",
       city: org.city ?? "",
       bankAccount: org.bankAccount ?? "",
+      taxRegime: org.taxRegime ?? "",
+      taxCategory: org.taxCategory ?? "",
     });
     updateOwnOrgMutation.reset();
   };
@@ -883,6 +885,8 @@ type OrgFormState = {
   address: string;
   city: string;
   bankAccount: string;
+  taxRegime: "" | "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
+  taxCategory: string;
 };
 
 const emptyOrgForm: OrgFormState = {
@@ -897,6 +901,8 @@ const emptyOrgForm: OrgFormState = {
   address: "",
   city: "",
   bankAccount: "",
+  taxRegime: "",
+  taxCategory: "",
 };
 
 function orgFormToPayload(
@@ -915,6 +921,12 @@ function orgFormToPayload(
     ...(f.address.trim() && { address: f.address.trim() }),
     ...(f.city.trim() && { city: f.city.trim() }),
     ...(f.bankAccount.trim() && { bankAccount: f.bankAccount.trim() }),
+    // Režim i kategorija (samo za BUSINESS / obrt)
+    taxRegime: f.type === "BUSINESS" ? (f.taxRegime || null) : null,
+    taxCategory:
+      f.type === "BUSINESS" && f.taxCategory
+        ? (f.taxCategory as OrgPayload["taxCategory"])
+        : null,
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
 }
@@ -1159,6 +1171,79 @@ function OrgFormFields({
           />
         </div>
       </div>
+      {value.type === "BUSINESS" && (
+        <div className={styles.row}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              Režim oporezivanja vlasnika
+            </label>
+            <select
+              className={styles.select}
+              value={value.taxRegime}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  taxRegime: e.target.value as OrgFormState["taxRegime"],
+                  // Resetuj kategoriju jer su validne vrijednosti zavisne od režima
+                  taxCategory: "",
+                })
+              }
+            >
+              <option value="">— Odaberi —</option>
+              <option value="STVARNI_DOHODAK">
+                Stvarni dohodak (poslovne knjige, čl. 19)
+              </option>
+              <option value="PAUSALNI">Paušalni iznos (čl. 31)</option>
+              <option value="OSTALI">Ostali obveznici (čl. 6 t.10)</option>
+            </select>
+          </div>
+          {value.taxRegime && value.taxRegime !== "OSTALI" && (
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Kategorija djelatnosti</label>
+              <select
+                className={styles.select}
+                value={value.taxCategory}
+                onChange={set("taxCategory")}
+              >
+                <option value="">— Odaberi —</option>
+                {value.taxRegime === "STVARNI_DOHODAK" && (
+                  <>
+                    <option value="SLOBODNA_ZANIMANJA">
+                      Slobodna zanimanja (2.710 KM)
+                    </option>
+                    <option value="OBRT_SRODNE">
+                      Obrt i srodne djelatnosti (1.602 KM)
+                    </option>
+                    <option value="POLJOPRIVREDA_SUMARSTVO">
+                      Poljoprivreda i šumarstvo (715 KM)
+                    </option>
+                    <option value="TRGOVAC_POJEDINAC">
+                      Trgovac pojedinac (715 KM)
+                    </option>
+                  </>
+                )}
+                {value.taxRegime === "PAUSALNI" && (
+                  <>
+                    <option value="OBRT_SRODNE">
+                      Obrt i srodne djelatnosti (1.355 KM)
+                    </option>
+                    <option value="ESNAFSKI_ZANATI">
+                      Niskoakumulativni esnafski zanati (616 KM)
+                    </option>
+                    <option value="POLJOPRIVREDA_SUMARSTVO">
+                      Poljoprivreda i šumarstvo (616 KM)
+                    </option>
+                    <option value="TAXI">Taxi prijevoz (616 KM)</option>
+                    <option value="TRGOVAC_POJEDINAC">
+                      Trgovac pojedinac (715 KM)
+                    </option>
+                  </>
+                )}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -1460,6 +1545,8 @@ function DjelatnostTab() {
       address: org.address ?? "",
       city: org.city ?? "",
       bankAccount: org.bankAccount ?? "",
+      taxRegime: org.taxRegime ?? "",
+      taxCategory: org.taxCategory ?? "",
     });
     const ow = org.owner;
     setEditHasOwner(!!ow);

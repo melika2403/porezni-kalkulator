@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./auth.module.css";
 import { login, resendVerification, unwrap } from "src/api/auth";
+import { getBackendUrl } from "src/utils/backendUrl";
 
 // Whitelist: dozvoli redirect samo na interne (relative) putanje, ne na vanjske
 // URL-ove (sigurnosna mjera protiv open-redirect napada).
@@ -39,8 +40,7 @@ export default function Login() {
   };
 
   const handleGoogle = () => {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+    const backendUrl = getBackendUrl();
     // sačuvaj next u sessionStorage (Google OAuth callback gubi query param)
     if (typeof window !== "undefined" && nextUrl !== "/") {
       try {

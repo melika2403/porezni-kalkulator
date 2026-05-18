@@ -4,7 +4,12 @@ import { useSearchParams } from "next/navigation";
 import styles from "./js3100.module.css";
 import uorStyles from "src/sections/ugovor-o-radu/uor.module.css";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
-import { getOrganization, getWorkers, type Worker } from "src/api/profile";
+import {
+  getOrganization,
+  getWorkers,
+  updateWorker,
+  type Worker,
+} from "src/api/profile";
 import { spolFromJmbg } from "src/utils/jmbg";
 import {
   fillJs3100Template,
@@ -24,8 +29,9 @@ import OrgFillSelect, {
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useRole } from "src/hooks/useRole";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 
 /* ── Helpers ── */
@@ -104,54 +110,15 @@ export default function Js3100Form() {
 }
 
 function UpgradeGate() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => unwrap(me()).catch(() => null),
-    retry: false,
-  });
-  const isLoggedIn = !!user;
-
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <div className={styles.label}>Obrazac JS3100</div>
-        <h1 className={styles.h1}>
-          Prijava / Odjava <em>radnika</em>
-        </h1>
-        <p className={styles.subtitle}>
-          Jedinstveni sistem registracije, kontrole i naplate doprinosa —
-          JS3100.
-        </p>
-      </div>
-      <div className={styles.upgradeCard}>
-        <div className={styles.upgradeIcon}>🔒</div>
-        <h2 className={styles.upgradeTitle}>JS3100 je dostupan uz pretplatu</h2>
-        <p className={styles.upgradeText}>
-          {isLoggedIn ? (
-            <>
-              Online popunjavanje, čuvanje i generisanje JS3100 prijave / odjave
-              radnika dostupno je uz <strong>Business</strong> pretplatu.
-            </>
-          ) : (
-            <>
-              Prijavite se na svoj račun ili se besplatno registrujte, a zatim
-              aktivirajte <strong>Business</strong> pretplatu kako biste
-              koristili JS3100 obrazac.
-            </>
-          )}
-        </p>
-        {!isLoading &&
-          (isLoggedIn ? (
-            <a href="/profil#pretplata" className={styles.upgradeBtn}>
-              Pogledaj pretplate →
-            </a>
-          ) : (
-            <a href="/prijava" className={styles.upgradeBtn}>
-              Prijavi se →
-            </a>
-          ))}
-      </div>
-    </div>
+    <PreviewRegisterGate
+      pageLabel="Obrazac JS3100"
+      pageTitle={<>Prijava / Odjava <em>radnika</em></>}
+      pageSubtitle="Jedinstveni sistem registracije, kontrole i naplate doprinosa — JS3100."
+      featureName="JS3100 obrasca i obračuna plata"
+      previewDesc="unositi podatke, dodavati radnike i vidjeti kompletan obračun"
+      proUnlocks="Preuzimanje PDF-a i uplatnica"
+    />
   );
 }
 
@@ -312,11 +279,18 @@ function Js3100App() {
       strucnaSpremaIdx: w.strucnaSpremaIdx,
     });
 
+    // Prvi dio — datum prijave: pre-fill iz worker.prijavaDate ako postoji
+    // (ovo osigurava da generisanje JS3100 PDF-a NE overwrite-uje već unijeti
+    // datum sa "danas"). Za PRIJAVA nove osobe → fallback na startDate ili danas.
+    const datumPrijaveFromWorker =
+      w.prijavaDate?.slice(0, 10) || w.startDate?.slice(0, 10) || getTodayIso();
+    setDatumPrijaveIso(datumPrijaveFromWorker);
+
     // Treći dio — datum promjene
     const datumPromjeneIso =
       w.employmentStatus === "PRIJAVLJEN"
-        ? w.odjavaDate ?? w.endDate ?? getTodayIso()
-        : w.startDate ?? getTodayIso();
+        ? w.odjavaDate?.slice(0, 10) ?? w.endDate?.slice(0, 10) ?? getTodayIso()
+        : w.startDate?.slice(0, 10) ?? getTodayIso();
 
     setTreci((p) => ({
       ...p,
@@ -437,6 +411,7 @@ function Js3100App() {
     findCity,
   ]);
 
+  const queryClient = useQueryClient();
   const handleExport = async () => {
     if (!canGenerate) return;
     setLoading(true);
@@ -450,6 +425,33 @@ function Js3100App() {
             : "Promjena";
       const last = worker.prezime || worker.jmbg || "radnik";
       downloadPdf(bytes, `JS3100_${suffix}_${last}.pdf`);
+
+      // Sinhroniziraj employmentStatus + datume radnika u bazi (PRIJAVLJEN/ODJAVLJEN)
+      // koristeći datume IZ FORME (ono što je user odabrao), ne uvijek "danas".
+      // Ovo osigurava da 2001/2002 obrasci kasnije koriste iste datume kao i JS3100.
+      if (sidebarOrgId && sidebarWorkerId && vrsta !== "PROMJENA") {
+        const formPrijavaDate = datumPrijaveIso || getTodayIso();
+        const formOdjavaDate = treci.datumPromjeneIso || getTodayIso();
+        const payload =
+          vrsta === "PRIJAVA"
+            ? {
+                employmentStatus: "PRIJAVLJEN" as const,
+                prijavaDate: formPrijavaDate,
+              }
+            : {
+                employmentStatus: "ODJAVLJEN" as const,
+                odjavaDate: formOdjavaDate,
+                endDate: formOdjavaDate,
+              };
+        try {
+          await unwrap(updateWorker(sidebarOrgId, sidebarWorkerId, payload));
+          queryClient.invalidateQueries({ queryKey: ["workers", sidebarOrgId] });
+          queryClient.invalidateQueries({ queryKey: ["allMyWorkers"] });
+        } catch (e) {
+          // Ne prekidaj download — status update je best-effort.
+          console.warn("Greška pri ažuriranju statusa radnika:", e);
+        }
+      }
     } finally {
       setLoading(false);
     }

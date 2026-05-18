@@ -163,8 +163,8 @@ const FEATURES: Feature[] = [
   },
   // ── Business ─────────────────────────────────────────
   {
-    title: "Prijave / odjave radnika",
-    desc: "Unos i evidencija radnika s automatskim ispisom JS3100 obrasca i ostalih prijavnih obrazaca u PDF formatu.",
+    title: "Plate i prijave radnika",
+    desc: "Mjesečni obračun bruto/neto plata, doprinosa i poreza. Generisanje platnih listića, uplatnica i obrazaca 2001/2002. JS3100 prijava i odjava radnika kod PUFBiH — sve iz jedne aplikacije.",
     badge: "pro",
     iconColor: "accent",
     icon: (
@@ -174,8 +174,10 @@ const FEATURES: Feature[] = [
         stroke="currentColor"
         strokeWidth="1.6"
       >
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
       </svg>
     ),
     dest: "/prijave-radnika",

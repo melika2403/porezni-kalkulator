@@ -1,0 +1,476 @@
+[
+  {
+    "name": "Foča (FBiH)",
+    "municipalityCode": "134",
+    "postalCode": "73312",
+    "kanton": "BPK"
+  },
+  {
+    "name": "Goražde",
+    "municipalityCode": "033",
+    "postalCode": "73000",
+    "kanton": "BPK"
+  },
+  {
+    "name": "Pale (FBiH)",
+    "municipalityCode": "136",
+    "postalCode": "73334",
+    "kanton": "BPK"
+  },
+  {
+    "name": "Čapljina",
+    "municipalityCode": "021",
+    "postalCode": "88300",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Čitluk",
+    "municipalityCode": "023",
+    "postalCode": "88260",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Grad Mostar",
+    "municipalityCode": "180",
+    "postalCode": "88000",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Jablanica",
+    "municipalityCode": "041",
+    "postalCode": "88420",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Konjic",
+    "municipalityCode": "049",
+    "postalCode": "88400",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Neum",
+    "municipalityCode": "107",
+    "postalCode": "88390",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Prozor-Rama",
+    "municipalityCode": "073",
+    "postalCode": "88440",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Ravno",
+    "municipalityCode": "207",
+    "postalCode": "88370",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Stolac",
+    "municipalityCode": "086",
+    "postalCode": "88360",
+    "kanton": "HNK"
+  },
+  {
+    "name": "Bosansko Grahovo",
+    "municipalityCode": "013",
+    "postalCode": "80270",
+    "kanton": "K10"
+  },
+  {
+    "name": "Drvar",
+    "municipalityCode": "027",
+    "postalCode": "80260",
+    "kanton": "K10"
+  },
+  {
+    "name": "Glamoč",
+    "municipalityCode": "032",
+    "postalCode": "80230",
+    "kanton": "K10"
+  },
+  {
+    "name": "Kupres",
+    "municipalityCode": "052",
+    "postalCode": "80320",
+    "kanton": "K10"
+  },
+  {
+    "name": "Livno",
+    "municipalityCode": "055",
+    "postalCode": "80101",
+    "kanton": "K10"
+  },
+  {
+    "name": "Tomislavgrad",
+    "municipalityCode": "028",
+    "postalCode": "80240",
+    "kanton": "K10"
+  },
+  {
+    "name": "Centar Sarajevo",
+    "municipalityCode": "077",
+    "postalCode": "71000",
+    "kanton": "KS"
+  },
+  {
+    "name": "Hadžići",
+    "municipalityCode": "038",
+    "postalCode": "71240",
+    "kanton": "KS"
+  },
+  {
+    "name": "Ilidža",
+    "municipalityCode": "078",
+    "postalCode": "71210",
+    "kanton": "KS"
+  },
+  {
+    "name": "Ilijaš",
+    "municipalityCode": "040",
+    "postalCode": "71380",
+    "kanton": "KS"
+  },
+  {
+    "name": "Novi Grad Sarajevo",
+    "municipalityCode": "108",
+    "postalCode": "71000",
+    "kanton": "KS"
+  },
+  {
+    "name": "Novo Sarajevo",
+    "municipalityCode": "079",
+    "postalCode": "71000",
+    "kanton": "KS"
+  },
+  {
+    "name": "Stari Grad Sarajevo",
+    "municipalityCode": "109",
+    "postalCode": "71000",
+    "kanton": "KS"
+  },
+  {
+    "name": "Trnovo (FBiH)",
+    "municipalityCode": "093",
+    "postalCode": "71223",
+    "kanton": "KS"
+  },
+  {
+    "name": "Vogošća",
+    "municipalityCode": "080",
+    "postalCode": "71320",
+    "kanton": "KS"
+  },
+  {
+    "name": "Domaljevac-Šamac",
+    "municipalityCode": "012",
+    "postalCode": "76233",
+    "kanton": "POS"
+  },
+  {
+    "name": "Odžak",
+    "municipalityCode": "066",
+    "postalCode": "76290",
+    "kanton": "POS"
+  },
+  {
+    "name": "Orašje",
+    "municipalityCode": "068",
+    "postalCode": "76270",
+    "kanton": "POS"
+  },
+  {
+    "name": "Bugojno",
+    "municipalityCode": "017",
+    "postalCode": "70230",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Busovača",
+    "municipalityCode": "018",
+    "postalCode": "72260",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Dobretići",
+    "municipalityCode": "050",
+    "postalCode": "70226",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Donji Vakuf",
+    "municipalityCode": "026",
+    "postalCode": "70220",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Fojnica",
+    "municipalityCode": "030",
+    "postalCode": "71270",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Gornji Vakuf-Uskoplje",
+    "municipalityCode": "034",
+    "postalCode": "70240",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Jajce",
+    "municipalityCode": "042",
+    "postalCode": "70101",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Kiseljak",
+    "municipalityCode": "046",
+    "postalCode": "71250",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Kreševo",
+    "municipalityCode": "051",
+    "postalCode": "71260",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Novi Travnik",
+    "municipalityCode": "065",
+    "postalCode": "72290",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Travnik",
+    "municipalityCode": "091",
+    "postalCode": "72270",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Vitez",
+    "municipalityCode": "100",
+    "postalCode": "72250",
+    "kanton": "SBK"
+  },
+  {
+    "name": "Banovići",
+    "municipalityCode": "001",
+    "postalCode": "75290",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Čelić",
+    "municipalityCode": "056",
+    "postalCode": "75246",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Doboj-Istok",
+    "municipalityCode": "128",
+    "postalCode": "74207",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Gračanica",
+    "municipalityCode": "035",
+    "postalCode": "75320",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Gradačac",
+    "municipalityCode": "036",
+    "postalCode": "76250",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Kalesija",
+    "municipalityCode": "044",
+    "postalCode": "75260",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Kladanj",
+    "municipalityCode": "047",
+    "postalCode": "75280",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Lukavac",
+    "municipalityCode": "057",
+    "postalCode": "75300",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Sapna",
+    "municipalityCode": "138",
+    "postalCode": "75411",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Srebrenik",
+    "municipalityCode": "085",
+    "postalCode": "75350",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Teočak",
+    "municipalityCode": "142",
+    "postalCode": "75414",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Tuzla",
+    "municipalityCode": "094",
+    "postalCode": "75000",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Živinice",
+    "municipalityCode": "106",
+    "postalCode": "75270",
+    "kanton": "TUZ"
+  },
+  {
+    "name": "Bihać",
+    "municipalityCode": "003",
+    "postalCode": "77000",
+    "kanton": "USK"
+  },
+  {
+    "name": "Bosanska Krupa",
+    "municipalityCode": "008",
+    "postalCode": "77240",
+    "kanton": "USK"
+  },
+  {
+    "name": "Bosanski Petrovac",
+    "municipalityCode": "011",
+    "postalCode": "77250",
+    "kanton": "USK"
+  },
+  {
+    "name": "Bužim",
+    "municipalityCode": "124",
+    "postalCode": "77245",
+    "kanton": "USK"
+  },
+  {
+    "name": "Cazin",
+    "municipalityCode": "019",
+    "postalCode": "77220",
+    "kanton": "USK"
+  },
+  {
+    "name": "Ključ",
+    "municipalityCode": "048",
+    "postalCode": "79280",
+    "kanton": "USK"
+  },
+  {
+    "name": "Sanski Most",
+    "municipalityCode": "076",
+    "postalCode": "79260",
+    "kanton": "USK"
+  },
+  {
+    "name": "Velika Kladuša",
+    "municipalityCode": "097",
+    "postalCode": "77230",
+    "kanton": "USK"
+  },
+  {
+    "name": "Breza",
+    "municipalityCode": "016",
+    "postalCode": "71370",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Doboj-Jug",
+    "municipalityCode": "132",
+    "postalCode": "74203",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Kakanj",
+    "municipalityCode": "043",
+    "postalCode": "72240",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Maglaj",
+    "municipalityCode": "060",
+    "postalCode": "74250",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Olovo",
+    "municipalityCode": "067",
+    "postalCode": "71340",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Tešanj",
+    "municipalityCode": "090",
+    "postalCode": "74260",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Usora",
+    "municipalityCode": "025",
+    "postalCode": "74230",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Vareš",
+    "municipalityCode": "096",
+    "postalCode": "71330",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Visoko",
+    "municipalityCode": "098",
+    "postalCode": "71300",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Zavidovići",
+    "municipalityCode": "102",
+    "postalCode": "72220",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Zenica",
+    "municipalityCode": "103",
+    "postalCode": "72000",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Žepče",
+    "municipalityCode": "105",
+    "postalCode": "72230",
+    "kanton": "ZDK"
+  },
+  {
+    "name": "Grude",
+    "municipalityCode": "037",
+    "postalCode": "88340",
+    "kanton": "ZHK"
+  },
+  {
+    "name": "Ljubuški",
+    "municipalityCode": "059",
+    "postalCode": "88320",
+    "kanton": "ZHK"
+  },
+  {
+    "name": "Posušje",
+    "municipalityCode": "070",
+    "postalCode": "88240",
+    "kanton": "ZHK"
+  },
+  {
+    "name": "Široki Brijeg",
+    "municipalityCode": "054",
+    "postalCode": "88220",
+    "kanton": "ZHK"
+  }
+]
