@@ -91,7 +91,7 @@ const RELATED_TOOLS = [
   { href: "/pdv-kalkulator", label: "PDV kalkulator", desc: "Preračun cijene sa i bez PDV-a" },
   { href: "/spr", label: "SPR-1053", desc: "Specifikacija dohotka samostalne djelatnosti" },
   { href: "/gpd", label: "GPD-1051", desc: "Godišnja porezna prijava" },
-  { href: "/ams", label: "AMS-1035", desc: "Akontacija poreza po odbitku" },
+  { href: "/ams", label: "AMS-1035", desc: "Akontacija poreza po odbitku na druge samostalne djelatnosti" },
   { href: "/zo3", label: "ZO3", desc: "Prijava člana porodice na zdravstveno" },
   { href: "/amortizacija", label: "Stalna sredstva", desc: "Vođenje OS i amortizacija" },
   { href: "/sifre-djelatnosti", label: "Šifre djelatnosti FBiH", desc: "KD BiH 2010 — sve šifre" },

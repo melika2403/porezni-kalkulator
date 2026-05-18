@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import AktivniRadnici from "src/sections/aktivni-radnici/AktivniRadnici";
 import type { Metadata } from "next";
 
@@ -9,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function AktivniRadniciPage() {
-  return <AktivniRadnici />;
+  return (
+    <Suspense fallback={null}>
+      <AktivniRadnici />
+    </Suspense>
+  );
 }

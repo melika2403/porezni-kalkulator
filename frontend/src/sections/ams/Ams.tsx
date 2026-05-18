@@ -823,7 +823,7 @@ export default function AmsForm() {
             },
             {
               q: "Koji je rok za predaju AMS-1035 obrasca?",
-              a: "Obrazac se predaje u roku od 15 dana od dana isplate. Dakle, ako ste novac primili 10. u mjesecu, obrazac ste dužni predati do 25. istog mjeseca u nadležnu ispostavu Porezne uprave FBiH prema svom mjestu stanovanja.",
+              a: "Obrazac se predaje u roku od 5 (pet) dana od dana primitka dohotka. Dakle, ako ste novac primili 10. u mjesecu, obrazac ste dužni predati do 15. istog mjeseca u nadležnu ispostavu Porezne uprave FBiH prema mjestu prebivališta fizičkog lica.",
             },
             {
               q: "Kolika je stopa rashoda — 20% ili 30%?",

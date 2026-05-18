@@ -31,7 +31,205 @@ const {
   resolvePayrollAccounts,
   FOND_INVALIDI_RATE,
 } = require("../utils/payrollUplatnice");
-const { generateUplatnica, generateUplatniceCombined } = require("../utils/uplatnicaPdf");
+const {
+  generateUplatnica,
+  generateUplatniceCombined,
+  kantonForOpcina,
+  KANTONI,
+} = require("../utils/uplatnicaPdf");
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  Helper: agregacija uplatnica po (kanton, opcina) radnika
+//
+//  KANTONALNE vrste (zdrKant 89,8%, nezapKant 70%, porez) idu na račun
+//  kantona i opcinu radnika → grupišu se po (workerKanton, workerOpcina).
+//
+//  FEDERALNE vrste (PIO, zdrFed 10,2%, nezapFed 30%, invalidi) idu na
+//  federalne račune sa opcinom FIRME → 1 stavka.
+//
+//  Kantonalni budžet firme (vodna, nesreće) idu na KANTONI[firmKanton].budzet
+//  sa opcinom firme → 1 stavka.
+//
+//  Vraća listu: { vrsta, amount, kantonKey, opcinaKod, opcinaIme, source }
+//    vrsta ∈ "pio" | "zdrKanton" | "zdrFed" | "nezapKanton" | "nezapFed"
+//          | "porez" | "vodna" | "nesrece" | "fondInvalidi"
+//    source: "worker" | "firm"
+// ──────────────────────────────────────────────────────────────────────────────
+function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
+  const round = (n) => +Number(n).toFixed(2);
+  const fondInvalidiRate = opts.fondInvalidiRate || 0.005;
+
+  // Firm kanton/opcina
+  const firmInfo = kantonForOpcina(firm.city || "");
+  const firmKantonKey = firmInfo?.kantonKey || null;
+  const firmOpcinaKod = firmInfo?.opcinaKod || "";
+  const firmOpcinaIme = firm.city || "";
+
+  // Worker-based bucketi (zdrKant, nezapKant, porez)
+  const byLoc = new Map(); // key: "kanton:opcinaKod" → { kantonKey, opcinaKod, opcinaIme, zdrKant, nezapKant, porez }
+  // Firm totals (federalni + kantonal firme)
+  let pio = 0,
+    zdrFed = 0,
+    nezapFed = 0,
+    vodna = 0,
+    nesrece = 0,
+    gross = 0;
+
+  for (const p of payrolls) {
+    const w = workerMap.get(p.workerId);
+    // Worker location — fallback na firmu ako nema worker.city ili je opcina nepoznata
+    let wInfo = kantonForOpcina(w?.city || "");
+    if (!wInfo) wInfo = firmInfo;
+    const kantonKey = wInfo?.kantonKey || firmKantonKey;
+    const opcinaKod = wInfo?.opcinaKod || firmOpcinaKod;
+    const opcinaIme = w?.city || firmOpcinaIme;
+    const locKey = `${kantonKey || ""}:${opcinaKod || ""}`;
+
+    if (!byLoc.has(locKey)) {
+      byLoc.set(locKey, {
+        kantonKey,
+        opcinaKod,
+        opcinaIme,
+        zdrKant: 0,
+        nezapKant: 0,
+        porez: 0,
+      });
+    }
+    const bucket = byLoc.get(locKey);
+
+    const zdrTotal = (Number(p.empZdravstvo) || 0) + (Number(p.erpZdravstvo) || 0);
+    const nezapTotal = (Number(p.empNezaposlenost) || 0) + (Number(p.erpNezaposlenost) || 0);
+
+    // Splitovi po radniku, pa sumiramo u bucket
+    bucket.zdrKant += zdrTotal * 0.898;
+    bucket.nezapKant += nezapTotal * 0.7;
+    bucket.porez += Number(p.incomeTax) || 0;
+
+    // Firm totals
+    pio += (Number(p.empPio) || 0) + (Number(p.erpPio) || 0);
+    zdrFed += zdrTotal * 0.102;
+    nezapFed += nezapTotal * 0.3;
+    vodna += Number(p.vodnaNaknada) || 0;
+    nesrece += Number(p.naknadaNesrece) || 0;
+    gross += Number(p.gross) || 0;
+  }
+
+  // Invalidi: 0,5% × bruto, samo COMPANY (BUSINESS = obrt → izuzet)
+  const invalidi = firm.type === "BUSINESS" ? 0 : gross * fondInvalidiRate;
+
+  const entries = [];
+  const firmLoc = {
+    kantonKey: firmKantonKey,
+    opcinaKod: firmOpcinaKod,
+    opcinaIme: firmOpcinaIme,
+  };
+
+  // Sortirane (kanton, opcina) lokacije radnika
+  const sortedLocs = Array.from(byLoc.values()).sort((a, b) => {
+    if (a.kantonKey !== b.kantonKey) return String(a.kantonKey).localeCompare(String(b.kantonKey));
+    return String(a.opcinaIme).localeCompare(String(b.opcinaIme), "bs");
+  });
+
+  // Redoslijed prema poslovnoj logici:
+  //  1. PIO
+  //  2. Zdravstvo kantonalno (po opcini)
+  //  3. Zdravstvo federalno
+  //  4. Nezaposlenost kantonalno (po opcini)
+  //  5. Nezaposlenost federalno
+  //  6. Nesreće
+  //  7. Vodne
+  //  8. Porez na dohodak (po opcini)
+  //  9. Invalidi
+  if (pio > 0) entries.push({ vrsta: "pio", amount: round(pio), ...firmLoc, source: "firm" });
+
+  for (const loc of sortedLocs) {
+    if (loc.zdrKant > 0)
+      entries.push({
+        vrsta: "zdrKanton",
+        amount: round(loc.zdrKant),
+        kantonKey: loc.kantonKey,
+        opcinaKod: loc.opcinaKod,
+        opcinaIme: loc.opcinaIme,
+        source: "worker",
+      });
+  }
+  if (zdrFed > 0) entries.push({ vrsta: "zdrFed", amount: round(zdrFed), ...firmLoc, source: "firm" });
+
+  for (const loc of sortedLocs) {
+    if (loc.nezapKant > 0)
+      entries.push({
+        vrsta: "nezapKanton",
+        amount: round(loc.nezapKant),
+        kantonKey: loc.kantonKey,
+        opcinaKod: loc.opcinaKod,
+        opcinaIme: loc.opcinaIme,
+        source: "worker",
+      });
+  }
+  if (nezapFed > 0) entries.push({ vrsta: "nezapFed", amount: round(nezapFed), ...firmLoc, source: "firm" });
+
+  if (nesrece > 0) entries.push({ vrsta: "nesrece", amount: round(nesrece), ...firmLoc, source: "firm" });
+  if (vodna > 0) entries.push({ vrsta: "vodna", amount: round(vodna), ...firmLoc, source: "firm" });
+
+  for (const loc of sortedLocs) {
+    if (loc.porez > 0)
+      entries.push({
+        vrsta: "porez",
+        amount: round(loc.porez),
+        kantonKey: loc.kantonKey,
+        opcinaKod: loc.opcinaKod,
+        opcinaIme: loc.opcinaIme,
+        source: "worker",
+      });
+  }
+
+  if (invalidi > 0) entries.push({ vrsta: "fondInvalidi", amount: round(invalidi), ...firmLoc, source: "firm" });
+
+  return entries;
+}
+
+// Helper: dohvati account/vrstaPrihoda/budgetOrg/primalac za datu vrsta + kanton
+function getAccountInfo(vrsta, kantonKey, payrollAccounts) {
+  const { buildDefaults, mergePayrollAccounts } = require("../utils/payrollUplatnice");
+  const defaults = buildDefaults(kantonKey);
+  const merged = mergePayrollAccounts(defaults, payrollAccounts);
+  return merged[vrsta];
+}
+
+// Stabilan redoslijed labela u Pregledu mjeseca / Zbirne uplatnice
+const VRSTA_LABEL_MAP = {
+  pio: "PIO/MIO doprinos",
+  zdrKanton: "Zdravstvo — kantonalni (89,8%)",
+  zdrFed: "Zdravstvo — federalni (10,2%)",
+  nezapKanton: "Nezaposlenost — kantonalni (70%)",
+  nezapFed: "Nezaposlenost — federalni (30%)",
+  porez: "Porez na dohodak",
+  vodna: "Opća vodna naknada",
+  nesrece: "Zaštita od prirodnih nesreća",
+  fondInvalidi: "Fond za rehabilitaciju OSI (0,5%)",
+};
+const VRSTA_UPLATNICA_TYPE = {
+  pio: "UPLATNICA_PIO",
+  zdrKanton: "UPLATNICA_ZDR",
+  zdrFed: "UPLATNICA_ZDR_FED",
+  nezapKanton: "UPLATNICA_NEZAP_KANT",
+  nezapFed: "UPLATNICA_NEZAP",
+  porez: "UPLATNICA_POREZ",
+  vodna: "UPLATNICA_VODNA",
+  nesrece: "UPLATNICA_NESRECE",
+  fondInvalidi: "UPLATNICA_INVALIDI",
+};
+const VRSTA_SVRHA_MAP = {
+  pio: "Doprinos za PIO/MIO",
+  zdrKanton: "Doprinos za zdravstvo (kantonalni dio)",
+  zdrFed: "Doprinos za zdravstvo (federalni dio)",
+  nezapKanton: "Doprinos za nezaposlenost (kantonalni)",
+  nezapFed: "Doprinos za nezaposlenost (federalni)",
+  porez: "Porez na dohodak iz plate",
+  vodna: "Opća vodna naknada",
+  nesrece: "Naknada za zaštitu od prirodnih nesreća",
+  fondInvalidi: "Naknada za rehabilitaciju i zapošljavanje OSI",
+};
 const { addPayslipPage, embedFonts } = require("../utils/payslipPdf");
 const { PDFDocument } = require("pdf-lib");
 const { decryptJmbg } = require("../utils/encryptJmbg");
@@ -1052,41 +1250,59 @@ async function monthlySummary(req, res) {
     }
 
     const round = (n) => +Number(n).toFixed(2);
-    const pioTotal = round(empPio + erpPio);
-    const zdravstvoTotal = round(empZdr + erpZdr);
-    const zdrKanton = round(zdravstvoTotal * 0.898);
-    const zdrFed = round(zdravstvoTotal - zdrKanton);
-    const nezapTotal = round(empNezap + erpNezap);
-    // 30% federalni (Federalni zavod za zapošljavanje), 70% kantonalni (kantonalna služba prema prebivalištu)
-    const nezapFed = round(nezapTotal * 0.3);
-    const nezapKant = round(nezapTotal - nezapFed);
-    // Fond za rehabilitaciju OSI (0,5%) plaćaju samo PRIVREDNA DRUŠTVA
-    // (COMPANY) — obrti i samostalne djelatnosti (BUSINESS) su izuzeti.
+
+    // Invalidi (0,5% × bruto) — samo COMPANY (privredna društva), obrti
+    // (BUSINESS) su izuzeti. Referencirano u totals.invalidi response.
     const invalidi =
       org.type === "BUSINESS" ? 0 : round(gross * FOND_INVALIDI_RATE);
 
-    const { accounts } = resolvePayrollAccounts(org.toJSON());
+    // Učitaj radnike (sa city poljem) za bucketing po opcini
+    const workerIdsAll = payrolls.map((p) => p.workerId);
+    const workersAll = await Worker.findAll({
+      where: { id: workerIdsAll, organizationId },
+    });
+    const workerMapAll = new Map(workersAll.map((w) => [w.id, w]));
 
-    const uplatnice = [
-      { type: "UPLATNICA_PIO", label: "PIO/MIO doprinos", amount: pioTotal, account: accounts.pio.account, vrstaPrihoda: accounts.pio.vrstaPrihoda, budgetOrg: accounts.pio.budgetOrg || "", primalac: accounts.pio.primalac },
-      { type: "UPLATNICA_ZDR", label: "Zdravstvo — kantonalni (89,8%)", amount: zdrKanton, account: accounts.zdrKanton.account, vrstaPrihoda: accounts.zdrKanton.vrstaPrihoda, budgetOrg: accounts.zdrKanton.budgetOrg || "", primalac: accounts.zdrKanton.primalac },
-      { type: "UPLATNICA_ZDR_FED", label: "Zdravstvo — federalni (10,2%)", amount: zdrFed, account: accounts.zdrFed.account, vrstaPrihoda: accounts.zdrFed.vrstaPrihoda, budgetOrg: accounts.zdrFed.budgetOrg || "", primalac: accounts.zdrFed.primalac },
-      { type: "UPLATNICA_NEZAP_KANT", label: "Nezaposlenost — kantonalni (70%)", amount: nezapKant, account: accounts.nezapKanton.account, vrstaPrihoda: accounts.nezapKanton.vrstaPrihoda, budgetOrg: accounts.nezapKanton.budgetOrg || "", primalac: accounts.nezapKanton.primalac },
-      { type: "UPLATNICA_NEZAP", label: "Nezaposlenost — federalni (30%)", amount: nezapFed, account: accounts.nezapFed.account, vrstaPrihoda: accounts.nezapFed.vrstaPrihoda, budgetOrg: accounts.nezapFed.budgetOrg || "", primalac: accounts.nezapFed.primalac },
-      { type: "UPLATNICA_POREZ", label: "Porez na dohodak", amount: round(porez), account: accounts.porez.account, vrstaPrihoda: accounts.porez.vrstaPrihoda, budgetOrg: accounts.porez.budgetOrg || "", primalac: accounts.porez.primalac },
-      { type: "UPLATNICA_VODNA", label: "Opća vodna naknada", amount: round(vodna), account: accounts.vodna.account, vrstaPrihoda: accounts.vodna.vrstaPrihoda, budgetOrg: accounts.vodna.budgetOrg || "", primalac: accounts.vodna.primalac },
-      { type: "UPLATNICA_NESRECE", label: "Zaštita od prirodnih nesreća", amount: round(nesrece), account: accounts.nesrece.account, vrstaPrihoda: accounts.nesrece.vrstaPrihoda, budgetOrg: accounts.nesrece.budgetOrg || "", primalac: accounts.nesrece.primalac },
-      { type: "UPLATNICA_INVALIDI", label: "Fond za rehabilitaciju OSI (0,5%)", amount: invalidi, account: accounts.fondInvalidi.account, vrstaPrihoda: accounts.fondInvalidi.vrstaPrihoda, budgetOrg: accounts.fondInvalidi.budgetOrg || "", primalac: accounts.fondInvalidi.primalac },
-    ].filter((u) => u.amount > 0);
+    // Agregacija po (kanton, opcina) radnika — vraća listu entry-ja za svaku
+    // (vrsta, kanton, opcina) kombinaciju. Federalni i firma-kantonalni idu
+    // u 1 entry sa opcinom firme.
+    const orgPlain = org.toJSON();
+    const bucketEntries = buildUplatniceBuckets(payrolls, workerMapAll, orgPlain, {
+      fondInvalidiRate: FOND_INVALIDI_RATE,
+    });
+
+    // Map bucket entries u UI format (uplatnice array). Label uključuje općinu
+    // za kantonalne vrste kada postoji više od jedne općine.
+    const kantonalVrste = new Set(["zdrKanton", "nezapKanton", "porez"]);
+    const kantonalLocCount = new Map(); // vrsta → broj različitih (kanton,opcina)
+    for (const e of bucketEntries) {
+      if (kantonalVrste.has(e.vrsta)) {
+        kantonalLocCount.set(e.vrsta, (kantonalLocCount.get(e.vrsta) || 0) + 1);
+      }
+    }
+    const uplatnice = bucketEntries.map((e) => {
+      const acc = getAccountInfo(e.vrsta, e.kantonKey, orgPlain.payrollAccounts);
+      let label = VRSTA_LABEL_MAP[e.vrsta] || e.vrsta;
+      // Ako postoji više opcina za istu kantonalnu vrstu, dodaj općinu u label
+      if (kantonalVrste.has(e.vrsta) && (kantonalLocCount.get(e.vrsta) || 0) > 1) {
+        label += ` — ${e.opcinaIme}`;
+      }
+      return {
+        type: VRSTA_UPLATNICA_TYPE[e.vrsta],
+        label,
+        amount: e.amount,
+        account: acc?.account || "",
+        vrstaPrihoda: acc?.vrstaPrihoda || "",
+        budgetOrg: acc?.budgetOrg || "",
+        primalac: acc?.primalac || [],
+        opcinaIme: e.opcinaIme,
+        opcinaKod: e.opcinaKod,
+      };
+    }).filter((u) => u.amount > 0);
 
     // Per-worker: neto plata + neoporezivi dodaci (idu pojedinačno radnicima)
-    const workerIds = payrolls.map((p) => p.workerId);
-    const workers = await Worker.findAll({
-      where: { id: workerIds, organizationId },
-    });
-    const workerMap = new Map(workers.map((w) => [w.id, w]));
     const perWorker = payrolls.map((p) => {
-      const w = workerMap.get(p.workerId);
+      const w = workerMapAll.get(p.workerId);
       return {
         workerId: p.workerId,
         payrollId: p.id,
@@ -1172,45 +1388,8 @@ async function generateMonthlyUplatnice(req, res) {
     });
     const payrolls = rawPayrolls.filter((p) => validWorkerIds.has(p.workerId));
 
-    // Agregati
-    let gross = 0,
-      empPio = 0,
-      erpPio = 0,
-      empZdr = 0,
-      erpZdr = 0,
-      empNezap = 0,
-      erpNezap = 0,
-      porez = 0,
-      vodna = 0,
-      nesrece = 0;
-    for (const p of payrolls) {
-      gross += Number(p.gross) || 0;
-      empPio += Number(p.empPio) || 0;
-      erpPio += Number(p.erpPio) || 0;
-      empZdr += Number(p.empZdravstvo) || 0;
-      erpZdr += Number(p.erpZdravstvo) || 0;
-      empNezap += Number(p.empNezaposlenost) || 0;
-      erpNezap += Number(p.erpNezaposlenost) || 0;
-      porez += Number(p.incomeTax) || 0;
-      vodna += Number(p.vodnaNaknada) || 0;
-      nesrece += Number(p.naknadaNesrece) || 0;
-    }
     const round = (n) => +Number(n).toFixed(2);
-    const pioTotal = round(empPio + erpPio);
-    const zdravstvoTotal = round(empZdr + erpZdr);
-    const zdrKanton = round(zdravstvoTotal * 0.898);
-    const zdrFed = round(zdravstvoTotal - zdrKanton);
-    const nezapTotal = round(empNezap + erpNezap);
-    // 30% federalni (Federalni zavod za zapošljavanje), 70% kantonalni (kantonalna služba prema prebivalištu)
-    const nezapFed = round(nezapTotal * 0.3);
-    const nezapKant = round(nezapTotal - nezapFed);
-    // Fond za rehabilitaciju OSI (0,5%) — samo za COMPANY (privredna društva),
-    // obrti (BUSINESS) su izuzeti.
-    const invalidi =
-      org.type === "BUSINESS" ? 0 : round(gross * FOND_INVALIDI_RATE);
-
     const orgPlain = org.toJSON();
-    const { opcinaKod, opcinaIme, accounts } = resolvePayrollAccounts(orgPlain);
     // Datum uplate na uplatnicama = datum isplate plate (ne današnji datum)
     const datum = paymentDate;
     const monthYear = `${String(month).padStart(2, "0")}/${year}`;
@@ -1221,6 +1400,21 @@ async function generateMonthlyUplatnice(req, res) {
       where: { id: workerIds, organizationId },
     });
     const workerMap = new Map(workers.map((w) => [w.id, w]));
+
+    // Agregacija po (kanton, opcina) radnika
+    const bucketEntries = buildUplatniceBuckets(payrolls, workerMap, orgPlain, {
+      fondInvalidiRate: FOND_INVALIDI_RATE,
+    });
+
+    // Da li imamo više različitih (kanton, opcina) lokacija za istu kantonalnu
+    // vrstu? Ako da, dodajemo općinu u label radi razlikovanja.
+    const kantonalVrste = new Set(["zdrKanton", "nezapKanton", "porez"]);
+    const kantonalLocCount = new Map();
+    for (const e of bucketEntries) {
+      if (kantonalVrste.has(e.vrsta)) {
+        kantonalLocCount.set(e.vrsta, (kantonalLocCount.get(e.vrsta) || 0) + 1);
+      }
+    }
 
     // ── Sastavi listu svih opts (jedan po stranici) ─────────────────────────
     const optsList = [];
@@ -1240,33 +1434,28 @@ async function generateMonthlyUplatnice(req, res) {
       periodGodina: String(year),
     };
 
-    // Doprinosi/porezi — zbirno za firmu, sa JIB-om i javnim prihodima
-    const contribItems = [
-      ["PIO/MIO doprinos", pioTotal, accounts.pio, "Doprinos za PIO/MIO"],
-      ["Zdravstvo (kantonalni)", zdrKanton, accounts.zdrKanton, "Doprinos za zdravstvo (kantonalni dio)"],
-      ["Zdravstvo (federalni)", zdrFed, accounts.zdrFed, "Doprinos za zdravstvo (federalni dio)"],
-      ["Nezaposlenost (federalni)", nezapFed, accounts.nezapFed, "Doprinos za nezaposlenost (federalni)"],
-      ["Nezaposlenost (kantonalni)", nezapKant, accounts.nezapKanton, "Doprinos za nezaposlenost (kantonalni)"],
-      ["Porez na dohodak", round(porez), accounts.porez, "Porez na dohodak iz plate"],
-      ["Opća vodna naknada", round(vodna), accounts.vodna, "Opća vodna naknada"],
-      ["Zaštita od prirodnih nesreća", round(nesrece), accounts.nesrece, "Naknada za zaštitu od prirodnih nesreća"],
-      ["Fond invalida (0,5% × bruto)", invalidi, accounts.fondInvalidi, "Naknada za rehabilitaciju i zapošljavanje OSI"],
-    ];
-
-    for (const [label, amount, accountDef, svrha] of contribItems) {
-      if (amount <= 0) continue;
+    // Generiši uplatnicu za svaki bucket entry. Kantonalne vrste imaju po jednu
+    // uplatnicu po (kanton, opcina), federalni i firma-kantonalni 1 entry.
+    for (const e of bucketEntries) {
+      if (e.amount <= 0) continue;
+      const acc = getAccountInfo(e.vrsta, e.kantonKey, orgPlain.payrollAccounts);
+      if (!acc) continue;
+      let label = VRSTA_LABEL_MAP[e.vrsta] || e.vrsta;
+      if (kantonalVrste.has(e.vrsta) && (kantonalLocCount.get(e.vrsta) || 0) > 1) {
+        label += ` — ${e.opcinaIme}`;
+      }
       pageLabels.push(label);
       optsList.push({
         ...baseShared,
-        svrha: `${svrha} za ${monthYear}`,
-        primatelj: Array.isArray(accountDef.primalac) ? accountDef.primalac : [accountDef.primalac],
-        racunPrimDigits: (accountDef.account || "").replace(/-/g, ""),
-        kmIznos: amount,
-        vrstaProhoda: accountDef.vrstaPrihoda || "",
+        svrha: `${VRSTA_SVRHA_MAP[e.vrsta] || label} za ${monthYear}`,
+        primatelj: Array.isArray(acc.primalac) ? acc.primalac : [acc.primalac],
+        racunPrimDigits: (acc.account || "").replace(/-/g, ""),
+        kmIznos: e.amount,
+        vrstaProhoda: acc.vrstaPrihoda || "",
         brojObveznika: (orgPlain.taxNumber || "").replace(/\D/g, ""),
-        budgetOrg: accountDef.budgetOrg || "",
-        opcinaKod,
-        opcinaIme,
+        budgetOrg: acc.budgetOrg || "",
+        opcinaKod: e.opcinaKod,
+        opcinaIme: e.opcinaIme,
       });
     }
 
@@ -1293,7 +1482,7 @@ async function generateMonthlyUplatnice(req, res) {
           primatelj: workerRecipient,
           racunPrimDigits: w.bankAccount ? w.bankAccount.replace(/-/g, "") : "",
           kmIznos: amount,
-          opcinaIme,
+          opcinaIme: w.city || orgPlain.city || "",
           skipJavniPrihodi: true,
         });
       }
@@ -1442,6 +1631,48 @@ async function generateWorkerPayslip(req, res) {
   }
 }
 
+// ── POST /api/payroll/mark-month-paid ───────────────────────────────────────
+// Bulk označava sve obračune (OBRACUNATO) za organizationId+year+month kao
+// ISPLACENO. Vraća broj ažuriranih zapisa.
+async function markMonthPaid(req, res) {
+  try {
+    const organizationId = parseId(req.body?.organizationId ?? req.query.organizationId);
+    const year = parseId(req.body?.year ?? req.query.year);
+    const month = parseId(req.body?.month ?? req.query.month);
+    if (!organizationId || !year || !month) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing organizationId/year/month" });
+    }
+    const org = await assertOrgAccess(organizationId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+    // Filtriraj samo postojeće radnike (orphan payroll-i se ignorišu)
+    const existingWorkers = await Worker.findAll({
+      where: { organizationId },
+      attributes: ["id"],
+    });
+    const validWorkerIds = existingWorkers.map((w) => w.id);
+
+    const [updatedCount] = await Payroll.update(
+      { status: "ISPLACENO" },
+      {
+        where: {
+          organizationId,
+          year,
+          month,
+          status: "OBRACUNATO",
+          workerId: validWorkerIds,
+        },
+      },
+    );
+    return res.json({ ok: true, data: { updated: updatedCount } });
+  } catch (e) {
+    console.error("markMonthPaid failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
+  }
+}
+
 module.exports = {
   list,
   calculate,
@@ -1454,6 +1685,7 @@ module.exports = {
   deleteDocument,
   monthlySummary,
   generateMonthlyUplatnice,
+  markMonthPaid,
   generateMonthlyPayslips,
   generateWorkerPayslip,
   // exported for tests / future reuse

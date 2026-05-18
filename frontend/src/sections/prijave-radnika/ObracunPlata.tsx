@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
+import { useLastOrg } from "src/hooks/useLastOrg";
 import {
   getClientOrganizations,
   getOrganizations,
@@ -19,6 +21,7 @@ import {
   generateWorkerPayslip,
   getMonthlySummary,
   listPayrolls,
+  markMonthPaid,
   patchPayroll,
   savePayrollInputs,
   type MonthlyUplatnicaSummary,
@@ -34,6 +37,7 @@ import {
 } from "src/utils/payrollFbih";
 import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
+import { useNotice } from "src/components/Notice/Notice";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useRole } from "src/hooks/useRole";
 import {
@@ -195,10 +199,27 @@ export default function ObracunPlata() {
 function ObracunPlataApp() {
   const queryClient = useQueryClient();
   const init = todayYM();
+  const searchParams = useSearchParams();
+  const { lastOrgId, setLastOrgId } = useLastOrg();
   const [year, setYear] = useState(init.year);
   const [month, setMonth] = useState(init.month);
-  const [orgId, setOrgId] = useState<number | null>(null);
+  const initialOrgId = (() => {
+    const v = searchParams.get("org");
+    const fromUrl = v ? Number(v) || null : null;
+    return fromUrl ?? lastOrgId ?? null;
+  })();
+  const [orgId, setOrgIdInternal] = useState<number | null>(initialOrgId);
   const [openWorkerId, setOpenWorkerId] = useState<number | null>(null);
+
+  // Perzistira odabranu organizaciju u localStorage — koristi se i u JS3100,
+  // Aktivnim radnicima i Ugovorima.
+  const setOrgId = useCallback(
+    (id: number | null) => {
+      setOrgIdInternal(id);
+      if (id != null) setLastOrgId(id);
+    },
+    [setLastOrgId],
+  );
 
   const { hasRole } = useRole();
   const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
@@ -559,14 +580,14 @@ function ObracunPlataApp() {
       ) : radnici.length === 0 && vlasnici.length === 0 ? (
         <div className={styles.empty}>
           Nema dodanih radnika za ovu organizaciju.{" "}
-          <Link href="/aktivni-radnici" className={styles.btnGhost}>
+          <Link href={`/aktivni-radnici${orgId ? `?org=${orgId}` : ""}`} className={styles.btnGhost}>
             Dodaj radnike →
           </Link>
         </div>
       ) : radnici.length === 0 ? (
         <div className={styles.empty}>
           Nema dodanih radnika (pored vlasnika).{" "}
-          <Link href="/aktivni-radnici" className={styles.btnGhost}>
+          <Link href={`/aktivni-radnici${orgId ? `?org=${orgId}` : ""}`} className={styles.btnGhost}>
             Dodaj radnike →
           </Link>
         </div>
@@ -754,6 +775,66 @@ function ObracunPlataApp() {
 function fmtAccount(s: string): string {
   if (!s) return "—";
   return s;
+}
+
+function BulkMarkPaidAction({
+  isPending,
+  onMark,
+}: {
+  isPending: boolean;
+  onMark: () => Promise<number>;
+}) {
+  const { confirm: confirmDialog, notify } = useNotice();
+  const handleClick = async () => {
+    const ok = await confirmDialog(
+      "Označiti SVE obračune u ovom mjesecu kao isplaćene?",
+    );
+    if (!ok) return;
+    try {
+      const updated = await onMark();
+      notify(`Označeno ${updated} obračun(a) kao isplaćeni.`, "success");
+    } catch (e) {
+      notify(
+        "Greška pri označavanju: " + ((e as Error)?.message || "nepoznata"),
+        "error",
+      );
+    }
+  };
+  return (
+    <div style={{ display: "flex", justifyContent: "center", marginTop: "0.85rem" }}>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isPending}
+        style={{
+          background: "transparent",
+          border: "1px solid var(--border)",
+          color: "var(--mid)",
+          padding: "0.5rem 1rem",
+          borderRadius: 6,
+          cursor: "pointer",
+          fontSize: "0.85rem",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.4rem",
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          width="14"
+          height="14"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        {isPending ? "Označavam…" : "Označi sve obračune kao isplaćene"}
+      </button>
+    </div>
+  );
 }
 
 function triggerBlobDownload(blob: Blob, filename: string) {
@@ -1254,6 +1335,18 @@ function MonthlyPanel({
     onSuccess: (r) => triggerBlobDownload(r.blob, r.filename),
   });
 
+  const queryClientMP = useQueryClient();
+  const markAllPaidMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error("Nedostaje organizacija");
+      return unwrap(markMonthPaid({ organizationId: orgId, year, month }));
+    },
+    onSuccess: () => {
+      queryClientMP.invalidateQueries({ queryKey: ["payrolls", orgId, year, month] });
+      queryClientMP.invalidateQueries({ queryKey: ["monthlySummary", orgId, year, month] });
+    },
+  });
+
   // Obrazac 2001 — mjesečna specifikacija plata za Poreznu upravu FBiH.
   // Generiše se klijentski iz monthly summary podataka + organization info.
   const obrazac2001Mutation = useMutation({
@@ -1447,7 +1540,7 @@ function MonthlyPanel({
       </div>
       <div className={styles.uplCardsList}>
         {s.uplatnice.map((u: MonthlyUplatnicaSummary, i: number) => (
-          <div key={u.type} className={styles.uplCard}>
+          <div key={`${u.type}-${u.opcinaKod || ""}-${i}`} className={styles.uplCard}>
             <span className={styles.uplCardNum}>{i + 1}</span>
             <div className={styles.uplCardBody}>
               <div className={styles.uplCardTitle}>{u.label}</div>
@@ -1687,6 +1780,15 @@ function MonthlyPanel({
             </button>
           )}
         </div>
+
+        {/* Bulk označavanje obračuna kao isplaćeni */}
+        <BulkMarkPaidAction
+          isPending={markAllPaidMutation.isPending}
+          onMark={async () => {
+            const updated = (await markAllPaidMutation.mutateAsync()).updated;
+            return updated;
+          }}
+        />
       </div>
 
       {(uplatniceMutation.isError ||

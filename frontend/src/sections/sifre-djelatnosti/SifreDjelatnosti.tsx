@@ -27,7 +27,7 @@ const RELATED_TOOLS = [
   { href: "/spr", label: "SPR-1053", desc: "Specifikacija dohotka samostalne djelatnosti" },
   { href: "/gpd", label: "GPD-1051", desc: "Godišnja porezna prijava" },
   { href: "/zo3", label: "ZO3", desc: "Prijava člana porodice na zdravstveno" },
-  { href: "/ams", label: "AMS-1035", desc: "Akontacija poreza po odbitku" },
+  { href: "/ams", label: "AMS-1035", desc: "Akontacija poreza po odbitku na druge samostalne djelatnosti" },
   { href: "/amortizacija", label: "Stalna sredstva", desc: "Vođenje OS i amortizacija" },
   { href: "/prijave-radnika?tab=obracun", label: "Obračun plata", desc: "Plate, doprinosi, uplatnice i 2001/2002" },
   { href: "/prijave-radnika", label: "JS3100", desc: "Prijava/odjava radnika online" },

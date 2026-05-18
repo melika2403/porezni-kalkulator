@@ -66,16 +66,21 @@ function buildDefaults(kantonKey) {
       primalac: k ? ["Budžet " + k.genitiv] : ["Budžet kantona"],
     },
     vodna: {
-      account: FBIH_BUDZET_RACUN,
+      // Vodne naknade idu na KANTONALNI budžet firme (sjedište), po Zakonu
+      // o vodama. Općina = općina firme.
+      account: k ? k.budzet : "",
       vrstaPrihoda: "722581",
       budgetOrg: "",
-      primalac: ["Budžet Federacije BiH", "Opća vodna naknada"],
+      primalac: k ? ["Budžet " + k.genitiv, "Opća vodna naknada"] : ["Budžet kantona", "Opća vodna naknada"],
     },
     nesrece: {
-      account: FBIH_BUDZET_RACUN,
+      // Naknada za zaštitu od prirodnih nesreća — kantonalni budžet firme.
+      account: k ? k.budzet : "",
       vrstaPrihoda: "722441",
       budgetOrg: "",
-      primalac: ["Budžet Federacije BiH", "Naknada za zaštitu od prirodnih nesreća"],
+      primalac: k
+        ? ["Budžet " + k.genitiv, "Naknada za zaštitu od prirodnih nesreća"]
+        : ["Budžet kantona", "Naknada za zaštitu od prirodnih nesreća"],
     },
     fondInvalidi: {
       account: FOND_INVALIDI_RACUN,
