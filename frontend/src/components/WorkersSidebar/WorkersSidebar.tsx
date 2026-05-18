@@ -214,7 +214,10 @@ export default function WorkersSidebar({
         <div className={styles.hint}>
           <p className={styles.hintText}>{bottomHint}</p>
           <div className={styles.hintLinks}>
-            <Link href="/aktivni-radnici" className={styles.hintBtn}>
+            <Link
+              href={`/aktivni-radnici${selectedOrgId ? `?org=${selectedOrgId}` : ""}`}
+              className={styles.hintBtn}
+            >
               Svi aktivni radnici
             </Link>
             <Link

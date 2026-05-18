@@ -33,6 +33,7 @@ import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegis
 import { useRole } from "src/hooks/useRole";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
+import { useLastOrg } from "src/hooks/useLastOrg";
 
 /* ── Helpers ── */
 function getTodayIso() {
@@ -129,9 +130,12 @@ function Js3100App() {
   const { hasRole } = useRole();
   const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
 
+  const { lastOrgId, setLastOrgId } = useLastOrg();
+
   const initialOrgId = (() => {
     const v = searchParams.get("org");
-    return v ? Number(v) || null : null;
+    const fromUrl = v ? Number(v) || null : null;
+    return fromUrl ?? lastOrgId ?? null;
   })();
   const initialWorkerId = (() => {
     const v = searchParams.get("worker");
@@ -144,8 +148,18 @@ function Js3100App() {
   })();
 
   /* ── Sidebar state ── */
-  const [sidebarOrgId, setSidebarOrgId] = useState<number | null>(initialOrgId);
+  const [sidebarOrgId, setSidebarOrgIdInternal] = useState<number | null>(initialOrgId);
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(initialWorkerId);
+
+  // Perzistira odabranu organizaciju u localStorage da Obračun plata / Aktivni
+  // radnici otvore istu organizaciju bez ponovnog odabira.
+  const setSidebarOrgId = useCallback(
+    (id: number | null) => {
+      setSidebarOrgIdInternal(id);
+      if (id != null) setLastOrgId(id);
+    },
+    [setLastOrgId],
+  );
 
   /* ── Vrsta prijave ── */
   const [vrsta, setVrsta] = useState<Js3100Vrsta>(initialVrsta);

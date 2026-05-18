@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLastOrg } from "src/hooks/useLastOrg";
 import { LuPencil, LuTrash2 } from "react-icons/lu";
 import styles from "./organizacija.module.css";
 import {
@@ -508,6 +509,14 @@ const PRO_WORKERS_LIMIT = 5;
 const USER_WORKERS_LIMIT = 1;
 
 export default function Organizacija({ orgId }: { orgId: number }) {
+  // Otvaranje organizacije postavlja je kao "posljednje aktivnu" — kada
+  // korisnik pređe u JS3100 / Obračun plata / Aktivni radnici, ista je
+  // automatski odabrana.
+  const { setLastOrgId } = useLastOrg();
+  useEffect(() => {
+    if (orgId) setLastOrgId(orgId);
+  }, [orgId, setLastOrgId]);
+
   const queryClient = useQueryClient();
   const { role: userRole } = useRole();
 

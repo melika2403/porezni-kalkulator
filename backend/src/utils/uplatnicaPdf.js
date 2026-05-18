@@ -35,10 +35,19 @@ const FOND_INVALIDI_RACUN = RACUNI.FOND_INVALIDI_RACUN;
 // Pronađi kantonski ključ na osnovu naziva općine (case-insensitive)
 function kantonForOpcina(opcinaIme) {
   if (!opcinaIme) return null;
-  const target = opcinaIme.trim().toLowerCase();
+  // Normalize: lowercase, strip trailing " sarajevo" i "(fbih)" sufikse, trim
+  const normalize = (s) =>
+    String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s*\(fbih\)\s*$/i, "")
+      .replace(/\s+sarajevo$/i, "")
+      .trim();
+  const target = normalize(opcinaIme);
+  if (!target) return null;
   for (const [key, k] of Object.entries(KANTONI)) {
     for (const o of k.opcine) {
-      if (o.ime.toLowerCase() === target) {
+      if (normalize(o.ime) === target) {
         return { kantonKey: key, kantonData: k, opcinaKod: o.kod };
       }
     }

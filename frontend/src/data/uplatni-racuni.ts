@@ -207,15 +207,24 @@ export const FOND_INVALIDI_RACUN = "338-690-22963585-21"; // Fond za prof. rehab
 export const JRT_TREZOR_BIH_RACUN = "338-000-22100183-90"; // JRT Trezor BiH — administrativne takse (UniCredit Banka d.d. Mostar)
 
 // ── Helper: kanton → opcina mapping ────────────────────────────────────────
+const normalizeOpcina = (s: string) =>
+  String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\(fbih\)\s*$/i, "")
+    .replace(/\s+sarajevo$/i, "")
+    .trim();
+
 export function kantonForOpcina(
   opcinaIme: string,
 ): { kantonKey: KantonKey; kantonData: KantonData; opcinaKod: string } | null {
   if (!opcinaIme) return null;
-  const target = opcinaIme.trim().toLowerCase();
+  const target = normalizeOpcina(opcinaIme);
+  if (!target) return null;
   for (const key of Object.keys(KANTONI) as KantonKey[]) {
     const k = KANTONI[key];
     for (const o of k.opcine) {
-      if (o.ime.toLowerCase() === target) {
+      if (normalizeOpcina(o.ime) === target) {
         return { kantonKey: key, kantonData: k, opcinaKod: o.kod };
       }
     }

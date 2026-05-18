@@ -178,6 +178,17 @@ export function deletePayroll(id: number) {
   return request<null>(`/api/payroll/${id}`, { method: "DELETE" });
 }
 
+export function markMonthPaid(payload: {
+  organizationId: number;
+  year: number;
+  month: number;
+}) {
+  return request<{ updated: number }>(`/api/payroll/mark-month-paid`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── Payroll documents (uplatnice) ──────────────────────────────────────────
 export type PayrollDocumentType =
   | "PLATNA_LISTA"
@@ -230,6 +241,8 @@ export type MonthlyUplatnicaSummary = {
   vrstaPrihoda: string;
   budgetOrg: string;
   primalac: string[];
+  opcinaKod?: string;
+  opcinaIme?: string;
 };
 
 export type MonthlyPerWorker = {

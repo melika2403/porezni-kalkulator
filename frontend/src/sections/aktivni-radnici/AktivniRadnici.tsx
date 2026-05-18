@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   getClientOrganizations,
@@ -11,8 +12,10 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
+import { useLastOrg } from "src/hooks/useLastOrg";
 import QuickAddWorkerModal from "src/components/WorkersSidebar/QuickAddWorkerModal";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
+import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import styles from "./aktivniRadnici.module.css";
 
 type Filter = "svi" | "prijavljeni" | "draft" | "odjavljeni";
@@ -51,7 +54,16 @@ export default function AktivniRadnici() {
   const canCreateWorker = hasRole("PRO", "BUSINESS", "ADMIN");
   const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
 
-  const [orgId, setOrgId] = useState<number | null>(null);
+  const searchParams = useSearchParams();
+  const { lastOrgId, setLastOrgId } = useLastOrg();
+
+  const urlOrg = (() => {
+    const v = searchParams.get("org");
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+
+  const [orgId, setOrgId] = useState<number | null>(urlOrg ?? lastOrgId ?? null);
   const [filter, setFilter] = useState<Filter>("svi");
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
@@ -66,7 +78,8 @@ export default function AktivniRadnici() {
     enabled: isLoggedIn && canSeeClients,
   });
 
-  // Auto-select first available org (own first, then client)
+  // Auto-select first available org (own first, then client) — samo ako nemamo
+  // ni URL ni zapamcen orgId.
   if (orgId === null) {
     if ((orgsQuery.data?.length ?? 0) > 0 && orgsQuery.data?.[0]) {
       setOrgId(orgsQuery.data[0].id);
@@ -74,6 +87,12 @@ export default function AktivniRadnici() {
       setOrgId(clientOrgsQuery.data[0].id);
     }
   }
+
+  // Perzistira odabranu organizaciju u localStorage tako da JS3100, Obračun
+  // plata i Ugovor o radu otvore istu organizaciju.
+  useEffect(() => {
+    if (orgId != null) setLastOrgId(orgId);
+  }, [orgId, setLastOrgId]);
 
   const workersQuery = useQuery({
     queryKey: ["workers", orgId],
@@ -116,6 +135,8 @@ export default function AktivniRadnici() {
   }
 
   return (
+    <>
+    <RadniciTabBar />
     <main className={styles.page}>
       <div className={styles.header}>
         <p className={styles.label}>Radnici</p>
@@ -310,5 +331,6 @@ export default function AktivniRadnici() {
         />
       )}
     </main>
+    </>
   );
 }
