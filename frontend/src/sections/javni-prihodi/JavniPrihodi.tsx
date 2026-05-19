@@ -103,11 +103,11 @@ const RELATED_TOOLS = [
 // Quick access items (most-searched)
 const QUICK_ACCESS = [
   { kind: "vrsta", code: "712112", label: "PIO/MIO doprinos" },
-  { kind: "vrsta", code: "712116", label: "Zdravstveni doprinos" },
+  { kind: "vrsta", code: "712111", label: "Zdravstveni doprinos" },
   { kind: "vrsta", code: "712113", label: "Doprinos nezaposlenost" },
-  { kind: "vrsta", code: "716113", label: "Porez na dohodak" },
-  { kind: "vrsta", code: "722581", label: "Vodna naknada" },
-  { kind: "vrsta", code: "722441", label: "Naknada za nesreće" },
+  { kind: "vrsta", code: "716111", label: "Porez na dohodak" },
+  { kind: "vrsta", code: "722529", label: "Vodna naknada" },
+  { kind: "vrsta", code: "722581", label: "Naknada za nesreće" },
   { kind: "racun", code: FBIH_BUDZET_RACUN, label: "Budžet FBiH" },
   { kind: "racun", code: FBIH_ZO_RACUN, label: "ZZO FBiH" },
 ];
@@ -574,9 +574,9 @@ export default function JavniPrihodi() {
           <summary>Šta je vrsta prihoda i gdje se upisuje u platni nalog?</summary>
           <p>
             Vrsta prihoda je šestocifrena šifra po ekonomskoj klasifikaciji javnih prihoda u FBiH
-            (npr. <strong>712112</strong> za doprinos PIO/MIO, <strong>716113</strong> za porez na
-            dohodak). Upisuje se u <strong>polje 11.</strong> platnog naloga i određuje na koji
-            depozitni račun se prihod usmjerava.
+            (npr. <strong>712112</strong> za doprinos PIO/MIO, <strong>716111</strong> za porez na
+            dohodak iz plate). Upisuje se u <strong>polje 11.</strong> platnog naloga i određuje na
+            koji depozitni račun se prihod usmjerava.
           </p>
         </details>
         <details className={styles.faqItem}>
@@ -590,7 +590,7 @@ export default function JavniPrihodi() {
         <details className={styles.faqItem}>
           <summary>Kako se dijele doprinosi za zdravstveno osiguranje?</summary>
           <p>
-            Doprinos za zdravstvo (<strong>712116</strong>) dijeli se: <strong>89,8%</strong> na
+            Doprinos za zdravstvo iz plate (<strong>712111</strong>) dijeli se: <strong>89,8%</strong> na
             kantonalni Zavod zdravstvenog osiguranja prema mjestu prebivališta radnika, i{" "}
             <strong>10,2%</strong> na federalni ZZO (<strong>102-050-00000640-18</strong>).
           </p>

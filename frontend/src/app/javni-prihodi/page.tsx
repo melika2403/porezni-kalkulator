@@ -47,11 +47,11 @@ export const metadata: Metadata = {
     "šifre vrsta prihoda",
     "šifra vrste prihoda",
     "vrsta prihoda 712112",
-    "vrsta prihoda 712116",
+    "vrsta prihoda 712111",
     "vrsta prihoda 712113",
-    "vrsta prihoda 716113",
+    "vrsta prihoda 716111",
+    "vrsta prihoda 722529",
     "vrsta prihoda 722581",
-    "vrsta prihoda 722441",
     "vrsta prihoda 722569",
     "vrsta prihoda 711",
     "vrsta prihoda 712",
@@ -177,7 +177,7 @@ const faqSchema = {
       name: "Šta je vrsta prihoda i gdje se upisuje u platni nalog?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Vrsta prihoda je šestocifrena šifra po ekonomskoj klasifikaciji javnih prihoda u FBiH (npr. 712112 za doprinos PIO/MIO, 716113 za porez na dohodak). Upisuje se u polje 11. platnog naloga i određuje na koji depozitni račun se prihod usmjerava.",
+        text: "Vrsta prihoda je šestocifrena šifra po ekonomskoj klasifikaciji javnih prihoda u FBiH (npr. 712112 za doprinos PIO/MIO, 716111 za porez na dohodak iz plate). Upisuje se u polje 11. platnog naloga i određuje na koji depozitni račun se prihod usmjerava.",
       },
     },
     {
@@ -193,7 +193,7 @@ const faqSchema = {
       name: "Koje su šifre vrste prihoda za doprinose za zdravstveno osiguranje?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Doprinos za zdravstveno osiguranje (iz plata i na plate) ima šifru 712116. Iznos se dijeli: 89,8% na kantonalni ZZO prema prebivalištu radnika, 10,2% na ZZO i reosiguranja FBiH (račun 102-050-00000640-18).",
+        text: "Doprinos za zdravstveno osiguranje iz plate i na platu ima šifru 712111. Iznos se dijeli: 89,8% na kantonalni ZZO prema prebivalištu radnika, 10,2% na ZZO i reosiguranja FBiH (račun 102-050-00000640-18).",
       },
     },
     {

@@ -24,14 +24,25 @@ function toPublicWorker(w) {
   if (!w) return null;
   const plain = w.toJSON ? w.toJSON() : w;
   const { jmbg, ...rest } = plain;
+  const prijavaDate = rest.prijavaDate ? String(rest.prijavaDate).slice(0, 10) : null;
+  const odjavaDate = rest.odjavaDate ? String(rest.odjavaDate).slice(0, 10) : null;
+  // Status se derivira iz datuma — datumi su master. To osigurava da ako
+  // korisnik upiše prijavaDate ali zaboravi prebaciti status dropdown, status
+  // se ipak prikaže kao PRIJAVLJEN. Stari podaci se ovim ispravljaju automatski.
+  const derivedStatus = odjavaDate
+    ? "ODJAVLJEN"
+    : prijavaDate
+      ? "PRIJAVLJEN"
+      : "DRAFT";
   return {
     ...rest,
+    employmentStatus: derivedStatus,
     jmbg: jmbg ? decryptJmbg(jmbg) : null,
     startDate: rest.startDate ? String(rest.startDate).slice(0, 10) : null,
     endDate: rest.endDate ? String(rest.endDate).slice(0, 10) : null,
     contractEndDate: rest.contractEndDate ? String(rest.contractEndDate).slice(0, 10) : null,
-    prijavaDate: rest.prijavaDate ? String(rest.prijavaDate).slice(0, 10) : null,
-    odjavaDate: rest.odjavaDate ? String(rest.odjavaDate).slice(0, 10) : null,
+    prijavaDate,
+    odjavaDate,
     salaryBruto: rest.salaryBruto != null ? Number(rest.salaryBruto) : null,
     salaryNeto: rest.salaryNeto != null ? Number(rest.salaryNeto) : null,
     taxCoefficient: rest.taxCoefficient != null ? Number(rest.taxCoefficient) : 1.0,

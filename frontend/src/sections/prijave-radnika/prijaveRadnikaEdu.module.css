@@ -1,0 +1,64 @@
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 2rem 3rem;
+}
+
+.section {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-top: 1.5rem;
+}
+
+.section h2 {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.2rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.section h2 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.section p {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink);
+  margin: 0;
+}
+
+.section p + p {
+  margin-top: 0.85rem;
+}
+
+.section ul,
+.section ol {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.7;
+  font-size: 14.5px;
+}
+
+.section a {
+  color: var(--sage);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.section a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding: 0 1rem 2rem;
+  }
+  .section {
+    padding: 1.5rem;
+  }
+}

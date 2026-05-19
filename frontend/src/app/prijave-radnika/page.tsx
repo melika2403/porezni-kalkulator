@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import PrijaveRadnikaTabs from "src/sections/prijave-radnika/PrijaveRadnikaTabs";
+import PrijaveRadnikaEdu from "src/sections/prijave-radnika/PrijaveRadnikaEdu";
 
 const PAGE_URL = "https://poreznikalkulator.ba/prijave-radnika";
 
@@ -173,7 +174,7 @@ const faqSchema = {
       name: "Koje uplatnice se generišu uz obračun plata?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Generišu se zbirne uplatnice po vrsti: PIO/MIO doprinos (712112), Zdravstvo kantonalni 89,8% (712116), Zdravstvo federalni 10,2% (712116), Nezaposlenost kantonalni 70% (712113), Nezaposlenost federalni 30% (712113), Porez na dohodak (716113), Opća vodna naknada (722581), Zaštita od prirodnih nesreća (722441) i — za društva — Fond invalida (722569).",
+        text: "Generišu se zbirne uplatnice po vrsti: PIO/MIO doprinos (712112), Zdravstvo kantonalni 89,8% (712111), Zdravstvo federalni 10,2% (712111), Nezaposlenost kantonalni 70% (712113), Nezaposlenost federalni 30% (712113), Porez na dohodak (716111), Opća vodna naknada (722529), Zaštita od prirodnih nesreća (722581) i — za društva — Fond invalida (722569).",
       },
     },
     {
@@ -330,6 +331,7 @@ export default function PrijaveRadnikaPage() {
       <Suspense fallback={null}>
         <PrijaveRadnikaTabs />
       </Suspense>
+      <PrijaveRadnikaEdu />
     </>
   );
 }

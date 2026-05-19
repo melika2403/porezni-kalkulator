@@ -139,6 +139,10 @@ export type OrgOwner = {
   address: string | null;
   city: string | null;
   idCardNumber: string | null;
+  prijavaDate: string | null;
+  salaryBruto: number | null;
+  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
+  taxCoefficient: number;
 };
 
 export type OrgOwnerPayload = {
@@ -150,6 +154,9 @@ export type OrgOwnerPayload = {
   address?: string;
   city?: string;
   idCardNumber?: string;
+  prijavaDate?: string | null;
+  salaryBruto?: number | null;
+  taxCoefficient?: number;
 };
 
 export type TaxRegime = "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";

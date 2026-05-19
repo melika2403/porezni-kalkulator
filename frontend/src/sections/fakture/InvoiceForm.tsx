@@ -12,7 +12,6 @@ import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import BuyerFillSelect, { type BuyerFillData } from "src/components/BuyerFillSelect/BuyerFillSelect";
-import ClientFillSelect from "src/components/BuyerFillSelect/ClientFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { me, unwrap } from "src/api/auth";
 import { getOrganizations, type Organization } from "src/api/profile";
@@ -612,7 +611,7 @@ export default function InvoiceForm() {
         <div className={styles.section}>
           <div className={styles.sectionHead}>
             <div className={styles.sectionTitle}>Kupac</div>
-            <ClientFillSelect onFill={applyBuyerFill} />
+            <BuyerFillSelect onFill={applyBuyerFill} />
           </div>
           <div className={styles.row}>
             <div className={styles.field}>

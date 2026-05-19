@@ -33,6 +33,7 @@ export type Payroll = {
   workedMinutes: number | null;
   standardMinutes: number | null;
   sickDays: number;
+  vacationDays: number;
   overtimeHours: number;
   nightHours: number;
   sundayHours: number;
@@ -99,6 +100,7 @@ export type CalculatePayload = {
   workedMinutes?: number | null;
   standardMinutes?: number | null;
   sickDays?: number;
+  vacationDays?: number;
   overtimeHours?: number;
   nightHours?: number;
   sundayHours?: number;
@@ -145,6 +147,7 @@ export type SaveInputsPayload = {
   month: number;
   workedMinutes?: number | null;
   sickDays?: number;
+  vacationDays?: number;
   overtimeHours?: number;
   nightHours?: number;
   sundayHours?: number;
@@ -243,6 +246,7 @@ export type MonthlyUplatnicaSummary = {
   primalac: string[];
   opcinaKod?: string;
   opcinaIme?: string;
+  group?: "vlasnik" | "radnici" | null;
 };
 
 export type MonthlyPerWorker = {
