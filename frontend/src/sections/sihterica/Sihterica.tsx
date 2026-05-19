@@ -3,7 +3,13 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./sihterica.module.css";
-import { getOrganizations, getWorkers, updateWorker } from "src/api/profile";
+import {
+  getClientOrganizations,
+  getOrganizations,
+  getWorkers,
+  type Organization,
+  updateWorker,
+} from "src/api/profile";
 import {
   getSihterica,
   getSihtericaMonths,
@@ -13,6 +19,7 @@ import {
 } from "src/api/sihterica";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import { useRole } from "src/hooks/useRole";
 import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
@@ -437,7 +444,10 @@ function SihtericaApp() {
   const newYearRef = useRef<HTMLInputElement>(null);
 
   // ─── Queries ───────────────────────────────────────────────────────────────
-  const orgsQuery = useQuery({
+  const { hasRole: hasRoleForOrgs } = useRole();
+  const canSeeClients = hasRoleForOrgs("PRO", "BUSINESS", "ADMIN");
+
+  const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
       const res = await getOrganizations();
@@ -445,6 +455,32 @@ function SihtericaApp() {
       return res.data;
     },
   });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["clientOrganizations"],
+    queryFn: async () => {
+      const res = await getClientOrganizations();
+      if (!res.ok) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: canSeeClients,
+  });
+
+  // Spojene organizacije: vlastite + klijentske (knjigovođa upravlja tuđim
+  // obrtima). Dedup po id-u.
+  const orgsQuery = useMemo(() => {
+    const map = new Map<number, Organization>();
+    for (const o of ownOrgsQuery.data ?? []) map.set(o.id, o);
+    for (const o of clientOrgsQuery.data ?? []) if (!map.has(o.id)) map.set(o.id, o);
+    return {
+      data: Array.from(map.values()),
+      isLoading: ownOrgsQuery.isLoading || clientOrgsQuery.isLoading,
+    };
+  }, [
+    ownOrgsQuery.data,
+    ownOrgsQuery.isLoading,
+    clientOrgsQuery.data,
+    clientOrgsQuery.isLoading,
+  ]);
 
   // Auto-select organization if user has only one
   useEffect(() => {
@@ -943,23 +979,17 @@ function SihtericaApp() {
     <aside className={styles.sidebar}>
       <div className={styles.sidebarHeader}>Organizacija</div>
       <div className={styles.sidebarOrgWrap}>
-        <select
+        <OrgSelect
           className={styles.sidebarOrgSelect}
-          value={orgId ?? ""}
-          onChange={(e) => {
-            const v = e.target.value ? Number(e.target.value) : null;
+          value={orgId}
+          onChange={(v) => {
             setOrgId(v);
             setWorkerId(null);
             lastInitWorker.current = null;
           }}
-        >
-          <option value="">— Odaberi —</option>
-          {orgsQuery.data?.map((org) => (
-            <option key={org.id} value={org.id}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+          ownOrgs={ownOrgsQuery.data ?? []}
+          clientOrgs={clientOrgsQuery.data ?? []}
+        />
       </div>
 
       {!orgsQuery.isLoading && (orgsQuery.data?.length ?? 0) === 0 && (

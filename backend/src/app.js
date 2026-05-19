@@ -202,6 +202,11 @@ async function ensureColumns() {
     },
     {
       table: "payrolls",
+      column: "vacationDays",
+      ddl: "ALTER TABLE payrolls ADD COLUMN vacationDays INT NULL DEFAULT 0",
+    },
+    {
+      table: "payrolls",
       column: "minuliRadRate",
       ddl: "ALTER TABLE payrolls ADD COLUMN minuliRadRate DECIMAL(5,2) NULL DEFAULT 0",
     },

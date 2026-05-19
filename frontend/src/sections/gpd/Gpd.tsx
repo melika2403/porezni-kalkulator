@@ -1293,6 +1293,132 @@ export default function GpdForm() {
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je GPD-1051 <em>obrazac</em>?
+        </h2>
+        <p>
+          <strong>GPD-1051</strong> je godišnja prijava poreza na dohodak fizičkih
+          lica u Federaciji BiH. Objedinjuje sve izvore dohotka koje je porezni
+          obveznik ostvario tokom kalendarske godine — od plate, samostalne
+          djelatnosti, imovine, kapitala i ostalih izvora — i izračunava konačnu
+          poreznu obavezu po stopi od 10%.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>GPD-1051 obavezno podnose:</p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>osobe koje su radile kod više poslodavaca tokom iste godine,</li>
+          <li>obrtnici i nositelji samostalnih djelatnosti (uz SPR-1053 prilog),</li>
+          <li>osobe sa prihodima iz inostranstva,</li>
+          <li>osobe koje su ostvarile dohodak od imovine, kapitala ili ostalih izvora,</li>
+          <li>svi koji traže povrat preplaćenog poreza.</li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako popuniti GPD-1051 obrazac u <em>4 koraka</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Unesite lične podatke</strong> — ime, prezime, JMB, adresa
+            prebivališta i nadležna porezna ispostava. Registrovani korisnici
+            imaju automatsku popunu iz profila.
+          </li>
+          <li>
+            <strong>Unesite sve izvore dohotka</strong> — plate (iz radnog
+            odnosa), dohodak iz samostalne djelatnosti (iz SPR-1053), dohodak
+            od imovine, kapitala i ostali dohodci. Dodajte i akontacije poreza
+            koje su već plaćene tokom godine.
+          </li>
+          <li>
+            <strong>Iskoristite lične odbitke</strong> — osnovni odbitak (300 KM
+            mjesečno × 12 = 3.600 KM godišnje), odbici za uzdržavane članove
+            porodice, plaćeni doprinos za zdravstveno i kamate na stambene
+            kredite.
+          </li>
+          <li>
+            <strong>Preuzmite popunjen GPD-1051 PDF</strong> spreman za predaju
+            uz priloge (SPR-1053, ZO3, potvrde poslodavaca i sl.).
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Rok za predaju GPD-1051 <em>obrasca</em>
+        </h2>
+        <p>
+          GPD-1051 obrazac se predaje <strong>do 31. marta tekuće godine</strong>{" "}
+          za prethodnu kalendarsku godinu. Npr. obrazac za 2025. godinu predaje
+          se najkasnije do <strong>31.03.2026.</strong> u nadležnoj ispostavi
+          Porezne uprave FBiH prema mjestu prebivališta poreznog obveznika.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Kasno podnošenje može rezultirati prekršajnom kaznom prema Zakonu o
+          Poreznoj upravi FBiH. Preporučujemo predaju u februaru ili početkom
+          marta radi izbjegavanja gužvi.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Lični <em>odbici</em> i povrat poreza
+        </h2>
+        <p>
+          Lični odbici smanjuju oporezivi dohodak prije obračuna poreza po stopi
+          od 10%. Osnovni lični odbitak iznosi <strong>300 KM mjesečno (3.600 KM
+          godišnje)</strong> i pripada svakom poreznom obvezniku rezidentu FBiH.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>Dodatni odbici postoje za:</p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>uzdržavane članove porodice (supružnik, djeca, roditelji),</li>
+          <li>plaćeni doprinos za zdravstveno osiguranje,</li>
+          <li>plaćene kamate na stambeni kredit,</li>
+          <li>uplaćene premije dobrovoljnog penzionog osiguranja.</li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Ako su akontacije poreza plaćene tokom godine veće od konačne porezne
+          obaveze, imate pravo na <strong>povrat razlike</strong>. Zahtjev za
+          povrat se podnosi zajedno sa GPD obrascem i Porezna uprava je dužna
+          izvršiti povrat u zakonskom roku.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/spr" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              SPR-1053 — specifikacija dohotka samostalne djelatnosti
+            </a>{" "}
+            — obavezan prilog uz GPD-1051 za obrtnike i slobodna zanimanja.
+          </li>
+          <li>
+            <a href="/zo3" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              ZO3 obrazac
+            </a>{" "}
+            — prijava člana porodice na zdravstveno osiguranje (za odbitak za
+            uzdržavane).
+          </li>
+          <li>
+            <a href="/ams" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              AMS-1035 — akontacija po odbitku
+            </a>{" "}
+            — za prihode iz inostranstva tokom godine, ulaze u GPD.
+          </li>
+          <li>
+            <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Preračun neto/bruto plate
+            </a>{" "}
+            — provjera obračunatih poreza i doprinosa.
+          </li>
+        </ul>
+      </section>
+
       <FaqSection
         items={[
           {

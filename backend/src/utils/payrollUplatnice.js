@@ -33,7 +33,7 @@ function buildDefaults(kantonKey) {
     },
     zdrKanton: {
       account: k ? k.zoRacun : "",
-      vrstaPrihoda: "712116",
+      vrstaPrihoda: "712111",
       budgetOrg: "",
       primalac: k
         ? ["Zavod zdravstvenog osiguranja", k.genitiv]
@@ -41,7 +41,7 @@ function buildDefaults(kantonKey) {
     },
     zdrFed: {
       account: FBIH_ZO_RACUN,
-      vrstaPrihoda: "712116",
+      vrstaPrihoda: "712111",
       budgetOrg: "",
       primalac: ["Zavod zdravstvenog osiguranja i reosiguranja FBiH"],
     },
@@ -61,7 +61,7 @@ function buildDefaults(kantonKey) {
     },
     porez: {
       account: k ? k.budzet : "",
-      vrstaPrihoda: "716113",
+      vrstaPrihoda: "716111",
       budgetOrg: "",
       primalac: k ? ["Budžet " + k.genitiv] : ["Budžet kantona"],
     },
@@ -69,14 +69,14 @@ function buildDefaults(kantonKey) {
       // Vodne naknade idu na KANTONALNI budžet firme (sjedište), po Zakonu
       // o vodama. Općina = općina firme.
       account: k ? k.budzet : "",
-      vrstaPrihoda: "722581",
+      vrstaPrihoda: "722529",
       budgetOrg: "",
       primalac: k ? ["Budžet " + k.genitiv, "Opća vodna naknada"] : ["Budžet kantona", "Opća vodna naknada"],
     },
     nesrece: {
       // Naknada za zaštitu od prirodnih nesreća — kantonalni budžet firme.
       account: k ? k.budzet : "",
-      vrstaPrihoda: "722441",
+      vrstaPrihoda: "722581",
       budgetOrg: "",
       primalac: k
         ? ["Budžet " + k.genitiv, "Naknada za zaštitu od prirodnih nesreća"]

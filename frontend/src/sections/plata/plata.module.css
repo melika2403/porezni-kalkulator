@@ -322,6 +322,33 @@
   font-weight: 300;
 }
 
+/* ── Edu sekcije ── */
+.eduSection {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-top: 1.5rem;
+}
+.eduSection h2 {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.2rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.eduSection h2 em { font-style: italic; color: var(--sage); }
+.eduSection p { font-size: 14.5px; line-height: 1.65; color: var(--ink); margin: 0; }
+.eduSection p + p { margin-top: 0.85rem; }
+.eduSection ul, .eduSection ol {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.7;
+  font-size: 14.5px;
+}
+.eduSection a { color: var(--sage); font-weight: 600; text-decoration: none; }
+.eduSection a:hover { text-decoration: underline; }
+
 /* ── Responsive ── */
 @media (max-width: 560px) {
   .page { padding: 2rem 1rem 4rem; }
@@ -329,4 +356,5 @@
   .settings { flex-wrap: wrap; }
   .card { padding: 1.25rem; }
   .rowVal { min-width: 90px; }
+  .eduSection { padding: 1.5rem; }
 }

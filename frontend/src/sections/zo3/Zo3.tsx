@@ -927,6 +927,128 @@ export default function Zo3Form() {
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je ZO3 <em>obrazac</em>?
+        </h2>
+        <p>
+          <strong>ZO3</strong> je obrazac <em>"Prijava o promjeni u tijeku
+          osiguranja"</em> kojim osiguranik prijavljuje članove svoje porodice
+          na zdravstveno osiguranje. Obrazac propisuju kantonalni zavodi
+          zdravstvenog osiguranja u Federaciji BiH, a podnosi ga poslodavac na
+          zahtjev radnika ili sam osiguranik (kod samostalnih djelatnosti).
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Kao uzdržavani članovi porodice mogu se prijaviti:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>supružnik (bračni ili izvanbračni),</li>
+          <li>maloljetna djeca, te punoljetna djeca na redovnom školovanju,</li>
+          <li>djeca sa invaliditetom (bez obzira na uzrast),</li>
+          <li>roditelji osiguranika koji ne ostvaruju zdravstveno po drugom osnovu.</li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako popuniti ZO3 obrazac u <em>3 koraka</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Unesite podatke o osiguraniku</strong> — ime i prezime,
+            JMB, adresa, JIB poslodavca i naziv kantonalnog Zavoda zdravstvenog
+            osiguranja. Registrovani korisnici imaju automatsku popunu.
+          </li>
+          <li>
+            <strong>Unesite podatke o članu porodice</strong> — ime, prezime,
+            JMB, srodstvo, datum stupanja na osiguranje. Za djecu na školovanju
+            navedite školu/fakultet i razred/godinu studija.
+          </li>
+          <li>
+            <strong>Preuzmite popunjeni ZO3 PDF</strong> u 2 primjerka i
+            priložite dokaznu dokumentaciju (rodni list, izvod iz matične knjige
+            vjenčanih, dokaz o redovnom školovanju, itd.).
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Dokumentacija uz <em>ZO3 obrazac</em>
+        </h2>
+        <p>
+          Uz popunjeni i potpisani ZO3 obrazac, kantonalni Zavod zdravstvenog
+          osiguranja traži dokaze o srodstvu i statusu uzdržavanog člana:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Za supružnika:</strong> izvod iz matične knjige vjenčanih
+            (ne stariji od 6 mjeseci) + uvjerenje da nije osiguran po drugom
+            osnovu.
+          </li>
+          <li>
+            <strong>Za dijete:</strong> rodni list, te (za djecu starija od 15
+            godina) potvrda o redovnom školovanju.
+          </li>
+          <li>
+            <strong>Za roditelja:</strong> rodni list osiguranika + uvjerenje
+            roditelja o nezaposlenosti i ne-osiguranju po drugom osnovu.
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Tačan spisak dokumenata varira po kantonima — provjerite kod svog
+          Zavoda (USK, KS, TK, ZDK, SBK, HNK, BPK, K10, ZHK, PK).
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kada i gdje <em>predati</em> ZO3?
+        </h2>
+        <p>
+          ZO3 obrazac se predaje <strong>u nadležnoj kantonalnoj ispostavi
+          Zavoda zdravstvenog osiguranja</strong> prema mjestu prebivališta
+          osiguranika. Predaje se u dva primjerka — jedan ostaje u Zavodu, drugi
+          kao potvrda osiguraniku.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          <strong>Rokovi:</strong> prijava se vrši u roku od 8 dana od nastanka
+          promjene (npr. sklapanja braka, rođenja djeteta, prestanka
+          osiguranja po drugom osnovu). Nepravovremena prijava može dovesti do
+          gubitka prava na zdravstvenu zaštitu za uzdržavanog člana u tom
+          periodu.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza
+            </a>{" "}
+            — uzdržavani članovi porodice ostvaruju pravo na dodatni lični odbitak
+            u GPD-1051.
+          </li>
+          <li>
+            <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Preračun neto/bruto plate
+            </a>{" "}
+            — provjera obračunatog doprinosa za zdravstveno osiguranje.
+          </li>
+          <li>
+            <a href="/prijave-radnika" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              JS3100 — prijava/odjava radnika
+            </a>{" "}
+            — prijava radnika na obavezno zdravstveno osiguranje.
+          </li>
+        </ul>
+      </section>
+
       <FaqSection
         items={[
           {

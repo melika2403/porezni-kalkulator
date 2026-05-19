@@ -543,7 +543,15 @@ function Js3100App() {
               <DateInput
                 className={styles.fieldInput}
                 value={datumPrijaveIso}
-                onValueChange={setDatumPrijaveIso}
+                onValueChange={(iso) => {
+                  setDatumPrijaveIso(iso);
+                  // Za PRIJAVA: "Datum promjene" u trećem dijelu je isto što
+                  // i datum prijave — auto-popuni da korisnik ne mora dvaput
+                  // unositi.
+                  if (vrsta === "PRIJAVA") {
+                    setTreci((p) => ({ ...p, datumPromjeneIso: iso }));
+                  }
+                }}
               />
             </div>
           </div>

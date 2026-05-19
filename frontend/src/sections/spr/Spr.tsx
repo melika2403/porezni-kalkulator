@@ -977,6 +977,106 @@ export default function SprForm() {
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je SPR-1053 <em>obrazac</em>?
+        </h2>
+        <p>
+          <strong>SPR-1053</strong> (Specifikacija prihoda i rashoda) je obrazac
+          Porezne uprave FBiH kojim se utvrđuje dohodak od samostalne djelatnosti.
+          Predaje se kao obavezan prilog uz godišnju prijavu poreza na dohodak{" "}
+          <strong>GPD-1051</strong>, a sadrži pregled svih prihoda, rashoda i
+          konačnog oporezivog dohotka za prethodnu kalendarsku godinu.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          SPR-1053 obavezno podnose:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>obrtnici (samostalna privredna djelatnost),</li>
+          <li>nositelji slobodnih zanimanja (odvjetnici, ljekari, arhitekti, knjigovođe i sl.),</li>
+          <li>poljoprivrednici koji ostvaruju dohodak iznad zakonom propisanog praga,</li>
+          <li>šumari i nositelji ostalih samostalnih djelatnosti definisanih Zakonom o porezu na dohodak FBiH.</li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako popuniti SPR-1053 obrazac u <em>3 koraka</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Unesite osnovne podatke o obvezniku</strong> — ime i prezime,
+            JMB, adresa, naziv djelatnosti, JIB obrta i nadležna porezna ispostava.
+            Ako ste registrovani korisnik, podaci se automatski popunjavaju iz vašeg
+            profila.
+          </li>
+          <li>
+            <strong>Unesite prihode i rashode</strong> iz poslovnih knjiga za
+            prethodnu godinu. Sistem automatski obračunava razliku — oporezivi
+            dohodak od samostalne djelatnosti.
+          </li>
+          <li>
+            <strong>Preuzmite popunjen SPR-1053 PDF</strong> spreman za štampu
+            i predaju u poreznoj ispostavi, ili za elektronsku predaju putem
+            ePorezne. Obrazac se predaje zajedno sa GPD-1051 godišnjom prijavom
+            poreza na dohodak.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Rok za predaju SPR-1053 <em>obrasca</em>
+        </h2>
+        <p>
+          SPR-1053 obrazac se predaje <strong>do 31. marta tekuće godine</strong>{" "}
+          za prethodnu kalendarsku godinu — npr. obrazac za 2025. godinu predaje
+          se najkasnije do <strong>31.03.2026.</strong> Predaja se vrši zajedno
+          sa godišnjom prijavom poreza na dohodak (GPD-1051) u nadležnoj ispostavi
+          Porezne uprave FBiH prema mjestu prebivališta poreznog obveznika.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Kašnjenje sa predajom obrasca može rezultirati prekršajnim kaznama prema
+          Zakonu o Poreznoj upravi FBiH. Preporučuje se predaja u februaru ili
+          ranije u martu, prije godišnje gužve u poreznim ispostavama.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza na dohodak
+            </a>{" "}
+            — SPR-1053 se predaje kao prilog uz GPD-1051.
+          </li>
+          <li>
+            <a href="/amortizacija" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Stalna sredstva i amortizacija
+            </a>{" "}
+            — vođenje evidencije osnovnih sredstava i godišnji obračun amortizacije
+            kao rashoda.
+          </li>
+          <li>
+            <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Preračun neto/bruto plate
+            </a>{" "}
+            — ako vodite radnike, plate ulaze u rashode poslovanja.
+          </li>
+          <li>
+            <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Uplatni računi javnih prihoda
+            </a>{" "}
+            — šifre vrsta prihoda i računi za uplatu poreza i doprinosa.
+          </li>
+        </ul>
+      </section>
+
       <FaqSection
         items={[
           {
@@ -985,7 +1085,7 @@ export default function SprForm() {
           },
           {
             q: "Koji je rok za predaju SPR obrasca?",
-            a: "SPR-1053 se predaje do 28. februara tekuće godine za prethodnu kalendarsku godinu, zajedno sa godišnjom prijavom poreza (GPD-1051). Preporučuje se predaja u što kraćem roku radi izbjegavanja gužvi.",
+            a: "SPR-1053 se predaje do 31. marta tekuće godine za prethodnu kalendarsku godinu, zajedno sa godišnjom prijavom poreza (GPD-1051). Npr. obrazac za 2025. godinu se predaje do 31.03.2026. Preporučuje se predaja u što kraćem roku radi izbjegavanja gužvi.",
           },
           {
             q: "Razlika između SPR i GPD obrasca?",
@@ -993,7 +1093,7 @@ export default function SprForm() {
           },
           {
             q: "Moram li voditi poslovne knjige da bih podnio SPR?",
-            a: "Porezni obveznici koji koriste normirane rashode nisu obavezni voditi detaljne poslovne knjige, ali moraju imati evidenciju o prihodima. Oni koji koriste stvarne rashode moraju voditi propisane poslovne knjige po sistemu prostog ili dvojnog knjigovodstva.",
+            a: "Da, porezni obveznici samostalne djelatnosti dužni su voditi propisane poslovne knjige po sistemu prostog ili dvojnog knjigovodstva i čuvati pripadajuće račune i izvode kao dokaz prihoda i rashoda.",
           },
           {
             q: "Kako se obračunava akontacija poreza tokom godine?",

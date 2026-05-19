@@ -127,6 +127,29 @@ function validateOwnerData(owner, requireJmbg = true) {
     data.idCardNumber = idn;
   }
 
+  // prijavaDate i salaryBruto — ako su uneseni, vlasnik se računa kao
+  // prijavljen radnik. Ako prijavaDate nije unesen, ostaje DRAFT — prijavljuje
+  // se kasnije preko JS3100 ili ručnim editovanjem.
+  if (owner.prijavaDate !== undefined) {
+    if (owner.prijavaDate === null || owner.prijavaDate === "") {
+      data.prijavaDate = null;
+      data.employmentStatus = "DRAFT";
+    } else {
+      data.prijavaDate = new Date(owner.prijavaDate);
+      data.employmentStatus = "PRIJAVLJEN";
+    }
+  }
+  if (owner.salaryBruto !== undefined) {
+    data.salaryBruto =
+      owner.salaryBruto === null || owner.salaryBruto === ""
+        ? null
+        : Number(owner.salaryBruto);
+  }
+  if (owner.taxCoefficient !== undefined) {
+    const c = Number(owner.taxCoefficient);
+    if (Number.isFinite(c) && c > 0) data.taxCoefficient = c;
+  }
+
   return { ok: true, value: data };
 }
 

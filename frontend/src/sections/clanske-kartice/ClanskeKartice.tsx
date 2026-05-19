@@ -1308,6 +1308,99 @@ function ClanskeKarticeApp() {
         )}
       </section>
 
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.formSection} style={{ marginTop: "1.5rem" }}>
+        <h2 className={styles.sectionTitle}>
+          Šta su <em>članske kartice</em> sa QR kodom?
+        </h2>
+        <p style={{ fontSize: "14.5px", lineHeight: 1.65 }}>
+          <strong>Članska kartica sa QR kodom</strong> je digitalna ili štampana
+          kartica veličine kreditne kartice (85,6 × 54 mm) koja sadrži ime
+          člana, kod, datum važenja i QR kod za brzu identifikaciju. Skeniranjem
+          QR koda kasir ili kontrolor odmah dobija podatke o članu — bez ručnog
+          traženja u sistemu.
+        </p>
+        <p style={{ fontSize: "14.5px", lineHeight: 1.65, marginTop: "0.85rem" }}>
+          Pogodno je za:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7, fontSize: "14.5px" }}>
+          <li>fitness centre i teretane,</li>
+          <li>sportske klubove i udruženja,</li>
+          <li>biblioteke i obrazovne ustanove,</li>
+          <li>profesionalne komore i nevladine organizacije,</li>
+          <li>klubove, kafiće i lojalty programe.</li>
+        </ul>
+      </section>
+
+      <section className={styles.formSection} style={{ marginTop: "1.5rem" }}>
+        <h2 className={styles.sectionTitle}>
+          Kako <em>generisati</em> kartice u 3 koraka
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7, fontSize: "14.5px" }}>
+          <li>
+            <strong>Unesite podatke o organizaciji</strong> — naziv kluba/firme,
+            logo, boja naslova, kontakt podaci. Ti podaci pojavljuju se na svim
+            karticama.
+          </li>
+          <li>
+            <strong>Dodajte članove pojedinačno ili putem bulk uvoza</strong> —
+            iz Excel-a ili CSV fajla. Svaki član ima ime, jedinstveni kod i
+            datum važenja članstva.
+          </li>
+          <li>
+            <strong>Preuzmite PDF kartica ili ZIP arhivu</strong> — pojedinačno
+            ili sve odjednom za štampanje. Štampajte na PVC kartice ili obični
+            papir.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.formSection} style={{ marginTop: "1.5rem" }}>
+        <h2 className={styles.sectionTitle}>
+          QR kod i <em>verifikacija članstva</em>
+        </h2>
+        <p style={{ fontSize: "14.5px", lineHeight: 1.65 }}>
+          QR kod na kartici sadrži jedinstveni identifikator člana — kod ili
+          URL koji vodi na profil člana. Mobilni telefon ili poseban skener
+          očita podatke u sekundi.
+        </p>
+        <p style={{ fontSize: "14.5px", lineHeight: 1.65, marginTop: "0.85rem" }}>
+          QR kod možete koristiti i za:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7, fontSize: "14.5px" }}>
+          <li>kontrolu pristupa (npr. ulazak u teretanu),</li>
+          <li>evidenciju dolazaka i prisustva,</li>
+          <li>verifikaciju statusa članstva i datuma važenja,</li>
+          <li>lojalty bodove i popuste.</li>
+        </ul>
+      </section>
+
+      <section className={styles.formSection} style={{ marginTop: "1.5rem" }}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9, fontSize: "14.5px" }}>
+          <li>
+            <a href="/fakture" style={{ color: "var(--sage)", fontWeight: 600, textDecoration: "none" }}>
+              Fakture i računi
+            </a>{" "}
+            — fakturišite članarine i ostale usluge organizacije.
+          </li>
+          <li>
+            <a href="/prijave-radnika?tab=obracun" style={{ color: "var(--sage)", fontWeight: 600, textDecoration: "none" }}>
+              Obračun plata
+            </a>{" "}
+            — ako vaša organizacija ima radnike.
+          </li>
+          <li>
+            <a href="/pretplate" style={{ color: "var(--sage)", fontWeight: 600, textDecoration: "none" }}>
+              Pretplata
+            </a>{" "}
+            — generator članskih kartica dostupan je uz Pro pretplatu.
+          </li>
+        </ul>
+      </section>
+
       {/* ── FAQ ──────────────────────────────────────────────────────── */}
       <section className={styles.faqSection}>
         <h2 className={styles.sectionTitle}>

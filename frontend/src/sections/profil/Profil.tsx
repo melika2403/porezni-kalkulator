@@ -47,6 +47,7 @@ import {
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import OrganizationLogoUpload from "./OrganizationLogoUpload";
 import CitySelect from "src/components/CitySelect/CitySelect";
+import DateInput from "src/components/DateInput/DateInput";
 import { useRole } from "src/hooks/useRole";
 import Link from "next/link";
 import {
@@ -733,6 +734,9 @@ type OwnerFormState = {
   address: string;
   city: string;
   idCardNumber: string;
+  prijavaDate: string;
+  salaryBruto: string;
+  taxCoefficient: string;
 };
 
 const emptyOwner: OwnerFormState = {
@@ -744,9 +748,16 @@ const emptyOwner: OwnerFormState = {
   address: "",
   city: "",
   idCardNumber: "",
+  prijavaDate: "",
+  salaryBruto: "",
+  taxCoefficient: "1.0",
 };
 
 function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
+  const salary = o.salaryBruto.trim()
+    ? Number(o.salaryBruto.replace(/\./g, "").replace(",", "."))
+    : null;
+  const coef = Number(o.taxCoefficient.replace(",", "."));
   return {
     firstName: o.firstName.trim(),
     lastName: o.lastName.trim(),
@@ -756,6 +767,9 @@ function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
     ...(o.address.trim() && { address: o.address.trim() }),
     ...(o.city.trim() && { city: o.city.trim() }),
     ...(o.idCardNumber.trim() && { idCardNumber: o.idCardNumber.trim() }),
+    prijavaDate: o.prijavaDate || null,
+    salaryBruto: salary,
+    taxCoefficient: Number.isFinite(coef) && coef > 0 ? coef : 1.0,
   };
 }
 
@@ -866,6 +880,50 @@ function OwnerFields({
             className={styles.input}
           />
         </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>
+            Datum prijave (opciono){" "}
+            <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+              — ako se unese, vlasnik se odmah računa kao prijavljen
+            </span>
+          </label>
+          <DateInput
+            className={styles.input}
+            value={value.prijavaDate}
+            onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Bruto plata vlasnika (KM)</label>
+          <input
+            className={styles.input}
+            value={value.salaryBruto}
+            onChange={set("salaryBruto")}
+            placeholder="0,00"
+            inputMode="decimal"
+          />
+        </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>
+            Porezni koeficijent{" "}
+            <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+              — 1.0 = 300 KM mjesečnog odbitka. Za obrt vlasnika koristi se
+              samo u godišnjem GPD-1051 obračunu.
+            </span>
+          </label>
+          <input
+            className={styles.input}
+            value={value.taxCoefficient}
+            onChange={set("taxCoefficient")}
+            inputMode="decimal"
+            placeholder="1.0"
+          />
+        </div>
+        <div className={styles.field} />
       </div>
     </div>
   );
@@ -1561,6 +1619,16 @@ function DjelatnostTab() {
             address: ow.address ?? "",
             city: ow.city ?? "",
             idCardNumber: ow.idCardNumber ?? "",
+            prijavaDate: ow.prijavaDate ?? "",
+            salaryBruto:
+              ow.salaryBruto != null
+                ? ow.salaryBruto.toLocaleString("de-DE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : "",
+            taxCoefficient:
+              ow.taxCoefficient != null ? String(ow.taxCoefficient) : "1.0",
           }
         : emptyOwner,
     );

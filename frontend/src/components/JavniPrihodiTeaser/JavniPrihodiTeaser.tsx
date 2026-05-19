@@ -3,11 +3,11 @@ import styles from "./JavniPrihodiTeaser.module.css";
 
 const SAMPLE = [
   { code: "712112", label: "Doprinos PIO/MIO" },
-  { code: "712116", label: "Doprinos zdravstvo" },
+  { code: "712111", label: "Doprinos zdravstvo" },
   { code: "712113", label: "Doprinos nezaposlenost" },
-  { code: "716113", label: "Porez na dohodak" },
-  { code: "722581", label: "Vodna naknada" },
-  { code: "722441", label: "Naknada za nesreće" },
+  { code: "716111", label: "Porez na dohodak" },
+  { code: "722529", label: "Vodna naknada" },
+  { code: "722581", label: "Naknada za nesreće" },
 ];
 
 export default function JavniPrihodiTeaser() {

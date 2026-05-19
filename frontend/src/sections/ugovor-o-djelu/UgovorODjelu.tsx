@@ -791,6 +791,162 @@ function UgovorODjeluApp() {
         Provjerite tačnost prije korištenja u finalnim dokumentima.
       </p>
 
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je <em>ugovor o djelu</em>?
+        </h2>
+        <p>
+          <strong>Ugovor o djelu</strong> je vrsta autorskog ugovora kojim se
+          izvršilac obavezuje da naručiocu obavi određeni posao — izradi
+          projekta, sastavljanje teksta, pružanje konsultantskih usluga,
+          autorska djela, ekspertize, predavanja i sl. — a naručilac da mu za
+          to plati ugovorenu naknadu. Regulisan je <em>Zakonom o obligacionim
+          odnosima</em>, a porezni tretman propisan je Zakonom o porezu na
+          dohodak FBiH.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Razlikuje se od ugovora o radu po tome što <strong>ne zasniva radni
+          odnos</strong> — nema pune zaštite radnika (godišnji odmor, otkazni
+          rok, povreda na radu), ali ima poreznu fleksibilnost i pogodan je za
+          jednokratne ili projektne angažmane.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Porez i doprinosi na ugovor o <em>djelu</em>
+        </h2>
+        <p>Iz bruto naknade priznaju se <strong>normirani rashodi</strong>:</p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>20%</strong> — standardni ugovor o djelu (usluge, projekti,
+            konsultacije).
+          </li>
+          <li>
+            <strong>30%</strong> — autorska djela (književna, muzička, filmska,
+            likovna ostvarenja, naučna djela).
+          </li>
+          <li>
+            <strong>0%</strong> — naknade članovima komisija, nadzornih odbora
+            i sličnih tijela.
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>Na umanjenu osnovicu plaća se:</p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>4% doprinos za zdravstveno osiguranje</strong> (iz primitaka
+            od druge samostalne djelatnosti — šifra 712116),
+          </li>
+          <li>
+            <strong>10% porez na dohodak</strong> od druge samostalne
+            djelatnosti.
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Naručilac dodatno plaća <strong>6% PIO doprinos</strong> te 0,5%
+          opšta vodna naknada i 0,5% naknada za zaštitu od prirodnih nesreća —
+          obračunato na neto iznos.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako popuniti ugovor o djelu u <em>4 koraka</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Unesite iznos naknade</strong> — odaberite vrstu (standardna
+            20%, autorsko djelo 30%, komisija 0%) i unesite NETO ili BRUTO
+            iznos. Kalkulator automatski računa porez, doprinose, PIO, zaštitu
+            i vodnu naknadu.
+          </li>
+          <li>
+            <strong>Popunite ugovorne strane</strong> — podaci naručioca
+            (firma/obrt) i izvršioca (radnik). Ako imate sačuvane podatke u
+            profilu, dropdown "Popuni" radi auto-popunu jednim klikom.
+          </li>
+          <li>
+            <strong>Detalji ugovora</strong> — predmet posla, datum zaključenja,
+            rok izvršenja, mjesto i nadležni sud u slučaju spora.
+          </li>
+          <li>
+            <strong>Preuzmite ugovor i uplatnice</strong> — Word (DOCX) ili PDF
+            ugovor + 6 popunjenih uplatnica spremnih za banku ili elektronsko
+            plaćanje.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Razlika: ugovor o djelu <em>vs.</em> ugovor o radu
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Ugovor o djelu</strong> — jednokratna ili projektna
+            angažovanost, izvršilac sam organizuje rad, nema fiksnog radnog
+            vremena ni godišnjeg odmora. Manji porezni teret, ali manja zaštita.
+          </li>
+          <li>
+            <strong>Ugovor o radu</strong> — stalni radni odnos, fiksno radno
+            vrijeme, godišnji odmor, otkazni rokovi, zaštita od povrede na radu.
+            Veći porezni teret (puni doprinosi za PIO, zdravstveno, nezaposlenost).
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Inspekcija rada može preklasifikovati UoD u ugovor o radu ako se
+          ustanovi da posao ima karakteristike radnog odnosa (fiksno radno
+          vrijeme, subordinacija, dugotrajnost). Zato je važno da UoD bude
+          ograničen vremenski i predmetno.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Rok za <em>uplatu</em> poreza i doprinosa
+        </h2>
+        <p>
+          Porezi i doprinosi po ugovoru o djelu uplaćuju se{" "}
+          <strong>istovremeno sa isplatom naknade</strong> izvršiocu —
+          najkasnije isti dan kada se neto iznos isplaćuje na njegov račun.
+          Naručilac je odgovoran za pravovremenu uplatu i podnošenje obrazaca
+          nadležnoj poreznoj ispostavi (AUG-1031 obrazac).
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o radu i otkaz
+            </a>{" "}
+            — za stalno radno angažovanje (alternativa UoD-u).
+          </li>
+          <li>
+            <a href="/ugovor-o-pozajmici" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o pozajmici
+            </a>{" "}
+            — za pozajmicu novca između strana.
+          </li>
+          <li>
+            <a href="/ams" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              AMS-1035 — prihodi iz inostranstva
+            </a>{" "}
+            — slična porezna logika za prihode iz inostranstva.
+          </li>
+          <li>
+            <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Preračun neto/bruto plate
+            </a>{" "}
+            — provjera obračuna za radnike u radnom odnosu.
+          </li>
+        </ul>
+      </section>
+
       <FaqSection
         items={[
           {
