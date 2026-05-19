@@ -213,6 +213,7 @@ const Payroll = sequelize.define(
     workedMinutes: { type: DataTypes.INTEGER, allowNull: true },
     standardMinutes: { type: DataTypes.INTEGER, allowNull: true },
     sickDays: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
+    vacationDays: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
     overtimeHours: { type: DataTypes.DECIMAL(6, 2), allowNull: true, defaultValue: 0 },
     nightHours: { type: DataTypes.DECIMAL(6, 2), allowNull: true, defaultValue: 0 },
     sundayHours: { type: DataTypes.DECIMAL(6, 2), allowNull: true, defaultValue: 0 },

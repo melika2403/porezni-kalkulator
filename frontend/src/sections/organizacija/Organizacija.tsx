@@ -55,6 +55,7 @@ type WorkerForm = {
   spol: "" | "M" | "Z";
   strucnaSpremaIdx: string; // "" | "0".."9"
   contractedHours: string; // "1".."8"
+  taxCoefficient: string;
 };
 
 const emptyForm = (): WorkerForm => ({
@@ -82,6 +83,7 @@ const emptyForm = (): WorkerForm => ({
   spol: "",
   strucnaSpremaIdx: "",
   contractedHours: "8",
+  taxCoefficient: "1.0",
 });
 
 function formToPayload(f: WorkerForm): WorkerPayload {
@@ -105,12 +107,23 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     probationMonths: probation === "" ? null : Number(probation),
     noticePeriod: f.noticePeriod.trim() || null,
     contractNumber: f.contractNumber.trim() || null,
-    employmentStatus: f.employmentStatus,
+    // Status se automatski izvodi iz datuma prijave/odjave — datumi su
+    // master, status je derivat. To otklanja problem kad korisnik upiše
+    // prijavaDate ali zaboravi prebaciti dropdown.
+    employmentStatus: f.odjavaDate
+      ? "ODJAVLJEN"
+      : f.prijavaDate
+        ? "PRIJAVLJEN"
+        : "DRAFT",
     prijavaDate: f.prijavaDate || null,
     odjavaDate: f.odjavaDate || null,
     spol: f.spol === "" ? null : f.spol,
     strucnaSpremaIdx: f.strucnaSpremaIdx === "" ? null : Number(f.strucnaSpremaIdx),
     contractedHours: f.contractedHours === "" ? 8 : Number(f.contractedHours),
+    taxCoefficient: (() => {
+      const c = Number(f.taxCoefficient.replace(",", "."));
+      return Number.isFinite(c) && c > 0 ? c : 1.0;
+    })(),
   };
 }
 
@@ -147,6 +160,7 @@ function workerToForm(w: Worker): WorkerForm {
     spol: w.spol ?? "",
     strucnaSpremaIdx: w.strucnaSpremaIdx == null ? "" : String(w.strucnaSpremaIdx),
     contractedHours: w.contractedHours == null ? "8" : String(w.contractedHours),
+    taxCoefficient: w.taxCoefficient != null ? String(w.taxCoefficient) : "1.0",
   };
 }
 
@@ -370,6 +384,25 @@ function WorkerFormFields({
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Porezni koeficijent — uvijek vidljiv (i za radnika i za vlasnika).
+          Za obrt vlasnika koristi se samo u godišnjem GPD-1051. Za d.o.o.
+          vlasnika i radnika koristi se u mjesečnom obračunu plata. */}
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>
+          Porezni koeficijent{" "}
+          <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+            — 1.0 = 300 KM odbitka
+          </span>
+        </label>
+        <input
+          className={styles.input}
+          value={value.taxCoefficient}
+          onChange={set("taxCoefficient")}
+          placeholder="1.0"
+          inputMode="decimal"
+        />
       </div>
 
       {!isVlasnik && (
@@ -607,9 +640,14 @@ export default function Organizacija({ orgId }: { orgId: number }) {
   return (
     <div className={styles.page}>
       <RoleGuard roles={["USER", "PRO", "BUSINESS", "ADMIN"]} mode="hide">
-        <Link href="/profil" className={styles.back}>
-          ← Nazad na profil
-        </Link>
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+          <Link href="/profil" className={styles.back}>
+            ← Nazad na profil
+          </Link>
+          <Link href={`/aktivni-radnici?org=${orgId}`} className={styles.back}>
+            ← Aktivni radnici
+          </Link>
+        </div>
 
         {/* ── Org header ── */}
         <div className={styles.orgHeader}>
@@ -631,18 +669,44 @@ export default function Organizacija({ orgId }: { orgId: number }) {
             <span className={styles.cardTitle}>
               Radnici{workers.length > 0 ? ` (${workers.length})` : ""}
             </span>
-            {canEdit && !showAdd && !isLimitReached && (
-              <button
-                className={styles.btnPrimary}
-                onClick={() => {
-                  setShowAdd(true);
-                  setEditId(null);
-                  createMutation.reset();
+            <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
+              <Link
+                href={`/aktivni-radnici?org=${orgId}`}
+                className={styles.btnGhost}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  textDecoration: "none",
                 }}
               >
-                + Dodaj radnika
-              </button>
-            )}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                Aktivni radnici
+              </Link>
+              {canEdit && !showAdd && !isLimitReached && (
+                <button
+                  className={styles.btnPrimary}
+                  onClick={() => {
+                    setShowAdd(true);
+                    setEditId(null);
+                    createMutation.reset();
+                  }}
+                >
+                  + Dodaj radnika
+                </button>
+              )}
+            </div>
             {isProLimitReached && (
               <span className={styles.limitNotice}>
                 PRO plan: maksimalno {PRO_WORKERS_LIMIT} radnika po organizaciji

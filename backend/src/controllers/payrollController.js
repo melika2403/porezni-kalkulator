@@ -58,6 +58,9 @@ const {
 function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
   const round = (n) => +Number(n).toFixed(2);
   const fondInvalidiRate = opts.fondInvalidiRate || 0.005;
+  // groupTag označava entry-je kao "vlasnik" ili "radnici" — koristi se kad
+  // se za obrt razdvajaju uplatnice vlasnika od uplatnica radnika.
+  const groupTag = opts.groupTag || null;
 
   // Firm kanton/opcina
   const firmInfo = kantonForOpcina(firm.city || "");
@@ -140,7 +143,7 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
   //  7. Vodne
   //  8. Porez na dohodak (po opcini)
   //  9. Invalidi
-  if (pio > 0) entries.push({ vrsta: "pio", amount: round(pio), ...firmLoc, source: "firm" });
+  if (pio > 0) entries.push({ vrsta: "pio", amount: round(pio), ...firmLoc, source: "firm", group: groupTag });
 
   for (const loc of sortedLocs) {
     if (loc.zdrKant > 0)
@@ -151,9 +154,10 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
         opcinaKod: loc.opcinaKod,
         opcinaIme: loc.opcinaIme,
         source: "worker",
+        group: groupTag,
       });
   }
-  if (zdrFed > 0) entries.push({ vrsta: "zdrFed", amount: round(zdrFed), ...firmLoc, source: "firm" });
+  if (zdrFed > 0) entries.push({ vrsta: "zdrFed", amount: round(zdrFed), ...firmLoc, source: "firm", group: groupTag });
 
   for (const loc of sortedLocs) {
     if (loc.nezapKant > 0)
@@ -164,12 +168,13 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
         opcinaKod: loc.opcinaKod,
         opcinaIme: loc.opcinaIme,
         source: "worker",
+        group: groupTag,
       });
   }
-  if (nezapFed > 0) entries.push({ vrsta: "nezapFed", amount: round(nezapFed), ...firmLoc, source: "firm" });
+  if (nezapFed > 0) entries.push({ vrsta: "nezapFed", amount: round(nezapFed), ...firmLoc, source: "firm", group: groupTag });
 
-  if (nesrece > 0) entries.push({ vrsta: "nesrece", amount: round(nesrece), ...firmLoc, source: "firm" });
-  if (vodna > 0) entries.push({ vrsta: "vodna", amount: round(vodna), ...firmLoc, source: "firm" });
+  if (nesrece > 0) entries.push({ vrsta: "nesrece", amount: round(nesrece), ...firmLoc, source: "firm", group: groupTag });
+  if (vodna > 0) entries.push({ vrsta: "vodna", amount: round(vodna), ...firmLoc, source: "firm", group: groupTag });
 
   for (const loc of sortedLocs) {
     if (loc.porez > 0)
@@ -180,12 +185,41 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
         opcinaKod: loc.opcinaKod,
         opcinaIme: loc.opcinaIme,
         source: "worker",
+        group: groupTag,
       });
   }
 
-  if (invalidi > 0) entries.push({ vrsta: "fondInvalidi", amount: round(invalidi), ...firmLoc, source: "firm" });
+  if (invalidi > 0) entries.push({ vrsta: "fondInvalidi", amount: round(invalidi), ...firmLoc, source: "firm", group: groupTag });
 
   return entries;
+}
+
+// Helper za obrt: razdvaja payroll-e na vlasnike i radnike, gradi posebne
+// bucket entries za svaku grupu i konkatenira. Za d.o.o. (COMPANY) ili kad
+// nema obje grupe, koristi se jedan poziv bez group taga.
+function buildAllUplatnice(payrolls, workerMap, firm, opts = {}) {
+  if (firm.type !== "BUSINESS") {
+    return buildUplatniceBuckets(payrolls, workerMap, firm, opts);
+  }
+  const vlasniciPayrolls = payrolls.filter(
+    (p) => workerMap.get(p.workerId)?.role === "VLASNIK",
+  );
+  const radniciPayrolls = payrolls.filter(
+    (p) => workerMap.get(p.workerId)?.role === "RADNIK",
+  );
+  // Ako nema vlasnika ILI nema radnika, ne treba razdvajati.
+  if (vlasniciPayrolls.length === 0 || radniciPayrolls.length === 0) {
+    return buildUplatniceBuckets(payrolls, workerMap, firm, opts);
+  }
+  const vlasnikEntries = buildUplatniceBuckets(vlasniciPayrolls, workerMap, firm, {
+    ...opts,
+    groupTag: "vlasnik",
+  });
+  const radnikEntries = buildUplatniceBuckets(radniciPayrolls, workerMap, firm, {
+    ...opts,
+    groupTag: "radnici",
+  });
+  return [...vlasnikEntries, ...radnikEntries];
 }
 
 // Helper: dohvati account/vrstaPrihoda/budgetOrg/primalac za datu vrsta + kanton
@@ -389,6 +423,7 @@ function toPublicPayroll(p) {
     "workedMinutes",
     "standardMinutes",
     "sickDays",
+    "vacationDays",
   ];
   for (const f of numFields) {
     if (plain[f] != null) plain[f] = Number(plain[f]);
@@ -608,6 +643,7 @@ async function calculate(req, res) {
     workedMinutes,
     standardMinutes,
     sickDays,
+    vacationDays,
     overtimeHours,
     nightHours,
     sundayHours,
@@ -650,15 +686,13 @@ async function calculate(req, res) {
     where: { workerId, year, month },
   });
 
-  // VLASNIK obrta: osnovica je fiksna iz Sl. novina, doprinosi 36%. Nema bruto,
-  // sata, dodataka — sve se ignoriše.
-  if (worker.role === "VLASNIK") {
-    if (org.type !== "BUSINESS") {
-      return res.status(400).json({
-        ok: false,
-        error: "Vlasnik obračun je dostupan samo za obrt (BUSINESS organizaciju)",
-      });
-    }
+  // VLASNIK obrta (BUSINESS): osnovica je fiksna iz Sl. novina, doprinosi 36%.
+  // Nema bruto, sata, dodataka — sve se ignoriše. Generiše se Obrazac 2002.
+  //
+  // VLASNIK d.o.o. / d.d. (COMPANY): tretira se kao standardni radnik —
+  // ima bruto platu, sve doprinose 31% iz / 10,5% na, porez 10% i ulazi u
+  // Obrazac 2001. Logika pada kroz na obični RADNIK kod ispod.
+  if (worker.role === "VLASNIK" && org.type === "BUSINESS") {
     if (!org.taxRegime) {
       return res.status(400).json({
         ok: false,
@@ -793,6 +827,7 @@ async function calculate(req, res) {
       (existing ? existing.standardMinutes : null) ||
       STANDARD_MONTHLY_MINUTES,
     sickDays: Number(pick(sickDays, "sickDays", 0)) || 0,
+    vacationDays: Number(pick(vacationDays, "vacationDays", 0)) || 0,
     overtimeHours: effOvertimeHours,
     nightHours: effNightHours,
     sundayHours: effSundayHours,
@@ -821,8 +856,13 @@ async function calculate(req, res) {
   // Sticky defaults: stope i naknade koje korisnik upiše u obračunu postaju
   // default na workeru, tako da se sljedeći mjesec automatski popunjavaju.
   // Regres se NE pamti (resetuje se svaki put).
+  //
+  // VAŽNO: taxCoefficient se NE upisuje natrag u worker.taxCoefficient —
+  // worker profil je MASTER source. Ako se za jedan mjesec ručno mijenja
+  // koeficijent (npr. povratak na rad nakon porodiljskog), ta vrijednost
+  // ostaje samo u Payroll.taxCoefficient za taj mjesec. Master vrijednost
+  // se mijenja preko Profila / Aktivnih radnika.
   await worker.update({
-    taxCoefficient: snapshot.taxCoefficient,
     minuliRadRate: effectiveMinuliRate,
     overtimeRate: effOvertimeRate,
     nightRate: effNightRate,
@@ -849,6 +889,7 @@ async function saveInputs(req, res) {
       month: rawMonth,
       workedMinutes,
       sickDays,
+      vacationDays,
       overtimeHours,
       nightHours,
       sundayHours,
@@ -902,6 +943,7 @@ async function saveInputs(req, res) {
             ? existing.workedMinutes
             : null,
       sickDays: Number(pick(sickDays, "sickDays", 0)) || 0,
+      vacationDays: Number(pick(vacationDays, "vacationDays", 0)) || 0,
       overtimeHours: Number(pick(overtimeHours, "overtimeHours", 0)) || 0,
       nightHours: Number(pick(nightHours, "nightHours", 0)) || 0,
       sundayHours: Number(pick(sundayHours, "sundayHours", 0)) || 0,
@@ -929,9 +971,9 @@ async function saveInputs(req, res) {
     };
 
     // Sticky defaults: stope i naknade se pamte na worker-u za sljedeći mjesec.
-    // Regres se NE pamti.
+    // Regres se NE pamti. taxCoefficient se NE upisuje natrag — worker profil
+    // je master, vidi calculate() iznad.
     await worker.update({
-      taxCoefficient: update.taxCoefficient,
       minuliRadRate: update.minuliRadRate,
       overtimeRate: update.overtimeRate,
       nightRate: update.nightRate,
@@ -1017,6 +1059,7 @@ async function patch(req, res) {
   if (body.workedMinutes !== undefined) update.workedMinutes = Number(body.workedMinutes) || null;
   if (body.standardMinutes !== undefined) update.standardMinutes = Number(body.standardMinutes) || null;
   if (body.sickDays !== undefined) update.sickDays = Number(body.sickDays) || 0;
+  if (body.vacationDays !== undefined) update.vacationDays = Number(body.vacationDays) || 0;
   if (body.overtimeHours !== undefined) update.overtimeHours = Number(body.overtimeHours) || 0;
   if (body.nightHours !== undefined) update.nightHours = Number(body.nightHours) || 0;
   if (body.sundayHours !== undefined) update.sundayHours = Number(body.sundayHours) || 0;
@@ -1267,7 +1310,7 @@ async function monthlySummary(req, res) {
     // (vrsta, kanton, opcina) kombinaciju. Federalni i firma-kantonalni idu
     // u 1 entry sa opcinom firme.
     const orgPlain = org.toJSON();
-    const bucketEntries = buildUplatniceBuckets(payrolls, workerMapAll, orgPlain, {
+    const bucketEntries = buildAllUplatnice(payrolls, workerMapAll, orgPlain, {
       fondInvalidiRate: FOND_INVALIDI_RATE,
     });
 
@@ -1287,6 +1330,9 @@ async function monthlySummary(req, res) {
       if (kantonalVrste.has(e.vrsta) && (kantonalLocCount.get(e.vrsta) || 0) > 1) {
         label += ` — ${e.opcinaIme}`;
       }
+      // Group prefix: za obrt sa vlasnikom + radnicima razdvajamo
+      if (e.group === "vlasnik") label = `Vlasnik — ${label}`;
+      else if (e.group === "radnici") label = `Radnici — ${label}`;
       return {
         type: VRSTA_UPLATNICA_TYPE[e.vrsta],
         label,
@@ -1297,6 +1343,7 @@ async function monthlySummary(req, res) {
         primalac: acc?.primalac || [],
         opcinaIme: e.opcinaIme,
         opcinaKod: e.opcinaKod,
+        group: e.group || null,
       };
     }).filter((u) => u.amount > 0);
 
@@ -1401,8 +1448,9 @@ async function generateMonthlyUplatnice(req, res) {
     });
     const workerMap = new Map(workers.map((w) => [w.id, w]));
 
-    // Agregacija po (kanton, opcina) radnika
-    const bucketEntries = buildUplatniceBuckets(payrolls, workerMap, orgPlain, {
+    // Agregacija po (kanton, opcina) radnika. Za obrt sa vlasnikom + radnicima
+    // se uplatnice razdvajaju u dvije grupe.
+    const bucketEntries = buildAllUplatnice(payrolls, workerMap, orgPlain, {
       fondInvalidiRate: FOND_INVALIDI_RATE,
     });
 
@@ -1444,10 +1492,17 @@ async function generateMonthlyUplatnice(req, res) {
       if (kantonalVrste.has(e.vrsta) && (kantonalLocCount.get(e.vrsta) || 0) > 1) {
         label += ` — ${e.opcinaIme}`;
       }
-      pageLabels.push(label);
+      // Group prefix za obrt sa vlasnikom + radnicima
+      const groupLabel =
+        e.group === "vlasnik"
+          ? "Vlasnik — "
+          : e.group === "radnici"
+            ? "Radnici — "
+            : "";
+      pageLabels.push(`${groupLabel}${label}`);
       optsList.push({
         ...baseShared,
-        svrha: `${VRSTA_SVRHA_MAP[e.vrsta] || label} za ${monthYear}`,
+        svrha: `${groupLabel}${VRSTA_SVRHA_MAP[e.vrsta] || label} za ${monthYear}`,
         primatelj: Array.isArray(acc.primalac) ? acc.primalac : [acc.primalac],
         racunPrimDigits: (acc.account || "").replace(/-/g, ""),
         kmIznos: e.amount,

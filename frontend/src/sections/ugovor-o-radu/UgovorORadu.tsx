@@ -1311,6 +1311,172 @@ function UgovorORaduApp() {
         prije potpisivanja.
       </p>
 
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je <em>ugovor o radu</em>?
+        </h2>
+        <p>
+          <strong>Ugovor o radu</strong> je pisani dokument kojim poslodavac i
+          radnik zasnivaju radni odnos u Federaciji BiH. Regulisan je{" "}
+          <em>Zakonom o radu FBiH</em> („Službene novine FBiH“, br. 26/16,
+          89/18, 44/22 i 39/24) i mora biti zaključen prije početka rada
+          radnika.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Usmeni dogovor o radu se po zakonu smatra ugovorom na neodređeno
+          vrijeme — pisana forma štiti i radnika (jasna prava) i poslodavca
+          (definisani uslovi i mogućnost otkaza). Ugovor se obavezno prijavljuje
+          PIO/MIO i Zavodu zdravstvenog osiguranja kroz JS3100 obrazac.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Obavezni <em>elementi</em> ugovora o radu
+        </h2>
+        <p>Prema članu 21. Zakona o radu FBiH, ugovor o radu obavezno sadrži:</p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li><strong>Ugovorne strane</strong> — naziv poslodavca i ime radnika sa identifikacionim podacima.</li>
+          <li><strong>Datum početka rada</strong> i mjesto rada.</li>
+          <li><strong>Naziv radnog mjesta</strong> i opis poslova koje radnik obavlja.</li>
+          <li><strong>Trajanje ugovora</strong> — neodređeno ili određeno (sa rokom).</li>
+          <li><strong>Trajanje radnog vremena</strong> — puno (40h sedmično) ili nepuno.</li>
+          <li><strong>Iznos osnovne plate</strong> — bruto i/ili neto, te uslovi povećanja.</li>
+          <li><strong>Trajanje godišnjeg odmora</strong> — minimum 20 radnih dana godišnje.</li>
+          <li><strong>Otkazni rok</strong> — minimum 7 dana, tipično 30 dana.</li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Nedostatak obaveznih elemenata ne čini ugovor ništavnim, ali se nedostajući
+          elementi popunjavaju po zakonskim minimumima.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Vrste ugovora o radu — <em>neodređeno, određeno, probni rad</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Na neodređeno vrijeme</strong> — standardni oblik zaposlenja
+            bez unaprijed određenog roka prestanka. Pruža maksimalnu zaštitu
+            radniku.
+          </li>
+          <li>
+            <strong>Na određeno vrijeme</strong> — zaključuje se uz konkretan
+            razlog (sezonski rad, zamjena odsutnog radnika, projekat).{" "}
+            <strong>Maksimalno 3 godine uzastopno</strong>; nakon toga se ugovor
+            automatski transformiše u ugovor na neodređeno.
+          </li>
+          <li>
+            <strong>Probni rad</strong> — može trajati <strong>najduže 6
+            mjeseci</strong>, tipično 3 mjeseca. Ako nije izričito ugovoren,
+            smatra se da je radnik primljen bez probnog rada. Tokom probnog rada
+            otkazni rok je 7 dana.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Otkaz i prestanak <em>radnog odnosa</em>
+        </h2>
+        <p>Ugovor o radu prestaje:</p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Sporazumno</strong> — pisanim sporazumom obje strane (bez
+            otkaznog roka).
+          </li>
+          <li>
+            <strong>Istekom roka</strong> — kod ugovora na određeno, automatski
+            kad istekne rok.
+          </li>
+          <li>
+            <strong>Otkazom radnika</strong> — radnik podnosi pisanu obavijest
+            o otkazu uz poštivanje otkaznog roka.
+          </li>
+          <li>
+            <strong>Otkazom poslodavca</strong> — sa zakonom propisanim razlogom
+            (poslovni razlozi, povreda radne discipline, nesposobnost).
+            Poslodavac je dužan da obrazloži otkaz i poštuje otkazni rok.
+          </li>
+          <li>
+            <strong>Smrću radnika</strong>, gubitkom radne sposobnosti ili
+            ispunjenjem uslova za penziju.
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Pri prestanku radnog odnosa poslodavac je dužan da u roku od{" "}
+          <strong>7 dana</strong> podnese odjavu JS3100 PIO/MIO i Zavodu
+          zdravstvenog osiguranja.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako popuniti ugovor o radu u <em>4 koraka</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Odaberite radnika i poslodavca</strong> iz sidebar-a — podaci
+            poslodavca, radnika i plate auto-popunjavaju se iz profila. Ako
+            radnik nije u sistemu, dodajte ga preko "+ Novi radnik".
+          </li>
+          <li>
+            <strong>Vrsta ugovora</strong> — neodređeno, određeno (sa rokom)
+            ili probni rad. Naslov i tekst Člana 1 automatski se prilagođavaju.
+          </li>
+          <li>
+            <strong>Plata i otkazni rok</strong> — upišite osnovnu bruto/neto
+            platu, otkazni rok (default 30 dana) i ostale obavezne elemente.
+          </li>
+          <li>
+            <strong>Preuzmite ugovor</strong> u Word (DOCX) ili PDF formatu,
+            popunjen i spreman za potpis. Po želji preuzmite i JS3100 obrazac
+            za prijavu radnika u sistem PIO/ZZO.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/prijave-radnika" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              JS3100 — prijava/odjava radnika
+            </a>{" "}
+            — obavezna prijava u PIO/MIO i Zavod zdravstvenog dan prije početka
+            rada.
+          </li>
+          <li>
+            <a href="/aktivni-radnici" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Aktivni radnici
+            </a>{" "}
+            — centralni pregled radnika sa ugovorima i statusom.
+          </li>
+          <li>
+            <a href="/prijave-radnika?tab=obracun" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Obračun plata
+            </a>{" "}
+            — mjesečni obračun plata, doprinosa i poreza za radnike.
+          </li>
+          <li>
+            <a href="/ugovor-o-djelu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o djelu
+            </a>{" "}
+            — alternativa ugovoru o radu za jednokratne ili projektne angažmane.
+          </li>
+          <li>
+            <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Preračun neto/bruto plate
+            </a>{" "}
+            — provjera obračuna prije ugovaranja iznosa plate.
+          </li>
+        </ul>
+      </section>
+
       <FaqSection
         items={[
           {

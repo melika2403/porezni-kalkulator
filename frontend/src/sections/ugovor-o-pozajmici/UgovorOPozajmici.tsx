@@ -481,6 +481,143 @@ export default function UgovorOPozajmici() {
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je ugovor o <em>pozajmici novca</em>?
+        </h2>
+        <p>
+          <strong>Ugovor o pozajmici</strong> (zajmu) je pisani dokument kojim
+          zajmodavac prenosi određeni iznos novca u svojinu zajmoprimca, uz
+          obavezu da ga ovaj vrati u dogovorenom roku — sa kamatom ili bez
+          kamate. U Bosni i Hercegovini ugovor o pozajmici regulisan je{" "}
+          <em>Zakonom o obligacionim odnosima</em> i može se zaključiti između
+          fizičkih i pravnih osoba.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Pisani ugovor štiti obje strane — zajmodavca u smislu dokazivanja
+          prenosa novca i prava na povrat, a zajmoprimca u pogledu jasno
+          definisanog roka, iznosa i uslova vraćanja.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta mora sadržavati <em>ugovor o pozajmici</em>?
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Identifikacioni podaci stranaka</strong> — ime/naziv,
+            adresa, JMB ili JIB, broj lične karte/pasoša ili zastupnik (kod
+            pravnih osoba).
+          </li>
+          <li>
+            <strong>Iznos pozajmice i valuta</strong> — npr. 5.000 KM ili 2.500
+            EUR (sa naznakom kursa ako je u stranoj valuti).
+          </li>
+          <li>
+            <strong>Rok vraćanja</strong> — tačan datum, mjesečni anuiteti ili
+            "na poziv zajmodavca".
+          </li>
+          <li>
+            <strong>Kamatna stopa</strong> — ugovorna kamata ili eksplicitna
+            izjava da je pozajmica beskamatna.
+          </li>
+          <li>
+            <strong>Način vraćanja</strong> — gotovinski, transferom, jednokratno
+            ili u ratama.
+          </li>
+          <li>
+            <strong>Posljedice kašnjenja</strong> — zatezne kamate, klauzula o
+            izvršenju.
+          </li>
+          <li>
+            <strong>Datum i potpisi</strong> obje strane, eventualno svjedoci
+            ili notarska ovjera.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Porezni tretman <em>pozajmice i kamate</em>
+        </h2>
+        <p>
+          <strong>Sama pozajmica</strong> nije oporeziva jer se radi o povratu
+          istog iznosa — ne predstavlja prihod ni za zajmoprimca, ni rashod za
+          zajmodavca u trenutku isplate.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          <strong>Kamata na pozajmicu</strong> predstavlja prihod zajmodavca i
+          podliježe oporezivanju:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            za <strong>fizičke osobe</strong> — porez na dohodak od kapitala po
+            stopi od <strong>10%</strong>, prijavljuje se kroz GPD-1051,
+          </li>
+          <li>
+            za <strong>pravne osobe</strong> — kamata ulazi u prihode od
+            kapitala i oporezuje porezom na dobit.
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Kod pozajmica između <strong>povezanih lica</strong> (firma↔vlasnik,
+          firma↔direktor) Porezna uprava može primijeniti <em>tržišnu kamatnu
+          stopu</em> radi sprječavanja prikrivenih distribucija dobiti.
+          Preporučuje se konsultacija sa knjigovođom kod takvih konstrukcija.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Notarska <em>ovjera</em> — kada je potrebna?
+        </h2>
+        <p>
+          Za ugovor o pozajmici između fizičkih osoba notarska ovjera{" "}
+          <strong>nije obavezna</strong>. Međutim, preporučuje se za:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>veće iznose (preko 10.000 KM),</li>
+          <li>ugovore sa pravnim osobama,</li>
+          <li>pozajmice na duži rok (preko 1 godine),</li>
+          <li>slučajeve gdje se traži dodatna pravna sigurnost.</li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Notarski ovjeren ugovor je <strong>izvršna isprava</strong> — u
+          slučaju neispunjenja obaveze, zajmodavac može direktno pokrenuti
+          izvršni postupak bez prethodne sudske presude, što značajno ubrzava
+          naplatu.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza
+            </a>{" "}
+            — prihod od kamata se prijavljuje u GPD-1051.
+          </li>
+          <li>
+            <a href="/ugovor-o-djelu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o djelu
+            </a>{" "}
+            — za jednokratne usluge između naručioca i izvođača.
+          </li>
+          <li>
+            <a href="/ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o radu
+            </a>{" "}
+            — za stalno radno angažovanje radnika.
+          </li>
+        </ul>
+      </section>
+
       <FaqSection items={[
         { q: "Da li ugovor o pozajmici mora biti ovjeren kod notara?", a: "Nije obavezna notarska ovjera za ugovor o pozajmici između fizičkih osoba u FBiH, ali se preporučuje za veće iznose radi veće pravne sigurnosti. Notarski ovjeren ugovor je direktno izvršna isprava što olakšava naplatu u slučaju spora." },
         { q: "Da li se plaća porez na pozajmicu novca?", a: "Sama pozajmica nije oporeziva jer se radi o povratu sredstava. Međutim, kamata na pozajmicu predstavlja prihod zajmodavca i podliježe oporezivanju porezom na dohodak kao prihod od kapitala po stopi od 10%." },
