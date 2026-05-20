@@ -102,13 +102,14 @@ function setText(
 // nepredvidivo zbog naming collisions sa header fieldovima ("4 Broj zaposlenih"
 // se kosi sa "4_2" pa Adobe rename, itd.)
 function fieldName(rowIdx: number, col: number): string | null {
-  // Tabela mapiranja — direktno iz debug PDF-a, vidljivo svako polje na obrazcu.
+  // Tabela mapiranja — fields "1", "2", "3_3", "4_6", "5_5" su Red.br (col 1)
+  // za rows 1-5. Adobe naming po smislu redni broj. Multi-page: page 2 polja
+  // dobijaju vrijednosti "6", "7", "8", "9", "10", itd.
   const map: Record<number, (string | null)[]> = {
-    // Red.br (col 1): NEMA fillable fieldova — kolona ima statične labele
-    // "1"-"5" u template-u. Ne pišemo ništa.
+    // Red.br (col 1): NEMA fillable polja — template ima statičke "1"-"5" labele
+    // na svakoj stranici, pa multi-page page 2 ostaje "1-5" (ne 6-10). Prihvaćeno.
     1: [null, null, null, null, null],
-    // Vrsta isplate (col 2): r0="1", r1="2", r2="3_3", r3="4_6", r4="5_5"
-    // (Adobe ih je nazvao po pattern-u koji izgleda kao red.br, ali je to col 2.)
+    // Vrsta isplate (col 2): "1" kod svakog radnika.
     2: ["1", "2", "3_3", "4_6", "5_5"],
     // JMB (col 3): r0="3", r1="3_2", r2="3_4", r3="3_5", r4="3_6"
     3: ["3", "3_2", "3_4", "3_5", "3_6"],
@@ -167,7 +168,7 @@ function fillRow(
   font: Awaited<ReturnType<PDFDocument["embedFont"]>>,
 ) {
   const values: Record<number, string> = {
-    1: String(rowIdx + 1),
+    1: "",
     2: row.vrstaIsplate,
     3: row.jmb,
     4: row.opcina,
@@ -196,8 +197,64 @@ function fillRow(
     const col = Number(colStr);
     const name = fieldName(rowIdx, col);
     if (!name) continue;
-    setText(form, name, value, font, 7, TextAlignment.Center);
+    setText(form, name, value, font, 9, TextAlignment.Center);
   }
+}
+
+// Popunjava jedan list MIP-1023 sa do 5 radnika. Vraća flatened PDF bytes.
+// Red.br (col 1) ostaje statički iz template-a ("1"-"5") jer nema AcroForm polja.
+// Na multi-page izvještaju to znači da i page 2 ima labele 1-5; user prihvatio.
+async function fillSinglePage(
+  rowsOnPage: Mip1023Row[],
+  pageNum: number,
+  totalPages: number,
+  data: Mip1023Data,
+  templateBytes: ArrayBuffer,
+  fontBytes: ArrayBuffer,
+  boldBytes: ArrayBuffer,
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(templateBytes);
+  doc.registerFontkit(fontkit);
+  const font = await doc.embedFont(fontBytes);
+  const bold = await doc.embedFont(boldBytes);
+  const form = doc.getForm();
+
+  // Dio 1 — Header (TOTALI sa svih listova — iste vrijednosti na svakoj
+  // stranici, jer obrazac kaže "zbir kol.X sa SVIH listova").
+  setText(form, "undefined_2", data.jib, font, 9);
+  setText(form, "2 Naziv", data.naziv, font, 9);
+  setText(form, "3 Šifra djelatnosti", data.sifraDjelatnosti, font, 9);
+  setText(form, "4 Broj zaposlenih", data.brojZaposlenih, font, 9);
+  setText(form, "5 Ukupan prihod zbir kol10 sa svih listova", data.ukupanPrihod, font, 9);
+  setText(form, "6 Ukupan iznos doprinosa zbir kol 15 sa svih listova", data.ukupanDoprinos, font, 9);
+  setText(form, "7 Ukupan iznos osobnog odbitka zbir kol18 sa svih listova", data.ukupanLicniOdbitak, font, 9);
+  setText(form, "8  Ukupan iznos poreza zbir kol 20 sa svih listova", data.ukupanPorez, font, 9);
+
+  // Period — mjesec / godina suffix.
+  setText(form, "20.0", data.mjesec, font, 9, TextAlignment.Center);
+  setText(form, "20.1", data.godinaSuffix, font, 9, TextAlignment.Center);
+
+  // Strana N od M (zero-padded).
+  setText(form, "undefined.0", String(pageNum).padStart(2, "0"), font, 9, TextAlignment.Center);
+  setText(form, "undefined.1", String(totalPages).padStart(2, "0"), font, 9, TextAlignment.Center);
+
+  // Dio 2 — Redovi na ovoj stranici (do 5).
+  for (let i = 0; i < Math.min(rowsOnPage.length, 5); i++) {
+    fillRow(form, i, rowsOnPage[i], font);
+  }
+
+  // Dio 3 — Doprinosi na teret poslodavca (totali, isti na svakoj stranici).
+  setText(form, "fill_7", data.poslodavacPio, font, 9);
+  setText(form, "fill_8", data.poslodavacZdr, font, 9);
+  setText(form, "fill_9", data.poslodavacNezap, font, 9);
+  setText(form, "fill_10", data.poslodavacDodatniZdr, font, 9);
+
+  setText(form, "Datum", data.datumPotpisa, font, 9);
+
+  form.updateFieldAppearances(bold);
+  form.flatten();
+
+  return await doc.save();
 }
 
 export async function fillMip1023Template(
@@ -209,50 +266,33 @@ export async function fillMip1023Template(
     fetch("/templates/arialbd.ttf").then((r) => r.arrayBuffer()),
   ]);
 
-  const doc = await PDFDocument.load(templateBytes);
-  doc.registerFontkit(fontkit);
-  const font = await doc.embedFont(fontBytes);
-  const bold = await doc.embedFont(boldBytes);
-  const form = doc.getForm();
-
-  // Dio 1 — Header
-  // JIB poslodavca (13 cifara) → "undefined_2"
-  setText(form, "undefined_2", data.jib, font, 9);
-  setText(form, "2 Naziv", data.naziv, font, 9);
-  setText(form, "3 Šifra djelatnosti", data.sifraDjelatnosti, font, 9);
-  setText(form, "4 Broj zaposlenih", data.brojZaposlenih, font, 9);
-  setText(form, "5 Ukupan prihod zbir kol10 sa svih listova", data.ukupanPrihod, font, 9);
-  setText(form, "6 Ukupan iznos doprinosa zbir kol 15 sa svih listova", data.ukupanDoprinos, font, 9);
-  setText(form, "7 Ukupan iznos osobnog odbitka zbir kol18 sa svih listova", data.ukupanLicniOdbitak, font, 9);
-  setText(form, "8  Ukupan iznos poreza zbir kol 20 sa svih listova", data.ukupanPorez, font, 9);
-
-  // Period — "20.0" i "20.1" su vjerovatno mjesec i godina-suffix.
-  // Trenutno guess: 20.0 = mjesec (MM), 20.1 = godina (YY).
-  setText(form, "20.0", data.mjesec, font, 9, TextAlignment.Center);
-  setText(form, "20.1", data.godinaSuffix, font, 9, TextAlignment.Center);
-
-  // "undefined.0" / "undefined.1" — Strana N od M (gornji desni ugao).
-  // Za sad jedan list — "01" od "01" (padded).
-  setText(form, "undefined.0", "01", font, 9, TextAlignment.Center);
-  setText(form, "undefined.1", "01", font, 9, TextAlignment.Center);
-
-  // Dio 2 — Redovi (max 5 po stranici)
-  for (let i = 0; i < Math.min(data.rows.length, 5); i++) {
-    fillRow(form, i, data.rows[i], font);
+  // 5 radnika po listu. Najmanje 1 list i ako nema radnika (za prazni header).
+  const totalPages = Math.max(1, Math.ceil(data.rows.length / 5));
+  const pageBytes: Uint8Array[] = [];
+  for (let p = 0; p < totalPages; p++) {
+    const chunk = data.rows.slice(p * 5, p * 5 + 5);
+    const bytes = await fillSinglePage(
+      chunk,
+      p + 1,
+      totalPages,
+      data,
+      templateBytes,
+      fontBytes,
+      boldBytes,
+    );
+    pageBytes.push(bytes);
   }
 
-  // Dio 3 — Doprinosi na teret poslodavca
-  // "fill_7", "fill_8", "fill_9", "fill_10" — po obrazcu 4 polja: PIO, ZDR, NEZAP, dodatni ZDR.
-  setText(form, "fill_7", data.poslodavacPio, font, 9);
-  setText(form, "fill_8", data.poslodavacZdr, font, 9);
-  setText(form, "fill_9", data.poslodavacNezap, font, 9);
-  setText(form, "fill_10", data.poslodavacDodatniZdr, font, 9);
+  // Single page — return directly.
+  if (pageBytes.length === 1) return pageBytes[0];
 
-  // Datum potpisa
-  setText(form, "Datum", data.datumPotpisa, font, 9);
-
-  form.updateFieldAppearances(bold);
-  form.flatten();
-
-  return await doc.save();
+  // Multi-page — merge sve listove u jedan PDF. Svaki list je već flatened
+  // (nema AcroForm-a), pa nema collision-a sa field name-ovima.
+  const finalDoc = await PDFDocument.create();
+  for (const bytes of pageBytes) {
+    const src = await PDFDocument.load(bytes);
+    const pages = await finalDoc.copyPages(src, src.getPageIndices());
+    for (const page of pages) finalDoc.addPage(page);
+  }
+  return await finalDoc.save();
 }
