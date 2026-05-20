@@ -35,7 +35,6 @@ const FUNCTION_GROUPS: MenuGroup[] = [
       { label: 'Obračun plata', href: '/prijave-radnika?tab=obracun', desc: 'Mjesečni obračun, platni listići, uplatnice, 2001/2002' },
       { label: 'Prijave / odjave radnika', href: '/prijave-radnika', desc: 'JS3100 obrazac za PIO/ZZO' },
       { label: 'Šihterica', href: '/sihterica', desc: 'Mjesečna evidencija radnog vremena' },
-      { label: 'Stalna sredstva i amortizacija', href: '/amortizacija', desc: 'Vođenje OS i obračun' },
     ],
   },
   {
@@ -46,6 +45,8 @@ const FUNCTION_GROUPS: MenuGroup[] = [
       { label: 'Ugovor o radu i otkaz', href: '/ugovor-o-radu' },
       { label: 'Fakture i predračuni', href: '/fakture' },
       { label: 'Generator članskih kartica', href: '/clanske-kartice' },
+      { label: 'Stalna sredstva i amortizacija', href: '/amortizacija', desc: 'Vođenje OS i obračun' },
+      { label: 'Kontakt / Pomoć', href: '/kontakt', desc: 'Pošalji nam upit ili prijedlog' },
     ],
   },
 ];

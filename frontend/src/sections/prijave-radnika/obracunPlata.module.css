@@ -88,6 +88,49 @@
   cursor: not-allowed;
 }
 
+/* Tinted variants — secondary akcije u grupi sa primarnom bojom. */
+.btnTintBlue {
+  padding: 0.55rem 1rem;
+  background: rgba(100, 160, 210, 0.22);
+  color: #2c6b94;
+  border: 1px solid rgba(74, 144, 194, 0.55);
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.btnTintBlue:hover {
+  background: rgba(100, 160, 210, 0.34);
+  border-color: #4a90c2;
+}
+.btnTintBlue:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnTintSage {
+  padding: 0.55rem 1rem;
+  background: rgba(58, 92, 66, 0.08);
+  color: var(--sage, #3a5c42);
+  border: 1px solid rgba(58, 92, 66, 0.4);
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.btnTintSage:hover {
+  background: rgba(58, 92, 66, 0.16);
+  border-color: var(--sage, #3a5c42);
+}
+.btnTintSage:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Inline action buttons (in-table actions) — slim, polished */
 .actionBtn {
   display: inline-flex;

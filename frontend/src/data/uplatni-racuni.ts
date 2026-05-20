@@ -200,7 +200,7 @@ export const KANTONI: Record<KantonKey, KantonData> = {
 };
 
 // ── Federalni i fondovski računi ────────────────────────────────────────────
-export const FBIH_BUDZET_RACUN = "102-050-00001066-98";   // Budžet FBiH (PIO/MIO, vodna, nesreće…)
+export const FBIH_BUDZET_RACUN = "102-050-00001066-98";   // Budžet FBiH (PIO/MIO, federalni porezi…)
 export const FBIH_ZO_RACUN = "102-050-00000640-18";       // Zavod zdravstvenog osiguranja FBiH (10,2%)
 export const FBIH_NEZAP_RACUN = "161-000-00285700-03";    // Federalni zavod za zapošljavanje (30%)
 export const FOND_INVALIDI_RACUN = "338-690-22963585-21"; // Fond za prof. rehabilitaciju i zapošljavanje OSI
@@ -240,22 +240,41 @@ export type Racun = {
   napomena?: string;
 };
 
-// BiH bank prefixes (prve 3 cifre transakcijskog računa identifikuju banku)
+// BiH bank prefixes (prve 3 cifre transakcijskog računa identifikuju banku).
+// Lista po službenoj evidenciji institucija u BiH. Leasing kompanije se ne
+// uključuju (radnici ne primaju plate na leasing račune).
 const BANK_PREFIXES: Record<string, string> = {
-  "101": "Privredna banka Sarajevo d.d.",
+  "101": "Privredna banka d.d. Sarajevo",
   "102": "Union banka d.d. Sarajevo",
-  "132": "NLB Banka d.d. Tuzla",
-  "134": "ASA Banka d.d. Sarajevo",
-  "140": "Sparkasse Bank d.d.",
-  "141": "Bosna Bank International d.d.",
-  "154": "Intesa Sanpaolo Banka d.d. BiH",
+  "129": "Central profit d.d. Sarajevo",
+  "132": "NLB Banka d.d. Sarajevo",
+  "134": "Asa Banka d.d. Sarajevo",
+  "137": "Moja banka d.d. Sarajevo",
+  "141": "Bosna Bank International d.d. Sarajevo",
+  "142": "HVB banka BH",
+  "154": "Intesa Sanpaolo banka d.d. BiH",
   "160": "Vakufska banka d.d. Sarajevo",
-  "161": "Raiffeisen Bank d.d. BiH",
-  "180": "Komercijalno-investiciona banka d.d.",
-  "199": "Sparkasse Bank d.d.",
-  "306": "ASA Banka d.d.",
+  "161": "Raiffeisen bank d.d. Sarajevo",
+  "165": "Univerzal banka d.d. Sarajevo",
+  "170": "LT Gospodarska banka d.d. Sarajevo",
+  "173": "CBS Bank d.d. Sarajevo",
+  "182": "Bor banka d.d. Sarajevo",
+  "183": "Una banka d.d. Bihać",
+  "186": "Ziraat bank d.d. Sarajevo",
+  "187": "Post bank BH d.d.",
+  "194": "Procredit banka d.d. Sarajevo",
+  "195": "Razvojna banka F BiH Sarajevo",
+  "198": "KIB banka d.d. Velika Kladuša",
+  "199": "Sparkasse Bank d.d. BiH",
+  "306": "Addiko Bank d.d. Sarajevo",
   "338": "UniCredit Bank d.d.",
-  "555": "ASA Banka Naša i Snažna d.d.",
+  // Mikrokreditne fondacije
+  "401": "MKF MIKROFIN d.o.o. Banja Luka",
+  "402": "MKF SUNRISE Sarajevo",
+  "403": "MKF MI-BOSPO Tuzla",
+  "404": "MKF EKI Sarajevo",
+  "405": "MKF MIKRA Sarajevo",
+  "406": "MKF ZENE ZA ZENE International Sarajevo",
 };
 
 export function bankFromAccount(acc: string): string {
@@ -268,7 +287,7 @@ export const FEDERALNI_RACUNI: Racun[] = [
     naziv: "Budžet Federacije BiH",
     banka: bankFromAccount(FBIH_BUDZET_RACUN),
     racun: FBIH_BUDZET_RACUN,
-    napomena: "Doprinos PIO/MIO, federalni porezi, vodna naknada, zaštita od nesreća",
+    napomena: "Doprinos PIO/MIO, federalni porezi",
   },
   {
     naziv: "Zavod zdravstvenog osiguranja i reosiguranja FBiH",
