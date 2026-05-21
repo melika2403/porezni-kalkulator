@@ -9,6 +9,7 @@ import DateInput from "src/components/DateInput/DateInput";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import FaqSection from "src/components/FaqSection/FaqSection";
@@ -134,8 +135,10 @@ function UgovorORaduGate() {
 }
 
 function UgovorORaduApp() {
-  const { hasRole } = useRole();
-  const canGenerate = hasRole("BUSINESS", "ADMIN");
+  // BUSINESS feature: dostupno ako vlastiti plan ili bilo koja moja org ima
+  // BUSINESS-tier vlasnika.
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const canGenerate = hasAccessToTier("BUSINESS");
   const { findByName: findCity } = useCityLookup();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<ActiveTab>(() => {

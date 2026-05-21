@@ -12,6 +12,7 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useLastOrg } from "src/hooks/useLastOrg";
 import QuickAddWorkerModal from "src/components/WorkersSidebar/QuickAddWorkerModal";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
@@ -49,10 +50,13 @@ function fmtPlata(n: number | null): string {
 }
 
 export default function AktivniRadnici() {
-  const { role, hasRole } = useRole();
+  const { role } = useRole();
+  const { hasAccessToTier } = useMaxAccessibleTier();
   const isLoggedIn = role !== null;
-  const canCreateWorker = hasRole("PRO", "BUSINESS", "ADMIN");
-  const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Worker create + klijent-org listing — dostupno ako vlastiti plan ili bilo
+  // koja moja org ima PRO+ vlasnika.
+  const canCreateWorker = hasAccessToTier("PRO");
+  const canSeeClients = hasAccessToTier("PRO");
 
   const searchParams = useSearchParams();
   const { lastOrgId, setLastOrgId } = useLastOrg();

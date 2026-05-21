@@ -8,7 +8,7 @@ import {
   type PersonClient,
   type WorkerWithOrg,
 } from "src/api/profile";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import styles from "./PersonFillSelect.module.css";
 
 export type FillData = {
@@ -37,7 +37,6 @@ function workerLabel(w: WorkerWithOrg): string {
 }
 
 export default function PersonFillSelect({ onFill }: Props) {
-  const { hasRole } = useRole();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -49,7 +48,9 @@ export default function PersonFillSelect({ onFill }: Props) {
     retry: false,
   });
 
-  const isProOrBusiness = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Faza 3B: pristup klijentima imamo ako sami PRO+ ILI smo član PRO+ org-e.
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const isProOrBusiness = hasAccessToTier("PRO");
 
   const { data: clients = [] } = useQuery({
     queryKey: ["personClients"],

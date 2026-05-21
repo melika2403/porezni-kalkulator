@@ -13,7 +13,8 @@ import { fillUodUplatnice } from "./fillUodUplatnice";
 import { KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
 import { iznosUSlova } from "./iznosSlovima";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
+import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import { fillUodDocx, type UodTemplateData } from "./fillUodDocx";
 import { fillUodPdf } from "./fillUodPdf";
 import { fillAug1031 } from "./fillAug1031";
@@ -29,7 +30,10 @@ type Mode = "neto" | "bruto";
 
 // Format number as "1.000,00 KM"
 const fmtKm = (n: number) =>
-  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " KM";
+  n.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + " KM";
 
 // Parse user input "1.000,00" or "1000" → 1000
 const parseAmount = (s: string): number => {
@@ -41,7 +45,12 @@ const parseAmount = (s: string): number => {
 // XXX-XXX-XXXXXXXX-XX (16 digits with dashes)
 const formatZiroRacun = (raw: string): string => {
   const d = raw.replace(/\D/g, "").slice(0, 16);
-  const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)].filter(Boolean);
+  const parts = [
+    d.slice(0, 3),
+    d.slice(3, 6),
+    d.slice(6, 14),
+    d.slice(14, 16),
+  ].filter(Boolean);
   return parts.join("-");
 };
 
@@ -49,21 +58,51 @@ const formatZiroRacun = (raw: string): string => {
 const formatJib = (raw: string): string => raw.replace(/\D/g, "").slice(0, 13);
 
 const IconDownload = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
   </svg>
 );
 
 const IconReceipt = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <path d="M5 3h14v18l-2.5-2-2.5 2-2.5-2-2.5 2L5 21z" />
     <path d="M9 8h6M9 12h6M9 16h4" />
   </svg>
 );
 
 const IconCard = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <rect x="3" y="6" width="18" height="13" rx="2" />
     <path d="M3 10h18M7 15h3" />
   </svg>
@@ -82,12 +121,14 @@ const formatAmountForInput = (s: string): string => {
   return `${intFmt},${decPart}`;
 };
 
+// Faza 3B: korisnik vidi formu ako (a) ima BUSINESS plan, ili (b) je član bilo
+// koje organizacije čiji je vlasnik BUSINESS. ADMIN super-admin uvijek prolazi.
+// Sam DOCX/PDF se generišu lokalno; Save-to-profile zove backend koji dodatno
+// gating-uje po owner-tier-u kad ima organizationId.
 export default function UgovorODjelu() {
-  const { role, isLoading } = useRole();
-  if (isLoading) {
-    return <main className={styles.page} />;
-  }
-  if (role === null) {
+  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
+  if (isLoading) return null;
+  if (!hasAccessToTier("BUSINESS")) {
     return <UgovorODjeluGate />;
   }
   return <UgovorODjeluApp />;
@@ -97,7 +138,11 @@ function UgovorODjeluGate() {
   return (
     <PreviewRegisterGate
       pageLabel="Ugovori"
-      pageTitle={<>Ugovor o djelu — kalkulator i <em>predložak</em></>}
+      pageTitle={
+        <>
+          Ugovor o djelu — kalkulator i <em>predložak</em>
+        </>
+      }
       pageSubtitle="Kalkulator NETO↔BRUTO sa porezima i doprinosima, predložak ugovora i 6 uplatnica spremnih za banku."
       featureName="ugovora o djelu"
       previewDesc="izračunati neto/bruto, vidjeti obračun poreza i doprinosa, popuniti podatke izvršioca i naručioca"
@@ -108,8 +153,8 @@ function UgovorODjeluGate() {
 }
 
 function UgovorODjeluApp() {
-  const { hasRole } = useRole();
-  const canGenerate = hasRole("BUSINESS", "ADMIN");
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const canGenerate = hasAccessToTier("BUSINESS");
   const { findByName: findCity } = useCityLookup();
   const { notify } = useNotice();
   const [mode, setMode] = useState<Mode>("neto");
@@ -130,7 +175,9 @@ function UgovorODjeluApp() {
 
   // Ostalo
   const [predmet, setPredmet] = useState("");
-  const [datum, setDatum] = useState(() => new Date().toISOString().slice(0, 10));
+  const [datum, setDatum] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
   const [rok, setRok] = useState("");
   const [mjestoZakljucenja, setMjestoZakljucenja] = useState("");
   const [brojUgovora, setBrojUgovora] = useState("");
@@ -144,8 +191,9 @@ function UgovorODjeluApp() {
   const [generatingUplatnice, setGeneratingUplatnice] = useState(false);
 
   // Derive period (mjesec/godina) from datum
-  const periodMjesec = (datum?.slice(5, 7) ?? String(new Date().getMonth() + 1).padStart(2, "0"));
-  const periodGodina = (datum?.slice(0, 4) ?? String(new Date().getFullYear()));
+  const periodMjesec =
+    datum?.slice(5, 7) ?? String(new Date().getMonth() + 1).padStart(2, "0");
+  const periodGodina = datum?.slice(0, 4) ?? String(new Date().getFullYear());
 
   const opcine = kantonKey ? KANTONI[kantonKey].opcine : [];
   const opcinaIme = opcine.find((o) => o.kod === opcinaKod)?.ime ?? "";
@@ -156,12 +204,16 @@ function UgovorODjeluApp() {
   };
 
   // Try to map a city name to (kantonKey, opcinaKod)
-  const findKantonAndOpcina = (city: string): { kantonKey: KantonKey; opcinaKod: string } | null => {
+  const findKantonAndOpcina = (
+    city: string,
+  ): { kantonKey: KantonKey; opcinaKod: string } | null => {
     if (!city) return null;
     const target = city.trim().toLowerCase();
     for (const k of Object.keys(KANTONI) as KantonKey[]) {
       const found = KANTONI[k].opcine.find(
-        (o) => o.ime.toLowerCase() === target || target.includes(o.ime.toLowerCase()),
+        (o) =>
+          o.ime.toLowerCase() === target ||
+          target.includes(o.ime.toLowerCase()),
       );
       if (found) return { kantonKey: k, opcinaKod: found.kod };
     }
@@ -221,7 +273,9 @@ function UgovorODjeluApp() {
     setGeneratingPdf(true);
     try {
       const bytes = await fillUodPdf(buildTemplateData());
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -263,7 +317,9 @@ function UgovorODjeluApp() {
         porez: calc.porez,
         pio: calc.pio,
       });
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -271,7 +327,10 @@ function UgovorODjeluApp() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      notify("Greška pri generisanju AUG-1031: " + (e as Error).message, "error");
+      notify(
+        "Greška pri generisanju AUG-1031: " + (e as Error).message,
+        "error",
+      );
     } finally {
       setGeneratingAug(false);
     }
@@ -315,7 +374,9 @@ function UgovorODjeluApp() {
         periodMjesec,
         periodGodina,
       });
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -329,14 +390,18 @@ function UgovorODjeluApp() {
 
   const iznos = parseAmount(iznosStr);
   const calc = useMemo(() => {
-    const c = mode === "neto" ? calcFromNeto(iznos, troskoviPct) : calcFromBruto(iznos, troskoviPct);
+    const c =
+      mode === "neto"
+        ? calcFromNeto(iznos, troskoviPct)
+        : calcFromBruto(iznos, troskoviPct);
     // When user knows the NET amount, keep the exact input as displayed neto
     // (avoids rounding drift like 1000 → 999.99)
     if (mode === "neto" && iznos > 0) {
       const naknadaZaIsplatu = Math.round(iznos * 100) / 100;
       const zastita = Math.round(naknadaZaIsplatu * 0.005 * 100) / 100;
       const voda = Math.round(naknadaZaIsplatu * 0.005 * 100) / 100;
-      const ukupniTroskovi = Math.round((c.bruto + c.pio + zastita + voda) * 100) / 100;
+      const ukupniTroskovi =
+        Math.round((c.bruto + c.pio + zastita + voda) * 100) / 100;
       return {
         ...c,
         neto: naknadaZaIsplatu,
@@ -344,7 +409,10 @@ function UgovorODjeluApp() {
         zastita,
         voda,
         ukupniTroskovi,
-        porezDoprinosNaNetoPct: Math.round(((ukupniTroskovi - naknadaZaIsplatu) / naknadaZaIsplatu) * 10000) / 100,
+        porezDoprinosNaNetoPct:
+          Math.round(
+            ((ukupniTroskovi - naknadaZaIsplatu) / naknadaZaIsplatu) * 10000,
+          ) / 100,
       };
     }
     return c;
@@ -379,7 +447,9 @@ function UgovorODjeluApp() {
               onChange={(e) => setVrsta(e.target.value as VrstaNaknade)}
             >
               {(Object.keys(VRSTA_OPTIONS) as VrstaNaknade[]).map((k) => (
-                <option key={k} value={k}>{VRSTA_OPTIONS[k].label}</option>
+                <option key={k} value={k}>
+                  {VRSTA_OPTIONS[k].label}
+                </option>
               ))}
             </select>
           </label>
@@ -408,7 +478,9 @@ function UgovorODjeluApp() {
               type="text"
               inputMode="decimal"
               value={iznosStr}
-              onChange={(e) => setIznosStr(formatAmountForInput(e.target.value))}
+              onChange={(e) =>
+                setIznosStr(formatAmountForInput(e.target.value))
+              }
               placeholder="0,00"
             />
             <span className={styles.amountSuffix}>KM</span>
@@ -424,22 +496,109 @@ function UgovorODjeluApp() {
         <div className={styles.calcGrid}>
           <table className={styles.calcTable}>
             <tbody>
-              <tr><td>1</td><td>Neto iznos naknade</td><td className={styles.calcVal}>{fmtKm(calc.neto)}</td></tr>
-              <tr><td>2</td><td>Bruto iznos UoD <span className={styles.calcFormula}>(rb. 1 × {nettoBrutoMultiplier(troskoviPct).toFixed(6).replace(".", ",")})</span></td><td className={styles.calcVal}>{fmtKm(calc.bruto)}</td></tr>
-              <tr className={styles.calcDeduction}><td>3</td><td>Priznati troškovi {(troskoviPct * 100).toFixed(0)}%</td><td className={styles.calcVal}>{fmtKm(calc.priznatiTroskovi)}</td></tr>
-              <tr><td>4</td><td>Bruto naknada umanjena za troškove</td><td className={styles.calcVal}>{fmtKm(calc.brutoUmanjenZaTroskove)}</td></tr>
-              <tr className={styles.calcDeduction}><td>5</td><td>Doprinos za zdravstveno 4%</td><td className={styles.calcVal}>{fmtKm(calc.zdravstveno)}</td></tr>
-              <tr><td>6</td><td>Osnovica za porez</td><td className={styles.calcVal}>{fmtKm(calc.osnovicaZaPorez)}</td></tr>
-              <tr><td>7</td><td>Porez na dohodak 10%</td><td className={styles.calcVal}>{fmtKm(calc.porez)}</td></tr>
-              <tr><td>8</td><td>Naknada po odbitku zdravstva i poreza</td><td className={styles.calcVal}>{fmtKm(calc.naknadaPoOdbitku)}</td></tr>
-              <tr><td>9</td><td>Priznati troškovi (vraćeni)</td><td className={styles.calcVal}>{fmtKm(calc.priznatiTroskovi)}</td></tr>
-              <tr className={styles.calcHighlight}><td>10</td><td>Naknada za isplatu</td><td className={styles.calcVal}>{fmtKm(calc.naknadaZaIsplatu)}</td></tr>
-              <tr className={styles.calcDeduction}><td>11</td><td>PIO 6% (na teret naručioca)</td><td className={styles.calcVal}>{fmtKm(calc.pio)}</td></tr>
-              <tr className={styles.calcDeduction}><td>12</td><td>Zaštita od prirodnih nepogoda 0,5%</td><td className={styles.calcVal}>{fmtKm(calc.zastita)}</td></tr>
-              <tr className={styles.calcDeduction}><td>13</td><td>Opšta vodna naknada 0,5%</td><td className={styles.calcVal}>{fmtKm(calc.voda)}</td></tr>
-              <tr className={styles.calcTotal}><td>14</td><td>Ukupni troškovi naručioca</td><td className={styles.calcVal}>{fmtKm(calc.ukupniTroskovi)}</td></tr>
-              <tr><td>15</td><td>Isplata izvršiocu</td><td className={styles.calcVal}>{fmtKm(calc.neto)}</td></tr>
-              <tr><td>16</td><td>Porezi i doprinosi (% na neto)</td><td className={styles.calcVal}>{calc.porezDoprinosNaNetoPct.toFixed(2).replace(".", ",")}%</td></tr>
+              <tr>
+                <td>1</td>
+                <td>Neto iznos naknade</td>
+                <td className={styles.calcVal}>{fmtKm(calc.neto)}</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td>
+                  Bruto iznos UoD{" "}
+                  <span className={styles.calcFormula}>
+                    (rb. 1 ×{" "}
+                    {nettoBrutoMultiplier(troskoviPct)
+                      .toFixed(6)
+                      .replace(".", ",")}
+                    )
+                  </span>
+                </td>
+                <td className={styles.calcVal}>{fmtKm(calc.bruto)}</td>
+              </tr>
+              <tr className={styles.calcDeduction}>
+                <td>3</td>
+                <td>Priznati troškovi {(troskoviPct * 100).toFixed(0)}%</td>
+                <td className={styles.calcVal}>
+                  {fmtKm(calc.priznatiTroskovi)}
+                </td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td>Bruto naknada umanjena za troškove</td>
+                <td className={styles.calcVal}>
+                  {fmtKm(calc.brutoUmanjenZaTroskove)}
+                </td>
+              </tr>
+              <tr className={styles.calcDeduction}>
+                <td>5</td>
+                <td>Doprinos za zdravstveno 4%</td>
+                <td className={styles.calcVal}>{fmtKm(calc.zdravstveno)}</td>
+              </tr>
+              <tr>
+                <td>6</td>
+                <td>Osnovica za porez</td>
+                <td className={styles.calcVal}>
+                  {fmtKm(calc.osnovicaZaPorez)}
+                </td>
+              </tr>
+              <tr>
+                <td>7</td>
+                <td>Porez na dohodak 10%</td>
+                <td className={styles.calcVal}>{fmtKm(calc.porez)}</td>
+              </tr>
+              <tr>
+                <td>8</td>
+                <td>Naknada po odbitku zdravstva i poreza</td>
+                <td className={styles.calcVal}>
+                  {fmtKm(calc.naknadaPoOdbitku)}
+                </td>
+              </tr>
+              <tr>
+                <td>9</td>
+                <td>Priznati troškovi (vraćeni)</td>
+                <td className={styles.calcVal}>
+                  {fmtKm(calc.priznatiTroskovi)}
+                </td>
+              </tr>
+              <tr className={styles.calcHighlight}>
+                <td>10</td>
+                <td>Naknada za isplatu</td>
+                <td className={styles.calcVal}>
+                  {fmtKm(calc.naknadaZaIsplatu)}
+                </td>
+              </tr>
+              <tr className={styles.calcDeduction}>
+                <td>11</td>
+                <td>PIO 6% (na teret naručioca)</td>
+                <td className={styles.calcVal}>{fmtKm(calc.pio)}</td>
+              </tr>
+              <tr className={styles.calcDeduction}>
+                <td>12</td>
+                <td>Zaštita od prirodnih nepogoda 0,5%</td>
+                <td className={styles.calcVal}>{fmtKm(calc.zastita)}</td>
+              </tr>
+              <tr className={styles.calcDeduction}>
+                <td>13</td>
+                <td>Opšta vodna naknada 0,5%</td>
+                <td className={styles.calcVal}>{fmtKm(calc.voda)}</td>
+              </tr>
+              <tr className={styles.calcTotal}>
+                <td>14</td>
+                <td>Ukupni troškovi naručioca</td>
+                <td className={styles.calcVal}>{fmtKm(calc.ukupniTroskovi)}</td>
+              </tr>
+              <tr>
+                <td>15</td>
+                <td>Isplata izvršiocu</td>
+                <td className={styles.calcVal}>{fmtKm(calc.neto)}</td>
+              </tr>
+              <tr>
+                <td>16</td>
+                <td>Porezi i doprinosi (% na neto)</td>
+                <td className={styles.calcVal}>
+                  {calc.porezDoprinosNaNetoPct.toFixed(2).replace(".", ",")}%
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -459,7 +618,9 @@ function UgovorODjeluApp() {
               <UgovorFillSelect
                 onFill={({ name, address, city, id, bankAccount }) => {
                   setNaruciIme(name);
-                  setNaruciAdresa(formatAddress(address, city, findCity(city)?.postalCode));
+                  setNaruciAdresa(
+                    formatAddress(address, city, findCity(city)?.postalCode),
+                  );
                   setNaruciId(id);
                   if (bankAccount) setNaruciZiro(bankAccount);
                   const ko = findKantonAndOpcina(city);
@@ -472,11 +633,19 @@ function UgovorODjeluApp() {
             </div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Naziv / ime i prezime</span>
-              <input className={styles.input} value={naruciIme} onChange={(e) => setNaruciIme(e.target.value)} />
+              <input
+                className={styles.input}
+                value={naruciIme}
+                onChange={(e) => setNaruciIme(e.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Adresa</span>
-              <input className={styles.input} value={naruciAdresa} onChange={(e) => setNaruciAdresa(e.target.value)} />
+              <input
+                className={styles.input}
+                value={naruciAdresa}
+                onChange={(e) => setNaruciAdresa(e.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>JIB / ID broj</span>
@@ -497,7 +666,9 @@ function UgovorODjeluApp() {
               <UgovorFillSelect
                 onFill={({ name, address, city, id, bankAccount }) => {
                   setIzvrIme(name);
-                  setIzvrAdresa(formatAddress(address, city, findCity(city)?.postalCode));
+                  setIzvrAdresa(
+                    formatAddress(address, city, findCity(city)?.postalCode),
+                  );
                   setIzvrJmbg(id);
                   if (bankAccount) setIzvrZiro(bankAccount);
                 }}
@@ -505,11 +676,19 @@ function UgovorODjeluApp() {
             </div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Ime i prezime</span>
-              <input className={styles.input} value={izvrIme} onChange={(e) => setIzvrIme(e.target.value)} />
+              <input
+                className={styles.input}
+                value={izvrIme}
+                onChange={(e) => setIzvrIme(e.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Adresa</span>
-              <input className={styles.input} value={izvrAdresa} onChange={(e) => setIzvrAdresa(e.target.value)} />
+              <input
+                className={styles.input}
+                value={izvrAdresa}
+                onChange={(e) => setIzvrAdresa(e.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>JMBG</span>
@@ -522,7 +701,9 @@ function UgovorODjeluApp() {
               />
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Žiro račun (transakcijski)</span>
+              <span className={styles.fieldLabel}>
+                Žiro račun (transakcijski)
+              </span>
               <input
                 className={styles.input}
                 value={izvrZiro}
@@ -542,7 +723,9 @@ function UgovorODjeluApp() {
         </h2>
         <div className={styles.fieldGrid}>
           <label className={`${styles.field} ${styles.fieldFull}`}>
-            <span className={styles.fieldLabel}>Opis posla / predmet ugovora</span>
+            <span className={styles.fieldLabel}>
+              Opis posla / predmet ugovora
+            </span>
             <textarea
               className={styles.textarea}
               rows={3}
@@ -551,7 +734,9 @@ function UgovorODjeluApp() {
               placeholder="Npr. izradi web stranicu prema specifikaciji, izvrši teoretsku obuku u autoškoli..."
             />
             <p className={styles.hint}>
-              Tekst se direktno nadovezuje na &ldquo;Izvršilac posla prihvata...&rdquo; — započnite glagolom (&ldquo;izvrši&rdquo;, &ldquo;izradi&rdquo;, &ldquo;obavi&rdquo;).
+              Tekst se direktno nadovezuje na &ldquo;Izvršilac posla
+              prihvata...&rdquo; — započnite glagolom (&ldquo;izvrši&rdquo;,
+              &ldquo;izradi&rdquo;, &ldquo;obavi&rdquo;).
             </p>
           </label>
           <div className={styles.field}>
@@ -608,7 +793,9 @@ function UgovorODjeluApp() {
             />
           </label>
           <label className={`${styles.field} ${styles.fieldFull}`}>
-            <span className={styles.fieldLabel}>Nadležni sud (u slučaju spora)</span>
+            <span className={styles.fieldLabel}>
+              Nadležni sud (u slučaju spora)
+            </span>
             <input
               className={styles.input}
               value={nadlezniSud}
@@ -624,6 +811,36 @@ function UgovorODjeluApp() {
         <GeneratePaywall tier="BUSINESS" what="Generisanje ugovora o djelu" />
       )}
       <div className={`${styles.actions} ${styles.actionsCenter}`}>
+        <SaveToProfileButton
+          type="UOD"
+          year={parseInt(periodGodina) || new Date().getFullYear()}
+          month={parseInt(periodMjesec) || null}
+          title={`Ugovor o djelu · ${naruciIme || "Naručilac"} → ${izvrIme || "Izvršilac"}${brojUgovora ? ` · ${brojUgovora}` : ""}`}
+          buildData={() => ({
+            // Snapshot cijele forme kao JSON — može se kasnije re-renderovati
+            mode,
+            vrsta,
+            iznosStr,
+            naruciIme,
+            naruciAdresa,
+            naruciId,
+            naruciZiro,
+            izvrIme,
+            izvrAdresa,
+            izvrJmbg,
+            izvrZiro,
+            predmet,
+            datum,
+            rok,
+            mjestoZakljucenja,
+            brojUgovora,
+            nadlezniSud,
+            kantonKey,
+            opcinaKod,
+            calc,
+          })}
+          disabled={!naruciIme || !izvrIme}
+        />
         <button
           type="button"
           className={styles.btnPrimary}
@@ -631,7 +848,8 @@ function UgovorODjeluApp() {
           disabled={generatingDocx || !canGenerate}
           title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
         >
-          {IconDownload} {generatingDocx ? "Generišem…" : "Preuzmi ugovor (DOCX)"}
+          {IconDownload}{" "}
+          {generatingDocx ? "Generišem…" : "Preuzmi ugovor (DOCX)"}
         </button>
         <button
           type="button"
@@ -650,7 +868,8 @@ function UgovorODjeluApp() {
             disabled={generatingAug || !canGenerate}
             title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
           >
-            {IconReceipt} {generatingAug ? "Generišem…" : "Preuzmi AUG-1031 (PDF)"}
+            {IconReceipt}{" "}
+            {generatingAug ? "Generišem…" : "Preuzmi AUG-1031 (PDF)"}
           </button>
           <button
             type="button"
@@ -673,17 +892,21 @@ function UgovorODjeluApp() {
               </button>
               <strong>Šta je AUG-1031?</strong>
               <p>
-                AUG-1031 je obrazac &ldquo;Akontacija poreza po odbitku za povremene
-                samostalne djelatnosti&rdquo; koji naručilac (isplatilac) popunjava i{" "}
-                <strong>obavezno uručuje izvršiocu</strong> uz isplatu naknade po ugovoru o djelu.
+                AUG-1031 je obrazac &ldquo;Akontacija poreza po odbitku za
+                povremene samostalne djelatnosti&rdquo; koji naručilac
+                (isplatilac) popunjava i{" "}
+                <strong>obavezno uručuje izvršiocu</strong> uz isplatu naknade
+                po ugovoru o djelu.
               </p>
               <p>
-                Obrazac sadrži sve podatke o isplaćenom prihodu, priznatim rashodima,
-                doprinosu za zdravstveno, porezu na dohodak i PIO doprinosu.
+                Obrazac sadrži sve podatke o isplaćenom prihodu, priznatim
+                rashodima, doprinosu za zdravstveno, porezu na dohodak i PIO
+                doprinosu.
               </p>
               <p>
-                Izvršilac ga koristi pri podnošenju <strong>godišnje prijave dohotka (GPD-1051)</strong>{" "}
-                na kraju godine kao dokaz o uplaćenoj akontaciji poreza.
+                Izvršilac ga koristi pri podnošenju{" "}
+                <strong>godišnje prijave dohotka (GPD-1051)</strong> na kraju
+                godine kao dokaz o uplaćenoj akontaciji poreza.
               </p>
             </div>
           )}
@@ -701,11 +924,15 @@ function UgovorODjeluApp() {
             <select
               className={styles.input}
               value={kantonKey}
-              onChange={(e) => handleKantonChange(e.target.value as KantonKey | "")}
+              onChange={(e) =>
+                handleKantonChange(e.target.value as KantonKey | "")
+              }
             >
               <option value="">— Odaberite kanton —</option>
               {(Object.keys(KANTONI) as KantonKey[]).map((k) => (
-                <option key={k} value={k}>{KANTONI[k].ime}</option>
+                <option key={k} value={k}>
+                  {KANTONI[k].ime}
+                </option>
               ))}
             </select>
           </label>
@@ -719,7 +946,9 @@ function UgovorODjeluApp() {
             >
               <option value="">— Odaberite općinu —</option>
               {opcine.map((o) => (
-                <option key={o.kod} value={o.kod}>{o.ime}</option>
+                <option key={o.kod} value={o.kod}>
+                  {o.ime}
+                </option>
               ))}
             </select>
           </label>
@@ -733,7 +962,8 @@ function UgovorODjeluApp() {
               placeholder="XXX-XXX-XXXXXXXX-XX"
             />
             <p className={styles.hint}>
-              Ukoliko plaćate preko žiro računa, unesite vaš žiro račun. Ako plaćate u gotovini, ostavite prazno.
+              Ukoliko plaćate preko žiro računa, unesite vaš žiro račun. Ako
+              plaćate u gotovini, ostavite prazno.
             </p>
           </label>
         </div>
@@ -745,12 +975,48 @@ function UgovorODjeluApp() {
             const placeholderRacun = "Odaberite kanton";
             const placeholderPrimalac = k ? "" : "Odaberite kanton";
             return [
-              { title: "Zdravstveno osiguranje — kanton", racun: k?.zoRacun ?? placeholderRacun, primalac: k ? `ZZO ${k.genitiv}` : placeholderPrimalac, vrsta: "712116", iznos: calc.zdravstvenoKanton },
-              { title: "Zdravstveno osiguranje — FBiH", racun: "102-050-00000640-18", primalac: "ZZO FBiH", vrsta: "712116", iznos: calc.zdravstvenoFbih },
-              { title: "Porez na dohodak — kantonalni budžet", racun: k?.budzet ?? placeholderRacun, primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac, vrsta: "716116", iznos: calc.porez },
-              { title: "PIO/MIO doprinos", racun: "102-050-00001066-98", primalac: "Budžet Federacije BiH", vrsta: "712126", iznos: calc.pio },
-              { title: "Zaštita od prirodnih nepogoda", racun: k?.budzet ?? placeholderRacun, primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac, vrsta: "722582", iznos: calc.zastita },
-              { title: "Opšta vodna naknada", racun: k?.budzet ?? placeholderRacun, primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac, vrsta: "722582", iznos: calc.voda },
+              {
+                title: "Zdravstveno osiguranje — kanton",
+                racun: k?.zoRacun ?? placeholderRacun,
+                primalac: k ? `ZZO ${k.genitiv}` : placeholderPrimalac,
+                vrsta: "712116",
+                iznos: calc.zdravstvenoKanton,
+              },
+              {
+                title: "Zdravstveno osiguranje — FBiH",
+                racun: "102-050-00000640-18",
+                primalac: "ZZO FBiH",
+                vrsta: "712116",
+                iznos: calc.zdravstvenoFbih,
+              },
+              {
+                title: "Porez na dohodak — kantonalni budžet",
+                racun: k?.budzet ?? placeholderRacun,
+                primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac,
+                vrsta: "716116",
+                iznos: calc.porez,
+              },
+              {
+                title: "PIO/MIO doprinos",
+                racun: "102-050-00001066-98",
+                primalac: "Budžet Federacije BiH",
+                vrsta: "712126",
+                iznos: calc.pio,
+              },
+              {
+                title: "Zaštita od prirodnih nepogoda",
+                racun: k?.budzet ?? placeholderRacun,
+                primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac,
+                vrsta: "722582",
+                iznos: calc.zastita,
+              },
+              {
+                title: "Opšta vodna naknada",
+                racun: k?.budzet ?? placeholderRacun,
+                primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac,
+                vrsta: "722582",
+                iznos: calc.voda,
+              },
             ];
           })().map((u, i) => (
             <div key={i} className={styles.uplCard}>
@@ -768,11 +1034,13 @@ function UgovorODjeluApp() {
             </div>
           ))}
         </div>
-
       </section>
 
       {!canGenerate && (
-        <GeneratePaywall tier="BUSINESS" what="Generisanje uplatnica za ugovor o djelu" />
+        <GeneratePaywall
+          tier="BUSINESS"
+          what="Generisanje uplatnica za ugovor o djelu"
+        />
       )}
       <div className={`${styles.actions} ${styles.actionsCenter}`}>
         <button
@@ -782,13 +1050,15 @@ function UgovorODjeluApp() {
           disabled={generatingUplatnice || !canGenerate}
           title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
         >
-          {IconCard} {generatingUplatnice ? "Generišem…" : "Preuzmi uplatnice (PDF)"}
+          {IconCard}{" "}
+          {generatingUplatnice ? "Generišem…" : "Preuzmi uplatnice (PDF)"}
         </button>
       </div>
 
       <p className={styles.disclaimer}>
-        Stope i formula su informativne, prema važećem Zakonu o porezu na dohodak FBiH.
-        Provjerite tačnost prije korištenja u finalnim dokumentima.
+        Stope i formula su informativne, prema važećem Zakonu o porezu na
+        dohodak FBiH. Provjerite tačnost prije korištenja u finalnim
+        dokumentima.
       </p>
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
@@ -800,16 +1070,16 @@ function UgovorODjeluApp() {
           <strong>Ugovor o djelu</strong> je vrsta autorskog ugovora kojim se
           izvršilac obavezuje da naručiocu obavi određeni posao — izradi
           projekta, sastavljanje teksta, pružanje konsultantskih usluga,
-          autorska djela, ekspertize, predavanja i sl. — a naručilac da mu za
-          to plati ugovorenu naknadu. Regulisan je <em>Zakonom o obligacionim
-          odnosima</em>, a porezni tretman propisan je Zakonom o porezu na
-          dohodak FBiH.
+          autorska djela, ekspertize, predavanja i sl. — a naručilac da mu za to
+          plati ugovorenu naknadu. Regulisan je{" "}
+          <em>Zakonom o obligacionim odnosima</em>, a porezni tretman propisan
+          je Zakonom o porezu na dohodak FBiH.
         </p>
         <p style={{ marginTop: "0.85rem" }}>
-          Razlikuje se od ugovora o radu po tome što <strong>ne zasniva radni
-          odnos</strong> — nema pune zaštite radnika (godišnji odmor, otkazni
-          rok, povreda na radu), ali ima poreznu fleksibilnost i pogodan je za
-          jednokratne ili projektne angažmane.
+          Razlikuje se od ugovora o radu po tome što{" "}
+          <strong>ne zasniva radni odnos</strong> — nema pune zaštite radnika
+          (godišnji odmor, otkazni rok, povreda na radu), ali ima poreznu
+          fleksibilnost i pogodan je za jednokratne ili projektne angažmane.
         </p>
       </section>
 
@@ -817,8 +1087,16 @@ function UgovorODjeluApp() {
         <h2 className={styles.sectionTitle}>
           Porez i doprinosi na ugovor o <em>djelu</em>
         </h2>
-        <p>Iz bruto naknade priznaju se <strong>normirani rashodi</strong>:</p>
-        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+        <p>
+          Iz bruto naknade priznaju se <strong>normirani rashodi</strong>:
+        </p>
+        <ul
+          style={{
+            marginTop: "0.5rem",
+            paddingLeft: "1.25rem",
+            lineHeight: 1.7,
+          }}
+        >
           <li>
             <strong>20%</strong> — standardni ugovor o djelu (usluge, projekti,
             konsultacije).
@@ -828,12 +1106,18 @@ function UgovorODjeluApp() {
             likovna ostvarenja, naučna djela).
           </li>
           <li>
-            <strong>0%</strong> — naknade članovima komisija, nadzornih odbora
-            i sličnih tijela.
+            <strong>0%</strong> — naknade članovima komisija, nadzornih odbora i
+            sličnih tijela.
           </li>
         </ul>
         <p style={{ marginTop: "0.85rem" }}>Na umanjenu osnovicu plaća se:</p>
-        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+        <ul
+          style={{
+            marginTop: "0.5rem",
+            paddingLeft: "1.25rem",
+            lineHeight: 1.7,
+          }}
+        >
           <li>
             <strong>4% doprinos za zdravstveno osiguranje</strong> (iz primitaka
             od druge samostalne djelatnosti — šifra 712116),
@@ -844,8 +1128,8 @@ function UgovorODjeluApp() {
           </li>
         </ul>
         <p style={{ marginTop: "0.85rem" }}>
-          Naručilac dodatno plaća <strong>6% PIO doprinos</strong> te 0,5%
-          opšta vodna naknada i 0,5% naknada za zaštitu od prirodnih nesreća —
+          Naručilac dodatno plaća <strong>6% PIO doprinos</strong> te 0,5% opšta
+          vodna naknada i 0,5% naknada za zaštitu od prirodnih nesreća —
           obračunato na neto iznos.
         </p>
       </section>
@@ -854,12 +1138,18 @@ function UgovorODjeluApp() {
         <h2 className={styles.sectionTitle}>
           Kako popuniti ugovor o djelu u <em>4 koraka</em>
         </h2>
-        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+        <ol
+          style={{
+            marginTop: "0.5rem",
+            paddingLeft: "1.25rem",
+            lineHeight: 1.7,
+          }}
+        >
           <li>
             <strong>Unesite iznos naknade</strong> — odaberite vrstu (standardna
             20%, autorsko djelo 30%, komisija 0%) i unesite NETO ili BRUTO
-            iznos. Kalkulator automatski računa porez, doprinose, PIO, zaštitu
-            i vodnu naknadu.
+            iznos. Kalkulator automatski računa porez, doprinose, PIO, zaštitu i
+            vodnu naknadu.
           </li>
           <li>
             <strong>Popunite ugovorne strane</strong> — podaci naručioca
@@ -882,7 +1172,13 @@ function UgovorODjeluApp() {
         <h2 className={styles.sectionTitle}>
           Razlika: ugovor o djelu <em>vs.</em> ugovor o radu
         </h2>
-        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+        <ul
+          style={{
+            marginTop: "0.5rem",
+            paddingLeft: "1.25rem",
+            lineHeight: 1.7,
+          }}
+        >
           <li>
             <strong>Ugovor o djelu</strong> — jednokratna ili projektna
             angažovanost, izvršilac sam organizuje rad, nema fiksnog radnog
@@ -891,7 +1187,8 @@ function UgovorODjeluApp() {
           <li>
             <strong>Ugovor o radu</strong> — stalni radni odnos, fiksno radno
             vrijeme, godišnji odmor, otkazni rokovi, zaštita od povrede na radu.
-            Veći porezni teret (puni doprinosi za PIO, zdravstveno, nezaposlenost).
+            Veći porezni teret (puni doprinosi za PIO, zdravstveno,
+            nezaposlenost).
           </li>
         </ul>
         <p style={{ marginTop: "0.85rem" }}>
@@ -919,15 +1216,27 @@ function UgovorODjeluApp() {
         <h2 className={styles.sectionTitle}>
           Povezani <em>alati</em>
         </h2>
-        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+        <ul
+          style={{
+            marginTop: "0.5rem",
+            paddingLeft: "1.25rem",
+            lineHeight: 1.9,
+          }}
+        >
           <li>
-            <a href="/ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a
+              href="/ugovor-o-radu"
+              style={{ color: "var(--sage)", fontWeight: 600 }}
+            >
               Ugovor o radu i otkaz
             </a>{" "}
             — za stalno radno angažovanje (alternativa UoD-u).
           </li>
           <li>
-            <a href="/ugovor-o-pozajmici" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a
+              href="/ugovor-o-pozajmici"
+              style={{ color: "var(--sage)", fontWeight: 600 }}
+            >
               Ugovor o pozajmici
             </a>{" "}
             — za pozajmicu novca između strana.
@@ -939,7 +1248,10 @@ function UgovorODjeluApp() {
             — slična porezna logika za prihode iz inostranstva.
           </li>
           <li>
-            <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a
+              href="/preracun-neto-bruto"
+              style={{ color: "var(--sage)", fontWeight: 600 }}
+            >
               Preračun neto/bruto plate
             </a>{" "}
             — provjera obračuna za radnike u radnom odnosu.

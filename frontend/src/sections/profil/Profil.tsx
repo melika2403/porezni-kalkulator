@@ -90,6 +90,8 @@ const FORM_TYPE_LABELS: Record<FormType, string> = {
   SPR: "SPR",
   ZO3: "ZO3",
   UGOVOR: "Ugovor",
+  UOD: "Ugovor o djelu",
+  SIH: "Šihterica",
   PLDI: "PLDI",
   AMS: "AMS",
   JS3100: "JS3100",
@@ -128,6 +130,8 @@ function typeBadgeClass(type: FormType, s: Record<string, string>) {
     SPR: s.badgeSpr,
     ZO3: s.badgeZo3,
     UGOVOR: s.badgeUgovor,
+    UOD: s.badgeUod ?? s.badgeUgovor,
+    SIH: s.badgeSih ?? s.badgeUgovor,
     PLDI: s.badgePldi,
     AMS: s.badgeAms ?? s.badgeUgovor,
     JS3100: s.badgeJs3100 ?? s.badgeUgovor,
@@ -2149,6 +2153,9 @@ const FILTER_OPTIONS: Array<{ label: string; value: HistorijaFilter }> = [
   { label: "SPR", value: "SPR" },
   { label: "ZO3", value: "ZO3" },
   { label: "Ugovor o pozajmici", value: "UGOVOR" },
+  { label: "Ugovor o djelu", value: "UOD" },
+  { label: "Šihterica", value: "SIH" },
+  { label: "JS3100", value: "JS3100" },
   { label: "Stalna sredstva (PLDI)", value: "PLDI" },
 ];
 
@@ -2441,6 +2448,15 @@ function HistorijaTab() {
   const [nameByYear, setNameByYear] = useState<Record<number, string>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  // Faza 3B: dohvati moj userId radi prikaza "Tim" indikatora na team-shared
+  // formama koje je kreirao neko drugi član iz iste org-e.
+  const { data: meData } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()),
+    retry: false,
+  });
+  const myUserId = meData?.id ?? null;
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) =>
       deleteDocument(id).then((res) => {
@@ -2621,7 +2637,25 @@ function HistorijaTab() {
                   {FORM_TYPE_LABELS[f.type]}
                 </span>
                 <div className={styles.formDetails}>
-                  <div className={styles.formTitle}>{displayTitle(f)}</div>
+                  <div className={styles.formTitle}>
+                    {displayTitle(f)}
+                    {/* Faza 3B: team marker za forme koje je kreirao drugi član iz iste org-e */}
+                    {f.organization && f.createdById !== null && myUserId !== null && f.createdById !== myUserId && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 11,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          background: "var(--color-bg-subtle, #f0f0f0)",
+                          color: "var(--color-text-muted, #666)",
+                        }}
+                        title="Dokument kreiran od strane drugog člana organizacije"
+                      >
+                        Tim
+                      </span>
+                    )}
+                  </div>
                   <div className={styles.formMeta}>
                     {recipientLabel(f)}
                     {(() => {

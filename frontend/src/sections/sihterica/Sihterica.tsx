@@ -368,7 +368,7 @@ function SihtericaApp() {
   const { notify } = useNotice();
   const now = new Date();
   const { hasRole } = useRole();
-  const canExport = hasRole("PRO", "BUSINESS", "ADMIN");
+  const isSuperAdmin = hasRole("ADMIN");
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: () => unwrap(me()),
@@ -802,6 +802,15 @@ function SihtericaApp() {
 
   // ─── PDF export ────────────────────────────────────────────────────────────
   const selectedOrg = orgsQuery.data?.find((o) => o.id === orgId) ?? null;
+
+  // Export/save je BUSINESS feature i prati owner tier OBRAZOM IZABRANE ORG-E.
+  // Tako FREE/USER member u BUSINESS owner orgu dobija export, dok ga vlastiti
+  // PRO/BUSINESS korisnik gubi ako izabere FREE owner-ovu org (rijetko, ali
+  // dosljedno).
+  const canExport =
+    isSuperAdmin ||
+    selectedOrg?.effectiveTier === "PRO" ||
+    selectedOrg?.effectiveTier === "BUSINESS";
 
   const handleExport = useCallback(async () => {
     const pdfBytes = await fillSihterica({

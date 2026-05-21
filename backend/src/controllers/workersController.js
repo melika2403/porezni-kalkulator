@@ -1,6 +1,10 @@
 const { Op } = require("sequelize");
 const { Worker, OrganizationMember, ContractCounter, sequelize } = require("../models/index");
 const { encryptJmbg, decryptJmbg } = require("../utils/encryptJmbg");
+const { getOrgOwnerRole } = require("../services/tierService");
+
+const PRO_WORKERS_LIMIT = 5;
+const USER_WORKERS_LIMIT = 1;
 
 const VALID_ROLES = ["VLASNIK", "RADNIK"];
 
@@ -236,16 +240,22 @@ async function create(req, res) {
   const membership = await assertMembership(orgId, req.user.id, ["OWNER", "ADMIN"]);
   if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
-  if (req.user.role === "PRO") {
-    const count = await Worker.count({ where: { organizationId: orgId } });
-    if (count >= 5) {
-      return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
-    }
-  }
-  if (req.user.role === "USER") {
-    const count = await Worker.count({ where: { organizationId: orgId } });
-    if (count >= 1) {
-      return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
+  // Worker count limits follow the OWNER's plan, not the caller's.
+  // A free MEMBER inside a BUSINESS owner's org enjoys BUSINESS limits (unlimited).
+  // Faza 3: brojimo SAMO radnike s rolom RADNIK; VLASNIK (auto-kreiran) se ne broji.
+  const ownerTier = req.orgOwnerTier ?? (await getOrgOwnerRole(orgId));
+  const resolvedRoleForLimit = (req.body?.role ?? "RADNIK");
+  if (resolvedRoleForLimit === "RADNIK") {
+    if (ownerTier === "USER") {
+      const count = await Worker.count({ where: { organizationId: orgId, role: "RADNIK" } });
+      if (count >= USER_WORKERS_LIMIT) {
+        return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
+      }
+    } else if (ownerTier === "PRO") {
+      const count = await Worker.count({ where: { organizationId: orgId, role: "RADNIK" } });
+      if (count >= PRO_WORKERS_LIMIT) {
+        return res.status(403).json({ ok: false, error: "WORKERS_LIMIT_REACHED" });
+      }
     }
   }
 

@@ -39,7 +39,7 @@ import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import {
   getOsnovica,
   KATEGORIJA_PAUSALNI_LABELS,
@@ -299,9 +299,11 @@ function ObracunPlataApp() {
     [setLastOrgId],
   );
 
-  const { hasRole } = useRole();
-  const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
-  const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
+  // PRO feature: dostupno ako vlastiti plan ili bilo koja moja org ima PRO+
+  // vlasnika (members of BUSINESS owner's org dobijaju pun pristup).
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const canSeeClients = hasAccessToTier("PRO");
+  const canGenerate = hasAccessToTier("PRO");
   const { confirm: confirmDialog, notify } = useNotice();
 
   const orgsQuery = useQuery({

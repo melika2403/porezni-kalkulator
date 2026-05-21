@@ -819,8 +819,11 @@ export default function Organizacija({ orgId }: { orgId: number }) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const canEdit = org?.memberRole === "OWNER" || org?.memberRole === "ADMIN";
-  const isProLimitReached = userRole === "PRO" && workers.length >= PRO_WORKERS_LIMIT;
-  const isUserLimitReached = userRole === "USER" && workers.length >= USER_WORKERS_LIMIT;
+  // Worker count limits follow the OWNER's plan (effectiveTier), not the viewer's role —
+  // a free MEMBER inside a BUSINESS owner's org sees no limit.
+  const tier = org?.effectiveTier ?? null;
+  const isProLimitReached = tier === "PRO" && workers.length >= PRO_WORKERS_LIMIT;
+  const isUserLimitReached = tier === "USER" && workers.length >= USER_WORKERS_LIMIT;
   const isLimitReached = isProLimitReached || isUserLimitReached;
 
   const createMutation = useMutation({
@@ -996,7 +999,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               {createMutation.error && (
                 <div className={styles.errorMsg}>
                   {createMutation.error.message === "WORKERS_LIMIT_REACHED"
-                    ? userRole === "USER"
+                    ? tier === "USER"
                       ? "Besplatan preview dozvoljava 1 radnika. Pretplatite se za neograničeno radnika."
                       : `PRO plan dozvoljava najviše ${PRO_WORKERS_LIMIT} radnika po organizaciji.`
                     : createMutation.error.message}
@@ -1061,8 +1064,11 @@ export default function Organizacija({ orgId }: { orgId: number }) {
           )}
         </div>
 
-        {/* ── Members card (owner only) ── */}
-        {org.memberRole === "OWNER" && <MembersCard orgId={orgId} />}
+        {/* ── Members card (owner of a BUSINESS-tier org; ADMIN bypasses) ── */}
+        {org.memberRole === "OWNER" &&
+          (org.effectiveTier === "BUSINESS" || userRole === "ADMIN") && (
+            <MembersCard orgId={orgId} />
+          )}
       </RoleGuard>
     </div>
   );
