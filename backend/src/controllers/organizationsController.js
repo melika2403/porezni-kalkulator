@@ -180,9 +180,9 @@ async function listWithPayrollStatus(req, res) {
 
   const userId = req.user.id;
   const own = await organizationRepository.getUserOrganizations(userId);
-  const clients = CLIENT_ORG_ROLES.includes(req.user?.role)
-    ? await organizationRepository.getClientOrganizations(userId)
-    : [];
+  // Repository već filtrira na klijentske org. po user membership-u; ako user
+  // nije dodan ni u jednu klijentsku org, vraća prazno.
+  const clients = await organizationRepository.getClientOrganizations(userId);
 
   const orgIds = [...own.map((o) => o.id), ...clients.map((o) => o.id)];
   if (orgIds.length === 0) {

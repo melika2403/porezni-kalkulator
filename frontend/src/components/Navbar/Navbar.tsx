@@ -99,9 +99,8 @@ export default function Navbar() {
     enabled: !!user,
     retry: false,
   });
-  // Klijentske org-e samo za PRO/BUSINESS/ADMIN; za USER vraća prazno (forbidden).
-  const isElevated =
-    user?.role === 'PRO' || user?.role === 'BUSINESS' || user?.role === 'ADMIN';
+  // Klijentske org-e: backend filtrira po membership-u, role gate nije
+  // potreban — bilo koji user može biti dodan kao član klijentske org.
   const clientOrgsQuery = useQuery({
     queryKey: ['clientOrganizations'],
     queryFn: async () => {
@@ -109,7 +108,7 @@ export default function Navbar() {
       if (!res.ok) return [];
       return res.data;
     },
-    enabled: !!user && isElevated,
+    enabled: !!user,
     retry: false,
   });
   const ownCount = orgsQuery.data?.length ?? 0;

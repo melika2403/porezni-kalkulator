@@ -145,6 +145,45 @@ export default function Organizacije() {
     return out;
   };
 
+  const ownAll = statusQuery.data?.own ?? [];
+  const clientsAll = statusQuery.data?.clients ?? [];
+  // allOrgs spojeno gore, prije early return-a, da useMemo hookovi ispod
+  // uvijek pozovu (React rules-of-hooks zahtijeva isti redoslijed hookova).
+  const allOrgs = [...ownAll, ...clientsAll];
+
+  // ── Stats (uvijek pozivati useMemo prije bilo kakvog return-a) ────────────
+  const stats = useMemo(() => {
+    const totalOrgs = allOrgs.length;
+    const orgsWithWorkers = allOrgs.filter((o) => o.workerCount > 0).length;
+    const totalWorkers = allOrgs.reduce((a, o) => a + o.workerCount, 0);
+    const obracunato = allOrgs.filter(
+      (o) =>
+        o.payrollStatus === "obracunato" || o.payrollStatus === "isplaceno",
+    ).length;
+    const isplaceno = allOrgs.filter(
+      (o) => o.payrollStatus === "isplaceno",
+    ).length;
+    return { totalOrgs, orgsWithWorkers, totalWorkers, obracunato, isplaceno };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOrgs.length, statusQuery.data]);
+
+  // ── Status filter chip counts ─────────────────────────────────────────────
+  const statusCounts = useMemo(() => {
+    const visible = allOrgs.filter(
+      (o) => typeFilter === "svi" || o.type === typeFilter,
+    );
+    return {
+      all: visible.length,
+      todo: visible.filter(
+        (o) => o.payrollStatus === "none" || o.payrollStatus === "partial",
+      ).length,
+      obracunato: visible.filter((o) => o.payrollStatus === "obracunato")
+        .length,
+      isplaceno: visible.filter((o) => o.payrollStatus === "isplaceno").length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOrgs.length, typeFilter, statusQuery.data]);
+
   if (!isLoggedIn) {
     return (
       <PreviewRegisterGate
@@ -162,43 +201,9 @@ export default function Organizacije() {
     );
   }
 
-  const ownAll = statusQuery.data?.own ?? [];
-  const clientsAll = statusQuery.data?.clients ?? [];
   const own = filterAndSort(ownAll);
   const clients = filterAndSort(clientsAll);
-  const allOrgs = [...ownAll, ...clientsAll];
   const hasAnyOrg = allOrgs.length > 0;
-
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    const totalOrgs = allOrgs.length;
-    const orgsWithWorkers = allOrgs.filter((o) => o.workerCount > 0).length;
-    const totalWorkers = allOrgs.reduce((a, o) => a + o.workerCount, 0);
-    const obracunato = allOrgs.filter(
-      (o) =>
-        o.payrollStatus === "obracunato" || o.payrollStatus === "isplaceno",
-    ).length;
-    const isplaceno = allOrgs.filter(
-      (o) => o.payrollStatus === "isplaceno",
-    ).length;
-    return { totalOrgs, orgsWithWorkers, totalWorkers, obracunato, isplaceno };
-  }, [allOrgs]);
-
-  // ── Status filter chip counts ─────────────────────────────────────────────
-  const statusCounts = useMemo(() => {
-    const visible = allOrgs.filter(
-      (o) => typeFilter === "svi" || o.type === typeFilter,
-    );
-    return {
-      all: visible.length,
-      todo: visible.filter(
-        (o) => o.payrollStatus === "none" || o.payrollStatus === "partial",
-      ).length,
-      obracunato: visible.filter((o) => o.payrollStatus === "obracunato")
-        .length,
-      isplaceno: visible.filter((o) => o.payrollStatus === "isplaceno").length,
-    };
-  }, [allOrgs, typeFilter]);
 
   // ── Bulk: označi sve obračunate kao isplaćene za odabrani mjesec ──────────
   const bulkMarkPaidCandidates = allOrgs.filter(
