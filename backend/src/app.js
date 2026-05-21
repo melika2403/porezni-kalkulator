@@ -196,6 +196,16 @@ async function ensureColumns() {
       ddl: "ALTER TABLE workers ADD COLUMN minuliRadRate DECIMAL(5,2) NOT NULL DEFAULT 0.40",
     },
     {
+      table: "workers",
+      column: "firstEmploymentDate",
+      ddl: "ALTER TABLE workers ADD COLUMN firstEmploymentDate DATE NULL",
+    },
+    {
+      table: "workers",
+      column: "priorWorkYears",
+      ddl: "ALTER TABLE workers ADD COLUMN priorWorkYears DECIMAL(5,2) NULL",
+    },
+    {
       table: "payrolls",
       column: "grossBase",
       ddl: "ALTER TABLE payrolls ADD COLUMN grossBase DECIMAL(12,2) NULL",

@@ -1,6 +1,6 @@
 const organizationRepository = require("../repositories/organizationRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
-const { Organization } = require("../models/index");
+const { Organization, Worker, Payroll } = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
 function isNonEmptyString(v) {
@@ -147,7 +147,8 @@ function validateOwnerData(owner, requireJmbg = true) {
   }
   if (owner.taxCoefficient !== undefined) {
     const c = Number(owner.taxCoefficient);
-    if (Number.isFinite(c) && c > 0) data.taxCoefficient = c;
+    // 0 je validna vrijednost (bez porezne kartice → bez ličnog odbitka).
+    if (Number.isFinite(c) && c >= 0) data.taxCoefficient = c;
   }
 
   return { ok: true, value: data };
@@ -158,14 +159,111 @@ async function list(req, res) {
   res.status(200).json({ ok: true, data: orgs });
 }
 
-const CLIENT_ORG_ROLES = ["PRO", "BUSINESS", "ADMIN"];
-
 async function listClients(req, res) {
-  if (!CLIENT_ORG_ROLES.includes(req.user?.role)) {
-    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
-  }
+  // Repository filters to orgs where this user has membership; no role gate needed.
   const orgs = await organizationRepository.getClientOrganizations(req.user.id);
   res.status(200).json({ ok: true, data: orgs });
+}
+
+// Lista svih organizacija (vlastite + klijentske) sa agregatnim podacima:
+//  • broj radnika (aktivni, ne odjavljeni za odabrani mjesec ako se prosljeđuje)
+//  • status payroll-a za odabrani mjesec
+//  • broj obračunatih (OBRACUNATO + ISPLACENO) i isplaćenih (ISPLACENO) payrolla
+// Query params: ?year=2026&month=5 (default = trenutni mjesec).
+async function listWithPayrollStatus(req, res) {
+  const now = new Date();
+  const year = Number(req.query.year) || now.getFullYear();
+  const month = Number(req.query.month) || now.getMonth() + 1;
+  if (year < 2000 || year > 2100 || month < 1 || month > 12) {
+    return res.status(400).json({ ok: false, error: "INVALID_PERIOD" });
+  }
+
+  const userId = req.user.id;
+  const own = await organizationRepository.getUserOrganizations(userId);
+  const clients = CLIENT_ORG_ROLES.includes(req.user?.role)
+    ? await organizationRepository.getClientOrganizations(userId)
+    : [];
+
+  const orgIds = [...own.map((o) => o.id), ...clients.map((o) => o.id)];
+  if (orgIds.length === 0) {
+    return res.json({ ok: true, data: { own: [], clients: [], year, month } });
+  }
+
+  // Agregat: broj radnika po org (svi koji nisu odjavljeni — RADNIK + VLASNIK).
+  const workersByOrg = new Map();
+  const workers = await Worker.findAll({
+    where: { organizationId: orgIds },
+    attributes: ["id", "organizationId", "employmentStatus", "role"],
+  });
+  for (const w of workers) {
+    if (w.employmentStatus === "ODJAVLJEN") continue;
+    workersByOrg.set(
+      w.organizationId,
+      (workersByOrg.get(w.organizationId) || 0) + 1,
+    );
+  }
+
+  // Agregat: payrolli za zadati mjesec po org → broj obračunatih i isplaćenih.
+  const payrollsByOrg = new Map();
+  const payrolls = await Payroll.findAll({
+    where: { organizationId: orgIds, year, month },
+    attributes: ["organizationId", "status"],
+  });
+  for (const p of payrolls) {
+    const cur = payrollsByOrg.get(p.organizationId) || {
+      total: 0,
+      obracunato: 0,
+      isplaceno: 0,
+    };
+    cur.total += 1;
+    if (p.status === "OBRACUNATO" || p.status === "ISPLACENO") {
+      cur.obracunato += 1;
+    }
+    if (p.status === "ISPLACENO") {
+      cur.isplaceno += 1;
+    }
+    payrollsByOrg.set(p.organizationId, cur);
+  }
+
+  const enrich = (orgs) =>
+    orgs.map((o) => {
+      const workerCount = workersByOrg.get(o.id) || 0;
+      const stats = payrollsByOrg.get(o.id) || {
+        total: 0,
+        obracunato: 0,
+        isplaceno: 0,
+      };
+      // payrollStatus:
+      //   "no_workers"   — org nema aktivnih radnika
+      //   "none"         — ima radnike ali ni jedan payroll za mjesec
+      //   "partial"      — neki obračunati, neki nisu
+      //   "obracunato"   — svi obračunati ali nisu svi isplaćeni
+      //   "isplaceno"    — svi obračunati I svi isplaćeni
+      let payrollStatus;
+      if (workerCount === 0) payrollStatus = "no_workers";
+      else if (stats.obracunato === 0) payrollStatus = "none";
+      else if (stats.isplaceno === workerCount) payrollStatus = "isplaceno";
+      else if (stats.obracunato === workerCount) payrollStatus = "obracunato";
+      else payrollStatus = "partial";
+
+      return {
+        ...o,
+        workerCount,
+        payrollObracunato: stats.obracunato,
+        payrollIsplaceno: stats.isplaceno,
+        payrollStatus,
+      };
+    });
+
+  return res.json({
+    ok: true,
+    data: {
+      own: enrich(own),
+      clients: enrich(clients),
+      year,
+      month,
+    },
+  });
 }
 
 async function create(req, res) {
@@ -326,6 +424,7 @@ async function adminListAll(req, res) {
 module.exports = {
   list,
   listClients,
+  listWithPayrollStatus,
   create,
   update,
   remove,
@@ -387,6 +486,7 @@ async function removeLogo(req, res) {
 module.exports = {
   list,
   listClients,
+  listWithPayrollStatus,
   create,
   update,
   remove,

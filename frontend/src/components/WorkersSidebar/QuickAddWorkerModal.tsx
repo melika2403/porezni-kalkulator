@@ -149,7 +149,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
       startDate: startDate || null,
       prijavaDate: isPrijavljen ? prijavaDate : null,
       employmentStatus: isPrijavljen ? "PRIJAVLJEN" : "DRAFT",
-      taxCoefficient: Number.isFinite(coef) && coef > 0 ? coef : 1.0,
+      taxCoefficient: Number.isFinite(coef) && coef >= 0 ? coef : 1.0,
     });
   };
 

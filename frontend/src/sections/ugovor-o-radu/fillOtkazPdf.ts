@@ -96,7 +96,7 @@ export async function fillOtkazPdf(data: OtkazTemplateData): Promise<Uint8Array>
 
   // ─── Uvod ───
   writeBlock(
-    "Na osnovu člana 96. Zakona o radu Federacije Bosne i Hercegovine („Službene novine FBiH“, br. 26/16, 89/18, 44/22 i 39/24),",
+    `Na osnovu ${data.pravna_osnova} Zakona o radu Federacije Bosne i Hercegovine („Službene novine FBiH“, br. 26/16, 89/18, 44/22 i 39/24),`,
     { gapAfter: 8 },
   );
   // Poslodavac blok
@@ -109,7 +109,8 @@ export async function fillOtkazPdf(data: OtkazTemplateData): Promise<Uint8Array>
   writeBlock(`dana ${data.datum_odluke} donosi sljedeću:`, { gapAfter: 14 });
 
   // ─── Naslov ───
-  writeBlock("ODLUKA", { font: fontBold, size: FS_TITLE, align: "center", gapAfter: 2 });
+  // "ODLUKU" jer kontekst je "donosi sljedeću [ODLUKU]" (akuzativ).
+  writeBlock("ODLUKU", { font: fontBold, size: FS_TITLE, align: "center", gapAfter: 2 });
   writeBlock(data.naslov2, { font: fontBold, align: "center", gapAfter: 16 });
 
   // ─── Članovi ───

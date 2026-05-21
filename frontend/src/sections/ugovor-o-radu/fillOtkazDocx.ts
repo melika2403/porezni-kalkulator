@@ -3,6 +3,9 @@ import Docxtemplater from "docxtemplater";
 
 export interface OtkazTemplateData {
   naslov2: string;
+  // Fraza za preambulu "Na osnovu __ Zakona o radu FBiH..."
+  // Npr. "člana 96. stav (1) tačka a)" — bez tačke na kraju.
+  pravna_osnova: string;
   naziv_firme: string;
   adresa_poslodavca: string;
   jib_poslodavca: string;

@@ -28,6 +28,7 @@ import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useRole } from "src/hooks/useRole";
@@ -95,18 +96,17 @@ const OSNOV_OSIGURANJA = [
 ];
 
 /* ── Component ── */
+//
+// Access rule: korisnik vidi formu ako ima PRO/BUSINESS pretplatu ILI ako je
+// član bilo koje organizacije čiji je vlasnik PRO/BUSINESS — u tom slučaju može
+// snimiti JS3100 protiv te org-e (server gate-uje po owner-tier-u te org-e).
+//
+// Sam PDF export ne ide preko backenda pa ne treba dodatni gate.
 export default function Js3100Form() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => unwrap(me()).catch(() => null),
-    retry: false,
-  });
-  if (isLoading) {
-    return <div className={styles.page} />;
-  }
-  if (!user) {
-    return <UpgradeGate />;
-  }
+  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
+
+  if (isLoading) return null;
+  if (!hasAccessToTier("PRO")) return <UpgradeGate />;
   return <Js3100App />;
 }
 
@@ -114,7 +114,11 @@ function UpgradeGate() {
   return (
     <PreviewRegisterGate
       pageLabel="Obrazac JS3100"
-      pageTitle={<>Prijava / Odjava <em>radnika</em></>}
+      pageTitle={
+        <>
+          Prijava / Odjava <em>radnika</em>
+        </>
+      }
       pageSubtitle="Jedinstveni sistem registracije, kontrole i naplate doprinosa — JS3100."
       featureName="JS3100 obrasca i obračuna plata"
       previewDesc="unositi podatke, dodavati radnike i vidjeti kompletan obračun"
@@ -148,8 +152,12 @@ function Js3100App() {
   })();
 
   /* ── Sidebar state ── */
-  const [sidebarOrgId, setSidebarOrgIdInternal] = useState<number | null>(initialOrgId);
-  const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(initialWorkerId);
+  const [sidebarOrgId, setSidebarOrgIdInternal] = useState<number | null>(
+    initialOrgId,
+  );
+  const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(
+    initialWorkerId,
+  );
 
   // Perzistira odabranu organizaciju u localStorage da Obračun plata / Aktivni
   // radnici otvore istu organizaciju bez ponovnog odabira.
@@ -303,21 +311,25 @@ function Js3100App() {
     // Treći dio — datum promjene
     const datumPromjeneIso =
       w.employmentStatus === "PRIJAVLJEN"
-        ? w.odjavaDate?.slice(0, 10) ?? w.endDate?.slice(0, 10) ?? getTodayIso()
-        : w.startDate?.slice(0, 10) ?? getTodayIso();
+        ? (w.odjavaDate?.slice(0, 10) ??
+          w.endDate?.slice(0, 10) ??
+          getTodayIso())
+        : (w.startDate?.slice(0, 10) ?? getTodayIso());
 
     setTreci((p) => ({
       ...p,
       sati: p.sati || "08",
       minuta: p.minuta || "00",
-      osnovOsiguranjaOpis: p.osnovOsiguranjaOpis || "Zaposleni — puno radno vrijeme",
+      osnovOsiguranjaOpis:
+        p.osnovOsiguranjaOpis || "Zaposleni — puno radno vrijeme",
       osnovOsiguranjaSifra: p.osnovOsiguranjaSifra || "01",
       zanimanjeOpis: w.position ?? p.zanimanjeOpis,
       strucnaSpremaTraziSeIdx: w.strucnaSpremaIdx ?? p.strucnaSpremaTraziSeIdx,
       datumPromjeneIso,
-      osnovUplateOpis: w.salaryBruto != null
-        ? `${w.salaryBruto.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM`
-        : p.osnovUplateOpis,
+      osnovUplateOpis:
+        w.salaryBruto != null
+          ? `${w.salaryBruto.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM`
+          : p.osnovUplateOpis,
     }));
   };
 
@@ -459,7 +471,9 @@ function Js3100App() {
               };
         try {
           await unwrap(updateWorker(sidebarOrgId, sidebarWorkerId, payload));
-          queryClient.invalidateQueries({ queryKey: ["workers", sidebarOrgId] });
+          queryClient.invalidateQueries({
+            queryKey: ["workers", sidebarOrgId],
+          });
           queryClient.invalidateQueries({ queryKey: ["allMyWorkers"] });
         } catch (e) {
           // Ne prekidaj download — status update je best-effort.
@@ -494,642 +508,679 @@ function Js3100App() {
             </p>
           </div>
 
-      <form
-        ref={formRef}
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleExport();
-        }}
-      >
-        {/* ── Vrsta prijave ── */}
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Vrsta <em>prijave</em>
-          </h2>
-          <div className={styles.fieldGrid}>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Tip</label>
-              <div style={{ display: "flex", gap: "1.5rem" }}>
-                {(["PRIJAVA", "PROMJENA", "ODJAVA"] as Js3100Vrsta[]).map(
-                  (v) => (
-                    <label
-                      key={v}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.4rem",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="vrsta"
-                        value={v}
-                        checked={vrsta === v}
-                        onChange={() => setVrsta(v)}
-                      />
-                      {v === "PRIJAVA"
-                        ? "Prijava osiguranja"
-                        : v === "PROMJENA"
-                          ? "Promjena podataka"
-                          : "Odjava osiguranja"}
-                    </label>
-                  ),
-                )}
+          <form
+            ref={formRef}
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleExport();
+            }}
+          >
+            {/* ── Vrsta prijave ── */}
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                Vrsta <em>prijave</em>
+              </h2>
+              <div className={styles.fieldGrid}>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>Tip</label>
+                  <div style={{ display: "flex", gap: "1.5rem" }}>
+                    {(["PRIJAVA", "PROMJENA", "ODJAVA"] as Js3100Vrsta[]).map(
+                      (v) => (
+                        <label
+                          key={v}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.4rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="vrsta"
+                            value={v}
+                            checked={vrsta === v}
+                            onChange={() => setVrsta(v)}
+                          />
+                          {v === "PRIJAVA"
+                            ? "Prijava osiguranja"
+                            : v === "PROMJENA"
+                              ? "Promjena podataka"
+                              : "Odjava osiguranja"}
+                        </label>
+                      ),
+                    )}
+                  </div>
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Datum prijave</label>
+                  <DateInput
+                    className={styles.fieldInput}
+                    value={datumPrijaveIso}
+                    onValueChange={(iso) => {
+                      setDatumPrijaveIso(iso);
+                      // Za PRIJAVA: "Datum promjene" u trećem dijelu je isto što
+                      // i datum prijave — auto-popuni da korisnik ne mora dvaput
+                      // unositi.
+                      if (vrsta === "PRIJAVA") {
+                        setTreci((p) => ({ ...p, datumPromjeneIso: iso }));
+                      }
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Datum prijave</label>
-              <DateInput
-                className={styles.fieldInput}
-                value={datumPrijaveIso}
-                onValueChange={(iso) => {
-                  setDatumPrijaveIso(iso);
-                  // Za PRIJAVA: "Datum promjene" u trećem dijelu je isto što
-                  // i datum prijave — auto-popuni da korisnik ne mora dvaput
-                  // unositi.
-                  if (vrsta === "PRIJAVA") {
-                    setTreci((p) => ({ ...p, datumPromjeneIso: iso }));
-                  }
+            </section>
+
+            {/* ── Prvi dio — Obveznik ── */}
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                Prvi dio — Podaci o <em>obvezniku uplate doprinosa</em>
+              </h2>
+              <OrgFillSelect onFill={fillEmployer} />
+              <div className={styles.fieldGrid}>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>1) JIB</label>
+                  <input
+                    className={styles.fieldInput}
+                    value={employer.jib}
+                    onChange={(e) =>
+                      setEmployer((p) => ({ ...p, jib: e.target.value }))
+                    }
+                    maxLength={13}
+                    placeholder="13 cifara"
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>7) Telefon</label>
+                  <input
+                    className={styles.fieldInput}
+                    value={employer.telefon}
+                    onChange={(e) =>
+                      setEmployer((p) => ({ ...p, telefon: e.target.value }))
+                    }
+                    placeholder="+387..."
+                  />
+                </div>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>
+                    2) Naziv obveznika uplate doprinosa
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    value={employer.naziv}
+                    onChange={(e) =>
+                      setEmployer((p) => ({ ...p, naziv: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    3) Adresa obveznika
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    value={employer.adresa}
+                    onChange={(e) =>
+                      setEmployer((p) => ({ ...p, adresa: e.target.value }))
+                    }
+                    placeholder="Ulica i broj"
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    4) Grad i poštanski broj
+                  </label>
+                  <CitySelect
+                    value={employer.grad}
+                    onChange={(v) => setEmployer((p) => ({ ...p, grad: v }))}
+                    className={styles.fieldInput}
+                  />
+                </div>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>8) Email</label>
+                  <input
+                    type="email"
+                    className={styles.fieldInput}
+                    value={employer.email}
+                    onChange={(e) =>
+                      setEmployer((p) => ({ ...p, email: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* ── Drugi dio — Osiguranik ── */}
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                Drugi dio — Podaci o <em>osiguraniku</em>
+              </h2>
+              <PersonFillSelect onFill={fillWorker} />
+              <div className={styles.fieldGrid}>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>JMBG</label>
+                  <input
+                    className={styles.fieldInput}
+                    value={worker.jmbg}
+                    onChange={(e) =>
+                      setWorker((p) => ({
+                        ...p,
+                        jmbg: e.target.value.replace(/\D/g, "").slice(0, 13),
+                      }))
+                    }
+                    maxLength={13}
+                    placeholder="13 cifara"
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Datum rođenja</label>
+                  <DateInput
+                    className={styles.fieldInput}
+                    value={worker.datumRodjenjaIso}
+                    onValueChange={(iso) =>
+                      setWorker((p) => ({ ...p, datumRodjenjaIso: iso }))
+                    }
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Prezime</label>
+                  <input
+                    className={styles.fieldInput}
+                    value={worker.prezime}
+                    onChange={(e) =>
+                      setWorker((p) => ({ ...p, prezime: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Ime</label>
+                  <input
+                    className={styles.fieldInput}
+                    value={worker.ime}
+                    onChange={(e) =>
+                      setWorker((p) => ({ ...p, ime: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>
+                    Djevojačko prezime
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    value={worker.djevojackoPrezime}
+                    onChange={(e) =>
+                      setWorker((p) => ({
+                        ...p,
+                        djevojackoPrezime: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>Spol</label>
+                  <div style={{ display: "flex", gap: "1.5rem" }}>
+                    {(["M", "Z"] as Js3100Spol[]).map((s) => (
+                      <label
+                        key={s}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="spol"
+                          value={s}
+                          checked={worker.spol === s}
+                          onChange={() => setWorker((p) => ({ ...p, spol: s }))}
+                        />
+                        {s === "M" ? "Muški" : "Ženski"}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Adresa prebivališta
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    value={worker.adresa}
+                    onChange={(e) =>
+                      setWorker((p) => ({ ...p, adresa: e.target.value }))
+                    }
+                    placeholder="Ulica i broj"
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Mjesto / Grad</label>
+                  <CitySelect
+                    value={worker.grad}
+                    onChange={(v) => setWorker((p) => ({ ...p, grad: v }))}
+                    className={styles.fieldInput}
+                  />
+                </div>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <p
+                    className={styles.fieldLabel}
+                    style={{ marginTop: "0.5rem", marginBottom: "-0.25rem" }}
+                  >
+                    Kontakt adresa — popuniti samo ako se razlikuje od adrese
+                    prebivališta
+                  </p>
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Kontakt adresa — ulica i broj
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    value={worker.kontaktAdresa}
+                    onChange={(e) =>
+                      setWorker((p) => ({
+                        ...p,
+                        kontaktAdresa: e.target.value,
+                      }))
+                    }
+                    placeholder="Ulica i broj"
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Kontakt — Mjesto / Grad
+                  </label>
+                  <CitySelect
+                    value={worker.kontaktGrad}
+                    onChange={(v) =>
+                      setWorker((p) => ({ ...p, kontaktGrad: v }))
+                    }
+                    className={styles.fieldInput}
+                  />
+                </div>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>Email osiguranika</label>
+                  <input
+                    type="email"
+                    className={styles.fieldInput}
+                    value={worker.emailOsiguranika}
+                    onChange={(e) =>
+                      setWorker((p) => ({
+                        ...p,
+                        emailOsiguranika: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>Stručna sprema</label>
+                  <select
+                    className={styles.fieldInput}
+                    value={worker.strucnaSpremaIdx ?? ""}
+                    onChange={(e) =>
+                      setWorker((p) => ({
+                        ...p,
+                        strucnaSpremaIdx:
+                          e.target.value === ""
+                            ? null
+                            : parseInt(e.target.value),
+                      }))
+                    }
+                  >
+                    <option value="">— Odaberite —</option>
+                    {STRUCNA_SPREMA.map((t, i) => (
+                      <option key={i} value={i}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            {/* ── Treći dio — Podaci o osiguranju ── */}
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                Treći dio — Podaci o <em>osiguranju</em>
+              </h2>
+              <div className={styles.fieldGrid}>
+                {/* Red 1: Dnevno radno vrijeme */}
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Dnevno radno vrijeme — Sati
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    inputMode="numeric"
+                    value={treci.sati}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        sati: e.target.value.replace(/\D/g, "").slice(0, 2),
+                      }))
+                    }
+                    placeholder="08"
+                    maxLength={2}
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Dnevno radno vrijeme — Minuta
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    inputMode="numeric"
+                    value={treci.minuta}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        minuta: e.target.value.replace(/\D/g, "").slice(0, 2),
+                      }))
+                    }
+                    placeholder="00"
+                    maxLength={2}
+                  />
+                </div>
+
+                {/* Red 2: Osnov osiguranja */}
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Osnov osiguranja — Opis
+                  </label>
+                  <select
+                    className={styles.fieldInput}
+                    value={treci.osnovOsiguranjaOpis}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        osnovOsiguranjaOpis: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">— Odaberite —</option>
+                    {OSNOV_OSIGURANJA.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Osnov osiguranja — Šifra (2 cifre)
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    inputMode="numeric"
+                    value={treci.osnovOsiguranjaSifra}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        osnovOsiguranjaSifra: e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 2),
+                      }))
+                    }
+                    maxLength={2}
+                  />
+                </div>
+
+                {/* Red 3: Zanimanje */}
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Zanimanje — Opis</label>
+                  <input
+                    className={styles.fieldInput}
+                    value={treci.zanimanjeOpis}
+                    onChange={(e) =>
+                      setTreci((p) => ({ ...p, zanimanjeOpis: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Zanimanje — Šifra (7 cifara)
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    inputMode="numeric"
+                    value={treci.zanimanjeSifra}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        zanimanjeSifra: e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 7),
+                      }))
+                    }
+                    maxLength={7}
+                  />
+                </div>
+
+                {/* Red 4: Stručna sprema koja se traži */}
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>
+                    Stručna sprema koja se traži na radnom mjestu
+                  </label>
+                  <select
+                    className={styles.fieldInput}
+                    value={treci.strucnaSpremaTraziSeIdx ?? ""}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        strucnaSpremaTraziSeIdx:
+                          e.target.value === ""
+                            ? null
+                            : parseInt(e.target.value),
+                      }))
+                    }
+                  >
+                    <option value="">— Odaberite —</option>
+                    {STRUCNA_SPREMA.map((t, i) => (
+                      <option key={i} value={i}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Red 5: Datum prijave/odjave/promjene */}
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Datum prijave / odjave / promjene osiguranja
+                  </label>
+                  <DateInput
+                    className={styles.fieldInput}
+                    value={treci.datumPromjeneIso}
+                    onValueChange={(iso) =>
+                      setTreci((p) => ({ ...p, datumPromjeneIso: iso }))
+                    }
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Napomena (uz datum)
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    value={treci.napomenaPromjene}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        napomenaPromjene: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                {/* Red 6: Osnov za uplatu doprinosa */}
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Osnov za uplatu doprinosa — Opis
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    value={treci.osnovUplateOpis}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        osnovUplateOpis: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Osnov za uplatu doprinosa — Šifra (2 cifre)
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    inputMode="numeric"
+                    value={treci.osnovUplateSifra}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        osnovUplateSifra: e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 2),
+                      }))
+                    }
+                    maxLength={2}
+                  />
+                </div>
+
+                {/* Red 7: Staž sa uvećanim trajanjem */}
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Šifra radnog mjesta (4 cifre)
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    inputMode="numeric"
+                    value={treci.sifraRadnogMjesta}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        sifraRadnogMjesta: e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 4),
+                      }))
+                    }
+                    maxLength={4}
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Stepen uvećanja (X / 12)
+                  </label>
+                  <input
+                    className={styles.fieldInput}
+                    inputMode="numeric"
+                    value={treci.stepenUvecanja}
+                    onChange={(e) =>
+                      setTreci((p) => ({
+                        ...p,
+                        stepenUvecanja: e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 2),
+                      }))
+                    }
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* ── Footer ── */}
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                Lice koje je <em>popunilo prijavu</em>
+              </h2>
+              <PersonFillSelect
+                onFill={(d) => {
+                  const full = [d.firstName, d.lastName]
+                    .filter(Boolean)
+                    .join(" ");
+                  if (full) setPopunioImeIPrezime(full);
                 }}
               />
-            </div>
-          </div>
-        </section>
-
-        {/* ── Prvi dio — Obveznik ── */}
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Prvi dio — Podaci o <em>obvezniku uplate doprinosa</em>
-          </h2>
-          <OrgFillSelect onFill={fillEmployer} />
-          <div className={styles.fieldGrid}>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>1) JIB</label>
-              <input
-                className={styles.fieldInput}
-                value={employer.jib}
-                onChange={(e) =>
-                  setEmployer((p) => ({ ...p, jib: e.target.value }))
-                }
-                maxLength={13}
-                placeholder="13 cifara"
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>7) Telefon</label>
-              <input
-                className={styles.fieldInput}
-                value={employer.telefon}
-                onChange={(e) =>
-                  setEmployer((p) => ({ ...p, telefon: e.target.value }))
-                }
-                placeholder="+387..."
-              />
-            </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>
-                2) Naziv obveznika uplate doprinosa
-              </label>
-              <input
-                className={styles.fieldInput}
-                value={employer.naziv}
-                onChange={(e) =>
-                  setEmployer((p) => ({ ...p, naziv: e.target.value }))
-                }
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>3) Adresa obveznika</label>
-              <input
-                className={styles.fieldInput}
-                value={employer.adresa}
-                onChange={(e) =>
-                  setEmployer((p) => ({ ...p, adresa: e.target.value }))
-                }
-                placeholder="Ulica i broj"
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                4) Grad i poštanski broj
-              </label>
-              <CitySelect
-                value={employer.grad}
-                onChange={(v) => setEmployer((p) => ({ ...p, grad: v }))}
-                className={styles.fieldInput}
-              />
-            </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>8) Email</label>
-              <input
-                type="email"
-                className={styles.fieldInput}
-                value={employer.email}
-                onChange={(e) =>
-                  setEmployer((p) => ({ ...p, email: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* ── Drugi dio — Osiguranik ── */}
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Drugi dio — Podaci o <em>osiguraniku</em>
-          </h2>
-          <PersonFillSelect onFill={fillWorker} />
-          <div className={styles.fieldGrid}>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>JMBG</label>
-              <input
-                className={styles.fieldInput}
-                value={worker.jmbg}
-                onChange={(e) =>
-                  setWorker((p) => ({
-                    ...p,
-                    jmbg: e.target.value.replace(/\D/g, "").slice(0, 13),
-                  }))
-                }
-                maxLength={13}
-                placeholder="13 cifara"
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Datum rođenja</label>
-              <DateInput
-                className={styles.fieldInput}
-                value={worker.datumRodjenjaIso}
-                onValueChange={(iso) =>
-                  setWorker((p) => ({ ...p, datumRodjenjaIso: iso }))
-                }
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Prezime</label>
-              <input
-                className={styles.fieldInput}
-                value={worker.prezime}
-                onChange={(e) =>
-                  setWorker((p) => ({ ...p, prezime: e.target.value }))
-                }
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Ime</label>
-              <input
-                className={styles.fieldInput}
-                value={worker.ime}
-                onChange={(e) =>
-                  setWorker((p) => ({ ...p, ime: e.target.value }))
-                }
-              />
-            </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Djevojačko prezime</label>
-              <input
-                className={styles.fieldInput}
-                value={worker.djevojackoPrezime}
-                onChange={(e) =>
-                  setWorker((p) => ({
-                    ...p,
-                    djevojackoPrezime: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Spol</label>
-              <div style={{ display: "flex", gap: "1.5rem" }}>
-                {(["M", "Z"] as Js3100Spol[]).map((s) => (
-                  <label
-                    key={s}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="spol"
-                      value={s}
-                      checked={worker.spol === s}
-                      onChange={() => setWorker((p) => ({ ...p, spol: s }))}
-                    />
-                    {s === "M" ? "Muški" : "Ženski"}
+              <div className={styles.fieldGrid}>
+                <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
+                  <label className={styles.fieldLabel}>
+                    Ime i prezime lica
                   </label>
-                ))}
+                  <input
+                    className={styles.fieldInput}
+                    value={popunioImeIPrezime}
+                    onChange={(e) => setPopunioImeIPrezime(e.target.value)}
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Telefonski broj</label>
+                  <input
+                    className={styles.fieldInput}
+                    value={popunioTelefon}
+                    onChange={(e) => setPopunioTelefon(e.target.value)}
+                    placeholder="+387..."
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Datum popunjavanja
+                  </label>
+                  <DateInput
+                    className={styles.fieldInput}
+                    value={datumPopunjavanjaIso}
+                    onValueChange={setDatumPopunjavanjaIso}
+                  />
+                </div>
               </div>
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Adresa prebivališta</label>
-              <input
-                className={styles.fieldInput}
-                value={worker.adresa}
-                onChange={(e) =>
-                  setWorker((p) => ({ ...p, adresa: e.target.value }))
+            </section>
+
+            {!canGenerate && (
+              <GeneratePaywall tier="PRO" what="Preuzimanje JS3100 obrasca" />
+            )}
+            <div className={styles.actions}>
+              <SaveToProfileButton
+                type="JS3100"
+                year={
+                  parseInt(datumPrijaveIso.slice(0, 4)) ||
+                  new Date().getFullYear()
                 }
-                placeholder="Ulica i broj"
+                title={`JS3100 · ${[worker.prezime, worker.ime].filter(Boolean).join(" ") || "radnik"} · ${
+                  vrsta === "PRIJAVA"
+                    ? "Prijava"
+                    : vrsta === "ODJAVA"
+                      ? "Odjava"
+                      : "Promjena"
+                }`}
+                buildData={buildData}
+                disabled={loading || !worker.prezime || !canGenerate}
               />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Mjesto / Grad</label>
-              <CitySelect
-                value={worker.grad}
-                onChange={(v) => setWorker((p) => ({ ...p, grad: v }))}
-                className={styles.fieldInput}
-              />
-            </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <p
-                className={styles.fieldLabel}
-                style={{ marginTop: "0.5rem", marginBottom: "-0.25rem" }}
-              >
-                Kontakt adresa — popuniti samo ako se razlikuje od adrese
-                prebivališta
-              </p>
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Kontakt adresa — ulica i broj
-              </label>
-              <input
-                className={styles.fieldInput}
-                value={worker.kontaktAdresa}
-                onChange={(e) =>
-                  setWorker((p) => ({ ...p, kontaktAdresa: e.target.value }))
-                }
-                placeholder="Ulica i broj"
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Kontakt — Mjesto / Grad
-              </label>
-              <CitySelect
-                value={worker.kontaktGrad}
-                onChange={(v) => setWorker((p) => ({ ...p, kontaktGrad: v }))}
-                className={styles.fieldInput}
-              />
-            </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Email osiguranika</label>
-              <input
-                type="email"
-                className={styles.fieldInput}
-                value={worker.emailOsiguranika}
-                onChange={(e) =>
-                  setWorker((p) => ({ ...p, emailOsiguranika: e.target.value }))
-                }
-              />
-            </div>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Stručna sprema</label>
-              <select
-                className={styles.fieldInput}
-                value={worker.strucnaSpremaIdx ?? ""}
-                onChange={(e) =>
-                  setWorker((p) => ({
-                    ...p,
-                    strucnaSpremaIdx:
-                      e.target.value === "" ? null : parseInt(e.target.value),
-                  }))
+              <button
+                type="submit"
+                className={styles.exportBtn}
+                disabled={loading || !canGenerate}
+                title={
+                  canGenerate
+                    ? undefined
+                    : "Dostupno uz Pro ili Business pretplatu"
                 }
               >
-                <option value="">— Odaberite —</option>
-                {STRUCNA_SPREMA.map((t, i) => (
-                  <option key={i} value={i}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+                </svg>
+                {loading ? "Generisanje..." : "Preuzmi PDF"}
+              </button>
             </div>
-          </div>
-        </section>
-
-        {/* ── Treći dio — Podaci o osiguranju ── */}
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Treći dio — Podaci o <em>osiguranju</em>
-          </h2>
-          <div className={styles.fieldGrid}>
-            {/* Red 1: Dnevno radno vrijeme */}
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Dnevno radno vrijeme — Sati
-              </label>
-              <input
-                className={styles.fieldInput}
-                inputMode="numeric"
-                value={treci.sati}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    sati: e.target.value.replace(/\D/g, "").slice(0, 2),
-                  }))
-                }
-                placeholder="08"
-                maxLength={2}
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Dnevno radno vrijeme — Minuta
-              </label>
-              <input
-                className={styles.fieldInput}
-                inputMode="numeric"
-                value={treci.minuta}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    minuta: e.target.value.replace(/\D/g, "").slice(0, 2),
-                  }))
-                }
-                placeholder="00"
-                maxLength={2}
-              />
-            </div>
-
-            {/* Red 2: Osnov osiguranja */}
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Osnov osiguranja — Opis
-              </label>
-              <select
-                className={styles.fieldInput}
-                value={treci.osnovOsiguranjaOpis}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    osnovOsiguranjaOpis: e.target.value,
-                  }))
-                }
-              >
-                <option value="">— Odaberite —</option>
-                {OSNOV_OSIGURANJA.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Osnov osiguranja — Šifra (2 cifre)
-              </label>
-              <input
-                className={styles.fieldInput}
-                inputMode="numeric"
-                value={treci.osnovOsiguranjaSifra}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    osnovOsiguranjaSifra: e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 2),
-                  }))
-                }
-                maxLength={2}
-              />
-            </div>
-
-            {/* Red 3: Zanimanje */}
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Zanimanje — Opis</label>
-              <input
-                className={styles.fieldInput}
-                value={treci.zanimanjeOpis}
-                onChange={(e) =>
-                  setTreci((p) => ({ ...p, zanimanjeOpis: e.target.value }))
-                }
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Zanimanje — Šifra (7 cifara)
-              </label>
-              <input
-                className={styles.fieldInput}
-                inputMode="numeric"
-                value={treci.zanimanjeSifra}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    zanimanjeSifra: e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 7),
-                  }))
-                }
-                maxLength={7}
-              />
-            </div>
-
-            {/* Red 4: Stručna sprema koja se traži */}
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>
-                Stručna sprema koja se traži na radnom mjestu
-              </label>
-              <select
-                className={styles.fieldInput}
-                value={treci.strucnaSpremaTraziSeIdx ?? ""}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    strucnaSpremaTraziSeIdx:
-                      e.target.value === "" ? null : parseInt(e.target.value),
-                  }))
-                }
-              >
-                <option value="">— Odaberite —</option>
-                {STRUCNA_SPREMA.map((t, i) => (
-                  <option key={i} value={i}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Red 5: Datum prijave/odjave/promjene */}
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Datum prijave / odjave / promjene osiguranja
-              </label>
-              <DateInput
-                className={styles.fieldInput}
-                value={treci.datumPromjeneIso}
-                onValueChange={(iso) =>
-                  setTreci((p) => ({ ...p, datumPromjeneIso: iso }))
-                }
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Napomena (uz datum)</label>
-              <input
-                className={styles.fieldInput}
-                value={treci.napomenaPromjene}
-                onChange={(e) =>
-                  setTreci((p) => ({ ...p, napomenaPromjene: e.target.value }))
-                }
-              />
-            </div>
-
-            {/* Red 6: Osnov za uplatu doprinosa */}
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Osnov za uplatu doprinosa — Opis
-              </label>
-              <input
-                className={styles.fieldInput}
-                value={treci.osnovUplateOpis}
-                onChange={(e) =>
-                  setTreci((p) => ({ ...p, osnovUplateOpis: e.target.value }))
-                }
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Osnov za uplatu doprinosa — Šifra (2 cifre)
-              </label>
-              <input
-                className={styles.fieldInput}
-                inputMode="numeric"
-                value={treci.osnovUplateSifra}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    osnovUplateSifra: e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 2),
-                  }))
-                }
-                maxLength={2}
-              />
-            </div>
-
-            {/* Red 7: Staž sa uvećanim trajanjem */}
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Šifra radnog mjesta (4 cifre)
-              </label>
-              <input
-                className={styles.fieldInput}
-                inputMode="numeric"
-                value={treci.sifraRadnogMjesta}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    sifraRadnogMjesta: e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 4),
-                  }))
-                }
-                maxLength={4}
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
-                Stepen uvećanja (X / 12)
-              </label>
-              <input
-                className={styles.fieldInput}
-                inputMode="numeric"
-                value={treci.stepenUvecanja}
-                onChange={(e) =>
-                  setTreci((p) => ({
-                    ...p,
-                    stepenUvecanja: e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 2),
-                  }))
-                }
-                maxLength={2}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* ── Footer ── */}
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            Lice koje je <em>popunilo prijavu</em>
-          </h2>
-          <PersonFillSelect
-            onFill={(d) => {
-              const full = [d.firstName, d.lastName].filter(Boolean).join(" ");
-              if (full) setPopunioImeIPrezime(full);
-            }}
-          />
-          <div className={styles.fieldGrid}>
-            <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
-              <label className={styles.fieldLabel}>Ime i prezime lica</label>
-              <input
-                className={styles.fieldInput}
-                value={popunioImeIPrezime}
-                onChange={(e) => setPopunioImeIPrezime(e.target.value)}
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Telefonski broj</label>
-              <input
-                className={styles.fieldInput}
-                value={popunioTelefon}
-                onChange={(e) => setPopunioTelefon(e.target.value)}
-                placeholder="+387..."
-              />
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Datum popunjavanja</label>
-              <DateInput
-                className={styles.fieldInput}
-                value={datumPopunjavanjaIso}
-                onValueChange={setDatumPopunjavanjaIso}
-              />
-            </div>
-          </div>
-        </section>
-
-        {!canGenerate && (
-          <GeneratePaywall tier="PRO" what="Preuzimanje JS3100 obrasca" />
-        )}
-        <div className={styles.actions}>
-          <SaveToProfileButton
-            type="JS3100"
-            year={
-              parseInt(datumPrijaveIso.slice(0, 4)) || new Date().getFullYear()
-            }
-            title={`JS3100 · ${[worker.prezime, worker.ime].filter(Boolean).join(" ") || "radnik"} · ${
-              vrsta === "PRIJAVA"
-                ? "Prijava"
-                : vrsta === "ODJAVA"
-                  ? "Odjava"
-                  : "Promjena"
-            }`}
-            buildData={buildData}
-            disabled={loading || !worker.prezime || !canGenerate}
-          />
-          <button
-            type="submit"
-            className={styles.exportBtn}
-            disabled={loading || !canGenerate}
-            title={canGenerate ? undefined : "Dostupno uz Pro ili Business pretplatu"}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
-            </svg>
-            {loading ? "Generisanje..." : "Preuzmi PDF"}
-          </button>
-        </div>
-      </form>
+          </form>
         </div>
       </div>
     </div>

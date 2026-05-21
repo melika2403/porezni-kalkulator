@@ -445,6 +445,28 @@ function yearsOfService(startDateStr, paymentDateStr) {
   return Math.max(0, years);
 }
 
+// Ukupan radni staž za minuli rad — koristi novu logiku (vidi komentar u
+// Worker modelu). priorWorkYears ima prednost ako je postavljen (tačnije zbog
+// gapova). Inače firstEmploymentDate. Inače fallback na prijavaDate.
+function totalYearsOfService(worker, paymentDateStr) {
+  const endStr = paymentDateStr || new Date().toISOString().slice(0, 10);
+  const prior =
+    worker?.priorWorkYears != null && worker.priorWorkYears !== ""
+      ? Number(worker.priorWorkYears)
+      : null;
+  if (prior != null && Number.isFinite(prior) && prior >= 0) {
+    // Staž u našoj firmi (od prijave) + ručno upisan prethodni staž.
+    const currentYears = yearsOfService(worker?.prijavaDate, endStr);
+    return Math.max(0, Math.floor(currentYears + prior));
+  }
+  if (worker?.firstEmploymentDate) {
+    return yearsOfService(worker.firstEmploymentDate, endStr);
+  }
+  // Fallback: samo trenutna firma (kao prije — koristimo prijavaDate, jer je
+  // to kad je radnik formalno počeo raditi u nas).
+  return yearsOfService(worker?.prijavaDate || worker?.startDate, endStr);
+}
+
 // ── Izračun: sve vrijednosti iz inputa → Payroll snapshot polja ─────────────
 function computePayrollSnapshot(input) {
   // grossBase = osnovica bruto plate (user-entered, iz ugovora)
@@ -766,7 +788,7 @@ async function calculate(req, res) {
     typeof paymentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
       ? paymentDate
       : new Date(year, month, 0).toISOString().slice(0, 10);
-  const minuliYears = yearsOfService(worker.startDate, effectivePaymentDate);
+  const minuliYears = totalYearsOfService(worker, effectivePaymentDate);
 
   // grossBase: ako frontend pošalje, koristi ga; inače gross (backward-compat).
   const effectiveGrossBase =

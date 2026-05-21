@@ -12,6 +12,7 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useLastOrg } from "src/hooks/useLastOrg";
 import QuickAddWorkerModal from "src/components/WorkersSidebar/QuickAddWorkerModal";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
@@ -49,10 +50,13 @@ function fmtPlata(n: number | null): string {
 }
 
 export default function AktivniRadnici() {
-  const { role, hasRole } = useRole();
+  const { role } = useRole();
+  const { hasAccessToTier } = useMaxAccessibleTier();
   const isLoggedIn = role !== null;
-  const canCreateWorker = hasRole("PRO", "BUSINESS", "ADMIN");
-  const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Worker create + klijent-org listing — dostupno ako vlastiti plan ili bilo
+  // koja moja org ima PRO+ vlasnika.
+  const canCreateWorker = hasAccessToTier("PRO");
+  const canSeeClients = hasAccessToTier("PRO");
 
   const searchParams = useSearchParams();
   const { lastOrgId, setLastOrgId } = useLastOrg();
@@ -104,7 +108,19 @@ export default function AktivniRadnici() {
 
   const allWorkers = workersQuery.data ?? [];
   // Uključi i RADNIK i VLASNIK (vlasnici se prepoznaju po roli i imaju badge).
-  const radnici = allWorkers;
+  // Sort:
+  //   1) Odjavljeni uvijek na dno (bez obzira kad su prijavljeni)
+  //   2) Po datumu prijave ASC (najstariji prijavljen radnik gore)
+  //   3) Po datumu kreiranja ASC (tiebreak)
+  const radnici = [...allWorkers].sort((a, b) => {
+    const aOff = a.employmentStatus === "ODJAVLJEN" ? 1 : 0;
+    const bOff = b.employmentStatus === "ODJAVLJEN" ? 1 : 0;
+    if (aOff !== bOff) return aOff - bOff;
+    const aDate = a.prijavaDate || "9999-12-31";
+    const bDate = b.prijavaDate || "9999-12-31";
+    if (aDate !== bDate) return aDate.localeCompare(bDate);
+    return (a.createdAt || "").localeCompare(b.createdAt || "");
+  });
 
   const filtered = radnici.filter((w) => {
     if (filter === "svi") return true;
