@@ -148,5 +148,159 @@ export function nacinPrestanka(tip: TipPrestanka): string {
   }
 }
 
+// Razlozi prestanka ugovora o radu sa pripadnim članovima Zakona o radu FBiH
+// (Sl. novine FBiH 26/16, 89/18, 44/22, 39/24 — prečišćeni tekst). Poredani po
+// učestalosti u praksi (najčešći prvi).
+export type RazlogOtkazaId =
+  | "sporazumni"
+  | "otkaz_poslodavac"
+  | "otkaz_radnik"
+  | "istek_ugovora"
+  | "penzija_65_15"
+  | "penzija_40"
+  | "nesposobnost"
+  | "vanredni_poslodavac"
+  | "pisano_upozorenje"
+  | "vanredni_radnik"
+  | "invalidnost"
+  | "smrt"
+  | "zatvor"
+  | "drugo";
+
+export interface RazlogOtkazaDef {
+  id: RazlogOtkazaId;
+  label: string;
+  // Kratka rečenica za "Član 2" odluke — ime razloga + kratki opis.
+  text: string;
+  // Fraza koja se ubacuje u preambulu "Na osnovu __ Zakona o radu FBiH..."
+  // Npr. "člana 96. stav (1) tačka a)". Bez perioda na kraju.
+  pravnaOsnova: string;
+  // Kratka referenca na član (za prikaz info badge-a u UI-ju).
+  clan: string;
+  // Pripadajući TipPrestanka (od_poslodavca / od_radnika / sporazumni).
+  // Određuje naslov2 i nacin_prestanka u dokumentu. Smrt/penzija/istek
+  // koriste "sporazumni" jer to daje neutralni naslov "o prestanku".
+  tipPrestanka: TipPrestanka;
+}
+
+export const RAZLOZI_OTKAZA: RazlogOtkazaDef[] = [
+  {
+    id: "sporazumni",
+    label: "Sporazumni prestanak ugovora o radu",
+    text: "sporazumni prestanak ugovora o radu",
+    pravnaOsnova: "člana 95.",
+    clan: "Čl. 95",
+    tipPrestanka: "sporazumni",
+  },
+  {
+    id: "otkaz_poslodavac",
+    label: "Otkaz od strane poslodavca (ekonomski/tehnički/organizacijski razlozi)",
+    text: "otkaz od strane poslodavca iz ekonomskih, tehničkih ili organizacijskih razloga",
+    pravnaOsnova: "člana 96. stav (1) tačka a)",
+    clan: "Čl. 96 st. (1) tač. a)",
+    tipPrestanka: "od_poslodavca",
+  },
+  {
+    id: "otkaz_radnik",
+    label: "Otkaz od strane radnika",
+    text: "otkaz ugovora o radu na zahtjev radnika uz poštivanje otkaznog roka",
+    pravnaOsnova: "člana 94. tačka f) i člana 105.",
+    clan: "Čl. 94 tač. f) i čl. 105",
+    tipPrestanka: "od_radnika",
+  },
+  {
+    id: "istek_ugovora",
+    label: "Istek ugovora na određeno vrijeme",
+    text: "istek vremena na koje je zaključen ugovor o radu na određeno vrijeme",
+    pravnaOsnova: "člana 94. tačka g)",
+    clan: "Čl. 94 tač. g)",
+    tipPrestanka: "sporazumni",
+  },
+  {
+    id: "penzija_65_15",
+    label: "Penzionisanje (65 god života + 15 god staža)",
+    text: "navršenih 65 godina života i najmanje 15 godina staža osiguranja",
+    pravnaOsnova: "člana 94. tačka c)",
+    clan: "Čl. 94 tač. c)",
+    tipPrestanka: "sporazumni",
+  },
+  {
+    id: "penzija_40",
+    label: "Penzionisanje (40 god staža osiguranja)",
+    text: "navršenih 40 godina staža osiguranja",
+    pravnaOsnova: "člana 94. tačka d)",
+    clan: "Čl. 94 tač. d)",
+    tipPrestanka: "sporazumni",
+  },
+  {
+    id: "nesposobnost",
+    label: "Nesposobnost radnika za obavljanje obaveza",
+    text: "radnik nije u mogućnosti da izvršava svoje obaveze iz radnog odnosa",
+    pravnaOsnova: "člana 96. stav (1) tačka b)",
+    clan: "Čl. 96 st. (1) tač. b)",
+    tipPrestanka: "od_poslodavca",
+  },
+  {
+    id: "vanredni_poslodavac",
+    label: "Vanredni otkaz (teža povreda radnih obaveza)",
+    text: "vanredni otkaz zbog teže povrede radnih obaveza, bez obaveze poštivanja otkaznog roka",
+    pravnaOsnova: "člana 97. stav (1)",
+    clan: "Čl. 97 st. (1)",
+    tipPrestanka: "od_poslodavca",
+  },
+  {
+    id: "pisano_upozorenje",
+    label: "Otkaz nakon pisanog upozorenja (lakša povreda)",
+    text: "otkaz ugovora o radu nakon prethodnog pisanog upozorenja zbog ponovljene lakše povrede radnih obaveza",
+    pravnaOsnova: "člana 97. stav (2)",
+    clan: "Čl. 97 st. (2)",
+    tipPrestanka: "od_poslodavca",
+  },
+  {
+    id: "vanredni_radnik",
+    label: "Vanredni otkaz od strane radnika (poslodavac odgovoran)",
+    text: "vanredni otkaz od strane radnika jer je poslodavac odgovoran za povredu obaveza iz ugovora o radu",
+    pravnaOsnova: "člana 99.",
+    clan: "Čl. 99",
+    tipPrestanka: "od_radnika",
+  },
+  {
+    id: "invalidnost",
+    label: "Invalidska penzija (gubitak radne sposobnosti)",
+    text: "dostavljanje pravosnažnog rješenja o priznavanju prava na invalidsku penziju zbog gubitka radne sposobnosti",
+    pravnaOsnova: "člana 94. tačka e)",
+    clan: "Čl. 94 tač. e)",
+    tipPrestanka: "sporazumni",
+  },
+  {
+    id: "smrt",
+    label: "Smrt radnika",
+    text: "smrt radnika",
+    pravnaOsnova: "člana 94. tačka a)",
+    clan: "Čl. 94 tač. a)",
+    tipPrestanka: "sporazumni",
+  },
+  {
+    id: "zatvor",
+    label: "Kazna zatvora duža od 3 mjeseca",
+    text: "osuđivanje radnika na izdržavanje kazne zatvora u trajanju dužem od tri mjeseca",
+    pravnaOsnova: "člana 94. tačka h)",
+    clan: "Čl. 94 tač. h)",
+    tipPrestanka: "sporazumni",
+  },
+  {
+    id: "drugo",
+    label: "Drugo (slobodan unos)",
+    text: "",
+    pravnaOsnova: "Zakona o radu",
+    clan: "",
+    tipPrestanka: "od_poslodavca",
+  },
+];
+
+export function razlogById(id: RazlogOtkazaId): RazlogOtkazaDef | undefined {
+  return RAZLOZI_OTKAZA.find((r) => r.id === id);
+}
+
 // Auto-broj ugovora se sad uzima iz backend-a po organizaciji+godini
 // (vidi peekContractNumber / takeContractNumber u src/api/profile.ts).

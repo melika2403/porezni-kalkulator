@@ -144,6 +144,37 @@ const fmtMoneyInput = (n: number | null | undefined): string => {
   });
 };
 
+// Cijele godine između dva ISO datuma. Vraća 0 ako bilo koji nije validan.
+const yearsBetween = (startStr?: string | null, endStr?: string | null): number => {
+  if (!startStr) return 0;
+  const start = new Date(startStr);
+  const end = endStr ? new Date(endStr) : new Date();
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  let y = end.getFullYear() - start.getFullYear();
+  const md = end.getMonth() - start.getMonth();
+  if (md < 0 || (md === 0 && end.getDate() < start.getDate())) y -= 1;
+  return Math.max(0, y);
+};
+
+// Ukupan radni staž za minuli rad — koristi novu logiku:
+//  1) priorWorkYears (ručni unos) + staž od prijave u našu firmu — tačno za prekide
+//  2) firstEmploymentDate (datum prvog zaposljenja ikada) — pretpostavlja kontinuitet
+//  3) fallback: prijavaDate (ili startDate radi backward compat)
+const totalYearsOfService = (
+  worker: Pick<Worker, "priorWorkYears" | "firstEmploymentDate" | "prijavaDate" | "startDate">,
+  asOfDate?: string | null,
+): number => {
+  const prior = worker.priorWorkYears;
+  if (prior != null && Number.isFinite(Number(prior)) && Number(prior) >= 0) {
+    const currentYears = yearsBetween(worker.prijavaDate, asOfDate);
+    return Math.max(0, Math.floor(currentYears + Number(prior)));
+  }
+  if (worker.firstEmploymentDate) {
+    return yearsBetween(worker.firstEmploymentDate, asOfDate);
+  }
+  return yearsBetween(worker.prijavaDate || worker.startDate, asOfDate);
+};
+
 const minutesToHoursLabel = (mins: number | null): string => {
   if (mins == null) return "—";
   const h = Math.floor(mins / 60);
@@ -238,8 +269,18 @@ function ObracunPlataApp() {
   const init = todayYM();
   const searchParams = useSearchParams();
   const { lastOrgId, setLastOrgId } = useLastOrg();
-  const [year, setYear] = useState(init.year);
-  const [month, setMonth] = useState(init.month);
+  // year/month iz URL-a (npr. iz /organizacije linka "Otvori plate") imaju
+  // prednost — knjigovođa može direktno na taj mjesec za odabranog klijenta.
+  const urlYear = (() => {
+    const v = Number(searchParams.get("year"));
+    return Number.isFinite(v) && v >= 2000 && v <= 2100 ? v : null;
+  })();
+  const urlMonth = (() => {
+    const v = Number(searchParams.get("month"));
+    return Number.isFinite(v) && v >= 1 && v <= 12 ? v : null;
+  })();
+  const [year, setYear] = useState(urlYear ?? init.year);
+  const [month, setMonth] = useState(urlMonth ?? init.month);
   const initialOrgId = (() => {
     const v = searchParams.get("org");
     const fromUrl = v ? Number(v) || null : null;
@@ -3414,9 +3455,15 @@ function PayrollModal({
       return fmtMoneyInput(Number(worker.salaryBruto));
     }
     if (worker.salaryNeto != null && Number(worker.salaryNeto) > 0) {
+      // Back-compute BAZA (bruto bez minulog rada) iz neto, tako da konačni
+      // neto (nakon dodavanja minulog rada) bude tačno onaj iz profila.
       const ded = deductionFromCoefficient(Number(worker.taxCoefficient ?? 1));
-      const calc = fromNet(Number(worker.salaryNeto), ded);
-      return calc.gross > 0 ? fmtMoneyInput(calc.gross) : "";
+      const fullGross = fromNet(Number(worker.salaryNeto), ded).gross;
+      const minuliRate = Number(worker.minuliRadRate ?? 0.4) / 100;
+      const years = totalYearsOfService(worker);
+      const minuliM = 1 + minuliRate * years;
+      const base = minuliM > 0 ? fullGross / minuliM : fullGross;
+      return base > 0 ? fmtMoneyInput(base) : "";
     }
     return "";
   });
@@ -3564,18 +3611,19 @@ function PayrollModal({
     const base = parseNum(gross);
     if (base <= 0 || !previewBreakdown) return 0;
     const minuliRate = parseNum(minuliRad) / 100;
-    const startDate = worker.startDate ? new Date(worker.startDate) : null;
-    const now = new Date();
-    let years = 0;
-    if (startDate && !Number.isNaN(startDate.getTime())) {
-      years = now.getFullYear() - startDate.getFullYear();
-      const md = now.getMonth() - startDate.getMonth();
-      if (md < 0 || (md === 0 && now.getDate() < startDate.getDate())) years -= 1;
-      years = Math.max(0, years);
-    }
+    const years = totalYearsOfService(worker);
     const minuliAmt = base * minuliRate * years;
     return base + minuliAmt + previewBreakdown.uvecanja;
-  }, [gross, minuliRad, previewBreakdown, worker.startDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    gross,
+    minuliRad,
+    previewBreakdown,
+    worker.prijavaDate,
+    worker.startDate,
+    worker.firstEmploymentDate,
+    worker.priorWorkYears,
+  ]);
 
   const preview = useMemo(() => {
     if (effectiveGross <= 0) return null;
@@ -3585,15 +3633,16 @@ function PayrollModal({
 
   // Multiplikator (M) i koeficijent uvećanja (U) za inverz neto → bruto.
   // fullGross = base × M + base × U = base × (M + U)
-  const yearsOfService = useMemo(() => {
-    const startDate = worker.startDate ? new Date(worker.startDate) : null;
-    if (!startDate || Number.isNaN(startDate.getTime())) return 0;
-    const now = new Date();
-    let y = now.getFullYear() - startDate.getFullYear();
-    const md = now.getMonth() - startDate.getMonth();
-    if (md < 0 || (md === 0 && now.getDate() < startDate.getDate())) y -= 1;
-    return Math.max(0, y);
-  }, [worker.startDate]);
+  const yearsOfService = useMemo(
+    () => totalYearsOfService(worker),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      worker.prijavaDate,
+      worker.startDate,
+      worker.firstEmploymentDate,
+      worker.priorWorkYears,
+    ],
+  );
 
   const grossFactor = useMemo(() => {
     const minuliM = 1 + (parseNum(minuliRad) / 100) * yearsOfService;
@@ -3778,8 +3827,12 @@ function PayrollModal({
       }
       if (worker.salaryNeto != null && Number(worker.salaryNeto) > 0) {
         const ded = deductionFromCoefficient(Number(worker.taxCoefficient ?? 1));
-        const calc = fromNet(Number(worker.salaryNeto), ded);
-        return calc.gross > 0 ? Number(calc.gross.toFixed(2)) : 0;
+        const fullGross = fromNet(Number(worker.salaryNeto), ded).gross;
+        const minuliRate = Number(worker.minuliRadRate ?? 0.4) / 100;
+        const years = totalYearsOfService(worker);
+        const minuliM = 1 + minuliRate * years;
+        const base = minuliM > 0 ? fullGross / minuliM : fullGross;
+        return base > 0 ? Number(base.toFixed(2)) : 0;
       }
       return 0;
     })();
@@ -3984,26 +4037,24 @@ function PayrollModal({
                   placeholder="0,4"
                 />
                 {(() => {
-                  const years = worker.startDate
-                    ? (() => {
-                        const s = new Date(worker.startDate as string);
-                        const e = new Date(`${year}-${String(month).padStart(2, "0")}-01`);
-                        // Posljednji dan mjeseca:
-                        const end = new Date(year, month, 0);
-                        let y = end.getFullYear() - s.getFullYear();
-                        const md = end.getMonth() - s.getMonth();
-                        if (md < 0 || (md === 0 && end.getDate() < s.getDate())) y -= 1;
-                        return Math.max(0, y);
-                      })()
-                    : 0;
+                  // Posljednji dan obračunskog mjeseca kao "as-of" datum.
+                  const asOf = new Date(year, month, 0)
+                    .toISOString()
+                    .slice(0, 10);
+                  const years = totalYearsOfService(worker, asOf);
                   const baseN = parseNum(gross);
                   const rateN = parseNum(minuliRad);
                   const amt = +(baseN * (rateN / 100) * years).toFixed(2);
+                  const hasStazInfo =
+                    !!worker.prijavaDate ||
+                    !!worker.startDate ||
+                    !!worker.firstEmploymentDate ||
+                    worker.priorWorkYears != null;
                   return (
                     <p className={styles.note} style={{ margin: "0.3rem 0 0" }}>
-                      {worker.startDate
+                      {hasStazInfo
                         ? `${years} god. staža × ${rateN.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}% × ${fmtKM(baseN)} = ${fmtKM(amt)} KM`
-                        : "Nije postavljen datum prijave radnika"}
+                        : "Nije postavljen datum prijave ni prethodni staž"}
                     </p>
                   );
                 })()}

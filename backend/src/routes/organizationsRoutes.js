@@ -23,6 +23,11 @@ router.get(
   requireRole("PRO", "BUSINESS", "ADMIN"),
   workersController.listAllForUser,
 );
+router.get(
+  "/payroll-status",
+  requireAuth,
+  organizationsController.listWithPayrollStatus,
+);
 router.post("/", requireAuth, organizationsController.create);
 router.put("/:id", requireAuth, organizationsController.update);
 router.delete("/:id", requireAuth, organizationsController.remove);

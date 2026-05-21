@@ -174,6 +174,18 @@ const Worker = sequelize.define(
       allowNull: false,
       defaultValue: 0.40,
     },
+    // ── Ukupan radni staž (za minuli rad) ──
+    // Minuli rad se računa na UKUPAN radni staž, ne samo na staž u našoj firmi.
+    // Dva opciona unosa (user bira jedan):
+    //  • firstEmploymentDate — datum prvog zaposljenja IKADA. Pretpostavlja
+    //    kontinuirani staž (bez prekida). Ukupan = today - firstEmploymentDate.
+    //  • priorWorkYears — staž PRIJE ulaska u našu firmu, u godinama (decimalni
+    //    broj, npr. 5.5 = 5 god 6 mj). Koristi se kad ima prekida ili kad
+    //    user ne zna tačan datum prvog zaposljenja. Ukupan = today -
+    //    prijavaDate + priorWorkYears.
+    // Ako je upisano oboje, priorWorkYears ima prednost (tačniji).
+    firstEmploymentDate: { type: DataTypes.DATEONLY, allowNull: true },
+    priorWorkYears: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
     // Stope uvećanja po Zakonu o radu FBiH (čl. 76). Default su zakonski minimumi.
     overtimeRate: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 25.0 },
     nightRate: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 25.0 },

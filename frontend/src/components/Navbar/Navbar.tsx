@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import styles from './Navbar.module.css';
 import { me, logout, unwrap } from 'src/api/auth';
-import { getOrganizations } from 'src/api/profile';
+import { getOrganizations, getClientOrganizations } from 'src/api/profile';
 
 type MenuItem = { label: string; href: string; desc?: string };
 type MenuGroup = { title: string; items: MenuItem[] };
@@ -99,8 +99,26 @@ export default function Navbar() {
     enabled: !!user,
     retry: false,
   });
+  // Klijentske org-e samo za PRO/BUSINESS/ADMIN; za USER vraća prazno (forbidden).
+  const isElevated =
+    user?.role === 'PRO' || user?.role === 'BUSINESS' || user?.role === 'ADMIN';
+  const clientOrgsQuery = useQuery({
+    queryKey: ['clientOrganizations'],
+    queryFn: async () => {
+      const res = await getClientOrganizations();
+      if (!res.ok) return [];
+      return res.data;
+    },
+    enabled: !!user && isElevated,
+    retry: false,
+  });
+  const ownCount = orgsQuery.data?.length ?? 0;
+  const clientCount = clientOrgsQuery.data?.length ?? 0;
+  const hasAnyOrg = ownCount > 0 || clientCount > 0;
+  // "Dodaj djelatnost" hint se prikazuje samo kad korisnik NEMA niti jednu
+  // (vlastitu ni klijentsku) i nije već na profilu (gdje može da je doda).
   const needsOrg =
-    !!user && orgsQuery.data && orgsQuery.data.length === 0 && pathname !== '/profil';
+    !!user && orgsQuery.data != null && !hasAnyOrg && pathname !== '/profil';
 
   const sectionHref = (id: string) => isHome ? `#${id}` : `/#${id}`;
 
@@ -201,6 +219,30 @@ export default function Navbar() {
               >
                 <span className={styles.addOrgIcon}>+</span>
                 Dodaj djelatnost
+              </Link>
+            )}
+            {hasAnyOrg && (
+              <Link
+                href="/organizacije"
+                className={styles.orgsLink}
+                title="Pregled svih organizacija i klijenata"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path d="M3 21h18" />
+                  <path d="M5 21V7l8-4v18" />
+                  <path d="M19 21V11l-6-4" />
+                </svg>
+                Organizacije
               </Link>
             )}
             <Link href="/profil" className={styles.userChip} title="Moj profil">

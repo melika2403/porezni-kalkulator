@@ -215,6 +215,38 @@ export function getClientOrganizations() {
   return request<Organization[]>("/api/organizations/clients");
 }
 
+// Status payroll-a za odabrani mjesec po organizaciji.
+export type OrgPayrollStatus =
+  | "no_workers"
+  | "none"
+  | "partial"
+  | "obracunato"
+  | "isplaceno";
+
+export type OrganizationWithPayrollStatus = Organization & {
+  workerCount: number;
+  payrollObracunato: number;
+  payrollIsplaceno: number;
+  payrollStatus: OrgPayrollStatus;
+};
+
+export type OrganizationsPayrollStatusResponse = {
+  own: OrganizationWithPayrollStatus[];
+  clients: OrganizationWithPayrollStatus[];
+  year: number;
+  month: number;
+};
+
+export function getOrganizationsWithPayrollStatus(year: number, month: number) {
+  const sp = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  });
+  return request<OrganizationsPayrollStatusResponse>(
+    `/api/organizations/payroll-status?${sp.toString()}`,
+  );
+}
+
 export function createOrganization(payload: OrgPayload) {
   return request<Organization>("/api/organizations", {
     method: "POST",
@@ -322,6 +354,12 @@ export type Worker = {
   strucnaSpremaIdx: number | null;
   taxCoefficient: number;
   minuliRadRate: number;
+  // Ukupan radni staž (za minuli rad). Dva opciona unosa — user bira jedan:
+  //  • firstEmploymentDate — datum prvog zaposljenja ikada (kontinuirani staž)
+  //  • priorWorkYears — staž prije naše firme u godinama (decimal, podržava prekide)
+  // Ako je oboje, priorWorkYears ima prednost.
+  firstEmploymentDate: string | null;
+  priorWorkYears: number | null;
   overtimeRate: number;
   nightRate: number;
   sundayRate: number;
@@ -366,6 +404,8 @@ export type WorkerPayload = {
   strucnaSpremaIdx?: number | null;
   taxCoefficient?: number | string | null;
   minuliRadRate?: number | string | null;
+  firstEmploymentDate?: string | null;
+  priorWorkYears?: number | string | null;
   overtimeRate?: number | string | null;
   nightRate?: number | string | null;
   sundayRate?: number | string | null;
