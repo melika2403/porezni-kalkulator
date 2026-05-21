@@ -111,21 +111,6 @@ export default function Js3100Form() {
 }
 
 function UpgradeGate() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => unwrap(me()).catch(() => null),
-    retry: false,
-  });
-  if (isLoading) {
-    return <div className={styles.page} />;
-  }
-  if (!user) {
-    return <UpgradeGate />;
-  }
-  return <Js3100App />;
-}
-
-function UpgradeGate() {
   return (
     <PreviewRegisterGate
       pageLabel="Obrazac JS3100"

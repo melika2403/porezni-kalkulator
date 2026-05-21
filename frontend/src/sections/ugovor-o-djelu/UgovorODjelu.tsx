@@ -126,10 +126,10 @@ const formatAmountForInput = (s: string): string => {
 // Sam DOCX/PDF se generišu lokalno; Save-to-profile zove backend koji dodatno
 // gating-uje po owner-tier-u kad ima organizationId.
 export default function UgovorODjelu() {
-  const { tier, hasAccessToTier, isLoading } = useMaxAccessibleTier();
+  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
   if (isLoading) return null;
   if (!hasAccessToTier("BUSINESS")) {
-    return <UgovorODjeluGate role={tier} />;
+    return <UgovorODjeluGate />;
   }
   return <UgovorODjeluApp />;
 }
@@ -153,8 +153,8 @@ function UgovorODjeluGate() {
 }
 
 function UgovorODjeluApp() {
-  const { hasRole } = useRole();
-  const canGenerate = hasRole("BUSINESS", "ADMIN");
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const canGenerate = hasAccessToTier("BUSINESS");
   const { findByName: findCity } = useCityLookup();
   const { notify } = useNotice();
   const [mode, setMode] = useState<Mode>("neto");

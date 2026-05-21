@@ -109,17 +109,20 @@ router.delete(
   workersController.remove,
 );
 
-// Contract counter (UoR) — peek & take next number per organization+year
+// Contract counter (UoR) — peek & take next number per organization+year.
+// BUSINESS feature: tier check via owner; OWNER/ADMIN of org may use it.
 router.get(
   "/:orgId/contract-counter",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN"),
+  requireOwnerTier("BUSINESS"),
   workersController.peekContractNumber,
 );
 router.post(
   "/:orgId/contract-counter/take",
   requireAuth,
-  requireRole("BUSINESS", "ADMIN"),
+  requireOrgRole("OWNER", "ADMIN"),
+  requireOwnerTier("BUSINESS"),
   workersController.takeContractNumber,
 );
 

@@ -191,10 +191,10 @@ function safeFileName(s: string, fallback: string): string {
 
 // Faza 3B: page-gate gledamo kroz max accessible tier (vlastiti ili preko org-e).
 export default function ClanskeKartice() {
-  const { tier, hasAccessToTier, isLoading } = useMaxAccessibleTier();
+  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
   if (isLoading) return null;
   if (!hasAccessToTier("PRO")) {
-    return <Gate role={tier} />;
+    return <Gate />;
   }
   return <ClanskeKarticeApp />;
 }
@@ -222,6 +222,8 @@ function ClanskeKarticeApp() {
   // BUSINESS feature: prikaz klijent-org-a + bulk upload. Pristup imamo ako bilo
   // koja moja org ima BUSINESS-tier vlasnika, ili sami imamo BUSINESS.
   const isBusiness = hasAccessToTier("BUSINESS");
+  const canGenerate = hasAccessToTier("PRO");
+  const { notify, confirm: confirmDialog } = useNotice();
 
   const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],

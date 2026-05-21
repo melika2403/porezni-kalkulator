@@ -165,7 +165,9 @@
       "Bash(node scripts/dump-headers.mjs public/templates/obrazac-2002.orig.pdf)",
       "Bash(node scripts/dump-content.mjs public/templates/obrazac-2002.orig.pdf)",
       "Bash(pdftotext -layout -f 1 -l 1 public/templates/obrazac-2002.orig.pdf -)",
-      "Bash(pdftotext public/templates/obrazac-2002.orig.pdf -)"
+      "Bash(pdftotext public/templates/obrazac-2002.orig.pdf -)",
+      "Bash(git diff *)",
+      "Bash(node -c backend/src/routes/organizationsRoutes.js)"
     ],
     "additionalDirectories": [
       "\\tmp"
