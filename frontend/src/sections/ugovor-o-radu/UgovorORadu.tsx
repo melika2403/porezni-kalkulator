@@ -34,6 +34,9 @@ import {
   formatDdMmYyyy,
   nacinPrestanka,
   naslov2Otkaza,
+  RAZLOZI_OTKAZA,
+  razlogById,
+  type RazlogOtkazaId,
   tipUgovoraRijec,
   type TipPrestanka,
   type TipUgovora,
@@ -201,8 +204,18 @@ function UgovorORaduApp() {
   const [datumUgovoraOrigIso, setDatumUgovoraOrigIso] = useState("");
   const [datumOdlukeIso, setDatumOdlukeIso] = useState(todayIso());
   const [datumPrestankaIso, setDatumPrestankaIso] = useState("");
-  const [razlogOtkaza, setRazlogOtkaza] = useState("");
-  const [tipPrestanka, setTipPrestanka] = useState<TipPrestanka>("od_poslodavca");
+  // Razlog otkaza: dropdown sa predefinisanim razlozima + član ZoR FBiH.
+  // Default "Drugo" da se zadrži postojeće ponašanje slobodnog unosa.
+  const [razlogOtkazaId, setRazlogOtkazaId] = useState<RazlogOtkazaId>("drugo");
+  const [razlogOtkazaCustom, setRazlogOtkazaCustom] = useState("");
+  const razlogDef = razlogById(razlogOtkazaId);
+  const razlogOtkaza =
+    razlogOtkazaId === "drugo"
+      ? razlogOtkazaCustom.trim()
+      : razlogDef?.text ?? "";
+  // tipPrestanka se izvodi iz odabranog razloga (određuje naslov2 i nacin
+  // prestanka u dokumentu). Dropdown za zaseban tip više nije potreban.
+  const tipPrestanka: TipPrestanka = razlogDef?.tipPrestanka ?? "od_poslodavca";
 
   const [gen, setGen] = useState<"docx" | "pdf" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -311,7 +324,8 @@ function UgovorORaduApp() {
     setDatumUgovoraOrigIso(w.startDate ?? "");
     setDatumPrestankaIso(w.endDate ?? w.odjavaDate ?? "");
     // Razlog otkaza ne čuvamo na workeru — uvijek reset
-    setRazlogOtkaza("");
+    setRazlogOtkazaId("drugo");
+    setRazlogOtkazaCustom("");
   };
 
   const showError = (msg: string) => {
@@ -362,6 +376,9 @@ function UgovorORaduApp() {
 
   const buildOtkazData = (): OtkazTemplateData => ({
     naslov2: naslov2Otkaza(tipPrestanka),
+    // Pravna osnova ide u preambulu "Na osnovu __ Zakona o radu FBiH..."
+    // Za "Drugo" nemamo specifičan član — koristimo "Zakona o radu" kao default.
+    pravna_osnova: razlogDef?.pravnaOsnova || "Zakona o radu",
     naziv_firme: nazivFirme,
     adresa_poslodavca: adresaPoslodavca,
     jib_poslodavca: jibPoslodavca,
@@ -1171,21 +1188,6 @@ function UgovorORaduApp() {
               Podaci o <em>otkazu</em>
             </h2>
             <div className={styles.fieldGrid}>
-              <label className={`${styles.field} ${styles.fieldFull}`}>
-                <span className={styles.fieldLabel}>Tip prestanka</span>
-                <select
-                  className={styles.input}
-                  value={tipPrestanka}
-                  onChange={(e) => setTipPrestanka(e.target.value as TipPrestanka)}
-                >
-                  <option value="od_poslodavca">Otkaz od strane Poslodavca</option>
-                  <option value="od_radnika">Otkaz od strane Radnika</option>
-                  <option value="sporazumni">Sporazumni raskid ugovora</option>
-                </select>
-                <p className={styles.hint}>
-                  Naslov dokumenta i formulacija u Članu 1 prilagođavaju se odabranom tipu prestanka.
-                </p>
-              </label>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Broj originalnog ugovora</span>
                 <input
@@ -1221,13 +1223,52 @@ function UgovorORaduApp() {
               </div>
               <label className={`${styles.field} ${styles.fieldFull}`}>
                 <span className={styles.fieldLabel}>Razlog otkaza</span>
-                <textarea
-                  className={styles.textarea}
-                  rows={3}
-                  value={razlogOtkaza}
-                  onChange={(e) => setRazlogOtkaza(e.target.value)}
-                  placeholder="Npr. sporazumni prestanak radnog odnosa, prestanak djelatnosti poslodavca, neispunjavanje obaveza iz ugovora..."
-                />
+                <select
+                  className={styles.input}
+                  value={razlogOtkazaId}
+                  onChange={(e) =>
+                    setRazlogOtkazaId(e.target.value as RazlogOtkazaId)
+                  }
+                >
+                  {RAZLOZI_OTKAZA.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                      {r.clan ? ` — ${r.clan}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {razlogOtkazaId !== "drugo" && razlogDef && (
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      padding: "0.6rem 0.85rem",
+                      borderRadius: 8,
+                      background: "rgba(58, 92, 66, 0.08)",
+                      border: "1px solid rgba(58, 92, 66, 0.25)",
+                      fontSize: 12.5,
+                      lineHeight: 1.5,
+                      color: "var(--ink)",
+                    }}
+                  >
+                    <strong style={{ color: "var(--sage)" }}>
+                      Zakonska osnova: {razlogDef.clan} ZoR FBiH
+                    </strong>
+                    <p style={{ margin: "0.3rem 0 0", color: "var(--mid)" }}>
+                      Ova rečenica će biti uključena u odluku o otkazu kao
+                      obrazloženje sa referencom na član zakona.
+                    </p>
+                  </div>
+                )}
+                {razlogOtkazaId === "drugo" && (
+                  <textarea
+                    className={styles.textarea}
+                    rows={3}
+                    value={razlogOtkazaCustom}
+                    onChange={(e) => setRazlogOtkazaCustom(e.target.value)}
+                    placeholder="Upiši razlog otkaza i član zakona ako je primjenjivo..."
+                    style={{ marginTop: "0.5rem" }}
+                  />
+                )}
               </label>
             </div>
           </section>

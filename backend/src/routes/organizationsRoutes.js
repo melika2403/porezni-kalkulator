@@ -14,13 +14,23 @@ const { logoUpload } = require("../utils/uploads");
 
 const router = express.Router();
 
-router.get("/admin/all", requireAuth, requireRole("ADMIN"), organizationsController.adminListAll);
+router.get(
+  "/admin/all",
+  requireAuth,
+  requireRole("ADMIN"),
+  organizationsController.adminListAll,
+);
 router.get("/", requireAuth, organizationsController.list);
 // Cross-org listings — gated by membership (filtered in repository).
 // A USER may legitimately be a member of a BUSINESS owner's org, so we don't
 // gate by user role here.
 router.get("/clients", requireAuth, organizationsController.listClients);
 router.get("/workers/mine", requireAuth, workersController.listAllForUser);
+router.get(
+  "/payroll-status",
+  requireAuth,
+  organizationsController.listWithPayrollStatus,
+);
 router.post("/", requireAuth, organizationsController.create);
 router.put("/:id", requireAuth, organizationsController.update);
 router.delete("/:id", requireAuth, organizationsController.remove);
@@ -37,7 +47,10 @@ router.post(
   (req, res, next) => {
     logoUpload.single("logo")(req, res, (err) => {
       if (err) {
-        const code = err?.message === "INVALID_IMAGE_TYPE" ? "INVALID_IMAGE_TYPE" : "UPLOAD_ERROR";
+        const code =
+          err?.message === "INVALID_IMAGE_TYPE"
+            ? "INVALID_IMAGE_TYPE"
+            : "UPLOAD_ERROR";
         return res.status(400).json({ ok: false, error: code });
       }
       next();

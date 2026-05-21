@@ -45,6 +45,10 @@ function toPublicWorker(w) {
     startDate: rest.startDate ? String(rest.startDate).slice(0, 10) : null,
     endDate: rest.endDate ? String(rest.endDate).slice(0, 10) : null,
     contractEndDate: rest.contractEndDate ? String(rest.contractEndDate).slice(0, 10) : null,
+    firstEmploymentDate: rest.firstEmploymentDate
+      ? String(rest.firstEmploymentDate).slice(0, 10)
+      : null,
+    priorWorkYears: rest.priorWorkYears != null ? Number(rest.priorWorkYears) : null,
     prijavaDate,
     odjavaDate,
     salaryBruto: rest.salaryBruto != null ? Number(rest.salaryBruto) : null,
@@ -160,6 +164,25 @@ function pickEmploymentFields(body, target) {
     }
   }
 
+  // Polja za ukupan radni staž (za minuli rad). Vidi komentar u modelu.
+  const { firstEmploymentDate, priorWorkYears } = body ?? {};
+  if (firstEmploymentDate !== undefined) {
+    target.firstEmploymentDate = firstEmploymentDate
+      ? new Date(firstEmploymentDate)
+      : null;
+  }
+  if (priorWorkYears !== undefined) {
+    if (priorWorkYears === null || priorWorkYears === "") {
+      target.priorWorkYears = null;
+    } else {
+      const n = Number(priorWorkYears);
+      if (!Number.isFinite(n) || n < 0 || n > 60) {
+        return "Staž prije naše firme mora biti broj između 0 i 60";
+      }
+      target.priorWorkYears = n;
+    }
+  }
+
   const { contractedHours } = body ?? {};
   if (contractedHours !== undefined) {
     if (contractedHours === null || contractedHours === "") {
@@ -243,8 +266,14 @@ async function create(req, res) {
     return res.status(400).json({ ok: false, error: "Uloga mora biti VLASNIK ili RADNIK" });
   if (!String(firstName ?? "").trim()) return res.status(400).json({ ok: false, error: "Ime je obavezno" });
   if (!String(lastName ?? "").trim()) return res.status(400).json({ ok: false, error: "Prezime je obavezno" });
-  if (resolvedRole === "RADNIK" && !startDate)
-    return res.status(400).json({ ok: false, error: "Datum početka radnog odnosa je obavezan" });
+  // Datum prijave (JS3100) ili startDate je obavezan za radnika. Forma više
+  // ne pokazuje startDate, koristi se prijavaDate kao primary; startDate
+  // ostaje za backward kompatibilnost.
+  const { prijavaDate: bodyPrijavaDate } = req.body ?? {};
+  if (resolvedRole === "RADNIK" && !startDate && !bodyPrijavaDate)
+    return res
+      .status(400)
+      .json({ ok: false, error: "Datum prijave je obavezan za radnika" });
   if (startDate && endDate && new Date(endDate) <= new Date(startDate))
     return res.status(400).json({ ok: false, error: "Datum kraja mora biti nakon datuma početka" });
 
