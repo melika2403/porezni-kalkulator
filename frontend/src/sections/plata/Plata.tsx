@@ -231,6 +231,136 @@ export default function PreracunPlate() {
           <p className={styles.placeholder}>Unesite iznos da vidite preračun.</p>
         )}
       </div>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.eduSection}>
+        <h2>
+          Kako se računa <em>neto plata</em> iz bruto plate u FBiH?
+        </h2>
+        <p>
+          U Federaciji BiH plata se obračunava po precizno propisanom redoslijedu.
+          Iz <strong>bruto plate</strong> radnika prvo se odbijaju <strong>doprinosi
+          iz plate</strong> (ukupno 31%): PIO/MIO 17%, zdravstveno 12,5% i
+          osiguranje od nezaposlenosti 1,5%. Tako se dobija porezna osnovica.
+        </p>
+        <p>
+          Od porezne osnovice se zatim oduzima <strong>lični odbitak</strong>{" "}
+          (300 KM mjesečno × koeficijent uzdržavanih članova) i na razliku se
+          obračunava <strong>porez na dohodak po stopi od 10%</strong>.
+        </p>
+        <p>
+          <strong>Neto plata</strong> = Bruto − doprinosi iz plate − porez na
+          dohodak. To je iznos koji radnik dobija "na ruke" / na bankovni račun.
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Šta čini <em>ukupan trošak</em> poslodavca?
+        </h2>
+        <p>
+          Pored bruto plate, poslodavac plaća i <strong>doprinose na bruto
+          platu</strong> (10,5% ukupno):
+        </p>
+        <ul>
+          <li><strong>PIO/MIO 6%</strong> — Federalni zavod PIO/MIO,</li>
+          <li><strong>Zdravstveno 4%</strong> — kantonalni i federalni zavod,</li>
+          <li><strong>Nezaposlenost 0,5%</strong> — Služba zapošljavanja.</li>
+        </ul>
+        <p>
+          Dodatne obaveze poslodavca koje ne ulaze u doprinose ali su porez na
+          platu:
+        </p>
+        <ul>
+          <li><strong>Opća vodna naknada 0,5%</strong> — uplata u FBiH budžet,</li>
+          <li><strong>Naknada za zaštitu od nesreća 0,5%</strong> — uplata u FBiH budžet,</li>
+          <li>
+            <strong>Fond za rehabilitaciju OSI 0,5%</strong> — samo za privredna
+            društva. Obrti su izuzeti.
+          </li>
+        </ul>
+        <p>
+          <strong>Ukupan trošak</strong> = Bruto plata + svi doprinosi na platu +
+          naknade. Za obrte i d.o.o. razlikuje se za 0,5% (fond OSI).
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Lični <em>odbitak</em> i uzdržavani članovi
+        </h2>
+        <p>
+          <strong>Lični odbitak</strong> umanjuje poreznu osnovicu prije
+          obračuna poreza na dohodak. Osnovni iznos je <strong>300 KM mjesečno</strong>{" "}
+          (3.600 KM godišnje). Pripada svakom radniku koji je rezident FBiH.
+        </p>
+        <p>
+          Iznos se uvećava za uzdržavane članove porodice — supružnika, djecu,
+          roditelje, drugu rodbinu koju radnik izdržava. Faktor uvećanja zavisi
+          od broja i vrste uzdržavanih članova; obračunava se preko poreznog
+          koeficijenta (npr. 1,3 za jedno dijete, 1,5 za supružnika + dijete,
+          itd.).
+        </p>
+        <p>
+          Da bi se odbitak iskoristio, radnik mora poslodavcu dostaviti{" "}
+          <strong>Poreznu karticu (Obrazac PK-1)</strong> sa odobrenim
+          koeficijentom.
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Stope i <em>uplatni računi</em> — pregled
+        </h2>
+        <ul>
+          <li>
+            <strong>PIO/MIO 17% (iz) + 6% (na)</strong> — vrsta prihoda 712112,
+            Federalni zavod PIO/MIO.
+          </li>
+          <li>
+            <strong>Zdravstveno 12,5% (iz) + 4% (na)</strong> — vrsta prihoda 712111,
+            split 89,8% kantonalni / 10,2% federalni.
+          </li>
+          <li>
+            <strong>Nezaposlenost 1,5% (iz) + 0,5% (na)</strong> — vrsta prihoda 712113,
+            split 70% kantonalni / 30% federalni.
+          </li>
+          <li>
+            <strong>Porez na dohodak 10%</strong> — vrsta prihoda 716111, kantonalni
+            budžet po prebivalištu radnika.
+          </li>
+          <li>
+            <strong>Opća vodna naknada 0,5%</strong> — vrsta prihoda 722529.
+          </li>
+          <li>
+            <strong>Naknada za nesreće 0,5%</strong> — vrsta prihoda 722581.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Povezani <em>alati</em>
+        </h2>
+        <ul>
+          <li>
+            <a href="/prijave-radnika?tab=obracun">Obračun plata</a> — mjesečni
+            obračun za sve radnike sa generisanjem platnih listića i uplatnica.
+          </li>
+          <li>
+            <a href="/prijave-radnika">JS3100 — prijava/odjava radnika</a> —
+            registracija osiguranika u sistem PIO/MIO i zdravstvenog.
+          </li>
+          <li>
+            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a> — svi
+            računi i šifre za uplatu doprinosa i poreza.
+          </li>
+          <li>
+            <a href="/sifre-djelatnosti">Šifre djelatnosti (KD BiH 2010)</a> —
+            za registraciju radnika prema vrsti djelatnosti.
+          </li>
+        </ul>
+      </section>
     </div>
   );
 }

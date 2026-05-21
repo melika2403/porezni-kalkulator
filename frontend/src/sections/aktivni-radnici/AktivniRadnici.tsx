@@ -12,6 +12,7 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useLastOrg } from "src/hooks/useLastOrg";
 import QuickAddWorkerModal from "src/components/WorkersSidebar/QuickAddWorkerModal";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
@@ -49,10 +50,13 @@ function fmtPlata(n: number | null): string {
 }
 
 export default function AktivniRadnici() {
-  const { role, hasRole } = useRole();
+  const { role } = useRole();
+  const { hasAccessToTier } = useMaxAccessibleTier();
   const isLoggedIn = role !== null;
-  const canCreateWorker = hasRole("PRO", "BUSINESS", "ADMIN");
-  const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Worker create + klijent-org listing — dostupno ako vlastiti plan ili bilo
+  // koja moja org ima PRO+ vlasnika.
+  const canCreateWorker = hasAccessToTier("PRO");
+  const canSeeClients = hasAccessToTier("PRO");
 
   const searchParams = useSearchParams();
   const { lastOrgId, setLastOrgId } = useLastOrg();
@@ -104,7 +108,19 @@ export default function AktivniRadnici() {
 
   const allWorkers = workersQuery.data ?? [];
   // Uključi i RADNIK i VLASNIK (vlasnici se prepoznaju po roli i imaju badge).
-  const radnici = allWorkers;
+  // Sort:
+  //   1) Odjavljeni uvijek na dno (bez obzira kad su prijavljeni)
+  //   2) Po datumu prijave ASC (najstariji prijavljen radnik gore)
+  //   3) Po datumu kreiranja ASC (tiebreak)
+  const radnici = [...allWorkers].sort((a, b) => {
+    const aOff = a.employmentStatus === "ODJAVLJEN" ? 1 : 0;
+    const bOff = b.employmentStatus === "ODJAVLJEN" ? 1 : 0;
+    if (aOff !== bOff) return aOff - bOff;
+    const aDate = a.prijavaDate || "9999-12-31";
+    const bDate = b.prijavaDate || "9999-12-31";
+    if (aDate !== bDate) return aDate.localeCompare(bDate);
+    return (a.createdAt || "").localeCompare(b.createdAt || "");
+  });
 
   const filtered = radnici.filter((w) => {
     if (filter === "svi") return true;
@@ -241,14 +257,14 @@ export default function AktivniRadnici() {
               <tbody>
                 {filtered.map((w: Worker) => (
                   <tr key={w.id}>
-                    <td>
+                    <td data-label="Status">
                       <span
                         className={`${styles.badge} ${STATUS_CLASS[w.employmentStatus] ?? styles.badgeDraft}`}
                       >
                         {STATUS_LABEL[w.employmentStatus] ?? w.employmentStatus}
                       </span>
                     </td>
-                    <td className={styles.nameCell}>
+                    <td className={styles.nameCell} data-label="Ime i prezime">
                       <Link
                         href={`/aktivni-radnici/${w.id}`}
                         style={{ color: "inherit", textDecoration: "none" }}
@@ -274,18 +290,32 @@ export default function AktivniRadnici() {
                         </span>
                       )}
                     </td>
-                    <td className={styles.muted}>{w.jmbg ?? "—"}</td>
-                    <td>{w.position ?? "—"}</td>
-                    <td className={styles.num}>{fmtPlata(w.salaryBruto)}</td>
-                    <td className={styles.muted}>{fmtDate(w.prijavaDate)}</td>
-                    <td>
+                    <td className={styles.muted} data-label="JMBG">{w.jmbg ?? "—"}</td>
+                    <td data-label="Pozicija">{w.position ?? "—"}</td>
+                    <td className={styles.num} data-label="Bruto plata">{fmtPlata(w.salaryBruto)}</td>
+                    <td className={styles.muted} data-label="Datum prijave">{fmtDate(w.prijavaDate)}</td>
+                    <td data-label="Akcije">
                       <div className={styles.actions}>
                         <Link
                           href={`/ugovor-o-radu?org=${orgId}&worker=${w.id}&tab=ugovor`}
                           className={styles.actionLink}
                           title="Generiši ugovor o radu — auto-popuna podataka"
                         >
-                          📄 Ugovor
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            width="14"
+                            height="14"
+                            aria-hidden="true"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <path d="M14 2v6h6" />
+                          </svg>
+                          Ugovor
                         </Link>
                         {w.employmentStatus === "PRIJAVLJEN" && (
                           <Link
@@ -293,7 +323,21 @@ export default function AktivniRadnici() {
                             className={styles.actionLink}
                             title="Generiši otkaz — auto-popuna podataka"
                           >
-                            ❌ Otkaz
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              width="14"
+                              height="14"
+                              aria-hidden="true"
+                            >
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                            Otkaz
                           </Link>
                         )}
                         <Link
@@ -303,14 +347,44 @@ export default function AktivniRadnici() {
                           className={styles.actionLink}
                           title="JS3100 prijava/odjava — auto-popuna"
                         >
-                          📋 JS3100
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            width="14"
+                            height="14"
+                            aria-hidden="true"
+                          >
+                            <rect x="8" y="2" width="8" height="4" rx="1" />
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                            <line x1="8" y1="11" x2="16" y2="11" />
+                            <line x1="8" y1="15" x2="14" y2="15" />
+                          </svg>
+                          JS3100
                         </Link>
                         <Link
                           href={`/organizacija/${orgId}`}
                           className={styles.actionLink}
                           title="Uredi radnika"
                         >
-                          ✏️ Edit
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            width="14"
+                            height="14"
+                            aria-hidden="true"
+                          >
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          Edit
                         </Link>
                       </div>
                     </td>

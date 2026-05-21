@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
 import { KD_BIH, type KdBihEntry } from "src/data/kd-bih";
@@ -47,6 +47,7 @@ import {
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import OrganizationLogoUpload from "./OrganizationLogoUpload";
 import CitySelect from "src/components/CitySelect/CitySelect";
+import DateInput from "src/components/DateInput/DateInput";
 import { useRole } from "src/hooks/useRole";
 import Link from "next/link";
 import {
@@ -89,6 +90,8 @@ const FORM_TYPE_LABELS: Record<FormType, string> = {
   SPR: "SPR",
   ZO3: "ZO3",
   UGOVOR: "Ugovor",
+  UOD: "Ugovor o djelu",
+  SIH: "Šihterica",
   PLDI: "PLDI",
   AMS: "AMS",
   JS3100: "JS3100",
@@ -127,6 +130,8 @@ function typeBadgeClass(type: FormType, s: Record<string, string>) {
     SPR: s.badgeSpr,
     ZO3: s.badgeZo3,
     UGOVOR: s.badgeUgovor,
+    UOD: s.badgeUod ?? s.badgeUgovor,
+    SIH: s.badgeSih ?? s.badgeUgovor,
     PLDI: s.badgePldi,
     AMS: s.badgeAms ?? s.badgeUgovor,
     JS3100: s.badgeJs3100 ?? s.badgeUgovor,
@@ -154,7 +159,13 @@ type Tab =
 
 // ─── Profile tab ──────────────────────────────────────────────────────────────
 
-function ProfilTab({ user }: { user: AuthUser }) {
+function ProfilTab({
+  user,
+  requestedEditOrgId,
+}: {
+  user: AuthUser;
+  requestedEditOrgId?: number | null;
+}) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
 
@@ -219,6 +230,17 @@ function ProfilTab({ user }: { user: AuthUser }) {
     });
     updateOwnOrgMutation.reset();
   };
+
+  // Ako je iz URL-a stigao ?editOrg=X (npr. iz /organizacije Edit dugmeta),
+  // automatski otvori edit formu za tu organizaciju kad se orgs lista učita.
+  useEffect(() => {
+    if (!requestedEditOrgId) return;
+    const target = ownOrgs.find((o) => o.id === requestedEditOrgId);
+    if (target && editOwnId !== target.id) {
+      startEditOwnOrg(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedEditOrgId, ownOrgs.length]);
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
   const [phone, setPhone] = useState(user.phone ?? "");
@@ -733,6 +755,9 @@ type OwnerFormState = {
   address: string;
   city: string;
   idCardNumber: string;
+  prijavaDate: string;
+  salaryBruto: string;
+  taxCoefficient: string;
 };
 
 const emptyOwner: OwnerFormState = {
@@ -744,9 +769,16 @@ const emptyOwner: OwnerFormState = {
   address: "",
   city: "",
   idCardNumber: "",
+  prijavaDate: "",
+  salaryBruto: "",
+  taxCoefficient: "1.0",
 };
 
 function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
+  const salary = o.salaryBruto.trim()
+    ? Number(o.salaryBruto.replace(/\./g, "").replace(",", "."))
+    : null;
+  const coef = Number(o.taxCoefficient.replace(",", "."));
   return {
     firstName: o.firstName.trim(),
     lastName: o.lastName.trim(),
@@ -756,6 +788,9 @@ function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
     ...(o.address.trim() && { address: o.address.trim() }),
     ...(o.city.trim() && { city: o.city.trim() }),
     ...(o.idCardNumber.trim() && { idCardNumber: o.idCardNumber.trim() }),
+    prijavaDate: o.prijavaDate || null,
+    salaryBruto: salary,
+    taxCoefficient: Number.isFinite(coef) && coef >= 0 ? coef : 1.0,
   };
 }
 
@@ -866,6 +901,50 @@ function OwnerFields({
             className={styles.input}
           />
         </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>
+            Datum prijave (opciono){" "}
+            <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+              — ako se unese, vlasnik se odmah računa kao prijavljen
+            </span>
+          </label>
+          <DateInput
+            className={styles.input}
+            value={value.prijavaDate}
+            onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Bruto plata vlasnika (KM)</label>
+          <input
+            className={styles.input}
+            value={value.salaryBruto}
+            onChange={set("salaryBruto")}
+            placeholder="0,00"
+            inputMode="decimal"
+          />
+        </div>
+      </div>
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>
+            Porezni koeficijent{" "}
+            <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+              — 1.0 = 300 KM mjesečnog odbitka. Za obrt vlasnika koristi se
+              samo u godišnjem GPD-1051 obračunu.
+            </span>
+          </label>
+          <input
+            className={styles.input}
+            value={value.taxCoefficient}
+            onChange={set("taxCoefficient")}
+            inputMode="decimal"
+            placeholder="1.0"
+          />
+        </div>
+        <div className={styles.field} />
       </div>
     </div>
   );
@@ -1415,7 +1494,11 @@ type AddMode = "client-org" | "person";
 
 const PRO_CLIENT_LIMIT = 20;
 
-function DjelatnostTab() {
+function DjelatnostTab({
+  requestedEditOrgId,
+}: {
+  requestedEditOrgId?: number | null;
+}) {
   const queryClient = useQueryClient();
   const { role } = useRole();
   const isPro = role === "PRO";
@@ -1561,11 +1644,32 @@ function DjelatnostTab() {
             address: ow.address ?? "",
             city: ow.city ?? "",
             idCardNumber: ow.idCardNumber ?? "",
+            prijavaDate: ow.prijavaDate ?? "",
+            salaryBruto:
+              ow.salaryBruto != null
+                ? ow.salaryBruto.toLocaleString("de-DE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : "",
+            taxCoefficient:
+              ow.taxCoefficient != null ? String(ow.taxCoefficient) : "1.0",
           }
         : emptyOwner,
     );
     updateOrgMutation.reset();
   };
+
+  // Ako je iz URL-a stigao ?editOrg=X (npr. iz /organizacije Edit dugmeta),
+  // automatski otvori edit formu za tu klijentsku organizaciju.
+  useEffect(() => {
+    if (!requestedEditOrgId) return;
+    const target = clientOrgs.find((o) => o.id === requestedEditOrgId);
+    if (target && editId !== target.id) {
+      startEditOrg(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedEditOrgId, clientOrgs.length]);
 
   const startEditPerson = (p: PersonClient) => {
     setEditId(null);
@@ -2049,6 +2153,9 @@ const FILTER_OPTIONS: Array<{ label: string; value: HistorijaFilter }> = [
   { label: "SPR", value: "SPR" },
   { label: "ZO3", value: "ZO3" },
   { label: "Ugovor o pozajmici", value: "UGOVOR" },
+  { label: "Ugovor o djelu", value: "UOD" },
+  { label: "Šihterica", value: "SIH" },
+  { label: "JS3100", value: "JS3100" },
   { label: "Stalna sredstva (PLDI)", value: "PLDI" },
 ];
 
@@ -2341,6 +2448,15 @@ function HistorijaTab() {
   const [nameByYear, setNameByYear] = useState<Record<number, string>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  // Faza 3B: dohvati moj userId radi prikaza "Tim" indikatora na team-shared
+  // formama koje je kreirao neko drugi član iz iste org-e.
+  const { data: meData } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()),
+    retry: false,
+  });
+  const myUserId = meData?.id ?? null;
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) =>
       deleteDocument(id).then((res) => {
@@ -2521,7 +2637,25 @@ function HistorijaTab() {
                   {FORM_TYPE_LABELS[f.type]}
                 </span>
                 <div className={styles.formDetails}>
-                  <div className={styles.formTitle}>{displayTitle(f)}</div>
+                  <div className={styles.formTitle}>
+                    {displayTitle(f)}
+                    {/* Faza 3B: team marker za forme koje je kreirao drugi član iz iste org-e */}
+                    {f.organization && f.createdById !== null && myUserId !== null && f.createdById !== myUserId && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 11,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          background: "var(--color-bg-subtle, #f0f0f0)",
+                          color: "var(--color-text-muted, #666)",
+                        }}
+                        title="Dokument kreiran od strane drugog člana organizacije"
+                      >
+                        Tim
+                      </span>
+                    )}
+                  </div>
                   <div className={styles.formMeta}>
                     {recipientLabel(f)}
                     {(() => {
@@ -3016,7 +3150,29 @@ function PretplataTab({ user }: { user: AuthUser }) {
 
 export default function Profil() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("profil");
+  const searchParams = useSearchParams();
+  // URL params (?tab=klijenti&editOrg=12) — koriste se iz /organizacije Edit
+  // dugmeta da auto-otvori edit formu za specifičnu organizaciju.
+  const initialTab: Tab = (() => {
+    const t = searchParams.get("tab");
+    if (
+      t === "profil" ||
+      t === "klijenti" ||
+      t === "historija" ||
+      t === "sigurnost" ||
+      t === "pretplata" ||
+      t === "admin"
+    ) {
+      return t;
+    }
+    return "profil";
+  })();
+  const requestedEditOrgId = (() => {
+    const v = searchParams.get("editOrg");
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   const {
     data: user,
@@ -3075,40 +3231,53 @@ export default function Profil() {
         </div>
 
         <nav className={styles.sidebarNav}>
-          {NAV_ITEMS.map(({ key, label, icon }) => {
-            const btn = (
-              <button
-                key={key}
-                className={`${styles.navItem} ${tab === key ? styles.navItemActive : ""}`}
-                onClick={() => {
-                  if (key === "admin") {
-                    router.push("/admin/korisnici");
-                    return;
-                  }
-                  setTab(key);
-                }}
-              >
-                <span className={styles.navIcon}>{icon}</span>
-                {label}
-              </button>
-            );
-
-            if (key === "admin") {
-              return (
-                <RoleGuard key={key} roles={["ADMIN"]} mode="hide">
-                  {btn}
-                </RoleGuard>
-              );
-            }
-
-            return btn;
-          })}
+          {NAV_ITEMS.filter((it) => it.key !== "admin").map(({ key, label, icon }) => (
+            <button
+              key={key}
+              className={`${styles.navItem} ${tab === key ? styles.navItemActive : ""}`}
+              onClick={() => setTab(key)}
+            >
+              <span className={styles.navIcon}>{icon}</span>
+              {label}
+            </button>
+          ))}
+          {/* Pregled svih organizacija — vodi na /organizacije, uvijek vidljiv. */}
+          <button
+            className={styles.navItem}
+            onClick={() => router.push("/organizacije")}
+            title="Pregled svih vlastitih i klijentskih organizacija"
+          >
+            <span className={styles.navIcon}>
+              <LuBuilding size={17} />
+            </span>
+            Pregled organizacija
+          </button>
+          {/* Admin — uvijek na dnu, vidljiv samo ADMIN korisnicima. */}
+          <RoleGuard roles={["ADMIN"]} mode="hide">
+            <button
+              className={styles.navItem}
+              onClick={() => router.push("/admin/korisnici")}
+            >
+              <span className={styles.navIcon}>
+                <LuSettings size={17} />
+              </span>
+              Admin
+            </button>
+          </RoleGuard>
         </nav>
       </aside>
 
       <main className={styles.content}>
-        {tab === "profil" && <ProfilTab key={user.id} user={user} />}
-        {tab === "klijenti" && <DjelatnostTab />}
+        {tab === "profil" && (
+          <ProfilTab
+            key={user.id}
+            user={user}
+            requestedEditOrgId={requestedEditOrgId}
+          />
+        )}
+        {tab === "klijenti" && (
+          <DjelatnostTab requestedEditOrgId={requestedEditOrgId} />
+        )}
         {tab === "historija" && <HistorijaTab />}
         {tab === "sigurnost" && <SigurnostTab user={user} />}
         {tab === "pretplata" && <PretplataTab user={user} />}

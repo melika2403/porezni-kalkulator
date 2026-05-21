@@ -39,7 +39,7 @@ import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import {
   getOsnovica,
   KATEGORIJA_PAUSALNI_LABELS,
@@ -50,6 +50,33 @@ import {
   fillObrazac2001Template,
   type Obrazac2001Data,
 } from "./fillObrazac2001";
+import {
+  fillMip1023Template,
+  type Mip1023Data,
+  type Mip1023Row,
+} from "./fillMip1023";
+import {
+  fillGip1022Template,
+  type Gip1022Data,
+  type Gip1022Row,
+} from "./fillGip1022";
+import {
+  generateGip1022Xml,
+  type Gip1022XmlData,
+  type Gip1022XmlObrazac,
+  type Gip1022XmlRow,
+} from "./gip1022Xml";
+import {
+  generateMip1023Xml,
+  type Mip1023XmlData,
+  type Mip1023XmlWorker,
+} from "./mip1023Xml";
+import { fillListaNaloga, type ListaNalogaData } from "./fillListaNaloga";
+import {
+  fillSpecifikacije,
+  type SpecifikacijeData,
+} from "./fillSpecifikacije";
+import { kantonForOpcina, bankFromAccount } from "src/data/uplatni-racuni";
 import {
   fillObrazac2002Template,
   type Obrazac2002Data,
@@ -105,6 +132,47 @@ const fmtKM = (n: number | null | undefined): string => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+};
+
+// Format za input polja KM iznosa: "1.234,56" ili "" za 0/null. Ne stavlja "—".
+const fmtMoneyInput = (n: number | null | undefined): string => {
+  const num = Number(n);
+  if (!Number.isFinite(num) || num === 0) return "";
+  return num.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+// Cijele godine između dva ISO datuma. Vraća 0 ako bilo koji nije validan.
+const yearsBetween = (startStr?: string | null, endStr?: string | null): number => {
+  if (!startStr) return 0;
+  const start = new Date(startStr);
+  const end = endStr ? new Date(endStr) : new Date();
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  let y = end.getFullYear() - start.getFullYear();
+  const md = end.getMonth() - start.getMonth();
+  if (md < 0 || (md === 0 && end.getDate() < start.getDate())) y -= 1;
+  return Math.max(0, y);
+};
+
+// Ukupan radni staž za minuli rad — koristi novu logiku:
+//  1) priorWorkYears (ručni unos) + staž od prijave u našu firmu — tačno za prekide
+//  2) firstEmploymentDate (datum prvog zaposljenja ikada) — pretpostavlja kontinuitet
+//  3) fallback: prijavaDate (ili startDate radi backward compat)
+const totalYearsOfService = (
+  worker: Pick<Worker, "priorWorkYears" | "firstEmploymentDate" | "prijavaDate" | "startDate">,
+  asOfDate?: string | null,
+): number => {
+  const prior = worker.priorWorkYears;
+  if (prior != null && Number.isFinite(Number(prior)) && Number(prior) >= 0) {
+    const currentYears = yearsBetween(worker.prijavaDate, asOfDate);
+    return Math.max(0, Math.floor(currentYears + Number(prior)));
+  }
+  if (worker.firstEmploymentDate) {
+    return yearsBetween(worker.firstEmploymentDate, asOfDate);
+  }
+  return yearsBetween(worker.prijavaDate || worker.startDate, asOfDate);
 };
 
 const minutesToHoursLabel = (mins: number | null): string => {
@@ -201,8 +269,18 @@ function ObracunPlataApp() {
   const init = todayYM();
   const searchParams = useSearchParams();
   const { lastOrgId, setLastOrgId } = useLastOrg();
-  const [year, setYear] = useState(init.year);
-  const [month, setMonth] = useState(init.month);
+  // year/month iz URL-a (npr. iz /organizacije linka "Otvori plate") imaju
+  // prednost — knjigovođa može direktno na taj mjesec za odabranog klijenta.
+  const urlYear = (() => {
+    const v = Number(searchParams.get("year"));
+    return Number.isFinite(v) && v >= 2000 && v <= 2100 ? v : null;
+  })();
+  const urlMonth = (() => {
+    const v = Number(searchParams.get("month"));
+    return Number.isFinite(v) && v >= 1 && v <= 12 ? v : null;
+  })();
+  const [year, setYear] = useState(urlYear ?? init.year);
+  const [month, setMonth] = useState(urlMonth ?? init.month);
   const initialOrgId = (() => {
     const v = searchParams.get("org");
     const fromUrl = v ? Number(v) || null : null;
@@ -221,9 +299,12 @@ function ObracunPlataApp() {
     [setLastOrgId],
   );
 
-  const { hasRole } = useRole();
-  const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
-  const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
+  // PRO feature: dostupno ako vlastiti plan ili bilo koja moja org ima PRO+
+  // vlasnika (members of BUSINESS owner's org dobijaju pun pristup).
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const canSeeClients = hasAccessToTier("PRO");
+  const canGenerate = hasAccessToTier("PRO");
+  const { confirm: confirmDialog, notify } = useNotice();
 
   const orgsQuery = useQuery({
     queryKey: ["organizations"],
@@ -260,13 +341,47 @@ function ObracunPlataApp() {
     enabled: !!orgId,
   });
 
-  const radnici = useMemo(
-    () => (workersQuery.data ?? []).filter((w) => w.role === "RADNIK"),
-    [workersQuery.data],
+  // Aktivnost za odabrani obračunski mjesec:
+  //   • Odjavljen PRIJE ovog mjeseca → ne pripada obračunu (sakri).
+  //   • Prijavljen POSLIJE ovog mjeseca → još nije aktivan (sakri).
+  //   • Mid-month prijava ili odjava → ostaje u obračunu, banner upozorenja
+  //     se prikazuje, bruto se ručno proporcionalno upiše.
+  const monthBounds = useMemo(() => {
+    const yyyy = String(year);
+    const mm = String(month).padStart(2, "0");
+    const lastDay = new Date(year, month, 0).getDate();
+    return {
+      startISO: `${yyyy}-${mm}-01`,
+      endISO: `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`,
+    };
+  }, [year, month]);
+
+  const isActiveForMonth = useCallback(
+    (w: Worker): boolean => {
+      if (w.odjavaDate && w.odjavaDate.slice(0, 10) < monthBounds.startISO) {
+        return false;
+      }
+      if (w.prijavaDate && w.prijavaDate.slice(0, 10) > monthBounds.endISO) {
+        return false;
+      }
+      return true;
+    },
+    [monthBounds],
   );
-  const vlasnici = useMemo(
-    () => (workersQuery.data ?? []).filter((w) => w.role === "VLASNIK"),
-    [workersQuery.data],
+
+  const radniciRaw = useMemo(
+    () =>
+      (workersQuery.data ?? []).filter(
+        (w) => w.role === "RADNIK" && isActiveForMonth(w),
+      ),
+    [workersQuery.data, isActiveForMonth],
+  );
+  const vlasniciRaw = useMemo(
+    () =>
+      (workersQuery.data ?? []).filter(
+        (w) => w.role === "VLASNIK" && isActiveForMonth(w),
+      ),
+    [workersQuery.data, isActiveForMonth],
   );
 
   const currentOrg = useMemo<Organization | null>(() => {
@@ -274,6 +389,19 @@ function ObracunPlataApp() {
     if (own) return own;
     return (clientOrgsQuery.data ?? []).find((o) => o.id === orgId) ?? null;
   }, [orgsQuery.data, clientOrgsQuery.data, orgId]);
+
+  // U obrtu (BUSINESS) vlasnik ide poseban tretman (Obrazac 2002, fiksna
+  // osnovica), pa stoji u zasebnoj sekciji. U d.o.o. (COMPANY) vlasnik se
+  // obračunava kao standardni radnik (Obrazac 2001, bruto/neto/doprinosi).
+  const isObrt = currentOrg?.type === "BUSINESS";
+  const radnici = useMemo(
+    () => (isObrt ? radniciRaw : [...radniciRaw, ...vlasniciRaw]),
+    [isObrt, radniciRaw, vlasniciRaw],
+  );
+  const vlasnici = useMemo(
+    () => (isObrt ? vlasniciRaw : []),
+    [isObrt, vlasniciRaw],
+  );
 
   const payrollByWorker = useMemo(() => {
     const map = new Map<number, Payroll>();
@@ -333,10 +461,56 @@ function ObracunPlataApp() {
     },
   });
 
+  // Pro-rate factor za vlasnika obrta na osnovu prijavaDate / odjavaDate.
+  // Vraća broj između 0 i 1, ili 1 (pun mjesec) ako nema mid-month događaja.
+  const computeVlasnikProRate = (vlasnik: Worker): number => {
+    const lastDay = new Date(year, month, 0).getDate();
+    const mm = String(month).padStart(2, "0");
+    const yyyy = String(year);
+    const startISO = `${yyyy}-${mm}-01`;
+    const endISO = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
+    const prijava = vlasnik.prijavaDate?.slice(0, 10) ?? null;
+    const odjava = vlasnik.odjavaDate?.slice(0, 10) ?? null;
+    if ((!prijava || prijava <= startISO) && (!odjava || odjava >= endISO)) {
+      return 1;
+    }
+    const effStart = prijava && prijava > startISO ? prijava : startISO;
+    const effEnd = odjava && odjava < endISO ? odjava : endISO;
+    const countWorkDays = (fromIso: string, toIso: string) => {
+      const fromD = new Date(fromIso);
+      const toD = new Date(toIso);
+      let c = 0;
+      for (let d = new Date(fromD); d <= toD; d.setDate(d.getDate() + 1)) {
+        const wd = d.getDay();
+        if (wd !== 0 && wd !== 6) c++;
+      }
+      return c;
+    };
+    const wdInMonth = countWorkDays(startISO, endISO);
+    const wdInPeriod = countWorkDays(effStart, effEnd);
+    if (wdInMonth <= 0) return 1;
+    return wdInPeriod / wdInMonth;
+  };
+
   const handleCalcAll = async () => {
     if (!orgId) return;
+    let calculated = 0;
+    let skipped = 0;
+    const skippedNames: string[] = [];
+    // 1) Radnici (uključujući d.o.o. vlasnika — on je u `radnici` po obrtu).
     for (const w of radnici) {
-      if (!w.salaryBruto) continue;
+      // Pokušaj prvo bruto, pa fallback na neto preko fromNet sa koeficijentom
+      let grossBase = Number(w.salaryBruto) || 0;
+      if (grossBase <= 0 && w.salaryNeto && Number(w.salaryNeto) > 0) {
+        const ded = deductionFromCoefficient(Number(w.taxCoefficient ?? 1));
+        const calc = fromNet(Number(w.salaryNeto), ded);
+        if (calc.gross > 0) grossBase = calc.gross;
+      }
+      if (grossBase <= 0) {
+        skipped++;
+        skippedNames.push(`${w.firstName} ${w.lastName}`.trim());
+        continue;
+      }
       try {
         await unwrap(
           calculatePayroll({
@@ -344,16 +518,110 @@ function ObracunPlataApp() {
             workerId: w.id,
             year,
             month,
-            grossBase: Number(w.salaryBruto),
+            grossBase,
             taxCoefficient: Number(w.taxCoefficient ?? 1.0),
             minuliRadRate: Number(w.minuliRadRate ?? 0.4),
           }),
         );
+        calculated++;
       } catch (e) {
         console.error("calc fail", w.id, e);
+        skipped++;
+        skippedNames.push(`${w.firstName} ${w.lastName}`.trim());
       }
     }
+
+    // 2) Vlasnici obrta (samo za BUSINESS) — backend koristi fiksnu osnovicu
+    //    iz org.taxRegime + taxCategory. Mid-month pro-rate se računa lokalno
+    //    i šalje kao grossBase ako je djelimičan mjesec.
+    if (currentOrg?.type === "BUSINESS" && currentOrg.taxRegime) {
+      let baseOsnovica = 0;
+      try {
+        baseOsnovica = getOsnovica(
+          year,
+          currentOrg.taxRegime,
+          currentOrg.taxCategory || undefined,
+        );
+      } catch {
+        baseOsnovica = 0;
+      }
+      if (baseOsnovica > 0) {
+        for (const v of vlasnici) {
+          const factor = computeVlasnikProRate(v);
+          const scaledOsnovica = baseOsnovica * factor;
+          try {
+            await unwrap(
+              calculatePayroll({
+                organizationId: orgId,
+                workerId: v.id,
+                year,
+                month,
+                // Šalji grossBase samo ako je djelimičan mjesec; inače backend
+                // koristi punu fiksnu osnovicu.
+                ...(factor < 1 ? { grossBase: scaledOsnovica } : {}),
+              }),
+            );
+            calculated++;
+          } catch (e) {
+            console.error("vlasnik calc fail", v.id, e);
+            skipped++;
+            skippedNames.push(`${v.firstName} ${v.lastName}`.trim());
+          }
+        }
+      } else if (vlasnici.length > 0) {
+        // Bez režima ne možemo izračunati vlasnika — javi korisniku.
+        skipped += vlasnici.length;
+        for (const v of vlasnici) {
+          skippedNames.push(`${v.firstName} ${v.lastName}`.trim() + " (nedostaje režim)");
+        }
+      }
+    }
+
     invalidatePayrollCaches();
+    if (calculated === 0 && skipped > 0) {
+      notify(
+        `Nijedan obračun nije izvršen. Radnici/vlasnici bez plate ili režima: ${skippedNames.join(", ")}.`,
+        "error",
+      );
+    } else if (skipped > 0) {
+      notify(
+        `Obračunato ${calculated}, preskočeno ${skipped}: ${skippedNames.join(", ")}.`,
+        "info",
+      );
+    } else if (calculated > 0) {
+      notify(`Obračunato ${calculated} radnik(a).`, "success");
+    }
+  };
+
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const handleDeleteAll = async () => {
+    if (!orgId) return;
+    const payrolls = payrollsQuery.data ?? [];
+    if (payrolls.length === 0) return;
+    const ok = await confirmDialog(
+      `Obrisati SVE obračune (${payrolls.length}) za ${MONTHS[month - 1]} ${year}? ` +
+        `Ova akcija se ne može poništiti — svi platni listići, uplatnice i obrasci 2001/2002 za ovaj mjesec će biti uklonjeni.`,
+    );
+    if (!ok) return;
+    setIsDeletingAll(true);
+    let deleted = 0;
+    let failed = 0;
+    for (const p of payrolls) {
+      try {
+        await unwrap(deletePayroll(p.id));
+        deleted++;
+      } catch (e) {
+        failed++;
+        console.error("delete fail", p.id, e);
+      }
+    }
+    setIsDeletingAll(false);
+    invalidatePayrollCaches();
+    if (failed > 0) {
+      notify(`Obrisano ${deleted}, neuspješno ${failed}.`, "error");
+    } else {
+      notify(`Obrisano ${deleted} obračun(a) za ${MONTHS[month - 1]} ${year}.`, "success");
+    }
   };
 
   const yearOptions = useMemo(() => {
@@ -460,7 +728,7 @@ function ObracunPlataApp() {
           <p style={{ margin: "0.6rem 0 0", fontSize: 12.5, color: "#78350f" }}>
             Bruto plata radnika upišite proporcionalno (npr. {`mjesečna_bruto × dani_aktivnosti / ukupni_dani`}).
             Obrazac 2001 period će se automatski prilagoditi datumima.
-            Vlasnik 2002 doprinosi se automatski pro-rate-uju po radnim danima.
+            {isObrt && " Vlasnik 2002 doprinosi se automatski pro-rate-uju po radnim danima."}
           </p>
         </div>
       )}
@@ -548,15 +816,35 @@ function ObracunPlataApp() {
             borderTop: "1px solid var(--border)",
           }}
         >
+          {(payrollsQuery.data?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              className={styles.btnGhost}
+              onClick={handleDeleteAll}
+              disabled={isDeletingAll || calcMutation.isPending}
+              style={{
+                color: "#b91c1c",
+                borderColor: "#fecaca",
+              }}
+            >
+              {isDeletingAll
+                ? "Brisanje…"
+                : `Obriši obračun za sve (${payrollsQuery.data?.length ?? 0})`}
+            </button>
+          )}
           <button
             type="button"
             className={styles.btnPrimary}
             onClick={handleCalcAll}
-            disabled={!orgId || radnici.length === 0 || calcMutation.isPending}
+            disabled={
+              !orgId ||
+              (radnici.length === 0 && vlasnici.length === 0) ||
+              calcMutation.isPending
+            }
           >
             {calcMutation.isPending
               ? "Obračunavanje…"
-              : `Obračunaj sve (${radnici.length})`}
+              : `Obračunaj sve (${radnici.length + vlasnici.length})`}
           </button>
         </div>
       </div>
@@ -1472,6 +1760,757 @@ function MonthlyPanel({
     },
   });
 
+  // Lista naloga za plaćanje — mjesečna rekapitulacija (doprinosi + plate) za banku.
+  // Inspirisana klasičnim "Lista naloga" PDF-om iz starih programa za plate.
+  const listaNalogaMutation = useMutation({
+    mutationFn: async () => {
+      if (!summaryQuery.data || !organization) {
+        throw new Error("Nedostaju podaci o organizaciji ili obračunu");
+      }
+      const opcinaInfo = kantonForOpcina(organization.city || "");
+      const data: ListaNalogaData = {
+        organization: {
+          name: organization.name || "",
+          taxNumber: organization.taxNumber,
+          pdvNumber: organization.pdvNumber,
+          address: organization.address,
+          city: organization.city,
+          bankAccount: organization.bankAccount,
+          activityCode: organization.activityCode,
+        },
+        year,
+        month,
+        opcinaFirmeKod: opcinaInfo?.opcinaKod || "",
+        uplatnice: summaryQuery.data.uplatnice.map((u) => ({
+          type: u.type,
+          label: u.label,
+          amount: u.amount,
+          account: u.account,
+          vrstaPrihoda: u.vrstaPrihoda,
+          budgetOrg: u.budgetOrg,
+          primalac: u.primalac,
+          opcinaIme: u.opcinaIme,
+          opcinaKod: u.opcinaKod,
+          group: u.group,
+        })),
+        perWorker: summaryQuery.data.perWorker.map((p) => ({
+          workerName: p.workerName,
+          bankAccount: p.bankAccount,
+          net: p.net,
+          mealAllowance: p.mealAllowance,
+          vacationBonus: p.vacationBonus,
+          travelExpense: p.travelExpense,
+        })),
+      };
+      const bytes = await fillListaNaloga(data);
+      const mm = String(month).padStart(2, "0");
+      return {
+        bytes,
+        filename: `Lista-naloga-${year}-${mm}.pdf`,
+      };
+    },
+    onSuccess: ({ bytes, filename }) => {
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // Specifikacije po radniku — neto plate / topli obrok / putni / regres,
+  // sve u jednom PDF-u sa sekcijama (samo one koje imaju iznose).
+  // Lista jedinstvenih banaka iz perWorker (ekstrahovano po prefiksu računa).
+  // Koristi se za "Specifikacije po banci" dropdown.
+  const banksInPayroll = useMemo(() => {
+    if (!summaryQuery.data) return [] as Array<{
+      prefix: string;
+      name: string;
+      count: number;
+    }>;
+    const map = new Map<string, { name: string; count: number }>();
+    for (const w of summaryQuery.data.perWorker) {
+      if (!w.bankAccount) continue;
+      // Preskoči radnike bez ijednog iznosa (npr. obrt vlasnik — ide preko
+      // Obrazac 2002, sve neto/topli/regres/putni su 0).
+      const hasAny =
+        (w.net || 0) > 0 ||
+        (w.mealAllowance || 0) > 0 ||
+        (w.vacationBonus || 0) > 0 ||
+        (w.travelExpense || 0) > 0;
+      if (!hasAny) continue;
+      const prefix = w.bankAccount.replace(/\D/g, "").slice(0, 3);
+      if (!prefix) continue;
+      if (!map.has(prefix)) {
+        map.set(prefix, {
+          name: bankFromAccount(w.bankAccount),
+          count: 0,
+        });
+      }
+      map.get(prefix)!.count += 1;
+    }
+    return Array.from(map.entries())
+      .map(([prefix, info]) => ({ prefix, ...info }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [summaryQuery.data]);
+
+  const specifikacijeMutation = useMutation({
+    mutationFn: async (bankPrefix: string | null) => {
+      if (!summaryQuery.data || !organization) {
+        throw new Error("Nedostaju podaci o organizaciji ili obračunu");
+      }
+      const allPerWorker = summaryQuery.data.perWorker;
+      const filtered = bankPrefix
+        ? allPerWorker.filter((p) => {
+            const pref = (p.bankAccount || "").replace(/\D/g, "").slice(0, 3);
+            return pref === bankPrefix;
+          })
+        : allPerWorker;
+      if (filtered.length === 0) {
+        throw new Error("Nema radnika za odabranu banku");
+      }
+      const data: SpecifikacijeData = {
+        organization: {
+          name: organization.name || "",
+          taxNumber: organization.taxNumber,
+          pdvNumber: organization.pdvNumber,
+          address: organization.address,
+          city: organization.city,
+          bankAccount: organization.bankAccount,
+          activityCode: organization.activityCode,
+        },
+        year,
+        month,
+        perWorker: filtered.map((p) => ({
+          workerName: p.workerName,
+          bankAccount: p.bankAccount,
+          net: p.net,
+          mealAllowance: p.mealAllowance,
+          vacationBonus: p.vacationBonus,
+          travelExpense: p.travelExpense,
+        })),
+      };
+      const bytes = await fillSpecifikacije(data);
+      const mm = String(month).padStart(2, "0");
+      const bankSuffix = bankPrefix
+        ? `-${(banksInPayroll.find((b) => b.prefix === bankPrefix)?.name || "banka")
+            .replace(/[^a-zA-Z0-9]+/g, "_")
+            .replace(/^_+|_+$/g, "")}`
+        : "";
+      return {
+        bytes,
+        filename: `Specifikacije-${year}-${mm}${bankSuffix}.pdf`,
+      };
+    },
+    onSuccess: ({ bytes, filename }) => {
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      triggerBlobDownload(blob, filename);
+    },
+  });
+  const [bankMenuOpen, setBankMenuOpen] = useState(false);
+  const bankMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!bankMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        bankMenuRef.current &&
+        !bankMenuRef.current.contains(e.target as Node)
+      ) {
+        setBankMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [bankMenuOpen]);
+
+  // MIP-1023 — mjesečni izvještaj o isplaćenim plaćama za PUFBiH (XML kroz nPIS,
+  // PDF za štampu). Generiše se klijentski iz payroll-a radnika + organizacije.
+  // Za sada: prvi list (max 5 radnika). Multi-page će biti dodano u sljedećoj iteraciji.
+  const mip1023Mutation = useMutation({
+    mutationFn: async () => {
+      if (!summaryQuery.data || !organization) {
+        throw new Error("Nedostaju podaci o organizaciji ili obračunu");
+      }
+      const mm = String(month).padStart(2, "0");
+      const yyyy = String(year);
+      const fmt2 = (n: number) =>
+        n.toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+
+      // MIP obuhvata radnike (vlasnici idu posebno — za obrt nije u MIP-u).
+      // Za d.o.o. vlasnik je već u radnici listi (mješa se sa radnicima).
+      // Sortiranje: po datumu prijave uzlazno (stariji radnik prvi). Ako
+      // nema prijavaDate, fallback je startDate.
+      const radniciPayrolls = radnici
+        .map((w) => ({ w, p: payrollByWorker.get(w.id) }))
+        .filter(
+          (x): x is { w: Worker; p: Payroll } => !!x.p && x.p.gross > 0,
+        )
+        .sort((a, b) => {
+          const aDate = a.w.prijavaDate || a.w.startDate || "9999-12-31";
+          const bDate = b.w.prijavaDate || b.w.startDate || "9999-12-31";
+          return aDate.localeCompare(bDate);
+        });
+
+      const t = {
+        gross: radniciPayrolls.reduce((a, x) => a + (x.p.gross || 0), 0),
+        empContrib: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.empTotal || 0),
+          0,
+        ),
+        licniOdbitak: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.deduction || 0),
+          0,
+        ),
+        tax: radniciPayrolls.reduce((a, x) => a + (x.p.incomeTax || 0), 0),
+        erpPio: radniciPayrolls.reduce((a, x) => a + (x.p.erpPio || 0), 0),
+        erpZdr: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.erpZdravstvo || 0),
+          0,
+        ),
+        erpNezap: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.erpNezaposlenost || 0),
+          0,
+        ),
+      };
+
+      const datumIsplate = (() => {
+        const d = new Date(paymentDate);
+        if (Number.isNaN(d.getTime())) return "";
+        return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}.`;
+      })();
+
+      // Multi-page: fillMip1023Template sam dijeli na liste po 5 radnika
+      // i generiše dodatne stranice ako je više od 5.
+      const rows: Mip1023Row[] = radniciPayrolls.map(({ w, p }) => {
+        const bruto = Number(p.gross) || 0;
+        const koristi = 0;
+        const ukupanPrihod = bruto + koristi;
+        const empPio = Number(p.empPio) || 0;
+        const empZdr = Number(p.empZdravstvo) || 0;
+        const empNezap = Number(p.empNezaposlenost) || 0;
+        const empUkupno = empPio + empZdr + empNezap;
+        const prihodUmanjen = ukupanPrihod - empUkupno;
+        const faktor = Number(p.taxCoefficient ?? 1);
+        const iznosOdbitka = Number(p.deduction) || faktor * 300;
+        const osnovicaPoreza = Math.max(0, prihodUmanjen - iznosOdbitka);
+        const iznosPoreza = osnovicaPoreza * 0.1;
+        const radniSati = p.workedMinutes
+          ? Math.round((p.workedMinutes / 60) * 100) / 100
+          : 168;
+        const bolovanjeSati = (p.sickDays || 0) * 8;
+        // Šifra općine prebivališta — 3-cifrena iz uplatni-racuni.ts mapinga.
+        const opcinaInfo = kantonForOpcina(w.city || "");
+        const opcinaKod = opcinaInfo?.opcinaKod || "";
+
+        return {
+          vrstaIsplate: "1",
+          jmb: w.jmbg || "",
+          opcina: opcinaKod,
+          datumIsplate,
+          brojRadnihSati: String(radniSati),
+          brojRadnihSatiBolovanje: String(bolovanjeSati),
+          brutoPlaca: fmt2(bruto),
+          koristi: fmt2(koristi),
+          ukupanPrihod: fmt2(ukupanPrihod),
+          pioDoprinos: fmt2(empPio),
+          imePrezime: `${w.firstName} ${w.lastName}`.trim(),
+          zdrDoprinos: fmt2(empZdr),
+          nezapDoprinos: fmt2(empNezap),
+          ukupanDoprinos: fmt2(empUkupno),
+          prihodUmanjen: fmt2(prihodUmanjen),
+          faktorOdbitka: faktor.toFixed(1),
+          iznosOdbitka: fmt2(iznosOdbitka),
+          osnovicaPoreza: fmt2(osnovicaPoreza),
+          iznosPoreza: fmt2(iznosPoreza),
+          satiUvecaniStaz: "0",
+          stepenUvecanja: "00",
+          sifraRadnogMjesta: "0",
+          doprinosPioStaz: "0,00",
+        };
+      });
+
+      const data: Mip1023Data = {
+        jib: (organization.taxNumber || "").replace(/\D/g, ""),
+        naziv: organization.name || "",
+        sifraDjelatnosti: organization.activityCode || "",
+        brojZaposlenih: String(radniciPayrolls.length),
+        mjesec: mm,
+        godinaSuffix: yyyy.slice(-2),
+        ukupanPrihod: fmt2(t.gross),
+        ukupanDoprinos: fmt2(t.empContrib),
+        ukupanLicniOdbitak: fmt2(t.licniOdbitak),
+        ukupanPorez: fmt2(t.tax),
+        poslodavacPio: fmt2(t.erpPio),
+        poslodavacZdr: fmt2(t.erpZdr),
+        poslodavacNezap: fmt2(t.erpNezap),
+        poslodavacDodatniZdr: "0,00",
+        datumPotpisa: datumIsplate,
+        rows,
+      };
+
+      const bytes = await fillMip1023Template(data);
+      return { bytes, filename: `MIP-1023-${yyyy}-${mm}.pdf` };
+    },
+    onSuccess: ({ bytes, filename }) => {
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // MIP-1023 XML — paketni uvoz u nPIS. Jedan XML po mjesecu, svi radnici
+  // unutar Dio2, zbirno u Dio3. Dijeli isti payment date i sort logic kao PDF.
+  const mip1023XmlMutation = useMutation({
+    mutationFn: async () => {
+      if (!summaryQuery.data || !organization) {
+        throw new Error("Nedostaju podaci o organizaciji ili obračunu");
+      }
+      const mm = String(month).padStart(2, "0");
+      const yyyy = String(year);
+
+      const radniciPayrolls = radnici
+        .map((w) => ({ w, p: payrollByWorker.get(w.id) }))
+        .filter(
+          (x): x is { w: Worker; p: Payroll } => !!x.p && x.p.gross > 0,
+        )
+        .sort((a, b) => {
+          const aDate = a.w.prijavaDate || a.w.startDate || "9999-12-31";
+          const bDate = b.w.prijavaDate || b.w.startDate || "9999-12-31";
+          return aDate.localeCompare(bDate);
+        });
+
+      if (radniciPayrolls.length === 0) {
+        throw new Error("Nema obračunatih plata za mjesec");
+      }
+
+      const workers: Mip1023XmlWorker[] = radniciPayrolls.map(({ w, p }) => {
+        const bruto = Number(p.gross) || 0;
+        const koristi = 0;
+        const ukupanPrihod = bruto + koristi;
+        const empPio = Number(p.empPio) || 0;
+        const empZdr = Number(p.empZdravstvo) || 0;
+        const empNezap = Number(p.empNezaposlenost) || 0;
+        const empUkupno = empPio + empZdr + empNezap;
+        const prihodUmanjen = ukupanPrihod - empUkupno;
+        const faktor = Number(p.taxCoefficient ?? 1);
+        const iznosOdbitka = Number(p.deduction) || faktor * 300;
+        const osnovicaPoreza = Math.max(0, prihodUmanjen - iznosOdbitka);
+        const iznosPoreza = Number(p.incomeTax) || osnovicaPoreza * 0.1;
+        const radniSati = p.workedMinutes
+          ? Math.round((p.workedMinutes / 60) * 100) / 100
+          : 168;
+        const bolovanjeSati = (p.sickDays || 0) * 8;
+        const opcinaInfo = kantonForOpcina(w.city || "");
+        const opcinaKod = opcinaInfo?.opcinaKod || "";
+        return {
+          vrstaIsplate: "1",
+          jmb: w.jmbg || "",
+          imePrezime: `${w.lastName} ${w.firstName}`.trim().toUpperCase(),
+          datumIsplate: paymentDate, // YYYY-MM-DD već iz DateInput-a
+          radniSati,
+          radniSatiBolovanje: bolovanjeSati,
+          bruto,
+          koristi,
+          ukupanPrihod,
+          pio: empPio,
+          zo: empZdr,
+          nezap: empNezap,
+          doprinosi: empUkupno,
+          prihodUmanjen,
+          faktor,
+          iznosOdbitka,
+          osnovicaPoreza,
+          iznosPoreza,
+          radniSatiUT: 0,
+          stepenUvecanja: 0,
+          sifraRadnogMjestaUT: "000000",
+          doprinosiPioMioZaUT: 0,
+          beneficiraniStaz: false,
+          opcinaPrebivalista: opcinaKod,
+        };
+      });
+
+      const t = {
+        gross: radniciPayrolls.reduce((a, x) => a + (x.p.gross || 0), 0),
+        empContrib: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.empTotal || 0),
+          0,
+        ),
+        licniOdbitak: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.deduction || 0),
+          0,
+        ),
+        tax: radniciPayrolls.reduce((a, x) => a + (x.p.incomeTax || 0), 0),
+        erpPio: radniciPayrolls.reduce((a, x) => a + (x.p.erpPio || 0), 0),
+        erpZdr: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.erpZdravstvo || 0),
+          0,
+        ),
+        erpNezap: radniciPayrolls.reduce(
+          (a, x) => a + (x.p.erpNezaposlenost || 0),
+          0,
+        ),
+      };
+
+      // Period: prvi do zadnji dan obračunskog mjeseca.
+      const lastDay = new Date(year, month, 0).getDate();
+      const periodOd = `${yyyy}-${mm}-01`;
+      const periodDo = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
+      const today = new Date();
+      const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+      const xmlData: Mip1023XmlData = {
+        jibPoslodavca: (organization.taxNumber || "").replace(/\D/g, ""),
+        nazivPoslodavca: organization.name || "",
+        brojZahtjeva: 1,
+        datumPodnosenja: todayIso,
+        sifraDjelatnosti: organization.activityCode || "",
+        periodOd,
+        periodDo,
+        workers,
+        zbirno: {
+          pio: t.erpPio,
+          zo: t.erpZdr,
+          nezap: t.erpNezap,
+          dodatniDoprinosiZo: 0,
+          prihod: t.gross,
+          doprinosi: t.empContrib,
+          licniOdbici: t.licniOdbitak,
+          porez: t.tax,
+        },
+      };
+
+      const xml = generateMip1023Xml(xmlData);
+      const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+      const jib = xmlData.jibPoslodavca || "MIP";
+      return { blob, filename: `${jib}_${mm}${yyyy}.xml` };
+    },
+    onSuccess: ({ blob, filename }) => {
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // GIP-1022 — godišnji izvještaj o ukupno isplaćenim plaćama. Jedan PDF/XML
+  // po radniku za cijelu godinu. Mjesec u UI-ju nije relevantan — koristi se
+  // samo godina iz selektora.
+  //
+  // Struktura: raw builder dohvati podatke i izračuna brojeve, a PDF i XML
+  // formateri dijele isti raw output (samo različita prezentacija).
+
+  type GipRawRow = {
+    mjesec: number;
+    iznosNovac: number;
+    iznosStvari: number;
+    bruto: number;
+    pio: number;
+    zdr: number;
+    nezap: number;
+    ukupniDopr: number;
+    placaBezDopr: number;
+    faktor: number;
+    iznosOdbitka: number;
+    osnovicaPoreza: number;
+    iznosPoreza: number;
+    neto: number;
+    datumUplateIso: string; // YYYY-MM-DD
+  };
+
+  type GipRawObrazac = {
+    worker: Worker;
+    rows: GipRawRow[];
+    ukupno: Omit<GipRawRow, "mjesec" | "faktor" | "datumUplateIso">;
+  };
+
+  const buildGip1022Raw = useCallback(async (): Promise<GipRawObrazac[]> => {
+    if (!organization) throw new Error("Nedostaje organizacija");
+
+    // Fetch svih radnika org-a + sve 12 mjeseci payrolla paralelno.
+    const [workersResp, ...monthsResp] = await Promise.all([
+      getWorkers(orgId),
+      ...Array.from({ length: 12 }, (_, i) => listPayrolls(orgId, year, i + 1)),
+    ]);
+    if (!workersResp.ok) throw new Error(workersResp.error);
+    const allWorkers = workersResp.data;
+
+    const byWorker = new Map<number, Payroll[]>();
+    for (let m = 0; m < 12; m++) {
+      const r = monthsResp[m];
+      if (!r.ok) continue;
+      for (const p of r.data) {
+        if (!byWorker.has(p.workerId)) byWorker.set(p.workerId, []);
+        byWorker.get(p.workerId)!.push(p);
+      }
+    }
+    for (const arr of byWorker.values()) arr.sort((a, b) => a.month - b.month);
+
+    // Fallback datum uplate: posljednji dan mjeseca (Payroll ne čuva stvarni).
+    const lastDayIso = (y: number, m: number) => {
+      const last = new Date(y, m, 0).getDate();
+      return `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+    };
+
+    const out: GipRawObrazac[] = [];
+    const isObrt = organization.type === "BUSINESS";
+
+    for (const w of allWorkers) {
+      if (isObrt && w.role === "VLASNIK") continue;
+      const payrolls = byWorker.get(w.id);
+      if (!payrolls || payrolls.length === 0) continue;
+      if (!payrolls.some((p) => Number(p.gross) > 0)) continue;
+
+      const rows: GipRawRow[] = payrolls
+        .filter((p) => Number(p.gross) > 0)
+        .map((p) => {
+          const bruto = Number(p.gross) || 0;
+          const koristi = 0;
+          const ukupanPrihod = bruto + koristi;
+          const empPio = Number(p.empPio) || 0;
+          const empZdr = Number(p.empZdravstvo) || 0;
+          const empNezap = Number(p.empNezaposlenost) || 0;
+          const empUkupno = empPio + empZdr + empNezap;
+          const placaBezDopr = ukupanPrihod - empUkupno;
+          const faktor = Number(p.taxCoefficient ?? 1);
+          const iznosOdbitka = Number(p.deduction) || faktor * 300;
+          const osnovicaPoreza = Math.max(0, placaBezDopr - iznosOdbitka);
+          const iznosPoreza = Number(p.incomeTax) || osnovicaPoreza * 0.1;
+          const neto = Number(p.net) || 0;
+          return {
+            mjesec: p.month,
+            iznosNovac: ukupanPrihod,
+            iznosStvari: 0,
+            bruto,
+            pio: empPio,
+            zdr: empZdr,
+            nezap: empNezap,
+            ukupniDopr: empUkupno,
+            placaBezDopr,
+            faktor,
+            iznosOdbitka,
+            osnovicaPoreza,
+            iznosPoreza,
+            neto,
+            datumUplateIso: lastDayIso(year, p.month),
+          };
+        });
+
+      if (rows.length === 0) continue;
+
+      const sum = (key: keyof Omit<GipRawRow, "mjesec" | "datumUplateIso">) =>
+        rows.reduce((a, r) => a + (Number(r[key]) || 0), 0);
+
+      out.push({
+        worker: w,
+        rows,
+        ukupno: {
+          iznosNovac: sum("iznosNovac"),
+          iznosStvari: 0,
+          bruto: sum("bruto"),
+          pio: sum("pio"),
+          zdr: sum("zdr"),
+          nezap: sum("nezap"),
+          ukupniDopr: sum("ukupniDopr"),
+          placaBezDopr: sum("placaBezDopr"),
+          iznosOdbitka: sum("iznosOdbitka"),
+          osnovicaPoreza: sum("osnovicaPoreza"),
+          iznosPoreza: sum("iznosPoreza"),
+          neto: sum("neto"),
+        },
+      });
+    }
+
+    if (out.length === 0) {
+      throw new Error("Nema obračunatih plata za odabranu godinu");
+    }
+    return out;
+  }, [organization, orgId, year]);
+
+  const buildGip1022Pdfs = useCallback(async (): Promise<
+    Array<{ safeName: string; bytes: Uint8Array }>
+  > => {
+    if (!organization) throw new Error("Nedostaje organizacija");
+    const yyyy = String(year);
+    const fmt2 = (n: number) =>
+      n.toLocaleString("de-DE", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    const isoToDdmmyyyy = (iso: string) => {
+      const [y, m, d] = iso.split("-");
+      return `${d}.${m}.${y}.`;
+    };
+    const adresaSjedista = [organization.address, organization.city]
+      .filter(Boolean)
+      .join(", ");
+    const raw = await buildGip1022Raw();
+
+    const out: Array<{ safeName: string; bytes: Uint8Array }> = [];
+    for (const { worker: w, rows: rawRows, ukupno: rawUk } of raw) {
+      const rows: Gip1022Row[] = rawRows.map((r) => ({
+        mjesec: r.mjesec,
+        isplataZaMjesec: `${String(r.mjesec).padStart(2, "0")}/${yyyy}`,
+        vrstaIsplate: "1",
+        iznosNovac: fmt2(r.iznosNovac),
+        iznosStvari: fmt2(r.iznosStvari),
+        bruto: fmt2(r.bruto),
+        pio: fmt2(r.pio),
+        zdr: fmt2(r.zdr),
+        nezap: fmt2(r.nezap),
+        ukupniDopr: fmt2(r.ukupniDopr),
+        placaBezDopr: fmt2(r.placaBezDopr),
+        faktor: r.faktor.toFixed(1),
+        iznosOdbitka: fmt2(r.iznosOdbitka),
+        osnovicaPoreza: fmt2(r.osnovicaPoreza),
+        iznosPoreza: fmt2(r.iznosPoreza),
+        neto: fmt2(r.neto),
+        datumUplate: isoToDdmmyyyy(r.datumUplateIso),
+      }));
+
+      const ukupno = {
+        iznosNovac: fmt2(rawUk.iznosNovac),
+        iznosStvari: fmt2(rawUk.iznosStvari),
+        bruto: fmt2(rawUk.bruto),
+        pio: fmt2(rawUk.pio),
+        zdr: fmt2(rawUk.zdr),
+        nezap: fmt2(rawUk.nezap),
+        ukupniDopr: fmt2(rawUk.ukupniDopr),
+        placaBezDopr: fmt2(rawUk.placaBezDopr),
+        faktor: "",
+        iznosOdbitka: fmt2(rawUk.iznosOdbitka),
+        osnovicaPoreza: fmt2(rawUk.osnovicaPoreza),
+        iznosPoreza: fmt2(rawUk.iznosPoreza),
+        neto: fmt2(rawUk.neto),
+      };
+
+      const adresaPrebivalista = [w.address, w.city]
+        .filter(Boolean)
+        .join(", ");
+
+      const data: Gip1022Data = {
+        jib: (organization.taxNumber || "").replace(/\D/g, ""),
+        naziv: organization.name || "",
+        adresaSjedista,
+        jmbZaposlenika: w.jmbg || "",
+        prezimeIme: `${w.lastName} ${w.firstName}`.trim(),
+        adresaPrebivalista,
+        godinaSuffix: yyyy.slice(-2),
+        datumPotpisa: isoToDdmmyyyy(`${year}-12-31`),
+        rows,
+        ukupno,
+      };
+
+      const bytes = await fillGip1022Template(data);
+      const safeName = `${w.lastName}_${w.firstName}`
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "_");
+      out.push({ safeName, bytes });
+    }
+    return out;
+  }, [organization, year, buildGip1022Raw]);
+
+  // GIP-1022 — kombinovani PDF (sve radnike u jednom fajlu, za lakšu štampu).
+  const gip1022PdfMutation = useMutation({
+    mutationFn: async () => {
+      const items = await buildGip1022Pdfs();
+      // Merge svih PDF-ova u jedan dokument.
+      const { PDFDocument } = await import("pdf-lib");
+      const finalDoc = await PDFDocument.create();
+      for (const { bytes } of items) {
+        const src = await PDFDocument.load(bytes);
+        const pages = await finalDoc.copyPages(src, src.getPageIndices());
+        for (const p of pages) finalDoc.addPage(p);
+      }
+      const finalBytes = await finalDoc.save();
+      const blob = new Blob([new Uint8Array(finalBytes)], {
+        type: "application/pdf",
+      });
+      return { blob, filename: `GIP-1022-${year}.pdf` };
+    },
+    onSuccess: ({ blob, filename }) => {
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // GIP-1022 — ZIP (zaseban PDF po radniku).
+  const gip1022Mutation = useMutation({
+    mutationFn: async () => {
+      const items = await buildGip1022Pdfs();
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const { safeName, bytes } of items) {
+        zip.file(`GIP-1022_${safeName}_${year}.pdf`, bytes);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      return { blob, filename: `GIP-1022-${year}.zip` };
+    },
+    onSuccess: ({ blob, filename }) => {
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // GIP-1022 — XML za paketni uvoz u nPIS (svi radnici u jednom XML-u).
+  const gip1022XmlMutation = useMutation({
+    mutationFn: async () => {
+      if (!organization) throw new Error("Nedostaje organizacija");
+      const raw = await buildGip1022Raw();
+      const adresaSjedista = [organization.address, organization.city]
+        .filter(Boolean)
+        .join(", ");
+      const today = new Date();
+      const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+      const obrasci: Gip1022XmlObrazac[] = raw.map(({ worker: w, rows, ukupno }) => {
+        const xmlRows: Gip1022XmlRow[] = rows.map((r) => ({
+          mjesec: r.mjesec,
+          isplataZaMjesec: `${r.mjesec}/${year}`,
+          vrstaIsplate: "1",
+          iznosNovac: r.iznosNovac,
+          iznosStvari: r.iznosStvari,
+          bruto: r.bruto,
+          pio: r.pio,
+          zdr: r.zdr,
+          nezap: r.nezap,
+          ukupniDopr: r.ukupniDopr,
+          placaBezDopr: r.placaBezDopr,
+          faktor: r.faktor,
+          iznosOdbitka: r.iznosOdbitka,
+          osnovicaPoreza: r.osnovicaPoreza,
+          iznosPoreza: r.iznosPoreza,
+          neto: r.neto,
+          datumUplate: r.datumUplateIso,
+        }));
+        const adresaPrebivalista = [w.address, w.city]
+          .filter(Boolean)
+          .join(", ");
+        return {
+          naziv: organization.name || "",
+          adresaSjedista,
+          jmbZaposlenika: w.jmbg || "",
+          imeIPrezime: `${w.lastName} ${w.firstName}`.trim().toUpperCase(),
+          adresaPrebivalista,
+          poreznaGodina: year,
+          rows: xmlRows,
+          ukupno,
+        };
+      });
+
+      const xmlData: Gip1022XmlData = {
+        jibPoslodavca: (organization.taxNumber || "").replace(/\D/g, ""),
+        nazivPoslodavca: organization.name || "",
+        brojZahtjeva: 1,
+        datumPodnosenja: todayIso,
+        obrasci,
+      };
+
+      const xml = generateGip1022Xml(xmlData);
+      const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+      const jib = xmlData.jibPoslodavca || "GIP";
+      return { blob, filename: `${jib}_1022_${year}.xml` };
+    },
+    onSuccess: ({ blob, filename }) => {
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
   if (summaryQuery.isLoading) {
     return (
       <div className={styles.empty} style={{ marginTop: "1.5rem" }}>
@@ -1539,23 +2578,49 @@ function MonthlyPanel({
         Zbirne uplatnice — doprinosi i porezi
       </div>
       <div className={styles.uplCardsList}>
-        {s.uplatnice.map((u: MonthlyUplatnicaSummary, i: number) => (
-          <div key={`${u.type}-${u.opcinaKod || ""}-${i}`} className={styles.uplCard}>
-            <span className={styles.uplCardNum}>{i + 1}</span>
-            <div className={styles.uplCardBody}>
-              <div className={styles.uplCardTitle}>{u.label}</div>
-              <div className={styles.uplCardSub}>
-                {u.account || "—"}
-                {Array.isArray(u.primalac) && u.primalac.length
-                  ? ` · ${u.primalac.join(" · ")}`
-                  : ""}
-                {` · Vrsta prihoda: ${u.vrstaPrihoda || "—"}`}
-                {` · Budžetska org.: ${u.budgetOrg || "0000000"}`}
+        {s.uplatnice.map((u: MonthlyUplatnicaSummary, i: number) => {
+          // Group header: pokaži kad je ovaj entry prvi u svojoj grupi
+          // (vlasnik / radnici). Samo za obrt sa razdvojenim grupama.
+          const prevGroup = i > 0 ? s.uplatnice[i - 1].group : null;
+          const showHeader = u.group && u.group !== prevGroup;
+          return (
+            <div key={`${u.type}-${u.opcinaKod || ""}-${i}`} style={{ display: "contents" }}>
+              {showHeader && (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "var(--sage)",
+                    padding: "0.5rem 0 0.25rem",
+                    marginTop: i === 0 ? 0 : "0.5rem",
+                  }}
+                >
+                  {u.group === "vlasnik"
+                    ? "Uplatnice vlasnika"
+                    : "Uplatnice radnika"}
+                </div>
+              )}
+              <div className={styles.uplCard}>
+                <span className={styles.uplCardNum}>{i + 1}</span>
+                <div className={styles.uplCardBody}>
+                  <div className={styles.uplCardTitle}>{u.label}</div>
+                  <div className={styles.uplCardSub}>
+                    {u.account || "—"}
+                    {Array.isArray(u.primalac) && u.primalac.length
+                      ? ` · ${u.primalac.join(" · ")}`
+                      : ""}
+                    {` · Vrsta prihoda: ${u.vrstaPrihoda || "—"}`}
+                    {` · Budžetska org.: ${u.budgetOrg || "0000000"}`}
+                  </div>
+                </div>
+                <span className={styles.uplCardIznos}>{fmtKM(u.amount)} KM</span>
               </div>
             </div>
-            <span className={styles.uplCardIznos}>{fmtKM(u.amount)} KM</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className={styles.totalCostRow}>
@@ -1669,7 +2734,46 @@ function MonthlyPanel({
             className={js3Styles.fieldInput}
           />
         </div>
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", justifyContent: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.2rem",
+            width: "100%",
+            maxWidth: 980,
+          }}
+        >
+          {/* GRUPA 1 — Za isplatu plata (banka) */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.55rem",
+              padding: "0.85rem 1rem",
+              borderRadius: 8,
+              border: "1px solid var(--border, #d8d4ca)",
+              background: "var(--card-bg, #f7f3eb)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                color: "var(--mid, #6c6862)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Za isplatu plata (banka)
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.55rem",
+                flexWrap: "wrap",
+                justifyContent: "center",
+              }}
+            >
           <button
             type="button"
             className={styles.btnPrimary}
@@ -1742,6 +2846,259 @@ function MonthlyPanel({
               ? "Generišem…"
               : "Preuzmi uplatnice"}
           </button>
+          <button
+            type="button"
+            className={styles.btnTintBlue}
+            onClick={() => listaNalogaMutation.mutate()}
+            disabled={
+              listaNalogaMutation.isPending || !organization || !canGenerate
+            }
+            title={
+              canGenerate
+                ? "Rekapitulacija svih naloga za banku (doprinosi + plate)"
+                : "Dostupno uz Pro pretplatu"
+            }
+            style={{
+              padding: "0.75rem 1.5rem",
+              fontSize: "0.95rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              width="16"
+              height="16"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {listaNalogaMutation.isPending
+              ? "Generišem…"
+              : "Lista naloga"}
+          </button>
+          <div
+            ref={bankMenuRef}
+            style={{
+              position: "relative",
+              display: "inline-flex",
+              alignItems: "stretch",
+            }}
+          >
+            <button
+              type="button"
+              className={styles.btnTintBlue}
+              onClick={() => specifikacijeMutation.mutate(null)}
+              disabled={
+                specifikacijeMutation.isPending || !organization || !canGenerate
+              }
+              title={
+                canGenerate
+                  ? "Specifikacije po radniku (neto, topli obrok, putni, regres) — svi radnici"
+                  : "Dostupno uz Pro pretplatu"
+              }
+              style={{
+                padding: "0.75rem 1.25rem",
+                fontSize: "0.95rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                borderTopRightRadius: 0,
+                borderBottomRightRadius: 0,
+                borderRight: "none",
+              }}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="16"
+                height="16"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {specifikacijeMutation.isPending
+                ? "Generišem…"
+                : "Specifikacije po radniku"}
+            </button>
+            <button
+              type="button"
+              className={styles.btnTintBlue}
+              onClick={() => setBankMenuOpen((v) => !v)}
+              disabled={
+                specifikacijeMutation.isPending ||
+                !organization ||
+                !canGenerate ||
+                banksInPayroll.length === 0
+              }
+              title="Filter po banci"
+              style={{
+                padding: "0.75rem 0.7rem",
+                fontSize: "0.95rem",
+                display: "inline-flex",
+                alignItems: "center",
+                borderTopLeftRadius: 0,
+                borderBottomLeftRadius: 0,
+              }}
+              aria-haspopup="menu"
+              aria-expanded={bankMenuOpen}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {bankMenuOpen && (
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  right: 0,
+                  minWidth: 240,
+                  background: "var(--paper, #faf8f3)",
+                  border: "1px solid var(--border, #d4cfc4)",
+                  borderRadius: 8,
+                  boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
+                  padding: "0.35rem",
+                  zIndex: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setBankMenuOpen(false);
+                    specifikacijeMutation.mutate(null);
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "0.5rem 0.7rem",
+                    background: "transparent",
+                    border: 0,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    fontFamily: "inherit",
+                    color: "inherit",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                >
+                  <strong>Svi radnici</strong>
+                  <span style={{ color: "var(--mid, #6c6862)", marginLeft: 6 }}>
+                    ({summaryQuery.data?.perWorker.length ?? 0})
+                  </span>
+                </button>
+                {banksInPayroll.length > 0 && (
+                  <div
+                    style={{
+                      height: 1,
+                      background: "var(--border, #d4cfc4)",
+                      margin: "0.3rem 0",
+                    }}
+                  />
+                )}
+                {banksInPayroll.map((b) => (
+                  <button
+                    key={b.prefix}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setBankMenuOpen(false);
+                      specifikacijeMutation.mutate(b.prefix);
+                    }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.5rem 0.7rem",
+                      background: "transparent",
+                      border: 0,
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: "0.88rem",
+                      fontFamily: "inherit",
+                      color: "inherit",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    {b.name}
+                    <span
+                      style={{ color: "var(--mid, #6c6862)", marginLeft: 6 }}
+                    >
+                      ({b.count})
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+            </div>
+          </div>
+
+          {/* GRUPA 2 — Za poreznu upravu (PUFBiH) */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.55rem",
+              padding: "0.85rem 1rem",
+              borderRadius: 8,
+              border: "1px solid var(--border, #d8d4ca)",
+              background: "var(--card-bg, #f7f3eb)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                color: "var(--mid, #6c6862)",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Za poreznu upravu (PUFBiH)
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.55rem",
+                flexWrap: "wrap",
+                justifyContent: "center",
+              }}
+            >
           {radnici.length > 0 && (
             <button
               type="button"
@@ -1779,6 +3136,236 @@ function MonthlyPanel({
                 : "Preuzmi Obrazac 2001"}
             </button>
           )}
+          {radnici.length > 0 && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "stretch",
+                borderRadius: 6,
+                overflow: "hidden",
+              }}
+            >
+              <button
+                type="button"
+                className={styles.btnTintSage}
+                onClick={() => mip1023Mutation.mutate()}
+                disabled={
+                  mip1023Mutation.isPending ||
+                  mip1023XmlMutation.isPending ||
+                  !organization ||
+                  !canGenerate
+                }
+                title={canGenerate ? undefined : "Dostupno uz Pro pretplatu"}
+                style={{
+                  padding: "0.75rem 1.25rem",
+                  fontSize: "0.95rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                  borderRight: "none",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  width="16"
+                  height="16"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                {mip1023Mutation.isPending ? "Generišem…" : "MIP-1023 PDF"}
+              </button>
+              <button
+                type="button"
+                className={styles.btnTintSage}
+                onClick={() => mip1023XmlMutation.mutate()}
+                disabled={
+                  mip1023XmlMutation.isPending ||
+                  mip1023Mutation.isPending ||
+                  !organization ||
+                  !canGenerate
+                }
+                title={
+                  canGenerate
+                    ? "XML za paketni uvoz u nPIS"
+                    : "Dostupno uz Pro pretplatu"
+                }
+                style={{
+                  padding: "0.75rem 0.9rem",
+                  fontSize: "0.85rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  width="14"
+                  height="14"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                  <path d="m9 13 2 3-2 3M15 13l-2 3 2 3" />
+                </svg>
+                {mip1023XmlMutation.isPending ? "XML…" : "XML"}
+              </button>
+            </div>
+          )}
+          {radnici.length > 0 && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "stretch",
+                borderRadius: 6,
+                overflow: "hidden",
+              }}
+            >
+              <button
+                type="button"
+                className={styles.btnTintSage}
+                onClick={() => gip1022PdfMutation.mutate()}
+                disabled={
+                  gip1022PdfMutation.isPending ||
+                  gip1022Mutation.isPending ||
+                  !organization ||
+                  !canGenerate
+                }
+                title={
+                  canGenerate
+                    ? `Godišnji izvještaj za ${year}. — svi radnici u jednom PDF-u`
+                    : "Dostupno uz Pro pretplatu"
+                }
+                style={{
+                  padding: "0.75rem 1.25rem",
+                  fontSize: "0.95rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                  borderRight: "none",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  width="16"
+                  height="16"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                {gip1022PdfMutation.isPending
+                  ? "Generišem…"
+                  : `GIP-1022 PDF (${year})`}
+              </button>
+              <button
+                type="button"
+                className={styles.btnTintSage}
+                onClick={() => gip1022Mutation.mutate()}
+                disabled={
+                  gip1022Mutation.isPending ||
+                  gip1022PdfMutation.isPending ||
+                  gip1022XmlMutation.isPending ||
+                  !organization ||
+                  !canGenerate
+                }
+                title={
+                  canGenerate
+                    ? `Godišnji izvještaj za ${year}. — zaseban PDF po radniku, zipovano`
+                    : "Dostupno uz Pro pretplatu"
+                }
+                style={{
+                  padding: "0.75rem 0.9rem",
+                  fontSize: "0.85rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  borderRadius: 0,
+                  borderRight: "none",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  width="14"
+                  height="14"
+                >
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                  <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+                </svg>
+                {gip1022Mutation.isPending ? "ZIP…" : "ZIP"}
+              </button>
+              <button
+                type="button"
+                className={styles.btnTintSage}
+                onClick={() => gip1022XmlMutation.mutate()}
+                disabled={
+                  gip1022XmlMutation.isPending ||
+                  gip1022PdfMutation.isPending ||
+                  gip1022Mutation.isPending ||
+                  !organization ||
+                  !canGenerate
+                }
+                title={
+                  canGenerate
+                    ? `XML za paketni uvoz u nPIS — svi radnici u jednom XML-u za ${year}.`
+                    : "Dostupno uz Pro pretplatu"
+                }
+                style={{
+                  padding: "0.75rem 0.9rem",
+                  fontSize: "0.85rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  width="14"
+                  height="14"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                  <path d="m9 13 2 3-2 3M15 13l-2 3 2 3" />
+                </svg>
+                {gip1022XmlMutation.isPending ? "XML…" : "XML"}
+              </button>
+            </div>
+          )}
+            </div>
+          </div>
         </div>
 
         {/* Bulk označavanje obračuna kao isplaćeni */}
@@ -1793,11 +3380,25 @@ function MonthlyPanel({
 
       {(uplatniceMutation.isError ||
         payslipsMutation.isError ||
-        obrazac2001Mutation.isError) && (
+        obrazac2001Mutation.isError ||
+        listaNalogaMutation.isError ||
+        specifikacijeMutation.isError ||
+        mip1023Mutation.isError ||
+        mip1023XmlMutation.isError ||
+        gip1022Mutation.isError ||
+        gip1022PdfMutation.isError ||
+        gip1022XmlMutation.isError) && (
         <div className={styles.errorMsg} style={{ marginTop: "0.6rem" }}>
           {uplatniceMutation.error?.message ||
             payslipsMutation.error?.message ||
             obrazac2001Mutation.error?.message ||
+            listaNalogaMutation.error?.message ||
+            specifikacijeMutation.error?.message ||
+            mip1023Mutation.error?.message ||
+            mip1023XmlMutation.error?.message ||
+            gip1022Mutation.error?.message ||
+            gip1022PdfMutation.error?.message ||
+            gip1022XmlMutation.error?.message ||
             "Greška pri generisanju dokumenata"}
         </div>
       )}
@@ -1848,17 +3449,23 @@ function PayrollModal({
       const base = existing.grossBase ?? existing.gross;
       const baseNum = Number(base);
       if (Number.isFinite(baseNum) && baseNum > 0) {
-        return String(base);
+        return fmtMoneyInput(baseNum);
       }
       // existing postoji ali je DRAFT bez bruta — fall through na worker
     }
     if (worker.salaryBruto != null && Number(worker.salaryBruto) > 0) {
-      return String(worker.salaryBruto);
+      return fmtMoneyInput(Number(worker.salaryBruto));
     }
     if (worker.salaryNeto != null && Number(worker.salaryNeto) > 0) {
+      // Back-compute BAZA (bruto bez minulog rada) iz neto, tako da konačni
+      // neto (nakon dodavanja minulog rada) bude tačno onaj iz profila.
       const ded = deductionFromCoefficient(Number(worker.taxCoefficient ?? 1));
-      const calc = fromNet(Number(worker.salaryNeto), ded);
-      return calc.gross > 0 ? calc.gross.toFixed(2) : "";
+      const fullGross = fromNet(Number(worker.salaryNeto), ded).gross;
+      const minuliRate = Number(worker.minuliRadRate ?? 0.4) / 100;
+      const years = totalYearsOfService(worker);
+      const minuliM = 1 + minuliRate * years;
+      const base = minuliM > 0 ? fullGross / minuliM : fullGross;
+      return base > 0 ? fmtMoneyInput(base) : "";
     }
     return "";
   });
@@ -1867,6 +3474,15 @@ function PayrollModal({
       ? String(existing.taxCoefficient)
       : String(worker.taxCoefficient ?? 1),
   );
+  // Bi-direkciono polje bruto ↔ neto. Kad user upiše neto, sistem računa
+  // bruto OSNOVICU unazad uzimajući u obzir minuli rad (množilac M),
+  // koeficijent (deduction) i uvećanja (U). Formula:
+  //   fullGross = fromNet(targetNet, deduction).gross
+  //   base      = fullGross / (M + U)
+  // Tako neto = stvarni iznos koji radnik prima na račun, a bruto osnovica
+  // se podešava ako se promijeni minuli rad/koeficijent.
+  const [netoDisplay, setNetoDisplay] = useState<string>("");
+  const lastEditRef = useRef<"gross" | "neto">("gross");
   const [minuliRad, setMinuliRad] = useState<string>(() => {
     if (existing?.minuliRadRate != null) return String(existing.minuliRadRate);
     return String(worker.minuliRadRate ?? 0.4);
@@ -1883,6 +3499,9 @@ function PayrollModal({
   );
   const [sickDays, setSickDays] = useState<string>(() =>
     existing ? String(existing.sickDays) : "0",
+  );
+  const [vacationDays, setVacationDays] = useState<string>(() =>
+    existing ? String(existing.vacationDays ?? 0) : "0",
   );
   const [overtime, setOvertime] = useState<string>(() =>
     existing ? String(existing.overtimeHours) : "0",
@@ -1915,16 +3534,16 @@ function PayrollModal({
     return String(worker.holidayRate ?? 50);
   });
   const [meal, setMeal] = useState<string>(() => {
-    if (existing) return String(existing.mealAllowance);
-    return String(worker.defaultMealAllowance ?? 0);
+    if (existing) return fmtMoneyInput(Number(existing.mealAllowance));
+    return fmtMoneyInput(Number(worker.defaultMealAllowance ?? 0));
   });
   // Regres se NE pamti — resetuje se svaki mjesec (godišnje samo jednom).
   const [vacation, setVacation] = useState<string>(() =>
-    existing ? String(existing.vacationBonus) : "0",
+    existing ? fmtMoneyInput(Number(existing.vacationBonus)) : "",
   );
   const [travel, setTravel] = useState<string>(() => {
-    if (existing) return String(existing.travelExpense);
-    return String(worker.defaultTravelExpense ?? 0);
+    if (existing) return fmtMoneyInput(Number(existing.travelExpense));
+    return fmtMoneyInput(Number(worker.defaultTravelExpense ?? 0));
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -1943,9 +3562,27 @@ function PayrollModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sihMinutes, sihQuery.isLoading]);
 
+  // Parsira input — podržava i de-DE ("1.234,56") i obični ("1234.56") format.
+  // Ako su prisutni i tačka i zarez, tačka je thousands separator pa se uklanja.
+  // Inače zarez se tretira kao decimalni separator (zamijeni tačkom).
   const parseNum = (s: string): number => {
-    const n = parseFloat(s.replace(",", "."));
+    if (!s) return 0;
+    let cleaned = s.trim();
+    if (cleaned.includes(".") && cleaned.includes(",")) {
+      cleaned = cleaned.replace(/\./g, "");
+    }
+    cleaned = cleaned.replace(",", ".");
+    const n = parseFloat(cleaned);
     return Number.isFinite(n) ? n : 0;
+  };
+
+  // On-blur formatter: ako je upisana valjana vrijednost, prevedi je u "1.234,56".
+  // Prazan unos ostaje prazan (ne stavlja "0,00" jer to ometa korisničko unošenje).
+  const formatMoneyOnBlur = (s: string): string => {
+    if (!s.trim()) return "";
+    const n = parseNum(s);
+    if (n === 0) return "";
+    return fmtMoneyInput(n);
   };
 
   // Preview izračun u modalu (bez minimum-base logike — server primjenjuje to).
@@ -1976,24 +3613,95 @@ function PayrollModal({
     const base = parseNum(gross);
     if (base <= 0 || !previewBreakdown) return 0;
     const minuliRate = parseNum(minuliRad) / 100;
-    const startDate = worker.startDate ? new Date(worker.startDate) : null;
-    const now = new Date();
-    let years = 0;
-    if (startDate && !Number.isNaN(startDate.getTime())) {
-      years = now.getFullYear() - startDate.getFullYear();
-      const md = now.getMonth() - startDate.getMonth();
-      if (md < 0 || (md === 0 && now.getDate() < startDate.getDate())) years -= 1;
-      years = Math.max(0, years);
-    }
+    const years = totalYearsOfService(worker);
     const minuliAmt = base * minuliRate * years;
     return base + minuliAmt + previewBreakdown.uvecanja;
-  }, [gross, minuliRad, previewBreakdown, worker.startDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    gross,
+    minuliRad,
+    previewBreakdown,
+    worker.prijavaDate,
+    worker.startDate,
+    worker.firstEmploymentDate,
+    worker.priorWorkYears,
+  ]);
 
   const preview = useMemo(() => {
     if (effectiveGross <= 0) return null;
     const ded = deductionFromCoefficient(parseNum(coeff));
     return fromGross(effectiveGross, ded);
   }, [effectiveGross, coeff]);
+
+  // Multiplikator (M) i koeficijent uvećanja (U) za inverz neto → bruto.
+  // fullGross = base × M + base × U = base × (M + U)
+  const yearsOfService = useMemo(
+    () => totalYearsOfService(worker),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      worker.prijavaDate,
+      worker.startDate,
+      worker.firstEmploymentDate,
+      worker.priorWorkYears,
+    ],
+  );
+
+  const grossFactor = useMemo(() => {
+    const minuliM = 1 + (parseNum(minuliRad) / 100) * yearsOfService;
+    const hourlyU =
+      (parseNum(overtime) * parseNum(overtimeRate) +
+        parseNum(night) * parseNum(nightRate) +
+        parseNum(sunday) * parseNum(sundayRate) +
+        parseNum(holiday) * parseNum(holidayRate)) /
+      (174 * 100);
+    return minuliM + hourlyU;
+  }, [
+    minuliRad,
+    yearsOfService,
+    overtime,
+    overtimeRate,
+    night,
+    nightRate,
+    sunday,
+    sundayRate,
+    holiday,
+    holidayRate,
+  ]);
+
+  // Sync netoDisplay iz preview-a kad god se promijeni gross (ili bilo koji
+  // input koji utiče na preview), osim ako je user upravo upisao neto.
+  useEffect(() => {
+    if (lastEditRef.current === "neto") {
+      // Vrati flag na "gross" da sljedeća iteracija opet sinhronizira.
+      lastEditRef.current = "gross";
+      return;
+    }
+    if (!preview || preview.net <= 0) {
+      setNetoDisplay("");
+      return;
+    }
+    setNetoDisplay(fmtMoneyInput(preview.net));
+  }, [preview]);
+
+  const handleNetoChange = (v: string) => {
+    lastEditRef.current = "neto";
+    setNetoDisplay(v);
+    const targetNet = parseNum(v);
+    if (!Number.isFinite(targetNet) || targetNet <= 0) {
+      setGross("");
+      return;
+    }
+    const ded = deductionFromCoefficient(parseNum(coeff));
+    const fullGross = fromNet(targetNet, ded).gross;
+    if (!Number.isFinite(fullGross) || fullGross <= 0 || grossFactor <= 0) {
+      setGross("");
+      return;
+    }
+    const base = fullGross / grossFactor;
+    if (Number.isFinite(base) && base > 0) {
+      setGross(fmtMoneyInput(base));
+    }
+  };
 
   const calcMutation = useMutation({
     mutationFn: () =>
@@ -2010,6 +3718,7 @@ function PayrollModal({
             ? Math.round(parseNum(workedHours) * 60)
             : null,
           sickDays: parseInt(sickDays, 10) || 0,
+          vacationDays: parseInt(vacationDays, 10) || 0,
           overtimeHours: parseNum(overtime),
           nightHours: parseNum(night),
           sundayHours: parseNum(sunday),
@@ -2100,6 +3809,7 @@ function PayrollModal({
       minuli: parseNum(minuliRad),
       workedMinutes: workedHours ? Math.round(parseNum(workedHours) * 60) : null,
       sickDays: parseInt(sickDays, 10) || 0,
+      vacationDays: parseInt(vacationDays, 10) || 0,
       overtime: parseNum(overtime),
       night: parseNum(night),
       sunday: parseNum(sunday),
@@ -2119,8 +3829,12 @@ function PayrollModal({
       }
       if (worker.salaryNeto != null && Number(worker.salaryNeto) > 0) {
         const ded = deductionFromCoefficient(Number(worker.taxCoefficient ?? 1));
-        const calc = fromNet(Number(worker.salaryNeto), ded);
-        return calc.gross > 0 ? Number(calc.gross.toFixed(2)) : 0;
+        const fullGross = fromNet(Number(worker.salaryNeto), ded).gross;
+        const minuliRate = Number(worker.minuliRadRate ?? 0.4) / 100;
+        const years = totalYearsOfService(worker);
+        const minuliM = 1 + minuliRate * years;
+        const base = minuliM > 0 ? fullGross / minuliM : fullGross;
+        return base > 0 ? Number(base.toFixed(2)) : 0;
       }
       return 0;
     })();
@@ -2137,6 +3851,7 @@ function PayrollModal({
         : Number(worker.minuliRadRate ?? 0.4),
       workedMinutes: existing?.workedMinutes ?? null,
       sickDays: numericFromExisting(existing?.sickDays),
+      vacationDays: numericFromExisting(existing?.vacationDays),
       overtime: numericFromExisting(existing?.overtimeHours),
       night: numericFromExisting(existing?.nightHours),
       sunday: numericFromExisting(existing?.sundayHours),
@@ -2167,6 +3882,7 @@ function PayrollModal({
       cur.minuli !== orig.minuli ||
       cur.workedMinutes !== orig.workedMinutes ||
       cur.sickDays !== orig.sickDays ||
+      cur.vacationDays !== orig.vacationDays ||
       cur.overtime !== orig.overtime ||
       cur.night !== orig.night ||
       cur.sunday !== orig.sunday ||
@@ -2180,7 +3896,7 @@ function PayrollModal({
       cur.travel !== orig.travel
     );
   }, [
-    gross, coeff, minuliRad, workedHours, sickDays, overtime, night, sunday, holiday,
+    gross, coeff, minuliRad, workedHours, sickDays, vacationDays, overtime, night, sunday, holiday,
     overtimeRate, nightRate, sundayRate, holidayRate,
     meal, vacation, travel, existing, worker,
   ]);
@@ -2202,6 +3918,7 @@ function PayrollModal({
               ? Math.round(parseNum(workedHours) * 60)
               : null,
             sickDays: parseInt(sickDays, 10) || 0,
+            vacationDays: parseInt(vacationDays, 10) || 0,
             overtimeHours: parseNum(overtime),
             nightHours: parseNum(night),
             sundayHours: parseNum(sunday),
@@ -2272,10 +3989,31 @@ function PayrollModal({
                   type="text"
                   inputMode="decimal"
                   value={gross}
-                  onChange={(e) => setGross(e.target.value)}
+                  onChange={(e) => {
+                    lastEditRef.current = "gross";
+                    setGross(e.target.value);
+                  }}
+                  onBlur={() => setGross(formatMoneyOnBlur(gross))}
                   placeholder="Iz ugovora, bez minulog rada"
                 />
               </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Neto (iznos na ruke)</label>
+                <input
+                  className={styles.input}
+                  type="text"
+                  inputMode="decimal"
+                  value={netoDisplay}
+                  onChange={(e) => handleNetoChange(e.target.value)}
+                  onBlur={() => setNetoDisplay(formatMoneyOnBlur(netoDisplay))}
+                  placeholder="Iznos koji radnik prima na račun"
+                />
+                <p className={styles.note} style={{ margin: "0.3rem 0 0" }}>
+                  Uračunava minuli rad i koeficijent
+                </p>
+              </div>
+            </div>
+            <div className={styles.grid2} style={{ marginTop: "0.8rem" }}>
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>
                   Porezni koeficijent (1.0 = 300 KM odbitka)
@@ -2288,8 +4026,6 @@ function PayrollModal({
                   onChange={(e) => setCoeff(e.target.value)}
                 />
               </div>
-            </div>
-            <div className={styles.grid2} style={{ marginTop: "0.8rem" }}>
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>
                   Minuli rad (% godišnje)
@@ -2303,26 +4039,24 @@ function PayrollModal({
                   placeholder="0,4"
                 />
                 {(() => {
-                  const years = worker.startDate
-                    ? (() => {
-                        const s = new Date(worker.startDate as string);
-                        const e = new Date(`${year}-${String(month).padStart(2, "0")}-01`);
-                        // Posljednji dan mjeseca:
-                        const end = new Date(year, month, 0);
-                        let y = end.getFullYear() - s.getFullYear();
-                        const md = end.getMonth() - s.getMonth();
-                        if (md < 0 || (md === 0 && end.getDate() < s.getDate())) y -= 1;
-                        return Math.max(0, y);
-                      })()
-                    : 0;
+                  // Posljednji dan obračunskog mjeseca kao "as-of" datum.
+                  const asOf = new Date(year, month, 0)
+                    .toISOString()
+                    .slice(0, 10);
+                  const years = totalYearsOfService(worker, asOf);
                   const baseN = parseNum(gross);
                   const rateN = parseNum(minuliRad);
                   const amt = +(baseN * (rateN / 100) * years).toFixed(2);
+                  const hasStazInfo =
+                    !!worker.prijavaDate ||
+                    !!worker.startDate ||
+                    !!worker.firstEmploymentDate ||
+                    worker.priorWorkYears != null;
                   return (
                     <p className={styles.note} style={{ margin: "0.3rem 0 0" }}>
-                      {worker.startDate
+                      {hasStazInfo
                         ? `${years} god. staža × ${rateN.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}% × ${fmtKM(baseN)} = ${fmtKM(amt)} KM`
-                        : "Nije postavljen datum prijave radnika"}
+                        : "Nije postavljen datum prijave ni prethodni staž"}
                     </p>
                   );
                 })()}
@@ -2419,6 +4153,17 @@ function PayrollModal({
                   max={42}
                   value={sickDays}
                   onChange={(e) => setSickDays(e.target.value)}
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Dani godišnjeg odmora</label>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={0}
+                  max={31}
+                  value={vacationDays}
+                  onChange={(e) => setVacationDays(e.target.value)}
                 />
               </div>
             </div>
@@ -2530,6 +4275,7 @@ function PayrollModal({
                   inputMode="decimal"
                   value={meal}
                   onChange={(e) => setMeal(e.target.value)}
+                  onBlur={() => setMeal(formatMoneyOnBlur(meal))}
                 />
               </div>
               <div className={styles.field}>
@@ -2540,6 +4286,7 @@ function PayrollModal({
                   inputMode="decimal"
                   value={vacation}
                   onChange={(e) => setVacation(e.target.value)}
+                  onBlur={() => setVacation(formatMoneyOnBlur(vacation))}
                 />
               </div>
               <div className={styles.field}>
@@ -2550,6 +4297,7 @@ function PayrollModal({
                   inputMode="decimal"
                   value={travel}
                   onChange={(e) => setTravel(e.target.value)}
+                  onBlur={() => setTravel(formatMoneyOnBlur(travel))}
                 />
               </div>
             </div>

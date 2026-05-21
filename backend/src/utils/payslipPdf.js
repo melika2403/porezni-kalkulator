@@ -76,11 +76,14 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   const PAGE_W = 595.28;
   const PAGE_H = 841.89;
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
-  const ink = rgb(0.08, 0.1, 0.12);
-  const mid = rgb(0.42, 0.45, 0.5);
-  const accent = rgb(0.23, 0.36, 0.26); // sage
-  const border = rgb(0.7, 0.7, 0.7);
-  const borderStrong = rgb(0.2, 0.2, 0.2);
+  // Sve boje teksta su crne radi maksimalne čitljivosti pri štampi.
+  // Sive boje su preslabe za laser/inkjet print pa korisnik ne može jasno
+  // pročitati platni listić.
+  const ink = rgb(0, 0, 0);
+  const mid = rgb(0, 0, 0);
+  const accent = rgb(0, 0, 0);
+  const border = rgb(0.4, 0.4, 0.4);
+  const borderStrong = rgb(0, 0, 0);
 
   const drawText = (txt, x, y, opts = {}) => {
     const size = opts.size ?? 9;
@@ -204,6 +207,10 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   cursorY -= 13;
   if (payroll.sickDays && payroll.sickDays > 0) {
     drawHourRow("Bolovanje (dana)", String(payroll.sickDays), cursorY);
+    cursorY -= 13;
+  }
+  if (payroll.vacationDays && payroll.vacationDays > 0) {
+    drawHourRow("Godišnji odmor (dana)", String(payroll.vacationDays), cursorY);
     cursorY -= 13;
   }
   if (Number(payroll.overtimeHours) > 0) {

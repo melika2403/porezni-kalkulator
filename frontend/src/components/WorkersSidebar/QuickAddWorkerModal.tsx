@@ -104,6 +104,9 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
   const [salaryNeto, setSalaryNeto] = useState("");
   const [bankAccount, setBankAccount] = useState("");
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [prijavaDate, setPrijavaDate] = useState("");
+  const [notRegistered, setNotRegistered] = useState(false);
+  const [taxCoefficient, setTaxCoefficient] = useState("1.0");
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -129,6 +132,10 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
       setError(parseJmbg(jmbg).error ?? "Nevažeći JMBG");
       return;
     }
+    // Ako je korisnik unio datum prijave i nije označio "nije prijavljen",
+    // radnik se odmah računa kao PRIJAVLJEN. Inače DRAFT.
+    const isPrijavljen = !notRegistered && !!prijavaDate;
+    const coef = Number(taxCoefficient.replace(",", "."));
     mutation.mutate({
       role: "RADNIK",
       firstName: firstName.trim(),
@@ -140,7 +147,9 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
       salaryNeto: parseKm(salaryNeto),
       bankAccount: bankAccount.trim() || undefined,
       startDate: startDate || null,
-      employmentStatus: "DRAFT",
+      prijavaDate: isPrijavljen ? prijavaDate : null,
+      employmentStatus: isPrijavljen ? "PRIJAVLJEN" : "DRAFT",
+      taxCoefficient: Number.isFinite(coef) && coef >= 0 ? coef : 1.0,
     });
   };
 
@@ -237,6 +246,43 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               onValueChange={setStartDate}
             />
           </div>
+          <div className={styles.field}>
+            <span className={styles.label}>
+              Datum prijave (JS3100){" "}
+              <span style={{ color: "var(--mid)", fontSize: 11, fontWeight: 400 }}>
+                — ako se unese, radnik je odmah prijavljen
+              </span>
+            </span>
+            <DateInput
+              className={styles.input}
+              value={prijavaDate}
+              onValueChange={(iso) => {
+                setPrijavaDate(iso);
+                if (iso) setNotRegistered(false);
+              }}
+            />
+          </div>
+          <label
+            className={`${styles.field} ${styles.fieldFull}`}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: "0.6rem",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={notRegistered}
+              onChange={(e) => {
+                setNotRegistered(e.target.checked);
+                if (e.target.checked) setPrijavaDate("");
+              }}
+            />
+            <span style={{ fontSize: 13, color: "var(--mid)" }}>
+              Nije još prijavljen — prijavit ću kasnije (JS3100 ili ručno)
+            </span>
+          </label>
           <label className={styles.field}>
             <span className={styles.label}>Bruto plata (KM)</span>
             <input
@@ -265,6 +311,21 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               onChange={(e) => setBankAccount(formatZiro(e.target.value))}
               placeholder="XXX-XXX-XXXXXXXX-XX"
               inputMode="numeric"
+            />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.label}>
+              Porezni koeficijent{" "}
+              <span style={{ color: "var(--mid)", fontSize: 11, fontWeight: 400 }}>
+                — 1.0 = 300 KM odbitka
+              </span>
+            </span>
+            <input
+              className={styles.input}
+              value={taxCoefficient}
+              onChange={(e) => setTaxCoefficient(e.target.value)}
+              inputMode="decimal"
+              placeholder="1.0"
             />
           </label>
         </div>

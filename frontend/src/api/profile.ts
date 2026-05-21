@@ -139,6 +139,10 @@ export type OrgOwner = {
   address: string | null;
   city: string | null;
   idCardNumber: string | null;
+  prijavaDate: string | null;
+  salaryBruto: number | null;
+  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
+  taxCoefficient: number;
 };
 
 export type OrgOwnerPayload = {
@@ -150,6 +154,9 @@ export type OrgOwnerPayload = {
   address?: string;
   city?: string;
   idCardNumber?: string;
+  prijavaDate?: string | null;
+  salaryBruto?: number | null;
+  taxCoefficient?: number;
 };
 
 export type TaxRegime = "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
@@ -179,6 +186,9 @@ export type Organization = {
   taxCategory: TaxCategory | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
+  // Plan tier of the org's OWNER. In-org features (workers, members,
+  // logo, JS3100, …) are gated by this rather than the viewer's own role.
+  effectiveTier: "USER" | "PRO" | "BUSINESS" | "ADMIN" | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -206,6 +216,38 @@ export function getOrganizations() {
 
 export function getClientOrganizations() {
   return request<Organization[]>("/api/organizations/clients");
+}
+
+// Status payroll-a za odabrani mjesec po organizaciji.
+export type OrgPayrollStatus =
+  | "no_workers"
+  | "none"
+  | "partial"
+  | "obracunato"
+  | "isplaceno";
+
+export type OrganizationWithPayrollStatus = Organization & {
+  workerCount: number;
+  payrollObracunato: number;
+  payrollIsplaceno: number;
+  payrollStatus: OrgPayrollStatus;
+};
+
+export type OrganizationsPayrollStatusResponse = {
+  own: OrganizationWithPayrollStatus[];
+  clients: OrganizationWithPayrollStatus[];
+  year: number;
+  month: number;
+};
+
+export function getOrganizationsWithPayrollStatus(year: number, month: number) {
+  const sp = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  });
+  return request<OrganizationsPayrollStatusResponse>(
+    `/api/organizations/payroll-status?${sp.toString()}`,
+  );
 }
 
 export function createOrganization(payload: OrgPayload) {
@@ -315,6 +357,12 @@ export type Worker = {
   strucnaSpremaIdx: number | null;
   taxCoefficient: number;
   minuliRadRate: number;
+  // Ukupan radni staž (za minuli rad). Dva opciona unosa — user bira jedan:
+  //  • firstEmploymentDate — datum prvog zaposljenja ikada (kontinuirani staž)
+  //  • priorWorkYears — staž prije naše firme u godinama (decimal, podržava prekide)
+  // Ako je oboje, priorWorkYears ima prednost.
+  firstEmploymentDate: string | null;
+  priorWorkYears: number | null;
   overtimeRate: number;
   nightRate: number;
   sundayRate: number;
@@ -359,6 +407,8 @@ export type WorkerPayload = {
   strucnaSpremaIdx?: number | null;
   taxCoefficient?: number | string | null;
   minuliRadRate?: number | string | null;
+  firstEmploymentDate?: string | null;
+  priorWorkYears?: number | string | null;
   overtimeRate?: number | string | null;
   nightRate?: number | string | null;
   sundayRate?: number | string | null;
@@ -504,7 +554,9 @@ export type FormType =
   | "GPD"
   | "SPR"
   | "ZO3"
-  | "UGOVOR"
+  | "UGOVOR" // ugovor o pozajmici (legacy)
+  | "UOD"    // ugovor o djelu (Faza 3)
+  | "SIH"
   | "PLDI"
   | "AMS"
   | "JS3100";
@@ -519,6 +571,9 @@ export type FormRecord = {
   title: string | null;
   pdfUrl: string | null;
   createdAt: string;
+  // Faza 3B: backend sad vraća autora forme; koristi se za "Autor" kolonu kad
+  // pregledamo team-shared forme.
+  createdById: number | null;
   organization: { id: number; name: string } | null;
   client: {
     id: number;
@@ -680,7 +735,13 @@ export function adminGetPersonClients(params?: {
   return request<AdminPersonClientsListResponse>(`/api/clients/admin/all?${sp.toString()}`);
 }
 
-export function createAmortizacijaClient(payload: { firstName?: string }) {
+// Faza 3: payload prima organizationId — klijent se kreira kao team-shared
+// kad je org-id poslat (svi članovi te org-e vide klijenta). Ako nije, klijent
+// je "lični" (legacy ponašanje, vidi samo tvorac).
+export function createAmortizacijaClient(payload: {
+  firstName?: string;
+  organizationId?: number | null;
+}) {
   return request<PersonClient>("/api/clients/amortizacija", {
     method: "POST",
     body: JSON.stringify(payload),

@@ -11,7 +11,7 @@ import {
   type PersonClient,
   type WorkerWithOrg,
 } from "src/api/profile";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import styles from "./PersonFillSelect.module.css";
 
 export type UgovorFillData = {
@@ -48,7 +48,7 @@ const CHEVRON = (
 );
 
 export default function UgovorFillSelect({ onFill }: Props) {
-  const { hasRole } = useRole();
+  const { hasAccessToTier } = useMaxAccessibleTier();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -60,7 +60,8 @@ export default function UgovorFillSelect({ onFill }: Props) {
     retry: false,
   });
 
-  const isProOrBusiness = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Faza 3B: pristup imamo ako sami PRO+ ili smo član PRO+ org-e.
+  const isProOrBusiness = hasAccessToTier("PRO");
 
   const { data: ownOrgs = [] } = useQuery({
     queryKey: ["organizations"],

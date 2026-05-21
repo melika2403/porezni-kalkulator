@@ -174,6 +174,18 @@ const Worker = sequelize.define(
       allowNull: false,
       defaultValue: 0.40,
     },
+    // ── Ukupan radni staž (za minuli rad) ──
+    // Minuli rad se računa na UKUPAN radni staž, ne samo na staž u našoj firmi.
+    // Dva opciona unosa (user bira jedan):
+    //  • firstEmploymentDate — datum prvog zaposljenja IKADA. Pretpostavlja
+    //    kontinuirani staž (bez prekida). Ukupan = today - firstEmploymentDate.
+    //  • priorWorkYears — staž PRIJE ulaska u našu firmu, u godinama (decimalni
+    //    broj, npr. 5.5 = 5 god 6 mj). Koristi se kad ima prekida ili kad
+    //    user ne zna tačan datum prvog zaposljenja. Ukupan = today -
+    //    prijavaDate + priorWorkYears.
+    // Ako je upisano oboje, priorWorkYears ima prednost (tačniji).
+    firstEmploymentDate: { type: DataTypes.DATEONLY, allowNull: true },
+    priorWorkYears: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
     // Stope uvećanja po Zakonu o radu FBiH (čl. 76). Default su zakonski minimumi.
     overtimeRate: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 25.0 },
     nightRate: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 25.0 },
@@ -213,6 +225,7 @@ const Payroll = sequelize.define(
     workedMinutes: { type: DataTypes.INTEGER, allowNull: true },
     standardMinutes: { type: DataTypes.INTEGER, allowNull: true },
     sickDays: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
+    vacationDays: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
     overtimeHours: { type: DataTypes.DECIMAL(6, 2), allowNull: true, defaultValue: 0 },
     nightHours: { type: DataTypes.DECIMAL(6, 2), allowNull: true, defaultValue: 0 },
     sundayHours: { type: DataTypes.DECIMAL(6, 2), allowNull: true, defaultValue: 0 },
@@ -463,7 +476,8 @@ const Form = sequelize.define(
         "GPD",
         "SPR",
         "ZO3",
-        "UGOVOR",
+        "UGOVOR", // ugovor o pozajmici (legacy use)
+        "UOD",    // ugovor o djelu (Faza 3)
         "PLDI",
         "AMS",
         "SIH",
@@ -639,7 +653,11 @@ const InvoiceCounter = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
-    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // Faza 3: brojač se vodi po organizaciji. Postojeći redovi sa userId-em
+    // ostaju za legacy fakture (one bez organizationId). Nove fakture uvijek
+    // imaju organizationId i koriste org-based counter.
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     year: { type: DataTypes.INTEGER, allowNull: false },
     type: {
       type: DataTypes.ENUM("INVOICE", "PROFORMA"),
@@ -657,7 +675,11 @@ const InvoiceCounter = sequelize.define(
     timestamps: true,
     charset: "utf8mb4",
     collate: "utf8mb4_unicode_ci",
-    indexes: [{ unique: true, fields: ["userId", "year", "type"] }],
+    indexes: [
+      // Legacy unique (per-user) i novi unique (per-org). Sequelize tolerira oba.
+      { unique: true, fields: ["userId", "year", "type"], name: "uniq_invoice_counter_user_year_type" },
+      { unique: true, fields: ["organizationId", "year", "type"], name: "uniq_invoice_counter_org_year_type" },
+    ],
   },
 );
 
