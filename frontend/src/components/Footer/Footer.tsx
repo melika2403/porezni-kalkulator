@@ -21,7 +21,7 @@ export default function Footer() {
               </svg>
             </a>
             <a
-              href="https://www.instagram.com/porezni.kalkulator/"
+              href="https://www.instagram.com/poreznikalkulator.ba/"
               target="_blank"
               rel="noopener noreferrer"
               className={styles.socialLink}

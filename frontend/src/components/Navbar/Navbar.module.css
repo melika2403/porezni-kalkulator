@@ -67,6 +67,161 @@
   gap: 10px;
 }
 
+/* ── Back to home pill (visible on every non-home page) ── */
+.backHomeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--sage-pale);
+  border: 1px solid color-mix(in srgb, var(--sage) 20%, transparent);
+  font-size: 13px !important;
+  color: var(--ink) !important;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.backHomeLink:hover {
+  background: color-mix(in srgb, var(--sage) 15%, transparent);
+  border-color: color-mix(in srgb, var(--sage) 35%, transparent);
+}
+
+/* ── Funkcije dropdown ── */
+.dropdown {
+  position: relative;
+}
+
+.dropdownTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--mid);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.dropdownTrigger:hover,
+.dropdownTriggerOpen {
+  color: var(--ink);
+}
+
+.dropdownChevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.18s ease;
+}
+
+.dropdownChevronOpen {
+  transform: rotate(180deg);
+}
+
+.megaMenu {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem 1.75rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.18),
+              0 4px 12px rgba(0, 0, 0, 0.06);
+  z-index: 200;
+  animation: megaFadeIn 0.18s ease;
+}
+
+@keyframes megaFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.megaCol {
+  min-width: 0;
+}
+
+.megaColTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sage);
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.megaList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.megaItem {
+  display: flex !important;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--ink) !important;
+  transition: background 0.12s;
+}
+
+.megaItem:hover {
+  background: var(--sage-pale);
+}
+
+.megaItemActive {
+  background: color-mix(in srgb, var(--sage) 12%, transparent);
+}
+
+.megaItemLabel {
+  font-size: 13px !important;
+  font-weight: 500;
+  color: var(--ink) !important;
+}
+
+.megaItemDesc {
+  font-size: 11px !important;
+  color: var(--mid) !important;
+  line-height: 1.4;
+}
+
+@media (max-width: 1100px) {
+  .megaMenu {
+    grid-template-columns: repeat(2, minmax(200px, 1fr));
+    left: auto;
+    right: -100px;
+    transform: none;
+  }
+  @keyframes megaFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@media (max-width: 720px) {
+  .megaMenu {
+    grid-template-columns: 1fr;
+    right: -20px;
+    min-width: 260px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+
 .btnGhost {
   padding: 8px 18px;
   border-radius: var(--radius);
@@ -100,6 +255,76 @@
 
 .btnPrimary:hover {
   background: var(--sage-light);
+}
+
+.addOrgHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--accent, #e88a1a);
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--accent, #e88a1a) 70%, #000 0%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  animation: addOrgPulse 2.4s ease-in-out infinite;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.addOrgHint:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+/* Link "Organizacije" — lijevo od profila kad korisnik ima bar jednu org. */
+.orgsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--sage-pale);
+  color: var(--sage);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--sage) 25%, transparent);
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.orgsLink:hover {
+  background: var(--sage);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.addOrgIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+@keyframes addOrgPulse {
+  0%, 100% {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05),
+                0 0 0 0 color-mix(in srgb, var(--accent, #e88a1a) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05),
+                0 0 0 6px color-mix(in srgb, var(--accent, #e88a1a) 0%, transparent);
+  }
 }
 
 .userChip {

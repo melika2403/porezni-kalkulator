@@ -18,10 +18,14 @@ export interface SihtenicaData {
   days: (DayEntry | null)[];
   orgName?: string;
   orgAddress?: string;
+  orgCity?: string;
   orgTaxNumber?: string;
   /** Set of weekday numbers (0=Ned, 1=Pon, ..., 6=Sub) that are weekly days off.
    *  On these days, absence code "9.1" is treated as sedmični odmor (0h). */
   weeklyDaysOff?: number[];
+  /** Paid-absence codes that count as 8h in totals. Defaults to all 5
+   *  (9.1 godišnji, 9.2 praznik, 9.3 bolovanje, 9.4 porodiljsko, 9.5 plaćeno). */
+  countAbsenceCodes?: string[];
 }
 
 const BLACK = rgb(0, 0, 0);
@@ -62,32 +66,38 @@ function minsToHM(mins: number): string {
 }
 
 // Codes that represent PAID absence — count as standard 8h workday in totals
-const PAID_ABSENCE_CODES = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
+const PAID_ABSENCE_DEFAULT = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
 const PAID_ABSENCE_MINS = 8 * 60;
 
-function isPaidAbsence(entry: DayEntry, isWeeklyDayOff: boolean = false): boolean {
-  if (!entry.absence) return false;
-  const code = entry.absence.trim();
-  if (code === "9.1" && isWeeklyDayOff) return false;
-  return PAID_ABSENCE_CODES.has(code);
-}
-
-function calcDailyMins(entry: DayEntry, isWeeklyDayOff: boolean = false): number {
-  if (isPaidAbsence(entry, isWeeklyDayOff)) return PAID_ABSENCE_MINS;
+function calcDailyMins(
+  entry: DayEntry,
+  isWeeklyDayOff: boolean,
+  countCodes: Set<string>,
+): number {
+  // Manually entered times override absence code semantics.
   const start = parseTimeToMins(entry.startTime);
   const end = parseTimeToMins(entry.endTime);
-  if (start === null || end === null) return 0;
-  const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
-  return Math.max(0, end - start - zastojMins);
+  if (start !== null && end !== null) {
+    const zastojMins = Math.round((parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60);
+    return Math.max(0, end - start - zastojMins);
+  }
+  if (entry.absence) {
+    const code = entry.absence.trim();
+    if (PAID_ABSENCE_DEFAULT.has(code)) {
+      if (code === "9.1" && isWeeklyDayOff) return 0;
+      return countCodes.has(code) ? PAID_ABSENCE_MINS : 0;
+    }
+  }
+  return 0;
 }
 
-function calcTotalDaily(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
-  const mins = calcDailyMins(entry, isWeeklyDayOff);
+function calcTotalDaily(
+  entry: DayEntry,
+  isWeeklyDayOff: boolean,
+  countCodes: Set<string>,
+): string {
+  const mins = calcDailyMins(entry, isWeeklyDayOff, countCodes);
   return mins > 0 ? minsToHM(mins) : "";
-}
-
-function calcTotalHrs(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
-  return calcTotalDaily(entry, isWeeklyDayOff);
 }
 
 function drawCentered(
@@ -134,13 +144,21 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   doc.registerFontkit(fontkit);
   const font = await doc.embedFont(fontBytes);
 
-  // Find named FreeText annotations on page 1 (T = OrgName / OrgAddress / OrgJIB)
-  // and draw the values left-aligned inside their boxes.
-  const headerByName: Record<string, string> = {
-    OrgName: data.orgName ?? "",
-    OrgAddress: data.orgAddress ?? "",
-    OrgJIB: data.orgTaxNumber ?? "",
-  };
+  // Novi template ima jedan FreeText box za podatke o firmi — unutar njega
+  // crtamo 3 linije stack-ovane od vrha: naziv, adresa, JIB. Stari template
+  // imao je 3 odvojena boxa (OrgName/OrgAddress/OrgJIB) — kod podržava oba
+  // slučaja: ako naiđe na jedan box (bilo kojeg od poznatih imena), tretira
+  // ga kao kombinovani; ako naiđe na više, koristi svaki za svoju vrijednost.
+  const KNOWN_HEADER_NAMES = new Set(["OrgName", "OrgAddress", "OrgJIB", "OrgInfo", "OrgHeader"]);
+  const addressLine = [data.orgAddress, data.orgCity]
+    .map((s) => (s || "").trim())
+    .filter(Boolean)
+    .join(", ");
+  const orgLines = [
+    { text: data.orgName ?? "", size: 14 },
+    { text: addressLine, size: 11 },
+    { text: data.orgTaxNumber ? `ID: ${data.orgTaxNumber}` : "", size: 11 },
+  ];
   try {
     const page0 = doc.getPage(0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,7 +169,15 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ctx = doc.context as any;
 
-      const indicesToRemove: number[] = [];
+      // Prikupi sve header anotacije sa rect-ovima.
+      type AnnInfo = {
+        index: number;
+        name: string;
+        x1: number;
+        y1: number;
+        y2: number;
+      };
+      const headerAnns: AnnInfo[] = [];
       for (let i = 0; i < arr.length; i++) {
         const obj = ctx.lookup(arr[i]);
         if (!obj || !obj.get) continue;
@@ -159,8 +185,7 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
         if (!subtypeStr.includes("FreeText")) continue;
         const tRaw = obj.get(ctx.obj("T"))?.toString?.() ?? "";
         const t = tRaw.replace(/^\(|\)$/g, "").trim();
-        if (!(t in headerByName)) continue;
-        const text = headerByName[t];
+        if (!KNOWN_HEADER_NAMES.has(t)) continue;
         const rectObj = obj.get(ctx.obj("Rect"));
         if (!rectObj || !rectObj.asArray) continue;
         const rArr = rectObj.asArray();
@@ -172,15 +197,48 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
           typeof y1 !== "number" ||
           typeof y2 !== "number"
         ) continue;
-        if (text) {
-          const size = t === "OrgName" ? 15 : 13;
-          const x = x1 + 4;
-          const y = (y1 + y2) / 2 - size / 3;
-          page0.drawText(text, { x, y, size, font, color: BLACK });
-        }
-        indicesToRemove.push(i);
+        headerAnns.push({ index: i, name: t, x1, y1, y2 });
       }
-      // Remove the annotations so their visual overlay (border/icon) doesn't cover our text
+
+      const indicesToRemove: number[] = [];
+
+      if (headerAnns.length === 1) {
+        // Novi template — jedan box, 3 linije unutra od vrha.
+        const ann = headerAnns[0];
+        let y = ann.y2 - 4; // 4pt padding ispod gornjeg ruba
+        for (const line of orgLines) {
+          if (!line.text) continue;
+          y -= line.size; // baseline = top minus font size
+          page0.drawText(line.text, {
+            x: ann.x1 + 4,
+            y,
+            size: line.size,
+            font,
+            color: BLACK,
+          });
+          y -= 3; // razmak između linija
+        }
+        indicesToRemove.push(ann.index);
+      } else if (headerAnns.length > 1) {
+        // Stari template — 3 odvojena boxa, svaki za svoju vrijednost.
+        const valueByName: Record<string, string> = {
+          OrgName: data.orgName ?? "",
+          OrgAddress: data.orgAddress ?? "",
+          OrgJIB: data.orgTaxNumber ?? "",
+        };
+        for (const ann of headerAnns) {
+          const text = valueByName[ann.name];
+          if (text) {
+            const size = ann.name === "OrgName" ? 14 : 11;
+            const x = ann.x1 + 4;
+            const y = (ann.y1 + ann.y2) / 2 - size / 3 - 12;
+            page0.drawText(text, { x, y, size, font, color: BLACK });
+          }
+          indicesToRemove.push(ann.index);
+        }
+      }
+
+      // Skini anotacije nakon crtanja (da se ne vidi border/ikona).
       indicesToRemove.sort((a, b) => b - a).forEach((idx) => {
         if (typeof annotsAny.remove === "function") annotsAny.remove(idx);
       });
@@ -202,7 +260,7 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   };
 
   // Header
-  const monthStr = MONTH_NAMES[data.month - 1];
+  const monthStr = `${MONTH_NAMES[data.month - 1]} (${String(data.month).padStart(2, "0")})`;
   draw(page1, monthStr, [430, 545], 509);
   draw(page1, String(data.year), [545, 605], 509);
   draw(page1, data.workerName, [197, 344], 495);
@@ -211,6 +269,9 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   const weeklyOffSet = new Set(data.weeklyDaysOff ?? []);
   const isWeeklyOff = (dayNum: number) =>
     weeklyOffSet.has(new Date(data.year, data.month - 1, dayNum).getDay());
+  const countCodes = data.countAbsenceCodes
+    ? new Set(data.countAbsenceCodes)
+    : PAID_ABSENCE_DEFAULT;
 
   // Page 1: days 1–22
   for (let i = 0; i < 22 && i + 1 <= daysInMonth; i++) {
@@ -227,15 +288,20 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
     if (entry) {
       const wOff = isWeeklyOff(dayNum);
       const xMark = entry.absence && !entry.startTime && !entry.endTime;
-      draw(page1, xMark ? "x" : entry.startTime, COLS.startTime, y);
-      draw(page1, xMark ? "x" : entry.endTime, COLS.endTime, y);
+      if (xMark) {
+        draw(page1, "x", COLS.startTime, y);
+        draw(page1, "x", COLS.endTime, y);
+      } else {
+        draw(page1, entry.startTime, COLS.startTime, y);
+        draw(page1, entry.endTime, COLS.endTime, y);
+      }
       draw(page1, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
-      draw(page1, calcTotalDaily(entry, wOff), COLS.totalDaily, y);
+      draw(page1, calcTotalDaily(entry, wOff, countCodes), COLS.totalDaily, y);
       draw(page1, entry.fieldWork, COLS.fieldWork, y);
       draw(page1, entry.standby, COLS.standby, y);
       draw(page1, entry.absence, COLS.absence, y);
       draw(page1, entry.other, COLS.other, y);
-      draw(page1, calcTotalHrs(entry, wOff), COLS.totalHrs, y);
+      draw(page1, calcTotalDaily(entry, wOff, countCodes), COLS.totalHrs, y);
     }
   }
 
@@ -254,15 +320,20 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
     if (entry) {
       const wOff = isWeeklyOff(dayNum);
       const xMark = entry.absence && !entry.startTime && !entry.endTime;
-      draw(page2, xMark ? "x" : entry.startTime, COLS.startTime, y);
-      draw(page2, xMark ? "x" : entry.endTime, COLS.endTime, y);
+      if (xMark) {
+        draw(page2, "x", COLS.startTime, y);
+        draw(page2, "x", COLS.endTime, y);
+      } else {
+        draw(page2, entry.startTime, COLS.startTime, y);
+        draw(page2, entry.endTime, COLS.endTime, y);
+      }
       draw(page2, entry.zastoj ? `${entry.zastoj}h` : "", COLS.zastoj, y);
-      draw(page2, calcTotalDaily(entry, wOff), COLS.totalDaily, y);
+      draw(page2, calcTotalDaily(entry, wOff, countCodes), COLS.totalDaily, y);
       draw(page2, entry.fieldWork, COLS.fieldWork, y);
       draw(page2, entry.standby, COLS.standby, y);
       draw(page2, entry.absence, COLS.absence, y);
       draw(page2, entry.other, COLS.other, y);
-      draw(page2, calcTotalHrs(entry, wOff), COLS.totalHrs, y);
+      draw(page2, calcTotalDaily(entry, wOff, countCodes), COLS.totalHrs, y);
     }
   }
 
@@ -272,10 +343,10 @@ export async function fillSihterica(data: SihtenicaData): Promise<Uint8Array> {
   for (let i = 0; i < daysInMonth; i++) {
     const entry = data.days[i];
     if (!entry) continue;
-    totalMins += calcDailyMins(entry, isWeeklyOff(i + 1));
+    totalMins += calcDailyMins(entry, isWeeklyOff(i + 1), countCodes);
   }
   if (totalMins > 0) {
-    draw(page2, minsToHM(totalMins), COLS.totalHrs, 365);
+    draw(page2, minsToHM(totalMins), COLS.totalHrs, 365, 12);
   }
 
   while (doc.getPageCount() > 2) {

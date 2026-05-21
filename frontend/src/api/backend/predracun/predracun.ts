@@ -1,9 +1,12 @@
 // ──────────────────────────────────────────────────────────────────────────────
-//  POST /api/predracun  →  vraća PDF (binarno) + meta zaglavlja:
-//    X-Predracun-Number, X-Predracun-Plan, X-Predracun-Gross
+//  Predracun API helper
+//    POST /api/predracun  → kreira predračun (PDF + email)
+//    GET  /api/predracun  → admin: lista svih predračuna
 // ──────────────────────────────────────────────────────────────────────────────
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+import type { ApiResponse } from "src/api/auth";
+import { getBackendUrl } from "src/utils/backendUrl";
+
+const BACKEND_URL = getBackendUrl();
 
 export type Plan = "PRO" | "BUSINESS";
 
@@ -63,5 +66,111 @@ export async function createPredracun(
     return { ok: true, pdfBlob, pdfUrl, fullNumber, plan: planHeader, gross };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "NETWORK_ERROR" };
+  }
+}
+
+// ── Admin: lista svih predračuna ────────────────────────────────────────────
+export type PredracunListItem = {
+  id: number;
+  fullNumber: string;
+  plan: Plan;
+  netAmount: number;
+  vatAmount: number;
+  grossAmount: number;
+  issueDate: string;
+  dueDate: string;
+  status: "ISSUED" | "PAID" | "CANCELLED";
+  buyer: {
+    code: string | null;
+    name: string;
+    address: string | null;
+    city: string | null;
+    postalCode: string | null;
+    phone: string | null;
+    email: string;
+    idNumber: string | null;
+    vatNumber: string | null;
+  };
+  user: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+    role: string;
+  } | null;
+  createdAt: string;
+};
+
+export type PredracunListResponse = {
+  items: PredracunListItem[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type PredracunStatus = "ISSUED" | "PAID" | "CANCELLED";
+
+export async function updatePredracunStatus(
+  id: number,
+  status: PredracunStatus,
+): Promise<
+  ApiResponse<{
+    id: number;
+    fullNumber: string;
+    status: PredracunStatus;
+    updatedAt: string;
+  }>
+> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/predracun/${id}/status`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const json = (await res.json().catch(() => null)) as ApiResponse<{
+      id: number;
+      fullNumber: string;
+      status: PredracunStatus;
+      updatedAt: string;
+    }> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "NETWORK_ERROR",
+    };
+  }
+}
+
+export async function listPredracuni(params?: {
+  q?: string;
+  plan?: Plan | "";
+  page?: number;
+  limit?: number;
+}): Promise<ApiResponse<PredracunListResponse>> {
+  const sp = new URLSearchParams();
+  if (params?.q) sp.set("q", params.q);
+  if (params?.plan) sp.set("plan", params.plan);
+  sp.set("page", String(params?.page ?? 1));
+  sp.set("limit", String(params?.limit ?? 20));
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/predracun?${sp.toString()}`, {
+      method: "GET",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    const json = (await res.json().catch(() => null)) as
+      | ApiResponse<PredracunListResponse>
+      | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "NETWORK_ERROR",
+    };
   }
 }

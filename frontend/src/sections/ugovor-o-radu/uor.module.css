@@ -1,0 +1,185 @@
+/* Dodaci specifični za Ugovor o radu — tabovi i checkbox red.
+   Ostali stilovi se naslijeđuju iz uod.module.css. */
+
+.pageOuter {
+  /* Navbar je position:fixed visine 64px; dodati prostor da sadržaj nije iza njega. */
+  padding: calc(64px + 1.5rem) 2rem 5rem;
+  max-width: 1380px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pageLayout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.pageContent {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  max-width: none;
+  margin: 0;
+  animation: none;
+}
+
+@media (max-width: 900px) {
+  .pageLayout {
+    flex-direction: column;
+  }
+}
+
+.tabBar {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.tab {
+  padding: 0.85rem 1.5rem;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--mid);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tabActive {
+  color: var(--sage);
+  border-bottom-color: var(--sage);
+  font-weight: 600;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkRow input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--sage);
+  cursor: pointer;
+}
+
+.inlineFields {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.inlineFields > * {
+  flex: 1;
+  min-width: 180px;
+}
+
+/* ── Error banner ── */
+.errorBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.9rem 1.1rem;
+  margin: 0 0 1rem;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-left: 4px solid #dc2626;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  color: #7f1d1d;
+  line-height: 1.5;
+  animation: errorIn 0.18s ease-out;
+}
+
+@keyframes errorIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.errorBanner svg {
+  flex-shrink: 0;
+  color: #dc2626;
+  margin-top: 1px;
+}
+
+.errorMsg {
+  flex: 1;
+  min-width: 0;
+}
+
+.errorClose {
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #7f1d1d;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.errorClose:hover {
+  opacity: 1;
+}
+
+/* ── Post-download prompt banner ── */
+.promptBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  margin: 0 0 1.5rem;
+  background: var(--sage-pale);
+  border: 1px solid var(--sage);
+  border-left: 4px solid var(--sage);
+  border-radius: var(--radius);
+  font-size: 0.92rem;
+  color: var(--ink);
+  animation: errorIn 0.18s ease-out;
+}
+
+.promptActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.promptDismiss {
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--mid);
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  text-decoration: underline;
+}
+
+.promptDismiss:hover {
+  color: var(--ink);
+}

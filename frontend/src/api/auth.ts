@@ -1,3 +1,5 @@
+import { getBackendUrl } from "src/utils/backendUrl";
+
 export type AuthUser = {
   id: number;
   email: string | null;
@@ -14,6 +16,7 @@ export type AuthUser = {
   isGoogleUser: boolean;
   isEmailVerified: boolean;
   idCardNumber: string | null;
+  trialUsedAt: string | null;
   subscription: {
     id: number;
     startDate: string;
@@ -24,8 +27,7 @@ export type AuthUser = {
 
 export type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+const BACKEND_URL = getBackendUrl();
 
 export async function unwrap<T>(p: Promise<ApiResponse<T>>): Promise<T> {
   const res = await p;
@@ -120,4 +122,13 @@ export function changePassword(currentPassword: string, newPassword: string) {
     method: "POST",
     body: JSON.stringify({ currentPassword, newPassword }),
   });
+}
+
+export function startTrial() {
+  return request<{
+    id: number;
+    startDate: string;
+    endDate: string;
+    isActive: boolean;
+  }>("/api/subscriptions/trial", { method: "POST" });
 }

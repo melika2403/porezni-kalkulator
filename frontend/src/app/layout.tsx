@@ -168,8 +168,8 @@ export const metadata: Metadata = {
     "popunjavanje uplatnica za porez",
     "porez na dohodak 10%",
     "zdravstveno osiguranje 4%",
-    "vrsta prihoda 716116",
-    "vrsta prihoda 712116",
+    "vrsta prihoda 716111",
+    "vrsta prihoda 712111",
     "uplatnica za porez na dohodak",
     "uplatnica za doprinos zdravstveno osiguranje",
 
@@ -322,6 +322,42 @@ const jsonLd = {
   areaServed: { "@type": "Country", name: "Bosnia and Herzegovina" },
 };
 
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Porezni Kalkulator BiH",
+  url: SITE_URL,
+  logo: `${SITE_URL}/og-image.png`,
+  description:
+    "Besplatni porezni alati za poduzetnike u Bosni i Hercegovini — obrasci, kalkulatori, obračun plata i reference za FBiH.",
+  email: "info@poreznikalkulator.ba",
+  address: {
+    "@type": "PostalAddress",
+    addressCountry: "BA",
+  },
+  sameAs: [
+    "https://www.facebook.com/profile.php?id=61569234208200",
+    "https://www.instagram.com/poreznikalkulator.ba/",
+    "https://www.linkedin.com/in/porezni-kalkulator-513429404/",
+  ],
+};
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Porezni Kalkulator BiH",
+  url: SITE_URL,
+  inLanguage: "bs-BA",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${SITE_URL}/sifre-djelatnosti?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -333,6 +369,14 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
         />
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
           crossOrigin="anonymous"></script>

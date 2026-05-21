@@ -46,7 +46,7 @@ const PLANS: Plan[] = [
       "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
       "Prijave/odjave radnika, izrada JS3000 obrasca",
       "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
-      "Generisanje uplatnica za plate i doprinose",
+      "Fakture/računi i predračuni/ponude",
     ],
     cta: "Pretplati se na Pro",
     ctaStyle: "white",

@@ -206,6 +206,114 @@ export default function PdvKalkulator() {
           </div>
         </div>
       </div>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.eduSection}>
+        <h2>
+          Šta je PDV u <em>Bosni i Hercegovini</em>?
+        </h2>
+        <p>
+          <strong>Porez na dodanu vrijednost (PDV)</strong> je opći potrošački
+          porez koji se obračunava na isporuke dobara i usluga u svim fazama
+          prometa. U Bosni i Hercegovini se primjenjuje{" "}
+          <strong>jedinstvena stopa PDV-a od 17%</strong> i administrira ga{" "}
+          <strong>Uprava za indirektno oporezivanje (UINO)</strong> na nivou
+          države, što znači da je ista stopa na cijeloj teritoriji — i u FBiH,
+          i u Republici Srpskoj, i u Brčko Distriktu.
+        </p>
+        <p>
+          PDV plaća krajnji potrošač kroz cijenu, ali ga obračunava i uplaćuje
+          PDV obveznik (preduzeće ili obrtnik) registrovan u UINO. Razlika
+          između izlaznog PDV-a (na prodaji) i ulaznog PDV-a (na nabavkama)
+          predstavlja obavezu za uplatu — ili pravo na povrat ako je ulazni PDV
+          veći.
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Kako se <em>obračunava</em> PDV — formule
+        </h2>
+        <p>
+          Postoje dva smjera preračuna PDV-a, ovisno o tome da li krećete od
+          cijene bez PDV-a (neto) ili sa PDV-om (bruto / maloprodajna cijena):
+        </p>
+        <ul>
+          <li>
+            <strong>Bez PDV-a → s PDV-om</strong>: pomnožite cijenu sa{" "}
+            <strong>1,17</strong>. Primjer: 100,00 KM × 1,17 ={" "}
+            <strong>117,00 KM</strong>.
+          </li>
+          <li>
+            <strong>S PDV-om → bez PDV-a</strong>: podijelite cijenu sa{" "}
+            <strong>1,17</strong>. Primjer: 117,00 KM ÷ 1,17 ={" "}
+            <strong>100,00 KM</strong>.
+          </li>
+          <li>
+            <strong>Iznos PDV-a iz neto cijene</strong>: pomnožite sa{" "}
+            <strong>0,17</strong>. Primjer: 100,00 × 0,17 = 17,00 KM.
+          </li>
+          <li>
+            <strong>Iznos PDV-a iz bruto cijene</strong>: pomnožite sa{" "}
+            <strong>17/117</strong> (≈ 0,1453). Primjer: 117,00 × 0,1453 ≈ 17,00 KM.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Ko mora biti <em>PDV obveznik</em>?
+        </h2>
+        <p>
+          Obavezna registracija u sistem PDV-a u BiH nastupa kada godišnji
+          oporezivi promet pređe <strong>100.000,00 KM</strong>. Ispod tog
+          praga registracija je dobrovoljna — obrtnici i mala preduzeća mogu
+          izabrati da se ne registruju, što znači da ne obračunavaju PDV na
+          svojim računima ali ni ne mogu odbijati ulazni PDV.
+        </p>
+        <p>Registracija je obavezna i u određenim specifičnim slučajevima:</p>
+        <ul>
+          <li>uvoznici dobara (bez obzira na promet),</li>
+          <li>isporučioci određenih usluga primaocima u BiH koji su PDV obveznici,</li>
+          <li>pružanje elektronskih usluga krajnjim potrošačima u BiH.</li>
+        </ul>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Rokovi i <em>predaja PDV prijave</em>
+        </h2>
+        <p>
+          PDV prijava se predaje UINO-u <strong>do 10. u mjesecu</strong> za
+          prethodni mjesec. Istovremeno se vrši i uplata obračunate obaveze na
+          račune UINO-a.
+        </p>
+        <p>
+          PDV obveznici takođe vode <strong>e-KUF</strong> (knjigu ulaznih
+          faktura) i <strong>e-KIF</strong> (knjigu izlaznih faktura), koje se
+          dostavljaju UINO-u <strong>do 20. u mjesecu</strong> za prethodni mjesec.
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Povezani <em>alati</em>
+        </h2>
+        <ul>
+          <li>
+            <a href="/fakture">Fakture i računi</a> — generišite račune sa
+            ispravnim PDV obračunom.
+          </li>
+          <li>
+            <a href="/spr">SPR-1053 — specifikacija dohotka</a> — za obrtnike
+            koji su PDV obveznici.
+          </li>
+          <li>
+            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a> — UINO
+            računi za uplatu PDV-a.
+          </li>
+        </ul>
+      </section>
     </div>
   );
 }

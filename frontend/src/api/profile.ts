@@ -1,7 +1,7 @@
 import { type ApiResponse } from "src/api/auth";
+import { getBackendUrl } from "src/utils/backendUrl";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+const BACKEND_URL = getBackendUrl();
 
 async function request<T>(
   path: string,
@@ -139,6 +139,10 @@ export type OrgOwner = {
   address: string | null;
   city: string | null;
   idCardNumber: string | null;
+  prijavaDate: string | null;
+  salaryBruto: number | null;
+  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
+  taxCoefficient: number;
 };
 
 export type OrgOwnerPayload = {
@@ -150,13 +154,26 @@ export type OrgOwnerPayload = {
   address?: string;
   city?: string;
   idCardNumber?: string;
+  prijavaDate?: string | null;
+  salaryBruto?: number | null;
+  taxCoefficient?: number;
 };
+
+export type TaxRegime = "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
+export type TaxCategory =
+  | "SLOBODNA_ZANIMANJA"
+  | "OBRT_SRODNE"
+  | "POLJOPRIVREDA_SUMARSTVO"
+  | "TRGOVAC_POJEDINAC"
+  | "ESNAFSKI_ZANATI"
+  | "TAXI";
 
 export type Organization = {
   id: number;
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber: string | null;
+  pdvNumber: string | null;
   activityCode: string | null;
   activityName: string | null;
   email: string | null;
@@ -164,8 +181,14 @@ export type Organization = {
   address: string | null;
   city: string | null;
   bankAccount: string | null;
+  logoUrl: string | null;
+  taxRegime: TaxRegime | null;
+  taxCategory: TaxCategory | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
+  // Plan tier of the org's OWNER. In-org features (workers, members,
+  // logo, JS3100, …) are gated by this rather than the viewer's own role.
+  effectiveTier: "USER" | "PRO" | "BUSINESS" | "ADMIN" | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -174,6 +197,7 @@ export type OrgPayload = {
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber?: string;
+  pdvNumber?: string;
   activityCode?: string;
   activityName?: string;
   email?: string;
@@ -181,6 +205,8 @@ export type OrgPayload = {
   address?: string;
   city?: string;
   bankAccount?: string;
+  taxRegime?: TaxRegime | null;
+  taxCategory?: TaxCategory | null;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -190,6 +216,38 @@ export function getOrganizations() {
 
 export function getClientOrganizations() {
   return request<Organization[]>("/api/organizations/clients");
+}
+
+// Status payroll-a za odabrani mjesec po organizaciji.
+export type OrgPayrollStatus =
+  | "no_workers"
+  | "none"
+  | "partial"
+  | "obracunato"
+  | "isplaceno";
+
+export type OrganizationWithPayrollStatus = Organization & {
+  workerCount: number;
+  payrollObracunato: number;
+  payrollIsplaceno: number;
+  payrollStatus: OrgPayrollStatus;
+};
+
+export type OrganizationsPayrollStatusResponse = {
+  own: OrganizationWithPayrollStatus[];
+  clients: OrganizationWithPayrollStatus[];
+  year: number;
+  month: number;
+};
+
+export function getOrganizationsWithPayrollStatus(year: number, month: number) {
+  const sp = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  });
+  return request<OrganizationsPayrollStatusResponse>(
+    `/api/organizations/payroll-status?${sp.toString()}`,
+  );
 }
 
 export function createOrganization(payload: OrgPayload) {
@@ -261,6 +319,9 @@ export function removeMember(orgId: number, userId: number) {
 
 // ─── Workers ─────────────────────────────────────────────────────────────────
 
+export type ContractType = "NEODREDJENO" | "ODREDJENO";
+export type EmploymentStatus = "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
+
 export type Worker = {
   id: number;
   organizationId: number;
@@ -280,6 +341,35 @@ export type Worker = {
   defaultEndTime: string | null;
   defaultDaysOff: string | null;
   defaultPause: string | null;
+  // Employment / ugovor o radu
+  position: string | null;
+  salaryBruto: number | null;
+  salaryNeto: number | null;
+  contractType: ContractType | null;
+  contractEndDate: string | null;
+  probationMonths: number | null;
+  noticePeriod: string | null;
+  contractNumber: string | null;
+  employmentStatus: EmploymentStatus;
+  prijavaDate: string | null;
+  odjavaDate: string | null;
+  spol: "M" | "Z" | null;
+  strucnaSpremaIdx: number | null;
+  taxCoefficient: number;
+  minuliRadRate: number;
+  // Ukupan radni staž (za minuli rad). Dva opciona unosa — user bira jedan:
+  //  • firstEmploymentDate — datum prvog zaposljenja ikada (kontinuirani staž)
+  //  • priorWorkYears — staž prije naše firme u godinama (decimal, podržava prekide)
+  // Ako je oboje, priorWorkYears ima prednost.
+  firstEmploymentDate: string | null;
+  priorWorkYears: number | null;
+  overtimeRate: number;
+  nightRate: number;
+  sundayRate: number;
+  holidayRate: number;
+  defaultMealAllowance: number;
+  defaultTravelExpense: number;
+  contractedHours: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -301,6 +391,29 @@ export type WorkerPayload = {
   defaultEndTime?: string | null;
   defaultDaysOff?: string | null;
   defaultPause?: string | null;
+  // Employment
+  position?: string | null;
+  salaryBruto?: number | string | null;
+  salaryNeto?: number | string | null;
+  contractType?: ContractType | null;
+  contractEndDate?: string | null;
+  probationMonths?: number | null;
+  noticePeriod?: string | null;
+  contractNumber?: string | null;
+  employmentStatus?: EmploymentStatus;
+  prijavaDate?: string | null;
+  odjavaDate?: string | null;
+  spol?: "M" | "Z" | null;
+  strucnaSpremaIdx?: number | null;
+  taxCoefficient?: number | string | null;
+  minuliRadRate?: number | string | null;
+  firstEmploymentDate?: string | null;
+  priorWorkYears?: number | string | null;
+  overtimeRate?: number | string | null;
+  nightRate?: number | string | null;
+  sundayRate?: number | string | null;
+  holidayRate?: number | string | null;
+  contractedHours?: number | string | null;
 };
 
 export function getWorkers(orgId: number) {
@@ -340,13 +453,110 @@ export function deleteWorker(orgId: number, workerId: number) {
   });
 }
 
+// ─── Contract counter (broj ugovora o radu) ──────────────────────────────────
+
+export type ContractCounterResult = {
+  number: string; // npr. "5/2026"
+  year: number;
+  next: number;
+};
+
+export function peekContractNumber(orgId: number, year?: number) {
+  const qs = year ? `?year=${year}` : "";
+  return request<ContractCounterResult>(
+    `/api/organizations/${orgId}/contract-counter${qs}`,
+  );
+}
+
+export function takeContractNumber(orgId: number, year?: number) {
+  return request<ContractCounterResult>(
+    `/api/organizations/${orgId}/contract-counter/take`,
+    {
+      method: "POST",
+      body: JSON.stringify(year ? { year } : {}),
+    },
+  );
+}
+
+// ─── Worker documents (ugovori / otkazi / JS3100 arhiva) ─────────────────────
+
+export type WorkerDocumentType =
+  | "UGOVOR"
+  | "OTKAZ"
+  | "JS3100_PRIJAVA"
+  | "JS3100_ODJAVA";
+
+export type WorkerDocumentFormat = "DOCX" | "PDF";
+
+export type WorkerDocument = {
+  id: number;
+  workerId: number;
+  organizationId: number;
+  type: WorkerDocumentType;
+  format: WorkerDocumentFormat;
+  number: string | null;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number | null;
+  createdAt: string;
+};
+
+/** Upload generisanog dokumenta. Šalje multipart/form-data. */
+export async function uploadWorkerDocument(
+  workerId: number,
+  blob: Blob,
+  meta: {
+    type: WorkerDocumentType;
+    format: WorkerDocumentFormat;
+    number?: string;
+    originalName: string;
+  },
+): Promise<{ ok: true; data: WorkerDocument } | { ok: false; error: string }> {
+  const fd = new FormData();
+  fd.append("file", blob, meta.originalName);
+  fd.append("type", meta.type);
+  fd.append("format", meta.format);
+  if (meta.number) fd.append("number", meta.number);
+  fd.append("originalName", meta.originalName);
+
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/workers/${workerId}/documents`,
+      {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      },
+    );
+    const json = await res.json();
+    return json as { ok: true; data: WorkerDocument } | { ok: false; error: string };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+export function listWorkerDocuments(workerId: number) {
+  return request<WorkerDocument[]>(`/api/workers/${workerId}/documents`);
+}
+
+export function deleteWorkerDocument(docId: number) {
+  return request<null>(`/api/workers/documents/${docId}`, { method: "DELETE" });
+}
+
+/** URL za direktan download (auth cookie se prosljeđuje). */
+export function workerDocumentDownloadUrl(docId: number): string {
+  return `${BACKEND_URL}/api/workers/documents/${docId}/download`;
+}
+
 // ─── Forms history ────────────────────────────────────────────────────────────
 
 export type FormType =
   | "GPD"
   | "SPR"
   | "ZO3"
-  | "UGOVOR"
+  | "UGOVOR" // ugovor o pozajmici (legacy)
+  | "UOD"    // ugovor o djelu (Faza 3)
+  | "SIH"
   | "PLDI"
   | "AMS"
   | "JS3100";
@@ -361,6 +571,9 @@ export type FormRecord = {
   title: string | null;
   pdfUrl: string | null;
   createdAt: string;
+  // Faza 3B: backend sad vraća autora forme; koristi se za "Autor" kolonu kad
+  // pregledamo team-shared forme.
+  createdById: number | null;
   organization: { id: number; name: string } | null;
   client: {
     id: number;
@@ -447,7 +660,88 @@ export function getAmortizacijaClients() {
   return request<PersonClient[]>("/api/clients/amortizacija");
 }
 
-export function createAmortizacijaClient(payload: { firstName?: string }) {
+// ─── Admin: sve organizacije ──────────────────────────────────────────────────
+
+export type AdminOrgCreator = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+};
+
+export type AdminOrganization = {
+  id: number;
+  name: string;
+  type: "COMPANY" | "BUSINESS";
+  taxNumber: string | null;
+  activityCode: string | null;
+  activityName: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  bankAccount: string | null;
+  isClientOrg: boolean;
+  createdById: number;
+  createdBy: AdminOrgCreator | null;
+  owner: OrgOwner | null;
+  workerCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminOrgsListResponse = {
+  items: AdminOrganization[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export function adminGetOrganizations(params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const sp = new URLSearchParams();
+  if (params?.search) sp.set("search", params.search);
+  sp.set("page", String(params?.page ?? 1));
+  sp.set("limit", String(params?.limit ?? 20));
+  return request<AdminOrgsListResponse>(`/api/organizations/admin/all?${sp.toString()}`);
+}
+
+// ─── Admin: sva fizička lica ──────────────────────────────────────────────────
+
+export type AdminPersonClient = PersonClient & {
+  idCardNumber: string | null;
+  createdBy: AdminOrgCreator | null;
+};
+
+export type AdminPersonClientsListResponse = {
+  items: AdminPersonClient[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export function adminGetPersonClients(params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const sp = new URLSearchParams();
+  if (params?.search) sp.set("search", params.search);
+  sp.set("page", String(params?.page ?? 1));
+  sp.set("limit", String(params?.limit ?? 20));
+  return request<AdminPersonClientsListResponse>(`/api/clients/admin/all?${sp.toString()}`);
+}
+
+// Faza 3: payload prima organizationId — klijent se kreira kao team-shared
+// kad je org-id poslat (svi članovi te org-e vide klijenta). Ako nije, klijent
+// je "lični" (legacy ponašanje, vidi samo tvorac).
+export function createAmortizacijaClient(payload: {
+  firstName?: string;
+  organizationId?: number | null;
+}) {
   return request<PersonClient>("/api/clients/amortizacija", {
     method: "POST",
     body: JSON.stringify(payload),

@@ -3,7 +3,13 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./sihterica.module.css";
-import { getOrganizations, getWorkers, updateWorker } from "src/api/profile";
+import {
+  getClientOrganizations,
+  getOrganizations,
+  getWorkers,
+  type Organization,
+  updateWorker,
+} from "src/api/profile";
 import {
   getSihterica,
   getSihtericaMonths,
@@ -12,9 +18,13 @@ import {
   deleteSihterica,
 } from "src/api/sihterica";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
+import { useRole } from "src/hooks/useRole";
 import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
+import { useNotice } from "src/components/Notice/Notice";
 import Link from "next/link";
 
 const MONTHS = [
@@ -67,28 +77,36 @@ function parseTimeToMins(hhmm: string): number | null {
 }
 
 // Codes that represent PAID absence — count as standard 8h workday in totals
-const PAID_ABSENCE_CODES = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
+// Counted by default; user can opt-out per code via auto-popuna checkboxes.
+const PAID_ABSENCE_DEFAULT = new Set(["9.1", "9.2", "9.3", "9.4", "9.5"]);
 const PAID_ABSENCE_MINS = 8 * 60;
 
-function isPaidAbsence(entry: DayEntry, isWeeklyDayOff: boolean = false): boolean {
-  if (!entry.absence) return false;
-  const code = entry.absence.trim();
-  // 9.1 covers both weekly day off (no pay) and annual leave (paid).
-  // If the day already falls on a weekly day off → treat as sedmični → 0 hours.
-  if (code === "9.1" && isWeeklyDayOff) return false;
-  return PAID_ABSENCE_CODES.has(code);
-}
-
-function calcDailyMins(entry: DayEntry, isWeeklyDayOff: boolean = false): number {
-  // Paid absence (godišnji 9.1, praznik 9.2, bolovanje 9.3, porodiljsko 9.4, plaćeno 9.5) → fixed 8h
-  if (isPaidAbsence(entry, isWeeklyDayOff)) return PAID_ABSENCE_MINS;
+function calcDailyMins(
+  entry: DayEntry,
+  isWeeklyDayOff: boolean,
+  countCodes: Set<string>,
+): number {
+  // Manually entered times always win — if both Početak and Kraj exist,
+  // we compute from them regardless of any absence code.
   const start = parseTimeToMins(entry.startTime);
   const end = parseTimeToMins(entry.endTime);
-  if (start === null || end === null) return 0;
-  const zastojMins = Math.round(
-    (parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60,
-  );
-  return Math.max(0, end - start - zastojMins);
+  if (start !== null && end !== null) {
+    const zastojMins = Math.round(
+      (parseFloat(entry.zastoj.replace(",", ".")) || 0) * 60,
+    );
+    return Math.max(0, end - start - zastojMins);
+  }
+  // No times entered → fall back to absence-code semantics.
+  // Paid absence (9.1–9.5) → 8h if enabled in countCodes, else 0h.
+  // Sedmični odmor (9.1 on weekly day-off) → always 0h.
+  if (entry.absence) {
+    const code = entry.absence.trim();
+    if (PAID_ABSENCE_DEFAULT.has(code)) {
+      if (code === "9.1" && isWeeklyDayOff) return 0;
+      return countCodes.has(code) ? PAID_ABSENCE_MINS : 0;
+    }
+  }
+  return 0;
 }
 
 function minsToLabel(mins: number): string {
@@ -98,12 +116,12 @@ function minsToLabel(mins: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}min`;
 }
 
-function calcTotalDaily(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
-  return minsToLabel(calcDailyMins(entry, isWeeklyDayOff));
-}
-
-function calcTotalHrs(entry: DayEntry, isWeeklyDayOff: boolean = false): string {
-  return calcTotalDaily(entry, isWeeklyDayOff);
+function calcTotalDaily(
+  entry: DayEntry,
+  isWeeklyDayOff: boolean,
+  countCodes: Set<string>,
+): string {
+  return minsToLabel(calcDailyMins(entry, isWeeklyDayOff, countCodes));
 }
 
 function isEntryEmpty(e: DayEntry): boolean {
@@ -221,7 +239,7 @@ const COL_HEADERS = [
 export default function Sihterica() {
   return (
     <RoleGuard
-      roles={["PRO", "BUSINESS", "ADMIN"]}
+      roles={["USER", "PRO", "BUSINESS", "ADMIN"]}
       mode="hide"
       fallback={<UpgradeGate />}
     >
@@ -230,64 +248,187 @@ export default function Sihterica() {
   );
 }
 
-function UpgradeGate() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => unwrap(me()).catch(() => null),
-    retry: false,
-  });
-  const isLoggedIn = !!user;
-
+function NapomenaSection() {
   return (
-    <div className={styles.pageOuter}>
-      <div className={styles.header}>
-        <div className={styles.label}>Evidencija radnog vremena</div>
-        <h1 className={styles.h1}>
-          Šihterica — obrazac <em>evidencije radnog vremena</em>
-        </h1>
-        <p className={styles.subtitle}>
-          Vodite mjesečnu evidenciju radnog vremena radnika prema propisima FBiH
-          i preuzmite popunjeni PDF.
+    <section className={styles.napomenaSection}>
+      <h2 className={styles.napomenaTitle}>
+        Kako popuniti šihtericu — vodič i šifre odsustva (FBiH)
+      </h2>
+
+      <div className={styles.napomenaBlock}>
+        <p className={styles.napomenaIntro}>
+          <strong>Kako se računaju ukupni sati:</strong>
         </p>
+        <ul className={styles.napomenaList}>
+          <li>
+            <strong>Radni dan</strong> — ukupni sati = (Kraj − Početak) − Pauza.
+          </li>
+          <li>
+            <strong>Ručno upisana vremena uvijek pobjeđuju.</strong> Ako upišete
+            Početak i Kraj, dan se računa po vremenima — bez obzira da li je
+            upisan i kod odsustva.
+          </li>
+          <li>
+            <strong>Plaćena odsustva</strong> (kodovi 9.1 godišnji odmor, 9.2
+            praznik, 9.3 bolovanje, 9.4 porodiljsko, 9.5 plaćeno odsustvo){" "}
+            <strong>bez upisanih vremena</strong> računaju se kao{" "}
+            <strong>puni radni dan</strong> u ukupnom fondu.
+          </li>
+          <li>
+            Putem <strong>checkbox-ova</strong> &ldquo;Računaj odsustvo u ukupne
+            sate za: Godišnji (9.1) / Praznik (9.2) / Bolovanje (9.3)&rdquo; u
+            panelu Auto-popuna birate da li se ti dani računaju kao{" "}
+            <strong>puni radni dan</strong> ili se <strong>ne računaju</strong>{" "}
+            u ukupnom fondu sati. Postavka se pamti per korisnik. Kodovi 9.4 i
+            9.5 se uvijek računaju kao puni radni dan.
+          </li>
+          <li>
+            <strong>Sedmični odmor</strong> (kod 9.1 na danima koji su označeni
+            kao slobodni u sedmici, npr. subota/nedjelja) → uvijek 0 sati, bez
+            obzira na checkbox.
+          </li>
+          <li>
+            <strong>Neplaćena odsustva</strong> (9.6 neplaćeno, 9.9 štrajk,
+            9.10 lockout, itd.) → 0 sati, ne ulazi u zbir.
+          </li>
+          <li>
+            <strong>Terenski rad</strong> i <strong>pripravnost</strong>{" "}
+            evidentiraju se zasebno i ne dodaju se na ukupni fond radnih sati.
+          </li>
+        </ul>
       </div>
-      <div className={styles.upgradeCard}>
-        <div className={styles.upgradeIcon}>🔒</div>
-        <h2 className={styles.upgradeTitle}>
-          Šihterica je dostupna uz pretplatu
-        </h2>
-        <p className={styles.upgradeText}>
-          {isLoggedIn ? (
-            <>
-              Vođenje evidencije radnog vremena, čuvanje podataka po mjesecima i
-              generisanje PDF obrazaca dostupno je uz <strong>Pro</strong> ili{" "}
-              <strong>Business</strong> pretplatu.
-            </>
-          ) : (
-            <>
-              Prijavite se na svoj račun ili se besplatno registrujte, a zatim
-              aktivirajte <strong>Pro</strong> ili <strong>Business</strong>{" "}
-              pretplatu kako biste koristili šihtericu.
-            </>
-          )}
+
+      <div className={styles.napomenaBlock}>
+        <p className={styles.napomenaIntro}>
+          U kolonu 9) <em>Vrijeme neprisustva na poslu</em>, potrebno je
+          evidentirati vrijeme neprisustva i oznaku (broj) vrste neprisustva:
         </p>
-        {!isLoading &&
-          (isLoggedIn ? (
-            <a href="/profil#pretplata" className={styles.upgradeBtn}>
-              Pogledaj pretplate →
-            </a>
-          ) : (
-            <a href="/prijava" className={styles.upgradeBtn}>
-              Prijavi se →
-            </a>
-          ))}
+        <ol className={styles.napomenaList}>
+          <li>vrijeme korištenja odmora (sedmičnog i godišnjeg),</li>
+          <li>
+            vrijeme za dane u koje se ne radi i praznike utvrđene posebnim
+            propisom,
+          </li>
+          <li>
+            vrijeme spriječenosti za rad zbog privremene nesposobnosti za rad,
+          </li>
+          <li>
+            vrijeme porođajnog odsustva, roditeljskih dopusta, mirovanja radnog
+            odnosa ili korištenja drugih prava u skladu s posebnim propisom,
+          </li>
+          <li>vrijeme plaćenog odsustva,</li>
+          <li>vrijeme neplaćenog odsustva,</li>
+          <li>
+            vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena po
+            zahtjevu radnika,
+          </li>
+          <li>
+            vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena u
+            kojima radnik svojom krivnjom ne obavlja ugovorene poslove,
+          </li>
+          <li>vrijeme provedeno u štrajku,</li>
+          <li>vrijeme isključenja s rada (lockout).</li>
+        </ol>
       </div>
-    </div>
+
+      <div className={styles.napomenaBlock}>
+        <p className={styles.napomenaIntro}>
+          U kolonu 10) <em>Ostali podaci o radnom vremenu</em>, potrebno je
+          evidentirati vrijeme i oznaku (broj) za sljedeće podatke:
+        </p>
+        <ol className={styles.napomenaList}>
+          <li>noćni rad,</li>
+          <li>prekovremeni rad,</li>
+          <li>smjenski rad,</li>
+          <li>dvokratni rad,</li>
+          <li>rad u dane praznika,</li>
+          <li>neradnih dana utvrđene posebnim propisom,</li>
+          <li>drugo.</li>
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+function UpgradeGate() {
+  return (
+    <PreviewRegisterGate
+      pageLabel="Evidencija radnog vremena"
+      pageTitle={<>Šihterica — <em>evidencija radnog vremena</em></>}
+      pageSubtitle="Mjesečna evidencija radnog vremena za radnike u FBiH. Auto-popuna sa profila, izvoz u PDF i CSV."
+      featureName="šihterice"
+      previewDesc="unositi radnike, popunjavati evidenciju i vidjeti zbirne sate (redovni, prekovremeni, slobodni dani)"
+      proUnlocks="Preuzimanje PDF i CSV obrasca"
+    />
   );
 }
 
 function SihtericaApp() {
   const queryClient = useQueryClient();
+  const { notify } = useNotice();
   const now = new Date();
+  const { hasRole } = useRole();
+  const isSuperAdmin = hasRole("ADMIN");
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()),
+    retry: false,
+  });
+  const trialAvailable =
+    meQuery.data?.role === "USER" && !meQuery.data?.trialUsedAt;
+  const userId = meQuery.data?.id ?? null;
+
+  // Whether each paid-absence code counts as 8h in totals.
+  // Persisted per user in localStorage; defaults to "count" for backwards compat.
+  const [countGodisnji, setCountGodisnji] = useState(true);
+  const [countPraznik, setCountPraznik] = useState(true);
+  const [countBolovanje, setCountBolovanje] = useState(true);
+
+  const restoredCountForUser = useRef<number | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined" || !userId) return;
+    if (restoredCountForUser.current === userId) return;
+    restoredCountForUser.current = userId;
+    const read = (code: string) => {
+      const v = window.localStorage.getItem(
+        `sihterica.${userId}.count.${code}`,
+      );
+      return v === null ? true : v === "1";
+    };
+    setCountGodisnji(read("9.1"));
+    setCountPraznik(read("9.2"));
+    setCountBolovanje(read("9.3"));
+  }, [userId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !userId) return;
+    window.localStorage.setItem(
+      `sihterica.${userId}.count.9.1`,
+      countGodisnji ? "1" : "0",
+    );
+  }, [countGodisnji, userId]);
+  useEffect(() => {
+    if (typeof window === "undefined" || !userId) return;
+    window.localStorage.setItem(
+      `sihterica.${userId}.count.9.2`,
+      countPraznik ? "1" : "0",
+    );
+  }, [countPraznik, userId]);
+  useEffect(() => {
+    if (typeof window === "undefined" || !userId) return;
+    window.localStorage.setItem(
+      `sihterica.${userId}.count.9.3`,
+      countBolovanje ? "1" : "0",
+    );
+  }, [countBolovanje, userId]);
+
+  const countCodes = useMemo(() => {
+    const set = new Set(PAID_ABSENCE_DEFAULT);
+    if (!countGodisnji) set.delete("9.1");
+    if (!countPraznik) set.delete("9.2");
+    if (!countBolovanje) set.delete("9.3");
+    return set;
+  }, [countGodisnji, countPraznik, countBolovanje]);
 
   const [orgId, setOrgId] = useState<number | null>(null);
   const [workerId, setWorkerId] = useState<number | null>(null);
@@ -303,7 +444,10 @@ function SihtericaApp() {
   const newYearRef = useRef<HTMLInputElement>(null);
 
   // ─── Queries ───────────────────────────────────────────────────────────────
-  const orgsQuery = useQuery({
+  const { hasRole: hasRoleForOrgs } = useRole();
+  const canSeeClients = hasRoleForOrgs("PRO", "BUSINESS", "ADMIN");
+
+  const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
       const res = await getOrganizations();
@@ -311,6 +455,32 @@ function SihtericaApp() {
       return res.data;
     },
   });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["clientOrganizations"],
+    queryFn: async () => {
+      const res = await getClientOrganizations();
+      if (!res.ok) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: canSeeClients,
+  });
+
+  // Spojene organizacije: vlastite + klijentske (knjigovođa upravlja tuđim
+  // obrtima). Dedup po id-u.
+  const orgsQuery = useMemo(() => {
+    const map = new Map<number, Organization>();
+    for (const o of ownOrgsQuery.data ?? []) map.set(o.id, o);
+    for (const o of clientOrgsQuery.data ?? []) if (!map.has(o.id)) map.set(o.id, o);
+    return {
+      data: Array.from(map.values()),
+      isLoading: ownOrgsQuery.isLoading || clientOrgsQuery.isLoading,
+    };
+  }, [
+    ownOrgsQuery.data,
+    ownOrgsQuery.isLoading,
+    clientOrgsQuery.data,
+    clientOrgsQuery.isLoading,
+  ]);
 
   // Auto-select organization if user has only one
   useEffect(() => {
@@ -633,6 +803,15 @@ function SihtericaApp() {
   // ─── PDF export ────────────────────────────────────────────────────────────
   const selectedOrg = orgsQuery.data?.find((o) => o.id === orgId) ?? null;
 
+  // Export/save je BUSINESS feature i prati owner tier OBRAZOM IZABRANE ORG-E.
+  // Tako FREE/USER member u BUSINESS owner orgu dobija export, dok ga vlastiti
+  // PRO/BUSINESS korisnik gubi ako izabere FREE owner-ovu org (rijetko, ali
+  // dosljedno).
+  const canExport =
+    isSuperAdmin ||
+    selectedOrg?.effectiveTier === "PRO" ||
+    selectedOrg?.effectiveTier === "BUSINESS";
+
   const handleExport = useCallback(async () => {
     const pdfBytes = await fillSihterica({
       workerName,
@@ -643,8 +822,10 @@ function SihtericaApp() {
         .map((e) => (isEntryEmpty(e) ? null : e)),
       orgName: selectedOrg?.name ?? "",
       orgAddress: selectedOrg?.address ?? "",
+      orgCity: selectedOrg?.city ?? "",
       orgTaxNumber: selectedOrg?.taxNumber ?? "",
       weeklyDaysOff: [...autoDaysOff],
+      countAbsenceCodes: [...countCodes],
     });
 
     const blob = new Blob([new Uint8Array(pdfBytes)], {
@@ -657,76 +838,116 @@ function SihtericaApp() {
     a.download = `Sihterica${wName}_${String(month).padStart(2, "0")}_${year}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [workerName, month, year, entries, daysInMonth, selectedOrg]);
+  }, [workerName, month, year, entries, daysInMonth, selectedOrg, autoDaysOff, countCodes]);
 
   // ─── Bulk export — all workers in selected org for current month ───────────
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [bulkExportingPdf, setBulkExportingPdf] = useState(false);
+
+  // Builder: generiše PDF bytes po radniku za odabrani mjesec. Dijeli ga
+  // PDF i ZIP varijante bulk exporta.
+  const buildBulkSihtericePdfs = useCallback(async (): Promise<
+    Array<{ safeName: string; bytes: Uint8Array }>
+  > => {
+    if (!orgId || !workersQuery.data || workersQuery.data.length === 0) return [];
+    const out: Array<{ safeName: string; bytes: Uint8Array }> = [];
+    for (const w of workersQuery.data) {
+      const res = await getSihterica(w.id, year, month);
+      const data = res.ok ? res.data : null;
+      const dim = getDaysInMonth(year, month);
+      const days: (DayEntry | null)[] = Array.from({ length: dim }, (_, i) => {
+        const d = data?.days?.[i];
+        if (!d) return null;
+        if (isEntryEmpty(d)) return null;
+        return { ...EMPTY_ENTRY, ...d };
+      });
+      const hasAny = days.some((d) => d !== null);
+      if (!hasAny) continue;
+
+      const workerDaysOff = w.defaultDaysOff
+        ? w.defaultDaysOff
+            .split(",")
+            .map((s) => parseInt(s.trim()))
+            .filter((n) => !isNaN(n))
+        : [0, 6];
+      const pdfBytes = await fillSihterica({
+        workerName: `${w.firstName} ${w.lastName}`.trim(),
+        month,
+        year,
+        days,
+        orgName: selectedOrg?.name ?? "",
+        orgAddress: selectedOrg?.address ?? "",
+        orgCity: selectedOrg?.city ?? "",
+        orgTaxNumber: selectedOrg?.taxNumber ?? "",
+        weeklyDaysOff: workerDaysOff,
+        countAbsenceCodes: [...countCodes],
+      });
+      const safeName = `${w.firstName}_${w.lastName}`.replace(/\s+/g, "_");
+      out.push({ safeName, bytes: pdfBytes });
+    }
+    return out;
+  }, [orgId, workersQuery.data, year, month, selectedOrg, countCodes]);
 
   const handleBulkExport = useCallback(async () => {
     if (!orgId || !workersQuery.data || workersQuery.data.length === 0) return;
     setBulkExporting(true);
     try {
-      const JSZip = (await import("jszip")).default;
-      const zip = new JSZip();
-
-      for (const w of workersQuery.data) {
-        const res = await getSihterica(w.id, year, month);
-        const data = res.ok ? res.data : null;
-        const dim = getDaysInMonth(year, month);
-        const days: (DayEntry | null)[] = Array.from(
-          { length: dim },
-          (_, i) => {
-            const d = data?.days?.[i];
-            if (!d) return null;
-            if (isEntryEmpty(d)) return null;
-            return { ...EMPTY_ENTRY, ...d };
-          },
-        );
-        // Skip workers that have no data for this month
-        const hasAny = days.some((d) => d !== null);
-        if (!hasAny) continue;
-
-        const workerDaysOff = w.defaultDaysOff
-          ? w.defaultDaysOff.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n))
-          : [0, 6];
-        const pdfBytes = await fillSihterica({
-          workerName: `${w.firstName} ${w.lastName}`.trim(),
-          month,
-          year,
-          days,
-          orgName: selectedOrg?.name ?? "",
-          orgAddress: selectedOrg?.address ?? "",
-          orgTaxNumber: selectedOrg?.taxNumber ?? "",
-          weeklyDaysOff: workerDaysOff,
-        });
-        const safeName = `${w.firstName}_${w.lastName}`.replace(/\s+/g, "_");
-        zip.file(
-          `Sihterica_${safeName}_${String(month).padStart(2, "0")}_${year}.pdf`,
-          pdfBytes,
-        );
-      }
-
-      const fileCount = Object.keys(zip.files).length;
-      if (fileCount === 0) {
-        alert("Nijedan radnik nema sačuvane podatke za odabrani mjesec.");
+      const items = await buildBulkSihtericePdfs();
+      if (items.length === 0) {
+        notify("Nijedan radnik nema sačuvane podatke za odabrani mjesec.", "warning");
         return;
       }
-
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const { safeName, bytes } of items) {
+        zip.file(
+          `Sihterica_${safeName}_${String(month).padStart(2, "0")}_${year}.pdf`,
+          bytes,
+        );
+      }
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement("a");
       a.href = url;
-      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(
-        /\s+/g,
-        "_",
-      );
+      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(/\s+/g, "_");
       a.download = `Sihterice_${orgSafe}_${String(month).padStart(2, "0")}_${year}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
       setBulkExporting(false);
     }
-  }, [orgId, workersQuery.data, year, month, selectedOrg]);
+  }, [orgId, workersQuery.data, year, month, selectedOrg, notify, buildBulkSihtericePdfs]);
+
+  const handleBulkExportPdf = useCallback(async () => {
+    if (!orgId || !workersQuery.data || workersQuery.data.length === 0) return;
+    setBulkExportingPdf(true);
+    try {
+      const items = await buildBulkSihtericePdfs();
+      if (items.length === 0) {
+        notify("Nijedan radnik nema sačuvane podatke za odabrani mjesec.", "warning");
+        return;
+      }
+      // Merge svih PDF-ova u jedan dokument (stranica po radniku).
+      const { PDFDocument } = await import("pdf-lib");
+      const finalDoc = await PDFDocument.create();
+      for (const { bytes } of items) {
+        const src = await PDFDocument.load(bytes);
+        const pages = await finalDoc.copyPages(src, src.getPageIndices());
+        for (const p of pages) finalDoc.addPage(p);
+      }
+      const finalBytes = await finalDoc.save();
+      const blob = new Blob([new Uint8Array(finalBytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(/\s+/g, "_");
+      a.download = `Sihterice_${orgSafe}_${String(month).padStart(2, "0")}_${year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBulkExportingPdf(false);
+    }
+  }, [orgId, workersQuery.data, year, month, selectedOrg, notify, buildBulkSihtericePdfs]);
 
   // ─── Delete current month ──────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
@@ -807,28 +1028,38 @@ function SihtericaApp() {
     <aside className={styles.sidebar}>
       <div className={styles.sidebarHeader}>Organizacija</div>
       <div className={styles.sidebarOrgWrap}>
-        <select
+        <OrgSelect
           className={styles.sidebarOrgSelect}
-          value={orgId ?? ""}
-          onChange={(e) => {
-            const v = e.target.value ? Number(e.target.value) : null;
+          value={orgId}
+          onChange={(v) => {
             setOrgId(v);
             setWorkerId(null);
             lastInitWorker.current = null;
           }}
-        >
-          <option value="">— Odaberi —</option>
-          {orgsQuery.data?.map((org) => (
-            <option key={org.id} value={org.id}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+          ownOrgs={ownOrgsQuery.data ?? []}
+          clientOrgs={clientOrgsQuery.data ?? []}
+        />
       </div>
+
+      {!orgsQuery.isLoading && (orgsQuery.data?.length ?? 0) === 0 && (
+        <div className={styles.sidebarHint}>
+          <p className={styles.sidebarHintText}>
+            Nemate dodanu nijednu djelatnost. Dodajte svoju djelatnost na
+            profilu da biste počeli sa šihtericom.
+          </p>
+          <Link href="/profil" className={styles.sidebarHintLink}>
+            Dodaj djelatnost →
+          </Link>
+        </div>
+      )}
 
       <div className={styles.sidebarHeader}>Radnici</div>
       {!orgId && (
-        <div className={styles.sidebarEmpty}>Odaberite organizaciju.</div>
+        <div className={styles.sidebarEmpty}>
+          {(orgsQuery.data?.length ?? 0) === 0
+            ? "Prvo dodajte djelatnost."
+            : "Odaberite organizaciju."}
+        </div>
       )}
       {orgId && workersQuery.isLoading && (
         <div className={styles.sidebarEmpty}>Učitavam…</div>
@@ -898,12 +1129,12 @@ function SihtericaApp() {
       <div className={styles.header}>
         <div className={styles.label}>Evidencija radnog vremena</div>
         <h1 className={styles.h1}>
-          Šihterica — obrazac <em>evidencije radnog vremena</em>
+          Šihterica online — <em>evidencija radnog vremena</em> (FBiH)
         </h1>
         <p className={styles.subtitle}>
           Kako popuniti šihtericu? Vodite mjesečnu evidenciju radnog vremena
           radnika prema propisima FBiH — popunite šihtericu online i preuzmite
-          popunjeni PDF obrazac.
+          popunjeni PDF obrazac za sve radnike.
         </p>
       </div>
 
@@ -1156,10 +1387,8 @@ function SihtericaApp() {
                   </label>
                 </div>
 
-                <div className={styles.autoFillRow2}>
-                  <label
-                    className={`${styles.autoFillCheckbox} ${styles.autoFillCheckboxLeft}`}
-                  >
+                <div className={styles.autoFillCheckboxRow}>
+                  <label className={styles.autoFillCheckbox}>
                     <input
                       type="checkbox"
                       checked={autoOverwrite}
@@ -1167,7 +1396,36 @@ function SihtericaApp() {
                     />
                     Pregazi već upisana polja
                   </label>
+                  <span className={styles.autoFillCountLabel}>
+                    Računaj odsustvo u ukupne sate za:
+                  </span>
+                  <label className={styles.autoFillCheckbox}>
+                    <input
+                      type="checkbox"
+                      checked={countGodisnji}
+                      onChange={(e) => setCountGodisnji(e.target.checked)}
+                    />
+                    Godišnji (9.1)
+                  </label>
+                  <label className={styles.autoFillCheckbox}>
+                    <input
+                      type="checkbox"
+                      checked={countPraznik}
+                      onChange={(e) => setCountPraznik(e.target.checked)}
+                    />
+                    Praznik (9.2)
+                  </label>
+                  <label className={styles.autoFillCheckbox}>
+                    <input
+                      type="checkbox"
+                      checked={countBolovanje}
+                      onChange={(e) => setCountBolovanje(e.target.checked)}
+                    />
+                    Bolovanje (9.3)
+                  </label>
+                </div>
 
+                <div className={styles.autoFillRow2}>
                   <div className={styles.autoFillField}>
                     <span className={styles.autoFillLabel}>
                       Godišnji odmor (9.1)
@@ -1300,7 +1558,7 @@ function SihtericaApp() {
                             />
                           </td>
                           <td>
-                            <span className={styles.cellAuto}>{calcTotalDaily(entry, autoDaysOff.has(dow))}</span>
+                            <span className={styles.cellAuto}>{calcTotalDaily(entry, autoDaysOff.has(dow), countCodes)}</span>
                           </td>
                           <td>
                             <HourInput
@@ -1318,7 +1576,7 @@ function SihtericaApp() {
                             <input
                               className={styles.cellInput}
                               type="text"
-                              placeholder="npr. 9.1"
+                              placeholder={isEntryEmpty(entry) ? "npr. 9.1" : ""}
                               value={entry.absence}
                               onChange={(e) =>
                                 updateEntry(i, "absence", e.target.value)
@@ -1330,7 +1588,7 @@ function SihtericaApp() {
                             <input
                               className={styles.cellInput}
                               type="text"
-                              placeholder="npr. 10.2"
+                              placeholder={isEntryEmpty(entry) ? "npr. 10.2" : ""}
                               value={entry.other}
                               onChange={(e) =>
                                 updateEntry(i, "other", e.target.value)
@@ -1339,7 +1597,7 @@ function SihtericaApp() {
                             />
                           </td>
                           <td>
-                            <span className={styles.cellAuto}>{calcTotalHrs(entry, autoDaysOff.has(dow))}</span>
+                            <span className={styles.cellAuto}>{calcTotalDaily(entry, autoDaysOff.has(dow), countCodes)}</span>
                           </td>
                         </tr>
                       );
@@ -1354,7 +1612,7 @@ function SihtericaApp() {
                         {minsToLabel(
                           Array.from({ length: daysInMonth }, (_, i) => {
                             const dayDow = getDayOfWeek(year, month, i + 1);
-                            return calcDailyMins(entries[i], autoDaysOff.has(dayDow));
+                            return calcDailyMins(entries[i], autoDaysOff.has(dayDow), countCodes);
                           }).reduce((a, b) => a + b, 0)
                         )}
                       </td>
@@ -1363,35 +1621,119 @@ function SihtericaApp() {
                 </table>
               </div>
 
-              <div className={styles.actions}>
-                <button
-                  type="button"
-                  className={styles.exportBtnSecondary}
-                  onClick={handleBulkExport}
-                  disabled={
-                    bulkExporting ||
-                    !workersQuery.data ||
-                    workersQuery.data.length === 0
-                  }
-                  title="Generiše ZIP sa šihtericama svih radnika ove organizacije za odabrani mjesec"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
+              {!canExport && (
+                <div className={styles.exportPaywall}>
+                  <div className={styles.exportPaywallIcon}>
+                    {trialAvailable ? "🎁" : "🔒"}
+                  </div>
+                  <div className={styles.exportPaywallText}>
+                    {trialAvailable ? (
+                      <>
+                        <strong>Probajte 30 dana besplatno</strong> i preuzmite
+                        PDF obrazac. Bez kartice, bez automatske naplate —
+                        nakon 30 dana automatski se vraćate na besplatan plan.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Preuzimanje PDF obrasca</strong> dostupno je uz{" "}
+                        <strong>Pro</strong> ili <strong>Business</strong>{" "}
+                        pretplatu. Vaši uneseni podaci se čuvaju — kada
+                        aktivirate pretplatu, samo kliknite preuzmi.
+                      </>
+                    )}
+                  </div>
+                  <a
+                    href={
+                      trialAvailable ? "/pretplate?trial=1" : "/profil#pretplata"
+                    }
+                    className={styles.exportPaywallBtn}
                   >
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                    <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
-                  </svg>
-                  {bulkExporting
-                    ? "Generišem ZIP…"
-                    : "Preuzmi za sve radnike (ZIP)"}
-                </button>
+                    {trialAvailable
+                      ? "Aktiviraj 30 dana besplatno →"
+                      : "Pogledaj pretplate →"}
+                  </a>
+                </div>
+              )}
+              <div className={styles.actions}>
+                <div style={{ display: "inline-flex", alignItems: "stretch" }}>
+                  <button
+                    type="button"
+                    className={styles.exportBtnSecondary}
+                    onClick={handleBulkExportPdf}
+                    disabled={
+                      !canExport ||
+                      bulkExportingPdf ||
+                      bulkExporting ||
+                      !workersQuery.data ||
+                      workersQuery.data.length === 0
+                    }
+                    title={
+                      canExport
+                        ? "Svi radnici u jednom PDF-u (jedna stranica po radniku)"
+                        : "Dostupno uz Pro ili Business pretplatu"
+                    }
+                    style={{
+                      borderTopRightRadius: 0,
+                      borderBottomRightRadius: 0,
+                      borderRight: "none",
+                    }}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+                    </svg>
+                    {bulkExportingPdf
+                      ? "Generišem PDF…"
+                      : "Sve radnike (PDF)"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.exportBtnSecondary}
+                    onClick={handleBulkExport}
+                    disabled={
+                      !canExport ||
+                      bulkExporting ||
+                      bulkExportingPdf ||
+                      !workersQuery.data ||
+                      workersQuery.data.length === 0
+                    }
+                    title={
+                      canExport
+                        ? "ZIP sa zasebnim PDF-om po radniku"
+                        : "Dostupno uz Pro ili Business pretplatu"
+                    }
+                    style={{
+                      borderTopLeftRadius: 0,
+                      borderBottomLeftRadius: 0,
+                      paddingLeft: "0.9rem",
+                      paddingRight: "0.9rem",
+                    }}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+                    </svg>
+                    {bulkExporting ? "ZIP…" : "ZIP"}
+                  </button>
+                </div>
                 <button
                   type="button"
                   className={styles.exportBtn}
                   onClick={handleExport}
+                  disabled={!canExport}
+                  title={
+                    canExport ? undefined : "Dostupno uz Pro ili Business pretplatu"
+                  }
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -1413,93 +1755,8 @@ function SihtericaApp() {
             </>
           )}
 
-          {/* Napomena (uvijek vidljiva) */}
-          <section className={styles.napomenaSection}>
-            <h3 className={styles.napomenaTitle}>Napomena</h3>
-
-            <div className={styles.napomenaBlock}>
-              <p className={styles.napomenaIntro}>
-                <strong>Kako se računaju ukupni sati:</strong>
-              </p>
-              <ul className={styles.napomenaList}>
-                <li>
-                  <strong>Radni dan</strong> — ukupni sati = (Kraj − Početak) − Pauza.
-                </li>
-                <li>
-                  <strong>Plaćena odsustva</strong> (kodovi 9.1 godišnji odmor,
-                  9.2 praznik, 9.3 bolovanje, 9.4 porodiljsko, 9.5 plaćeno
-                  odsustvo) → polja Početak/Kraj se prikazuju kao &ldquo;x&rdquo;
-                  ali se računa <strong>8h</strong> u ukupni fond sati.
-                </li>
-                <li>
-                  <strong>Sedmični odmor</strong> (kod 9.1 na danima koji su
-                  označeni kao slobodni u sedmici, npr. subota/nedjelja) → 0
-                  sati, ne ulazi u zbir.
-                </li>
-                <li>
-                  <strong>Neplaćena odsustva</strong> (9.6 neplaćeno, 9.9
-                  štrajk, 9.10 lockout, itd.) → 0 sati, ne ulazi u zbir.
-                </li>
-                <li>
-                  <strong>Terenski rad</strong> i <strong>pripravnost</strong>{" "}
-                  evidentiraju se zasebno i ne dodaju se na ukupni fond
-                  radnih sati.
-                </li>
-              </ul>
-            </div>
-
-            <div className={styles.napomenaBlock}>
-              <p className={styles.napomenaIntro}>
-                U kolonu 9) <em>Vrijeme neprisustva na poslu</em>, potrebno je
-                evidentirati vrijeme neprisustva i oznaku (broj) vrste
-                neprisustva:
-              </p>
-              <ol className={styles.napomenaList}>
-                <li>vrijeme korištenja odmora (sedmičnog i godišnjeg),</li>
-                <li>
-                  vrijeme za dane u koje se ne radi i praznike utvrđene posebnim
-                  propisom,
-                </li>
-                <li>
-                  vrijeme spriječenosti za rad zbog privremene nesposobnosti za
-                  rad,
-                </li>
-                <li>
-                  vrijeme porođajnog odsustva, roditeljskih dopusta, mirovanja
-                  radnog odnosa ili korištenja drugih prava u skladu s posebnim
-                  propisom,
-                </li>
-                <li>vrijeme plaćenog odsustva,</li>
-                <li>vrijeme neplaćenog odsustva,</li>
-                <li>
-                  vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena
-                  po zahtjevu radnika,
-                </li>
-                <li>
-                  vrijeme neprisutnosti u toku dnevnog rasporeda radnog vremena
-                  u kojima radnik svojom krivnjom ne obavlja ugovorene poslove,
-                </li>
-                <li>vrijeme provedeno u štrajku,</li>
-                <li>vrijeme isključenja s rada (lockout).</li>
-              </ol>
-            </div>
-
-            <div className={styles.napomenaBlock}>
-              <p className={styles.napomenaIntro}>
-                U kolonu 10) <em>Ostali podaci o radnom vremenu</em>, potrebno
-                je evidentirati vrijeme i oznaku (broj) za sljedeće podatke:
-              </p>
-              <ol className={styles.napomenaList}>
-                <li>noćni rad,</li>
-                <li>prekovremeni rad,</li>
-                <li>smjenski rad,</li>
-                <li>dvokratni rad,</li>
-                <li>rad u dane praznika,</li>
-                <li>neradnih dana utvrđene posebnim propisom,</li>
-                <li>drugo.</li>
-              </ol>
-            </div>
-          </section>
+          {/* Napomena (uvijek vidljiva, dijeljeni komponent — vidi i guest) */}
+          <NapomenaSection />
         </div>
       </div>
     </div>

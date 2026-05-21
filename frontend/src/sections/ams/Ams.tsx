@@ -788,29 +788,6 @@ export default function AmsForm() {
           </div>
         </div>
 
-        <div className={styles.printNapomena}>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            width="18"
-            height="18"
-            style={{ flexShrink: 0 }}
-          >
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span>
-            <strong>Napomena za štampanje:</strong> Pri štampanju uplatnica u
-            PDF pregledaču, pod opcijom skaliranja odaberite{" "}
-            <strong>Fit to Paper</strong> ili{" "}
-            <strong>Fit to Printable Area</strong> kako bi uplatnica bila
-            ispravno skalirana na stranici.
-          </span>
-        </div>
-
         <div className={styles.actions} style={{ marginTop: "1.5rem" }}>
           <button
             className={styles.exportBtn}
@@ -836,6 +813,127 @@ export default function AmsForm() {
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
 
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je AMS-1035 <em>obrazac</em>?
+        </h2>
+        <p>
+          <strong>AMS-1035</strong> je obrazac kojim se prijavljuje{" "}
+          <em>akontacija poreza po odbitku na druge samostalne djelatnosti</em>{" "}
+          — porez koji se obračunava i uplaćuje na prihode fizičkih lica iz
+          inostranstva. Riječ je o prihodima od freelance rada, honorara,
+          konsultantskih usluga, autorskih naknada i sličnih primanja gdje
+          isplatilac nije na teritoriji Bosne i Hercegovine.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Obavezni su ga podnijeti svi rezidenti FBiH koji primaju prihode iz
+          inostranstva — bilo da su freelanceri, konsultanti, predavači, autori
+          ili drugi izvođači koji rade za naručioce van BiH (Upwork, Fiverr,
+          direktni klijenti, evropski poslodavci, itd.).
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako popuniti AMS-1035 u <em>3 koraka</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Unesite lične podatke i podatke o isplati</strong> — ime,
+            prezime, JMB, adresa, datum primitka i bruto iznos sa konverzijom u
+            KM po važećem kursu CBBiH na dan primitka.
+          </li>
+          <li>
+            <strong>Sistem obračunava poreznu osnovicu i obavezu</strong> —
+            normirani rashodi 20% (ili 30% za autorske naknade), zdravstveno
+            osiguranje 4%, porez na dohodak 10%. Ako ste već platili porez u
+            inostranstvu, unesite ga u polje poreznog kredita.
+          </li>
+          <li>
+            <strong>Preuzmite popunjen AMS-1035 PDF i uplatnice</strong> spremne
+            za predaju u nadležnoj poreznoj ispostavi i uplatu u banci.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Rok za predaju <em>AMS-1035</em>
+        </h2>
+        <p>
+          Obrazac se predaje <strong>u roku od 5 (pet) dana od dana primitka
+          dohotka</strong>. Npr. ako ste novac primili 10. u mjesecu, obrazac
+          ste dužni predati najkasnije do 15. istog mjeseca u nadležnoj ispostavi
+          Porezne uprave FBiH prema mjestu prebivališta fizičkog lica.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Predaja se može izvršiti <strong>elektronski</strong> putem ePortala
+          PU FBiH (ako posjedujete kvalifikovani digitalni certifikat) ili{" "}
+          <strong>fizički</strong> — obrazac u 2 primjerka uz pripadajuće
+          uplatnice se nosi u poreznu ispostavu, gdje šalter potvrđuje prijem
+          i daje pečat.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Normirani rashodi, porez i <em>doprinosi</em>
+        </h2>
+        <p>
+          Pri obračunu AMS-1035 obaveze, iz bruto iznosa odbija se sljedeće:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Normirani rashodi 20%</strong> od bruto iznosa (paušalno
+            priznat odbitak). Za <strong>autorske naknade</strong> (književna,
+            muzička, filmska, likovna ostvarenja) stopa je <strong>30%</strong>.
+          </li>
+          <li>
+            <strong>Doprinos za zdravstveno osiguranje 4%</strong> — plaća se
+            na svaki dohodak od samostalne djelatnosti, bez obzira na to da li
+            ste već zdravstveno osigurani po osnovu radnog odnosa. Split: 89,8%
+            kantonalni / 10,2% federalni.
+          </li>
+          <li>
+            <strong>Porez na dohodak 10%</strong> — obračunava se na poreznu
+            osnovicu (bruto − normirani rashodi − doprinos zdravstvenog).
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Ako ste već platili porez u zemlji isplate (npr. SAD, Njemačka, UK),
+          imate pravo na <strong>porezni kredit</strong> na osnovu sporazuma o
+          izbjegavanju dvostrukog oporezivanja. Taj iznos se odbija od obaveze
+          u BiH.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza na dohodak
+            </a>{" "}
+            — svi prihodi prijavljeni kroz AMS-1035 ulaze u godišnju prijavu.
+          </li>
+          <li>
+            <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Preračun neto/bruto plate
+            </a>{" "}
+            — provjera obračunatih poreza i doprinosa za radnike.
+          </li>
+          <li>
+            <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Uplatni računi javnih prihoda
+            </a>{" "}
+            — svi računi i šifre za uplate poreza i doprinosa.
+          </li>
+        </ul>
+      </section>
+
       <section className={styles.faqSection}>
         <h2 className={styles.faqTitle}>Često postavljena pitanja</h2>
         <div className={styles.faqList}>
@@ -846,7 +944,7 @@ export default function AmsForm() {
             },
             {
               q: "Koji je rok za predaju AMS-1035 obrasca?",
-              a: "Obrazac se predaje u roku od 15 dana od dana isplate. Dakle, ako ste novac primili 10. u mjesecu, obrazac ste dužni predati do 25. istog mjeseca u nadležnu ispostavu Porezne uprave FBiH prema svom mjestu stanovanja.",
+              a: "Obrazac se predaje u roku od 5 (pet) dana od dana primitka dohotka. Dakle, ako ste novac primili 10. u mjesecu, obrazac ste dužni predati do 15. istog mjeseca u nadležnu ispostavu Porezne uprave FBiH prema mjestu prebivališta fizičkog lica.",
             },
             {
               q: "Kolika je stopa rashoda — 20% ili 30%?",

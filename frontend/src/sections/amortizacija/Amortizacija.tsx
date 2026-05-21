@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
@@ -12,6 +13,7 @@ import { formatAddress } from "src/utils/formatAddress";
 import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import {
   getAmortizacijaYears,
   getAmortizacija,
@@ -21,7 +23,7 @@ import {
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import SaveToast from "src/components/SaveToast/SaveToast";
-import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
+import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient, getOrganizations, getClientOrganizations } from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -75,6 +77,16 @@ export const VIJEK_STOPA: Record<string, number> = Object.fromEntries(
 /* ── Helpers ── */
 export function r2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+// crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
+// On LAN-IP dev (http://192.168.x.x) it's undefined — fall back to a sufficient
+// local-id generator (used only as React key / row id, not security-sensitive).
+function genId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function bsFmt(n: number): string {
@@ -207,7 +219,7 @@ export function calcRow(row: AssetRow, odISO: string, doISO: string) {
 
 function newRow(): AssetRow {
   return {
-    id: crypto.randomUUID(),
+    id: genId(),
     naziv: "",
     datumNabavke: "",
     brojDokumenta: "",
@@ -257,6 +269,24 @@ function sortIcon(
 
 /* ── Component ── */
 export default function Amortizacija() {
+  const { role, isLoading: roleLoading } = useRole();
+  if (roleLoading) return null;
+  if (role === null) {
+    return (
+      <PreviewRegisterGate
+        pageLabel="Stalna sredstva"
+        pageTitle={<>Stalna sredstva i <em>amortizacija</em></>}
+        pageSubtitle="Evidencija stalnih sredstava sa automatskim obračunom amortizacije kroz godine. Historija po godinama i export u PLDI obrazac."
+        featureName="evidencije stalnih sredstava"
+        previewDesc="dodavati stalna sredstva, automatski računati amortizaciju i čuvati podatke za sljedeću godinu"
+        tier="REG"
+      />
+    );
+  }
+  return <AmortizacijaApp />;
+}
+
+function AmortizacijaApp() {
   const currentYear = new Date().getFullYear().toString();
   const { findByName: findCity } = useCityLookup();
 
@@ -298,15 +328,46 @@ export default function Amortizacija() {
   const selectedClientIdRef = useRef(selectedClientId);
   useEffect(() => { selectedClientIdRef.current = selectedClientId; }, [selectedClientId]);
 
-  const { hasRole, role } = useRole();
-  const isClientUser = hasRole("PRO", "BUSINESS", "ADMIN");
-  const isPro = role === "PRO";
+  // Faza 3B: pristup amortizaciji za klijente imamo ako sami imamo PRO+
+  // ILI smo član bilo koje organizacije čiji je vlasnik PRO+. `isPro` se
+  // koristi za prikaz limita; ostavljen je vezan za vlastiti plan jer se
+  // klijent limit od 20 računa per-org u backendu (a frontend tu samo
+  // informativno prikazuje).
+  const { role } = useRole();
+  const { hasAccessToTier, tier: maxTier } = useMaxAccessibleTier();
+  const isClientUser = hasAccessToTier("PRO");
+  const isPro = maxTier === "PRO";
   const PRO_CLIENT_LIMIT = 20;
   const isClientUserRef = useRef(isClientUser);
   useEffect(() => { isClientUserRef.current = isClientUser; }, [isClientUser]);
 
   const obveznikRef = useRef(obveznik);
   useEffect(() => { obveznikRef.current = obveznik; }, [obveznik]);
+
+  /* ── Org context (Faza 3): kad korisnik dodaje klijenta na PLDI-ju,
+     automatski ga vežemo za njegovu primarnu org-u (ili prvu klijent-org-u
+     ako nema primarnu) da bi klijent bio vidljiv svim članovima te org-e.
+     Bez toga klijent ostaje "lični" i nevidljiv kolegama. */
+  const ownOrgsQuery = useQuery({
+    queryKey: ["organizations"],
+    queryFn: async () => {
+      const res = await getOrganizations();
+      return res.ok ? (res.data ?? []) : [];
+    },
+  });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["organizations-clients"],
+    queryFn: async () => {
+      const res = await getClientOrganizations();
+      return res.ok ? (res.data ?? []) : [];
+    },
+  });
+  const defaultOrgId =
+    ownOrgsQuery.data?.[0]?.id ?? clientOrgsQuery.data?.[0]?.id ?? null;
+  // Ref tako da stari callbackovi (handleCarryover) imaju aktuelnu vrijednost
+  // i kad org query kasnije završi.
+  const defaultOrgIdRef = useRef(defaultOrgId);
+  useEffect(() => { defaultOrgIdRef.current = defaultOrgId; }, [defaultOrgId]);
 
   /* ── Client sidebar ── */
   const clientsQuery = useQuery<PersonClient[]>({
@@ -429,7 +490,7 @@ export default function Amortizacija() {
       });
       setRows(
         (data.rows ?? []).map((r) => ({
-          id: crypto.randomUUID(),
+          id: genId(),
           naziv: r.naziv ?? "",
           datumNabavke: r.datumNabavke ?? "",
           brojDokumenta: r.brojDokumenta ?? "",
@@ -542,7 +603,10 @@ export default function Amortizacija() {
     setSaveStatus("saving");
     let clientId = selectedClientIdRef.current;
     if (isClientUserRef.current && clientId === null) {
-      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      const clientRes = await createAmortizacijaClient({
+        firstName: obveznikRef.current.naziv || "",
+        organizationId: defaultOrgIdRef.current,
+      });
       if (clientRes.ok && clientRes.data) {
         clientId = clientRes.data.id;
         setSelectedClientId(clientId);
@@ -564,7 +628,7 @@ export default function Amortizacija() {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, currentYear, clientsQuery]);
+  }, [obveznik, rows, currentYear, clientsQuery, defaultOrgId]);
 
   useEffect(() => {
     handleSaveRef.current = handleSave;
@@ -579,7 +643,10 @@ export default function Amortizacija() {
 
     let clientId = selectedClientIdRef.current;
     if (isClientUserRef.current && clientId === null) {
-      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
+      const clientRes = await createAmortizacijaClient({
+        firstName: obveznikRef.current.naziv || "",
+        organizationId: defaultOrgIdRef.current,
+      });
       if (clientRes.ok && clientRes.data) {
         clientId = clientRes.data.id;
         setSelectedClientId(clientId);
@@ -1035,7 +1102,10 @@ export default function Amortizacija() {
   const handleAddClient = useCallback(async () => {
     setSavingClient(true);
     setAddLimitError(false);
-    const res = await createAmortizacijaClient({ firstName: "" });
+    const res = await createAmortizacijaClient({
+      firstName: "",
+      organizationId: defaultOrgId, // team-shared kad je user u nekoj org-i
+    });
     setSavingClient(false);
     if (res.ok && res.data) {
       await clientsQuery.refetch();
@@ -1043,7 +1113,7 @@ export default function Amortizacija() {
     } else if (!res.ok && res.error === "PRO_LIMIT_REACHED") {
       setAddLimitError(true);
     }
-  }, [clientsQuery, handleSelectClient]);
+  }, [clientsQuery, handleSelectClient, defaultOrgId]);
 
   const personLimitReached = isPro && sortedClients.length >= PRO_CLIENT_LIMIT;
 
@@ -1067,7 +1137,7 @@ export default function Amortizacija() {
         <div className={styles.sidebarLock}>
           <span className={styles.sidebarLockIcon}>🔒</span>
           <p className={styles.sidebarLockText}>Dostupno uz Pro ili Business pretplatu</p>
-          <a href="/profil" className={styles.sidebarLockBtn}>Pretplatite se</a>
+          <a href="/pretplate?plan=pro" className={styles.sidebarLockBtn}>Pretplatite se</a>
         </div>
       )}
       <div className={`${styles.sidebarList}${!isClientUser ? ` ${styles.sidebarLocked}` : ""}`}>
@@ -1123,7 +1193,7 @@ export default function Amortizacija() {
             <div className={styles.sidebarUpgrade}>
               <strong>Limit od {PRO_CLIENT_LIMIT} klijenata</strong> na Pro pretplati je dosegnut.
               Nadogradite na Business za više klijenata.
-              <a href="/profil#pretplata" className={styles.sidebarUpgradeLink}>
+              <a href="/pretplate?plan=business" className={styles.sidebarUpgradeLink}>
                 Nadogradi na Business →
               </a>
             </div>
@@ -1844,6 +1914,141 @@ export default function Amortizacija() {
       <p className={styles.napomena}>
         Obrazac PLDI-1043 · Popisna lista dugotrajne imovine · Federacija BiH
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section} style={{ marginTop: "2rem" }}>
+        <h2 className={styles.sectionTitle}>
+          Šta su <em>stalna sredstva</em> i zašto se amortizuju?
+        </h2>
+        <p>
+          <strong>Stalna sredstva</strong> (dugotrajna imovina) su materijalna
+          i nematerijalna dobra koja se koriste u poslovanju duže od jedne
+          godine i čija nabavna vrijednost prelazi propisani prag. U FBiH se
+          evidentiraju na obrascu <strong>PLDI-1043</strong> — Popisnoj listi
+          dugotrajne imovine, koja se predaje kao prilog uz GPD-1051 i SPR-1053.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          <strong>Amortizacija</strong> je postupak postupnog prenošenja
+          nabavne vrijednosti sredstva na rashode poslovanja kroz njegov vijek
+          trajanja. Umjesto da cjelokupna nabavna vrijednost optereti rashode
+          u godini nabavke, ona se ravnomjerno raspoređuje na godine korištenja
+          — što daje stvarniju sliku poslovnog rezultata i smanjuje oporezivu
+          osnovicu kroz više godina.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Stope <em>amortizacije</em> u FBiH
+        </h2>
+        <p>
+          Porezno priznate stope amortizacije propisane su <em>Pravilnikom o
+          primjeni Zakona o porezu na dohodak FBiH</em>. Stopa ovisi o vrsti
+          sredstva i njegovom korisnom vijeku trajanja:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Računari i softver</strong> — vijek 3 godine, stopa <strong>33,33%</strong>
+          </li>
+          <li>
+            <strong>Putnička vozila</strong> — vijek 5 godina, stopa <strong>20%</strong>
+          </li>
+          <li>
+            <strong>Oprema i mašine</strong> — vijek 7 godina, stopa <strong>14,29%</strong>
+          </li>
+          <li>
+            <strong>Namještaj</strong> — vijek 10 godina, stopa <strong>10%</strong>
+          </li>
+          <li>
+            <strong>Poslovni objekti</strong> — vijek 25–40 godina, stopa <strong>2,5%–4%</strong>
+          </li>
+          <li>
+            <strong>Nematerijalna imovina</strong> (patenti, licence) — prema ugovornom roku
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          U FBiH se primjenjuje <strong>linearna metoda amortizacije</strong> —
+          ravnomjerno tokom cijelog vijeka trajanja sredstva. Stopa za isto
+          sredstvo ne mijenja se iz godine u godinu.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako koristiti <em>generator stalnih sredstava</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Dodajte stalna sredstva</strong> — unesite naziv, datum
+            nabavke, nabavnu vrijednost, vijek trajanja i stopu amortizacije.
+            Za prijavljene korisnike sredstva se čuvaju u profilu.
+          </li>
+          <li>
+            <strong>Automatski obračun</strong> — sistem računa godišnju
+            amortizaciju, akumuliranu amortizaciju i preostalu knjigovodstvenu
+            vrijednost za odabranu godinu.
+          </li>
+          <li>
+            <strong>Prenos u sljedeću godinu</strong> — knjigovodstvena
+            vrijednost se automatski prenosi u narednu godinu kao početno stanje
+            (kolona 13 → kolona 4 sljedeće godine).
+          </li>
+          <li>
+            <strong>Označavanje prodaje/otpisa</strong> — kad prodate ili
+            otpišete sredstvo, označite to u obrascu. Sredstvo se neće prenijeti
+            u narednu godinu.
+          </li>
+          <li>
+            <strong>Preuzmite PLDI-1043 PDF</strong> kao prilog uz GPD-1051
+            i SPR-1053 godišnju prijavu.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Prodaja, otpis i <em>tehnička zastarjelost</em>
+        </h2>
+        <p>
+          Kada se sredstvo proda ili otpiše prije isteka vijeka trajanja,
+          amortizacija se obračunava samo za period korištenja u toj godini —
+          do datuma prodaje ili otpisa. Preostala knjigovodstvena vrijednost
+          se <strong>ne prenosi u sljedeću godinu</strong>, a u koloni 17
+          PLDI obrasca upisuje se napomena o prodaji.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Tehničko-tehnološka zastarjelost ili oštećenje koje znatno smanjuje
+          korisni vijek može biti osnov za ubrzanu amortizaciju ili otpis, ali
+          uz prateću dokumentaciju (mišljenje ovlaštenog procjenitelja,
+          inventurni zapisnik).
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/spr" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              SPR-1053 — specifikacija dohotka samostalne djelatnosti
+            </a>{" "}
+            — amortizacija ulazi kao rashod u SPR.
+          </li>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza
+            </a>{" "}
+            — PLDI je prilog uz GPD-1051.
+          </li>
+          <li>
+            <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Uplatni računi javnih prihoda
+            </a>{" "}
+            — računi za uplatu poreza i doprinosa nakon obračuna SPR-a.
+          </li>
+        </ul>
+      </section>
 
       <FaqSection
         items={[

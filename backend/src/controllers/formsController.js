@@ -1,6 +1,6 @@
 const formRepository = require("../repositories/formRepository");
 
-const VALID_TYPES = ["GPD", "SPR", "ZO3", "UGOVOR", "AMS", "PLDI"];
+const VALID_TYPES = ["GPD", "SPR", "ZO3", "UGOVOR", "UOD", "AMS", "PLDI", "SIH", "JS3100"];
 
 async function list(req, res) {
   const { type } = req.query;

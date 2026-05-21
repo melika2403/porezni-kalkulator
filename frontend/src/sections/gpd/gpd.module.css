@@ -496,6 +496,7 @@
   color: var(--mid);
   text-align: center;
   margin-top: 1.5rem;
+  margin-bottom: 2rem;
   padding: 0.75rem 1rem;
   background: var(--paper);
   border: 1px solid var(--border);
@@ -558,22 +559,3 @@
   color: var(--ink);
 }
 
-/* ── Print napomena ── */
-.printNapomena {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  margin-top: 1.25rem;
-  padding: 0.85rem 1rem;
-  background: #fffbeb;
-  border: 1px solid #f59e0b;
-  border-radius: var(--radius);
-  font-size: 0.88rem;
-  color: #92400e;
-  line-height: 1.6;
-}
-
-.printNapomena svg {
-  margin-top: 2px;
-  color: #f59e0b;
-}
