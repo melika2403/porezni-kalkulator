@@ -8,11 +8,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./fakture.module.css";
 import Modal from "src/components/Modal/Modal";
 import { useRole } from "src/hooks/useRole";
+import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
-import BuyerFillSelect, { type BuyerFillData } from "src/components/BuyerFillSelect/BuyerFillSelect";
-import ClientFillSelect from "src/components/BuyerFillSelect/ClientFillSelect";
+import BuyerFillSelect, {
+  type BuyerFillData,
+} from "src/components/BuyerFillSelect/BuyerFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { me, unwrap } from "src/api/auth";
 import { getOrganizations, type Organization } from "src/api/profile";
@@ -147,7 +149,8 @@ export default function InvoiceForm() {
   } | null>(null);
   const [tplFilter, setTplFilter] = useState("");
   const [tplSavedNotice, setTplSavedNotice] = useState<string | null>(null);
-  const [tplDeleteConfirm, setTplDeleteConfirm] = useState<InvoiceItemTemplate | null>(null);
+  const [tplDeleteConfirm, setTplDeleteConfirm] =
+    useState<InvoiceItemTemplate | null>(null);
 
   const templatesQuery = useQuery({
     queryKey: ["invoiceItemTemplates"],
@@ -170,7 +173,8 @@ export default function InvoiceForm() {
       ),
     onSuccess: (tpl) => {
       queryClient.invalidateQueries({ queryKey: ["invoiceItemTemplates"] });
-      const shortName = tpl.name.length > 40 ? tpl.name.slice(0, 40) + "…" : tpl.name;
+      const shortName =
+        tpl.name.length > 40 ? tpl.name.slice(0, 40) + "…" : tpl.name;
       setTplSavedNotice(`Snimljeno u biblioteku: ${shortName}`);
       setTimeout(() => setTplSavedNotice(null), 3000);
     },
@@ -399,11 +403,17 @@ export default function InvoiceForm() {
   }
 
   function setItem(i: number, patch: Partial<ItemRow>) {
-    setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+    setItems((arr) =>
+      arr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)),
+    );
   }
-  function addItem() { setItems((arr) => [...arr, emptyItem()]); }
+  function addItem() {
+    setItems((arr) => [...arr, emptyItem()]);
+  }
   function removeItem(i: number) {
-    setItems((arr) => (arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i)));
+    setItems((arr) =>
+      arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i),
+    );
   }
 
   // ── Submit ───────────────────────────────────────────────────────────
@@ -466,7 +476,9 @@ export default function InvoiceForm() {
           await unwrap(emailInvoice(inv.id, { to: emailTo.trim() }));
         } catch (e) {
           console.warn("email send failed:", e);
-          setSubmitErr(`Faktura je sačuvana, ali email nije poslan: ${(e as Error)?.message || String(e)}`);
+          setSubmitErr(
+            `Faktura je sačuvana, ali email nije poslan: ${(e as Error)?.message || String(e)}`,
+          );
           return;
         }
       }
@@ -475,7 +487,9 @@ export default function InvoiceForm() {
     onError: (e: Error) => {
       const msg = e?.message || String(e);
       if (msg === "PRO_LIMIT_REACHED") {
-        setSubmitErr("Dosegli ste limit od 20 sačuvanih klijenata na PRO planu. Nadogradite na BUSINESS ili ne čuvajte ovog kupca u listu klijenata.");
+        setSubmitErr(
+          "Dosegli ste limit od 20 sačuvanih klijenata na PRO planu. Nadogradite na BUSINESS ili ne čuvajte ovog kupca u listu klijenata.",
+        );
       } else {
         setSubmitErr(msg);
       }
@@ -485,14 +499,31 @@ export default function InvoiceForm() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitErr(null);
-    if (!seller.name.trim()) { setSubmitErr("Unesite naziv prodavca."); return; }
-    if (!buyer.name.trim()) { setSubmitErr("Unesite naziv kupca."); return; }
-    const validItems = items.filter((it) => it.name.trim() && n(it.quantity) > 0);
-    if (validItems.length === 0) { setSubmitErr("Dodajte barem jednu stavku sa imenom i količinom."); return; }
+    if (!seller.name.trim()) {
+      setSubmitErr("Unesite naziv prodavca.");
+      return;
+    }
+    if (!buyer.name.trim()) {
+      setSubmitErr("Unesite naziv kupca.");
+      return;
+    }
+    const validItems = items.filter(
+      (it) => it.name.trim() && n(it.quantity) > 0,
+    );
+    if (validItems.length === 0) {
+      setSubmitErr("Dodajte barem jednu stavku sa imenom i količinom.");
+      return;
+    }
     if (sendEmail) {
       const v = emailTo.trim();
-      if (!v) { setEmailErr("Unesite email kupca"); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { setEmailErr("Neispravan format email adrese"); return; }
+      if (!v) {
+        setEmailErr("Unesite email kupca");
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        setEmailErr("Neispravan format email adrese");
+        return;
+      }
       setEmailErr(null);
     }
     submit.mutate();
@@ -501,10 +532,10 @@ export default function InvoiceForm() {
   return (
     <div className={styles.page}>
       {!isAllowed && (
-        <div className={styles.upgradeBox}>
-          <strong>Preview mode.</strong> Možete unositi sve podatke i vidjeti kako izgleda faktura/predračun.
-          Za snimanje i preuzimanje PDF-a potrebna je <Link href="/pretplate">PRO ili BUSINESS pretplata →</Link>
-        </div>
+        <GeneratePaywall
+          tier="PRO"
+          what="Snimanje i preuzimanje fakture/predračuna"
+        />
       )}
       {duplicateNotice && (
         <div className={styles.duplicateNotice}>
@@ -523,10 +554,16 @@ export default function InvoiceForm() {
       <div className={styles.header}>
         <div>
           <div className={styles.label}>Novi dokument</div>
-          <h1 className={styles.h1}>{type === "INVOICE" ? "Nova faktura" : "Novi predračun"}</h1>
-          <p className={styles.subtitle}>Popunite podatke prodavca, kupca i stavke. Numeracija je automatska.</p>
+          <h1 className={styles.h1}>
+            {type === "INVOICE" ? "Nova faktura" : "Novi predračun"}
+          </h1>
+          <p className={styles.subtitle}>
+            Popunite podatke prodavca, kupca i stavke. Numeracija je automatska.
+          </p>
         </div>
-        <Link href="/fakture" className={`${styles.btn} ${styles.btnGhost}`}>← Nazad</Link>
+        <Link href="/fakture" className={`${styles.btn} ${styles.btnGhost}`}>
+          ← Nazad
+        </Link>
       </div>
 
       <form onSubmit={onSubmit} className={styles.formWrap}>
@@ -534,24 +571,64 @@ export default function InvoiceForm() {
         <div className={styles.section}>
           <div className={styles.toggleRow}>
             <div className={styles.segmented}>
-              <button type="button" className={type === "INVOICE" ? styles.active : ""} onClick={() => setType("INVOICE")}>Faktura</button>
-              <button type="button" className={type === "PROFORMA" ? styles.active : ""} onClick={() => setType("PROFORMA")}>Predračun</button>
+              <button
+                type="button"
+                className={type === "INVOICE" ? styles.active : ""}
+                onClick={() => setType("INVOICE")}
+              >
+                Faktura
+              </button>
+              <button
+                type="button"
+                className={type === "PROFORMA" ? styles.active : ""}
+                onClick={() => setType("PROFORMA")}
+              >
+                Predračun
+              </button>
             </div>
             <label className={styles.checkboxRow}>
-              <input type="checkbox" checked={applyVat} onChange={(e) => setApplyVat(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={applyVat}
+                onChange={(e) => setApplyVat(e.target.checked)}
+              />
               Obračunavam PDV
             </label>
-            <div className={styles.segmented} role="radiogroup" aria-label="Valuta">
-              <button type="button" className={currency === "BAM" ? styles.active : ""} onClick={() => setCurrency("BAM")}>KM</button>
-              <button type="button" className={currency === "EUR" ? styles.active : ""} onClick={() => setCurrency("EUR")}>EUR</button>
+            <div
+              className={styles.segmented}
+              role="radiogroup"
+              aria-label="Valuta"
+            >
+              <button
+                type="button"
+                className={currency === "BAM" ? styles.active : ""}
+                onClick={() => setCurrency("BAM")}
+              >
+                KM
+              </button>
+              <button
+                type="button"
+                className={currency === "EUR" ? styles.active : ""}
+                onClick={() => setCurrency("EUR")}
+              >
+                EUR
+              </button>
             </div>
             <div className={styles.field} style={{ flex: 1, minWidth: 160 }}>
               <label>Datum izdavanja</label>
-              <DateInput value={issueDate} onValueChange={setIssueDate} className={styles.input} />
+              <DateInput
+                value={issueDate}
+                onValueChange={setIssueDate}
+                className={styles.input}
+              />
             </div>
             <div className={styles.field} style={{ flex: 1, minWidth: 160 }}>
               <label>Datum dospijeća</label>
-              <DateInput value={dueDate} onValueChange={setDueDate} className={styles.input} />
+              <DateInput
+                value={dueDate}
+                onValueChange={setDueDate}
+                className={styles.input}
+              />
             </div>
           </div>
         </div>
@@ -565,38 +642,95 @@ export default function InvoiceForm() {
           <div className={styles.row}>
             <div className={styles.field}>
               <label>Naziv *</label>
-              <input className={styles.input} value={seller.name} onChange={(e) => setSeller({ ...seller, name: e.target.value })} required />
+              <input
+                className={styles.input}
+                value={seller.name}
+                onChange={(e) => setSeller({ ...seller, name: e.target.value })}
+                required
+              />
             </div>
             <div className={styles.field}>
               <label>Adresa</label>
-              <input className={styles.input} value={seller.address} onChange={(e) => setSeller({ ...seller, address: e.target.value })} />
+              <input
+                className={styles.input}
+                value={seller.address}
+                onChange={(e) =>
+                  setSeller({ ...seller, address: e.target.value })
+                }
+              />
             </div>
             <div className={styles.field}>
               <label>Grad</label>
-              <CitySelect className={styles.input} value={seller.city} onChange={(v) => setSeller({ ...seller, city: v })} />
+              <CitySelect
+                className={styles.input}
+                value={seller.city}
+                onChange={(v) => setSeller({ ...seller, city: v })}
+              />
             </div>
             <div className={styles.field}>
               <label>Telefon</label>
-              <input className={styles.input} value={seller.phone} onChange={(e) => setSeller({ ...seller, phone: e.target.value })} />
+              <input
+                className={styles.input}
+                value={seller.phone}
+                onChange={(e) =>
+                  setSeller({ ...seller, phone: e.target.value })
+                }
+              />
             </div>
             <div className={styles.field}>
               <label>E-mail</label>
-              <input className={styles.input} type="email" value={seller.email} onChange={(e) => setSeller({ ...seller, email: e.target.value })} />
+              <input
+                className={styles.input}
+                type="email"
+                value={seller.email}
+                onChange={(e) =>
+                  setSeller({ ...seller, email: e.target.value })
+                }
+              />
             </div>
             <div className={styles.field}>
               <label>ID broj</label>
-              <input className={styles.input} value={seller.taxNumber} onChange={(e) => setSeller({ ...seller, taxNumber: e.target.value.replace(/\D/g, "").slice(0, 13) })} maxLength={13} inputMode="numeric" placeholder="XXXXXXXXXXXXX" />
+              <input
+                className={styles.input}
+                value={seller.taxNumber}
+                onChange={(e) =>
+                  setSeller({
+                    ...seller,
+                    taxNumber: e.target.value.replace(/\D/g, "").slice(0, 13),
+                  })
+                }
+                maxLength={13}
+                inputMode="numeric"
+                placeholder="XXXXXXXXXXXXX"
+              />
             </div>
             <div className={styles.field}>
               <label>PDV broj</label>
-              <input className={styles.input} value={seller.vatNumber} onChange={(e) => setSeller({ ...seller, vatNumber: e.target.value.replace(/\D/g, "").slice(0, 12) })} maxLength={12} inputMode="numeric" placeholder="XXXXXXXXXXXX" />
+              <input
+                className={styles.input}
+                value={seller.vatNumber}
+                onChange={(e) =>
+                  setSeller({
+                    ...seller,
+                    vatNumber: e.target.value.replace(/\D/g, "").slice(0, 12),
+                  })
+                }
+                maxLength={12}
+                inputMode="numeric"
+                placeholder="XXXXXXXXXXXX"
+              />
             </div>
             <div className={styles.field}>
               <label>Žiro račun</label>
               <input
                 className={styles.input}
                 value={seller.bankAccount}
-                onChange={(e) => setSeller({ ...seller, bankAccount: formatBankAccount(e.target.value) })}
+                onChange={(e) =>
+                  setSeller({
+                    ...seller,
+                    bankAccount: formatBankAccount(e.target.value),
+                  })
+                }
                 placeholder="XXX-XXX-XXXXXXXX-XX"
                 maxLength={19}
                 inputMode="numeric"
@@ -604,12 +738,18 @@ export default function InvoiceForm() {
             </div>
           </div>
           {seller.logoUrl ? (
-            <p style={{ fontSize: 12, color: "var(--mid)", marginTop: ".5rem" }}>
-              Logo iz organizacije će biti korišten. Promijenite ga u <Link href="/profil">Profilu</Link>.
+            <p
+              style={{ fontSize: 12, color: "var(--mid)", marginTop: ".5rem" }}
+            >
+              Logo iz organizacije će biti korišten. Promijenite ga u{" "}
+              <Link href="/profil">Profilu</Link>.
             </p>
           ) : (
-            <p style={{ fontSize: 12, color: "var(--mid)", marginTop: ".5rem" }}>
-              Bez loga (default). Logo se postavlja na organizaciji u <Link href="/profil">Profilu</Link>.
+            <p
+              style={{ fontSize: 12, color: "var(--mid)", marginTop: ".5rem" }}
+            >
+              Bez loga (default). Logo se postavlja na organizaciji u{" "}
+              <Link href="/profil">Profilu</Link>.
             </p>
           )}
         </div>
@@ -618,16 +758,29 @@ export default function InvoiceForm() {
         <div className={styles.section}>
           <div className={styles.sectionHead}>
             <div className={styles.sectionTitle}>Kupac</div>
-            <ClientFillSelect onFill={applyBuyerFill} />
+            <BuyerFillSelect onFill={applyBuyerFill} />
           </div>
           <div className={styles.row}>
             <div className={styles.field}>
               <label>Naziv / Ime i prezime *</label>
-              <input className={styles.input} value={buyer.name} onChange={(e) => setBuyer({ ...buyer, name: e.target.value, clientId: null })} required />
+              <input
+                className={styles.input}
+                value={buyer.name}
+                onChange={(e) =>
+                  setBuyer({ ...buyer, name: e.target.value, clientId: null })
+                }
+                required
+              />
             </div>
             <div className={styles.field}>
               <label>Adresa</label>
-              <input className={styles.input} value={buyer.address} onChange={(e) => setBuyer({ ...buyer, address: e.target.value })} />
+              <input
+                className={styles.input}
+                value={buyer.address}
+                onChange={(e) =>
+                  setBuyer({ ...buyer, address: e.target.value })
+                }
+              />
             </div>
             <div className={styles.field}>
               <label>Grad</label>
@@ -636,39 +789,99 @@ export default function InvoiceForm() {
                 value={buyer.city}
                 onChange={(v) => {
                   const pc = findCity(v)?.postalCode ?? "";
-                  setBuyer((b) => ({ ...b, city: v, postalCode: pc || b.postalCode }));
+                  setBuyer((b) => ({
+                    ...b,
+                    city: v,
+                    postalCode: pc || b.postalCode,
+                  }));
                 }}
               />
             </div>
             <div className={styles.field}>
               <label>Poštanski broj</label>
-              <input className={styles.input} value={buyer.postalCode} onChange={(e) => setBuyer({ ...buyer, postalCode: e.target.value })} placeholder="auto" />
+              <input
+                className={styles.input}
+                value={buyer.postalCode}
+                onChange={(e) =>
+                  setBuyer({ ...buyer, postalCode: e.target.value })
+                }
+                placeholder="auto"
+              />
             </div>
             <div className={styles.field}>
               <label>Telefon</label>
-              <input className={styles.input} value={buyer.phone} onChange={(e) => setBuyer({ ...buyer, phone: e.target.value })} />
+              <input
+                className={styles.input}
+                value={buyer.phone}
+                onChange={(e) => setBuyer({ ...buyer, phone: e.target.value })}
+              />
             </div>
             <div className={styles.field}>
               <label>E-mail</label>
-              <input className={styles.input} type="email" value={buyer.email} onChange={(e) => setBuyer({ ...buyer, email: e.target.value })} />
+              <input
+                className={styles.input}
+                type="email"
+                value={buyer.email}
+                onChange={(e) => setBuyer({ ...buyer, email: e.target.value })}
+              />
             </div>
             <div className={styles.field}>
               <label>ID / JMBG broj</label>
-              <input className={styles.input} value={buyer.idNumber} onChange={(e) => setBuyer({ ...buyer, idNumber: e.target.value.replace(/\D/g, "").slice(0, 13) })} maxLength={13} inputMode="numeric" placeholder="XXXXXXXXXXXXX" />
+              <input
+                className={styles.input}
+                value={buyer.idNumber}
+                onChange={(e) =>
+                  setBuyer({
+                    ...buyer,
+                    idNumber: e.target.value.replace(/\D/g, "").slice(0, 13),
+                  })
+                }
+                maxLength={13}
+                inputMode="numeric"
+                placeholder="XXXXXXXXXXXXX"
+              />
             </div>
             <div className={styles.field}>
               <label>PDV broj</label>
-              <input className={styles.input} value={buyer.vatNumber} onChange={(e) => setBuyer({ ...buyer, vatNumber: e.target.value.replace(/\D/g, "").slice(0, 12) })} maxLength={12} inputMode="numeric" placeholder="XXXXXXXXXXXX" />
+              <input
+                className={styles.input}
+                value={buyer.vatNumber}
+                onChange={(e) =>
+                  setBuyer({
+                    ...buyer,
+                    vatNumber: e.target.value.replace(/\D/g, "").slice(0, 12),
+                  })
+                }
+                maxLength={12}
+                inputMode="numeric"
+                placeholder="XXXXXXXXXXXX"
+              />
             </div>
           </div>
           {!buyer.clientId && (
-            <div style={{ marginTop: ".75rem", display: "flex", gap: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+            <div
+              style={{
+                marginTop: ".75rem",
+                display: "flex",
+                gap: "1.25rem",
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
               <label className={styles.checkboxRow}>
-                <input type="checkbox" checked={saveBuyer} onChange={(e) => setSaveBuyer(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={saveBuyer}
+                  onChange={(e) => setSaveBuyer(e.target.checked)}
+                />
                 Sačuvaj kupca u listu klijenata
               </label>
               {saveBuyer && (
-                <div className={styles.segmented} role="radiogroup" aria-label="Tip klijenta">
+                <div
+                  className={styles.segmented}
+                  role="radiogroup"
+                  aria-label="Tip klijenta"
+                >
                   <button
                     type="button"
                     role="radio"
@@ -699,8 +912,11 @@ export default function InvoiceForm() {
             <div className={styles.sectionTitle}>Stavke</div>
             {templates.length > 0 && (
               <span className={styles.sectionHint}>
-                {templates.length} {templates.length === 1 ? "snimljen šablon" : "snimljenih šablona"} —
-                klikni 📋 na stavci
+                {templates.length}{" "}
+                {templates.length === 1
+                  ? "snimljen šablon"
+                  : "snimljenih šablona"}{" "}
+                — klikni 📋 na stavci
               </span>
             )}
           </div>
@@ -727,7 +943,9 @@ export default function InvoiceForm() {
                   <tr key={i} className={styles.itemRow}>
                     <td className={styles.itemRb} data-label="">
                       <span className={styles.itemRbText}>{i + 1}.</span>
-                      <span className={styles.itemRbMobile}>Stavka {i + 1}</span>
+                      <span className={styles.itemRbMobile}>
+                        Stavka {i + 1}
+                      </span>
                       {items.length > 1 && (
                         <button
                           type="button"
@@ -739,14 +957,20 @@ export default function InvoiceForm() {
                         </button>
                       )}
                     </td>
-                    <td data-label="Naziv robe / usluge" className={styles.itemNameCell}>
+                    <td
+                      data-label="Naziv robe / usluge"
+                      className={styles.itemNameCell}
+                    >
                       <div className={styles.itemNameWrap}>
                         <textarea
                           className={`${styles.input} ${styles.itemNameArea}`}
                           value={it.name}
                           onChange={(e) => setItem(i, { name: e.target.value })}
                           placeholder="npr. Konsultacije"
-                          rows={Math.max(1, (it.name.match(/\n/g)?.length || 0) + 1)}
+                          rows={Math.max(
+                            1,
+                            (it.name.match(/\n/g)?.length || 0) + 1,
+                          )}
                         />
                         <div className={styles.itemNameActions} data-tpl-picker>
                           <button
@@ -757,7 +981,8 @@ export default function InvoiceForm() {
                                 setTplPickerForRow(null);
                                 return;
                               }
-                              const rect = e.currentTarget.getBoundingClientRect();
+                              const rect =
+                                e.currentTarget.getBoundingClientRect();
                               setTplPickerCoords({
                                 top: rect.bottom,
                                 left: rect.right,
@@ -783,28 +1008,73 @@ export default function InvoiceForm() {
                       </div>
                     </td>
                     <td data-label="JM">
-                      <input className={styles.input} value={it.unit} onChange={(e) => setItem(i, { unit: e.target.value })} />
+                      <input
+                        className={styles.input}
+                        value={it.unit}
+                        onChange={(e) => setItem(i, { unit: e.target.value })}
+                      />
                     </td>
                     <td data-label="Količina">
-                      <input className={`${styles.input} ${styles.numeric}`} value={it.quantity} onChange={(e) => setItem(i, { quantity: e.target.value })} inputMode="decimal" />
+                      <input
+                        className={`${styles.input} ${styles.numeric}`}
+                        value={it.quantity}
+                        onChange={(e) =>
+                          setItem(i, { quantity: e.target.value })
+                        }
+                        inputMode="decimal"
+                      />
                     </td>
                     <td data-label="Cijena (bez PDV)">
-                      <input className={`${styles.input} ${styles.numeric}`} value={it.unitPrice} onChange={(e) => setItem(i, { unitPrice: e.target.value })} inputMode="decimal" />
+                      <input
+                        className={`${styles.input} ${styles.numeric}`}
+                        value={it.unitPrice}
+                        onChange={(e) =>
+                          setItem(i, { unitPrice: e.target.value })
+                        }
+                        inputMode="decimal"
+                      />
                     </td>
                     <td data-label="Rabat %">
-                      <input className={`${styles.input} ${styles.numeric}`} value={it.discountPct} onChange={(e) => setItem(i, { discountPct: e.target.value })} inputMode="decimal" />
+                      <input
+                        className={`${styles.input} ${styles.numeric}`}
+                        value={it.discountPct}
+                        onChange={(e) =>
+                          setItem(i, { discountPct: e.target.value })
+                        }
+                        inputMode="decimal"
+                      />
                     </td>
                     {applyVat && (
                       <td data-label="PDV %">
-                        <input className={`${styles.input} ${styles.numeric}`} value={it.vatPct} onChange={(e) => setItem(i, { vatPct: e.target.value })} inputMode="decimal" />
+                        <input
+                          className={`${styles.input} ${styles.numeric}`}
+                          value={it.vatPct}
+                          onChange={(e) =>
+                            setItem(i, { vatPct: e.target.value })
+                          }
+                          inputMode="decimal"
+                        />
                       </td>
                     )}
-                    <td data-label="Iznos" className={`${styles.numeric} ${styles.itemTotalCell}`}>
-                      <span className={styles.lineTotal}>{fmt(lineNet(it))}<small>{currencyLabel}</small></span>
+                    <td
+                      data-label="Iznos"
+                      className={`${styles.numeric} ${styles.itemTotalCell}`}
+                    >
+                      <span className={styles.lineTotal}>
+                        {fmt(lineNet(it))}
+                        <small>{currencyLabel}</small>
+                      </span>
                     </td>
                     <td className={styles.itemRemoveCell}>
                       {items.length > 1 && (
-                        <button type="button" className={styles.removeBtn} onClick={() => removeItem(i)} title="Obriši stavku">×</button>
+                        <button
+                          type="button"
+                          className={styles.removeBtn}
+                          onClick={() => removeItem(i)}
+                          title="Obriši stavku"
+                        >
+                          ×
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -818,19 +1088,35 @@ export default function InvoiceForm() {
 
           <div className={styles.totals}>
             <div className={styles.lbl}>Bruto:</div>
-            <div className={styles.val}>{fmt(totals.netTotal + totals.discountTotal)} {currencyLabel}</div>
-            {totals.discountTotal > 0 && (<>
-              <div className={styles.lbl}>Rabat:</div>
-              <div className={styles.val}>−{fmt(totals.discountTotal)} {currencyLabel}</div>
-            </>)}
-            {applyVat && (<>
-              <div className={styles.lbl}>Osnovica (bez PDV-a):</div>
-              <div className={styles.val}>{fmt(totals.netTotal)} {currencyLabel}</div>
-              <div className={styles.lbl}>PDV:</div>
-              <div className={styles.val}>{fmt(totals.vatTotal)} {currencyLabel}</div>
-            </>)}
-            <div className={`${styles.lbl} ${styles.totalGrand}`}>ZA NAPLATU:</div>
-            <div className={`${styles.val} ${styles.totalGrand}`}>{fmt(totals.grossTotal)} {currencyLabel}</div>
+            <div className={styles.val}>
+              {fmt(totals.netTotal + totals.discountTotal)} {currencyLabel}
+            </div>
+            {totals.discountTotal > 0 && (
+              <>
+                <div className={styles.lbl}>Rabat:</div>
+                <div className={styles.val}>
+                  −{fmt(totals.discountTotal)} {currencyLabel}
+                </div>
+              </>
+            )}
+            {applyVat && (
+              <>
+                <div className={styles.lbl}>Osnovica (bez PDV-a):</div>
+                <div className={styles.val}>
+                  {fmt(totals.netTotal)} {currencyLabel}
+                </div>
+                <div className={styles.lbl}>PDV:</div>
+                <div className={styles.val}>
+                  {fmt(totals.vatTotal)} {currencyLabel}
+                </div>
+              </>
+            )}
+            <div className={`${styles.lbl} ${styles.totalGrand}`}>
+              ZA NAPLATU:
+            </div>
+            <div className={`${styles.val} ${styles.totalGrand}`}>
+              {fmt(totals.grossTotal)} {currencyLabel}
+            </div>
           </div>
         </div>
 
@@ -838,7 +1124,12 @@ export default function InvoiceForm() {
         <div className={styles.section}>
           <div className={styles.field}>
             <label>Napomena (opcionalno)</label>
-            <textarea className={styles.textarea} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dodatne informacije za kupca…" />
+            <textarea
+              className={styles.textarea}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Dodatne informacije za kupca…"
+            />
           </div>
         </div>
 
@@ -861,27 +1152,54 @@ export default function InvoiceForm() {
                   className={styles.input}
                   style={{ flex: 1, minWidth: 220 }}
                   value={emailTo}
-                  onChange={(e) => { setEmailTo(e.target.value); setEmailEdited(true); if (emailErr) setEmailErr(null); }}
+                  onChange={(e) => {
+                    setEmailTo(e.target.value);
+                    setEmailEdited(true);
+                    if (emailErr) setEmailErr(null);
+                  }}
                   placeholder="kupac@email.com"
                 />
                 <span className={styles.emailHint}>
-                  Email se šalje automatski klikom na <strong>Spremi i preuzmi PDF</strong>.
+                  Email se šalje automatski klikom na{" "}
+                  <strong>Spremi i preuzmi PDF</strong>.
                 </span>
-                {emailErr && <div className={styles.errorMsg} style={{ flexBasis: "100%" }}>{emailErr}</div>}
+                {emailErr && (
+                  <div
+                    className={styles.errorMsg}
+                    style={{ flexBasis: "100%" }}
+                  >
+                    {emailErr}
+                  </div>
+                )}
               </>
             )}
           </div>
         )}
 
         <div className={styles.actions}>
-          <Link href="/fakture" className={`${styles.btn} ${styles.btnGhost}`}>Otkaži</Link>
+          <Link href="/fakture" className={`${styles.btn} ${styles.btnGhost}`}>
+            Otkaži
+          </Link>
           {isAllowed ? (
-            <button type="submit" className={styles.exportBtn} disabled={submit.isPending}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <button
+              type="submit"
+              className={styles.exportBtn}
+              disabled={submit.isPending}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
               </svg>
-              {submit.isPending ? (sendEmail ? "Šaljem…" : "Snimam…") : "Spremi i preuzmi PDF"}
+              {submit.isPending
+                ? sendEmail
+                  ? "Šaljem…"
+                  : "Snimam…"
+                : "Spremi i preuzmi PDF"}
             </button>
           ) : (
             <Link href="/pretplate" className={styles.exportBtn}>
@@ -892,7 +1210,9 @@ export default function InvoiceForm() {
       </form>
 
       {/* Portal-ovan template picker — izbjegava clipping unutar tabele */}
-      {tplPickerForRow !== null && tplPickerCoords && typeof document !== "undefined" &&
+      {tplPickerForRow !== null &&
+        tplPickerCoords &&
+        typeof document !== "undefined" &&
         createPortal(
           <div
             className={styles.tplDropdownPortal}
@@ -900,7 +1220,10 @@ export default function InvoiceForm() {
             style={{
               position: "fixed",
               top: tplPickerCoords.top + 6,
-              left: Math.max(8, Math.min(tplPickerCoords.left - 320, window.innerWidth - 328)),
+              left: Math.max(
+                8,
+                Math.min(tplPickerCoords.left - 320, window.innerWidth - 328),
+              ),
             }}
           >
             <input
@@ -929,7 +1252,8 @@ export default function InvoiceForm() {
                     >
                       <span className={styles.tplItemName}>{tpl.name}</span>
                       <span className={styles.tplItemMeta}>
-                        {Number(tpl.unitPrice).toFixed(2)} {currencyLabel} · {tpl.unit || "kom"}
+                        {Number(tpl.unitPrice).toFixed(2)} {currencyLabel} ·{" "}
+                        {tpl.unit || "kom"}
                       </span>
                     </button>
                     <button
@@ -949,8 +1273,7 @@ export default function InvoiceForm() {
             )}
           </div>,
           document.body,
-        )
-      }
+        )}
 
       <Modal
         kind="confirm"

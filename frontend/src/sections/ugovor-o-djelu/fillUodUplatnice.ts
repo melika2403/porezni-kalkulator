@@ -1,25 +1,23 @@
-import { PDFDocument } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
 import {
   KANTONI,
   FBIH_ZO_RACUN,
   FBIH_BUDZET_RACUN,
-  fillPage,
+  buildUplatniceFromOpts,
+  type FillPageOpts,
   type KantonKey,
 } from "src/sections/ams/fillUplatnica";
 
 const accDigits = (s: string) => s.replace(/-/g, "");
 
 export interface UodUplatniceData {
-  // Uplatilac (naručilac)
+  // Uplatilac (naručilac) — on plaća doprinose i porez, pa je on porezni
+  // obveznik na uplatnicama (JIB firme ili JMBG fizičkog lica).
   naruciNaziv: string;
   naruciAdresa: string;
+  naruciId: string;            // JIB/JMBG narucilaca (13 cifara)
   naruciZiroRacun?: string;
 
-  // Izvršilac (porezni obveznik)
-  izvrJmbg: string;
-
-  // Kanton + općina (porezni obveznik)
+  // Kanton + općina (lokacija narucilaca, za adresiranje uplate)
   kantonKey: KantonKey;
   opcinaKod: string;
   opcinaIme: string;
@@ -40,20 +38,10 @@ export interface UodUplatniceData {
 
 export async function fillUodUplatnice(data: UodUplatniceData): Promise<Uint8Array> {
   const kanton = KANTONI[data.kantonKey];
-
-  const [templateBytes, fontBytes] = await Promise.all([
-    fetch("/templates/UPLATNICA PRAZNA.pdf").then((r) => r.arrayBuffer()),
-    fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),
-  ]);
-
-  const out = await PDFDocument.create();
-  out.registerFontkit(fontkit);
-  const font = await out.embedFont(fontBytes);
-
   const posilDigits = data.naruciZiroRacun ? accDigits(data.naruciZiroRacun) : undefined;
 
-  const shared = {
-    jmbg: data.izvrJmbg,
+  const shared: Omit<FillPageOpts, "svrha" | "primatelj" | "racunPrimDigits" | "kmIznos" | "vrstaProhoda"> = {
+    jmbg: data.naruciId,
     opcinaKod: data.opcinaKod,
     opcinaIme: data.opcinaIme,
     datum: data.datum,
@@ -114,20 +102,14 @@ export async function fillUodUplatnice(data: UodUplatniceData): Promise<Uint8Arr
     },
   ];
 
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i];
-    const tpl = await PDFDocument.load(templateBytes);
-    const [p] = await out.copyPages(tpl, [0]);
-    out.addPage(p);
-    fillPage(out.getPage(i), font, {
+  return buildUplatniceFromOpts(
+    entries.map((e) => ({
       ...shared,
       svrha: e.svrha,
       primatelj: e.primatelj,
       racunPrimDigits: accDigits(e.racunPrim),
       kmIznos: e.iznos,
       vrstaProhoda: e.vrstaProhoda,
-    });
-  }
-
-  return out.save();
+    })),
+  );
 }

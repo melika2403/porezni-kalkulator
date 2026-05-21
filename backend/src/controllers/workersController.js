@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { Worker, OrganizationMember } = require("../models/index");
+const { Worker, OrganizationMember, ContractCounter, sequelize } = require("../models/index");
 const { encryptJmbg, decryptJmbg } = require("../utils/encryptJmbg");
 const { getOrgOwnerRole } = require("../services/tierService");
 
@@ -28,12 +28,171 @@ function toPublicWorker(w) {
   if (!w) return null;
   const plain = w.toJSON ? w.toJSON() : w;
   const { jmbg, ...rest } = plain;
+  const prijavaDate = rest.prijavaDate ? String(rest.prijavaDate).slice(0, 10) : null;
+  const odjavaDate = rest.odjavaDate ? String(rest.odjavaDate).slice(0, 10) : null;
+  // Status se derivira iz datuma — datumi su master. To osigurava da ako
+  // korisnik upiše prijavaDate ali zaboravi prebaciti status dropdown, status
+  // se ipak prikaže kao PRIJAVLJEN. Stari podaci se ovim ispravljaju automatski.
+  const derivedStatus = odjavaDate
+    ? "ODJAVLJEN"
+    : prijavaDate
+      ? "PRIJAVLJEN"
+      : "DRAFT";
   return {
     ...rest,
+    employmentStatus: derivedStatus,
     jmbg: jmbg ? decryptJmbg(jmbg) : null,
     startDate: rest.startDate ? String(rest.startDate).slice(0, 10) : null,
     endDate: rest.endDate ? String(rest.endDate).slice(0, 10) : null,
+    contractEndDate: rest.contractEndDate ? String(rest.contractEndDate).slice(0, 10) : null,
+    prijavaDate,
+    odjavaDate,
+    salaryBruto: rest.salaryBruto != null ? Number(rest.salaryBruto) : null,
+    salaryNeto: rest.salaryNeto != null ? Number(rest.salaryNeto) : null,
+    taxCoefficient: rest.taxCoefficient != null ? Number(rest.taxCoefficient) : 1.0,
+    minuliRadRate: rest.minuliRadRate != null ? Number(rest.minuliRadRate) : 0.4,
+    overtimeRate: rest.overtimeRate != null ? Number(rest.overtimeRate) : 25.0,
+    nightRate: rest.nightRate != null ? Number(rest.nightRate) : 25.0,
+    sundayRate: rest.sundayRate != null ? Number(rest.sundayRate) : 20.0,
+    holidayRate: rest.holidayRate != null ? Number(rest.holidayRate) : 50.0,
+    defaultMealAllowance: rest.defaultMealAllowance != null ? Number(rest.defaultMealAllowance) : 0,
+    defaultTravelExpense: rest.defaultTravelExpense != null ? Number(rest.defaultTravelExpense) : 0,
+    contractedHours: rest.contractedHours != null ? Number(rest.contractedHours) : 8,
   };
+}
+
+const VALID_CONTRACT_TYPES = ["NEODREDJENO", "ODREDJENO"];
+const VALID_EMPLOYMENT_STATUSES = ["DRAFT", "PRIJAVLJEN", "ODJAVLJEN"];
+
+function pickEmploymentFields(body, target) {
+  const {
+    position,
+    salaryBruto,
+    salaryNeto,
+    contractType,
+    contractEndDate,
+    probationMonths,
+    noticePeriod,
+    contractNumber,
+    employmentStatus,
+    prijavaDate,
+    odjavaDate,
+  } = body ?? {};
+
+  if (position !== undefined) target.position = position?.trim() || null;
+  if (salaryBruto !== undefined) {
+    target.salaryBruto =
+      salaryBruto === null || salaryBruto === "" ? null : Number(salaryBruto);
+  }
+  if (salaryNeto !== undefined) {
+    target.salaryNeto =
+      salaryNeto === null || salaryNeto === "" ? null : Number(salaryNeto);
+  }
+  if (contractType !== undefined) {
+    if (contractType === null || contractType === "") {
+      target.contractType = null;
+    } else if (VALID_CONTRACT_TYPES.includes(contractType)) {
+      target.contractType = contractType;
+    } else {
+      return "Vrsta ugovora mora biti NEODREDJENO ili ODREDJENO";
+    }
+  }
+  if (contractEndDate !== undefined) {
+    target.contractEndDate = contractEndDate ? new Date(contractEndDate) : null;
+  }
+  if (probationMonths !== undefined) {
+    const n = probationMonths === null || probationMonths === "" ? null : Number(probationMonths);
+    if (n !== null && (!Number.isFinite(n) || n < 0 || n > 6)) {
+      return "Probni rad može trajati 0–6 mjeseci";
+    }
+    target.probationMonths = n;
+  }
+  if (noticePeriod !== undefined) target.noticePeriod = noticePeriod?.trim() || null;
+  if (contractNumber !== undefined) target.contractNumber = contractNumber?.trim() || null;
+  if (employmentStatus !== undefined) {
+    if (!VALID_EMPLOYMENT_STATUSES.includes(employmentStatus)) {
+      return "Status mora biti DRAFT, PRIJAVLJEN ili ODJAVLJEN";
+    }
+    target.employmentStatus = employmentStatus;
+  }
+  if (prijavaDate !== undefined) target.prijavaDate = prijavaDate ? new Date(prijavaDate) : null;
+  if (odjavaDate !== undefined) target.odjavaDate = odjavaDate ? new Date(odjavaDate) : null;
+
+  const { spol, strucnaSpremaIdx } = body ?? {};
+  if (spol !== undefined) {
+    if (spol === null || spol === "") {
+      target.spol = null;
+    } else if (spol === "M" || spol === "Z") {
+      target.spol = spol;
+    } else {
+      return "Spol mora biti M ili Z";
+    }
+  }
+  if (strucnaSpremaIdx !== undefined) {
+    const n = strucnaSpremaIdx === null || strucnaSpremaIdx === "" ? null : Number(strucnaSpremaIdx);
+    if (n !== null && (!Number.isInteger(n) || n < 0 || n > 9)) {
+      return "Stručna sprema mora biti 0–9";
+    }
+    target.strucnaSpremaIdx = n;
+  }
+
+  const { taxCoefficient, minuliRadRate } = body ?? {};
+  if (taxCoefficient !== undefined) {
+    if (taxCoefficient === null || taxCoefficient === "") {
+      target.taxCoefficient = 1.0;
+    } else {
+      const n = Number(taxCoefficient);
+      if (!Number.isFinite(n) || n < 0 || n > 10) {
+        return "Porezni koeficijent mora biti broj između 0 i 10";
+      }
+      target.taxCoefficient = n;
+    }
+  }
+  if (minuliRadRate !== undefined) {
+    if (minuliRadRate === null || minuliRadRate === "") {
+      target.minuliRadRate = 0.4;
+    } else {
+      const n = Number(minuliRadRate);
+      if (!Number.isFinite(n) || n < 0 || n > 10) {
+        return "Stopa minulog rada mora biti broj između 0 i 10";
+      }
+      target.minuliRadRate = n;
+    }
+  }
+
+  const { contractedHours } = body ?? {};
+  if (contractedHours !== undefined) {
+    if (contractedHours === null || contractedHours === "") {
+      target.contractedHours = 8;
+    } else {
+      const n = Number(contractedHours);
+      if (!Number.isInteger(n) || n < 1 || n > 8) {
+        return "Ugovoreno radno vrijeme mora biti cijeli broj 1–8 sati";
+      }
+      target.contractedHours = n;
+    }
+  }
+
+  const rateChecks = [
+    ["overtimeRate", 25.0, "Stopa prekovremenog rada"],
+    ["nightRate", 25.0, "Stopa noćnog rada"],
+    ["sundayRate", 20.0, "Stopa rada nedjeljom"],
+    ["holidayRate", 50.0, "Stopa rada na praznik"],
+  ];
+  for (const [key, def, label] of rateChecks) {
+    const v = body?.[key];
+    if (v === undefined) continue;
+    if (v === null || v === "") {
+      target[key] = def;
+      continue;
+    }
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > 200) {
+      return `${label} mora biti broj između 0 i 200`;
+    }
+    target[key] = n;
+  }
+  return null;
 }
 
 async function list(req, res) {
@@ -96,22 +255,26 @@ async function create(req, res) {
     encryptedJmbg = encryptJmbg(jmbg.trim());
   }
 
+  const payload = {
+    organizationId: orgId,
+    role: resolvedRole,
+    firstName: String(firstName).trim(),
+    lastName: String(lastName).trim(),
+    jmbg: encryptedJmbg,
+    startDate: startDate ? new Date(startDate) : null,
+    endDate: endDate ? new Date(endDate) : null,
+    email: email?.trim() || null,
+    phone: phone?.trim() || null,
+    address: address?.trim() || null,
+    city: city?.trim() || null,
+    idCardNumber: idCardNumber?.trim() ? idCardNumber.trim().slice(0, 9) : null,
+    bankAccount: bankAccount?.trim() || null,
+  };
+  const empErr = pickEmploymentFields(req.body, payload);
+  if (empErr) return res.status(400).json({ ok: false, error: empErr });
+
   try {
-    const worker = await Worker.create({
-      organizationId: orgId,
-      role: resolvedRole,
-      firstName: String(firstName).trim(),
-      lastName: String(lastName).trim(),
-      jmbg: encryptedJmbg,
-      startDate: startDate ? new Date(startDate) : null,
-      endDate: endDate ? new Date(endDate) : null,
-      email: email?.trim() || null,
-      phone: phone?.trim() || null,
-      address: address?.trim() || null,
-      city: city?.trim() || null,
-      idCardNumber: idCardNumber?.trim() ? idCardNumber.trim().slice(0, 9) : null,
-      bankAccount: bankAccount?.trim() || null,
-    });
+    const worker = await Worker.create(payload);
     return res.status(201).json({ ok: true, data: toPublicWorker(worker) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -174,6 +337,9 @@ async function update(req, res) {
   if (defaultPause !== undefined)
     data.defaultPause = defaultPause?.trim() || null;
 
+  const empErr = pickEmploymentFields(req.body, data);
+  if (empErr) return res.status(400).json({ ok: false, error: empErr });
+
   const finalStart = data.startDate !== undefined ? data.startDate : existing.startDate;
   const finalEnd = data.endDate !== undefined ? data.endDate : existing.endDate;
   if (finalStart && finalEnd && finalEnd <= finalStart)
@@ -202,6 +368,12 @@ async function remove(req, res) {
   const existing = await Worker.findOne({ where: { id: workerId, organizationId: orgId } });
   if (!existing) return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
 
+  // Cascade: obriši sve Payroll zapise vezane za ovog radnika prije brisanja.
+  // Inače ostaju kao orphan zapisi i ulaze u zbirne totale u UI-u.
+  const { Payroll } = require("../models/index");
+  if (Payroll) {
+    await Payroll.destroy({ where: { workerId } });
+  }
   await Worker.destroy({ where: { id: workerId } });
   return res.json({ ok: true });
 }
@@ -232,4 +404,63 @@ async function listAllForUser(req, res) {
   return res.json({ ok: true, data });
 }
 
-module.exports = { list, listAllForUser, create, update, remove };
+/* ── Contract counter (broj ugovora o radu) ───────────────────────────────── */
+
+function parseYear(req) {
+  const y = Number(req.query.year ?? req.body?.year ?? new Date().getFullYear());
+  return Number.isInteger(y) && y >= 2000 && y <= 2100 ? y : new Date().getFullYear();
+}
+
+// GET — vraća sljedeći broj BEZ inkrementiranja (za prikaz u UI).
+async function peekContractNumber(req, res) {
+  const orgId = parseOrgId(req);
+  if (!orgId) return res.status(400).json({ ok: false, error: "Invalid orgId" });
+
+  const membership = await assertMembership(orgId, req.user.id);
+  if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+  const year = parseYear(req);
+  const existing = await ContractCounter.findOne({
+    where: { organizationId: orgId, year },
+  });
+  const next = (existing?.lastNumber ?? 0) + 1;
+  return res.json({ ok: true, data: { number: `${next}/${year}`, year, next } });
+}
+
+// POST — inkrementira i vraća novi broj (zovati pri downloadu).
+async function takeContractNumber(req, res) {
+  const orgId = parseOrgId(req);
+  if (!orgId) return res.status(400).json({ ok: false, error: "Invalid orgId" });
+
+  const membership = await assertMembership(orgId, req.user.id);
+  if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+  const year = parseYear(req);
+
+  try {
+    const result = await sequelize.transaction(async (t) => {
+      const [row] = await ContractCounter.findOrCreate({
+        where: { organizationId: orgId, year },
+        defaults: { organizationId: orgId, year, lastNumber: 0 },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      row.lastNumber = Number(row.lastNumber) + 1;
+      await row.save({ transaction: t });
+      return row.lastNumber;
+    });
+    return res.json({ ok: true, data: { number: `${result}/${year}`, year, next: result } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: String(error?.message ?? error) });
+  }
+}
+
+module.exports = {
+  list,
+  listAllForUser,
+  create,
+  update,
+  remove,
+  peekContractNumber,
+  takeContractNumber,
+};

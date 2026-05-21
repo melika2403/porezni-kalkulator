@@ -52,6 +52,38 @@ function validateOrgData(body, requireName = true) {
       ? String(body.bankAccount).trim()
       : null;
 
+  // Režim oporezivanja vlasnika obrta (čl. 19 / 31 / 6 t.10)
+  if (body.taxRegime !== undefined) {
+    if (body.taxRegime === null || body.taxRegime === "") {
+      data.taxRegime = null;
+    } else if (
+      !["STVARNI_DOHODAK", "PAUSALNI", "OSTALI"].includes(body.taxRegime)
+    ) {
+      return { ok: false, message: "Nepoznat režim oporezivanja" };
+    } else {
+      data.taxRegime = body.taxRegime;
+    }
+  }
+  if (body.taxCategory !== undefined) {
+    if (body.taxCategory === null || body.taxCategory === "") {
+      data.taxCategory = null;
+    } else {
+      const cat = String(body.taxCategory).trim().toUpperCase();
+      const valid = [
+        "SLOBODNA_ZANIMANJA",
+        "OBRT_SRODNE",
+        "POLJOPRIVREDA_SUMARSTVO",
+        "TRGOVAC_POJEDINAC",
+        "ESNAFSKI_ZANATI",
+        "TAXI",
+      ];
+      if (!valid.includes(cat)) {
+        return { ok: false, message: "Nepoznata kategorija djelatnosti" };
+      }
+      data.taxCategory = cat;
+    }
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
   }
@@ -93,6 +125,29 @@ function validateOwnerData(owner, requireJmbg = true) {
         message: "Broj lične karte može imati najviše 9 znakova",
       };
     data.idCardNumber = idn;
+  }
+
+  // prijavaDate i salaryBruto — ako su uneseni, vlasnik se računa kao
+  // prijavljen radnik. Ako prijavaDate nije unesen, ostaje DRAFT — prijavljuje
+  // se kasnije preko JS3100 ili ručnim editovanjem.
+  if (owner.prijavaDate !== undefined) {
+    if (owner.prijavaDate === null || owner.prijavaDate === "") {
+      data.prijavaDate = null;
+      data.employmentStatus = "DRAFT";
+    } else {
+      data.prijavaDate = new Date(owner.prijavaDate);
+      data.employmentStatus = "PRIJAVLJEN";
+    }
+  }
+  if (owner.salaryBruto !== undefined) {
+    data.salaryBruto =
+      owner.salaryBruto === null || owner.salaryBruto === ""
+        ? null
+        : Number(owner.salaryBruto);
+  }
+  if (owner.taxCoefficient !== undefined) {
+    const c = Number(owner.taxCoefficient);
+    if (Number.isFinite(c) && c > 0) data.taxCoefficient = c;
   }
 
   return { ok: true, value: data };

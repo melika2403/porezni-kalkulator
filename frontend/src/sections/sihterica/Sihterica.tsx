@@ -3,7 +3,13 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./sihterica.module.css";
-import { getOrganizations, getWorkers, updateWorker } from "src/api/profile";
+import {
+  getClientOrganizations,
+  getOrganizations,
+  getWorkers,
+  type Organization,
+  updateWorker,
+} from "src/api/profile";
 import {
   getSihterica,
   getSihtericaMonths,
@@ -12,10 +18,13 @@ import {
   deleteSihterica,
 } from "src/api/sihterica";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import { useRole } from "src/hooks/useRole";
 import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
+import { useNotice } from "src/components/Notice/Notice";
 import Link from "next/link";
 
 const MONTHS = [
@@ -342,66 +351,21 @@ function NapomenaSection() {
 }
 
 function UpgradeGate() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => unwrap(me()).catch(() => null),
-    retry: false,
-  });
-  const isLoggedIn = !!user;
-
   return (
-    <div className={styles.pageOuter}>
-      <div className={styles.header}>
-        <div className={styles.label}>Evidencija radnog vremena</div>
-        <h1 className={styles.h1}>
-          Šihterica online — <em>evidencija radnog vremena</em> (FBiH)
-        </h1>
-        <p className={styles.subtitle}>
-          Popunite šihtericu online za sve radnike i preuzmite popunjeni PDF
-          obrazac. Mjesečna evidencija radnog vremena prema propisima FBiH —
-          besplatno za probu.
-        </p>
-      </div>
-      <div className={styles.upgradeCard}>
-        <div className={styles.upgradeIcon}>✨</div>
-        <h2 className={styles.upgradeTitle}>
-          {isLoggedIn
-            ? "Šihterica je dostupna uz pretplatu"
-            : "Isprobajte šihtericu besplatno"}
-        </h2>
-        <p className={styles.upgradeText}>
-          {isLoggedIn ? (
-            <>
-              Generisanje PDF obrazaca dostupno je uz <strong>Pro</strong> ili{" "}
-              <strong>Business</strong> pretplatu.
-            </>
-          ) : (
-            <>
-              <strong>Registrujte se besplatno</strong> i odmah isprobajte
-              šihtericu — unesite radnike, popunite evidenciju radnog vremena i
-              vidite kako izgleda. Plus, dobijate <strong>30 dana PRO
-              besplatno</strong> za sve funkcije, uključujući PDF preuzimanje.
-            </>
-          )}
-        </p>
-        {!isLoading &&
-          (isLoggedIn ? (
-            <a href="/profil#pretplata" className={styles.upgradeBtn}>
-              Pogledaj pretplate →
-            </a>
-          ) : (
-            <a href="/registracija" className={styles.upgradeBtn}>
-              Registruj se besplatno →
-            </a>
-          ))}
-      </div>
-      <NapomenaSection />
-    </div>
+    <PreviewRegisterGate
+      pageLabel="Evidencija radnog vremena"
+      pageTitle={<>Šihterica — <em>evidencija radnog vremena</em></>}
+      pageSubtitle="Mjesečna evidencija radnog vremena za radnike u FBiH. Auto-popuna sa profila, izvoz u PDF i CSV."
+      featureName="šihterice"
+      previewDesc="unositi radnike, popunjavati evidenciju i vidjeti zbirne sate (redovni, prekovremeni, slobodni dani)"
+      proUnlocks="Preuzimanje PDF i CSV obrasca"
+    />
   );
 }
 
 function SihtericaApp() {
   const queryClient = useQueryClient();
+  const { notify } = useNotice();
   const now = new Date();
   const { hasRole } = useRole();
   const isSuperAdmin = hasRole("ADMIN");
@@ -480,7 +444,10 @@ function SihtericaApp() {
   const newYearRef = useRef<HTMLInputElement>(null);
 
   // ─── Queries ───────────────────────────────────────────────────────────────
-  const orgsQuery = useQuery({
+  const { hasRole: hasRoleForOrgs } = useRole();
+  const canSeeClients = hasRoleForOrgs("PRO", "BUSINESS", "ADMIN");
+
+  const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
       const res = await getOrganizations();
@@ -488,6 +455,32 @@ function SihtericaApp() {
       return res.data;
     },
   });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["clientOrganizations"],
+    queryFn: async () => {
+      const res = await getClientOrganizations();
+      if (!res.ok) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: canSeeClients,
+  });
+
+  // Spojene organizacije: vlastite + klijentske (knjigovođa upravlja tuđim
+  // obrtima). Dedup po id-u.
+  const orgsQuery = useMemo(() => {
+    const map = new Map<number, Organization>();
+    for (const o of ownOrgsQuery.data ?? []) map.set(o.id, o);
+    for (const o of clientOrgsQuery.data ?? []) if (!map.has(o.id)) map.set(o.id, o);
+    return {
+      data: Array.from(map.values()),
+      isLoading: ownOrgsQuery.isLoading || clientOrgsQuery.isLoading,
+    };
+  }, [
+    ownOrgsQuery.data,
+    ownOrgsQuery.isLoading,
+    clientOrgsQuery.data,
+    clientOrgsQuery.isLoading,
+  ]);
 
   // Auto-select organization if user has only one
   useEffect(() => {
@@ -829,6 +822,7 @@ function SihtericaApp() {
         .map((e) => (isEntryEmpty(e) ? null : e)),
       orgName: selectedOrg?.name ?? "",
       orgAddress: selectedOrg?.address ?? "",
+      orgCity: selectedOrg?.city ?? "",
       orgTaxNumber: selectedOrg?.taxNumber ?? "",
       weeklyDaysOff: [...autoDaysOff],
       countAbsenceCodes: [...countCodes],
@@ -848,73 +842,112 @@ function SihtericaApp() {
 
   // ─── Bulk export — all workers in selected org for current month ───────────
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [bulkExportingPdf, setBulkExportingPdf] = useState(false);
+
+  // Builder: generiše PDF bytes po radniku za odabrani mjesec. Dijeli ga
+  // PDF i ZIP varijante bulk exporta.
+  const buildBulkSihtericePdfs = useCallback(async (): Promise<
+    Array<{ safeName: string; bytes: Uint8Array }>
+  > => {
+    if (!orgId || !workersQuery.data || workersQuery.data.length === 0) return [];
+    const out: Array<{ safeName: string; bytes: Uint8Array }> = [];
+    for (const w of workersQuery.data) {
+      const res = await getSihterica(w.id, year, month);
+      const data = res.ok ? res.data : null;
+      const dim = getDaysInMonth(year, month);
+      const days: (DayEntry | null)[] = Array.from({ length: dim }, (_, i) => {
+        const d = data?.days?.[i];
+        if (!d) return null;
+        if (isEntryEmpty(d)) return null;
+        return { ...EMPTY_ENTRY, ...d };
+      });
+      const hasAny = days.some((d) => d !== null);
+      if (!hasAny) continue;
+
+      const workerDaysOff = w.defaultDaysOff
+        ? w.defaultDaysOff
+            .split(",")
+            .map((s) => parseInt(s.trim()))
+            .filter((n) => !isNaN(n))
+        : [0, 6];
+      const pdfBytes = await fillSihterica({
+        workerName: `${w.firstName} ${w.lastName}`.trim(),
+        month,
+        year,
+        days,
+        orgName: selectedOrg?.name ?? "",
+        orgAddress: selectedOrg?.address ?? "",
+        orgCity: selectedOrg?.city ?? "",
+        orgTaxNumber: selectedOrg?.taxNumber ?? "",
+        weeklyDaysOff: workerDaysOff,
+        countAbsenceCodes: [...countCodes],
+      });
+      const safeName = `${w.firstName}_${w.lastName}`.replace(/\s+/g, "_");
+      out.push({ safeName, bytes: pdfBytes });
+    }
+    return out;
+  }, [orgId, workersQuery.data, year, month, selectedOrg, countCodes]);
 
   const handleBulkExport = useCallback(async () => {
     if (!orgId || !workersQuery.data || workersQuery.data.length === 0) return;
     setBulkExporting(true);
     try {
-      const JSZip = (await import("jszip")).default;
-      const zip = new JSZip();
-
-      for (const w of workersQuery.data) {
-        const res = await getSihterica(w.id, year, month);
-        const data = res.ok ? res.data : null;
-        const dim = getDaysInMonth(year, month);
-        const days: (DayEntry | null)[] = Array.from(
-          { length: dim },
-          (_, i) => {
-            const d = data?.days?.[i];
-            if (!d) return null;
-            if (isEntryEmpty(d)) return null;
-            return { ...EMPTY_ENTRY, ...d };
-          },
-        );
-        // Skip workers that have no data for this month
-        const hasAny = days.some((d) => d !== null);
-        if (!hasAny) continue;
-
-        const workerDaysOff = w.defaultDaysOff
-          ? w.defaultDaysOff.split(",").map((s) => parseInt(s.trim())).filter((n) => !isNaN(n))
-          : [0, 6];
-        const pdfBytes = await fillSihterica({
-          workerName: `${w.firstName} ${w.lastName}`.trim(),
-          month,
-          year,
-          days,
-          orgName: selectedOrg?.name ?? "",
-          orgAddress: selectedOrg?.address ?? "",
-          orgTaxNumber: selectedOrg?.taxNumber ?? "",
-          weeklyDaysOff: workerDaysOff,
-          countAbsenceCodes: [...countCodes],
-        });
-        const safeName = `${w.firstName}_${w.lastName}`.replace(/\s+/g, "_");
-        zip.file(
-          `Sihterica_${safeName}_${String(month).padStart(2, "0")}_${year}.pdf`,
-          pdfBytes,
-        );
-      }
-
-      const fileCount = Object.keys(zip.files).length;
-      if (fileCount === 0) {
-        alert("Nijedan radnik nema sačuvane podatke za odabrani mjesec.");
+      const items = await buildBulkSihtericePdfs();
+      if (items.length === 0) {
+        notify("Nijedan radnik nema sačuvane podatke za odabrani mjesec.", "warning");
         return;
       }
-
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const { safeName, bytes } of items) {
+        zip.file(
+          `Sihterica_${safeName}_${String(month).padStart(2, "0")}_${year}.pdf`,
+          bytes,
+        );
+      }
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement("a");
       a.href = url;
-      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(
-        /\s+/g,
-        "_",
-      );
+      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(/\s+/g, "_");
       a.download = `Sihterice_${orgSafe}_${String(month).padStart(2, "0")}_${year}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
       setBulkExporting(false);
     }
-  }, [orgId, workersQuery.data, year, month, selectedOrg, countCodes]);
+  }, [orgId, workersQuery.data, year, month, selectedOrg, notify, buildBulkSihtericePdfs]);
+
+  const handleBulkExportPdf = useCallback(async () => {
+    if (!orgId || !workersQuery.data || workersQuery.data.length === 0) return;
+    setBulkExportingPdf(true);
+    try {
+      const items = await buildBulkSihtericePdfs();
+      if (items.length === 0) {
+        notify("Nijedan radnik nema sačuvane podatke za odabrani mjesec.", "warning");
+        return;
+      }
+      // Merge svih PDF-ova u jedan dokument (stranica po radniku).
+      const { PDFDocument } = await import("pdf-lib");
+      const finalDoc = await PDFDocument.create();
+      for (const { bytes } of items) {
+        const src = await PDFDocument.load(bytes);
+        const pages = await finalDoc.copyPages(src, src.getPageIndices());
+        for (const p of pages) finalDoc.addPage(p);
+      }
+      const finalBytes = await finalDoc.save();
+      const blob = new Blob([new Uint8Array(finalBytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const orgSafe = (selectedOrg?.name ?? "Organizacija").replace(/\s+/g, "_");
+      a.download = `Sihterice_${orgSafe}_${String(month).padStart(2, "0")}_${year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBulkExportingPdf(false);
+    }
+  }, [orgId, workersQuery.data, year, month, selectedOrg, notify, buildBulkSihtericePdfs]);
 
   // ─── Delete current month ──────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
@@ -995,23 +1028,17 @@ function SihtericaApp() {
     <aside className={styles.sidebar}>
       <div className={styles.sidebarHeader}>Organizacija</div>
       <div className={styles.sidebarOrgWrap}>
-        <select
+        <OrgSelect
           className={styles.sidebarOrgSelect}
-          value={orgId ?? ""}
-          onChange={(e) => {
-            const v = e.target.value ? Number(e.target.value) : null;
+          value={orgId}
+          onChange={(v) => {
             setOrgId(v);
             setWorkerId(null);
             lastInitWorker.current = null;
           }}
-        >
-          <option value="">— Odaberi —</option>
-          {orgsQuery.data?.map((org) => (
-            <option key={org.id} value={org.id}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+          ownOrgs={ownOrgsQuery.data ?? []}
+          clientOrgs={clientOrgsQuery.data ?? []}
+        />
       </div>
 
       {!orgsQuery.isLoading && (orgsQuery.data?.length ?? 0) === 0 && (
@@ -1628,35 +1655,77 @@ function SihtericaApp() {
                 </div>
               )}
               <div className={styles.actions}>
-                <button
-                  type="button"
-                  className={styles.exportBtnSecondary}
-                  onClick={handleBulkExport}
-                  disabled={
-                    !canExport ||
-                    bulkExporting ||
-                    !workersQuery.data ||
-                    workersQuery.data.length === 0
-                  }
-                  title={
-                    canExport
-                      ? "Generiše ZIP sa šihtericama svih radnika ove organizacije za odabrani mjesec"
-                      : "Dostupno uz Pro ili Business pretplatu"
-                  }
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
+                <div style={{ display: "inline-flex", alignItems: "stretch" }}>
+                  <button
+                    type="button"
+                    className={styles.exportBtnSecondary}
+                    onClick={handleBulkExportPdf}
+                    disabled={
+                      !canExport ||
+                      bulkExportingPdf ||
+                      bulkExporting ||
+                      !workersQuery.data ||
+                      workersQuery.data.length === 0
+                    }
+                    title={
+                      canExport
+                        ? "Svi radnici u jednom PDF-u (jedna stranica po radniku)"
+                        : "Dostupno uz Pro ili Business pretplatu"
+                    }
+                    style={{
+                      borderTopRightRadius: 0,
+                      borderBottomRightRadius: 0,
+                      borderRight: "none",
+                    }}
                   >
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                    <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
-                  </svg>
-                  {bulkExporting
-                    ? "Generišem ZIP…"
-                    : "Preuzmi za sve radnike (ZIP)"}
-                </button>
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+                    </svg>
+                    {bulkExportingPdf
+                      ? "Generišem PDF…"
+                      : "Sve radnike (PDF)"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.exportBtnSecondary}
+                    onClick={handleBulkExport}
+                    disabled={
+                      !canExport ||
+                      bulkExporting ||
+                      bulkExportingPdf ||
+                      !workersQuery.data ||
+                      workersQuery.data.length === 0
+                    }
+                    title={
+                      canExport
+                        ? "ZIP sa zasebnim PDF-om po radniku"
+                        : "Dostupno uz Pro ili Business pretplatu"
+                    }
+                    style={{
+                      borderTopLeftRadius: 0,
+                      borderBottomLeftRadius: 0,
+                      paddingLeft: "0.9rem",
+                      paddingRight: "0.9rem",
+                    }}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+                    </svg>
+                    {bulkExporting ? "ZIP…" : "ZIP"}
+                  </button>
+                </div>
                 <button
                   type="button"
                   className={styles.exportBtn}

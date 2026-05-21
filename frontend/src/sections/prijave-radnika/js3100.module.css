@@ -292,12 +292,18 @@
     transform 0.15s;
 }
 
-.exportBtn:hover {
+.exportBtn:hover:not(:disabled) {
   background: var(--sage-light);
 }
 
-.exportBtn:active {
+.exportBtn:active:not(:disabled) {
   transform: scale(0.97);
+}
+
+.exportBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--sage);
 }
 
 .exportBtn svg {

@@ -2,10 +2,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
-import { getOrganizations, type Organization } from "src/api/profile";
+import {
+  getAllMyWorkers,
+  getClientOrganizations,
+  getOrganizations,
+  getPersonClients,
+  type Organization,
+  type PersonClient,
+  type WorkerWithOrg,
+} from "src/api/profile";
+import { useRole } from "src/hooks/useRole";
 import styles from "../PersonFillSelect/PersonFillSelect.module.css";
 
-// ── Podaci koje šaljemo formi /pretplate ─────────────────────────────────────
+// ── Podaci koje šaljemo formi (faktura / predračun) ──────────────────────
 export type BuyerFillData = {
   name: string | null;
   address: string | null;
@@ -25,11 +34,17 @@ type Props = {
   onFill: (data: BuyerFillData) => void;
 };
 
-// PDV broj se ne derivira iz ID broja — ne svaki obveznik ima PDV broj
-// (mala lica ispod praga PDV-a ga uopšte nemaju). Ostavlja se prazno
-// dok korisnik ne unese ručno ako želi.
+function personLabel(c: PersonClient): string {
+  return [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || `Klijent #${c.id}`;
+}
+
+function workerLabel(w: WorkerWithOrg): string {
+  const name = [w.firstName, w.lastName].filter(Boolean).join(" ").trim();
+  return `${name || `#${w.id}`} — ${w.organizationName}`;
+}
 
 export default function BuyerFillSelect({ onFill }: Props) {
+  const { hasRole } = useRole();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -41,10 +56,33 @@ export default function BuyerFillSelect({ onFill }: Props) {
     retry: false,
   });
 
+  const isProOrBusiness = hasRole("PRO", "BUSINESS", "ADMIN");
+
   const { data: ownOrgs = [] } = useQuery({
     queryKey: ["organizations"],
     queryFn: () => unwrap(getOrganizations()),
     enabled: !!user,
+    retry: false,
+  });
+
+  const { data: clientOrgs = [] } = useQuery({
+    queryKey: ["organizations-clients"],
+    queryFn: () => unwrap(getClientOrganizations()),
+    enabled: isProOrBusiness,
+    retry: false,
+  });
+
+  const { data: persons = [] } = useQuery({
+    queryKey: ["personClients"],
+    queryFn: () => unwrap(getPersonClients()),
+    enabled: isProOrBusiness,
+    retry: false,
+  });
+
+  const { data: workers = [] } = useQuery({
+    queryKey: ["allMyWorkers"],
+    queryFn: () => unwrap(getAllMyWorkers()),
+    enabled: isProOrBusiness,
     retry: false,
   });
 
@@ -111,11 +149,29 @@ export default function BuyerFillSelect({ onFill }: Props) {
     user.email ||
     "Moj profil";
 
-  const profileMatches = !q || "moj profil".includes(q) || fullName.toLowerCase().includes(q);
-  const filteredOrgs = ownOrgs.filter((o) =>
+  const profileMatches =
+    !q || "moj profil".includes(q) || fullName.toLowerCase().includes(q);
+  const filteredOwnOrgs = ownOrgs.filter((o) =>
     (o.name + (o.taxNumber ?? "")).toLowerCase().includes(q),
   );
-  const noneFound = !profileMatches && filteredOrgs.length === 0;
+  const filteredClientOrgs = clientOrgs.filter((o) =>
+    (o.name + (o.taxNumber ?? "")).toLowerCase().includes(q),
+  );
+  const filteredPersons = persons.filter((p) =>
+    (personLabel(p) + (p.jmbg ?? "") + (p.taxNumber ?? ""))
+      .toLowerCase()
+      .includes(q),
+  );
+  const vlasnici = workers
+    .filter((w) => w.role === "VLASNIK" && workerLabel(w).toLowerCase().includes(q))
+    .sort((a, b) => workerLabel(a).localeCompare(workerLabel(b), "bs"));
+
+  const noneFound =
+    !profileMatches &&
+    filteredOwnOrgs.length === 0 &&
+    filteredClientOrgs.length === 0 &&
+    filteredPersons.length === 0 &&
+    vlasnici.length === 0;
 
   function pickProfile() {
     if (!user) return;
@@ -149,6 +205,61 @@ export default function BuyerFillSelect({ onFill }: Props) {
       bankAccount: org.bankAccount ?? null,
       logoUrl: org.logoUrl ?? null,
       organizationId: org.id,
+    });
+    setOpen(false);
+    setFilter("");
+  }
+
+  function pickClientOrg(org: Organization) {
+    onFill({
+      name: org.name ?? null,
+      address: org.address ?? null,
+      city: org.city ?? null,
+      postalCode: null,
+      phone: org.phone ?? null,
+      email: org.email ?? null,
+      idNumber: org.taxNumber ?? null,
+      vatNumber: org.pdvNumber ?? null,
+      bankAccount: org.bankAccount ?? null,
+      logoUrl: null,
+      organizationId: org.id,
+    });
+    setOpen(false);
+    setFilter("");
+  }
+
+  function pickPerson(p: PersonClient) {
+    onFill({
+      name: personLabel(p),
+      address: p.address ?? null,
+      city: p.city ?? null,
+      postalCode: null,
+      phone: p.phone ?? null,
+      email: p.email ?? null,
+      idNumber: p.taxNumber || p.jmbg || null,
+      vatNumber: null,
+      bankAccount: null,
+      logoUrl: null,
+      organizationId: null,
+    });
+    setOpen(false);
+    setFilter("");
+  }
+
+  function pickWorker(w: WorkerWithOrg) {
+    const name = [w.firstName, w.lastName].filter(Boolean).join(" ").trim();
+    onFill({
+      name: name || null,
+      address: w.address ?? null,
+      city: w.city ?? null,
+      postalCode: null,
+      phone: null,
+      email: w.email ?? null,
+      idNumber: w.jmbg ?? null,
+      vatNumber: null,
+      bankAccount: w.bankAccount ?? null,
+      logoUrl: null,
+      organizationId: null,
     });
     setOpen(false);
     setFilter("");
@@ -203,12 +314,12 @@ export default function BuyerFillSelect({ onFill }: Props) {
                   </button>
                 </>
               )}
-              {filteredOrgs.length > 0 && (
+              {filteredOwnOrgs.length > 0 && (
                 <>
                   <div className={styles.dropdownGroup}>Moje organizacije</div>
-                  {filteredOrgs.map((org) => (
+                  {filteredOwnOrgs.map((org) => (
                     <button
-                      key={org.id}
+                      key={`own-${org.id}`}
                       type="button"
                       className={styles.dropdownItem}
                       onClick={() => pickOrg(org)}
@@ -219,7 +330,64 @@ export default function BuyerFillSelect({ onFill }: Props) {
                   ))}
                 </>
               )}
+              {filteredClientOrgs.length > 0 && (
+                <>
+                  <div className={styles.dropdownGroup}>Klijentske organizacije</div>
+                  {filteredClientOrgs.map((org) => (
+                    <button
+                      key={`cli-${org.id}`}
+                      type="button"
+                      className={styles.dropdownItem}
+                      onClick={() => pickClientOrg(org)}
+                    >
+                      {org.name}
+                      {org.taxNumber ? ` (${org.taxNumber})` : ""}
+                    </button>
+                  ))}
+                </>
+              )}
+              {filteredPersons.length > 0 && (
+                <>
+                  <div className={styles.dropdownGroup}>Fizička lica</div>
+                  {filteredPersons.map((p) => (
+                    <button
+                      key={`p-${p.id}`}
+                      type="button"
+                      className={styles.dropdownItem}
+                      onClick={() => pickPerson(p)}
+                    >
+                      {personLabel(p)}
+                      {p.jmbg ? ` (${p.jmbg})` : ""}
+                    </button>
+                  ))}
+                </>
+              )}
+              {vlasnici.length > 0 && (
+                <>
+                  <div className={styles.dropdownGroup}>Vlasnici</div>
+                  {vlasnici.map((w) => (
+                    <button
+                      key={`v-${w.id}`}
+                      type="button"
+                      className={styles.dropdownItem}
+                      onClick={() => pickWorker(w)}
+                    >
+                      {workerLabel(w)}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
+            {!isProOrBusiness && (
+              <div className={styles.dropdownTeaser}>
+                <p className={styles.dropdownTeaserText}>
+                  Uz pretplatu: klijentske organizacije, fizička lica, vlasnici
+                </p>
+                <a href="/profil#pretplata" className={styles.dropdownTeaserLink}>
+                  Pretplatite se →
+                </a>
+              </div>
+            )}
           </div>
         )}
       </div>

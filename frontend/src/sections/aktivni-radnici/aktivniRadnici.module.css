@@ -1,0 +1,501 @@
+.page {
+  padding: calc(64px + 1.5rem) 2rem 5rem;
+  max-width: 1380px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+  margin-bottom: 2.5rem;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+}
+
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--mid);
+  line-height: 1.55;
+  max-width: 720px;
+}
+
+.controlsBar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.orgPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 280px;
+}
+
+.orgPicker span {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--mid);
+  text-transform: uppercase;
+}
+
+.input {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0.55rem 0.75rem;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+.btnPrimary {
+  padding: 0.65rem 1.2rem;
+  background: var(--sage);
+  color: #fff;
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.btnPrimary:hover {
+  opacity: 0.9;
+}
+
+.upgradeChip {
+  padding: 0.6rem 1rem;
+  background: var(--paper);
+  color: var(--sage);
+  border: 1px dashed var(--sage);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.upgradeChip:hover {
+  background: var(--sage-pale);
+}
+
+.filterChips {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--mid);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+
+.chip:hover {
+  color: var(--ink);
+}
+
+.chipActive {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fff;
+  font-weight: 600;
+}
+
+.chipCount {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.7;
+  margin-left: 0.3rem;
+}
+
+.tableWrap {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.empty {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--mid);
+  font-size: 14px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  text-align: left;
+  padding: 0.85rem 1rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  text-transform: uppercase;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--paper);
+}
+
+.nameCell {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.muted {
+  color: var(--mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.badgeActive {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badgeDraft {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.badgeInactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sage);
+  background: var(--sage-pale);
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+
+.actionLink svg {
+  flex-shrink: 0;
+}
+
+.actionLink:hover {
+  background: var(--sage);
+  color: #fff;
+}
+
+.gate {
+  max-width: 540px;
+  margin: 2rem auto 0;
+  padding: 2.5rem 2rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.gateIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.gate h2 {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.4rem;
+  margin: 0 0 0.75rem;
+}
+
+.gate p {
+  font-size: 14px;
+  color: var(--mid);
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+}
+
+.backLink {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--mid);
+  text-decoration: none;
+  margin-bottom: 1.25rem;
+}
+.backLink:hover {
+  color: var(--sage);
+}
+
+.dossierHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.dossierMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  font-size: 13px;
+  color: var(--mid);
+  flex-wrap: wrap;
+}
+
+.sectionH2 {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.3rem;
+  margin: 2.5rem 0 1rem;
+  color: var(--ink);
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.infoBlock {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.35rem;
+}
+
+.infoTitle {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin: 0 0 0.85rem;
+}
+
+.infoList {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.infoRow dt {
+  color: var(--mid);
+}
+
+.infoRow dd {
+  color: var(--ink);
+  font-weight: 500;
+  text-align: right;
+  margin: 0;
+}
+
+/* ── Mobile (<= 768px) — kartice umjesto tabele ──────────────────────────── */
+@media (max-width: 768px) {
+  .page {
+    padding: calc(64px + 1rem) 1rem 3rem;
+  }
+
+  .header {
+    margin-bottom: 1.5rem;
+  }
+
+  .controlsBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .orgPicker {
+    min-width: 0;
+  }
+
+  .btnPrimary,
+  .upgradeChip {
+    text-align: center;
+    width: 100%;
+  }
+
+  .filterChips {
+    gap: 0.3rem;
+    margin-bottom: 1rem;
+  }
+
+  .chip {
+    padding: 0.45rem 0.7rem;
+    font-size: 12.5px;
+  }
+
+  .tableWrap {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  /* Tabela → vertikalne kartice */
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody tr {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+
+  .table tbody tr:hover {
+    background: var(--white);
+  }
+
+  .table tbody td {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .table tbody td:last-child {
+    border-bottom: none;
+    padding-top: 0.7rem;
+  }
+
+  .table tbody td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--mid);
+    text-transform: uppercase;
+  }
+
+  /* Akcije: u kartici idu u jedan red (wrap), full-width, krupnije za touch */
+  .table tbody td[data-label="Akcije"] {
+    grid-template-columns: 1fr;
+  }
+
+  .table tbody td[data-label="Akcije"]::before {
+    margin-bottom: 0.3rem;
+  }
+
+  .actions {
+    gap: 0.45rem;
+  }
+
+  .actionLink {
+    font-size: 13px;
+    padding: 0.5rem 0.75rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .nameCell {
+    font-size: 15px;
+  }
+}

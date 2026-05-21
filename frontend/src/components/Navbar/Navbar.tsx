@@ -31,9 +31,10 @@ const FUNCTION_GROUPS: MenuGroup[] = [
   {
     title: 'Plate, radnici i evidencija',
     items: [
+      { label: 'Aktivni radnici', href: '/aktivni-radnici', desc: 'Centralni pregled radnika sa statusom prijave' },
+      { label: 'Obračun plata', href: '/prijave-radnika?tab=obracun', desc: 'Mjesečni obračun, platni listići, uplatnice, 2001/2002' },
+      { label: 'Prijave / odjave radnika', href: '/prijave-radnika', desc: 'JS3100 obrazac za PIO/ZZO' },
       { label: 'Šihterica', href: '/sihterica', desc: 'Mjesečna evidencija radnog vremena' },
-      { label: 'Prijave/odjave radnika', href: '/prijave-radnika', desc: 'JS3100 obrazac' },
-      { label: 'Stalna sredstva i amortizacija', href: '/amortizacija', desc: 'Vođenje OS i obračun' },
     ],
   },
   {
@@ -41,8 +42,11 @@ const FUNCTION_GROUPS: MenuGroup[] = [
     items: [
       { label: 'Ugovor o pozajmici', href: '/ugovor-o-pozajmici' },
       { label: 'Ugovor o djelu', href: '/ugovor-o-djelu' },
+      { label: 'Ugovor o radu i otkaz', href: '/ugovor-o-radu' },
       { label: 'Fakture i predračuni', href: '/fakture' },
       { label: 'Generator članskih kartica', href: '/clanske-kartice' },
+      { label: 'Stalna sredstva i amortizacija', href: '/amortizacija', desc: 'Vođenje OS i obračun' },
+      { label: 'Kontakt / Pomoć', href: '/kontakt', desc: 'Pošalji nam upit ili prijedlog' },
     ],
   },
 ];
@@ -179,6 +183,8 @@ export default function Navbar() {
           )}
         </div>
 
+        <Link href="/sifre-djelatnosti">Šifre djelatnosti</Link>
+        <Link href="/javni-prihodi">Javni prihodi</Link>
         <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
         <Link href={sectionHref('kako')}>Kako radi</Link>
         <Link href={sectionHref('faq')}>FAQ</Link>

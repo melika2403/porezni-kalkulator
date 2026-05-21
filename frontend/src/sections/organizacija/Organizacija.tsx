@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLastOrg } from "src/hooks/useLastOrg";
 import { LuPencil, LuTrash2 } from "react-icons/lu";
 import styles from "./organizacija.module.css";
 import {
@@ -39,6 +40,22 @@ type WorkerForm = {
   city: string;
   startDate: string;
   endDate: string;
+  // Ugovor o radu
+  position: string;
+  salaryBruto: string;
+  salaryNeto: string;
+  contractType: "" | "NEODREDJENO" | "ODREDJENO";
+  contractEndDate: string;
+  probationMonths: string; // "" | "0".."6"
+  noticePeriod: string;
+  contractNumber: string;
+  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
+  prijavaDate: string;
+  odjavaDate: string;
+  spol: "" | "M" | "Z";
+  strucnaSpremaIdx: string; // "" | "0".."9"
+  contractedHours: string; // "1".."8"
+  taxCoefficient: string;
 };
 
 const emptyForm = (): WorkerForm => ({
@@ -52,9 +69,25 @@ const emptyForm = (): WorkerForm => ({
   city: "",
   startDate: "",
   endDate: "",
+  position: "",
+  salaryBruto: "",
+  salaryNeto: "",
+  contractType: "",
+  contractEndDate: "",
+  probationMonths: "",
+  noticePeriod: "",
+  contractNumber: "",
+  employmentStatus: "DRAFT",
+  prijavaDate: "",
+  odjavaDate: "",
+  spol: "",
+  strucnaSpremaIdx: "",
+  contractedHours: "8",
+  taxCoefficient: "1.0",
 });
 
 function formToPayload(f: WorkerForm): WorkerPayload {
+  const probation = f.probationMonths.trim();
   return {
     role: f.role,
     firstName: f.firstName.trim(),
@@ -66,10 +99,42 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     city: f.city.trim() || undefined,
     startDate: f.startDate || null,
     endDate: f.endDate.trim() || null,
+    position: f.position.trim() || null,
+    salaryBruto: f.salaryBruto.trim() ? Number(f.salaryBruto.replace(/\./g, "").replace(",", ".")) : null,
+    salaryNeto: f.salaryNeto.trim() ? Number(f.salaryNeto.replace(/\./g, "").replace(",", ".")) : null,
+    contractType: f.contractType === "" ? null : f.contractType,
+    contractEndDate: f.contractEndDate || null,
+    probationMonths: probation === "" ? null : Number(probation),
+    noticePeriod: f.noticePeriod.trim() || null,
+    contractNumber: f.contractNumber.trim() || null,
+    // Status se automatski izvodi iz datuma prijave/odjave — datumi su
+    // master, status je derivat. To otklanja problem kad korisnik upiše
+    // prijavaDate ali zaboravi prebaciti dropdown.
+    employmentStatus: f.odjavaDate
+      ? "ODJAVLJEN"
+      : f.prijavaDate
+        ? "PRIJAVLJEN"
+        : "DRAFT",
+    prijavaDate: f.prijavaDate || null,
+    odjavaDate: f.odjavaDate || null,
+    spol: f.spol === "" ? null : f.spol,
+    strucnaSpremaIdx: f.strucnaSpremaIdx === "" ? null : Number(f.strucnaSpremaIdx),
+    contractedHours: f.contractedHours === "" ? 8 : Number(f.contractedHours),
+    taxCoefficient: (() => {
+      const c = Number(f.taxCoefficient.replace(",", "."));
+      return Number.isFinite(c) && c > 0 ? c : 1.0;
+    })(),
   };
 }
 
 function workerToForm(w: Worker): WorkerForm {
+  const fmt = (n: number | null) =>
+    n == null
+      ? ""
+      : n.toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
   return {
     role: w.role,
     firstName: w.firstName,
@@ -81,6 +146,21 @@ function workerToForm(w: Worker): WorkerForm {
     city: w.city ?? "",
     startDate: w.startDate ?? "",
     endDate: w.endDate ?? "",
+    position: w.position ?? "",
+    salaryBruto: fmt(w.salaryBruto),
+    salaryNeto: fmt(w.salaryNeto),
+    contractType: w.contractType ?? "",
+    contractEndDate: w.contractEndDate ?? "",
+    probationMonths: w.probationMonths == null ? "" : String(w.probationMonths),
+    noticePeriod: w.noticePeriod ?? "",
+    contractNumber: w.contractNumber ?? "",
+    employmentStatus: w.employmentStatus ?? "DRAFT",
+    prijavaDate: w.prijavaDate ?? "",
+    odjavaDate: w.odjavaDate ?? "",
+    spol: w.spol ?? "",
+    strucnaSpremaIdx: w.strucnaSpremaIdx == null ? "" : String(w.strucnaSpremaIdx),
+    contractedHours: w.contractedHours == null ? "8" : String(w.contractedHours),
+    taxCoefficient: w.taxCoefficient != null ? String(w.taxCoefficient) : "1.0",
   };
 }
 
@@ -99,6 +179,22 @@ const ORG_TYPE_LABELS: Record<string, string> = {
   COMPANY: "Privredno društvo",
   BUSINESS: "Obrt / Samostalna djelatnost",
 };
+
+import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
+
+// Iste opcije kao u JS3100 (Drugi dio red 11), index = vrijednost koju treba slati
+const STRUCNA_SPREMA_OPCIJE = [
+  "DR — Doktor nauka",
+  "MR — Magistar",
+  "VSS — Visoka stručna sprema",
+  "VŠS — Viša stručna sprema",
+  "SSS — Srednja stručna sprema",
+  "Niža",
+  "VKV — Visokokvalifikovani",
+  "KV — Kvalifikovani",
+  "PK — Polukvalifikovani",
+  "NK — Nekvalifikovani",
+];
 
 // ─── Worker row form (add or edit) ────────────────────────────────────────────
 
@@ -154,11 +250,30 @@ function WorkerFormFields({
         <input
           className={styles.input}
           value={value.jmbg}
-          onChange={(e) => onChange({ ...value, jmbg: e.target.value.replace(/\D/g, "").slice(0, 13) })}
+          onChange={(e) => {
+            const jmbg = e.target.value.replace(/\D/g, "").slice(0, 13);
+            const next: WorkerForm = { ...value, jmbg };
+            // Auto-popuna spola iz JMBG-a (ako spol nije ručno odabran)
+            if (jmbg.length >= 12 && !value.spol) {
+              const inferred = spolFromJmbg(jmbg);
+              if (inferred) next.spol = inferred;
+            }
+            onChange(next);
+          }}
           placeholder="1234567890123"
           inputMode="numeric"
           maxLength={13}
+          style={
+            value.jmbg.length > 0 && value.jmbg.length === 13 && !isJmbgValid(value.jmbg)
+              ? { borderColor: "#dc2626" }
+              : undefined
+          }
         />
+        {value.jmbg.length === 13 && !isJmbgValid(value.jmbg) && (
+          <p style={{ fontSize: 12, color: "#dc2626", margin: "0.3rem 0 0" }}>
+            {parseJmbg(value.jmbg).error}
+          </p>
+        )}
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Broj lične karte</label>
@@ -204,6 +319,27 @@ function WorkerFormFields({
         />
       </div>
       <div className={styles.field}>
+        <label className={styles.fieldLabel}>
+          Datum prijave (JS3100){" "}
+          <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+            — koristi se za period u obrascima 2001/2002
+          </span>
+        </label>
+        <DateInput
+          className={styles.input}
+          value={value.prijavaDate}
+          onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Datum odjave (JS3100)</label>
+        <DateInput
+          className={styles.input}
+          value={value.odjavaDate}
+          onValueChange={(iso) => onChange({ ...value, odjavaDate: iso })}
+        />
+      </div>
+      <div className={styles.field}>
         <label className={styles.fieldLabel}>Adresa</label>
         <input
           className={styles.input}
@@ -220,6 +356,182 @@ function WorkerFormFields({
           className={styles.input}
         />
       </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Spol</label>
+        <select
+          className={styles.input}
+          value={value.spol}
+          onChange={(e) =>
+            onChange({ ...value, spol: e.target.value as WorkerForm["spol"] })
+          }
+        >
+          <option value="">— Odaberi —</option>
+          <option value="M">Muški</option>
+          <option value="Z">Ženski</option>
+        </select>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Stručna sprema</label>
+        <select
+          className={styles.input}
+          value={value.strucnaSpremaIdx}
+          onChange={set("strucnaSpremaIdx")}
+        >
+          <option value="">— Odaberi —</option>
+          {STRUCNA_SPREMA_OPCIJE.map((t, i) => (
+            <option key={i} value={i}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Porezni koeficijent — uvijek vidljiv (i za radnika i za vlasnika).
+          Za obrt vlasnika koristi se samo u godišnjem GPD-1051. Za d.o.o.
+          vlasnika i radnika koristi se u mjesečnom obračunu plata. */}
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>
+          Porezni koeficijent{" "}
+          <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
+            — 1.0 = 300 KM odbitka
+          </span>
+        </label>
+        <input
+          className={styles.input}
+          value={value.taxCoefficient}
+          onChange={set("taxCoefficient")}
+          placeholder="1.0"
+          inputMode="decimal"
+        />
+      </div>
+
+      {!isVlasnik && (
+        <>
+          <div className={styles.field} style={{ gridColumn: "1 / -1", marginTop: "1rem" }}>
+            <label className={styles.fieldLabel} style={{ fontWeight: 600, color: "var(--ink)" }}>
+              — Ugovor o radu (za auto-popunjavanje formi) —
+            </label>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Radno mjesto / pozicija</label>
+            <input
+              className={styles.input}
+              value={value.position}
+              onChange={set("position")}
+              placeholder="Npr. Programer, konobar..."
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Vrsta ugovora</label>
+            <select
+              className={styles.input}
+              value={value.contractType}
+              onChange={(e) =>
+                onChange({ ...value, contractType: e.target.value as WorkerForm["contractType"] })
+              }
+            >
+              <option value="">— Odaberi —</option>
+              <option value="NEODREDJENO">Neodređeno</option>
+              <option value="ODREDJENO">Određeno</option>
+            </select>
+          </div>
+          {value.contractType === "ODREDJENO" && (
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Datum isteka ugovora</label>
+              <DateInput
+                className={styles.input}
+                value={value.contractEndDate}
+                onValueChange={(iso) => onChange({ ...value, contractEndDate: iso })}
+              />
+            </div>
+          )}
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              Ugovoreno radno vrijeme (sati dnevno)
+            </label>
+            <select
+              className={styles.input}
+              value={value.contractedHours}
+              onChange={set("contractedHours")}
+              title="Zakon o doprinosima FBiH (čl. 7, izmjene 33/25): za nepuno radno vrijeme > 4h primjenjuje se PUNA minimalna osnovica; za ≤ 4h srazmjerno (min. 50%)."
+            >
+              <option value="8">8h — puno radno vrijeme</option>
+              <option value="7">7h — nepuno (puna min. osnovica)</option>
+              <option value="6">6h — nepuno (puna min. osnovica)</option>
+              <option value="5">5h — nepuno (puna min. osnovica)</option>
+              <option value="4">4h — nepuno (srazmjerno, 50%)</option>
+              <option value="3">3h — nepuno (srazmjerno, 50%)</option>
+              <option value="2">2h — nepuno (srazmjerno, 50%)</option>
+              <option value="1">1h — nepuno (srazmjerno, 50%)</option>
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Bruto plata (KM)</label>
+            <input
+              className={styles.input}
+              value={value.salaryBruto}
+              onChange={set("salaryBruto")}
+              placeholder="0,00"
+              inputMode="decimal"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Neto plata (KM)</label>
+            <input
+              className={styles.input}
+              value={value.salaryNeto}
+              onChange={set("salaryNeto")}
+              placeholder="0,00"
+              inputMode="decimal"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Probni rad (mjeseci, 0–6)</label>
+            <select
+              className={styles.input}
+              value={value.probationMonths}
+              onChange={set("probationMonths")}
+            >
+              <option value="">— Nema —</option>
+              {[1, 2, 3, 4, 5, 6].map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Otkazni rok</label>
+            <input
+              className={styles.input}
+              value={value.noticePeriod}
+              onChange={set("noticePeriod")}
+              placeholder="Npr. 30 dana"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Broj ugovora</label>
+            <input
+              className={styles.input}
+              value={value.contractNumber}
+              onChange={set("contractNumber")}
+              placeholder="Npr. 15/2026"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Status</label>
+            <select
+              className={styles.input}
+              value={value.employmentStatus}
+              onChange={set("employmentStatus")}
+            >
+              <option value="DRAFT">Draft (još nije prijavljen)</option>
+              <option value="PRIJAVLJEN">Prijavljen kod PIO/ZZO</option>
+              <option value="ODJAVLJEN">Odjavljen</option>
+            </select>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -230,6 +542,14 @@ const PRO_WORKERS_LIMIT = 5;
 const USER_WORKERS_LIMIT = 1;
 
 export default function Organizacija({ orgId }: { orgId: number }) {
+  // Otvaranje organizacije postavlja je kao "posljednje aktivnu" — kada
+  // korisnik pređe u JS3100 / Obračun plata / Aktivni radnici, ista je
+  // automatski odabrana.
+  const { setLastOrgId } = useLastOrg();
+  useEffect(() => {
+    if (orgId) setLastOrgId(orgId);
+  }, [orgId, setLastOrgId]);
+
   const queryClient = useQueryClient();
   const { role: userRole } = useRole();
 
@@ -323,9 +643,14 @@ export default function Organizacija({ orgId }: { orgId: number }) {
   return (
     <div className={styles.page}>
       <RoleGuard roles={["USER", "PRO", "BUSINESS", "ADMIN"]} mode="hide">
-        <Link href="/profil" className={styles.back}>
-          ← Nazad na profil
-        </Link>
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+          <Link href="/profil" className={styles.back}>
+            ← Nazad na profil
+          </Link>
+          <Link href={`/aktivni-radnici?org=${orgId}`} className={styles.back}>
+            ← Aktivni radnici
+          </Link>
+        </div>
 
         {/* ── Org header ── */}
         <div className={styles.orgHeader}>
@@ -347,18 +672,44 @@ export default function Organizacija({ orgId }: { orgId: number }) {
             <span className={styles.cardTitle}>
               Radnici{workers.length > 0 ? ` (${workers.length})` : ""}
             </span>
-            {canEdit && !showAdd && !isLimitReached && (
-              <button
-                className={styles.btnPrimary}
-                onClick={() => {
-                  setShowAdd(true);
-                  setEditId(null);
-                  createMutation.reset();
+            <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
+              <Link
+                href={`/aktivni-radnici?org=${orgId}`}
+                className={styles.btnGhost}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  textDecoration: "none",
                 }}
               >
-                + Dodaj radnika
-              </button>
-            )}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                Aktivni radnici
+              </Link>
+              {canEdit && !showAdd && !isLimitReached && (
+                <button
+                  className={styles.btnPrimary}
+                  onClick={() => {
+                    setShowAdd(true);
+                    setEditId(null);
+                    createMutation.reset();
+                  }}
+                >
+                  + Dodaj radnika
+                </button>
+              )}
+            </div>
             {isProLimitReached && (
               <span className={styles.limitNotice}>
                 PRO plan: maksimalno {PRO_WORKERS_LIMIT} radnika po organizaciji

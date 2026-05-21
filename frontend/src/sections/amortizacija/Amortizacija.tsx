@@ -13,6 +13,7 @@ import { formatAddress } from "src/utils/formatAddress";
 import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
+import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import {
   getAmortizacijaYears,
   getAmortizacija,
@@ -76,6 +77,16 @@ export const VIJEK_STOPA: Record<string, number> = Object.fromEntries(
 /* ── Helpers ── */
 export function r2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+// crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
+// On LAN-IP dev (http://192.168.x.x) it's undefined — fall back to a sufficient
+// local-id generator (used only as React key / row id, not security-sensitive).
+function genId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function bsFmt(n: number): string {
@@ -208,7 +219,7 @@ export function calcRow(row: AssetRow, odISO: string, doISO: string) {
 
 function newRow(): AssetRow {
   return {
-    id: crypto.randomUUID(),
+    id: genId(),
     naziv: "",
     datumNabavke: "",
     brojDokumenta: "",
@@ -258,6 +269,24 @@ function sortIcon(
 
 /* ── Component ── */
 export default function Amortizacija() {
+  const { role, isLoading: roleLoading } = useRole();
+  if (roleLoading) return null;
+  if (role === null) {
+    return (
+      <PreviewRegisterGate
+        pageLabel="Stalna sredstva"
+        pageTitle={<>Stalna sredstva i <em>amortizacija</em></>}
+        pageSubtitle="Evidencija stalnih sredstava sa automatskim obračunom amortizacije kroz godine. Historija po godinama i export u PLDI obrazac."
+        featureName="evidencije stalnih sredstava"
+        previewDesc="dodavati stalna sredstva, automatski računati amortizaciju i čuvati podatke za sljedeću godinu"
+        tier="REG"
+      />
+    );
+  }
+  return <AmortizacijaApp />;
+}
+
+function AmortizacijaApp() {
   const currentYear = new Date().getFullYear().toString();
   const { findByName: findCity } = useCityLookup();
 
@@ -461,7 +490,7 @@ export default function Amortizacija() {
       });
       setRows(
         (data.rows ?? []).map((r) => ({
-          id: crypto.randomUUID(),
+          id: genId(),
           naziv: r.naziv ?? "",
           datumNabavke: r.datumNabavke ?? "",
           brojDokumenta: r.brojDokumenta ?? "",
@@ -1885,6 +1914,141 @@ export default function Amortizacija() {
       <p className={styles.napomena}>
         Obrazac PLDI-1043 · Popisna lista dugotrajne imovine · Federacija BiH
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section} style={{ marginTop: "2rem" }}>
+        <h2 className={styles.sectionTitle}>
+          Šta su <em>stalna sredstva</em> i zašto se amortizuju?
+        </h2>
+        <p>
+          <strong>Stalna sredstva</strong> (dugotrajna imovina) su materijalna
+          i nematerijalna dobra koja se koriste u poslovanju duže od jedne
+          godine i čija nabavna vrijednost prelazi propisani prag. U FBiH se
+          evidentiraju na obrascu <strong>PLDI-1043</strong> — Popisnoj listi
+          dugotrajne imovine, koja se predaje kao prilog uz GPD-1051 i SPR-1053.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          <strong>Amortizacija</strong> je postupak postupnog prenošenja
+          nabavne vrijednosti sredstva na rashode poslovanja kroz njegov vijek
+          trajanja. Umjesto da cjelokupna nabavna vrijednost optereti rashode
+          u godini nabavke, ona se ravnomjerno raspoređuje na godine korištenja
+          — što daje stvarniju sliku poslovnog rezultata i smanjuje oporezivu
+          osnovicu kroz više godina.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Stope <em>amortizacije</em> u FBiH
+        </h2>
+        <p>
+          Porezno priznate stope amortizacije propisane su <em>Pravilnikom o
+          primjeni Zakona o porezu na dohodak FBiH</em>. Stopa ovisi o vrsti
+          sredstva i njegovom korisnom vijeku trajanja:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Računari i softver</strong> — vijek 3 godine, stopa <strong>33,33%</strong>
+          </li>
+          <li>
+            <strong>Putnička vozila</strong> — vijek 5 godina, stopa <strong>20%</strong>
+          </li>
+          <li>
+            <strong>Oprema i mašine</strong> — vijek 7 godina, stopa <strong>14,29%</strong>
+          </li>
+          <li>
+            <strong>Namještaj</strong> — vijek 10 godina, stopa <strong>10%</strong>
+          </li>
+          <li>
+            <strong>Poslovni objekti</strong> — vijek 25–40 godina, stopa <strong>2,5%–4%</strong>
+          </li>
+          <li>
+            <strong>Nematerijalna imovina</strong> (patenti, licence) — prema ugovornom roku
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          U FBiH se primjenjuje <strong>linearna metoda amortizacije</strong> —
+          ravnomjerno tokom cijelog vijeka trajanja sredstva. Stopa za isto
+          sredstvo ne mijenja se iz godine u godinu.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako koristiti <em>generator stalnih sredstava</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Dodajte stalna sredstva</strong> — unesite naziv, datum
+            nabavke, nabavnu vrijednost, vijek trajanja i stopu amortizacije.
+            Za prijavljene korisnike sredstva se čuvaju u profilu.
+          </li>
+          <li>
+            <strong>Automatski obračun</strong> — sistem računa godišnju
+            amortizaciju, akumuliranu amortizaciju i preostalu knjigovodstvenu
+            vrijednost za odabranu godinu.
+          </li>
+          <li>
+            <strong>Prenos u sljedeću godinu</strong> — knjigovodstvena
+            vrijednost se automatski prenosi u narednu godinu kao početno stanje
+            (kolona 13 → kolona 4 sljedeće godine).
+          </li>
+          <li>
+            <strong>Označavanje prodaje/otpisa</strong> — kad prodate ili
+            otpišete sredstvo, označite to u obrascu. Sredstvo se neće prenijeti
+            u narednu godinu.
+          </li>
+          <li>
+            <strong>Preuzmite PLDI-1043 PDF</strong> kao prilog uz GPD-1051
+            i SPR-1053 godišnju prijavu.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Prodaja, otpis i <em>tehnička zastarjelost</em>
+        </h2>
+        <p>
+          Kada se sredstvo proda ili otpiše prije isteka vijeka trajanja,
+          amortizacija se obračunava samo za period korištenja u toj godini —
+          do datuma prodaje ili otpisa. Preostala knjigovodstvena vrijednost
+          se <strong>ne prenosi u sljedeću godinu</strong>, a u koloni 17
+          PLDI obrasca upisuje se napomena o prodaji.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Tehničko-tehnološka zastarjelost ili oštećenje koje znatno smanjuje
+          korisni vijek može biti osnov za ubrzanu amortizaciju ili otpis, ali
+          uz prateću dokumentaciju (mišljenje ovlaštenog procjenitelja,
+          inventurni zapisnik).
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/spr" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              SPR-1053 — specifikacija dohotka samostalne djelatnosti
+            </a>{" "}
+            — amortizacija ulazi kao rashod u SPR.
+          </li>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza
+            </a>{" "}
+            — PLDI je prilog uz GPD-1051.
+          </li>
+          <li>
+            <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Uplatni računi javnih prihoda
+            </a>{" "}
+            — računi za uplatu poreza i doprinosa nakon obračuna SPR-a.
+          </li>
+        </ul>
+      </section>
 
       <FaqSection
         items={[

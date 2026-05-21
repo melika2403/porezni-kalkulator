@@ -64,7 +64,7 @@ const FEATURES: Feature[] = [
   },
   {
     title: "ZO3 obrazac",
-    desc: "Automatska izrada ZO3 obrasca za prijavu doprinosa. Unesite podatke o zaposlenima i preuzmite popunjeni obrazac.",
+    desc: "Prijavite člana porodice (supružnika, dijete ili roditelja) na zdravstveno osiguranje u FBiH — popunite ZO3 obrazac online i preuzmite popunjeni PDF.",
     badge: "free",
     iconColor: "sage",
     icon: (
@@ -163,8 +163,8 @@ const FEATURES: Feature[] = [
   },
   // ── Business ─────────────────────────────────────────
   {
-    title: "Prijave / odjave radnika",
-    desc: "Unos i evidencija radnika s automatskim ispisom JS3100 obrasca i ostalih prijavnih obrazaca u PDF formatu.",
+    title: "Plate i prijave radnika",
+    desc: "Mjesečni obračun bruto/neto plata, doprinosa i poreza. Generisanje platnih listića, uplatnica i obrazaca 2001/2002. JS3100 prijava i odjava radnika kod PUFBiH — sve iz jedne aplikacije.",
     badge: "pro",
     iconColor: "accent",
     icon: (
@@ -174,8 +174,10 @@ const FEATURES: Feature[] = [
         stroke="currentColor"
         strokeWidth="1.6"
       >
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
       </svg>
     ),
     dest: "/prijave-radnika",
@@ -237,8 +239,8 @@ const FEATURES: Feature[] = [
     dest: "/ugovor-o-djelu",
   },
   {
-    title: "Ugovor o radu",
-    desc: "Generator ugovora o radu sa popunjavanjem podataka iz Prijava radnika. Spremite vlastiti predložak i koristite ga za buduće ugovore.",
+    title: "Ugovor o radu i otkaz",
+    desc: "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Probni rad, određeno/neodređeno trajanje, automatski broj ugovora — u Word i PDF formatu.",
     badge: "business",
     iconColor: "dark",
     icon: (
@@ -254,8 +256,7 @@ const FEATURES: Feature[] = [
         <circle cx="9" cy="10" r="1.2" />
       </svg>
     ),
-    dest: "#",
-    soon: true,
+    dest: "/ugovor-o-radu",
   },
 ];
 

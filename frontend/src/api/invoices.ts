@@ -1,7 +1,7 @@
 import { type ApiResponse } from "src/api/auth";
+import { getBackendUrl } from "src/utils/backendUrl";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+const BACKEND_URL = getBackendUrl();
 
 async function request<T>(
   path: string,

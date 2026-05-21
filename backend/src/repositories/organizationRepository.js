@@ -2,17 +2,36 @@ const { Op } = require("sequelize");
 const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "createdAt", "updatedAt"];
+const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "taxRegime", "taxCategory", "createdAt", "updatedAt"];
 
 function toPublicOrg(org, memberRole, ownerWorker, effectiveTier) {
   if (!org) return null;
   const plain = org.toJSON ? org.toJSON() : org;
-  const owner = ownerWorker
-    ? {
-        ...(ownerWorker.toJSON ? ownerWorker.toJSON() : ownerWorker),
-        jmbg: ownerWorker.jmbg ? decryptJmbg(ownerWorker.jmbg) : null,
-      }
+  const ownerPlain = ownerWorker
+    ? ownerWorker.toJSON
+      ? ownerWorker.toJSON()
+      : ownerWorker
     : null;
+  let owner = null;
+  if (ownerPlain) {
+    const prijavaDate = ownerPlain.prijavaDate
+      ? String(ownerPlain.prijavaDate).slice(0, 10)
+      : null;
+    // Status se derivira iz datuma (isto kao u toPublicWorker).
+    const derivedStatus = prijavaDate ? "PRIJAVLJEN" : "DRAFT";
+    owner = {
+      ...ownerPlain,
+      employmentStatus: derivedStatus,
+      jmbg: ownerPlain.jmbg ? decryptJmbg(ownerPlain.jmbg) : null,
+      prijavaDate,
+      salaryBruto:
+        ownerPlain.salaryBruto != null ? Number(ownerPlain.salaryBruto) : null,
+      taxCoefficient:
+        ownerPlain.taxCoefficient != null
+          ? Number(ownerPlain.taxCoefficient)
+          : 1.0,
+    };
+  }
   const { workers: _w, ...rest } = plain;
   return {
     ...rest,
@@ -22,7 +41,22 @@ function toPublicOrg(org, memberRole, ownerWorker, effectiveTier) {
   };
 }
 
-const ownerWorkerAttributes = ["id", "organizationId", "firstName", "lastName", "jmbg", "email", "phone", "address", "city"];
+const ownerWorkerAttributes = [
+  "id",
+  "organizationId",
+  "firstName",
+  "lastName",
+  "jmbg",
+  "email",
+  "phone",
+  "address",
+  "city",
+  "idCardNumber",
+  "prijavaDate",
+  "salaryBruto",
+  "employmentStatus",
+  "taxCoefficient",
+];
 
 async function fetchOwnerWorkers(orgIds) {
   if (orgIds.length === 0) return new Map();

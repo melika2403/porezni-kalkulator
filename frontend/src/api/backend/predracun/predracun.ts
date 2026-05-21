@@ -4,9 +4,9 @@
 //    GET  /api/predracun  → admin: lista svih predračuna
 // ──────────────────────────────────────────────────────────────────────────────
 import type { ApiResponse } from "src/api/auth";
+import { getBackendUrl } from "src/utils/backendUrl";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+const BACKEND_URL = getBackendUrl();
 
 export type Plan = "PRO" | "BUSINESS";
 
