@@ -5,9 +5,9 @@ export default function Hero() {
   return (
     <>
       <section className={styles.hero}>
-        <div className={styles.eyebrow}>Napravljeno za BiH poduzetnike</div>
+        <div className={styles.eyebrow}>Za knjigovođe, obrtnike i d.o.o. u FBiH</div>
         <h1 className={styles.h1}>
-          Porezne obaveze,<br />
+          Plate, porezi, fakture,<br />
           <em>riješene za minut.</em>
         </h1>
         <div className={styles.features}>
@@ -21,7 +21,7 @@ export default function Hero() {
           ))}
         </div>
         <p className={styles.tagline}>
-          Sve na jednom mjestu. Bez excela, bez gužve.
+          Štedi sate svake sedmice. Bez excela, bez gužve.
         </p>
         <div className={styles.actions}>
           <Link href="#funkcije" className={`${styles.btn} ${styles.btnPrimary}`}>
@@ -35,7 +35,7 @@ export default function Hero() {
           </Link>
         </div>
         <p className={styles.note}>
-          Kreirajte profil i svi Vaši obrasci su sačuvani. <strong>Pristupite podacima kad god Vam trebaju.</strong>
+          <strong>30 dana PRO besplatno</strong> za sve nove korisnike, bez kartice.
         </p>
       </section>
 
@@ -44,7 +44,17 @@ export default function Hero() {
 }
 
 const FEATURE_PILLS = [
-  'SPR-1053', 'GPD-1051', 'AMS-1035', 'Neto/bruto plate', 'PDV kalkulator',
-  'Stalna sredstva', 'ZO3 obrazac', 'Šihterica', 'Ugovori',
+  'Plate i doprinosi',
+  'MIP-1023 / GIP-1022',
+  'JS3100 prijave',
+  'Fakture i predračuni',
+  'Ugovor o radu / otkaz',
+  'Šihterica',
+  'PDV kalkulator',
+  'SPR-1053 / GPD-1051',
+  'Stalna sredstva (PLDI)',
+  'AMS generator',
+  'ZO3 obrazac',
+  'Ugovor o djelu',
 ];
 

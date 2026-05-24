@@ -112,6 +112,10 @@ export type CalculatePayload = {
   mealAllowance?: number;
   vacationBonus?: number;
   travelExpense?: number;
+  // Pro-rate factor 0..1 — koristi se za mid-month prijavu/odjavu radnika
+  // i vlasnika. Backend skalira osnovicu, minuli rad i min doprinosnu osnovu.
+  // Default 1 (puni mjesec). Vidi computeProRateFactor u ObracunPlata.tsx.
+  proRateFactor?: number;
   notes?: string | null;
 };
 
@@ -366,6 +370,57 @@ export async function generateMonthlyPayslips(
   } catch {
     return { ok: false, error: "NETWORK_ERROR" };
   }
+}
+
+// Pošalji platni listić za jednog radnika email-om (na worker.email).
+// Vraća { ok: true, sentTo } ili { ok: false, error, message? }.
+// Posebne greške: WORKER_NO_EMAIL (radnik nema upisan email).
+export type EmailPayslipResult =
+  | { ok: true; sentTo: string }
+  | { ok: false; error: string; message?: string };
+
+export async function emailWorkerPayslip(
+  payrollId: number,
+  paymentDate?: string,
+): Promise<EmailPayslipResult> {
+  return request<{ sentTo: string }>(`/api/payroll/${payrollId}/email-payslip`, {
+    method: "POST",
+    body: JSON.stringify({ paymentDate }),
+  }).then((r) =>
+    r.ok ? { ok: true, sentTo: r.data.sentTo } : { ok: false, error: r.error },
+  );
+}
+
+// Bulk slanje platnih listića za sve radnike u (org, year, month). Radnici
+// bez email-a se preskaču — vraćaju se u `skipped` listi. Failure-i u
+// `failed`. Ostatak je `sent`.
+export type BulkEmailPayslipsResult =
+  | {
+      ok: true;
+      sent: number;
+      skipped: Array<{ workerId: number; name: string; reason: string }>;
+      failed: Array<{ workerId: number; name: string; reason: string }>;
+      totalProcessed: number;
+    }
+  | { ok: false; error: string };
+
+export async function emailMonthlyPayslipsBulk(
+  organizationId: number,
+  year: number,
+  month: number,
+  paymentDate?: string,
+): Promise<BulkEmailPayslipsResult> {
+  const res = await request<{
+    sent: number;
+    skipped: Array<{ workerId: number; name: string; reason: string }>;
+    failed: Array<{ workerId: number; name: string; reason: string }>;
+    totalProcessed: number;
+  }>(`/api/payroll/email-payslips-bulk`, {
+    method: "POST",
+    body: JSON.stringify({ organizationId, year, month, paymentDate }),
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+  return { ok: true, ...res.data };
 }
 
 // Pojedinačni platni listić za jednog radnika (po payrollId)

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import InvoiceForm from "src/sections/fakture/InvoiceForm";
+import FaktureEdu from "src/sections/fakture/FaktureEdu";
 
 const TITLE = "Nova faktura ili predračun — kreiraj online | Porezni Kalkulator BiH";
 const DESC =
@@ -49,8 +50,11 @@ export const metadata: Metadata = {
 
 export default function NovaFakturaPage() {
   return (
-    <Suspense>
-      <InvoiceForm />
-    </Suspense>
+    <>
+      <Suspense>
+        <InvoiceForm />
+      </Suspense>
+      <FaktureEdu />
+    </>
   );
 }

@@ -30,7 +30,6 @@ import OrgFillSelect, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
-import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useRole } from "src/hooks/useRole";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
@@ -103,43 +102,22 @@ const OSNOV_OSIGURANJA = [
 //
 // Sam PDF export ne ide preko backenda pa ne treba dodatni gate.
 export default function Js3100Form() {
-  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
-
-  if (isLoading) return null;
-  if (!hasAccessToTier("PRO")) return <UpgradeGate />;
   return <Js3100App />;
-}
-
-function UpgradeGate() {
-  return (
-    <PreviewRegisterGate
-      pageLabel="Obrazac JS3100"
-      pageTitle={
-        <>
-          Prijava / Odjava <em>radnika</em>
-        </>
-      }
-      pageSubtitle="Jedinstveni sistem registracije, kontrole i naplate doprinosa — JS3100."
-      featureName="JS3100 obrasca i obračuna plata"
-      previewDesc="unositi podatke, dodavati radnike i vidjeti kompletan obračun"
-      proUnlocks="Preuzimanje PDF-a i uplatnica"
-    />
-  );
 }
 
 function Js3100App() {
   const formRef = useRef<HTMLFormElement | null>(null);
   const { findByName: findCity } = useCityLookup();
   const searchParams = useSearchParams();
-  const { hasRole } = useRole();
+  const { role, hasRole } = useRole();
+  const isLoggedIn = !!role;
   const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
 
-  const { lastOrgId, setLastOrgId } = useLastOrg();
+  const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
 
-  const initialOrgId = (() => {
+  const urlOrgInit = (() => {
     const v = searchParams.get("org");
-    const fromUrl = v ? Number(v) || null : null;
-    return fromUrl ?? lastOrgId ?? null;
+    return v ? Number(v) || null : null;
   })();
   const initialWorkerId = (() => {
     const v = searchParams.get("worker");
@@ -152,9 +130,12 @@ function Js3100App() {
   })();
 
   /* ── Sidebar state ── */
+  // orgId se hidrira u 2 faze: URL → odmah, inače čekamo localStorage hidraciju.
+  // Vidi AktivniRadnici / ObracunPlata za isti pattern.
   const [sidebarOrgId, setSidebarOrgIdInternal] = useState<number | null>(
-    initialOrgId,
+    urlOrgInit,
   );
+  const [hydratedOrg, setHydratedOrg] = useState<boolean>(urlOrgInit != null);
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(
     initialWorkerId,
   );
@@ -168,6 +149,14 @@ function Js3100App() {
     },
     [setLastOrgId],
   );
+
+  // Faza 2 hidracije: usvoji lastOrgId čim localStorage hidrira.
+  useEffect(() => {
+    if (hydratedOrg) return;
+    if (!lastOrgLoaded) return;
+    if (lastOrgId != null) setSidebarOrgIdInternal(lastOrgId);
+    setHydratedOrg(true);
+  }, [hydratedOrg, lastOrgLoaded, lastOrgId]);
 
   /* ── Vrsta prijave ── */
   const [vrsta, setVrsta] = useState<Js3100Vrsta>(initialVrsta);
@@ -229,14 +218,14 @@ function Js3100App() {
   const orgQuery = useQuery({
     queryKey: ["organization", sidebarOrgId],
     queryFn: () => unwrap(getOrganization(sidebarOrgId!)),
-    enabled: !!sidebarOrgId,
+    enabled: isLoggedIn && !!sidebarOrgId,
   });
 
   /* ── Deep-link: auto-popuna radnika iz URL parametra ── */
   const workersQuery = useQuery({
     queryKey: ["workers", sidebarOrgId],
     queryFn: () => unwrap(getWorkers(sidebarOrgId!)),
-    enabled: !!sidebarOrgId && !!initialWorkerId,
+    enabled: isLoggedIn && !!sidebarOrgId && !!initialWorkerId,
   });
   const deepLinkAppliedRef = useRef(false);
   useEffect(() => {

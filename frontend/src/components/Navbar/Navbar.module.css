@@ -365,11 +365,151 @@
   color: var(--sage);
 }
 
+/* ── Hamburger (mobile only) ── */
+.hamburger {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  cursor: pointer;
+  color: var(--ink);
+  align-items: center;
+  justify-content: center;
+}
+
+.hamburger:hover {
+  background: var(--sage-pale);
+}
+
+/* ── Mobile drawer ── */
+.mobileBackdrop {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 99;
+  animation: backdropFade 0.15s ease;
+}
+
+@keyframes backdropFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobileDrawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(360px, 88vw);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  background: var(--paper);
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 1.25rem 1rem 2rem;
+  box-shadow: -4px 4px 20px rgba(0, 0, 0, 0.08);
+  animation: drawerSlide 0.2s ease;
+}
+
+@keyframes drawerSlide {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.mobileGroup {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobileGroup:last-child {
+  border-bottom: none;
+}
+
+.mobileGroupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sage);
+  padding: 0 0.25rem 0.5rem;
+}
+
+.mobileList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobileItem {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 15px;
+  transition: background 0.12s;
+}
+
+.mobileItem:hover,
+.mobileItem:active {
+  background: var(--sage-pale);
+  color: var(--sage);
+}
+
 @media (max-width: 640px) {
   .nav {
     padding: 0 1rem;
   }
   .links {
     display: none;
+  }
+  .hamburger {
+    display: inline-flex;
+  }
+  /* Skupi actions područje: smanji gap-ove i ukloni tekst iz pill-a/chip-a
+     da bi "Odjavi se" dugme stalo na ekran. Ikonice i avatar ostaju vidljivi
+     pa user ne gubi navigaciju. */
+  .actions {
+    gap: 0.4rem;
+  }
+  /* Organizacije link — samo ikonica, bez teksta. */
+  .orgsLink {
+    padding: 6px 9px;
+    font-size: 0;
+    gap: 0;
+  }
+  .orgsLink svg {
+    width: 16px;
+    height: 16px;
+  }
+  /* User chip — sakrij ime, ostavi avatar. */
+  .userName {
+    display: none;
+  }
+  .userChip {
+    padding: 4px;
+  }
+  /* Odjavi se i sl. — manje paddinga. */
+  .btnGhost,
+  .btnPrimary {
+    padding: 7px 11px;
+    font-size: 13px;
+  }
+  /* "Dodaj djelatnost" CTA — sakrij tekst, ostavi + ikonicu da ne tjera
+     ostale dugmiće sa ekrana. */
+  .addOrgHint {
+    padding: 6px 10px;
+    font-size: 0;
+    gap: 0;
+  }
+  .addOrgHint .addOrgIcon {
+    width: 16px;
+    height: 16px;
+    font-size: 13px;
   }
 }

@@ -14,6 +14,7 @@ import { KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
 import { iznosUSlova } from "./iznosSlovima";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
+import { useRole } from "src/hooks/useRole";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import { fillUodDocx, type UodTemplateData } from "./fillUodDocx";
 import { fillUodPdf } from "./fillUodPdf";
@@ -23,7 +24,6 @@ import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
-import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useNotice } from "src/components/Notice/Notice";
 
 type Mode = "neto" | "bruto";
@@ -126,34 +126,13 @@ const formatAmountForInput = (s: string): string => {
 // Sam DOCX/PDF se generišu lokalno; Save-to-profile zove backend koji dodatno
 // gating-uje po owner-tier-u kad ima organizationId.
 export default function UgovorODjelu() {
-  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
-  if (isLoading) return null;
-  if (!hasAccessToTier("BUSINESS")) {
-    return <UgovorODjeluGate />;
-  }
   return <UgovorODjeluApp />;
-}
-
-function UgovorODjeluGate() {
-  return (
-    <PreviewRegisterGate
-      pageLabel="Ugovori"
-      pageTitle={
-        <>
-          Ugovor o djelu — kalkulator i <em>predložak</em>
-        </>
-      }
-      pageSubtitle="Kalkulator NETO↔BRUTO sa porezima i doprinosima, predložak ugovora i 6 uplatnica spremnih za banku."
-      featureName="ugovora o djelu"
-      previewDesc="izračunati neto/bruto, vidjeti obračun poreza i doprinosa, popuniti podatke izvršioca i naručioca"
-      proUnlocks="Preuzimanje predloška ugovora i 6 uplatnica"
-      tier="BUSINESS"
-    />
-  );
 }
 
 function UgovorODjeluApp() {
   const { hasAccessToTier } = useMaxAccessibleTier();
+  const { role } = useRole();
+  const isLoggedIn = !!role;
   const canGenerate = hasAccessToTier("BUSINESS");
   const { findByName: findCity } = useCityLookup();
   const { notify } = useNotice();

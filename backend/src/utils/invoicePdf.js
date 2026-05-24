@@ -285,14 +285,17 @@ async function generateInvoicePdf(invoice) {
   hLine(ML, MR, y + 10, 0.4, grey);
 
   // 8 kolona: RB | Naziv | JM | Količina | Cijena | Rabat % | PDV % | Bruto bez PDV
+  // Količina je right-aligned na COL_KOL — kad je iznos 100+ (npr. "1.000,000"),
+  // tekst se proteže lijevo i ranije je clippao u J/M. Gap JM→KOL je sada 70px
+  // (bilo 45), što prihvata i 6-cifrene količine.
   const COL_RB = ML + 4;
   const COL_NAZIV = ML + 24;
   const COL_JM = ML + 250;
-  const COL_KOL = ML + 295;     // right-aligned
-  const COL_CIJ = ML + 360;     // right-aligned
-  const COL_RAB = ML + 410;     // right-aligned (%)
-  const COL_PDV = ML + 460;     // right-aligned (%)
-  const COL_BRUTO = MR - 4;     // right-aligned
+  const COL_KOL = ML + 320;     // right-aligned (gap od JM = 70px)
+  const COL_CIJ = ML + 380;     // right-aligned (gap 60)
+  const COL_RAB = ML + 425;     // right-aligned (%)
+  const COL_PDV = ML + 470;     // right-aligned (%)
+  const COL_BRUTO = MR - 4;     // right-aligned (gap od PDV = 85)
 
   drawText("R/B", COL_RB, y, { size: 8, bold: true });
   drawText("NAZIV ROBE - USLUGE", COL_NAZIV, y, { size: 8, bold: true });

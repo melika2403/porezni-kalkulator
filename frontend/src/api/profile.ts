@@ -184,6 +184,8 @@ export type Organization = {
   logoUrl: string | null;
   taxRegime: TaxRegime | null;
   taxCategory: TaxCategory | null;
+  // Default tip plate za nove radnike u ovoj org-i. Vidi SalaryType u Worker.
+  defaultSalaryType: SalaryType;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   // Plan tier of the org's OWNER. In-org features (workers, members,
@@ -207,6 +209,7 @@ export type OrgPayload = {
   bankAccount?: string;
   taxRegime?: TaxRegime | null;
   taxCategory?: TaxCategory | null;
+  defaultSalaryType?: SalaryType;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -322,6 +325,27 @@ export function removeMember(orgId: number, userId: number) {
 export type ContractType = "NEODREDJENO" | "ODREDJENO";
 export type EmploymentStatus = "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
 
+// Tip plate — određuje šta polje "salaryBruto"/"salaryNeto" predstavlja:
+//   BRUTO        — salaryBruto je osnovica iz ugovora; neto raste sa stažom
+//   NETO_UGOVOR  — salaryNeto je bazni ugovorni neto; stvarni neto raste sa stažom
+//   NETO_ISPLATA — salaryNeto je ciljni take-home; osnovica se prilagođava da matematika izađe
+// Default NETO_ISPLATA jer 90% klijenata u BiH plaća minimalac kao fiksan iznos.
+export type SalaryType = "BRUTO" | "NETO_UGOVOR" | "NETO_ISPLATA";
+
+export const SALARY_TYPE_LABELS: Record<SalaryType, string> = {
+  BRUTO: "Bruto osnovica",
+  NETO_UGOVOR: "Neto po ugovoru",
+  NETO_ISPLATA: "Cilj neto za isplatu",
+};
+
+export const SALARY_TYPE_DESCRIPTIONS: Record<SalaryType, string> = {
+  BRUTO: "Bruto plata iz ugovora; neto raste sa godinama staža.",
+  NETO_UGOVOR:
+    "Neto iz ugovora; radnik dobija povišicu za svaku godinu staža.",
+  NETO_ISPLATA:
+    "Radnik svaki mjesec prima isti iznos, bez obzira na godine staža.",
+};
+
 export type Worker = {
   id: number;
   organizationId: number;
@@ -343,6 +367,8 @@ export type Worker = {
   defaultPause: string | null;
   // Employment / ugovor o radu
   position: string | null;
+  // Tip plate određuje semantiku salaryBruto/salaryNeto. Vidi SalaryType.
+  salaryType: SalaryType;
   salaryBruto: number | null;
   salaryNeto: number | null;
   contractType: ContractType | null;
@@ -393,6 +419,7 @@ export type WorkerPayload = {
   defaultPause?: string | null;
   // Employment
   position?: string | null;
+  salaryType?: SalaryType;
   salaryBruto?: number | string | null;
   salaryNeto?: number | string | null;
   contractType?: ContractType | null;

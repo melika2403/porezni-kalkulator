@@ -107,6 +107,16 @@ const Organization = sequelize.define(
     // Kategorija djelatnosti — određuje osnovicu iz obrtniciFbih.js.
     // Vrijednosti zavise od režima (vidi obrtniciFbih.js).
     taxCategory: { type: DataTypes.STRING(50), allowNull: true },
+    // Default tip plate za nove radnike u ovoj org-i:
+    //   BRUTO          — salaryBruto fiksan, neto raste sa stažom (zakonski "čisti" model)
+    //   NETO_UGOVOR    — salaryNeto = bazni neto iz ugovora, stvarni neto raste sa stažom
+    //   NETO_ISPLATA   — salaryNeto = ciljani take-home, osnovica se prilagođava (90% klijenata na minimalcu)
+    // Default 'NETO_ISPLATA' jer back-compat sa postojećim ponašanjem.
+    defaultSalaryType: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "NETO_ISPLATA",
+    },
   },
   { tableName: "organizations", timestamps: true },
 );
@@ -142,6 +152,18 @@ const Worker = sequelize.define(
     defaultPause: { type: DataTypes.STRING(5), allowNull: true }, // pause hours, e.g. "1" or "0.5"
     // ── Employment / ugovor o radu ──
     position: { type: DataTypes.STRING(120), allowNull: true },
+    // Tip plate — određuje semantiku salaryBruto/salaryNeto polja:
+    //   BRUTO        — salaryBruto je osnovica iz ugovora, neto raste sa stažom
+    //   NETO_UGOVOR  — salaryNeto je bazni ugovorni neto (bez minulog rada),
+    //                  stvarni neto raste sa stažom
+    //   NETO_ISPLATA — salaryNeto je ciljni take-home (sa minulim radom),
+    //                  osnovica se prilagođava da matematika izađe
+    // Default 'NETO_ISPLATA' jer pokriva 90% slučajeva (radnici na minimalcu).
+    salaryType: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "NETO_ISPLATA",
+    },
     salaryBruto: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     salaryNeto: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     contractType: {

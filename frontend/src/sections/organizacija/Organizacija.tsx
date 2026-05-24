@@ -16,7 +16,10 @@ import {
   addMember,
   removeMember,
   updateMemberRole,
+  SALARY_TYPE_DESCRIPTIONS,
+  SALARY_TYPE_LABELS,
   type Organization,
+  type SalaryType,
   type Worker,
   type WorkerPayload,
   type OrgMember,
@@ -38,10 +41,12 @@ type WorkerForm = {
   bankAccount: string;
   address: string;
   city: string;
+  email: string;
   startDate: string;
   endDate: string;
   // Ugovor o radu
   position: string;
+  salaryType: SalaryType;
   salaryBruto: string;
   salaryNeto: string;
   contractType: "" | "NEODREDJENO" | "ODREDJENO";
@@ -71,9 +76,11 @@ const emptyForm = (): WorkerForm => ({
   bankAccount: "",
   address: "",
   city: "",
+  email: "",
   startDate: "",
   endDate: "",
   position: "",
+  salaryType: "NETO_ISPLATA",
   salaryBruto: "",
   salaryNeto: "",
   contractType: "",
@@ -104,9 +111,11 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     bankAccount: f.bankAccount.trim() || undefined,
     address: f.address.trim() || undefined,
     city: f.city.trim() || undefined,
+    email: f.email.trim() || undefined,
     startDate: f.startDate || null,
     endDate: f.endDate.trim() || null,
     position: f.position.trim() || null,
+    salaryType: f.salaryType,
     salaryBruto: f.salaryBruto.trim() ? Number(f.salaryBruto.replace(/\./g, "").replace(",", ".")) : null,
     salaryNeto: f.salaryNeto.trim() ? Number(f.salaryNeto.replace(/\./g, "").replace(",", ".")) : null,
     contractType: f.contractType === "" ? null : f.contractType,
@@ -170,9 +179,11 @@ function workerToForm(w: Worker): WorkerForm {
     bankAccount: w.bankAccount ?? "",
     address: w.address ?? "",
     city: w.city ?? "",
+    email: w.email ?? "",
     startDate: w.startDate ?? "",
     endDate: w.endDate ?? "",
     position: w.position ?? "",
+    salaryType: w.salaryType ?? "NETO_ISPLATA",
     salaryBruto: fmt(w.salaryBruto),
     salaryNeto: fmt(w.salaryNeto),
     contractType: w.contractType ?? "",
@@ -335,6 +346,28 @@ function WorkerFormFields({
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       onChange({ ...value, [k]: e.target.value });
 
+  // Live formatter dok user kuca KM iznos — dodaje tačke kao thousands sep.
+  // Primjeri: "1234" → "1.234"; "1234,5" → "1.234,5"; "1234567,89" → "1.234.567,89"
+  // Koristi se za salaryBruto i salaryNeto da bi se iznos formatirao odmah,
+  // a ne tek pri ponovnom otvaranju forme.
+  const formatMoneyLive = (input: string): string => {
+    if (!input || !input.trim()) return "";
+    const cleaned = input.replace(/\./g, "");
+    const parts = cleaned.split(",");
+    let intPart = parts[0].replace(/\D/g, "");
+    if (!intPart && parts.length > 1) intPart = "0";
+    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    if (parts.length > 1) {
+      const decPart = parts[1].replace(/\D/g, "").slice(0, 2);
+      return `${intPart},${decPart}`;
+    }
+    return intPart;
+  };
+  const setMoney =
+    (k: keyof WorkerForm) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      onChange({ ...value, [k]: formatMoneyLive(e.target.value) });
+
   const isVlasnik = value.role === "VLASNIK";
   // Obrt vlasnik ima poseban režim (Obrazac 2002, fiksna osnovica) — bruto/neto
   // i ostala ugovor-o-radu polja se ne primjenjuju. Za d.o.o. vlasnika treba
@@ -482,6 +515,24 @@ function WorkerFormFields({
             inputMode="numeric"
           />
         </div>
+        <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
+          <label className={styles.fieldLabel}>Email radnika</label>
+          <input
+            className={styles.input}
+            type="email"
+            value={value.email}
+            onChange={set("email")}
+            placeholder="ime.prezime@primjer.ba"
+            inputMode="email"
+          />
+          <p
+            className={styles.fieldHint}
+            style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}
+          >
+            Koristi se za slanje platnih listića radniku. Ako nije upisan,
+            platni listić se neće slati.
+          </p>
+        </div>
       </FormSection>
 
       {/* ── 3. JS3100 prijava / odjava ── */}
@@ -584,64 +635,91 @@ function WorkerFormFields({
               <option value="1">1h — nepuno (srazmjerno, 50%)</option>
             </select>
           </div>
+          {/* Tip plate — određuje šta iznos iz "Bruto"/"Neto" polja stvarno
+              znači u obračunu. Vidi SALARY_TYPE_DESCRIPTIONS za detalje. */}
           <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
-            <p
-              className={styles.fieldHint}
+            <label className={styles.fieldLabel}>Tip plate</label>
+            <div
               style={{
-                margin: "0 0 0.4rem",
-                fontSize: 12,
-                display: "flex",
-                alignItems: "center",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
                 gap: "0.5rem",
-                color: "var(--sage)",
               }}
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                width="14"
-                height="14"
-                aria-hidden="true"
-                style={{ flexShrink: 0 }}
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="16" x2="12" y2="12" />
-                <line x1="12" y1="8" x2="12.01" y2="8" />
-              </svg>
-              <span>
-                Unesi <strong>samo jedan</strong> od ova dva iznosa — drugi će
-                se automatski preračunati u obračunu plate.
-              </span>
-            </p>
+              {(["NETO_ISPLATA", "NETO_UGOVOR", "BRUTO"] as SalaryType[]).map(
+                (t) => {
+                  const active = value.salaryType === t;
+                  return (
+                    <label
+                      key={t}
+                      style={{
+                        display: "block",
+                        padding: "0.6rem 0.7rem",
+                        border: `1.5px solid ${active ? "#3a5c42" : "#d4cfc4"}`,
+                        background: active ? "#f0f5f1" : "white",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <input
+                          type="radio"
+                          name="salaryType"
+                          value={t}
+                          checked={active}
+                          onChange={() => onChange({ ...value, salaryType: t })}
+                        />
+                        <strong>{SALARY_TYPE_LABELS[t]}</strong>
+                      </span>
+                      <span style={{ display: "block", marginTop: "0.25rem", color: "#666", fontSize: "0.75rem" }}>
+                        {SALARY_TYPE_DESCRIPTIONS[t]}
+                      </span>
+                    </label>
+                  );
+                },
+              )}
+            </div>
           </div>
-          <div className={`${styles.field} ${styles.fieldHighlight}`}>
-            <label className={`${styles.fieldLabel} ${styles.fieldLabelHighlight}`}>
-              Bruto plata (KM)
-            </label>
-            <input
-              className={styles.input}
-              value={value.salaryBruto}
-              onChange={set("salaryBruto")}
-              placeholder="0,00"
-              inputMode="decimal"
-            />
-          </div>
-          <div className={`${styles.field} ${styles.fieldHighlight}`}>
-            <label className={`${styles.fieldLabel} ${styles.fieldLabelHighlight}`}>
-              Neto plata (KM)
-            </label>
-            <input
-              className={styles.input}
-              value={value.salaryNeto}
-              onChange={set("salaryNeto")}
-              placeholder="0,00"
-              inputMode="decimal"
-            />
-          </div>
+          {/* Pokazujemo samo polje koje odgovara izabranom tipu. Ako user
+              prebaci tip, polja se zamijene — ne postoji konflikt. */}
+          {value.salaryType === "BRUTO" ? (
+            <div className={`${styles.field} ${styles.fieldHighlight}`}>
+              <label className={`${styles.fieldLabel} ${styles.fieldLabelHighlight}`}>
+                Bruto osnovica (KM)
+              </label>
+              <input
+                className={styles.input}
+                value={value.salaryBruto}
+                onChange={setMoney("salaryBruto")}
+                placeholder="0,00"
+                inputMode="decimal"
+              />
+              <p className={styles.fieldHint} style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}>
+                Bruto iz ugovora; neto raste sa godinama staža.
+              </p>
+            </div>
+          ) : (
+            <div className={`${styles.field} ${styles.fieldHighlight}`}>
+              <label className={`${styles.fieldLabel} ${styles.fieldLabelHighlight}`}>
+                {value.salaryType === "NETO_UGOVOR"
+                  ? "Neto po ugovoru (KM)"
+                  : "Cilj neto za isplatu (KM)"}
+              </label>
+              <input
+                className={styles.input}
+                value={value.salaryNeto}
+                onChange={setMoney("salaryNeto")}
+                placeholder="0,00"
+                inputMode="decimal"
+              />
+              <p className={styles.fieldHint} style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}>
+                {value.salaryType === "NETO_UGOVOR"
+                  ? "Neto iz ugovora; radnik dobija povišicu za svaku godinu staža."
+                  : "Iznos koji radnik svaki mjesec dobija."}
+              </p>
+            </div>
+          )}
           <div className={styles.field}>
             <label className={styles.fieldLabel}>Probni rad (mjeseci, 0–6)</label>
             <select

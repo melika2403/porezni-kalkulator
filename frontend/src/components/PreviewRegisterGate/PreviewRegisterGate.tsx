@@ -72,19 +72,31 @@ export default function PreviewRegisterGate({
         <p className={styles.subtitle}>{pageSubtitle}</p>
       </div>
       <div className={styles.card}>
-        <div className={styles.icon}>👀</div>
+        <div className={styles.icon} aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </div>
         <h2 className={styles.title}>{cardTitle}</h2>
         <p className={styles.text}>
           {isPaidTier ? (
             <>
               Besplatna registracija otključava <strong>preview</strong>{" "}
-              {featureName} — možete {previewDesc}. <strong>{proUnlocks}</strong>{" "}
+              {featureName}. Možete {previewDesc}. <strong>{proUnlocks}</strong>{" "}
               dostupno je uz <strong>{tierLabel}</strong> pretplatu.
             </>
           ) : (
             <>
-              Besplatna registracija otključava puni pristup {featureName} —
-              možete {previewDesc}. <strong>Bez pretplate.</strong>
+              Besplatna registracija otključava puni pristup {featureName}.
+              Možete {previewDesc}. <strong>Bez pretplate.</strong>
             </>
           )}
         </p>

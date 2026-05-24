@@ -59,7 +59,7 @@ export default function AktivniRadnici() {
   const canSeeClients = hasAccessToTier("PRO");
 
   const searchParams = useSearchParams();
-  const { lastOrgId, setLastOrgId } = useLastOrg();
+  const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
 
   const urlOrg = (() => {
     const v = searchParams.get("org");
@@ -67,7 +67,14 @@ export default function AktivniRadnici() {
     return Number.isFinite(n) && n > 0 ? n : null;
   })();
 
-  const [orgId, setOrgId] = useState<number | null>(urlOrg ?? lastOrgId ?? null);
+  // orgId se hidrira u dvije faze:
+  //   1) Ako URL ima ?org=X → inicijaliziramo odmah.
+  //   2) Inače pričekamo da `useLastOrg` pročita localStorage (loaded=true),
+  //      pa usvojimo lastOrgId ili pokrenemo auto-select fallback.
+  // Bez ovog gatinga, auto-select bi pregazio upamćenu klijentsku org
+  // prvom vlastitom org-om (jer lastOrgId je null na prvom renderu).
+  const [orgId, setOrgId] = useState<number | null>(urlOrg);
+  const [hydrated, setHydrated] = useState<boolean>(urlOrg != null);
   const [filter, setFilter] = useState<Filter>("svi");
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
@@ -82,15 +89,24 @@ export default function AktivniRadnici() {
     enabled: isLoggedIn && canSeeClients,
   });
 
-  // Auto-select first available org (own first, then client) — samo ako nemamo
-  // ni URL ni zapamcen orgId.
-  if (orgId === null) {
-    if ((orgsQuery.data?.length ?? 0) > 0 && orgsQuery.data?.[0]) {
-      setOrgId(orgsQuery.data[0].id);
-    } else if ((clientOrgsQuery.data?.length ?? 0) > 0 && clientOrgsQuery.data?.[0]) {
-      setOrgId(clientOrgsQuery.data[0].id);
-    }
-  }
+  // Faza 2: usvoji lastOrgId čim localStorage hidrira (samo ako URL nije postavio).
+  useEffect(() => {
+    if (hydrated) return;
+    if (!lastOrgLoaded) return;
+    if (lastOrgId != null) setOrgId(lastOrgId);
+    setHydrated(true);
+  }, [hydrated, lastOrgLoaded, lastOrgId]);
+
+  // Auto-select first available org (own first, then client) — tek POSLIJE
+  // hidracije, da ne pregazimo upamćenu org dok je localStorage još null.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (orgId != null) return;
+    const own = orgsQuery.data ?? [];
+    const clients = clientOrgsQuery.data ?? [];
+    if (own.length > 0 && own[0]) setOrgId(own[0].id);
+    else if (clients.length > 0 && clients[0]) setOrgId(clients[0].id);
+  }, [hydrated, orgId, orgsQuery.data, clientOrgsQuery.data]);
 
   // Perzistira odabranu organizaciju u localStorage tako da JS3100, Obračun
   // plata i Ugovor o radu otvore istu organizaciju.
@@ -384,7 +400,7 @@ export default function AktivniRadnici() {
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
-                          Edit
+                          Uredi
                         </Link>
                       </div>
                     </td>

@@ -77,7 +77,8 @@ export default function WorkersSidebar({
   enableQuickAdd = false,
 }: Props) {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const { hasRole } = useRole();
+  const { role, hasRole } = useRole();
+  const isLoggedIn = !!role;
   // Dodavanje radnika zahtijeva Pro/Business (kao na sihterici).
   const canCreateWorker = hasRole("PRO", "BUSINESS", "ADMIN");
   // Pristup klijentskim organizacijama imaju i PRO i BUSINESS planovi.
@@ -85,22 +86,41 @@ export default function WorkersSidebar({
   const orgsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: () => unwrap(getOrganizations()),
+    enabled: isLoggedIn,
   });
   const clientOrgsQuery = useQuery({
     queryKey: ["clientOrganizations"],
     queryFn: () => unwrap(getClientOrganizations()),
-    enabled: canSeeClients,
+    enabled: isLoggedIn && canSeeClients,
   });
 
   const workersQuery = useQuery({
     queryKey: ["workers", selectedOrgId],
     queryFn: () => unwrap(getWorkers(selectedOrgId!)),
-    enabled: !!selectedOrgId,
+    enabled: isLoggedIn && !!selectedOrgId,
   });
 
   const workers = (workersQuery.data ?? []).filter((w) =>
     filter ? filter(w) : true,
   );
+
+  if (!isLoggedIn) {
+    return (
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarHeader}>Organizacija</div>
+        <div className={styles.hint}>
+          <p className={styles.hintText}>
+            Prijavite se da pristupite sačuvanim organizacijama i radnicima.
+            Forma desno funkcioniše i bez prijave — možete unijeti podatke
+            ručno i koristiti kalkulator.
+          </p>
+          <Link href="/registracija" className={styles.hintBtnPrimary}>
+            Registruj se besplatno →
+          </Link>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className={styles.sidebar}>
@@ -142,7 +162,7 @@ export default function WorkersSidebar({
         (clientOrgsQuery.data?.length ?? 0) === 0 && (
         <div className={styles.hint}>
           <p className={styles.hintText}>{noOrgsHint}</p>
-          <Link href="/profil" className={styles.hintLink}>
+          <Link href="/profil" className={styles.hintBtnPrimary}>
             Dodaj djelatnost →
           </Link>
         </div>

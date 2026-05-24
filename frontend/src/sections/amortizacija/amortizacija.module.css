@@ -587,9 +587,9 @@
 .thDatum { width: 152px; }
 .thDok  { width: 100px; }
 .thKm   { width: 114px; text-align: right; }
-.thVijek { width: 122px; }
-.thStopa { width: 98px; text-align: center; }
-.thMj   { width: 52px; text-align: center; }
+.thVijek { width: 76px; text-align: center; }
+.thStopa { width: 74px; text-align: center; }
+.thMj   { width: 44px; text-align: center; }
 .thAuto { background: var(--paper); }
 .thNap  { width: 100px; }
 .thDatumProdaje { width: 168px; }

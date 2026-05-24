@@ -16,14 +16,14 @@ export default function SifreTeaser() {
       <div className={styles.container}>
         <div className={styles.inner}>
           <div className={styles.text}>
-            <div className={styles.label}>Bonus — referenca</div>
+            <div className={styles.label}>Bonus: referenca</div>
             <h2 id="sifre-teaser-title" className={styles.h2}>
               Šifre djelatnosti FBiH
             </h2>
             <p className={styles.lead}>
               Otvarate obrt ili registrujete novu djelatnost? Pripremili smo kompletnu listu šifri
               djelatnosti za <strong>Federaciju BiH</strong> prema <strong>KD BiH 2010</strong>{" "}
-              (NACE Rev. 2) — sa <strong>detaljnim opisima</strong> šta svaki razred uključuje, a
+              (NACE Rev. 2), sa <strong>detaljnim opisima</strong> šta svaki razred uključuje, a
               šta izuzima.
             </p>
             <p className={styles.lead}>

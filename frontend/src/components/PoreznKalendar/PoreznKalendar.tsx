@@ -21,14 +21,14 @@ const MJESECNO: Item[] = [
     when: "do 10.",
     whenSub: "u mjesecu",
     title: "PDV prijava i uplata",
-    desc: "PDV prijava (UINO) za prethodni mjesec — predaja i uplata obaveze.",
+    desc: "PDV prijava (UINO) za prethodni mjesec: predaja i uplata obaveze.",
     tag: "uino",
   },
   {
     when: "do 10.",
     whenSub: "u mjesecu",
-    title: "Obrazac 2002 — vlasnici obrta",
-    desc: "Mjesečna prijava i uplata poreza i doprinosa za vlasnike obrta i samostalnih djelatnosti — za prethodni mjesec.",
+    title: "Obrazac 2002: vlasnici obrta",
+    desc: "Mjesečna prijava i uplata poreza i doprinosa za vlasnike obrta i samostalnih djelatnosti, za prethodni mjesec.",
     href: "/prijave-radnika?tab=obracun",
     tag: "fbih",
   },
@@ -36,22 +36,22 @@ const MJESECNO: Item[] = [
     when: "do 20.",
     whenSub: "u mjesecu",
     title: "e-KUF i e-KIF",
-    desc: "Knjige ulaznih i izlaznih faktura za PDV obveznike — dostavljaju se UINO za prethodni mjesec.",
+    desc: "Knjige ulaznih i izlaznih faktura za PDV obveznike, dostavljaju se UINO za prethodni mjesec.",
     tag: "uino",
   },
   {
     when: "do 30. / 31.",
     whenSub: "u mjesecu",
-    title: "Obrazac 2001 — plate radnika",
-    desc: "Mjesečna specifikacija isplata plata, doprinosa i poreza — uplata i predaja PU FBiH za prethodni mjesec.",
+    title: "Obrazac 2001: plate radnika",
+    desc: "Mjesečna specifikacija isplata plata, doprinosa i poreza, uplata i predaja PU FBiH za prethodni mjesec.",
     href: "/prijave-radnika?tab=obracun",
     tag: "fbih",
   },
   {
     when: "5 dana",
     whenSub: "od primitka",
-    title: "AMS-1035 — prihodi iz inostranstva",
-    desc: "Akontacija poreza po odbitku za fizička lica koja primaju prihode iz inostranstva — predaja u nadležnu ispostavu PU FBiH prema mjestu prebivališta.",
+    title: "AMS-1035: prihodi iz inostranstva",
+    desc: "Akontacija poreza po odbitku za fizička lica koja primaju prihode iz inostranstva. Predaje se u nadležnu ispostavu PU FBiH prema mjestu prebivališta.",
     href: "/ams",
     tag: "fbih",
   },
@@ -61,7 +61,7 @@ const JS3100: Item[] = [
   {
     when: "dan prije",
     whenSub: "početka rada",
-    title: "JS3100 — prijava radnika",
+    title: "JS3100: prijava radnika",
     desc: "Prijava osiguranika u Jedinstveni sistem registracije, najkasnije dan prije nego što radnik počne raditi.",
     href: "/prijave-radnika",
     tag: "poslodavac",
@@ -69,7 +69,7 @@ const JS3100: Item[] = [
   {
     when: "7 dana",
     whenSub: "od prestanka",
-    title: "JS3100 — odjava radnika",
+    title: "JS3100: odjava radnika",
     desc: "Odjava osiguranika u roku od 7 dana od dana prestanka radnog odnosa.",
     href: "/prijave-radnika",
     tag: "poslodavac",
@@ -80,7 +80,7 @@ const GODISNJE: Item[] = [
   {
     when: "do 31.03.",
     whenSub: "tekuće godine",
-    title: "GPD-1051 — godišnja prijava poreza na dohodak",
+    title: "GPD-1051: godišnja prijava poreza na dohodak",
     desc: "Godišnja prijava poreza na dohodak za fizička lica za prethodnu kalendarsku godinu (npr. do 31.03.2026. za 2025. godinu).",
     href: "/gpd",
     tag: "fbih",
@@ -88,8 +88,8 @@ const GODISNJE: Item[] = [
   {
     when: "do 31.03.",
     whenSub: "tekuće godine",
-    title: "SPR-1053 — specifikacija dohotka",
-    desc: "Specifikacija prihoda iz samostalne djelatnosti za prethodnu godinu — predaje se uz GPD-1051 (npr. do 31.03.2026. za 2025. godinu).",
+    title: "SPR-1053: specifikacija dohotka",
+    desc: "Specifikacija prihoda iz samostalne djelatnosti za prethodnu godinu, predaje se uz GPD-1051 (npr. do 31.03.2026. za 2025. godinu).",
     href: "/spr",
     tag: "fbih",
   },
@@ -131,12 +131,12 @@ export default function PoreznKalendar() {
     >
       <div className={styles.container}>
         <div className={styles.head}>
-          <div className={styles.label}>Reference — rokovi obaveza</div>
+          <div className={styles.label}>Reference: rokovi obaveza</div>
           <h2 id="porezni-kalendar-title" className={styles.h2}>
             Porezni <em>kalendar</em> FBiH
           </h2>
           <p className={styles.lead}>
-            Kada šta predati i uplatiti — pregled najvažnijih mjesečnih, kvartalnih
+            Kada šta predati i uplatiti. Pregled najvažnijih mjesečnih, kvartalnih
             i godišnjih obaveza za obrte, samostalne djelatnosti i poslodavce
             u Federaciji BiH.
           </p>

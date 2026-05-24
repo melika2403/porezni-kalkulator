@@ -6,12 +6,14 @@ const BLACK = rgb(0, 0, 0);
 
 const PAGE_W = 595;
 const PAGE_H = 842;
-const MARGIN = 56;
+// Margin i line-gap su smanjeni dovoljno da odluka uvijek stane na 1 stranicu,
+// a da i dalje izgleda formalno (font ostaje isti).
+const MARGIN = 45;
 
 const FS_TITLE = 14;
 const FS_BODY = 11;
 const FS_HEADING = 12;
-const LINE_GAP = 1.45;
+const LINE_GAP = 1.32;
 
 export async function fillOtkazPdf(data: OtkazTemplateData): Promise<Uint8Array> {
   const [regularBytes, boldBytes] = await Promise.all([
@@ -90,63 +92,63 @@ export async function fillOtkazPdf(data: OtkazTemplateData): Promise<Uint8Array>
   };
 
   const writeHeading = (text: string) => {
-    y -= 4;
-    writeBlock(text, { font: fontBold, size: FS_HEADING, align: "center", gapAfter: 4 });
+    y -= 2;
+    writeBlock(text, { font: fontBold, size: FS_HEADING, align: "center", gapAfter: 2 });
   };
 
   // ─── Uvod ───
   writeBlock(
     `Na osnovu ${data.pravna_osnova} Zakona o radu Federacije Bosne i Hercegovine („Službene novine FBiH“, br. 26/16, 89/18, 44/22 i 39/24),`,
-    { gapAfter: 8 },
+    { gapAfter: 6 },
   );
   // Poslodavac blok
   const yBlock = y;
   writeBlock(`Poslodavac: ${data.naziv_firme}`, { font: fontBold, gapAfter: 0 });
   writeBlock(`Adresa: ${data.adresa_poslodavca}`, { gapAfter: 0 });
   writeBlock(`JIB: ${data.jib_poslodavca}`, { gapAfter: 0 });
-  writeBlock(`Zastupa: direktor ${data.ime_poslodavca}`, { gapAfter: 6 });
+  writeBlock(`Zastupa: direktor ${data.ime_poslodavca}`, { gapAfter: 4 });
   void yBlock;
-  writeBlock(`dana ${data.datum_odluke} donosi sljedeću:`, { gapAfter: 14 });
+  writeBlock(`dana ${data.datum_odluke} donosi sljedeću:`, { gapAfter: 10 });
 
   // ─── Naslov ───
   // "ODLUKU" jer kontekst je "donosi sljedeću [ODLUKU]" (akuzativ).
-  writeBlock("ODLUKU", { font: fontBold, size: FS_TITLE, align: "center", gapAfter: 2 });
-  writeBlock(data.naslov2, { font: fontBold, align: "center", gapAfter: 16 });
+  writeBlock("ODLUKU", { font: fontBold, size: FS_TITLE, align: "center", gapAfter: 0 });
+  writeBlock(data.naslov2, { font: fontBold, align: "center", gapAfter: 10 });
 
   // ─── Članovi ───
   writeHeading("Član 1.");
   writeBlock(
     `Ugovor o radu broj ${data.broj_ugovora}, zaključen dana ${data.datum_ugovora} između Poslodavca ${data.naziv_firme} i Radnika:`,
-    { gapAfter: 4 },
+    { gapAfter: 2 },
   );
   writeBlock(`Ime i prezime: ${data.ime_radnika}`, { font: fontBold, gapAfter: 0 });
   writeBlock(`JMBG: ${data.jmbg_radnika}`, { gapAfter: 0 });
-  writeBlock(`Adresa: ${data.adresa_radnika}`, { gapAfter: 4 });
-  writeBlock(`${data.nacin_prestanka}.`, { gapAfter: 8 });
+  writeBlock(`Adresa: ${data.adresa_radnika}`, { gapAfter: 2 });
+  writeBlock(`${data.nacin_prestanka}.`, { gapAfter: 6 });
 
   writeHeading("Član 2.");
   writeBlock(
     `Radni odnos prestaje dana ${data.datum_prestanka} Razlog prestanka radnog odnosa je: ${data.razlog_otkaza}.`,
-    { gapAfter: 8 },
+    { gapAfter: 6 },
   );
 
   writeHeading("Član 3.");
   writeBlock(
     "Radniku će biti isplaćena sva pripadajuća prava iz radnog odnosa, uključujući plaću, poreze i doprinose, u skladu sa Zakonom o radu i poreznim propisima Federacije Bosne i Hercegovine.",
-    { gapAfter: 8 },
+    { gapAfter: 6 },
   );
 
   writeHeading("Član 4.");
-  writeBlock("Ova odluka stupa na snagu danom donošenja.", { gapAfter: 20 });
+  writeBlock("Ova odluka stupa na snagu danom donošenja.", { gapAfter: 12 });
 
   // ─── Dostavljeno ───
   writeBlock("Dostavljeno:", { font: fontBold, gapAfter: 2 });
   writeBlock("1. Radniku", { gapAfter: 0 });
   writeBlock("2. Nadležnoj službi za zapošljavanje", { gapAfter: 0 });
-  writeBlock("3. Arhiva", { gapAfter: 30 });
+  writeBlock("3. Arhiva", { gapAfter: 22 });
 
   // ─── Potpisi ───
-  ensureSpace(70);
+  ensureSpace(60);
   const colW = (PAGE_W - 2 * MARGIN) / 2;
   const yLabel = y;
   page.drawText("Za Poslodavca", {
@@ -163,7 +165,9 @@ export async function fillOtkazPdf(data: OtkazTemplateData): Promise<Uint8Array>
     font: fontBold,
     color: BLACK,
   });
-  y = yLabel - FS_BODY * LINE_GAP - 24;
+  // Razmak label → linija mora dati prostor za stvarni rukopisni potpis
+  // (otprilike 30 pt = 1 cm vertikalno).
+  y = yLabel - FS_BODY * LINE_GAP - 30;
 
   const lineY = y;
   page.drawLine({
@@ -179,7 +183,7 @@ export async function fillOtkazPdf(data: OtkazTemplateData): Promise<Uint8Array>
     color: BLACK,
   });
 
-  y = lineY - FS_BODY - 4;
+  y = lineY - FS_BODY - 2;
   page.drawText(data.ime_poslodavca || "", {
     x: MARGIN,
     y,
@@ -206,7 +210,7 @@ export async function fillOtkazPdf(data: OtkazTemplateData): Promise<Uint8Array>
     });
   }
 
-  y -= 30;
+  y -= 18;
   ensureSpace(20);
   writeBlock(`Datum: ${data.datum_odluke}`, { align: "right" });
 

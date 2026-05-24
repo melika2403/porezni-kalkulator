@@ -14,7 +14,6 @@ import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
-import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import {
   getOrganization,
   getWorkers,
@@ -110,34 +109,15 @@ const IconForm = (
 );
 
 export default function UgovorORadu() {
-  const { role, isLoading } = useRole();
-  if (isLoading) {
-    return <main className={styles.page} />;
-  }
-  if (role === null) {
-    return <UgovorORaduGate />;
-  }
   return <UgovorORaduApp />;
-}
-
-function UgovorORaduGate() {
-  return (
-    <PreviewRegisterGate
-      pageLabel="Ugovori"
-      pageTitle={<>Ugovor o radu i <em>otkaz</em></>}
-      pageSubtitle="Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Word i PDF format."
-      featureName="generatora ugovora o radu i otkaza"
-      previewDesc="popunjavati podatke o ugovoru, vidjeti preview ugovora i probnog rada"
-      proUnlocks="Preuzimanje Word i PDF dokumenata, automatski broj ugovora"
-      tier="BUSINESS"
-    />
-  );
 }
 
 function UgovorORaduApp() {
   // BUSINESS feature: dostupno ako vlastiti plan ili bilo koja moja org ima
   // BUSINESS-tier vlasnika.
   const { hasAccessToTier } = useMaxAccessibleTier();
+  const { role } = useRole();
+  const isLoggedIn = !!role;
   const canGenerate = hasAccessToTier("BUSINESS");
   const { findByName: findCity } = useCityLookup();
   const searchParams = useSearchParams();
@@ -195,7 +175,7 @@ function UgovorORaduApp() {
   const autoBrojQuery = useQuery({
     queryKey: ["contractCounter", sidebarOrgId, autoBrojYear],
     queryFn: () => unwrap(peekContractNumber(sidebarOrgId!, autoBrojYear)),
-    enabled: !!sidebarOrgId,
+    enabled: isLoggedIn && !!sidebarOrgId,
   });
   const autoBrojPreview = autoBrojQuery.data?.number ?? `?/${autoBrojYear}`;
 
@@ -249,7 +229,7 @@ function UgovorORaduApp() {
   const orgQuery = useQuery({
     queryKey: ["organization", sidebarOrgId],
     queryFn: () => unwrap(getOrganization(sidebarOrgId!)),
-    enabled: !!sidebarOrgId,
+    enabled: isLoggedIn && !!sidebarOrgId,
   });
 
   // Deep-link: kad URL ima ?worker=N, dovuci radnike za odabranu organizaciju
@@ -257,7 +237,7 @@ function UgovorORaduApp() {
   const workersQuery = useQuery({
     queryKey: ["workers", sidebarOrgId],
     queryFn: () => unwrap(getWorkers(sidebarOrgId!)),
-    enabled: !!sidebarOrgId && !!initialWorkerId,
+    enabled: isLoggedIn && !!sidebarOrgId && !!initialWorkerId,
   });
   const deepLinkAppliedRef = useRef(false);
   useEffect(() => {

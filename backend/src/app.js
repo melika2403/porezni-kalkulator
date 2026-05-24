@@ -319,6 +319,17 @@ async function ensureColumns() {
       column: "taxCategory",
       ddl: "ALTER TABLE organizations ADD COLUMN taxCategory VARCHAR(50) NULL",
     },
+    // Tip plate — per-worker + org-level default. Vidi Worker model za semantiku.
+    {
+      table: "workers",
+      column: "salaryType",
+      ddl: "ALTER TABLE workers ADD COLUMN salaryType VARCHAR(20) NOT NULL DEFAULT 'NETO_ISPLATA'",
+    },
+    {
+      table: "organizations",
+      column: "defaultSalaryType",
+      ddl: "ALTER TABLE organizations ADD COLUMN defaultSalaryType VARCHAR(20) NOT NULL DEFAULT 'NETO_ISPLATA'",
+    },
   ];
   for (const c of checks) {
     const [rows] = await sequelize.query(
@@ -330,6 +341,33 @@ async function ensureColumns() {
       console.log(`Adding column ${c.table}.${c.column}...`);
       await sequelize.query(c.ddl);
     }
+  }
+
+  // PLDI migracija: prevezivanje starih amortizacija formi sa clientId →
+  // organizationId. Stari model je vezao PLDI za PersonClient entitet; sada
+  // PLDI pripada direktno Organizaciji (preko clients.organizationId mapiranja).
+  // Ovo se izvršava jednom (where organizationId IS NULL AND clientId IS NOT NULL).
+  try {
+    const [migrationCheck] = await sequelize.query(
+      `SELECT COUNT(*) AS cnt FROM forms
+       WHERE type = 'PLDI' AND organizationId IS NULL AND clientId IS NOT NULL`,
+    );
+    const toMigrate = Number(migrationCheck?.[0]?.cnt || 0);
+    if (toMigrate > 0) {
+      console.log(`Migrating ${toMigrate} PLDI forms from clientId → organizationId...`);
+      await sequelize.query(
+        `UPDATE forms f
+         INNER JOIN clients c ON c.id = f.clientId
+         SET f.organizationId = c.organizationId
+         WHERE f.type = 'PLDI'
+           AND f.organizationId IS NULL
+           AND f.clientId IS NOT NULL
+           AND c.organizationId IS NOT NULL`,
+      );
+      console.log("PLDI migracija završena.");
+    }
+  } catch (e) {
+    console.warn("PLDI migracija nije uspjela:", e?.message || e);
   }
 
   // Konverzija ENUM → VARCHAR za organizations.taxRegime (rana verzija je

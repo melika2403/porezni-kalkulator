@@ -284,8 +284,10 @@ const OBRTNIK_TOTAL = OBRTNIK_PIO + OBRTNIK_ZDR + OBRTNIK_NEZAP; // 0.36
 
 // Računa snapshot doprinosa za vlasnika obrta. Osnovica je fiksna iz tabele
 // (obrtniciFbih.js) zavisno od režima oporezivanja i kategorije djelatnosti.
-function computeObrtnikSnapshot(osnovica) {
-  const o = Number(osnovica) || 0;
+// Pro-rate factor (0..1) se primjenjuje za mid-month prijavu/odjavu.
+function computeObrtnikSnapshot(osnovica, proRateFactor = 1) {
+  const factor = Math.max(0, Math.min(Number(proRateFactor) || 1, 1));
+  const o = (Number(osnovica) || 0) * factor;
   if (o <= 0) {
     return {
       gross: 0,
@@ -328,8 +330,11 @@ function computeObrtnikSnapshot(osnovica) {
   const nezap = +(o * OBRTNIK_NEZAP).toFixed(2);
   const total = +(pio + zdr + nezap).toFixed(2);
   return {
+    // gross = stvarna bruto osnovica za TAJ mjesec (sa pro-rate).
+    // grossBase = puna osnovica iz Sl. novina (bez pro-rate-a) — služi za
+    // audit/MIP-1023 da se vidi nominalna ugovorena osnovica.
     gross: o,
-    grossBase: o,
+    grossBase: +(Number(osnovica) || 0).toFixed(2),
     empPio: pio,
     empZdravstvo: zdr,
     empNezaposlenost: nezap,
@@ -467,19 +472,49 @@ function totalYearsOfService(worker, paymentDateStr) {
   return yearsOfService(worker?.prijavaDate || worker?.startDate, endStr);
 }
 
+// Maksimalno uvećanje plaće po osnovu minulog rada — 20% od osnovne plaće
+// (čl. 40 Kolektivnog ugovora FBiH). Cap se primjenjuje bez obzira na stopu
+// (0,4% ili 0,6%) i broj godina staža.
+const MINULI_RAD_CAP = 0.20;
+
+// Prosječan broj radnih dana u mjesecu × 8h = 174h (puni radni fond FBiH).
+// Koristi se za satnicu uvećanja: za PT radnika dijelimo bazu sa
+// (contractedHours × 21.75) umjesto 174 — inače bi satnica bila pogrešno
+// niža (npr. PT 4h sa bruto 515 KM dao bi satnicu 2,96 umjesto tačne 5,92).
+const WORK_DAYS_IN_MONTH_AVG = 21.75;
+
 // ── Izračun: sve vrijednosti iz inputa → Payroll snapshot polja ─────────────
 function computePayrollSnapshot(input) {
   // grossBase = osnovica bruto plate (user-entered, iz ugovora)
   // minuliRadRate = % godišnje, minuliRadYears = godine staža
-  // gross = efektivni bruto = osnovica + minuli rad + uvećanja
+  // proRateFactor = 0..1 za mid-month prijavu/odjavu (default 1)
+  // gross = efektivni bruto = (osnovica × factor) + minuli rad + uvećanja
   const grossBase = Number(input.grossBase) || Number(input.gross) || 0;
+  const proRateFactor = Math.max(
+    0,
+    Math.min(Number(input.proRateFactor) || 1, 1),
+  );
+  // Skalirana osnovica — to je STVARNA bruto baza za TAJ mjesec.
+  // Minuli rad i doprinosi se računaju na nju (radnik koji radi pola mjeseca
+  // dobija srazmjeran iznos plaće, čl. 76 ZoR FBiH).
+  const effectiveBase = +(grossBase * proRateFactor).toFixed(2);
+
   const minuliRadRate = Math.max(Number(input.minuliRadRate) || 0, 0);
   const minuliRadYears = Math.max(Number(input.minuliRadYears) || 0, 0);
-  const minuliRadAmount = +(grossBase * (minuliRadRate / 100) * minuliRadYears).toFixed(2);
+  // Cap na 20% — ne važi koliko god rate × years iznosi.
+  const minuliMultiplier = Math.min(
+    (minuliRadRate / 100) * minuliRadYears,
+    MINULI_RAD_CAP,
+  );
+  const minuliRadAmount = +(effectiveBase * minuliMultiplier).toFixed(2);
 
-  // Uvećanja: satnica × sati × (stopa/100) po kategoriji. Standardni mjesečni
-  // fond = 174h. Sati i stope su user-input (snapshot na Payroll).
-  const hourlyRate = grossBase > 0 ? grossBase / 174 : 0;
+  // Satnica za uvećanja: bazira se na PUNOJ osnovici po ugovoru (ne skalirana
+  // pro-rate-om i ne 174 fiksno). Tako PT 4h radnik dobija istu satnicu kao
+  // FT 8h radnik relativno svom ugovoru. Pro-rate i contracted hours se
+  // poništavaju jer i baza i radni sati skaliraju proporcionalno.
+  const contractedHours = Math.max(Math.min(Number(input.contractedHours) || 8, 8), 1);
+  const hourlyRate =
+    grossBase > 0 ? grossBase / (contractedHours * WORK_DAYS_IN_MONTH_AVG) : 0;
   const overtimeHours = Math.max(Number(input.overtimeHours) || 0, 0);
   const nightHours = Math.max(Number(input.nightHours) || 0, 0);
   const sundayHours = Math.max(Number(input.sundayHours) || 0, 0);
@@ -494,17 +529,16 @@ function computePayrollSnapshot(input) {
   const holidayAmount = +(holidayHours * hourlyRate * (holidayRate / 100)).toFixed(2);
   const uvecanjaTotal = +(overtimeAmount + nightAmount + sundayAmount + holidayAmount).toFixed(2);
 
-  const grossInput = +(grossBase + minuliRadAmount + uvecanjaTotal).toFixed(2);
+  const grossInput = +(effectiveBase + minuliRadAmount + uvecanjaTotal).toFixed(2);
 
   const coeff = Math.max(Number(input.taxCoefficient) || 0, 0);
   // Min. osnovica zavisi od ugovorenog radnog vremena i koeficijenta porezne
   // kartice (Zakon o doprinosima FBiH, čl. 7, izmjene 33/25 od 01.07.2025).
-  // Računamo flag samo informativno — doprinosi se UVIJEK obračunavaju na
-  // stvarnu bruto platu (verifikovano u Com_Soft payroll softveru). Razlika do
-  // min. osnovice (ako postoji) tretira se van obračuna radnika.
-  const contractedHours = Math.max(Math.min(Number(input.contractedHours) || 8, 8), 1);
+  // Kod mid-month prijave/odjave skaliramo min onim istim faktorom — radnik
+  // koji legitimno radi pola mjeseca ne treba upozorenje da je ispod pune min.
   const minInfo = computeMinContribBase(coeff, contractedHours);
-  const minBaseApplied = grossInput > 0 && grossInput < minInfo.minBase;
+  const scaledMinBase = +(minInfo.minBase * proRateFactor).toFixed(2);
+  const minBaseApplied = grossInput > 0 && grossInput < scaledMinBase;
   const deduction = deductionFromCoefficient(coeff);
 
   // Doprinosi se obračunavaju na stvarnu bruto platu (grossInput).
@@ -677,6 +711,7 @@ async function calculate(req, res) {
     mealAllowance,
     vacationBonus,
     travelExpense,
+    proRateFactor,
     notes,
   } = req.body ?? {};
 
@@ -727,14 +762,13 @@ async function calculate(req, res) {
     } catch (e) {
       return res.status(400).json({ ok: false, error: e?.message || "INVALID_TAX_SETUP" });
     }
-    // Pro-rate: ako frontend pošalje grossBase manji od fiksne osnovice
-    // (npr. vlasnik je prijavljen mid-month → pro-rated osnovica), koristi
-    // tu vrijednost. Inače pun mjesec.
-    const frontendOsnovica = Number(grossBase) || 0;
-    if (frontendOsnovica > 0 && frontendOsnovica < osnovica) {
-      osnovica = frontendOsnovica;
-    }
-    const snapshot = computeObrtnikSnapshot(osnovica);
+    // Pro-rate factor (0..1) za mid-month prijavu/odjavu — primjenjuje se
+    // unutar computeObrtnikSnapshot. Default 1 (pun mjesec).
+    const obrtnikFactor =
+      proRateFactor !== undefined && proRateFactor !== null && proRateFactor !== ""
+        ? Number(proRateFactor)
+        : 1;
+    const snapshot = computeObrtnikSnapshot(osnovica, obrtnikFactor);
     const payload = {
       organizationId,
       workerId,
@@ -813,10 +847,15 @@ async function calculate(req, res) {
   const effSundayHours = Number(pick(sundayHours, "sundayHours", 0)) || 0;
   const effHolidayHours = Number(pick(holidayHours, "holidayHours", 0)) || 0;
 
+  const effectiveProRateFactor =
+    proRateFactor !== undefined && proRateFactor !== null && proRateFactor !== ""
+      ? Number(proRateFactor)
+      : 1;
   const snapshot = computePayrollSnapshot({
     grossBase: effectiveGrossBase,
     minuliRadRate: effectiveMinuliRate,
     minuliRadYears: minuliYears,
+    proRateFactor: effectiveProRateFactor,
     overtimeHours: effOvertimeHours,
     nightHours: effNightHours,
     sundayHours: effSundayHours,
@@ -1607,11 +1646,17 @@ async function generateMonthlyPayslips(req, res) {
     if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
     // Filtriraj orphan payroll-e (radnik obrisan ali payroll ostao)
+    // i vlasnike obrta (oni idu u Obrazac 2002, ne u platni listić).
+    const isObrt = org.type === "BUSINESS";
     const existingWorkers = await Worker.findAll({
       where: { organizationId },
-      attributes: ["id"],
+      attributes: ["id", "role"],
     });
-    const validWorkerIds = new Set(existingWorkers.map((w) => w.id));
+    const validWorkerIds = new Set(
+      existingWorkers
+        .filter((w) => !(isObrt && w.role === "VLASNIK"))
+        .map((w) => w.id),
+    );
     const rawPayrolls = await Payroll.findAll({
       where: { organizationId, year, month },
       order: [["workerId", "ASC"]],
@@ -1683,6 +1728,15 @@ async function generateWorkerPayslip(req, res) {
     });
     if (!worker) return res.status(404).json({ ok: false, error: "Worker not found" });
 
+    // Vlasnik obrta nema platni listić — generiše se Obrazac 2002.
+    if (org.type === "BUSINESS" && worker.role === "VLASNIK") {
+      return res.status(400).json({
+        ok: false,
+        error: "VLASNIK_OBRT_NO_PAYSLIP",
+        message: "Vlasnik obrta nema platni listić — koristi Obrazac 2002.",
+      });
+    }
+
     const workerPlain = worker.toJSON ? worker.toJSON() : worker;
     if (workerPlain.jmbg) {
       try { workerPlain.jmbg = decryptJmbg(workerPlain.jmbg); }
@@ -1704,6 +1758,175 @@ async function generateWorkerPayslip(req, res) {
     return res.end(pdfBytes);
   } catch (e) {
     console.error("generateWorkerPayslip failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
+  }
+}
+
+// Helper: izgenerišu PDF bytes platnog listića za jedan payroll. Reuse iz
+// generateWorkerPayslip pa email endpoint nije duplicirao logiku.
+//
+// Vraća null ako ne postoji ili je vlasnik obrta (skip-language). Caller
+// može razlikovati skip vs error provjerom skipReason u rezultatu.
+async function buildPayslipPdf(payroll, paymentDate) {
+  const org = await Organization.findByPk(payroll.organizationId);
+  if (!org) return null;
+  const worker = await Worker.findOne({
+    where: { id: payroll.workerId, organizationId: payroll.organizationId },
+  });
+  if (!worker) return null;
+  // Vlasnik obrta nema platni listić — ide u Obrazac 2002.
+  if (org.type === "BUSINESS" && worker.role === "VLASNIK") {
+    return { skipReason: "VLASNIK_OBRT", org, worker };
+  }
+  const workerPlain = worker.toJSON ? worker.toJSON() : worker;
+  if (workerPlain.jmbg) {
+    try { workerPlain.jmbg = decryptJmbg(workerPlain.jmbg); }
+    catch { workerPlain.jmbg = ""; }
+  }
+  const pdf = await PDFDocument.create();
+  const fonts = await embedFonts(pdf);
+  addPayslipPage(pdf, payroll.toJSON(), org.toJSON(), workerPlain, paymentDate, fonts);
+  const pdfBytes = Buffer.from(await pdf.save());
+  return { pdfBytes, org, worker };
+}
+
+// ── POST /api/payroll/:id/email-payslip ─────────────────────────────────────
+// Pošalji platni listić jednom radniku na njegov email. Vraća { ok, sent_to }.
+// Greške: 404 worker not found, 400 worker nema email.
+async function emailWorkerPayslip(req, res) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ ok: false, error: "Invalid id" });
+    const payroll = await Payroll.findByPk(id);
+    if (!payroll) return res.status(404).json({ ok: false, error: "Payroll not found" });
+    const org = await assertOrgAccess(payroll.organizationId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+    const paymentDateRaw = String(req.body?.paymentDate || "").slice(0, 10);
+    const paymentDate =
+      /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
+        ? paymentDateRaw
+        : new Date(payroll.year, payroll.month, 0).toISOString().slice(0, 10);
+
+    const built = await buildPayslipPdf(payroll, paymentDate);
+    if (!built) return res.status(404).json({ ok: false, error: "Worker not found" });
+    if (built.skipReason === "VLASNIK_OBRT") {
+      return res.status(400).json({
+        ok: false,
+        error: "VLASNIK_OBRT_NO_PAYSLIP",
+        message: "Vlasnik obrta nema platni listić — koristi Obrazac 2002.",
+      });
+    }
+    const { pdfBytes, worker } = built;
+
+    if (!worker.email || !worker.email.trim()) {
+      return res.status(400).json({
+        ok: false,
+        error: "WORKER_NO_EMAIL",
+        message: "Radnik nema upisan email. Dodajte email u profilu radnika.",
+      });
+    }
+
+    const { sendPayslipEmail } = require("../utils/mailer");
+    await sendPayslipEmail({
+      to: worker.email.trim(),
+      workerName: `${worker.firstName} ${worker.lastName}`.trim(),
+      organizationName: org.name,
+      year: payroll.year,
+      month: payroll.month,
+      netAmount: Number(payroll.net) || 0,
+      pdfBuffer: pdfBytes,
+    });
+
+    return res.json({ ok: true, data: { sentTo: worker.email.trim() } });
+  } catch (e) {
+    console.error("emailWorkerPayslip failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
+  }
+}
+
+// ── POST /api/payroll/email-payslips-bulk ───────────────────────────────────
+// Bulk pošalji platne listiće za sve radnike u (orgId, year, month) koji imaju
+// email. Radnici bez email-a se prijavljuju u skipped listi (ne fail-uje cijela
+// operacija). Vraća { sent: N, skipped: [{ workerId, name, reason }], failed: [...] }.
+async function emailMonthlyPayslipsBulk(req, res) {
+  try {
+    const organizationId = parseId(req.body?.organizationId);
+    const year = parseId(req.body?.year);
+    const month = parseId(req.body?.month);
+    if (!organizationId || !year || !month) {
+      return res.status(400).json({ ok: false, error: "Missing organizationId/year/month" });
+    }
+    const org = await assertOrgAccess(organizationId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+    const paymentDateRaw = String(req.body?.paymentDate || "").slice(0, 10);
+    const paymentDate =
+      /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
+        ? paymentDateRaw
+        : new Date(year, month, 0).toISOString().slice(0, 10);
+
+    const payrolls = await Payroll.findAll({
+      where: { organizationId, year, month, status: { [Op.in]: ["OBRACUNATO", "ISPLACENO"] } },
+    });
+    if (payrolls.length === 0) {
+      return res.status(400).json({ ok: false, error: "Nema obračunatih plata za taj mjesec" });
+    }
+
+    const { sendPayslipEmail } = require("../utils/mailer");
+    let sent = 0;
+    const skipped = [];
+    const failed = [];
+
+    for (const p of payrolls) {
+      try {
+        const built = await buildPayslipPdf(p, paymentDate);
+        if (!built) {
+          failed.push({ workerId: p.workerId, name: "?", reason: "Radnik ne postoji" });
+          continue;
+        }
+        // Vlasnik obrta — tihi skip, nije greška. On nema platni listić.
+        if (built.skipReason === "VLASNIK_OBRT") {
+          const wn = `${built.worker.firstName} ${built.worker.lastName}`.trim();
+          skipped.push({
+            workerId: built.worker.id,
+            name: wn,
+            reason: "Vlasnik obrta (nema platni listić)",
+          });
+          continue;
+        }
+        const { pdfBytes, worker } = built;
+        const name = `${worker.firstName} ${worker.lastName}`.trim();
+        if (!worker.email || !worker.email.trim()) {
+          skipped.push({ workerId: worker.id, name, reason: "Nema upisan email" });
+          continue;
+        }
+        await sendPayslipEmail({
+          to: worker.email.trim(),
+          workerName: name,
+          organizationName: org.name,
+          year: p.year,
+          month: p.month,
+          netAmount: Number(p.net) || 0,
+          pdfBuffer: pdfBytes,
+        });
+        sent += 1;
+      } catch (e) {
+        console.error(`bulk payslip email failed for payroll ${p.id}:`, e);
+        failed.push({
+          workerId: p.workerId,
+          name: "?",
+          reason: e?.message || "Greška slanja",
+        });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      data: { sent, skipped, failed, totalProcessed: payrolls.length },
+    });
+  } catch (e) {
+    console.error("emailMonthlyPayslipsBulk failed:", e);
     return res.status(500).json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
   }
 }
@@ -1765,6 +1988,8 @@ module.exports = {
   markMonthPaid,
   generateMonthlyPayslips,
   generateWorkerPayslip,
+  emailWorkerPayslip,
+  emailMonthlyPayslipsBulk,
   // exported for tests / future reuse
   computePayrollSnapshot,
   STANDARD_MONTHLY_MINUTES,
