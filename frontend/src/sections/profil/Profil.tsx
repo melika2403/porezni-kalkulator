@@ -36,6 +36,8 @@ import {
   createPersonClient,
   updatePersonClient,
   deletePersonClient,
+  SALARY_TYPE_DESCRIPTIONS,
+  SALARY_TYPE_LABELS,
   type Organization,
   type OrgPayload,
   type OrgOwnerPayload,
@@ -43,6 +45,7 @@ import {
   type FormType,
   type PersonClient,
   type PersonClientPayload,
+  type SalaryType,
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import OrganizationLogoUpload from "./OrganizationLogoUpload";
@@ -227,6 +230,7 @@ function ProfilTab({
       bankAccount: org.bankAccount ?? "",
       taxRegime: org.taxRegime ?? "",
       taxCategory: org.taxCategory ?? "",
+      defaultSalaryType: org.defaultSalaryType ?? "NETO_ISPLATA",
     });
     updateOwnOrgMutation.reset();
   };
@@ -966,6 +970,7 @@ type OrgFormState = {
   bankAccount: string;
   taxRegime: "" | "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
   taxCategory: string;
+  defaultSalaryType: SalaryType;
 };
 
 const emptyOrgForm: OrgFormState = {
@@ -982,6 +987,7 @@ const emptyOrgForm: OrgFormState = {
   bankAccount: "",
   taxRegime: "",
   taxCategory: "",
+  defaultSalaryType: "NETO_ISPLATA",
 };
 
 function orgFormToPayload(
@@ -1006,6 +1012,7 @@ function orgFormToPayload(
       f.type === "BUSINESS" && f.taxCategory
         ? (f.taxCategory as OrgPayload["taxCategory"])
         : null,
+    defaultSalaryType: f.defaultSalaryType,
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
 }
@@ -1323,6 +1330,40 @@ function OrgFormFields({
           )}
         </div>
       )}
+
+      {/* Default tip plate za nove radnike u ovoj org-i. Knjigovođa može imati
+          klijente sa različitim stilom (svi na minimalcu = NETO_ISPLATA;
+          drugi sa ugovornim bruto-platama = BRUTO). */}
+      <div className={styles.field} style={{ marginTop: "1rem" }}>
+        <label className={styles.fieldLabel}>
+          Default tip plate (za nove radnike)
+        </label>
+        <select
+          className={styles.input}
+          value={value.defaultSalaryType}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              defaultSalaryType: e.target.value as SalaryType,
+            })
+          }
+        >
+          <option value="NETO_ISPLATA">
+            {SALARY_TYPE_LABELS.NETO_ISPLATA}
+          </option>
+          <option value="NETO_UGOVOR">
+            {SALARY_TYPE_LABELS.NETO_UGOVOR}
+          </option>
+          <option value="BRUTO">{SALARY_TYPE_LABELS.BRUTO}</option>
+        </select>
+        <p
+          className={styles.fieldHint}
+          style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}
+        >
+          {SALARY_TYPE_DESCRIPTIONS[value.defaultSalaryType]} Postojeći
+          radnici ostaju onakvi kakvi su.
+        </p>
+      </div>
     </>
   );
 }
@@ -1630,6 +1671,7 @@ function DjelatnostTab({
       bankAccount: org.bankAccount ?? "",
       taxRegime: org.taxRegime ?? "",
       taxCategory: org.taxCategory ?? "",
+      defaultSalaryType: org.defaultSalaryType ?? "NETO_ISPLATA",
     });
     const ow = org.owner;
     setEditHasOwner(!!ow);

@@ -1,5 +1,9 @@
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+import {
+  applyDocxXmlTransform,
+  removeSignatureTableBorders,
+} from "./docxPostProcess";
 
 export interface UorTemplateData {
   tip_ugovora: string;
@@ -36,6 +40,12 @@ export async function fillUorDocx(data: UorTemplateData): Promise<Blob> {
   });
 
   doc.render(data);
+
+  // Skini border-e sa signature tabele — ostavi samo linije za potpis
+  // ("Za Poslodavca" / "Radnik"), bez vidljive kutije oko njih. Stranice
+  // se ne kompaktiraju jer ugovor o radu može legitimno imati više članova
+  // i preliti se preko više stranica.
+  applyDocxXmlTransform(doc.getZip(), removeSignatureTableBorders);
 
   return doc.getZip().generate({
     type: "blob",

@@ -154,6 +154,7 @@ export function nacinPrestanka(tip: TipPrestanka): string {
 export type RazlogOtkazaId =
   | "sporazumni"
   | "otkaz_poslodavac"
+  | "otkaz_poslodavac_tehnoloski_visak"
   | "otkaz_radnik"
   | "istek_ugovora"
   | "penzija_65_15"
@@ -196,6 +197,14 @@ export const RAZLOZI_OTKAZA: RazlogOtkazaDef[] = [
     id: "otkaz_poslodavac",
     label: "Otkaz od strane poslodavca (ekonomski/tehnički/organizacijski razlozi)",
     text: "otkaz od strane poslodavca iz ekonomskih, tehničkih ili organizacijskih razloga",
+    pravnaOsnova: "člana 96. stav (1) tačka a)",
+    clan: "Čl. 96 st. (1) tač. a)",
+    tipPrestanka: "od_poslodavca",
+  },
+  {
+    id: "otkaz_poslodavac_tehnoloski_visak",
+    label: "Otkaz od strane poslodavca (tehnološki višak)",
+    text: "otkaz od strane poslodavca jer je radnik postao tehnološki višak",
     pravnaOsnova: "člana 96. stav (1) tačka a)",
     clan: "Čl. 96 st. (1) tač. a)",
     tipPrestanka: "od_poslodavca",

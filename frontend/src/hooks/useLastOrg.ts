@@ -20,6 +20,10 @@ function readStored(): number | null {
 //     (jer browser ne emituje `storage` event u tabu koji je upisao value).
 export function useLastOrg(): {
   lastOrgId: number | null;
+  // `loaded` razlikuje "još nismo pročitali localStorage" od "pročitali smo,
+  // nema upamćene org". Bez ovoga consumer-i ne mogu znati treba li čekati
+  // hidraciju ili da pokrenu auto-select fallback (i tako pregaze upamćenu org).
+  loaded: boolean;
   setLastOrgId: (id: number | null) => void;
 } {
   // VAŽNO: initial state mora biti null i na serveru i na klijentu da bi
@@ -27,9 +31,11 @@ export function useLastOrg(): {
   // Stvarna vrijednost se učitava iz localStorage tek u useEffect-u poslije
   // hidracije.
   const [lastOrgId, setLastOrgIdState] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     setLastOrgIdState(readStored());
+    setLoaded(true);
 
     const onStorage = (e: StorageEvent) => {
       if (e.key !== STORAGE_KEY) return;
@@ -54,5 +60,5 @@ export function useLastOrg(): {
     setLastOrgIdState(id);
   }, []);
 
-  return { lastOrgId, setLastOrgId };
+  return { lastOrgId, loaded, setLastOrgId };
 }

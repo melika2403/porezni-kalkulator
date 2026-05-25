@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { Worker, OrganizationMember, ContractCounter, sequelize } = require("../models/index");
+const { Worker, Organization, OrganizationMember, ContractCounter, sequelize } = require("../models/index");
 const { encryptJmbg, decryptJmbg } = require("../utils/encryptJmbg");
 const { getOrgOwnerRole } = require("../services/tierService");
 
@@ -196,6 +196,18 @@ function pickEmploymentFields(body, target) {
     }
   }
 
+  const VALID_SALARY_TYPES = ["BRUTO", "NETO_UGOVOR", "NETO_ISPLATA"];
+  const { salaryType } = body ?? {};
+  if (salaryType !== undefined) {
+    if (salaryType === null || salaryType === "") {
+      target.salaryType = "NETO_ISPLATA";
+    } else if (VALID_SALARY_TYPES.includes(salaryType)) {
+      target.salaryType = salaryType;
+    } else {
+      return "Tip plate mora biti BRUTO, NETO_UGOVOR ili NETO_ISPLATA";
+    }
+  }
+
   const rateChecks = [
     ["overtimeRate", 25.0, "Stopa prekovremenog rada"],
     ["nightRate", 25.0, "Stopa noćnog rada"],
@@ -301,6 +313,14 @@ async function create(req, res) {
   };
   const empErr = pickEmploymentFields(req.body, payload);
   if (empErr) return res.status(400).json({ ok: false, error: empErr });
+
+  // Ako klijent ne pošalje salaryType, naslijedi default iz organizacije
+  // (knjigovođa može imati klijente sa različitim "stilom" — npr. svi radnici
+  // na minimalcu = NETO_ISPLATA; drugi klijent ima ugovorne bruto plate).
+  if (payload.salaryType == null) {
+    const org = await Organization.findByPk(orgId, { attributes: ["defaultSalaryType"] });
+    payload.salaryType = org?.defaultSalaryType || "NETO_ISPLATA";
+  }
 
   try {
     const worker = await Worker.create(payload);

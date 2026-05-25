@@ -314,6 +314,77 @@ export default function PdvKalkulator() {
           </li>
         </ul>
       </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Često postavljana <em>pitanja</em>
+        </h2>
+        <p>
+          <strong>Kolika je stopa PDV-a u BiH?</strong>
+        </p>
+        <p>
+          U Bosni i Hercegovini postoji jedinstvena stopa PDV-a od 17%
+          (jedna od najnižih u Evropi). Primjenjuje se na isporuke roba i
+          usluga u zemlji, uvoz i neke usluge ka inostranstvu. Izvoz je
+          oslobođen sa pravom odbitka (0% stopa).
+        </p>
+
+        <p>
+          <strong>Kako izbiti PDV iz cijene sa PDV-om?</strong>
+        </p>
+        <p>
+          Iz maloprodajne cijene (sa PDV-om) PDV se računa po formuli:
+          PDV = cijena × (17 / 117). Cijena bez PDV-a = cijena × (100 / 117).
+          Npr. iz 117 KM dobijete 17 KM PDV-a i 100 KM osnovice.
+        </p>
+
+        <p>
+          <strong>Kako dodati PDV na cijenu bez PDV-a?</strong>
+        </p>
+        <p>
+          Na osnovicu (cijenu bez PDV-a) jednostavno pomnožite sa 1,17.
+          Npr. 100 KM × 1,17 = 117 KM maloprodajna cijena. PDV iznos =
+          100 × 0,17 = 17 KM.
+        </p>
+
+        <p>
+          <strong>Kada postajem PDV obveznik u BiH?</strong>
+        </p>
+        <p>
+          Obveznik PDV-a postajete kada vam godišnji promet pređe 50.000 KM
+          (oporezivih isporuka). Tada se morate registrovati kod UINO i
+          dobiti PDV broj. Ispod ovog praga registracija je dobrovoljna.
+        </p>
+
+        <p>
+          <strong>Da li svi obrti moraju biti PDV obveznici?</strong>
+        </p>
+        <p>
+          Ne. Obrti koji imaju godišnji promet ispod 50.000 KM nisu obvezni
+          biti PDV obveznici. Mnogi se ipak registruju dobrovoljno jer to
+          omogućava odbitak ulaznog PDV-a (na nabavku robe, opreme, usluga).
+        </p>
+
+        <p>
+          <strong>Kada se podnosi PDV prijava?</strong>
+        </p>
+        <p>
+          PDV prijava se podnosi UINO mjesečno (ili tromjesečno za male
+          obveznike), do <strong>10. u mjesecu</strong> za prethodni mjesec.
+          Plaća se iznos razlike između izlaznog i ulaznog PDV-a. Ako je
+          ulazni veći od izlaznog, ostaje pretplaćeni iznos za prebijanje.
+        </p>
+
+        <p>
+          <strong>Koje su kazne za neispravan obračun PDV-a?</strong>
+        </p>
+        <p>
+          UINO može izreći novčanu kaznu za prekršaj u izradi i podnošenju
+          PDV prijave, neuplatu PDV-a u roku, ili izdavanje fakture bez
+          obaveznih elemenata. Kazne idu od nekoliko stotina do nekoliko
+          hiljada KM, plus kamatu na neuplaćeni iznos.
+        </p>
+      </section>
     </div>
   );
 }

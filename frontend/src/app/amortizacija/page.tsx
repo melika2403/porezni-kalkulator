@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Amortizacija from "../../sections/amortizacija/Amortizacija";
 
 const PAGE_URL = "https://poreznikalkulator.ba/amortizacija";
@@ -145,7 +146,9 @@ export default function AmortizacijaPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <Amortizacija />
+      <Suspense fallback={null}>
+        <Amortizacija />
+      </Suspense>
     </>
   );
 }

@@ -84,6 +84,21 @@ function validateOrgData(body, requireName = true) {
     }
   }
 
+  // Default tip plate za nove radnike — knjigovođa može imati klijente sa
+  // različitim "stilom" (npr. svi na minimalcu = NETO_ISPLATA, drugi sa
+  // ugovornim bruto-platama = BRUTO).
+  if (body.defaultSalaryType !== undefined) {
+    if (body.defaultSalaryType === null || body.defaultSalaryType === "") {
+      data.defaultSalaryType = "NETO_ISPLATA";
+    } else if (
+      !["BRUTO", "NETO_UGOVOR", "NETO_ISPLATA"].includes(body.defaultSalaryType)
+    ) {
+      return { ok: false, message: "Nepoznat tip plate" };
+    } else {
+      data.defaultSalaryType = body.defaultSalaryType;
+    }
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
   }

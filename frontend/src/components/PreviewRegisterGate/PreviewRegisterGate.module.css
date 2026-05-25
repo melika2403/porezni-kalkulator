@@ -52,8 +52,20 @@
 }
 
 .icon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--sage-pale);
+  color: var(--sage);
+  margin: 0 auto 1rem;
+}
+
+.icon svg {
+  width: 28px;
+  height: 28px;
 }
 
 .title {

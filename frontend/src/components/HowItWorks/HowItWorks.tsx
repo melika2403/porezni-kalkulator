@@ -18,7 +18,7 @@ const STEPS = [
   },
   {
     num: "03",
-    title: "Uz pretplatu vodite klijente",
+    title: "Vodite klijente (opciono)",
     desc: "Pretplatnici mogu dodavati svoje klijente (fizička i pravna lica) i raditi obrasce za njih. Idealno za knjigovođe i agencije.",
   },
   {

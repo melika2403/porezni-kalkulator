@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
@@ -89,6 +90,25 @@ export default function Organizacije() {
   const [search, setSearch] = useState("");
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
+  // Bulk obračun stanje: confirm modal + progress + per-org rezultat.
+  const [bulkCalcConfirmOpen, setBulkCalcConfirmOpen] = useState(false);
+  const [bulkCalcRunning, setBulkCalcRunning] = useState(false);
+  const [bulkCalcProgress, setBulkCalcProgress] = useState<{
+    current: number;
+    total: number;
+    name: string;
+  } | null>(null);
+  const [bulkCalcResults, setBulkCalcResults] = useState<
+    Array<{
+      organizationId: number;
+      organizationName: string;
+      calculated: number;
+      skipped: number;
+      skippedNames: string[];
+      warnings: string[];
+      error?: string;
+    }>
+  >([]);
 
   const statusQuery = useQuery({
     queryKey: ["organizationsPayrollStatus", year, month],
@@ -184,6 +204,25 @@ export default function Organizacije() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allOrgs.length, typeFilter, statusQuery.data]);
 
+  // ── Bulk obračun plata za sve org-e ────────────────────────────────────────
+  // VAŽNO: useMemo MORA biti prije early return-a inače React rules-of-hooks
+  // baca "change in order of hooks" grešku.
+  // Kandidati: sve org-e koje JOŠ nisu potpuno obračunate u trenutnom mjesecu.
+  // "obracunato" i "isplaceno" preskačemo (već gotovi). "no_workers" obrt
+  // org-e idu da bismo obračunali vlasnika (2002).
+  const bulkCalcCandidates = useMemo(() => {
+    return allOrgs.filter((o) => {
+      if (o.payrollStatus === "obracunato" || o.payrollStatus === "isplaceno") {
+        return false; // već je obračunato
+      }
+      if (o.payrollStatus === "no_workers" && o.type !== "BUSINESS") {
+        return false; // d.o.o. bez radnika — ništa za obračunati
+      }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOrgs.length, statusQuery.data]);
+
   if (!isLoggedIn) {
     return (
       <PreviewRegisterGate
@@ -237,6 +276,60 @@ export default function Organizacije() {
     } else {
       notify(
         `Označeno ${okCount} uspješno, ${failCount} neuspješno`,
+        "warning",
+      );
+    }
+  };
+
+  const runBulkCalc = async () => {
+    setBulkCalcRunning(true);
+    setBulkCalcResults([]);
+    // Lazy-load shared helper da ne uvećavamo bundle za korisnike bez ove akcije.
+    const { obracunOrgPayrolls } = await import(
+      "src/sections/prijave-radnika/obracunOrgPayrolls"
+    );
+    const total = bulkCalcCandidates.length;
+    const results: typeof bulkCalcResults = [];
+    for (let i = 0; i < total; i++) {
+      const o = bulkCalcCandidates[i];
+      setBulkCalcProgress({ current: i + 1, total, name: o.name });
+      try {
+        const r = await obracunOrgPayrolls({
+          org: o,
+          year,
+          month,
+        });
+        results.push(r);
+      } catch (e) {
+        results.push({
+          organizationId: o.id,
+          organizationName: o.name,
+          calculated: 0,
+          skipped: 0,
+          skippedNames: [],
+          warnings: [],
+          error: (e as Error)?.message ?? "Neočekivana greška",
+        });
+      }
+    }
+    setBulkCalcResults(results);
+    setBulkCalcRunning(false);
+    setBulkCalcProgress(null);
+    // Refresh status — pregled mora reflektovati nove payroll-e.
+    queryClient.invalidateQueries({
+      queryKey: ["organizationsPayrollStatus", year, month],
+    });
+    const totalCalculated = results.reduce((a, r) => a + r.calculated, 0);
+    const totalSkipped = results.reduce((a, r) => a + r.skipped, 0);
+    const totalErrors = results.filter((r) => r.error).length;
+    if (totalErrors === 0 && totalSkipped === 0) {
+      notify(
+        `Obračunato ${totalCalculated} radnik(a) u ${total} org.`,
+        "success",
+      );
+    } else {
+      notify(
+        `Obračunato ${totalCalculated}, preskočeno ${totalSkipped}, grešaka ${totalErrors}`,
         "warning",
       );
     }
@@ -459,42 +552,19 @@ export default function Organizacije() {
         </div>
       )}
 
-      {/* Bulk akcije */}
+      {/* Bulk akcije — glavna akcija lijevo (Obračunaj sve plate, ispunjen
+          sage style), utility akcije desno (Export, Označi isplaćene). */}
       {hasAnyOrg && (
         <div className={styles.bulkBar}>
           <button
             type="button"
-            className={styles.btnBulk}
-            onClick={exportCsv}
-            disabled={!hasAnyOrg}
-            title="Eksportuj listu u CSV (otvoriti u Excel/LibreOffice)"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              width="14"
-              height="14"
-              aria-hidden="true"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Export CSV
-          </button>
-          <button
-            type="button"
-            className={styles.btnBulk}
-            onClick={() => setBulkConfirmOpen(true)}
-            disabled={bulkMarkPaidCandidates.length === 0 || bulkRunning}
+            className={`${styles.btnBulk} ${styles.btnBulkPrimary}`}
+            onClick={() => setBulkCalcConfirmOpen(true)}
+            disabled={bulkCalcCandidates.length === 0 || bulkCalcRunning}
             title={
-              bulkMarkPaidCandidates.length === 0
-                ? "Nema obračunatih org. spremnih za označavanje"
-                : `Označi ${bulkMarkPaidCandidates.length} org. kao isplaćeno`
+              bulkCalcCandidates.length === 0
+                ? "Sve org. su već obračunate ili nemaju radnika"
+                : `Obračunaj plate za ${bulkCalcCandidates.length} org.`
             }
           >
             <svg
@@ -508,11 +578,64 @@ export default function Organizacije() {
               height="14"
               aria-hidden="true"
             >
-              <polyline points="20 6 9 17 4 12" />
+              <path d="M14 4h6v6" />
+              <path d="M10 14L20 4" />
+              <path d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" />
             </svg>
-            Označi sve obračunate kao isplaćene ({bulkMarkPaidCandidates.length}
-            )
+            Obračunaj sve plate ({bulkCalcCandidates.length})
           </button>
+          <div className={styles.bulkBarRight}>
+            <button
+              type="button"
+              className={styles.btnBulk}
+              onClick={exportCsv}
+              disabled={!hasAnyOrg}
+              title="Eksportuj listu u CSV (otvoriti u Excel/LibreOffice)"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Export CSV
+            </button>
+            <button
+              type="button"
+              className={styles.btnBulk}
+              onClick={() => setBulkConfirmOpen(true)}
+              disabled={bulkMarkPaidCandidates.length === 0 || bulkRunning}
+              title={
+                bulkMarkPaidCandidates.length === 0
+                  ? "Nema obračunatih org. spremnih za označavanje"
+                  : `Označi ${bulkMarkPaidCandidates.length} org. kao isplaćeno`
+              }
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Označi sve obračunate kao isplaćene ({bulkMarkPaidCandidates.length})
+            </button>
+          </div>
         </div>
       )}
 
@@ -589,6 +712,271 @@ export default function Organizacije() {
                 {bulkRunning ? "Označavam…" : "Da, označi sve"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk obračun confirm modal — sa pregledom kandidata + warnings */}
+      {bulkCalcConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 26, 18, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+          onClick={() => !bulkCalcRunning && setBulkCalcConfirmOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--white)",
+              borderRadius: 12,
+              padding: "1.5rem 1.75rem",
+              maxWidth: 580,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 16px 48px rgba(0, 0, 0, 0.18)",
+            }}
+          >
+            {/* Pre-run: pregled kandidata sa warnings ─────────────────────── */}
+            {!bulkCalcRunning && bulkCalcResults.length === 0 && (
+              <>
+                <h3 style={{ margin: "0 0 0.6rem", fontSize: 18 }}>
+                  Obračunaj sve org. za {MONTHS[month - 1]} {year}?
+                </h3>
+                <p style={{ margin: "0 0 0.8rem", color: "var(--mid)", fontSize: 14 }}>
+                  Obračunat će se{" "}
+                  <strong>{bulkCalcCandidates.length} org.</strong> sekvencijalno.
+                  Za svaku org-u koristi se isti default kao "Obračunaj sve" iz
+                  modula plate (sihterica → standardni fond mjeseca, automatski
+                  pro-rate za mid-month radnike).
+                </p>
+                <div
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    maxHeight: 220,
+                    overflowY: "auto",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  {bulkCalcCandidates.map((o) => {
+                    // Warnings pri pregledu — koristimo iste signale kao u
+                    // postojećem status modelu.
+                    const noWorkers = o.workerCount === 0;
+                    const isObrt = o.type === "BUSINESS";
+                    let warning = "";
+                    if (noWorkers && isObrt) warning = "Samo vlasnik (2002)";
+                    else if (noWorkers) warning = "Nema radnika — preskočiće se";
+                    return (
+                      <div
+                        key={o.id}
+                        style={{
+                          padding: "0.45rem 0.7rem",
+                          borderBottom: "1px solid var(--border)",
+                          fontSize: 13,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "0.6rem",
+                        }}
+                      >
+                        <span>
+                          <strong>{o.name}</strong>{" "}
+                          <span style={{ color: "var(--mid)", fontSize: 12 }}>
+                            · {o.workerCount} radnik(a)
+                          </span>
+                        </span>
+                        {warning && (
+                          <span
+                            style={{
+                              color: "#92400e",
+                              fontSize: 12,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            ⚠ {warning}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.6rem",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setBulkCalcConfirmOpen(false)}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      border: "1px solid var(--border)",
+                      background: "var(--white)",
+                      color: "var(--ink)",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runBulkCalc}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      border: "1px solid var(--sage)",
+                      background: "var(--sage)",
+                      color: "#fff",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Pokreni obračun
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Running: progress feedback ─────────────────────────────────── */}
+            {bulkCalcRunning && (
+              <>
+                <h3 style={{ margin: "0 0 0.8rem", fontSize: 18 }}>
+                  Obračunavam… ({bulkCalcProgress?.current ?? 0} od{" "}
+                  {bulkCalcProgress?.total ?? 0})
+                </h3>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--mid)" }}>
+                  Trenutno: <strong>{bulkCalcProgress?.name ?? ""}</strong>
+                </p>
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    height: 8,
+                    background: "var(--paper)",
+                    borderRadius: 4,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.round(
+                        ((bulkCalcProgress?.current ?? 0) /
+                          Math.max(1, bulkCalcProgress?.total ?? 1)) *
+                          100,
+                      )}%`,
+                      height: "100%",
+                      background: "var(--sage)",
+                      transition: "width 0.25s",
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Done: per-org rezultat ─────────────────────────────────────── */}
+            {!bulkCalcRunning && bulkCalcResults.length > 0 && (
+              <>
+                <h3 style={{ margin: "0 0 0.8rem", fontSize: 18 }}>
+                  Obračun završen
+                </h3>
+                <div
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    maxHeight: 320,
+                    overflowY: "auto",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  {bulkCalcResults.map((r) => (
+                    <div
+                      key={r.organizationId}
+                      style={{
+                        padding: "0.6rem 0.8rem",
+                        borderBottom: "1px solid var(--border)",
+                        fontSize: 13,
+                      }}
+                    >
+                      <div style={{ fontWeight: 600 }}>
+                        {r.organizationName}
+                      </div>
+                      {r.error ? (
+                        <div style={{ color: "#b91c1c", marginTop: 2 }}>
+                          ❌ {r.error}
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 2, color: "var(--mid)" }}>
+                          ✓ Obračunato {r.calculated}
+                          {r.skipped > 0 && (
+                            <span style={{ color: "#92400e", marginLeft: 8 }}>
+                              · Preskočeno {r.skipped}
+                            </span>
+                          )}
+                          {r.warnings.length > 0 && (
+                            <div
+                              style={{
+                                marginTop: 2,
+                                fontSize: 12,
+                                color: "#92400e",
+                              }}
+                            >
+                              {r.warnings.map((w, i) => (
+                                <div key={i}>⚠ {w}</div>
+                              ))}
+                            </div>
+                          )}
+                          {r.skippedNames.length > 0 && (
+                            <div
+                              style={{
+                                marginTop: 2,
+                                fontSize: 11,
+                                color: "var(--mid)",
+                              }}
+                            >
+                              Preskočeni: {r.skippedNames.join(", ")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkCalcConfirmOpen(false);
+                      setBulkCalcResults([]);
+                    }}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      border: "1px solid var(--sage)",
+                      background: "var(--sage)",
+                      color: "#fff",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Zatvori
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -805,6 +1193,11 @@ function OrgsTable({
                       </svg>
                       Radnici
                     </Link>
+                    <ObrazciDropdown
+                      org={o}
+                      year={year}
+                      month={month}
+                    />
                     <Link
                       href={`/profil?tab=${editTab}&editOrg=${o.id}`}
                       className={styles.actionLink}
@@ -824,7 +1217,7 @@ function OrgsTable({
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                       </svg>
-                      Edit
+                      Uredi
                     </Link>
                   </div>
                 </td>
@@ -836,3 +1229,243 @@ function OrgsTable({
     </div>
   );
 }
+
+// ObrazciDropdown — jedan dropdown za 3 export-a:
+//   • PLDI-1043 → navigacija na /amortizacija (stateful editor, treba forma)
+//   • MIP-1023  → DIREKTAN XML download za odabrani mjesec
+//   • GIP-1022  → DIREKTAN XML download za odabranu godinu (fetch-uje 12 mj.)
+function ObrazciDropdown({
+  org,
+  year,
+  month,
+}: {
+  org: OrganizationWithPayrollStatus;
+  year: number;
+  month: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<"mip" | "gip" | null>(null);
+  // Menu se renderuje kroz portal u document.body sa position:fixed jer
+  // table row-ovi imaju vlastiti stacking context koji ignoriše z-index na
+  // descendant-ima. Bez ovoga je dropdown sječen redom ispod.
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const { notify } = useNotice();
+
+  // Pozicioniraj menu ispod dugmeta (right-aligned) kad se otvori.
+  // Recompute na scroll/resize tako da menu prati dugme.
+  useEffect(() => {
+    if (!open) return;
+    const recompute = () => {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    };
+    recompute();
+    window.addEventListener("scroll", recompute, true);
+    window.addEventListener("resize", recompute);
+    return () => {
+      window.removeEventListener("scroll", recompute, true);
+      window.removeEventListener("resize", recompute);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        !(target instanceof Element && target.closest("[data-obrazci-menu]"))
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const triggerDownload = (xml: string, filename: string) => {
+    const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  };
+
+  const handleMipDownload = async () => {
+    setOpen(false);
+    setBusy("mip");
+    try {
+      // Lazy-load builder + API klijente da ne uvećavamo bundle za korisnike
+      // koji ne koriste obrasce. Tek pri prvom kliku.
+      const [{ buildMip1023Xml }, { getWorkers }, { listPayrolls }] =
+        await Promise.all([
+          import("src/sections/prijave-radnika/mipXmlBuilder"),
+          import("src/api/profile"),
+          import("src/api/payroll"),
+        ]);
+      const [wRes, pRes] = await Promise.all([
+        getWorkers(org.id),
+        listPayrolls(org.id, year, month),
+      ]);
+      if (!wRes.ok) throw new Error(wRes.error || "Greška");
+      if (!pRes.ok) throw new Error(pRes.error || "Greška");
+      const result = buildMip1023Xml({
+        workers: wRes.data,
+        payrolls: pRes.data,
+        organization: org,
+        year,
+        month,
+      });
+      if (!result.ok) {
+        notify(`${org.name}: ${result.error}`, "error");
+        return;
+      }
+      triggerDownload(result.xml, result.filename);
+    } catch (e) {
+      notify(
+        `Greška pri generisanju MIP XML-a: ${(e as Error).message ?? e}`,
+        "error",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleGipDownload = async () => {
+    setOpen(false);
+    setBusy("gip");
+    try {
+      const { buildGip1022Xml } = await import(
+        "src/sections/prijave-radnika/gipXmlBuilder"
+      );
+      const result = await buildGip1022Xml({
+        orgId: org.id,
+        year,
+        organization: org,
+      });
+      if (!result.ok) {
+        notify(`${org.name}: ${result.error}`, "error");
+        return;
+      }
+      triggerDownload(result.xml, result.filename);
+    } catch (e) {
+      notify(
+        `Greška pri generisanju GIP XML-a: ${(e as Error).message ?? e}`,
+        "error",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={styles.actionLink}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={busy !== null}
+        title="Obrasci za eksport (PLDI, MIP, GIP)"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          width="14"
+          height="14"
+          aria-hidden="true"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        {busy === "mip" ? "MIP…" : busy === "gip" ? "GIP…" : "Obrasci"}
+        <svg
+          viewBox="0 0 12 12"
+          width="10"
+          height="10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          style={{ marginLeft: 2 }}
+          aria-hidden="true"
+        >
+          <path d="M3 4.5l3 3 3-3" />
+        </svg>
+      </button>
+      {open && menuPos && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="menu"
+            data-obrazci-menu
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              right: menuPos.right,
+              minWidth: 240,
+              background: "white",
+              border: "1px solid #d4cfc4",
+              borderRadius: 8,
+              boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
+              zIndex: 9999,
+              overflow: "hidden",
+            }}
+          >
+            <Link
+              href={`/amortizacija?org=${org.id}`}
+              onClick={() => setOpen(false)}
+              style={ddItemStyle}
+            >
+              <div style={ddTitle}>PLDI-1043</div>
+              <div style={ddSub}>Amortizacija (godišnje)</div>
+            </Link>
+            <button
+              type="button"
+              onClick={handleMipDownload}
+              style={{ ...ddItemStyle, width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", font: "inherit" }}
+            >
+              <div style={ddTitle}>MIP-1023 XML</div>
+              <div style={ddSub}>Mjesečni izvještaj — {String(month).padStart(2, "0")}/{year}</div>
+            </button>
+            <button
+              type="button"
+              onClick={handleGipDownload}
+              style={{ ...ddItemStyle, width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", font: "inherit", borderBottom: 0 }}
+            >
+              <div style={ddTitle}>GIP-1022 XML</div>
+              <div style={ddSub}>Godišnji izvještaj — {year}</div>
+            </button>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+const ddItemStyle: CSSProperties = {
+  display: "block",
+  padding: "0.55rem 0.85rem",
+  textDecoration: "none",
+  color: "var(--ink, #1a1a1a)",
+  borderBottom: "1px solid #f0ebe2",
+};
+const ddTitle: CSSProperties = { fontWeight: 600, fontSize: "0.85rem" };
+const ddSub: CSSProperties = { fontSize: "0.72rem", color: "#888", marginTop: 1 };

@@ -21,7 +21,6 @@ import {
 } from "src/api/karticaMembers";
 import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
-import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useNotice } from "src/components/Notice/Notice";
 import { generateKartica } from "./generateKartica";
 import QRCode from "qrcode";
@@ -189,35 +188,13 @@ function safeFileName(s: string, fallback: string): string {
   return cleaned || fallback;
 }
 
-// Faza 3B: page-gate gledamo kroz max accessible tier (vlastiti ili preko org-e).
 export default function ClanskeKartice() {
-  const { hasAccessToTier, isLoading } = useMaxAccessibleTier();
-  if (isLoading) return null;
-  if (!hasAccessToTier("PRO")) {
-    return <Gate />;
-  }
   return <ClanskeKarticeApp />;
-}
-
-function Gate() {
-  return (
-    <PreviewRegisterGate
-      pageLabel="Alati"
-      pageTitle={
-        <>
-          Generator <em>članskih kartica</em>
-        </>
-      }
-      pageSubtitle="Kreirajte profesionalne članske kartice sa QR kodom — savršene za klubove, fitness centre, biblioteke i organizacije sa članstvom."
-      featureName="generatora članskih kartica"
-      previewDesc="dizajnirati karticu, dodavati članove i vidjeti kako izgleda finalna kartica"
-      proUnlocks="Generisanje PDF kartica spremnih za štampanje"
-    />
-  );
 }
 
 function ClanskeKarticeApp() {
   const { role } = useRole();
+  const isLoggedIn = !!role;
   const { hasAccessToTier } = useMaxAccessibleTier();
   // BUSINESS feature: prikaz klijent-org-a + bulk upload. Pristup imamo ako bilo
   // koja moja org ima BUSINESS-tier vlasnika, ili sami imamo BUSINESS.
@@ -228,12 +205,13 @@ function ClanskeKarticeApp() {
   const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: () => unwrap(getOrganizations()),
+    enabled: isLoggedIn,
   });
 
   const clientOrgsQuery = useQuery({
     queryKey: ["clientOrganizations"],
     queryFn: () => unwrap(getClientOrganizations()),
-    enabled: isBusiness,
+    enabled: isLoggedIn && isBusiness,
   });
 
   // Form state
@@ -412,6 +390,7 @@ function ClanskeKarticeApp() {
       if (!res.ok) throw new Error(res.error);
       return res.data;
     },
+    enabled: isLoggedIn,
   });
 
   const rawMembers: KarticaMember[] = membersQuery.data ?? [];
