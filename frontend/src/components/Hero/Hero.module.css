@@ -64,7 +64,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  max-width: 600px;
+  max-width: 760px;
   margin-bottom: 1rem;
   animation: fadeUp 0.5s 0.2s ease both;
 }

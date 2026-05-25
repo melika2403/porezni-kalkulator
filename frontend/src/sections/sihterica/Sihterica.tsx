@@ -17,8 +17,6 @@ import {
   saveSihterica,
   deleteSihterica,
 } from "src/api/sihterica";
-import RoleGuard from "src/components/RoleGuard/RoleGuard";
-import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import { useRole } from "src/hooks/useRole";
 import { me, unwrap } from "src/api/auth";
@@ -237,15 +235,7 @@ const COL_HEADERS = [
 ] as const;
 
 export default function Sihterica() {
-  return (
-    <RoleGuard
-      roles={["USER", "PRO", "BUSINESS", "ADMIN"]}
-      mode="hide"
-      fallback={<UpgradeGate />}
-    >
-      <SihtericaApp />
-    </RoleGuard>
-  );
+  return <SihtericaApp />;
 }
 
 function NapomenaSection() {
@@ -350,19 +340,6 @@ function NapomenaSection() {
   );
 }
 
-function UpgradeGate() {
-  return (
-    <PreviewRegisterGate
-      pageLabel="Evidencija radnog vremena"
-      pageTitle={<>Šihterica — <em>evidencija radnog vremena</em></>}
-      pageSubtitle="Mjesečna evidencija radnog vremena za radnike u FBiH. Auto-popuna sa profila, izvoz u PDF i CSV."
-      featureName="šihterice"
-      previewDesc="unositi radnike, popunjavati evidenciju i vidjeti zbirne sate (redovni, prekovremeni, slobodni dani)"
-      proUnlocks="Preuzimanje PDF i CSV obrasca"
-    />
-  );
-}
-
 function SihtericaApp() {
   const queryClient = useQueryClient();
   const { notify } = useNotice();
@@ -444,7 +421,8 @@ function SihtericaApp() {
   const newYearRef = useRef<HTMLInputElement>(null);
 
   // ─── Queries ───────────────────────────────────────────────────────────────
-  const { hasRole: hasRoleForOrgs } = useRole();
+  const { role: roleForOrgs, hasRole: hasRoleForOrgs } = useRole();
+  const isLoggedInForOrgs = !!roleForOrgs;
   const canSeeClients = hasRoleForOrgs("PRO", "BUSINESS", "ADMIN");
 
   const ownOrgsQuery = useQuery({
@@ -454,6 +432,7 @@ function SihtericaApp() {
       if (!res.ok) throw new Error(res.error);
       return res.data;
     },
+    enabled: isLoggedInForOrgs,
   });
   const clientOrgsQuery = useQuery({
     queryKey: ["clientOrganizations"],
@@ -462,7 +441,7 @@ function SihtericaApp() {
       if (!res.ok) throw new Error(res.error);
       return res.data;
     },
-    enabled: canSeeClients,
+    enabled: isLoggedInForOrgs && canSeeClients,
   });
 
   // Spojene organizacije: vlastite + klijentske (knjigovođa upravlja tuđim
@@ -1041,17 +1020,27 @@ function SihtericaApp() {
         />
       </div>
 
-      {!orgsQuery.isLoading && (orgsQuery.data?.length ?? 0) === 0 && (
+      {!isLoggedInForOrgs ? (
+        <div className={styles.sidebarHint}>
+          <p className={styles.sidebarHintText}>
+            Prijavite se da pristupite sačuvanim organizacijama i radnicima.
+            Šihterica radi i bez prijave — možete unijeti podatke ručno.
+          </p>
+          <Link href="/registracija" className={styles.sidebarHintBtnPrimary}>
+            Registruj se besplatno →
+          </Link>
+        </div>
+      ) : !orgsQuery.isLoading && (orgsQuery.data?.length ?? 0) === 0 ? (
         <div className={styles.sidebarHint}>
           <p className={styles.sidebarHintText}>
             Nemate dodanu nijednu djelatnost. Dodajte svoju djelatnost na
             profilu da biste počeli sa šihtericom.
           </p>
-          <Link href="/profil" className={styles.sidebarHintLink}>
+          <Link href="/profil" className={styles.sidebarHintBtnPrimary}>
             Dodaj djelatnost →
           </Link>
         </div>
-      )}
+      ) : null}
 
       <div className={styles.sidebarHeader}>Radnici</div>
       {!orgId && (
@@ -1142,7 +1131,7 @@ function SihtericaApp() {
         {sidebar}
 
         <div className={styles.page}>
-          {!workerId ? (
+          {isLoggedInForOrgs && !workerId ? (
             <div className={styles.emptyState}>
               <div className={styles.emptyIcon}>👤</div>
               <p className={styles.emptyText}>
@@ -1153,6 +1142,19 @@ function SihtericaApp() {
             </div>
           ) : (
             <>
+              {!isLoggedInForOrgs && (
+                <div className={styles.guestBanner}>
+                  <span className={styles.guestBannerIcon}>🧪</span>
+                  <div className={styles.guestBannerText}>
+                    <strong>Preview šihterice</strong> — možete popunjavati
+                    dane i vidjeti zbirove. Promjene se ne čuvaju automatski
+                    i PDF preuzimanje zahtjeva pretplatu.{" "}
+                    <Link href="/registracija" className={styles.guestBannerLink}>
+                      Registruj se besplatno →
+                    </Link>
+                  </div>
+                </div>
+              )}
               {/* Year/month bar */}
               <div className={styles.periodBar}>
                 <div className={styles.yearChips}>
@@ -1630,21 +1632,21 @@ function SihtericaApp() {
                     {trialAvailable ? (
                       <>
                         <strong>Probajte 30 dana besplatno</strong> i preuzmite
-                        PDF obrazac. Bez kartice, bez automatske naplate —
-                        nakon 30 dana automatski se vraćate na besplatan plan.
+                        PDF obrazac. Bez kartice, bez automatske naplate.
+                        Nakon 30 dana automatski se vraćate na besplatan plan.
                       </>
                     ) : (
                       <>
                         <strong>Preuzimanje PDF obrasca</strong> dostupno je uz{" "}
                         <strong>Pro</strong> ili <strong>Business</strong>{" "}
-                        pretplatu. Vaši uneseni podaci se čuvaju — kada
+                        pretplatu. Vaši uneseni podaci se čuvaju. Kada
                         aktivirate pretplatu, samo kliknite preuzmi.
                       </>
                     )}
                   </div>
                   <a
                     href={
-                      trialAvailable ? "/pretplate?trial=1" : "/profil#pretplata"
+                      trialAvailable ? "/pretplate?trial=1" : "/pretplate"
                     }
                     className={styles.exportPaywallBtn}
                   >

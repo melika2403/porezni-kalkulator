@@ -32,18 +32,18 @@ export default function JavniPrihodiTeaser() {
             </Link>
           </div>
           <div className={styles.text}>
-            <div className={styles.label}>Bonus — referenca</div>
+            <div className={styles.label}>Bonus: referenca</div>
             <h2 id="javni-prihodi-teaser-title" className={styles.h2}>
               Uplatni računi javnih prihoda FBiH
             </h2>
             <p className={styles.lead}>
               Trebate broj računa, šifru vrste prihoda ili budžetsku organizaciju za platni
               nalog? Pripremili smo kompletnu listu po prečišćenom tekstu{" "}
-              <strong>Pravilnika Porezne uprave FBiH</strong> — federalni i kantonalni računi,
+              <strong>Pravilnika Porezne uprave FBiH</strong>. Federalni i kantonalni računi,
               <strong> 315 šifri vrsta prihoda</strong> i šifre budžetskih organizacija.
             </p>
             <p className={styles.lead}>
-              Pretražite po šifri ili nazivu, kopirajte direktno u nalog — bez listanja PDF-a.
+              Pretražite po šifri ili nazivu, kopirajte direktno u nalog, bez listanja PDF-a.
             </p>
             <Link href="/javni-prihodi" className={styles.cta}>
               Otvori listu →

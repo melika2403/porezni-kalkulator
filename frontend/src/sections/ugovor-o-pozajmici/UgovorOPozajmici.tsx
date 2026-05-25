@@ -7,11 +7,49 @@ import DateInput from "src/components/DateInput/DateInput";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
+import { iznosUSlova } from "../ugovor-o-djelu/iznosSlovima";
 
 const isoToDisplay = (iso: string) => {
   if (!iso || !iso.includes("-")) return iso;
   const [y, m, d] = iso.split("-");
   return `${d}.${m}.${y}.`;
+};
+
+// Live formatter za polja sa iznosima — dodaje tačke kao thousands separator
+// dok user kuca. Primjer: "5000" → "5.000"; "5000,50" → "5.000,50"
+const formatMoneyLive = (input: string): string => {
+  if (!input || !input.trim()) return "";
+  const cleaned = input.replace(/\./g, "");
+  const parts = cleaned.split(",");
+  let intPart = parts[0].replace(/\D/g, "");
+  if (!intPart && parts.length > 1) intPart = "0";
+  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  if (parts.length > 1) {
+    const decPart = parts[1].replace(/\D/g, "").slice(0, 2);
+    return `${intPart},${decPart}`;
+  }
+  return intPart;
+};
+
+// Parsira de-DE format ("1.234,56") u broj. Tačka je UVIJEK thousands separator
+// (nikad decimalni), zarez je UVIJEK decimalni separator. Tako "1.234" = 1234
+// (hiljadu dvjesta trideset četiri), ne 1,234 (jedan cijela 234).
+const parseIznos = (s: string): number => {
+  if (!s) return 0;
+  const cleaned = s.trim().replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// Sklopi finalni string za PDF/DOCX: "5.000,00 KM (slovima: pet hiljada KM)".
+const composeIznosString = (raw: string): string => {
+  const n = parseIznos(raw);
+  if (n <= 0) return raw;
+  const formatted = n.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${formatted} KM (slovima: ${iznosUSlova(n)})`;
 };
 
 type NapomenaTip = "odricanje" | "spor";
@@ -90,7 +128,11 @@ export default function UgovorOPozajmici() {
     setLoadingDocx(true);
     try {
       const { generateDocx } = await import("./generateDocx");
-      const blob = await generateDocx({ ...form, datum: isoToDisplay(form.datum) });
+      const blob = await generateDocx({
+        ...form,
+        datum: isoToDisplay(form.datum),
+        iznos: composeIznosString(form.iznos),
+      });
       downloadBlob(blob, "Ugovor-o-pozajmici.docx");
     } finally {
       setLoadingDocx(false);
@@ -101,7 +143,11 @@ export default function UgovorOPozajmici() {
     setLoadingPdf(true);
     try {
       const { generatePdf } = await import("./generatePdf");
-      const blob = await generatePdf({ ...form, datum: isoToDisplay(form.datum) });
+      const blob = await generatePdf({
+        ...form,
+        datum: isoToDisplay(form.datum),
+        iznos: composeIznosString(form.iznos),
+      });
       downloadBlob(blob, "Ugovor-o-pozajmici.pdf");
     } finally {
       setLoadingPdf(false);
@@ -261,14 +307,28 @@ export default function UgovorOPozajmici() {
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>
-              Iznos (slovima i brojkama)
+              Iznos pozajmice (samo cifra u KM)
             </label>
             <input
               className={styles.fieldInput}
               value={form.iznos}
-              onChange={(e) => set("iznos", e.target.value)}
-              placeholder="5.000,00 KM (pet hiljada konvertibilnih maraka)"
+              onChange={(e) => set("iznos", formatMoneyLive(e.target.value))}
+              placeholder="Npr. 5.000,00"
+              inputMode="decimal"
             />
+            {parseIznos(form.iznos) > 0 && (
+              <p
+                style={{
+                  margin: "0.4rem 0 0",
+                  fontSize: 13,
+                  color: "var(--mid, #666)",
+                }}
+              >
+                Slovima:{" "}
+                <strong>{iznosUSlova(parseIznos(form.iznos))}</strong>
+                {" "}— ovaj prikaz se automatski upisuje u ugovor.
+              </p>
+            )}
           </div>
         </div>
       </div>

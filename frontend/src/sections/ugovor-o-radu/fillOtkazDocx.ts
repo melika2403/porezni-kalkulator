@@ -1,5 +1,12 @@
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+import {
+  applyDocxXmlTransform,
+  compactPaperSpacing,
+  compactStylesSpacing,
+  removeSignatureTableBorders,
+  shiftSignatureColumnsRight,
+} from "./docxPostProcess";
 
 export interface OtkazTemplateData {
   naslov2: string;
@@ -33,6 +40,21 @@ export async function fillOtkazDocx(data: OtkazTemplateData): Promise<Blob> {
   });
 
   doc.render(data);
+
+  // Post-process NAKON render-a:
+  //   1) Skini border-e sa signature tabele (samo linija, bez kutije).
+  //   2) Pomjeri desni signature stupac dalje udesno (iznad Datum reda).
+  //   3) Smanji margine i prazne paragrafe u document.xml.
+  //   4) Smanji default line spacing u styles.xml — bez ovoga paragrafi bez
+  //      eksplicitnog <w:spacing> nasljeđuju Word default 1.15 i odluka i
+  //      dalje ide na 2 stranice.
+  const zipOut = doc.getZip();
+  applyDocxXmlTransform(zipOut, (xml) =>
+    compactPaperSpacing(
+      shiftSignatureColumnsRight(removeSignatureTableBorders(xml)),
+    ),
+  );
+  applyDocxXmlTransform(zipOut, compactStylesSpacing, "word/styles.xml");
 
   return doc.getZip().generate({
     type: "blob",

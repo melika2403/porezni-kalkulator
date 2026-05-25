@@ -172,6 +172,62 @@
   text-decoration: underline;
 }
 
+.sidebarHintBtnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--sage);
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.85rem;
+  text-decoration: none;
+  transition: all 0.12s;
+  line-height: 1.2;
+}
+
+.sidebarHintBtnPrimary:hover {
+  filter: brightness(1.05);
+}
+
+.guestBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin: 0 0 1rem;
+  background: var(--sage-pale, #eef3ee);
+  border: 1px solid rgba(58, 92, 66, 0.25);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.guestBannerIcon {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.guestBannerText {
+  flex: 1;
+}
+
+.guestBannerLink {
+  color: var(--sage);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.guestBannerLink:hover {
+  text-decoration: underline;
+}
+
 /* ── Period bar (year + month chips) ── */
 .periodBar {
   display: flex;

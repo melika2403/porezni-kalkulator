@@ -58,12 +58,23 @@ export default function Navbar() {
   const isHome = pathname === '/';
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu on route change or outside click
+  // Close menus on route change or outside click
   useEffect(() => {
     setMenuOpen(false);
+    setMobileOpen(false);
   }, [pathname]);
+
+  // Zaključaj scroll body-ja dok je mobile drawer otvoren
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -202,10 +213,29 @@ export default function Navbar() {
 
         <Link href="/sifre-djelatnosti">Šifre djelatnosti</Link>
         <Link href="/javni-prihodi">Javni prihodi</Link>
+        <Link href="/blog">Blog</Link>
         <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
         <Link href={sectionHref('kako')}>Kako radi</Link>
         <Link href={sectionHref('faq')}>FAQ</Link>
       </div>
+
+      <button
+        type="button"
+        className={styles.hamburger}
+        aria-label={mobileOpen ? "Zatvori meni" : "Otvori meni"}
+        aria-expanded={mobileOpen}
+        onClick={() => setMobileOpen((v) => !v)}
+      >
+        {mobileOpen ? (
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        )}
+      </button>
 
       <div className={styles.actions}>
         {!isLoading && (user ? (
@@ -257,6 +287,83 @@ export default function Navbar() {
           </>
         ))}
       </div>
+
+      {mobileOpen && (
+        <div className={styles.mobileBackdrop} onClick={() => setMobileOpen(false)}>
+          <div className={styles.mobileDrawer} onClick={(e) => e.stopPropagation()}>
+            {FUNCTION_GROUPS.map((group) => (
+              <div key={group.title} className={styles.mobileGroup}>
+                <div className={styles.mobileGroupTitle}>{group.title}</div>
+                <ul className={styles.mobileList}>
+                  {group.items.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={styles.mobileItem}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+
+            <div className={styles.mobileGroup}>
+              <div className={styles.mobileGroupTitle}>Reference i blog</div>
+              <ul className={styles.mobileList}>
+                <li>
+                  <Link href="/sifre-djelatnosti" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    Šifre djelatnosti
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/javni-prihodi" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    Javni prihodi
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/blog" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    Blog
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div className={styles.mobileGroup}>
+              <div className={styles.mobileGroupTitle}>O aplikaciji</div>
+              <ul className={styles.mobileList}>
+                <li>
+                  <Link href={sectionHref('cijene')} className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    Pretplatnički paketi
+                  </Link>
+                </li>
+                <li>
+                  <Link href={sectionHref('kako')} className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    Kako radi
+                  </Link>
+                </li>
+                <li>
+                  <Link href={sectionHref('faq')} className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    FAQ
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/o-nama" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    O nama
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/kontakt" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    Kontakt
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

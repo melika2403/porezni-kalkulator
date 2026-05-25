@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Register from "src/sections/auth/Register";
 
 export const metadata: Metadata = {
@@ -9,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function RegistracijaPage() {
-  return <Register />;
+  return (
+    <Suspense fallback={null}>
+      <Register />
+    </Suspense>
+  );
 }

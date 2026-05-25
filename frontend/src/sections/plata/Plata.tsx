@@ -361,6 +361,61 @@ export default function PreracunPlate() {
           </li>
         </ul>
       </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Često postavljana <em>pitanja</em>
+        </h2>
+        <p>
+          <strong>Koja je razlika između bruto i neto plate?</strong>
+        </p>
+        <p>
+          Bruto plata je iznos prije svih odbitaka — iz nje se odbijaju
+          doprinosi radnika (PIO/MIO 17%, zdravstveno 12,5%, nezaposlenost
+          1,5% — ukupno 31%) i porez na dohodak (10% nakon ličnog odbitka).
+          Neto plata je iznos koji radnik prima na račun.
+        </p>
+
+        <p>
+          <strong>Koliko košta radnik poslodavca u FBiH?</strong>
+        </p>
+        <p>
+          Ukupan trošak poslodavca = bruto plata + doprinosi na bruto
+          (PIO/MIO 6%, zdravstvo 4%, nezaposlenost 0,5%) + opća vodna
+          naknada (0,5%) + zaštita od prirodnih nesreća (0,5%). Za privredna
+          društva (d.o.o.) dodaje se i fond invalida (0,5%). Obrti su izuzeti
+          od fonda invalida.
+        </p>
+
+        <p>
+          <strong>Koliki je lični odbitak u FBiH za 2026?</strong>
+        </p>
+        <p>
+          Osnovni lični odbitak je 300 KM mjesečno (3.600 KM godišnje), uz
+          mogućnost uvećanja za izdržavane članove porodice. Lični odbitak se
+          oduzima od bruto plate prije obračuna poreza na dohodak (10%).
+        </p>
+
+        <p>
+          <strong>Da li se kalkulator može koristiti za obrtnike i d.o.o.?</strong>
+        </p>
+        <p>
+          Da. Kalkulator pokazuje neto, bruto i ukupan trošak za radnika u
+          oba slučaja. Razlika je samo u fondu invalida (samo d.o.o. plaća
+          0,5%). Za vlasnike obrta postoji poseban modul "Obračun plata"
+          koji koristi fiksne osnovice prema poreznom režimu.
+        </p>
+
+        <p>
+          <strong>Šta uključuju doprinosi iz plate (na teret radnika)?</strong>
+        </p>
+        <p>
+          Doprinosi iz plate (31% bruto) finansiraju: PIO/MIO fond (penziono
+          osiguranje, 17%), Federalni zavod zdravstvenog osiguranja (12,5%) i
+          Federalni zavod za zapošljavanje (1,5%). Poslodavac ih obračunava,
+          odbija od bruto plate i uplaćuje u korist budžeta.
+        </p>
+      </section>
     </div>
   );
 }

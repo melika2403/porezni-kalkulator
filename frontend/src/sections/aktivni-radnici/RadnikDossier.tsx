@@ -163,7 +163,7 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
             📋 JS3100
           </Link>
           <Link href={`/organizacija/${worker.organizationId}`} className={styles.actionLink}>
-            ✏️ Edit
+            ✏️ Uredi
           </Link>
         </div>
       </div>

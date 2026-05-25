@@ -106,7 +106,25 @@
 .period {
   font-size: 13px;
   opacity: 0.6;
+  margin-bottom: 0.75rem;
+}
+
+.trialBadge {
+  display: block;
+  min-height: 18px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--accent, #c8622a);
+  padding: 0;
   margin-bottom: 1.25rem;
+  opacity: 0.95;
+}
+
+.featuredPro .trialBadge,
+.featuredBusiness .trialBadge {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .divider {
@@ -138,7 +156,7 @@
 }
 
 .features li::before {
-  content: '—';
+  content: '·';
   opacity: 0.5;
   flex-shrink: 0;
   margin-top: 1px;

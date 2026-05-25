@@ -1,110 +1,121 @@
 const { Op } = require("sequelize");
-const { Form, FormVersion, Client, OrganizationMember } = require("../models/index");
-const { canUserAccessClient } = require("../repositories/clientRepository");
+const {
+  Form,
+  FormVersion,
+  Organization,
+  OrganizationMember,
+} = require("../models/index");
 
-function parseClientId(raw) {
+// Helper: prihvata ID-parametar iz query/body i vraća pozitivan integer ili null.
+function parseIntId(raw) {
   if (raw === undefined || raw === null || raw === "") return null;
-  const n = parseInt(raw);
-  return isNaN(n) ? null : n;
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? null : n;
 }
 
-// Faza 3: PLDI forme su team-shared kad pripadaju klijentu vezanom za org.
-// Pristup: ako klijent ima organizationId → bilo koji član te org-e;
-// inače → samo creator (legacy).
-async function ensureClientAccess(clientId, userId) {
-  if (clientId === null) return { ok: true, type: "personal" };
-  const client = await Client.findOne({ where: { id: clientId } });
-  if (!client) return { ok: false, reason: "CLIENT_NOT_FOUND" };
-  const allowed = await canUserAccessClient(client, userId);
-  if (!allowed) return { ok: false, reason: "FORBIDDEN" };
-  return { ok: true, type: client.organizationId ? "org" : "personal", client };
-}
-
-async function buildAccessibleWhereForList(userId) {
-  // Lične PLDI forme + sve PLDI forme klijenata u org-ima u kojima sam član.
-  const memberships = await OrganizationMember.findAll({
-    where: { userId },
-    attributes: ["organizationId"],
-  });
-  const memberOrgIds = memberships.map((m) => m.organizationId);
-
-  const accessibleClientIds = new Set();
-  if (memberOrgIds.length > 0) {
-    const orgClients = await Client.findAll({
-      where: { organizationId: { [Op.in]: memberOrgIds } },
-      attributes: ["id"],
-    });
-    for (const c of orgClients) accessibleClientIds.add(c.id);
+// Pristupna kontrola: korisnik može pristupiti PLDI-ju samo za org-u kojoj je
+// član (OWNER/ADMIN/MEMBER). Vraća { ok, org } ili { ok: false, reason }.
+async function ensureOrgAccess(organizationId, userId) {
+  if (organizationId === null) {
+    // Lične PLDI forme (bez organizacije) — samo za vlastitog korisnika.
+    return { ok: true, type: "personal" };
   }
-
-  return { memberOrgIds, accessibleClientIds: [...accessibleClientIds] };
+  const org = await Organization.findByPk(organizationId);
+  if (!org) return { ok: false, reason: "ORG_NOT_FOUND" };
+  if (org.createdById === userId) return { ok: true, type: "org", org };
+  const membership = await OrganizationMember.findOne({
+    where: { organizationId, userId },
+  });
+  if (!membership) return { ok: false, reason: "FORBIDDEN" };
+  return { ok: true, type: "org", org };
 }
 
+// GET /api/amortizacija/years?organizationId=X
 async function getYears(req, res) {
-  const clientId = parseClientId(req.query.clientId);
-  const access = await ensureClientAccess(clientId, req.user.id);
-  if (!access.ok) return res.status(access.reason === "CLIENT_NOT_FOUND" ? 404 : 403).json({ ok: false, error: access.reason });
+  const orgId = parseIntId(req.query.organizationId ?? req.query.orgId);
+  const access = await ensureOrgAccess(orgId, req.user.id);
+  if (!access.ok) {
+    const status = access.reason === "ORG_NOT_FOUND" ? 404 : 403;
+    return res.status(status).json({ ok: false, error: access.reason });
+  }
 
   const where = { type: "PLDI" };
-  if (clientId !== null) {
-    where.clientId = clientId;
-    if (access.type === "personal") where.createdById = req.user.id; // legacy
+  if (orgId !== null) {
+    where.organizationId = orgId;
   } else {
+    // Lične PLDI forme — bez organizationId i bez clientId.
+    where.organizationId = null;
     where.clientId = null;
-    where.createdById = req.user.id; // lične, bez klijenta
+    where.createdById = req.user.id;
   }
 
-  const forms = await Form.findAll({ where, attributes: ["year"], order: [["year", "DESC"]] });
+  const forms = await Form.findAll({
+    where,
+    attributes: ["year"],
+    order: [["year", "DESC"]],
+  });
   const years = [...new Set(forms.map((f) => f.year))];
   return res.status(200).json({ ok: true, data: years });
 }
 
+// GET /api/amortizacija?godina=YYYY&organizationId=X
 async function get(req, res) {
   const { godina } = req.query;
   if (!godina) return res.status(400).json({ ok: false, error: "Missing godina" });
-  const year = parseInt(godina);
-  if (isNaN(year)) return res.status(400).json({ ok: false, error: "Invalid godina" });
+  const year = parseInt(godina, 10);
+  if (Number.isNaN(year)) return res.status(400).json({ ok: false, error: "Invalid godina" });
 
-  const clientId = parseClientId(req.query.clientId);
-  const access = await ensureClientAccess(clientId, req.user.id);
-  if (!access.ok) return res.status(access.reason === "CLIENT_NOT_FOUND" ? 404 : 403).json({ ok: false, error: access.reason });
+  const orgId = parseIntId(req.query.organizationId ?? req.query.orgId);
+  const access = await ensureOrgAccess(orgId, req.user.id);
+  if (!access.ok) {
+    const status = access.reason === "ORG_NOT_FOUND" ? 404 : 403;
+    return res.status(status).json({ ok: false, error: access.reason });
+  }
 
   const where = { type: "PLDI", year };
-  if (clientId !== null) {
-    where.clientId = clientId;
-    if (access.type === "personal") where.createdById = req.user.id;
+  if (orgId !== null) {
+    where.organizationId = orgId;
   } else {
+    where.organizationId = null;
     where.clientId = null;
     where.createdById = req.user.id;
   }
 
   const form = await Form.findOne({
     where,
-    include: [{ model: FormVersion, as: "versions", order: [["versionNumber", "DESC"]], limit: 1 }],
+    include: [
+      { model: FormVersion, as: "versions", order: [["versionNumber", "DESC"]], limit: 1 },
+    ],
   });
 
-  if (!form || !form.versions?.length) return res.status(200).json({ ok: true, data: null });
+  if (!form || !form.versions?.length) {
+    return res.status(200).json({ ok: true, data: null });
+  }
 
   const raw = form.versions[0].data;
   const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
   return res.status(200).json({ ok: true, data: parsed });
 }
 
+// POST /api/amortizacija { godina, organizationId, obveznik, rows }
 async function save(req, res) {
-  const { godina, obveznik, rows, clientId: rawClientId } = req.body;
+  const { godina, obveznik, rows } = req.body;
   if (!godina) return res.status(400).json({ ok: false, error: "Missing godina" });
-  const year = parseInt(godina);
-  if (isNaN(year)) return res.status(400).json({ ok: false, error: "Invalid godina" });
+  const year = parseInt(godina, 10);
+  if (Number.isNaN(year)) return res.status(400).json({ ok: false, error: "Invalid godina" });
 
-  const clientId = parseClientId(rawClientId);
-  const access = await ensureClientAccess(clientId, req.user.id);
-  if (!access.ok) return res.status(access.reason === "CLIENT_NOT_FOUND" ? 404 : 403).json({ ok: false, error: access.reason });
+  const orgId = parseIntId(req.body.organizationId ?? req.body.orgId);
+  const access = await ensureOrgAccess(orgId, req.user.id);
+  if (!access.ok) {
+    const status = access.reason === "ORG_NOT_FOUND" ? 404 : 403;
+    return res.status(status).json({ ok: false, error: access.reason });
+  }
 
   const where = { type: "PLDI", year };
-  if (clientId !== null) {
-    where.clientId = clientId;
-    if (access.type === "personal") where.createdById = req.user.id;
+  if (orgId !== null) {
+    where.organizationId = orgId;
   } else {
+    where.organizationId = null;
     where.clientId = null;
     where.createdById = req.user.id;
   }
@@ -117,16 +128,19 @@ async function save(req, res) {
       year,
       status: "DRAFT",
       createdById: req.user.id,
-      clientId,
-      // PLDI nema direktan organizationId — vezuje se kroz client.organizationId
+      organizationId: orgId,
     });
   }
 
   const dataStr = JSON.stringify({ obveznik, rows });
-
-  const existing = await FormVersion.findOne({ where: { formId: form.id, versionNumber: 1 } });
+  const existing = await FormVersion.findOne({
+    where: { formId: form.id, versionNumber: 1 },
+  });
   if (existing) {
-    await FormVersion.update({ data: dataStr }, { where: { formId: form.id, versionNumber: 1 } });
+    await FormVersion.update(
+      { data: dataStr },
+      { where: { formId: form.id, versionNumber: 1 } },
+    );
   } else {
     await FormVersion.create({ formId: form.id, versionNumber: 1, data: dataStr });
   }
@@ -134,20 +148,24 @@ async function save(req, res) {
   return res.status(200).json({ ok: true, data: { id: form.id } });
 }
 
+// DELETE /api/amortizacija?godina=YYYY&organizationId=X
 async function remove(req, res) {
   const { godina } = req.query;
-  const year = parseInt(godina);
-  if (isNaN(year)) return res.status(400).json({ ok: false, error: "Invalid godina" });
+  const year = parseInt(godina, 10);
+  if (Number.isNaN(year)) return res.status(400).json({ ok: false, error: "Invalid godina" });
 
-  const clientId = parseClientId(req.query.clientId);
-  const access = await ensureClientAccess(clientId, req.user.id);
-  if (!access.ok) return res.status(access.reason === "CLIENT_NOT_FOUND" ? 404 : 403).json({ ok: false, error: access.reason });
+  const orgId = parseIntId(req.query.organizationId ?? req.query.orgId);
+  const access = await ensureOrgAccess(orgId, req.user.id);
+  if (!access.ok) {
+    const status = access.reason === "ORG_NOT_FOUND" ? 404 : 403;
+    return res.status(status).json({ ok: false, error: access.reason });
+  }
 
   const where = { type: "PLDI", year };
-  if (clientId !== null) {
-    where.clientId = clientId;
-    if (access.type === "personal") where.createdById = req.user.id;
+  if (orgId !== null) {
+    where.organizationId = orgId;
   } else {
+    where.organizationId = null;
     where.clientId = null;
     where.createdById = req.user.id;
   }
@@ -160,35 +178,41 @@ async function remove(req, res) {
   return res.status(200).json({ ok: true, data: null });
 }
 
-async function getClientYears(req, res) {
-  const { accessibleClientIds } = await buildAccessibleWhereForList(req.user.id);
-  if (accessibleClientIds.length === 0) {
-    // Fallback na samo lične (legacy createdById)
-    const forms = await Form.findAll({
-      where: { type: "PLDI", createdById: req.user.id, clientId: { [Op.ne]: null } },
-      attributes: ["clientId", "year"],
-    });
-    const map = {};
-    for (const f of forms) {
-      if (!map[f.clientId]) map[f.clientId] = [];
-      if (!map[f.clientId].includes(f.year)) map[f.clientId].push(f.year);
-    }
-    return res.status(200).json({ ok: true, data: map });
+// GET /api/amortizacija/org-years
+// Vraća map { orgId: [year, year, ...] } za sve organizacije u kojima je
+// korisnik član. Frontend koristi za "ima li podataka" indikator.
+async function getOrgYears(req, res) {
+  const memberships = await OrganizationMember.findAll({
+    where: { userId: req.user.id },
+    attributes: ["organizationId"],
+  });
+  const memberOrgIds = memberships.map((m) => m.organizationId);
+
+  const ownOrgs = await Organization.findAll({
+    where: { createdById: req.user.id },
+    attributes: ["id"],
+  });
+  const ownOrgIds = ownOrgs.map((o) => o.id);
+
+  const allOrgIds = [...new Set([...memberOrgIds, ...ownOrgIds])];
+  if (allOrgIds.length === 0) {
+    return res.status(200).json({ ok: true, data: {} });
   }
 
   const forms = await Form.findAll({
     where: {
       type: "PLDI",
-      clientId: { [Op.in]: accessibleClientIds },
+      organizationId: { [Op.in]: allOrgIds },
     },
-    attributes: ["clientId", "year"],
+    attributes: ["organizationId", "year"],
   });
   const map = {};
   for (const f of forms) {
-    if (!map[f.clientId]) map[f.clientId] = [];
-    if (!map[f.clientId].includes(f.year)) map[f.clientId].push(f.year);
+    const key = String(f.organizationId);
+    if (!map[key]) map[key] = [];
+    if (!map[key].includes(f.year)) map[key].push(f.year);
   }
   return res.status(200).json({ ok: true, data: map });
 }
 
-module.exports = { getYears, get, save, remove, getClientYears };
+module.exports = { getYears, get, save, remove, getOrgYears };
