@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Navbar from "src/components/Navbar/Navbar";
 import Footer from "src/components/Footer/Footer";
 import Providers from "src/components/Providers/Providers";
+import ConsentBanner from "src/components/ConsentBanner/ConsentBanner";
 import "./globals.css";
 
 // ── Replace with your real domain ─────────────────────────────────────────
@@ -380,12 +381,38 @@ export default function RootLayout({
         />
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
           crossOrigin="anonymous"></script>
+
+        {/* Google Analytics 4 sa Consent Mode v2 (default = denied). */}
+        {/* Stvarno prati tek kad korisnik prihvati u ConsentBanner-u. */}
+        <script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-60NQQS6QXJ"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              window.gtag = gtag;
+              gtag('consent', 'default', {
+                'analytics_storage': 'denied',
+                'ad_storage': 'denied',
+                'ad_user_data': 'denied',
+                'ad_personalization': 'denied',
+                'wait_for_update': 500
+              });
+              gtag('js', new Date());
+              gtag('config', 'G-60NQQS6QXJ', { anonymize_ip: true });
+            `,
+          }}
+        />
       </head>
       <body>
         <Providers>
           <Navbar />
           <div className="pageContent">{children}</div>
           <Footer />
+          <ConsentBanner />
         </Providers>
       </body>
     </html>
