@@ -326,6 +326,69 @@ Bez kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate na bes
   });
 }
 
+// ── PAYSLIP MAILER (preko invoice mailbox-a noreply@) ───────────────────────
+async function sendPayslipEmail({
+  to,
+  workerName,
+  organizationName,
+  year,
+  month,
+  netAmount,
+  pdfBuffer,
+}) {
+  const transporter = createInvoiceTransporter();
+  const fromAddr = process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
+  const displayName = organizationName || "Porezni Kalkulator";
+  const from = `"${displayName}" <${fromAddr}>`;
+  const mm = String(month).padStart(2, "0");
+  const yyyy = String(year);
+  const periodHr = `${MJESECI[month - 1] || mm}. ${yyyy}.`;
+  const netoStr = Number(netAmount || 0).toFixed(2).replace(".", ",");
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: `Platni listić — ${periodHr} — ${workerName}`,
+    text:
+`Poštovani${workerName ? ` ${workerName}` : ""},
+
+U prilogu se nalazi platni listić za ${periodHr}${organizationName ? ` od ${organizationName}` : ""}.
+
+Neto za isplatu: ${netoStr} KM
+
+— ${displayName}`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Platni listić</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+          Poštovani${workerName ? ` <strong>${workerName}</strong>` : ""},<br/>
+          u prilogu se nalazi platni listić za <strong>${periodHr}</strong>${organizationName ? ` od <strong>${organizationName}</strong>` : ""}.
+        </p>
+        <div style="background:#f5f2eb; border:1px solid #d4cfc4; border-radius:8px; padding:16px 20px; margin: 20px 0;">
+          <div style="font-size:12px; color:#7a8a7d; text-transform:uppercase; letter-spacing:.06em;">Neto za isplatu</div>
+          <div style="font-size:28px; font-weight:600; color:#3a5c42; margin-top:4px;">${netoStr} KM</div>
+        </div>
+        <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
+          — ${displayName}<br/>
+          <span style="color:#bbb;">Poslano preko poreznikalkulator.ba</span>
+        </p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `Platni-listic-${mm}-${yyyy}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+}
+
+const MJESECI = [
+  "Januar", "Februar", "Mart", "April", "Maj", "Juni",
+  "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar",
+];
+
 module.exports = {
   sendPasswordResetEmail,
   sendVerificationEmail,
@@ -333,4 +396,5 @@ module.exports = {
   sendPredracunEmail,
   sendInvoiceEmail,
   sendWelcomeEmail,
+  sendPayslipEmail,
 };

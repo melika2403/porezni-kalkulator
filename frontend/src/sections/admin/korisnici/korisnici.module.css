@@ -660,4 +660,30 @@
   .subGrid {
     grid-template-columns: 1fr 1fr;
   }
+
+  /* Allow the wide tables (Korisnici 9 cols, AdminOrganizacije, AdminFizickaLica)
+     to scroll horizontally on phones — desktop keeps overflow: hidden via the
+     base rule. */
+  .tableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table {
+    min-width: 720px;
+  }
+
+  /* Header rows / titles stack cleanly */
+  .orgHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  /* Form inputs: 16px to prevent iOS Safari auto-zoom on focus */
+  .input,
+  .select,
+  .textarea,
+  .formInput {
+    font-size: 16px;
+  }
 }

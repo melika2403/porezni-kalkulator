@@ -13,7 +13,7 @@ export default function robots(): MetadataRoute.Robots {
           "/admin/",
           "/profil",
           "/organizacija/",
-          "/fakture",
+          "/aktivni-radnici",
           "/pretplate",
           "/prijava",
           "/registracija",

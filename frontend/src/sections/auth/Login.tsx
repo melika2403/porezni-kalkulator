@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./auth.module.css";
-import { login, resendVerification, unwrap } from "src/api/auth";
+import { login, me, resendVerification, unwrap } from "src/api/auth";
+import { getBackendUrl } from "src/utils/backendUrl";
 
 // Whitelist: dozvoli interne (relative) putanje ili apsolutne URL-ove na
 // vlastite subdomene (app.localhost u dev-u, *.poreznikalkulator.ba u prod-u).
@@ -35,6 +36,19 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
+  // Ako je već ulogovan, preusmjeri na ?next= ili početnu.
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()).catch(() => null),
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!meQuery.isLoading && meQuery.data) {
+      router.replace(nextUrl);
+    }
+  }, [meQuery.isLoading, meQuery.data, nextUrl, router]);
+
   const mutation = useMutation({
     mutationFn: ({ email, password, rememberMe }: { email: string; password: string; rememberMe: boolean }) =>
       unwrap(login(email, password, rememberMe)),
@@ -57,8 +71,7 @@ export default function Login() {
   };
 
   const handleGoogle = () => {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+    const backendUrl = getBackendUrl();
     // sačuvaj next u sessionStorage (Google OAuth callback gubi query param)
     if (typeof window !== "undefined" && nextUrl !== "/") {
       try {
@@ -83,6 +96,11 @@ export default function Login() {
       ? "Server nije dostupan. Pokušajte ponovo."
       : "Došlo je do greške. Pokušajte ponovo."
     : null;
+
+  // Skoči blank dok provjeravamo session, ili kad je već ulogovan pa ide redirect.
+  if (meQuery.isLoading || meQuery.data) {
+    return <div className={styles.page} />;
+  }
 
   return (
     <div className={styles.page}>

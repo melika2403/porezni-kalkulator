@@ -1,0 +1,569 @@
+.page {
+  padding: calc(64px + 1.5rem) 2rem 5rem;
+  max-width: 1380px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+}
+
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--mid);
+  line-height: 1.55;
+  max-width: 760px;
+}
+
+/* Stats kartice */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.statCard {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.95rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.statLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  text-transform: uppercase;
+}
+
+.statValue {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.7rem;
+  color: var(--ink);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.statValue em {
+  font-style: normal;
+  color: var(--mid);
+  font-size: 1.1rem;
+  font-family: inherit;
+}
+
+.statHint {
+  font-size: 11px;
+  color: var(--mid);
+}
+
+/* Quick filter chips */
+.statusChips {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.statusChip {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--mid);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+
+.statusChip:hover {
+  color: var(--ink);
+}
+
+.statusChipActive {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fff;
+  font-weight: 600;
+}
+
+.statusChipCount {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.75;
+  margin-left: 0.3rem;
+}
+
+/* Attention dot — pored imena u redu */
+.attentionDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.45rem;
+  vertical-align: middle;
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+.attentionDotRed {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+/* Bulk action bar */
+.bulkBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Grupa utility dugmadi (Export CSV, Označi sve obračunate) — desno. */
+.bulkBarRight {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btnBulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  background: var(--white);
+  color: var(--sage);
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+
+.btnBulk:hover {
+  background: var(--sage);
+  color: #fff;
+}
+
+.btnBulk:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary varijanta — za glavne akcije kao "Obračunaj sve plate".
+   Inverzan stil: ispunjen sage od pocetka, jaka prisutnost. */
+.btnBulkPrimary {
+  background: var(--sage);
+  color: #fff;
+  border-color: var(--sage);
+}
+
+.btnBulkPrimary:hover {
+  background: color-mix(in srgb, var(--sage) 85%, black 0%);
+  color: #fff;
+}
+
+.btnBulkPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.controlsBar {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 140px;
+}
+
+.fieldGroup span,
+.fieldGroup label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--mid);
+  text-transform: uppercase;
+}
+
+.input {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0.55rem 0.75rem;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+.search {
+  flex: 1 1 280px;
+  min-width: 220px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sage);
+  margin: 1.5rem 0 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sectionTitle:first-of-type {
+  margin-top: 0;
+}
+
+.sectionCount {
+  font-weight: 500;
+  color: var(--mid);
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 12px;
+}
+
+.tableWrap {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.empty {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--mid);
+  font-size: 14px;
+}
+
+.emptyOwn {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--mid);
+  font-size: 14px;
+  background: var(--paper);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.emptyOwn a {
+  color: var(--sage);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.emptyOwn a:hover {
+  text-decoration: underline;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  text-align: left;
+  padding: 0.85rem 1rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  text-transform: uppercase;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--paper);
+}
+
+.nameCell {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.nameCell a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nameCell a:hover {
+  color: var(--sage);
+}
+
+.muted {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-align: center;
+}
+
+.typeBadge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.typeCompany {
+  background: rgba(58, 92, 66, 0.12);
+  color: var(--sage);
+}
+
+.typeBusiness {
+  background: rgba(200, 98, 42, 0.14);
+  color: var(--accent);
+}
+
+/* Payroll status badges */
+.statusBadge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.statusNoWorkers {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.statusNone {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.statusPartial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.statusObracunato {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.statusIsplaceno {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.statusDetail {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--mid);
+  margin-top: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sage);
+  background: var(--sage-pale);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius);
+  border: none;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  /* Suzbi default browser focus outline na button-u — koristimo
+     accessible focus-visible umjesto toga (samo kad korisnik koristi tab). */
+  outline: none;
+  transition: all 0.12s;
+}
+
+.actionLink:hover {
+  background: var(--sage);
+  color: #fff;
+}
+
+.actionLink:focus {
+  outline: none;
+}
+
+.actionLink:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+.actionLink svg {
+  flex-shrink: 0;
+}
+
+/* ── Mobile (<= 768px) ── */
+@media (max-width: 768px) {
+  .page {
+    padding: calc(64px + 1rem) 1rem 3rem;
+  }
+
+  .controlsBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .fieldGroup {
+    min-width: 0;
+  }
+
+  .tableWrap {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody tr {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+
+  .table tbody tr:hover {
+    background: var(--white);
+  }
+
+  .table tbody td {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .table tbody td:last-child {
+    border-bottom: none;
+    padding-top: 0.7rem;
+  }
+
+  .table tbody td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--mid);
+    text-transform: uppercase;
+  }
+
+  .table tbody td[data-label="Akcije"] {
+    grid-template-columns: 1fr;
+  }
+
+  .table tbody td[data-label="Akcije"]::before {
+    margin-bottom: 0.3rem;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .actionLink {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 0.5rem 0.75rem;
+    font-size: 13px;
+  }
+}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Sihterica from "src/sections/sihterica/Sihterica";
+import SihtericaEdu from "src/sections/sihterica/SihtericaEdu";
 
 const PAGE_URL = "https://poreznikalkulator.ba/sihterica";
 const OG_TITLE = "Šihterica online — evidencija radnog vremena FBiH (PDF)";
@@ -153,6 +154,7 @@ export default function SihtenicaPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }}
       />
       <Sihterica />
+      <SihtericaEdu />
     </>
   );
 }

@@ -18,9 +18,10 @@ const {
 const googleAuth = require("../auth/googleAuth");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
-const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10;
-const REMEMBER_ME_JWT_EXPIRES = "87600h";
-const DEFAULT_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 7;
+const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10; // 10 godina
+const REMEMBER_ME_JWT_EXPIRES = "87600h"; // 10 godina
+// Default sesija (bez "zapamti me") — 24h. JWT i cookie u istom trajanju.
+const DEFAULT_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24;
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -33,7 +34,8 @@ function getJwtSecret() {
 }
 
 function getJwtExpiresIn() {
-  return process.env.JWT_EXPIRES_IN || "7d";
+  // Default — kratka sesija (24h). Za "zapamti me" se koristi REMEMBER_ME_JWT_EXPIRES.
+  return process.env.JWT_EXPIRES_IN || "24h";
 }
 
 function getCookieDomain() {
@@ -114,12 +116,12 @@ function toPublicUser(user) {
   };
 }
 
-function signJwtForUser(user) {
+function signJwtForUser(user, expiresIn) {
   const plain = user.toJSON ? user.toJSON() : user;
   const secret = getJwtSecret();
   return jwt.sign({ role: plain.role }, secret, {
     subject: String(plain.id),
-    expiresIn: getJwtExpiresIn(),
+    expiresIn: expiresIn || getJwtExpiresIn(),
   });
 }
 
@@ -552,11 +554,34 @@ async function googleCallback(req, res) {
           isEmailVerified: true,
         });
         user = await findUserWithSub({ id: created.id });
+
+        // Welcome email sa 30-dnevnim PRO trial CTA (fire-and-forget).
+        // Google OAuth korisnici preskaču email verification flow pa welcome
+        // mail šaljemo ovdje da ne propustimo signup-time CTA.
+        try {
+          const frontendUrl =
+            process.env.FRONTEND_URL || "http://localhost:3000";
+          const trialUrl = `${frontendUrl}/pretplate?trial=1`;
+          void sendWelcomeEmail(email, firstName, trialUrl).catch((err) =>
+            console.error(
+              "sendWelcomeEmail (google) failed:",
+              err?.message || err,
+            ),
+          );
+        } catch (err) {
+          console.error(
+            "welcome email dispatch error (google):",
+            err?.message || err,
+          );
+        }
       }
     }
 
-    const token = signJwtForUser(user);
-    setAuthCookie(res, token);
+    // Google login uvijek pamti korisnika (dok eksplicitno ne klikne odjavu) —
+    // JWT i cookie idu na dugi rok (10 godina). Korisnici očekuju da im se ne
+    // gubi sesija prijavljeni preko Google-a, isti UX kao kod ostalih app-ova.
+    const token = signJwtForUser(user, "3650d");
+    setAuthCookie(res, token, true);
     return redirectToFrontend(res, "/");
   } catch (error) {
     console.error("googleCallback error:", error.message);

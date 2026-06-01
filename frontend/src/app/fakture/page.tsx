@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Fakture from "src/sections/fakture/Fakture";
+import FaktureEdu from "src/sections/fakture/FaktureEdu";
 
 const TITLE = "Fakture, predračuni i profakture online — izrada i PDF | Porezni Kalkulator BiH";
 const DESC =
@@ -63,5 +64,10 @@ export const metadata: Metadata = {
 };
 
 export default function FakturePage() {
-  return <Fakture />;
+  return (
+    <>
+      <Fakture />
+      <FaktureEdu />
+    </>
+  );
 }

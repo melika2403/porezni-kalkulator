@@ -172,6 +172,62 @@
   text-decoration: underline;
 }
 
+.sidebarHintBtnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--sage);
+  border: 1px solid var(--sage);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.85rem;
+  text-decoration: none;
+  transition: all 0.12s;
+  line-height: 1.2;
+}
+
+.sidebarHintBtnPrimary:hover {
+  filter: brightness(1.05);
+}
+
+.guestBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin: 0 0 1rem;
+  background: var(--sage-pale, #eef3ee);
+  border: 1px solid rgba(58, 92, 66, 0.25);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.guestBannerIcon {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.guestBannerText {
+  flex: 1;
+}
+
+.guestBannerLink {
+  color: var(--sage);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.guestBannerLink:hover {
+  text-decoration: underline;
+}
+
 /* ── Period bar (year + month chips) ── */
 .periodBar {
   display: flex;
@@ -1066,4 +1122,233 @@
   padding: 3rem 2rem;
   color: var(--mid);
   font-size: 0.95rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Mobile (≤ 768px) — additive only, does not touch desktop rules above.
+ * Sidebar stacks above content, panels become single-column, table keeps
+ * horizontal scroll, action buttons go full-width.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pageOuter {
+    padding: 1.5rem 0.75rem 3rem;
+  }
+
+  .pageLayout {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    top: auto;
+  }
+
+  .sidebarList {
+    max-height: 280px;
+  }
+
+  .header {
+    margin-bottom: 1.5rem;
+  }
+
+  /* Period bar */
+  .periodBar {
+    padding: 0.75rem 0.75rem;
+  }
+
+  .yearChip {
+    padding: 0.4rem 0.75rem;
+    font-size: 13px;
+  }
+
+  .monthChip {
+    padding: 0.4rem 0.5rem;
+    font-size: 12px;
+    min-width: 44px;
+    flex: 1 1 auto;
+  }
+
+  .yearDeleteRight,
+  .yearDeleteConfirm {
+    margin-left: 0;
+    flex-basis: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  /* Worker header */
+  .workerHeader {
+    gap: 0.5rem;
+  }
+
+  .workerName {
+    font-size: 1.15rem;
+  }
+
+  .workerPeriod {
+    display: block;
+    margin-top: 0.15rem;
+  }
+
+  .deleteMonthBtn {
+    width: 100%;
+  }
+
+  .deleteInline {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* Auto-fill panel — stack everything */
+  .autoFillPanel {
+    padding: 0.75rem;
+  }
+
+  .autoFillRow,
+  .autoFillRow2 {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .autoFillField {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .autoFillInput {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .autoFillDays {
+    gap: 0.3rem;
+  }
+
+  .autoFillDayChip {
+    flex: 1 1 auto;
+    min-width: 44px;
+    padding: 0.5rem 0.4rem;
+    text-align: center;
+  }
+
+  .autoFillCheckboxRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .autoFillCountLabel {
+    padding-left: 0;
+    border-left: none;
+    margin-left: 0;
+  }
+
+  .autoFillRange {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .autoFillInputSm {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .autoFillBtn {
+    width: 100%;
+    padding: 0.75rem 1rem;
+  }
+
+  /* Table — horizontal scroll with sticky Rbr+Datum columns on the left.
+     Touch-friendly font sizes (16px on inputs to suppress iOS auto-zoom). */
+  .tableWrap {
+    margin: 0 -0.75rem;
+    padding: 0 0.75rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    font-size: 13px;
+  }
+
+  .table th {
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+
+  /* Hide Rbr column on mobile — Datum already identifies the row.
+     Scoped to thead+tbody so tfoot's colspan label stays intact. */
+  .table thead th:nth-child(1),
+  .table tbody td:nth-child(1) {
+    display: none;
+  }
+
+  /* Sticky Datum column so user always sees which day they're editing.
+     Background must be opaque (scrolled cells pass underneath). */
+  .table thead th:nth-child(2),
+  .table tbody td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--white);
+    box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.08);
+    min-width: 120px;
+  }
+  .table thead th:nth-child(2) {
+    background: var(--paper);
+  }
+
+  .dayCell,
+  .dayCellFull {
+    font-size: 13px;
+    padding: 5px 6px;
+  }
+
+  /* 16px font on inputs prevents iOS Safari from auto-zooming on focus. */
+  .cellInput {
+    font-size: 16px;
+    padding: 8px 4px;
+    min-height: 38px;
+  }
+
+  /* Export paywall */
+  .exportPaywall {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .exportPaywallBtn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Actions row */
+  .actions {
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1.5rem;
+  }
+
+  .exportBtn,
+  .exportBtnSecondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Napomena */
+  .napomenaSection {
+    padding: 1.25rem 1rem;
+    margin-top: 2rem;
+  }
+
+  /* Upgrade gate */
+  .upgradeCard {
+    padding: 1.75rem 1.25rem;
+    margin: 1rem auto 0;
+  }
 }

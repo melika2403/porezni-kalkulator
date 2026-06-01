@@ -1,0 +1,470 @@
+II. KANTONI
+
+R.B.  KANTON                   Naziv banke                Broj računa
+
+1.    Unsko-sanski kanton      UniCredit Bank d.d.        338-000-22100058-77
+
+2.    Posavski kanton          „UniCredit Bank d.d.“      338-000-22104571-21
+
+3.    Tuzlanski kanton         NLB Tuzlanska banka        132-100-02560000-80
+
+                               d.d. Tuzla
+
+4.    Zeničko-dobojski kanton  Investiciono-              134-010-00000016-72
+
+                               komercijalna banka d.d.
+
+                               Zenica
+
+5.    Bosansko-podrinjski      NLB Tuzlanska banka        132-731-04102931-54
+
+      kanton                   d.d. Tuzla
+
+6.    Srednjobosanski kanton   NLB Tuzlanska banka        132-010-20125367-50
+
+                               d.d. Tuzla
+
+7.    Hercegovačkoneretvanski  UniCredit Bank d.d.        338-000-22000059-53
+
+      kanton
+
+8.    Zapadnohercegovački      UniCredit Bank d.d.        338-000-22000040-13
+
+      kanton
+
+9.    Kanton Sarajevo          UniCredit Bank d.d.        338-000-22100192-63
+
+10.   Kanton 10                Raiffeisen bank d.d. BiH   161-020-00335600-61
+
+III. JEDINICE LOKALNE SAMOUPRAVE
+
+R.B   Općina                   Naziv banke                Broj računa
+
+UNSKO-SANSKI KANTON
+
+1.    BIHAĆ                    UniCredit Bank d.d.        338-500-22001632-31
+
+2.    BOSANSKA KRUPA           UniCredit Bank d.d.        338-000-22000415-52
+
+3.    BOSANSKI                 UniCredit Bank d.d.        338-500-22004835-25
+
+      PETROVAC
+
+4.    BUŽIM                    Raiffeisen bank d.d. BiH   161-035-00175606-31
+
+5.    CAZIN                    Bosna Bank International   141-411-00005395-71
+
+                               BH d.d. Sarajevo
+
+6.    KLJUČ                    Sparkasse Bank d.d.        199-044-00020504-84
+
+7.    SANSKI MOST              UniCredit Bank d.d.        338-540-22000369-17
+
+8.    VELIKA KLADUŠA           Komercijalno-investiciona  198-001-10300005-03
+
+                               banka d.d. Velika
+
+                               Kladuša
+
+POSAVSKI KANTON
+
+9.    ORAŠJE                   UniCredit Bank d.d.        338-000-22000228-31
+
+10.   ODŽAK                    UniCredit Bank d.d.        338-330-22003324-84
+
+11.   DOMALJEVACŠAMAC          UniCredit Bank d.d.        338-000-22000317-55
+
+TUZLANSKI KANTON
+
+12.   BANOVIĆI                 NLB Tuzlanska banka        132-130-02961000-59
+
+                               d.d. Tuzla
+
+13.   GRAČANICA                Raiffeisen bank d.d. BiH   161-025-00342800-41
+
+14.   GRADAČAC                 NLB banka d.d. Tuzla       132-190-02900000-87
+
+15.   KALESIJA                 NLB Tuzlanska banka        132-140-02917000-37
+
+                               d.d. Tuzla
+
+                                                                               41
+16.  KLADANJ             NLB Tuzlanska banka        132-160-02950000-64
+
+                         d.d. Tuzla
+
+17.  ČELIĆ               Sparkasse Bank d.d.        199-050-00064895-89
+
+18.  LUKAVAC             "UniCredit Bank d.d."      338-000-2118227- 84
+
+19.  SREBRENIK           NLB Tuzlanska banka        132-150-02992800-97
+
+                         d.d. Tuzla
+
+20.  TUZLA               NLB Tuzlanska banka        132-100-01850601-97
+
+                         d.d. Tuzla
+
+21.  ŽIVINICE            INTESA SANPAOLO            154-360-20047307-52
+
+                         BANK D.D. BiH
+
+22.  DOBOJ-ISTOK         NLB Tuzlanska banka        132-280-03092308-74
+
+                         d.d. Tuzla
+
+23.  SAPNA               NLB Tuzlanska banka        132-290-03092085-59
+
+                         d.d. Tuzla
+
+24.  TEOČAK              NLB Tuzlanska banka        132-270-03092694-85
+
+                         d.d. Tuzla
+
+ZENIČKO-DOBOJSKI KANTON
+
+25.  BREZA               UniCredit Bank d.d.        338-000-22116336-34
+
+26.  USORA               INTESA SANPAOLO            154-999-50004336-67
+
+                         BANKA D.D. BiH
+
+27.  KAKANJ              Investiciono-komercijalna  134-020-00003708-49
+
+                         banka d.d. Zenica
+
+28.  MAGLAJ              Sparkasse Bank d.d.        199-046-00032516-34
+
+29.  OLOVO               UniCredit Bank d.d.        338-000-22100272-17
+
+30.  TEŠANJ              Vakufska banka d.d.        160-300-03300176-41
+
+                         Sarajevo
+
+31.  VAREŠ               UniCredit Bank d.d.        338-000-22100174-20
+
+32.  VISOKO              Sparkasse Bank d.d.        199-047-00040183-70
+
+33.  ZAVIDOVIĆI          Union banka d.d.           102-032-00000270-70
+
+                         Sarajevo
+
+34.  ZENICA              Investicionokomercijalna   134-010-00000429-94
+
+                         banka d.d. Zenica
+
+35.  ŽEPČE               UniCredit Bank d.d.        338-000-22108354-21
+
+36.  DOBOJ JUG           UniCredit Bank d.d.        338-000-22115701-96
+
+BOSANSKO-PODRINJSKI KANTON
+
+37.  GORAŽDE             NLB Tuzlanska banka        132-500-20128299-30
+
+                         d.d. Tuzla
+
+38.  PALE-PRAĆA          Union banka d.d.           102-007-00000188-86
+
+                         Sarajevo
+
+39.  FOČA-USTIKOLINA     Raiffeisen bank d.d. BiH   161-030-00021100-37
+
+SREDNJOBOSANSKI KANTON
+
+40.  TRAVNIK             UniCredit Bank d.d.        338-000-22100290-60
+
+41.  N.TRAVNIK           INTESA SANPAOLO            154-999-50004299-81
+
+                         BANKA D.D. BiH
+
+42.  BUGOJNO             Privredna banka            101-130-00007708-32
+
+                         Sarajevo d.d. Sarajevo
+
+43.  VITEZ               Bosna Bank International   141-437-53200045-23
+
+                         BH d.d. Sarajevo
+
+                                                                         42
+44.  KISELJAK       UniCredit Bank d.d.       338-340-22000450-68
+
+45.  JAJCE          HYPO ALPE ADRIA           306-02500004808-35
+
+                    BANK d.d. Mostar
+
+46.  D.VAKUF        Privredna banka           101-133-00000069-07
+
+                    Sarajevo d.d. Sarajevo
+
+47.  G.VAKUF        UniCredit Bank d.d.       338-00022000246-74
+
+48.  KREŠEVO        HYPO ALPE ADRIA           306-042-00000079-03
+
+                    BANK d.d. Mostar
+
+49.  FOJNICA        UniCredit Bank            338-900-22083675-82
+
+50.  BUSOVAČA       Investicionokomercijalna  134-040-00000083-50
+
+                    banka d.d. Zenica
+
+51.  DOBRETIĆI      HYPO ALPE ADRIA           306-045-00000009-66
+
+                    BANK d.d. Mostar
+
+HERCEGOVAČKO-NERETVANSKI KANTON
+
+52.  ČAPLJINA       HYPO ALPE ADRIA           306-007-00010351-02
+
+                    BANK d.d. Mostar
+
+53.  ČITLUK         UniCredit Bank d.d.       338-000-22000148-77
+
+54.  JABLANICA      Vakufska banka d.d.       160-460-01468351-95
+
+                    Sarajevo
+
+55.  KONJIC         Vakufska banka d.d.       160-460-03463315-06
+
+                    Sarajevo
+
+56.  PROZOR-RAMA    UniCredit Bank d.d.       338-000-22000139-07
+
+57.  STOLAC         UniCredit Bank d.d.       338-000-22000200-18
+
+58.  NEUM           UniCredit Bank d.d.       338-000-22000219-58
+
+59.  GRAD MOSTAR    Nova Banka a.d. Banja     555-000-00201908-59
+
+                    Luka
+
+60.  RAVNO          UniCredit Bank d.d.       338-170-22000366-17
+
+ZAPADNO-HERCEGOVAČKI KANTON
+
+61.  GRUDE          UniCredit Bank d.d.       338-000-22103536-22
+
+62.  ŠIROKI BRIJEG  UniCredit Bank d.d.       338-220-22571472-82
+
+63.  LJUBUŠKI       UniCredit Bank d.d.       338-000-22000442-68
+
+64.  POSUŠJE        UniCredit Bank d.d.       338-200-22615848-48
+
+KANTON SARAJEVO
+
+65.  HADŽIĆI        UniCredit Bank d.d.       338-000-22100254-71
+
+66.  ILIJAŠ         Vakufska banka d.d.       160-200-00007106-45
+
+                    Sarajevo
+
+67.  CENTAR         UniCredit Bank d.d.       338-690-22965752-19
+
+68.  ILIDŽA         UniCredit Bank d.d.       338-000-22100245-98
+
+69.  NOVO SARAJEVO  UniCredit Bank d.d.       338-000-22100236-28
+
+70.  VOGOŠĆA        UniCredit Bank d.d.       338-000-22100165-47
+
+71.  TRNOVO         Vakufska banka d.d.       160-200-00005016-10
+
+                    Sarajevo
+
+72.  NOVI GRAD      UniCredit Bank d.d.       338-000-22100325-52
+
+73.  STARI GRAD     Bor banka d.d. Sarajevo   182-000-03561195-79
+
+74.  GRAD SARAJEVO  Raiffeisen Bank d.d. BiH  161-000-00179200-82
+
+KANTON 10
+
+75.  BOSANSKO       Raiffeisen Bank d.d. BiH  161-020-00704600-25
+
+     GRAHOVO
+
+                                                                   43
+76.    DRVAR                      INTESA SANPAOLO              154-999-50005395-91
+
+                                  BANKA D.D. BiH
+
+77.    TOMISLAVGRAD               Raiffeisen bank d.d.BiH      161-020-00706200-75
+
+78.    GLAMOČ                     INTESA SANPAOLO              154-999-50001593-51
+
+                                  BANKA D.D. BiH
+
+79.    KUPRES                     INTESA SANPAOLO              154-999-50000005-62
+
+                                  BANKA D.D. BiH
+
+80.    LIVNO                      Raiffeisen Bank d.d. BiH     161-020-00631100-44
+
+IV. DRUŠTVENI FONDOVI
+
+A) Zavodi za zdravstveno osiguranje
+
+Red.br.  Zavodi za zdravstveno         Naziv banke               Broj računa
+
+         osiguranje
+
+1.       Zavod zdravstvenog            Union banka d.d.          102-050-00000640-18
+
+         osiguranja i reosiguranja     Sarajevo
+
+         Federacije Bosne i
+
+         Hercegovine
+
+2. Kantonalni zavodi za zdravstveno osiguranje
+
+2.1.     Unsko-sanski kanton           UniCredit Bank d.d.       338-500-22751661-53
+
+2.2.     Posavski kanton               Raiffeisen Bank d.d. BiH  161-080-00026400-20
+
+2.3.     Tuzlanski kanton              UniCredit Bank d.d.       338-440-22124691-66
+
+2.4.     Zeničko-dobojski kanton       Investicionokomercijalna  134-010-00000021-57
+
+                                       banka d.d. Zenica
+
+2.5.     Bosansko-podrinjski           NLB Tuzlanska banka       132-010-20152829-17
+
+         kanton                        d.d. Tuzla
+
+2.6.     Srednjobosanski kanton        UniCredit Bank d.d.       338-000-22100307-09
+
+2.7.     Hercegovačkoneretvanski       NOVA BANKA AD             555-000-00048732-98
+
+         kanton                        Banja Luka
+
+2.8.     Zapadnohercegovački           HYPO ALPE ADRIA           306-003-00006482-68
+
+         kanton                        BANK d.d. Mostar
+
+2.9.     Kanton Sarajevo               UniCredit Bank d.d.       338-000-22100085-93
+
+2.10.    Kanton 10                     Intesa Sanpaolo banka     154-921-20048246-10
+
+                                       d.d. BiH
+
+B) Zavodi za zapošljavanje
+
+Red.     Zavodi za zapošljavanje     Banka                       Broj računa
+
+br.
+
+1.       Federalni zavod za          Raiffeisen Bank d.d. BiH    161-000-00285700-03
+
+         zapošljavanje
+
+2. Kantonalne službe za zapošljavanje
+
+2.1.     Unsko-sanski kanton         UniCredit Bank d.d.         338-000-22100129-58
+
+2.2.     Posavski kanton             HYPO ALPE ADRIA             306-04200009586-97
+
+                                     BANK d.d. Mostar
+
+2.3.     Tuzlanski kanton            NLB Tuzlanska banka         132-100-03110200-32
+
+                                     d.d. Tuzla
+
+2.4.     Zeničko-dobojski kanton     Investicionokomercijalna    134-010-00001075-96
+
+                                     banka d.d. Zenica
+
+2.5.     Bosansko-podrinjski         Privredna banka             101-140-00004638-22
+
+                                                                                    44
+       kanton                       Sarajevo d.d. Sarajevo
+
+2.6.   Srednjobosanski kanton       UniCredit Bank d.d.        338-000-22100281-87
+
+2.7.   Hercegovačkoneretvanski      Raiffeisen bank d.d. BiH   161-020-00138001-91
+
+       kanton
+
+2.8.   Zapadnohercegovački          UniCredit Bank d.d.        338-000-22000102-21
+
+       kanton
+
+2.9.   Kanton Sarajevo              NLB Tuzlanska banka        132-010-20148801-73
+
+                                    d.d. Tuzla
+
+2.10.  Kanton 10                    UniCredit Bank d.d.        338-000-22000344-71
+
+C) Federalni zavod za penzijsko i invalidsko osiguranje
+
+Naziv banke                         Broj računa
+
+1. UniCredit Bank d.d.              338-000-22000077-96
+
+2. Raiffeisen bank d.d. BiH         161-020-00357000-75
+
+3. INTESA SANPAOLO BANKA            154-001-20003303-81
+
+D.D. BiH
+
+V. TURISTIČKE ZAJEDNICE
+
+Red.   Turistička zajednica         Naziv banke                Broj računa
+
+br.
+
+1.     Federalna turistička         UniCredit Bank d.d.        338-000-22100110-18
+
+       zajednica                    UniCredit Bank d.d.        338-000-22000512-52
+
+2. Kantonalne turističke zajednice
+
+2.1.   Turistička zajednica Unsko-  UniCredit Bank d.d.        338-000-22000530-95
+
+       sanskog kantona
+
+2.2.   Turistička zajednica         UniCredit Bank d.d.        338-000-22000549-38
+
+       Posavskog kantona
+
+2.3.   Turistička zajednica         Raiffeisen bank d.d. BiH   161-025-00025300-98
+
+       Tuzlanskog kantona
+
+2.4.   Turistička zajednica         Investiciono-komercijalna  134-010-00000243-70
+
+       Zeničko-dobojskog kantona    banka d.d. Zenica
+
+2.5.   Turistička zajednica         Union banka d.d.           102-007-00000214-08
+
+       Bosansko-podrinjskog         Sarajevo
+
+       kantona
+
+2.6.   Turistička zajednica         UniCredit Bank d.d.        338-000-22100101-45
+
+       Srednjobosanskog kantona
+
+2.7.   Turistička zajednica         Raiffeisen bank d.d. BiH   161-020-00047400-03
+
+       Hercegovačkoneretvanskog
+
+       kantona
+
+2.8.   Turistička zajednica         HYPO ALPE ADRIA            306-024-00000193-58
+
+       Zapadnohercegovačkog         BANK d.d. Mostar
+
+       kantona
+
+2.9.   Turistička zajednica         UniCredit Bank d.d.        338-000-22100156-74
+
+       Kantona Sarajevo
+
+2.10.  Turistička zajednica         UniCredit Bank d.d.        338-0002-2000521-25
+
+       Kantona 10
+
+VI. DIREKCIJE ZA CESTE
+
+                                                                            45
+

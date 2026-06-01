@@ -7,11 +7,49 @@ import DateInput from "src/components/DateInput/DateInput";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
+import { iznosUSlova } from "../ugovor-o-djelu/iznosSlovima";
 
 const isoToDisplay = (iso: string) => {
   if (!iso || !iso.includes("-")) return iso;
   const [y, m, d] = iso.split("-");
   return `${d}.${m}.${y}.`;
+};
+
+// Live formatter za polja sa iznosima — dodaje tačke kao thousands separator
+// dok user kuca. Primjer: "5000" → "5.000"; "5000,50" → "5.000,50"
+const formatMoneyLive = (input: string): string => {
+  if (!input || !input.trim()) return "";
+  const cleaned = input.replace(/\./g, "");
+  const parts = cleaned.split(",");
+  let intPart = parts[0].replace(/\D/g, "");
+  if (!intPart && parts.length > 1) intPart = "0";
+  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  if (parts.length > 1) {
+    const decPart = parts[1].replace(/\D/g, "").slice(0, 2);
+    return `${intPart},${decPart}`;
+  }
+  return intPart;
+};
+
+// Parsira de-DE format ("1.234,56") u broj. Tačka je UVIJEK thousands separator
+// (nikad decimalni), zarez je UVIJEK decimalni separator. Tako "1.234" = 1234
+// (hiljadu dvjesta trideset četiri), ne 1,234 (jedan cijela 234).
+const parseIznos = (s: string): number => {
+  if (!s) return 0;
+  const cleaned = s.trim().replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// Sklopi finalni string za PDF/DOCX: "5.000,00 KM (slovima: pet hiljada KM)".
+const composeIznosString = (raw: string): string => {
+  const n = parseIznos(raw);
+  if (n <= 0) return raw;
+  const formatted = n.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${formatted} KM (slovima: ${iznosUSlova(n)})`;
 };
 
 type NapomenaTip = "odricanje" | "spor";
@@ -90,7 +128,11 @@ export default function UgovorOPozajmici() {
     setLoadingDocx(true);
     try {
       const { generateDocx } = await import("./generateDocx");
-      const blob = await generateDocx({ ...form, datum: isoToDisplay(form.datum) });
+      const blob = await generateDocx({
+        ...form,
+        datum: isoToDisplay(form.datum),
+        iznos: composeIznosString(form.iznos),
+      });
       downloadBlob(blob, "Ugovor-o-pozajmici.docx");
     } finally {
       setLoadingDocx(false);
@@ -101,7 +143,11 @@ export default function UgovorOPozajmici() {
     setLoadingPdf(true);
     try {
       const { generatePdf } = await import("./generatePdf");
-      const blob = await generatePdf({ ...form, datum: isoToDisplay(form.datum) });
+      const blob = await generatePdf({
+        ...form,
+        datum: isoToDisplay(form.datum),
+        iznos: composeIznosString(form.iznos),
+      });
       downloadBlob(blob, "Ugovor-o-pozajmici.pdf");
     } finally {
       setLoadingPdf(false);
@@ -261,14 +307,28 @@ export default function UgovorOPozajmici() {
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>
-              Iznos (slovima i brojkama)
+              Iznos pozajmice (samo cifra u KM)
             </label>
             <input
               className={styles.fieldInput}
               value={form.iznos}
-              onChange={(e) => set("iznos", e.target.value)}
-              placeholder="5.000,00 KM (pet hiljada konvertibilnih maraka)"
+              onChange={(e) => set("iznos", formatMoneyLive(e.target.value))}
+              placeholder="Npr. 5.000,00"
+              inputMode="decimal"
             />
+            {parseIznos(form.iznos) > 0 && (
+              <p
+                style={{
+                  margin: "0.4rem 0 0",
+                  fontSize: 13,
+                  color: "var(--mid, #666)",
+                }}
+              >
+                Slovima:{" "}
+                <strong>{iznosUSlova(parseIznos(form.iznos))}</strong>
+                {" "}— ovaj prikaz se automatski upisuje u ugovor.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -481,6 +541,143 @@ export default function UgovorOPozajmici() {
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta je ugovor o <em>pozajmici novca</em>?
+        </h2>
+        <p>
+          <strong>Ugovor o pozajmici</strong> (zajmu) je pisani dokument kojim
+          zajmodavac prenosi određeni iznos novca u svojinu zajmoprimca, uz
+          obavezu da ga ovaj vrati u dogovorenom roku — sa kamatom ili bez
+          kamate. U Bosni i Hercegovini ugovor o pozajmici regulisan je{" "}
+          <em>Zakonom o obligacionim odnosima</em> i može se zaključiti između
+          fizičkih i pravnih osoba.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Pisani ugovor štiti obje strane — zajmodavca u smislu dokazivanja
+          prenosa novca i prava na povrat, a zajmoprimca u pogledu jasno
+          definisanog roka, iznosa i uslova vraćanja.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Šta mora sadržavati <em>ugovor o pozajmici</em>?
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Identifikacioni podaci stranaka</strong> — ime/naziv,
+            adresa, JMB ili JIB, broj lične karte/pasoša ili zastupnik (kod
+            pravnih osoba).
+          </li>
+          <li>
+            <strong>Iznos pozajmice i valuta</strong> — npr. 5.000 KM ili 2.500
+            EUR (sa naznakom kursa ako je u stranoj valuti).
+          </li>
+          <li>
+            <strong>Rok vraćanja</strong> — tačan datum, mjesečni anuiteti ili
+            "na poziv zajmodavca".
+          </li>
+          <li>
+            <strong>Kamatna stopa</strong> — ugovorna kamata ili eksplicitna
+            izjava da je pozajmica beskamatna.
+          </li>
+          <li>
+            <strong>Način vraćanja</strong> — gotovinski, transferom, jednokratno
+            ili u ratama.
+          </li>
+          <li>
+            <strong>Posljedice kašnjenja</strong> — zatezne kamate, klauzula o
+            izvršenju.
+          </li>
+          <li>
+            <strong>Datum i potpisi</strong> obje strane, eventualno svjedoci
+            ili notarska ovjera.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Porezni tretman <em>pozajmice i kamate</em>
+        </h2>
+        <p>
+          <strong>Sama pozajmica</strong> nije oporeziva jer se radi o povratu
+          istog iznosa — ne predstavlja prihod ni za zajmoprimca, ni rashod za
+          zajmodavca u trenutku isplate.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          <strong>Kamata na pozajmicu</strong> predstavlja prihod zajmodavca i
+          podliježe oporezivanju:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            za <strong>fizičke osobe</strong> — porez na dohodak od kapitala po
+            stopi od <strong>10%</strong>, prijavljuje se kroz GPD-1051,
+          </li>
+          <li>
+            za <strong>pravne osobe</strong> — kamata ulazi u prihode od
+            kapitala i oporezuje porezom na dobit.
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Kod pozajmica između <strong>povezanih lica</strong> (firma↔vlasnik,
+          firma↔direktor) Porezna uprava može primijeniti <em>tržišnu kamatnu
+          stopu</em> radi sprječavanja prikrivenih distribucija dobiti.
+          Preporučuje se konsultacija sa knjigovođom kod takvih konstrukcija.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Notarska <em>ovjera</em> — kada je potrebna?
+        </h2>
+        <p>
+          Za ugovor o pozajmici između fizičkih osoba notarska ovjera{" "}
+          <strong>nije obavezna</strong>. Međutim, preporučuje se za:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>veće iznose (preko 10.000 KM),</li>
+          <li>ugovore sa pravnim osobama,</li>
+          <li>pozajmice na duži rok (preko 1 godine),</li>
+          <li>slučajeve gdje se traži dodatna pravna sigurnost.</li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Notarski ovjeren ugovor je <strong>izvršna isprava</strong> — u
+          slučaju neispunjenja obaveze, zajmodavac može direktno pokrenuti
+          izvršni postupak bez prethodne sudske presude, što značajno ubrzava
+          naplatu.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza
+            </a>{" "}
+            — prihod od kamata se prijavljuje u GPD-1051.
+          </li>
+          <li>
+            <a href="/ugovor-o-djelu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o djelu
+            </a>{" "}
+            — za jednokratne usluge između naručioca i izvođača.
+          </li>
+          <li>
+            <a href="/ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o radu
+            </a>{" "}
+            — za stalno radno angažovanje radnika.
+          </li>
+        </ul>
+      </section>
+
       <FaqSection items={[
         { q: "Da li ugovor o pozajmici mora biti ovjeren kod notara?", a: "Nije obavezna notarska ovjera za ugovor o pozajmici između fizičkih osoba u FBiH, ali se preporučuje za veće iznose radi veće pravne sigurnosti. Notarski ovjeren ugovor je direktno izvršna isprava što olakšava naplatu u slučaju spora." },
         { q: "Da li se plaća porez na pozajmicu novca?", a: "Sama pozajmica nije oporeziva jer se radi o povratu sredstava. Međutim, kamata na pozajmicu predstavlja prihod zajmodavca i podliježe oporezivanju porezom na dohodak kao prihod od kapitala po stopi od 10%." },

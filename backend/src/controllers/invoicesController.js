@@ -15,17 +15,9 @@ const {
   computeTotals,
 } = require("../utils/invoicePdf");
 const { sendInvoiceEmail } = require("../utils/mailer");
+const { getOrgOwnerRole } = require("../services/tierService");
 
-const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
 const PRO_CLIENT_LIMIT = 20;
-
-function requireRole(req, res) {
-  if (!ALLOWED_ROLES.includes(req.user?.role)) {
-    res.status(403).json({ ok: false, error: "FORBIDDEN" });
-    return false;
-  }
-  return true;
-}
 
 function isStr(v) { return typeof v === "string" && v.trim().length > 0; }
 function trimOrNull(v) { return isStr(v) ? String(v).trim() : null; }
@@ -36,17 +28,88 @@ function publicInvoice(inv) {
   return plain;
 }
 
-// ── numeracija po useru/godini/tipu ────────────────────────────────────────
-async function nextSequence(userId, year, type, t) {
+// Faza 3: pristup je org-membership-based. Pozivaoc pristupa fakturi ako:
+//   - faktura ima organizationId i pozivaoc je član te org-e (i owner ima PRO+ plan), ILI
+//   - faktura nema organizationId (legacy) i pozivaoc je njen tvorac
+async function userCanAccessInvoice(invoice, userId, userRole) {
+  if (!invoice) return false;
+  if (userRole === "ADMIN") return true;
+  if (invoice.organizationId) {
+    const membership = await OrganizationMember.findOne({
+      where: { organizationId: invoice.organizationId, userId },
+    });
+    if (!membership) return false;
+    const ownerTier = await getOrgOwnerRole(invoice.organizationId);
+    return ["PRO", "BUSINESS", "ADMIN"].includes(ownerTier);
+  }
+  return invoice.userId === userId && ["PRO", "BUSINESS", "ADMIN"].includes(userRole);
+}
+
+// Vraća sve organizationId-eve gdje pozivaoc ima pristup za fakturisanje
+// (član + owner je PRO+).
+async function getAccessibleInvoicingOrgIds(userId, userRole) {
+  if (userRole === "ADMIN") {
+    const all = await Organization.findAll({ attributes: ["id"] });
+    return all.map((o) => o.id);
+  }
+  const memberships = await OrganizationMember.findAll({
+    where: { userId },
+    attributes: ["organizationId"],
+  });
+  const orgIds = memberships.map((m) => m.organizationId);
+  if (orgIds.length === 0) return [];
+  const ownerMemberships = await OrganizationMember.findAll({
+    where: { organizationId: { [Op.in]: orgIds }, role: "OWNER" },
+    include: [{ model: require("../models/index").User, as: "user", attributes: ["role"] }],
+  });
+  const allowed = new Set();
+  for (const om of ownerMemberships) {
+    if (["PRO", "BUSINESS", "ADMIN"].includes(om.user?.role)) allowed.add(om.organizationId);
+  }
+  return [...allowed];
+}
+
+// ── numeracija: po organizaciji (Faza 3) sa fallback-om na user-counter za legacy
+async function nextSequence({ organizationId, userId }, year, type, t) {
+  if (organizationId) {
+    let row = await InvoiceCounter.findOne({
+      where: { organizationId, year, type },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (!row) {
+      // Seed iz postojećih faktura te org-e da nova numeracija krene od max+1.
+      const maxExisting = await Invoice.max("sequence", {
+        where: { organizationId, year, type },
+        transaction: t,
+      });
+      const seed = Number.isFinite(maxExisting) ? maxExisting : 0;
+      await InvoiceCounter.create(
+        { organizationId, userId: null, year, type, lastNumber: seed },
+        { transaction: t },
+      );
+      row = await InvoiceCounter.findOne({
+        where: { organizationId, year, type },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+    }
+    const next = row.lastNumber + 1;
+    row.lastNumber = next;
+    await row.save({ transaction: t });
+    return next;
+  }
+
+  // Legacy fallback (per-user)
   let row = await InvoiceCounter.findOne({
-    where: { userId, year, type },
+    where: { userId, organizationId: null, year, type },
     transaction: t,
     lock: t.LOCK.UPDATE,
   });
   if (!row) {
-    await InvoiceCounter.create({ userId, year, type, lastNumber: 0 }, { transaction: t });
+    await InvoiceCounter.create({ userId, organizationId: null, year, type, lastNumber: 0 }, { transaction: t });
     row = await InvoiceCounter.findOne({
-      where: { userId, year, type },
+      where: { userId, organizationId: null, year, type },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -57,7 +120,6 @@ async function nextSequence(userId, year, type, t) {
   return next;
 }
 
-// ── validacija body-ja za create ──────────────────────────────────────────
 function validateCreate(body) {
   const errors = [];
   const type = String(body?.type || "INVOICE").toUpperCase();
@@ -82,29 +144,29 @@ function validateCreate(body) {
 
 // ── LIST ───────────────────────────────────────────────────────────────────
 async function list(req, res) {
-  if (!requireRole(req, res)) return;
-  const where = { userId: req.user.id };
+  const orgIds = await getAccessibleInvoicingOrgIds(req.user.id, req.user.role);
+
+  // OR: fakture iz pristupačnih org-a + legacy lične (userId === me, organizationId IS NULL)
+  const orClauses = [{ userId: req.user.id, organizationId: null }];
+  if (orgIds.length > 0) orClauses.push({ organizationId: { [Op.in]: orgIds } });
+
+  const where = { [Op.or]: orClauses };
   if (req.query.type && ["INVOICE", "PROFORMA"].includes(String(req.query.type).toUpperCase())) {
     where.type = String(req.query.type).toUpperCase();
   }
-  if (req.query.status) {
-    where.status = String(req.query.status).toUpperCase();
-  }
+  if (req.query.status) where.status = String(req.query.status).toUpperCase();
   if (req.query.year) {
     const y = Number(req.query.year);
     if (Number.isInteger(y)) where.year = y;
   }
-  const invoices = await Invoice.findAll({
-    where,
-    order: [["createdAt", "DESC"]],
-  });
 
-  // za predračune nadopuni info o konvertovanoj fakturi (ako filter sakriva fakture)
+  const invoices = await Invoice.findAll({ where, order: [["createdAt", "DESC"]] });
+
   const proformaIds = invoices.filter((i) => i.type === "PROFORMA").map((i) => i.id);
   let convertedMap = new Map();
   if (proformaIds.length) {
     const conv = await Invoice.findAll({
-      where: { userId: req.user.id, convertedFromProformaId: { [Op.in]: proformaIds } },
+      where: { convertedFromProformaId: { [Op.in]: proformaIds } },
       attributes: ["id", "fullNumber", "convertedFromProformaId"],
     });
     for (const c of conv) {
@@ -124,24 +186,24 @@ async function list(req, res) {
   res.status(200).json({ ok: true, data });
 }
 
-// ── GET BY ID (sa stavkama) ────────────────────────────────────────────────
+// ── GET BY ID ──────────────────────────────────────────────────────────────
 async function getById(req, res) {
-  if (!requireRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
 
   const inv = await Invoice.findOne({
-    where: { id, userId: req.user.id },
+    where: { id },
     include: [{ model: InvoiceItem, as: "items" }],
   });
   if (!inv) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(inv, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
   res.status(200).json({ ok: true, data: publicInvoice(inv) });
 }
 
 // ── CREATE ─────────────────────────────────────────────────────────────────
 async function create(req, res) {
-  if (!requireRole(req, res)) return;
-
   const { errors, type } = validateCreate(req.body);
   if (errors.length) return res.status(400).json({ ok: false, error: errors.join(" ") });
 
@@ -151,16 +213,38 @@ async function create(req, res) {
   const items = body.items;
   const applyVat = body.applyVat !== false;
   const currency = body.currency === "EUR" ? "EUR" : "BAM";
-
   const buyerKind = body.buyerKind === "COMPANY" ? "COMPANY" : "PERSON";
 
-  // saveBuyerAsClient: ako je TRUE, snimi kupca kao novog klijenta (poštujući PRO limit)
-  if (body.saveBuyerAsClient && !buyer.clientId) {
-    if (req.user.role === "PRO") {
-      // Limit broji i fizička lica i klijent-organizacije zajedno (20 ukupno)
-      const personCount = await Client.count({
-        where: { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: false },
+  const orgIdFromSeller = seller.organizationId ? Number(seller.organizationId) : null;
+  if (orgIdFromSeller !== null && !Number.isInteger(orgIdFromSeller)) {
+    return res.status(400).json({ ok: false, error: "Invalid seller.organizationId" });
+  }
+
+  // Pristup: ako je org navedena → mora biti član + owner PRO+; inače legacy
+  // user-scoped (samo PRO+ korisnici mogu kreirati bez org-e).
+  if (orgIdFromSeller) {
+    if (req.user.role !== "ADMIN") {
+      const member = await OrganizationMember.findOne({
+        where: { organizationId: orgIdFromSeller, userId: req.user.id },
       });
+      if (!member) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+      const ownerTier = await getOrgOwnerRole(orgIdFromSeller);
+      if (!["PRO", "BUSINESS", "ADMIN"].includes(ownerTier)) {
+        return res.status(403).json({ ok: false, error: "FORBIDDEN_OWNER_TIER" });
+      }
+    }
+  } else if (!["PRO", "BUSINESS", "ADMIN"].includes(req.user.role)) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+
+  // saveBuyerAsClient: PRO limit prati owner-tier kad ima org, inače user-role
+  if (body.saveBuyerAsClient && !buyer.clientId) {
+    const limitTier = orgIdFromSeller ? await getOrgOwnerRole(orgIdFromSeller) : req.user.role;
+    if (limitTier === "PRO") {
+      const where = orgIdFromSeller
+        ? { organizationId: orgIdFromSeller, type: "PERSON", amortizacijaOnly: false }
+        : { createdById: req.user.id, type: "PERSON", organizationId: null, amortizacijaOnly: false };
+      const personCount = await Client.count({ where });
       const orgCount = await OrganizationMember.count({
         where: { userId: req.user.id },
         include: [{ model: Organization, as: "organization", where: { isClientOrg: true }, attributes: [] }],
@@ -179,15 +263,12 @@ async function create(req, res) {
   try {
     const result = await sequelize.transaction(async (t) => {
       const year = issueDate.getFullYear();
-      const seq = await nextSequence(req.user.id, year, type, t);
+      const seq = await nextSequence({ organizationId: orgIdFromSeller, userId: req.user.id }, year, type, t);
       const fullNumber = formatInvoiceNumber(seq, year, type);
 
-      // Snimi kupca kao klijenta ako je traženo (i ako još ne postoji)
       let clientId = buyer.clientId ? Number(buyer.clientId) : null;
       if (body.saveBuyerAsClient && !clientId) {
         if (buyerKind === "COMPANY") {
-          // Klijent-organizacija: ako već postoji org sa istim taxNumber-om koju
-          // user vidi (kao member), iskoristi je; inače napravi novu + members link.
           const taxNumber = trimOrNull(buyer.idNumber);
           let existingOrg = null;
           if (taxNumber) {
@@ -223,9 +304,7 @@ async function create(req, res) {
               organizationId: newOrg.id, userId: req.user.id, role: "OWNER",
             }, { transaction: t });
           }
-          // clientId ostaje null — Invoice.clientId referencira Client tabelu, ne Organization.
         } else {
-          // Fizičko lice — Client tabela
           const parts = String(buyer.name).trim().split(/\s+/);
           const firstName = parts.shift() || "";
           const lastName = parts.join(" ") || "";
@@ -239,22 +318,19 @@ async function create(req, res) {
             city: trimOrNull(buyer.city),
             taxNumber: trimOrNull(buyer.idNumber),
             createdById: req.user.id,
+            organizationId: orgIdFromSeller, // pripada istoj org-i kao faktura
             amortizacijaOnly: false,
           }, { transaction: t });
           clientId = newClient.id;
         }
       }
 
-      // izračun totala
-      const computedItems = items.map((it) => {
-        const c = computeItem(it, applyVat);
-        return { input: it, computed: c };
-      });
+      const computedItems = items.map((it) => ({ input: it, computed: computeItem(it, applyVat) }));
       const totals = computeTotals(items, applyVat);
 
       const invoice = await Invoice.create({
         userId: req.user.id,
-        organizationId: seller.organizationId ? Number(seller.organizationId) : null,
+        organizationId: orgIdFromSeller,
         clientId,
         type,
         year,
@@ -264,7 +340,7 @@ async function create(req, res) {
         dueDate,
         applyVat,
         currency,
-        status: type === "PROFORMA" ? "ISSUED" : "ISSUED",
+        status: "ISSUED",
 
         sellerName: trimOrNull(seller.name),
         sellerAddress: trimOrNull(seller.address),
@@ -326,14 +402,16 @@ async function create(req, res) {
   }
 }
 
-// ── PATCH (mark paid / cancel / change status) ─────────────────────────────
+// ── PATCH ──────────────────────────────────────────────────────────────────
 async function patch(req, res) {
-  if (!requireRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
 
-  const inv = await Invoice.findOne({ where: { id, userId: req.user.id } });
+  const inv = await Invoice.findOne({ where: { id } });
   if (!inv) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(inv, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
 
   const updates = {};
   const { status, paidAt, notes } = req.body || {};
@@ -363,12 +441,14 @@ async function patch(req, res) {
 
 // ── DELETE ─────────────────────────────────────────────────────────────────
 async function remove(req, res) {
-  if (!requireRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
 
-  const inv = await Invoice.findOne({ where: { id, userId: req.user.id } });
+  const inv = await Invoice.findOne({ where: { id } });
   if (!inv) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(inv, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
 
   await sequelize.transaction(async (t) => {
     await InvoiceItem.destroy({ where: { invoiceId: id }, transaction: t });
@@ -379,15 +459,17 @@ async function remove(req, res) {
 
 // ── PDF ────────────────────────────────────────────────────────────────────
 async function pdf(req, res) {
-  if (!requireRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
 
   const inv = await Invoice.findOne({
-    where: { id, userId: req.user.id },
+    where: { id },
     include: [{ model: InvoiceItem, as: "items" }],
   });
   if (!inv) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(inv, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
 
   try {
     const buf = await generateInvoicePdf(publicInvoice(inv));
@@ -403,15 +485,17 @@ async function pdf(req, res) {
 
 // ── EMAIL ──────────────────────────────────────────────────────────────────
 async function emailToBuyer(req, res) {
-  if (!requireRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
 
   const inv = await Invoice.findOne({
-    where: { id, userId: req.user.id },
+    where: { id },
     include: [{ model: InvoiceItem, as: "items" }],
   });
   if (!inv) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(inv, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
 
   const overrideTo = trimOrNull(req.body?.to);
   const customMessage = trimOrNull(req.body?.message);
@@ -449,22 +533,23 @@ async function emailToBuyer(req, res) {
 
 // ── CONVERT PROFORMA -> INVOICE ────────────────────────────────────────────
 async function convertProforma(req, res) {
-  if (!requireRole(req, res)) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
 
   const src = await Invoice.findOne({
-    where: { id, userId: req.user.id },
+    where: { id },
     include: [{ model: InvoiceItem, as: "items" }],
   });
   if (!src) return res.status(404).json({ ok: false, error: "Predračun nije pronađen" });
+  if (!(await userCanAccessInvoice(src, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Predračun nije pronađen" });
+  }
   if (src.type !== "PROFORMA") {
     return res.status(400).json({ ok: false, error: "Samo predračun se može pretvoriti u fakturu." });
   }
 
-  // ako je već konvertovan, vrati postojeću fakturu
   const already = await Invoice.findOne({
-    where: { userId: req.user.id, convertedFromProformaId: src.id },
+    where: { convertedFromProformaId: src.id },
   });
   if (already) {
     return res.status(200).json({ ok: true, data: publicInvoice(already), alreadyExisted: true });
@@ -474,14 +559,14 @@ async function convertProforma(req, res) {
     const result = await sequelize.transaction(async (t) => {
       const issueDate = new Date();
       const year = issueDate.getFullYear();
-      const seq = await nextSequence(req.user.id, year, "INVOICE", t);
+      const seq = await nextSequence({ organizationId: src.organizationId, userId: req.user.id }, year, "INVOICE", t);
       const fullNumber = formatInvoiceNumber(seq, year, "INVOICE");
 
       const items = (src.items || []).slice().sort((a, b) => a.ordinal - b.ordinal);
       const dueDate = (() => { const d = new Date(issueDate); d.setDate(d.getDate() + 15); return d; })();
 
       const inv = await Invoice.create({
-        userId: src.userId,
+        userId: req.user.id,
         organizationId: src.organizationId,
         clientId: src.clientId,
         type: "INVOICE",
@@ -536,7 +621,6 @@ async function convertProforma(req, res) {
         }, { transaction: t });
       }
 
-      // označi predračun kao plaćen/realizovan (PAID je najbliži termin u trenutnom enumu)
       await Invoice.update({ status: "PAID", paidAt: issueDate }, { where: { id: src.id }, transaction: t });
 
       const fresh = await Invoice.findOne({

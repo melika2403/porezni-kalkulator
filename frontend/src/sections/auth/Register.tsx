@@ -1,12 +1,37 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useMutation } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import styles from "./auth.module.css";
-import { register, resendVerification, unwrap } from "src/api/auth";
+import { me, register, resendVerification, unwrap } from "src/api/auth";
 import CitySelect from "src/components/CitySelect/CitySelect";
+import { getBackendUrl } from "src/utils/backendUrl";
+
+function safeNext(raw: string | null): string {
+  if (!raw) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
 
 export default function Register() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextUrl = safeNext(searchParams.get("next"));
+
+  // Ako je korisnik već ulogovan (npr. nakon verifikacije maila pa povratak
+  // na /registracija), preusmjeri ga na ?next= ili početnu.
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()).catch(() => null),
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!meQuery.isLoading && meQuery.data) {
+      router.replace(nextUrl);
+    }
+  }, [meQuery.isLoading, meQuery.data, nextUrl, router]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -15,6 +40,7 @@ export default function Register() {
   const [city, setCity] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
 
@@ -43,6 +69,15 @@ export default function Register() {
       return;
     }
 
+    // Sačuvaj next u localStorage da ga VerifyEmail iskoristi kao redirect
+    // nakon klika na link iz email-a (mail link otvara novi tab koji ne nosi
+    // ?next= parametar).
+    if (nextUrl && nextUrl !== "/" && typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("postRegisterNext", nextUrl);
+      } catch {}
+    }
+
     mutation.mutate({
       email: email.trim(),
       password,
@@ -55,8 +90,7 @@ export default function Register() {
   };
 
   const handleGoogle = () => {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+    const backendUrl = getBackendUrl();
     window.location.href = `${backendUrl}/api/auth/google`;
   };
 
@@ -69,6 +103,11 @@ export default function Register() {
     : null;
 
   const errorMsg = validationError ?? serverError;
+
+  // Skoči blank dok provjeravamo session, ili kad je već ulogovan pa ide redirect.
+  if (meQuery.isLoading || meQuery.data) {
+    return <div className={styles.page} />;
+  }
 
   if (sentTo) {
     return (
@@ -162,7 +201,7 @@ export default function Register() {
 
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="phone">
-            Telefon
+            Telefon (opcionalno)
           </label>
           <input
             id="phone"
@@ -209,30 +248,44 @@ export default function Register() {
             <label className={styles.fieldLabel} htmlFor="password">
               Lozinka
             </label>
-            <input
-              id="password"
-              className={styles.input}
-              type="password"
-              placeholder="Min. 6 znakova"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-              required
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                id="password"
+                className={styles.input}
+                type={showPasswords ? "text" : "password"}
+                placeholder="Min. 6 znakova"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+                style={{ width: "100%", paddingRight: "2.5rem" }}
+              />
+              <PasswordToggle
+                shown={showPasswords}
+                onToggle={() => setShowPasswords((v) => !v)}
+              />
+            </div>
           </div>
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="confirm">
               Potvrda lozinke
             </label>
-            <input
-              id="confirm"
-              className={styles.input}
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              autoComplete="new-password"
-              required
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                id="confirm"
+                className={styles.input}
+                type={showPasswords ? "text" : "password"}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                autoComplete="new-password"
+                required
+                style={{ width: "100%", paddingRight: "2.5rem" }}
+              />
+              <PasswordToggle
+                shown={showPasswords}
+                onToggle={() => setShowPasswords((v) => !v)}
+              />
+            </div>
           </div>
         </div>
 
@@ -279,5 +332,69 @@ export default function Register() {
         Već imate račun? <Link href="/prijava">Prijavite se</Link>
       </div>
     </div>
+  );
+}
+
+function PasswordToggle({
+  shown,
+  onToggle,
+}: {
+  shown: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={shown ? "Sakrij lozinku" : "Prikaži lozinku"}
+      tabIndex={-1}
+      style={{
+        position: "absolute",
+        right: 8,
+        top: "50%",
+        transform: "translateY(-50%)",
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        padding: 6,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--mid)",
+        lineHeight: 0,
+      }}
+    >
+      {shown ? (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+          <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+      ) : (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      )}
+    </button>
   );
 }

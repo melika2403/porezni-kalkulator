@@ -15,6 +15,7 @@ interface Feature {
   icon: React.ReactNode;
   dest: string;
   soon?: boolean;
+  featured?: boolean;
 }
 
 const BADGE_LABELS: Record<Badge, string> = {
@@ -64,7 +65,7 @@ const FEATURES: Feature[] = [
   },
   {
     title: "ZO3 obrazac",
-    desc: "Automatska izrada ZO3 obrasca za prijavu doprinosa. Unesite podatke o zaposlenima i preuzmite popunjeni obrazac.",
+    desc: "Prijavite člana porodice (supružnika, dijete ili roditelja) na zdravstveno osiguranje u FBiH. Popunite ZO3 obrazac online i preuzmite popunjeni PDF.",
     badge: "free",
     iconColor: "sage",
     icon: (
@@ -143,7 +144,29 @@ const FEATURES: Feature[] = [
     dest: "/amortizacija",
   },
   {
-    title: "Šihterica — Evidencija radnog vremena",
+    title: "Plate i prijave radnika",
+    desc: "Mjesečni obračun plata i doprinosa. Platni listići, uplatnice, obrasci 2001/2002 i JS3100 prijave radnika kod PUFBiH.",
+    badge: "pro",
+    iconColor: "accent",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <circle cx="9" cy="7" r="4" />
+        <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
+      </svg>
+    ),
+    dest: "/prijave-radnika",
+    soon: false,
+    featured: true,
+  },
+  {
+    title: "Šihterica: evidencija radnog vremena",
     desc: "Unos i pregled radnog vremena po zaposlenima. Automatski obračun sati, prekovremenih i slobodnih dana.",
     badge: "pro",
     iconColor: "accent",
@@ -163,27 +186,8 @@ const FEATURES: Feature[] = [
   },
   // ── Business ─────────────────────────────────────────
   {
-    title: "Prijave / odjave radnika",
-    desc: "Unos i evidencija radnika s automatskim ispisom JS3100 obrasca i ostalih prijavnih obrazaca u PDF formatu.",
-    badge: "pro",
-    iconColor: "accent",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      >
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-      </svg>
-    ),
-    dest: "/prijave-radnika",
-    soon: false,
-  },
-  {
     title: "Generator članskih kartica",
-    desc: "Kreirajte profesionalne članske kartice sa QR kodom za svoju organizaciju (Pro) ili klijente (Business). Format kreditne kartice — spremno za štampanje ili pokazivanje na mobitelu.",
+    desc: "Kreirajte profesionalne članske kartice sa QR kodom za svoju organizaciju (Pro) ili klijente (Business). Format kreditne kartice, spremno za štampanje ili pokazivanje na mobitelu.",
     badge: "pro",
     iconColor: "accent",
     icon: (
@@ -201,7 +205,7 @@ const FEATURES: Feature[] = [
   },
   {
     title: "Fakture i predračuni",
-    desc: "Izrada profesionalnih računa (faktura) i predračuna sa automatskim obračunom PDV-a, podacima vašeg obrta i klijenata. Numeracija, historija i izvoz u PDF — spremno za slanje klijentu.",
+    desc: "Izrada profesionalnih računa (faktura) i predračuna sa automatskim obračunom PDV-a, podacima vašeg obrta i klijenata. Numeracija, historija i izvoz u PDF, spremno za slanje klijentu.",
     badge: "pro",
     iconColor: "accent",
     icon: (
@@ -237,8 +241,8 @@ const FEATURES: Feature[] = [
     dest: "/ugovor-o-djelu",
   },
   {
-    title: "Ugovor o radu",
-    desc: "Generator ugovora o radu sa popunjavanjem podataka iz Prijava radnika. Spremite vlastiti predložak i koristite ga za buduće ugovore.",
+    title: "Ugovor o radu i otkaz",
+    desc: "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Probni rad, određeno/neodređeno trajanje, automatski broj ugovora, u Word i PDF formatu.",
     badge: "business",
     iconColor: "dark",
     icon: (
@@ -254,8 +258,7 @@ const FEATURES: Feature[] = [
         <circle cx="9" cy="10" r="1.2" />
       </svg>
     ),
-    dest: "#",
-    soon: true,
+    dest: "/ugovor-o-radu",
   },
 ];
 
@@ -269,7 +272,7 @@ interface QuickTool {
 const QUICK_TOOLS: QuickTool[] = [
   {
     title: "Preračun neto / bruto plate",
-    desc: "Unesite neto ili bruto iznos — odmah dobijate sve doprinose, poreze i ukupni trošak za poslodavca.",
+    desc: "Unesite neto ili bruto iznos i odmah dobijate sve doprinose, poreze i ukupni trošak za poslodavca.",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -285,7 +288,7 @@ const QUICK_TOOLS: QuickTool[] = [
   },
   {
     title: "PDV kalkulator",
-    desc: "Brzi preračun PDV-a u oba smjera — iz cijene bez PDV-a ili iz maloprodajne cijene s PDV-om. Prikaz u KM ili u EUR.",
+    desc: "Brzi preračun PDV-a u oba smjera: iz cijene bez PDV-a ili iz maloprodajne cijene s PDV-om. Prikaz u KM ili u EUR.",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -337,7 +340,13 @@ export default function Features() {
 
         <div className={styles.grid}>
           {FEATURES.map((f) => (
-            <div key={f.title} className={styles.cell}>
+            <div
+              key={f.title}
+              className={`${styles.cell} ${f.featured ? styles.cellFeatured : ""}`}
+            >
+              {f.featured && (
+                <span className={styles.featuredTag}>Najpopularnije</span>
+              )}
               <div
                 className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}
               >

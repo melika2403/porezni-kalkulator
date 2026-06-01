@@ -8,7 +8,7 @@ import {
   type Organization,
   type PersonClient,
 } from "src/api/profile";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import styles from "../PersonFillSelect/PersonFillSelect.module.css";
 import type { BuyerFillData } from "./BuyerFillSelect";
 
@@ -25,8 +25,9 @@ function orgLabel(o: Organization): string {
 }
 
 export default function ClientFillSelect({ onFill }: Props) {
-  const { hasRole } = useRole();
-  const isAllowed = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Faza 3B: pristup imamo ako sami PRO+ ili smo član PRO+ org-e.
+  const { hasAccessToTier } = useMaxAccessibleTier();
+  const isAllowed = hasAccessToTier("PRO");
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);

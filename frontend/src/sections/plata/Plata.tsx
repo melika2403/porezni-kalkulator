@@ -1,23 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import styles from "./plata.module.css";
-
-// ── Contribution rates ─────────────────────────────────────────────────────
-const EMP_PIO            = 0.17;
-const EMP_ZDRAVSTVO      = 0.125;
-const EMP_NEZAPOSLENOST  = 0.015;
-const EMP_TOTAL          = EMP_PIO + EMP_ZDRAVSTVO + EMP_NEZAPOSLENOST; // 0.31
-
-const ERP_PIO            = 0.025;
-const ERP_ZDRAVSTVO      = 0.02;
-const ERP_NEZAPOSLENOST  = 0.005;
-const ERP_TOTAL          = ERP_PIO + ERP_ZDRAVSTVO + ERP_NEZAPOSLENOST; // 0.05
-
-// Additional charges on net salary
-const VODNA_NAKNADA      = 0.005;
-const NAKNADA_NESRECE    = 0.005;
-
-const TAX_RATE = 0.10;
+import { fromGross, fromNet, deductionFromCoefficient } from "src/utils/payrollFbih";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const fmt = (n: number) => {
@@ -29,47 +13,6 @@ const parse = (v: string) => {
   const n = parseFloat(v.replace(/\.(?=\d{3})/g, "").replace(",", "."));
   return isNaN(n) || n < 0 ? 0 : n;
 };
-
-// ── Calculation ────────────────────────────────────────────────────────────
-interface Result {
-  gross: number;
-  empPio: number; empZdravstvo: number; empNezaposlenost: number; empTotal: number;
-  taxBase: number; incomeTax: number;
-  net: number;
-  erpPio: number; erpZdravstvo: number; erpNezaposlenost: number; erpTotal: number;
-  vodnaNaknada: number; naknadaNesrece: number;
-  totalCost: number;
-}
-
-function fromGross(gross: number, deduction: number): Result {
-  const empPio            = gross * EMP_PIO;
-  const empZdravstvo      = gross * EMP_ZDRAVSTVO;
-  const empNezaposlenost  = gross * EMP_NEZAPOSLENOST;
-  const empTotal          = gross * EMP_TOTAL;
-  const taxBase           = Math.max(gross - empTotal - deduction, 0);
-  const incomeTax         = taxBase * TAX_RATE;
-  const net               = gross - empTotal - incomeTax;
-  const erpPio            = gross * ERP_PIO;
-  const erpZdravstvo      = gross * ERP_ZDRAVSTVO;
-  const erpNezaposlenost  = gross * ERP_NEZAPOSLENOST;
-  const erpTotal          = gross * ERP_TOTAL;
-  const vodnaNaknada      = net * VODNA_NAKNADA;
-  const naknadaNesrece    = net * NAKNADA_NESRECE;
-  const totalCost         = gross + erpTotal + vodnaNaknada + naknadaNesrece;
-  return { gross, empPio, empZdravstvo, empNezaposlenost, empTotal,
-           taxBase, incomeTax, net,
-           erpPio, erpZdravstvo, erpNezaposlenost, erpTotal,
-           vodnaNaknada, naknadaNesrece, totalCost };
-}
-
-function fromNet(net: number, deduction: number): Result {
-  const netCoeff     = (1 - EMP_TOTAL) * (1 - TAX_RATE);
-  const grossWithTax = (net - deduction * TAX_RATE) / netCoeff;
-  if (grossWithTax * (1 - EMP_TOTAL) - deduction > 0.001) {
-    return fromGross(grossWithTax, deduction);
-  }
-  return fromGross(net / (1 - EMP_TOTAL), deduction);
-}
 
 // ── Component ──────────────────────────────────────────────────────────────
 type Mode = "grossToNet" | "netToGross";
@@ -101,7 +44,7 @@ export default function PreracunPlate() {
   };
 
   const salary = parse(input);
-  const ded    = Math.max(parse(coeff), 0) * 300;
+  const ded    = deductionFromCoefficient(parse(coeff));
   const result = salary > 0
     ? (mode === "grossToNet" ? fromGross(salary, ded) : fromNet(salary, ded))
     : null;
@@ -288,6 +231,191 @@ export default function PreracunPlate() {
           <p className={styles.placeholder}>Unesite iznos da vidite preračun.</p>
         )}
       </div>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.eduSection}>
+        <h2>
+          Kako se računa <em>neto plata</em> iz bruto plate u FBiH?
+        </h2>
+        <p>
+          U Federaciji BiH plata se obračunava po precizno propisanom redoslijedu.
+          Iz <strong>bruto plate</strong> radnika prvo se odbijaju <strong>doprinosi
+          iz plate</strong> (ukupno 31%): PIO/MIO 17%, zdravstveno 12,5% i
+          osiguranje od nezaposlenosti 1,5%. Tako se dobija porezna osnovica.
+        </p>
+        <p>
+          Od porezne osnovice se zatim oduzima <strong>lični odbitak</strong>{" "}
+          (300 KM mjesečno × koeficijent uzdržavanih članova) i na razliku se
+          obračunava <strong>porez na dohodak po stopi od 10%</strong>.
+        </p>
+        <p>
+          <strong>Neto plata</strong> = Bruto − doprinosi iz plate − porez na
+          dohodak. To je iznos koji radnik dobija "na ruke" / na bankovni račun.
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Šta čini <em>ukupan trošak</em> poslodavca?
+        </h2>
+        <p>
+          Pored bruto plate, poslodavac plaća i <strong>doprinose na bruto
+          platu</strong> (10,5% ukupno):
+        </p>
+        <ul>
+          <li><strong>PIO/MIO 6%</strong> — Federalni zavod PIO/MIO,</li>
+          <li><strong>Zdravstveno 4%</strong> — kantonalni i federalni zavod,</li>
+          <li><strong>Nezaposlenost 0,5%</strong> — Služba zapošljavanja.</li>
+        </ul>
+        <p>
+          Dodatne obaveze poslodavca koje ne ulaze u doprinose ali su porez na
+          platu:
+        </p>
+        <ul>
+          <li><strong>Opća vodna naknada 0,5%</strong> — uplata u FBiH budžet,</li>
+          <li><strong>Naknada za zaštitu od nesreća 0,5%</strong> — uplata u FBiH budžet,</li>
+          <li>
+            <strong>Fond za rehabilitaciju OSI 0,5%</strong> — samo za privredna
+            društva. Obrti su izuzeti.
+          </li>
+        </ul>
+        <p>
+          <strong>Ukupan trošak</strong> = Bruto plata + svi doprinosi na platu +
+          naknade. Za obrte i d.o.o. razlikuje se za 0,5% (fond OSI).
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Lični <em>odbitak</em> i uzdržavani članovi
+        </h2>
+        <p>
+          <strong>Lični odbitak</strong> umanjuje poreznu osnovicu prije
+          obračuna poreza na dohodak. Osnovni iznos je <strong>300 KM mjesečno</strong>{" "}
+          (3.600 KM godišnje). Pripada svakom radniku koji je rezident FBiH.
+        </p>
+        <p>
+          Iznos se uvećava za uzdržavane članove porodice — supružnika, djecu,
+          roditelje, drugu rodbinu koju radnik izdržava. Faktor uvećanja zavisi
+          od broja i vrste uzdržavanih članova; obračunava se preko poreznog
+          koeficijenta (npr. 1,3 za jedno dijete, 1,5 za supružnika + dijete,
+          itd.).
+        </p>
+        <p>
+          Da bi se odbitak iskoristio, radnik mora poslodavcu dostaviti{" "}
+          <strong>Poreznu karticu (Obrazac PK-1)</strong> sa odobrenim
+          koeficijentom.
+        </p>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Stope i <em>uplatni računi</em> — pregled
+        </h2>
+        <ul>
+          <li>
+            <strong>PIO/MIO 17% (iz) + 6% (na)</strong> — vrsta prihoda 712112,
+            Federalni zavod PIO/MIO.
+          </li>
+          <li>
+            <strong>Zdravstveno 12,5% (iz) + 4% (na)</strong> — vrsta prihoda 712111,
+            split 89,8% kantonalni / 10,2% federalni.
+          </li>
+          <li>
+            <strong>Nezaposlenost 1,5% (iz) + 0,5% (na)</strong> — vrsta prihoda 712113,
+            split 70% kantonalni / 30% federalni.
+          </li>
+          <li>
+            <strong>Porez na dohodak 10%</strong> — vrsta prihoda 716111, kantonalni
+            budžet po prebivalištu radnika.
+          </li>
+          <li>
+            <strong>Opća vodna naknada 0,5%</strong> — vrsta prihoda 722529.
+          </li>
+          <li>
+            <strong>Naknada za nesreće 0,5%</strong> — vrsta prihoda 722581.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Povezani <em>alati</em>
+        </h2>
+        <ul>
+          <li>
+            <a href="/prijave-radnika?tab=obracun">Obračun plata</a> — mjesečni
+            obračun za sve radnike sa generisanjem platnih listića i uplatnica.
+          </li>
+          <li>
+            <a href="/prijave-radnika">JS3100 — prijava/odjava radnika</a> —
+            registracija osiguranika u sistem PIO/MIO i zdravstvenog.
+          </li>
+          <li>
+            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a> — svi
+            računi i šifre za uplatu doprinosa i poreza.
+          </li>
+          <li>
+            <a href="/sifre-djelatnosti">Šifre djelatnosti (KD BiH 2010)</a> —
+            za registraciju radnika prema vrsti djelatnosti.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.eduSection}>
+        <h2>
+          Često postavljana <em>pitanja</em>
+        </h2>
+        <p>
+          <strong>Koja je razlika između bruto i neto plate?</strong>
+        </p>
+        <p>
+          Bruto plata je iznos prije svih odbitaka — iz nje se odbijaju
+          doprinosi radnika (PIO/MIO 17%, zdravstveno 12,5%, nezaposlenost
+          1,5% — ukupno 31%) i porez na dohodak (10% nakon ličnog odbitka).
+          Neto plata je iznos koji radnik prima na račun.
+        </p>
+
+        <p>
+          <strong>Koliko košta radnik poslodavca u FBiH?</strong>
+        </p>
+        <p>
+          Ukupan trošak poslodavca = bruto plata + doprinosi na bruto
+          (PIO/MIO 6%, zdravstvo 4%, nezaposlenost 0,5%) + opća vodna
+          naknada (0,5%) + zaštita od prirodnih nesreća (0,5%). Za privredna
+          društva (d.o.o.) dodaje se i fond invalida (0,5%). Obrti su izuzeti
+          od fonda invalida.
+        </p>
+
+        <p>
+          <strong>Koliki je lični odbitak u FBiH za 2026?</strong>
+        </p>
+        <p>
+          Osnovni lični odbitak je 300 KM mjesečno (3.600 KM godišnje), uz
+          mogućnost uvećanja za izdržavane članove porodice. Lični odbitak se
+          oduzima od bruto plate prije obračuna poreza na dohodak (10%).
+        </p>
+
+        <p>
+          <strong>Da li se kalkulator može koristiti za obrtnike i d.o.o.?</strong>
+        </p>
+        <p>
+          Da. Kalkulator pokazuje neto, bruto i ukupan trošak za radnika u
+          oba slučaja. Razlika je samo u fondu invalida (samo d.o.o. plaća
+          0,5%). Za vlasnike obrta postoji poseban modul "Obračun plata"
+          koji koristi fiksne osnovice prema poreznom režimu.
+        </p>
+
+        <p>
+          <strong>Šta uključuju doprinosi iz plate (na teret radnika)?</strong>
+        </p>
+        <p>
+          Doprinosi iz plate (31% bruto) finansiraju: PIO/MIO fond (penziono
+          osiguranje, 17%), Federalni zavod zdravstvenog osiguranja (12,5%) i
+          Federalni zavod za zapošljavanje (1,5%). Poslodavac ih obračunava,
+          odbija od bruto plate i uplaćuje u korist budžeta.
+        </p>
+      </section>
     </div>
   );
 }

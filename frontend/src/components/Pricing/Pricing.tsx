@@ -8,6 +8,7 @@ interface Plan {
   tier: string;
   price: string;
   period: string;
+  trial?: string;
   features: string[];
   cta: string;
   ctaStyle: "outline" | "white" | "blue-white";
@@ -39,18 +40,17 @@ const PLANS: Plan[] = [
     tier: "Pro",
     price: "199,00 KM",
     period: "godišnje / po korisniku",
+    trial: "30 dana besplatno, bez kartice",
     features: [
       "Sve iz besplatnog plana",
-      "Šihterica — Evidencija radnog vremena",
-      "Generator članskih kartica",
-      "Fakture/računi i predračuni/ponude za vaše djelatnosti ili vaše klijente",
+      "Šihterica: evidencija radnog vremena",
+      "Višestruke vlastite djelatnosti",
       "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
-      "Maksimalno 5 radnika po organizaciji/klijentu",
-      "Prijave/odjave radnika, izrada JS3000 obrasca",
+      "Prijave/odjave radnika, izrada JS3100 obrasca",
       "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
-      "Generisanje uplatnica za plate i doprinose",
+      "Fakture/računi i predračuni/ponude",
     ],
-    cta: "Pretplati se na Pro",
+    cta: "Aktiviraj besplatnu pretplatu",
     ctaStyle: "white",
     variant: "pro",
     tag: "Najpopularnije",
@@ -64,11 +64,10 @@ const PLANS: Plan[] = [
     features: [
       "Sve iz Pro plana",
       "Upravljanje neograničenim brojem klijenata i fizičkih lica",
-      "Neograničen broj radnika po organizaciji/klijentu",
-      "Višekorisnički pristup (tim)",
+      "Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima",
+      "Višekorisnički pristup (tim) za knjigovođe i agencije",
+      "Ugovor o radu i odluka o prestanku radnog odnosa, sa automatskom numeracijom",
       "Ugovori o djelu i automatski obračun poreza i doprinosa",
-      "Automatsko generisanje AUG-1031 obrasca uz ugovor o djelu",
-      "Ugovor o radu i mogućnost prilagođavanja ugovora po Vašim potrebama",
       "Prioritetna podrška",
     ],
     cta: "Pretplati se na Business",
@@ -90,7 +89,8 @@ export default function Pricing() {
         .getElementById("funkcije")
         ?.scrollIntoView({ behavior: "smooth" });
     } else if (plan.action === "subscribe" && plan.planId) {
-      router.push(`/pretplate?plan=${plan.planId.toLowerCase()}`);
+      const trial = plan.planId === "PRO" ? "&trial=1" : "";
+      router.push(`/pretplate?plan=${plan.planId.toLowerCase()}${trial}`);
     } else {
       setShowModal(true);
     }
@@ -122,6 +122,12 @@ export default function Pricing() {
                 <div className={styles.tier}>{plan.tier}</div>
                 <div className={styles.price}>{plan.price}</div>
                 <div className={styles.period}>{plan.period}</div>
+                <div
+                  className={styles.trialBadge}
+                  aria-hidden={plan.trial ? undefined : true}
+                >
+                  {plan.trial ? `✓ ${plan.trial}` : " "}
+                </div>
                 <div className={styles.divider} />
                 <ul className={styles.features}>
                   {plan.features.map((f) => (

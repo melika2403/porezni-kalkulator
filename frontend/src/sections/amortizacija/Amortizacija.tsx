@@ -1,7 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
+import { useLastOrg } from "src/hooks/useLastOrg";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
 import { fillPldiTemplate, type PldiData } from "./fillPldi";
@@ -9,19 +13,20 @@ import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
-import OrgFillSelect, {
-  type OrgFillData,
-} from "src/components/PersonFillSelect/OrgFillSelect";
 import {
   getAmortizacijaYears,
   getAmortizacija,
   saveAmortizacija,
   deleteAmortizacija,
-  getClientYears,
+  getOrgYears,
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import SaveToast from "src/components/SaveToast/SaveToast";
-import { type PersonClient, type PersonClientPayload, getAmortizacijaClients, createAmortizacijaClient, updatePersonClient, deletePersonClient } from "src/api/profile";
+import {
+  getOrganizations,
+  getClientOrganizations,
+  type Organization,
+} from "src/api/profile";
 
 /* ── Types (exported for API layer) ── */
 export interface AssetRow {
@@ -75,6 +80,16 @@ export const VIJEK_STOPA: Record<string, number> = Object.fromEntries(
 /* ── Helpers ── */
 export function r2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+// crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
+// On LAN-IP dev (http://192.168.x.x) it's undefined — fall back to a sufficient
+// local-id generator (used only as React key / row id, not security-sensitive).
+function genId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function bsFmt(n: number): string {
@@ -207,7 +222,7 @@ export function calcRow(row: AssetRow, odISO: string, doISO: string) {
 
 function newRow(): AssetRow {
   return {
-    id: crypto.randomUUID(),
+    id: genId(),
     naziv: "",
     datumNabavke: "",
     brojDokumenta: "",
@@ -257,6 +272,10 @@ function sortIcon(
 
 /* ── Component ── */
 export default function Amortizacija() {
+  return <AmortizacijaApp />;
+}
+
+function AmortizacijaApp() {
   const currentYear = new Date().getFullYear().toString();
   const { findByName: findCity } = useCityLookup();
 
@@ -275,109 +294,125 @@ export default function Amortizacija() {
   const [saveStatus, setSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
-  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-  const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
+  // selectedOrgId — id organizacije (svoja ili klijent) za koju vodimo
+  // amortizaciju. Sinhronizovano sa lastOrgId kroz `useLastOrg` da kad korisnik
+  // prelazi između Plata / Radnika / Amortizacije, ista org ostaje aktivna.
+  // `?org=X` URL param ima prednost (deep-link iz /organizacije pregleda).
+  const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
+  const searchParams = useSearchParams();
+  const urlOrgInit = (() => {
+    const v = searchParams.get("org");
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(urlOrgInit);
+  const [orgHydrated, setOrgHydrated] = useState<boolean>(urlOrgInit != null);
   const [showNewYear, setShowNewYear] = useState(false);
   const [newYearVal, setNewYearVal] = useState("");
   const [yearToDelete, setYearToDelete] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [savingClient, setSavingClient] = useState(false);
   const [showCarryoverConfirm, setShowCarryoverConfirm] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [confirmDeleteClientId, setConfirmDeleteClientId] = useState<number | null>(null);
-  const [clientOrder, setClientOrder] = useState<number[]>(() => {
-    try { return JSON.parse(localStorage.getItem("amortizacija-client-order") ?? "[]"); }
-    catch { return []; }
-  });
-  const [dragOverId, setDragOverId] = useState<number | null>(null);
-  const dragItemId = useRef<number | null>(null);
-  const didAutoSelectRef = useRef(false);
   const isLoadingRef = useRef(false);
   const newYearRef = useRef<HTMLInputElement>(null);
-  const selectedClientIdRef = useRef(selectedClientId);
-  useEffect(() => { selectedClientIdRef.current = selectedClientId; }, [selectedClientId]);
+  const selectedOrgIdRef = useRef(selectedOrgId);
+  useEffect(() => { selectedOrgIdRef.current = selectedOrgId; }, [selectedOrgId]);
 
-  const { hasRole, role } = useRole();
-  const isClientUser = hasRole("PRO", "BUSINESS", "ADMIN");
-  const isPro = role === "PRO";
-  const PRO_CLIENT_LIMIT = 20;
-  const isClientUserRef = useRef(isClientUser);
-  useEffect(() => { isClientUserRef.current = isClientUser; }, [isClientUser]);
-
-  const obveznikRef = useRef(obveznik);
-  useEffect(() => { obveznikRef.current = obveznik; }, [obveznik]);
-
-  /* ── Client sidebar ── */
-  const clientsQuery = useQuery<PersonClient[]>({
-    queryKey: ["amortizacijaClients"],
-    queryFn: async () => {
-      const res = await getAmortizacijaClients();
-      if (!res.ok) return [];
-      return res.data ?? [];
+  // setOrgId wrapper koji takođe upiše u localStorage preko useLastOrg,
+  // tako da prelazak na drugi tab (Plate, Radnici…) pamti istog klijenta.
+  const setOrgId = useCallback(
+    (id: number | null) => {
+      setSelectedOrgId(id);
+      if (id != null) setLastOrgId(id);
     },
+    [setLastOrgId],
+  );
+
+  // Ako je org došao kroz URL ?org= param, propagiraj ga u lastOrgId
+  // (jednom pri mount-u) da prelazak na drugi tab pamti tu org-u.
+  const urlOrgSyncedRef = useRef(false);
+  useEffect(() => {
+    if (urlOrgSyncedRef.current) return;
+    if (urlOrgInit != null) {
+      setLastOrgId(urlOrgInit);
+      urlOrgSyncedRef.current = true;
+    }
+  }, [urlOrgInit, setLastOrgId]);
+
+  // Faza 3B: pristup amortizaciji za klijente imamo ako sami imamo PRO+
+  // ILI smo član bilo koje organizacije čiji je vlasnik PRO+. `isPro` se
+  // koristi za prikaz limita; ostavljen je vezan za vlastiti plan jer se
+  // klijent limit od 20 računa per-org u backendu (a frontend tu samo
+  // informativno prikazuje).
+  const { hasAccessToTier, tier: maxTier } = useMaxAccessibleTier();
+  const { role } = useRole();
+  const isLoggedIn = !!role;
+  const isClientUser = hasAccessToTier("PRO");
+  const isPro = maxTier === "PRO";
+  const PRO_CLIENT_LIMIT = 20;
+
+
+  /* ── Organizacije: vlastite + klijentske. Korisnik bira kojoj vodi
+     amortizaciju iz drop-down-a; lastOrgId pamti izbor između tabova. */
+  const ownOrgsQuery = useQuery({
+    queryKey: ["organizations"],
+    queryFn: async () => {
+      const res = await getOrganizations();
+      return res.ok ? (res.data ?? []) : [];
+    },
+    enabled: isLoggedIn,
+  });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["organizations-clients"],
+    queryFn: async () => {
+      const res = await getClientOrganizations();
+      return res.ok ? (res.data ?? []) : [];
+    },
+    enabled: isLoggedIn,
   });
 
-  const clientYearsQuery = useQuery({
-    queryKey: ["amortizacijaClientYears"],
+  // Spojena lista svih dostupnih org-a (svoja prvo, pa klijenti). Dedup po id-u.
+  const allOrgs = useMemo<Organization[]>(() => {
+    const map = new Map<number, Organization>();
+    for (const o of ownOrgsQuery.data ?? []) map.set(o.id, o);
+    for (const o of clientOrgsQuery.data ?? []) if (!map.has(o.id)) map.set(o.id, o);
+    return Array.from(map.values());
+  }, [ownOrgsQuery.data, clientOrgsQuery.data]);
+
+  // Hidracija u 2 faze (isti pattern kao Aktivni radnici / ObracunPlata):
+  //   1) Sačekaj da useLastOrg pročita localStorage (lastOrgLoaded).
+  //   2) Usvoji lastOrgId ako postoji i validan je, inače auto-select prvu org-u.
+  useEffect(() => {
+    if (orgHydrated) return;
+    if (!lastOrgLoaded) return;
+    if (lastOrgId != null) {
+      setSelectedOrgId(lastOrgId);
+      setOrgHydrated(true);
+      return;
+    }
+    if (allOrgs.length > 0) {
+      setSelectedOrgId(allOrgs[0].id);
+      setLastOrgId(allOrgs[0].id);
+    }
+    setOrgHydrated(true);
+  }, [orgHydrated, lastOrgLoaded, lastOrgId, allOrgs, setLastOrgId]);
+
+  // Mapa orgId → [godine] (za "ima li PLDI" indikator pored org-e u dropdown-u).
+  const orgYearsQuery = useQuery({
+    queryKey: ["amortizacijaOrgYears"],
     queryFn: async () => {
-      const res = await getClientYears();
+      const res = await getOrgYears();
       return res.ok ? res.data : {};
     },
+    enabled: isLoggedIn,
   });
 
-  /* ── Client order (drag-and-drop, persisted in localStorage) ── */
-  useEffect(() => {
-    if (!clientsQuery.data) return;
-    setClientOrder((prev) => {
-      const ids = clientsQuery.data.map((c) => c.id);
-      const kept = prev.filter((id) => ids.includes(id));
-      const added = ids.filter((id) => !kept.includes(id));
-      return [...kept, ...added];
-    });
-  }, [clientsQuery.data]);
-
-  useEffect(() => {
-    localStorage.setItem("amortizacija-client-order", JSON.stringify(clientOrder));
-  }, [clientOrder]);
-
-  const sortedClients = useMemo(() => {
-    if (!clientsQuery.data) return [];
-    return [...clientsQuery.data].sort((a, b) => {
-      const ai = clientOrder.indexOf(a.id);
-      const bi = clientOrder.indexOf(b.id);
-      if (ai === -1 && bi === -1) return 0;
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
-  }, [clientsQuery.data, clientOrder]);
-
-  const handleDragStart = useCallback((id: number) => {
-    dragItemId.current = id;
-  }, []);
-
-  const handleDragEnter = useCallback((id: number) => {
-    setDragOverId(id);
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    const from = dragItemId.current;
-    const to = dragOverId;
-    if (from !== null && to !== null && from !== to) {
-      setClientOrder((prev) => {
-        const next = [...prev];
-        const fi = next.indexOf(from);
-        const ti = next.indexOf(to);
-        if (fi === -1 || ti === -1) return prev;
-        next.splice(fi, 1);
-        next.splice(ti, 0, from);
-        return next;
-      });
-    }
-    dragItemId.current = null;
-    setDragOverId(null);
-  }, [dragOverId]);
+  // Aktivna org-a (objekat) — koristi se za auto-popunu obveznika.
+  const activeOrg = useMemo(
+    () => allOrgs.find((o) => o.id === selectedOrgId) ?? null,
+    [allOrgs, selectedOrgId],
+  );
 
   /* ── Dirty tracking ── */
   const markDirty = useCallback(() => {
@@ -429,7 +464,7 @@ export default function Amortizacija() {
       });
       setRows(
         (data.rows ?? []).map((r) => ({
-          id: crypto.randomUUID(),
+          id: genId(),
           naziv: r.naziv ?? "",
           datumNabavke: r.datumNabavke ?? "",
           brojDokumenta: r.brojDokumenta ?? "",
@@ -453,18 +488,23 @@ export default function Amortizacija() {
 
   useEffect(() => {
     (async () => {
-      // PRO+ users always work within a client — skip null-client slot
-      if (isClientUserRef.current && selectedClientId === null) return;
+      // Sačekaj da se selectedOrgId hidrira iz localStorage (lastOrgId) prije
+      // bilo kakvog learning request-a. Inače se kratko vidi prazan obrazac
+      // pa "skok" na učitane podatke kad hidracija završi.
+      if (!orgHydrated) return;
+      // Bez aktivne organizacije nema šta učitati — sidebar pokazuje
+      // "Dodaj organizaciju" prompt.
+      if (selectedOrgId === null) return;
 
-      const yearsRes = await getAmortizacijaYears(selectedClientId);
+      const yearsRes = await getAmortizacijaYears(selectedOrgId);
       if (yearsRes.ok) setSavedYears(yearsRes.data);
 
       setDataLoading(true);
-      const res = await getAmortizacija(currentYear, selectedClientId);
+      const res = await getAmortizacija(currentYear, selectedOrgId);
       setDataLoading(false);
       if (res.ok && res.data) applyLoadedData(res.data);
     })();
-  }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedOrgId, orgHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (showNewYear) newYearRef.current?.focus();
@@ -482,14 +522,7 @@ export default function Amortizacija() {
     });
   }, [obveznik.godina]);
 
-  // Auto-select first client for PRO+ users on initial load
-  useEffect(() => {
-    if (!isClientUser) return;
-    if (sortedClients.length === 0) return;
-    if (didAutoSelectRef.current) return;
-    didAutoSelectRef.current = true;
-    handleSelectClient(sortedClients[0].id);
-  }, [isClientUser, sortedClients]); // eslint-disable-line react-hooks/exhaustive-deps
+  // (Auto-select prve org-e se sad radi unutar hidracijskog useEffect-a iznad.)
 
   /* ── Year switching ── */
   const doSwitchYear = useCallback(
@@ -502,7 +535,7 @@ export default function Amortizacija() {
         return next;
       });
       setDataLoading(true);
-      const res = await getAmortizacija(year, selectedClientIdRef.current);
+      const res = await getAmortizacija(year, selectedOrgIdRef.current);
       setDataLoading(false);
       if (res.ok && res.data) {
         applyLoadedData(res.data);
@@ -539,19 +572,11 @@ export default function Amortizacija() {
 
   /* ── Save ── */
   const handleSave = useCallback(async () => {
+    if (!isLoggedIn) return; // anonimni preview, ne snima na backend
     setSaveStatus("saving");
-    let clientId = selectedClientIdRef.current;
-    if (isClientUserRef.current && clientId === null) {
-      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
-      if (clientRes.ok && clientRes.data) {
-        clientId = clientRes.data.id;
-        setSelectedClientId(clientId);
-        selectedClientIdRef.current = clientId;
-        void clientsQuery.refetch();
-      }
-    }
+    const orgId = selectedOrgIdRef.current;
     const godina = obveznik.godina || currentYear;
-    const res = await saveAmortizacija(godina, { obveznik, rows }, clientId);
+    const res = await saveAmortizacija(godina, { obveznik, rows }, orgId);
     if (res.ok) {
       setSaveStatus("saved");
       setIsDirty(false);
@@ -560,11 +585,13 @@ export default function Amortizacija() {
         return prev.includes(yr) ? prev : [...prev, yr].sort((a, b) => a - b);
       });
       setTimeout(() => setSaveStatus("idle"), 2500);
+      // Osvježi listu org→godine da indikator u dropdown-u zna da postoji PLDI.
+      void orgYearsQuery.refetch();
     } else {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, currentYear, clientsQuery]);
+  }, [obveznik, rows, currentYear, orgYearsQuery, isLoggedIn]);
 
   useEffect(() => {
     handleSaveRef.current = handleSave;
@@ -576,20 +603,10 @@ export default function Amortizacija() {
     const nextYear = String(parseInt(currentGodina) + 1);
 
     setSaveStatus("saving");
-
-    let clientId = selectedClientIdRef.current;
-    if (isClientUserRef.current && clientId === null) {
-      const clientRes = await createAmortizacijaClient({ firstName: obveznikRef.current.naziv || "" });
-      if (clientRes.ok && clientRes.data) {
-        clientId = clientRes.data.id;
-        setSelectedClientId(clientId);
-        selectedClientIdRef.current = clientId;
-        void clientsQuery.refetch();
-      }
-    }
+    const orgId = selectedOrgIdRef.current;
 
     // Save current year first so nothing is lost
-    await saveAmortizacija(currentGodina, { obveznik, rows }, clientId);
+    await saveAmortizacija(currentGodina, { obveznik, rows }, orgId);
     setSavedYears((prev) => {
       const yr = parseInt(currentGodina);
       return prev.includes(yr) ? prev : [...prev, yr].sort((a, b) => a - b);
@@ -633,7 +650,7 @@ export default function Amortizacija() {
     const res = await saveAmortizacija(nextYear, {
       obveznik: carryoverObveznik,
       rows: carryoverRows,
-    }, clientId);
+    }, orgId);
     if (res.ok) {
       setSavedYears((prev) => {
         const yr = parseInt(nextYear);
@@ -642,16 +659,17 @@ export default function Amortizacija() {
       setIsDirty(false);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2500);
+      void orgYearsQuery.refetch();
     } else {
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [obveznik, rows, selectedClientId, currentYear, clientsQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [obveznik, rows, selectedOrgId, currentYear, orgYearsQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Delete year ── */
   const handleDeleteYear = useCallback(
     async (yr: number) => {
-      await deleteAmortizacija(String(yr), selectedClientIdRef.current);
+      await deleteAmortizacija(String(yr), selectedOrgIdRef.current);
       const newSaved = savedYears.filter((y) => y !== yr);
       const newVisited = visitedYears.filter((y) => y !== yr);
       setSavedYears(newSaved);
@@ -751,44 +769,9 @@ export default function Amortizacija() {
     markDirty();
   };
 
-  const fillDjelatnost = useCallback(
-    (data: OrgFillData) => {
-      setObveznik((p) => ({
-        ...p,
-        jib: data.taxNumber ?? p.jib,
-        naziv: data.name ?? p.naziv,
-        adresaDjelatnosti: data.address ?? p.adresaDjelatnosti,
-        gradDjelatnosti: data.city ?? p.gradDjelatnosti,
-        vrstaSifra: data.activityCode ?? p.vrstaSifra,
-        vrstaNaziv: data.activityName ?? p.vrstaNaziv,
-        ...(data.owner
-          ? {
-              jmb: data.owner.jmbg ?? p.jmb,
-              imeIPrezime: [data.owner.firstName, data.owner.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
-              adresa: data.owner.address ?? p.adresa,
-              grad: data.owner.city ?? p.grad,
-            }
-          : {}),
-      }));
-      if (data.sourceOrgId !== undefined) setSourceOrgId(data.sourceOrgId);
-      if (selectedClientIdRef.current !== null) {
-        const clientPayload: Partial<PersonClientPayload> = {};
-        if (data.owner?.firstName) clientPayload.firstName = data.owner.firstName;
-        if (data.owner?.lastName) clientPayload.lastName = data.owner.lastName;
-        if (data.owner?.jmbg) clientPayload.jmbg = data.owner.jmbg;
-        if (data.owner?.address) clientPayload.address = data.owner.address;
-        if (data.owner?.city) clientPayload.city = data.owner.city;
-        if (data.taxNumber) clientPayload.taxNumber = data.taxNumber;
-        if (!data.owner?.firstName && data.name) clientPayload.firstName = data.name;
-        if (Object.keys(clientPayload).length > 0) {
-          updatePersonClient(selectedClientIdRef.current, clientPayload)
-            .then(() => clientsQuery.refetch());
-        }
-      }
-      markDirty();
-    },
-    [markDirty, clientsQuery],
-  );
+  // fillDjelatnost je uklonjen — auto-popuna iz Organization se sada radi u
+  // handleSelectOrg kada user promijeni org-u. Ručna izmjena polja je i dalje
+  // dostupna (input-i ispod su editabilni).
 
   /* ── Period ── */
   const activeOd = obveznik.manualPeriod
@@ -896,6 +879,10 @@ export default function Amortizacija() {
 
   /* ── Export ── */
   const handleExport = async () => {
+    // Server-side osiguranje da neulogovani ne mogu preuzeti PDF tako što
+    // skinu `disabled` atribut na dugmetu (preko devtoolsa). Backend save
+    // već vraća 401 za anonimne, a ovaj guard sprečava i lokalnu PDF generaciju.
+    if (!isLoggedIn) return;
     setExportLoading(true);
     try {
       await handleSave();
@@ -977,11 +964,11 @@ export default function Amortizacija() {
     [obveznik, rows],
   );
 
-  /* ── Client switch ── */
-  const handleSelectClient = useCallback(
-    async (clientId: number | null) => {
-      if (clientId === selectedClientId) return;
-      setSelectedClientId(clientId);
+  /* ── Org switch ── */
+  const handleSelectOrg = useCallback(
+    async (orgId: number | null) => {
+      if (orgId === selectedOrgId) return;
+      setOrgId(orgId);
       setSavedYears([]);
       setVisitedYears([parseInt(currentYear)]);
       setDeletedYears(new Set());
@@ -991,61 +978,45 @@ export default function Amortizacija() {
       setObveznik(makeObveznik(currentYear));
       setTimeout(() => { isLoadingRef.current = false; setIsDirty(false); }, 0);
 
-      if (clientId !== null) {
-        const client = clientsQuery.data?.find((c) => c.id === clientId);
-        if (client) {
+      if (orgId !== null) {
+        const org = allOrgs.find((o) => o.id === orgId);
+        if (org) {
+          // Auto-popuna obveznika iz Organization podataka. PLDI obveznik blok
+          // ima i firm-level (JIB, naziv djelatnosti) i person-level (JMB,
+          // ime, adresa) polja. Firm popunjavamo iz Organization; person iz
+          // owner-a (ako postoji).
           isLoadingRef.current = true;
           setObveznik((p) => ({
             ...p,
-            jmb: client.jmbg ?? p.jmb,
-            imeIPrezime: [client.firstName, client.lastName].filter(Boolean).join(" ") || p.imeIPrezime,
-            adresa: client.address ?? p.adresa,
-            grad: client.city ?? p.grad,
+            jib: org.taxNumber ?? p.jib,
+            naziv: org.name ?? p.naziv,
+            adresaDjelatnosti: org.address ?? p.adresaDjelatnosti,
+            gradDjelatnosti: org.city ?? p.gradDjelatnosti,
+            vrstaSifra: org.activityCode ?? p.vrstaSifra,
+            vrstaNaziv: org.activityName ?? p.vrstaNaziv,
+            ...(org.owner
+              ? {
+                  jmb: org.owner.jmbg ?? p.jmb,
+                  imeIPrezime:
+                    [org.owner.firstName, org.owner.lastName]
+                      .filter(Boolean)
+                      .join(" ") || p.imeIPrezime,
+                  adresa: org.owner.address ?? p.adresa,
+                  grad: org.owner.city ?? p.grad,
+                }
+              : {}),
           }));
           setTimeout(() => { isLoadingRef.current = false; }, 0);
         }
       }
     },
-    [selectedClientId, currentYear, clientsQuery.data],
+    [selectedOrgId, currentYear, allOrgs, setOrgId],
   );
 
-  const handleNazivBlur = useCallback(() => {
-    const clientId = selectedClientIdRef.current;
-    if (clientId === null || !obveznik.naziv.trim()) return;
-    updatePersonClient(clientId, { firstName: obveznik.naziv.trim() })
-      .then(() => clientsQuery.refetch());
-  }, [obveznik.naziv, clientsQuery]);
-
-  const handleConfirmDeleteClient = useCallback(async () => {
-    if (confirmDeleteClientId === null) return;
-    await deletePersonClient(confirmDeleteClientId);
-    setConfirmDeleteClientId(null);
-    if (selectedClientId === confirmDeleteClientId) {
-      const remaining = sortedClients.filter((c) => c.id !== confirmDeleteClientId);
-      const idx = sortedClients.findIndex((c) => c.id === confirmDeleteClientId);
-      const next = remaining[Math.max(0, idx - 1)] ?? remaining[0];
-      handleSelectClient(next?.id ?? null);
-    }
-    setClientOrder((prev) => prev.filter((id) => id !== confirmDeleteClientId));
-    clientsQuery.refetch();
-  }, [confirmDeleteClientId, selectedClientId, sortedClients, handleSelectClient, clientsQuery]);
-
-  const [addLimitError, setAddLimitError] = useState(false);
-
-  const handleAddClient = useCallback(async () => {
-    setSavingClient(true);
-    setAddLimitError(false);
-    const res = await createAmortizacijaClient({ firstName: "" });
-    setSavingClient(false);
-    if (res.ok && res.data) {
-      await clientsQuery.refetch();
-      handleSelectClient(res.data.id);
-    } else if (!res.ok && res.error === "PRO_LIMIT_REACHED") {
-      setAddLimitError(true);
-    }
-  }, [clientsQuery, handleSelectClient]);
-
-  const personLimitReached = isPro && sortedClients.length >= PRO_CLIENT_LIMIT;
+  // No-op handleNazivBlur — naziv djelatnosti se sada čuva u obveznik snapshot-u,
+  // ne više u PersonClient entitetu. Originalni handler je upisivao naziv
+  // nazad u PersonClient.firstName što više nije potrebno.
+  const handleNazivBlur = useCallback(() => {}, []);
 
   const thSort = (key: SortKey, label: React.ReactNode) => (
     <th
@@ -1060,91 +1031,130 @@ export default function Amortizacija() {
     </th>
   );
 
-  const sidebar = (
-    <aside className={styles.sidebar}>
-      <div className={styles.sidebarHeader}>Klijenti</div>
-      {!isClientUser && (
-        <div className={styles.sidebarLock}>
-          <span className={styles.sidebarLockIcon}>🔒</span>
-          <p className={styles.sidebarLockText}>Dostupno uz Pro ili Business pretplatu</p>
-          <a href="/pretplate?plan=pro" className={styles.sidebarLockBtn}>Pretplatite se</a>
-        </div>
-      )}
-      <div className={`${styles.sidebarList}${!isClientUser ? ` ${styles.sidebarLocked}` : ""}`}>
-        {sortedClients.map((client) => {
-          const hasData = !!clientYearsQuery.data?.[String(client.id)]?.length;
-          const isActive = selectedClientId === client.id;
-          const isDragOver = dragOverId === client.id;
-          const label = [client.firstName, client.lastName].filter(Boolean).join(" ") || "Prazan obrazac";
-          return (
-            <div
-              key={client.id}
-              draggable
-              className={`${styles.sidebarItemWrap}${isDragOver ? ` ${styles.dragOver}` : ""}`}
-              onDragStart={() => handleDragStart(client.id)}
-              onDragEnter={() => handleDragEnter(client.id)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => e.preventDefault()}
-            >
-              <button
-                className={`${styles.sidebarItem}${isActive ? ` ${styles.active}` : ""}`}
-                onClick={() => handleSelectClient(client.id)}
-              >
-                <span className={styles.dragHandle}>⠿</span>
-                <span className={hasData ? styles.sidebarDot : styles.sidebarDotEmpty} />
-                <span className={`${styles.sidebarName}${label === "Prazan obrazac" ? ` ${styles.sidebarNameEmpty}` : ""}`}>
-                  {label}
-                </span>
-              </button>
-              {sortedClients.length > 1 && (
-                <button
-                  className={styles.deleteClientBtn}
-                  title="Obriši klijenta"
-                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteClientId(client.id); }}
-                >
-                  🗑
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {isClientUser && (
-        <>
-          <button
-            className={styles.addClientBtn}
-            type="button"
-            disabled={savingClient || personLimitReached}
-            onClick={handleAddClient}
-          >
-            {savingClient ? "Dodajem…" : "+ Dodaj klijenta"}
-          </button>
-          {(personLimitReached || addLimitError) && (
-            <div className={styles.sidebarUpgrade}>
-              <strong>Limit od {PRO_CLIENT_LIMIT} klijenata</strong> na Pro pretplati je dosegnut.
-              Nadogradite na Business za više klijenata.
-              <a href="/pretplate?plan=business" className={styles.sidebarUpgradeLink}>
-                Nadogradi na Business →
-              </a>
-            </div>
+  // Org picker — kompaktan dropdown sa optgroup-ima za vlastite i klijentske
+  // org-e (konzistentno sa ObracunPlata / AktivniRadnici). lastOrgId pamti
+  // odabir između tabova.
+  const ownOrgs = ownOrgsQuery.data ?? [];
+  const clientOrgs = clientOrgsQuery.data ?? [];
+  const hasAnyOrg = ownOrgs.length > 0 || clientOrgs.length > 0;
+  const canSeeClients = isClientUser; // PRO+ vidi i klijentske org-e
+  const orgPicker = (
+    <div
+      style={{
+        padding: "0.9rem 1.1rem",
+        background: "white",
+        border: "1px solid #d4cfc4",
+        borderRadius: 10,
+        marginBottom: "1.25rem",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.9rem",
+        flexWrap: "wrap",
+      }}
+    >
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.6rem",
+          fontSize: "0.85rem",
+          fontWeight: 600,
+          flex: "1 1 280px",
+          minWidth: 240,
+        }}
+      >
+        <span style={{ color: "#666", textTransform: "uppercase", fontSize: "0.72rem", letterSpacing: "0.04em" }}>
+          Organizacija
+        </span>
+        <select
+          value={selectedOrgId ?? ""}
+          onChange={(e) =>
+            handleSelectOrg(e.target.value ? Number(e.target.value) : null)
+          }
+          style={{
+            flex: 1,
+            padding: "0.5rem 0.7rem",
+            border: "1px solid #d4cfc4",
+            borderRadius: 6,
+            fontSize: "0.9rem",
+            background: "white",
+            cursor: "pointer",
+          }}
+        >
+          <option value="">— Odaberi —</option>
+          {ownOrgs.length > 0 && (
+            <optgroup label="Moje organizacije">
+              {ownOrgs.map((o) => {
+                const hasData = !!orgYearsQuery.data?.[String(o.id)]?.length;
+                return (
+                  <option key={o.id} value={o.id}>
+                    {o.name}{hasData ? " •" : ""}
+                  </option>
+                );
+              })}
+            </optgroup>
           )}
-        </>
+          {canSeeClients && clientOrgs.length > 0 && (
+            <optgroup label="Klijentske organizacije">
+              {clientOrgs.map((o) => {
+                const hasData = !!orgYearsQuery.data?.[String(o.id)]?.length;
+                return (
+                  <option key={o.id} value={o.id}>
+                    {o.name}{hasData ? " •" : ""}
+                  </option>
+                );
+              })}
+            </optgroup>
+          )}
+        </select>
+      </label>
+
+      {/* Slučaj: user nema nijednu org-u → link na profil za dodavanje. */}
+      {!hasAnyOrg && (
+        <a
+          href="/profil?tab=djelatnost"
+          style={{
+            padding: "0.5rem 0.9rem",
+            background: "#3a5c42",
+            color: "white",
+            borderRadius: 6,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          + Dodaj organizaciju
+        </a>
       )}
 
-      {confirmDeleteClientId !== null && (
-        <div className={styles.deletePopup}>
-          <p className={styles.deletePopupText}>Obrisati klijenta? Ova radnja se ne može poništiti.</p>
-          <div className={styles.deletePopupActions}>
-            <button className={styles.deletePopupConfirm} onClick={handleConfirmDeleteClient}>
-              Obriši
-            </button>
-            <button className={styles.deletePopupCancel} onClick={() => setConfirmDeleteClientId(null)}>
-              Odustani
-            </button>
-          </div>
-        </div>
+      {/* Free user sa svojom org-om → pozivnica za pretplatu (otključava klijente). */}
+      {hasAnyOrg && !canSeeClients && (
+        <a
+          href="/pretplate?plan=pro"
+          style={{
+            fontSize: "0.78rem",
+            color: "#3a5c42",
+            textDecoration: "underline",
+          }}
+        >
+          🔒 Otključaj klijente (Pro+)
+        </a>
       )}
-    </aside>
+
+      {/* Limit upozorenje. */}
+      {canSeeClients && clientOrgs.length >= PRO_CLIENT_LIMIT && isPro && (
+        <a
+          href="/pretplate?plan=business"
+          style={{
+            fontSize: "0.78rem",
+            color: "#92400e",
+            textDecoration: "underline",
+          }}
+        >
+          Limit od {PRO_CLIENT_LIMIT} klijenata dostignut — nadogradi na Business
+        </a>
+      )}
+    </div>
   );
 
   return (
@@ -1213,9 +1223,8 @@ export default function Amortizacija() {
         {dataLoading && <span className={styles.yearLoading}>Učitavam…</span>}
       </div>
 
-    <div className={styles.pageLayout}>
-    {sidebar}
     <div className={styles.page}>
+      {orgPicker}
 
       {/* Dio 1 — Podaci */}
       <section className={styles.section}>
@@ -1336,7 +1345,9 @@ export default function Amortizacija() {
           <div className={styles.colGroup}>
             <div className={styles.colLabelRow}>
               <p className={styles.colLabel}>Registrovana djelatnost</p>
-              {(selectedClientId === null || savedYears.length === 0) && <OrgFillSelect onFill={fillDjelatnost} />}
+              {/* OrgFillSelect uklonjen — djelatnost se sada auto-popunjava iz
+                  odabrane Organization (handleSelectOrg). Ako user želi ručno
+                  prepravljati, polja ispod su editabilna. */}
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>4. JIB</label>
@@ -1536,17 +1547,17 @@ export default function Amortizacija() {
                     (početak godine)
                   </>,
                 )}
-                <th className={styles.thVijek}>
+                <th className={styles.thVijek} title="Vijek trajanja (godine)">
                   14) Vijek
                   <br />
-                  trajanja
+                  (god.)
                 </th>
-                <th className={styles.thStopa}>
+                <th className={styles.thStopa} title="Stopa amortizacije">
                   15) Stopa
                   <br />
                   (%)
                 </th>
-                <th className={styles.thMj}>Mj.</th>
+                <th className={styles.thMj} title="Mjeseci">Mj.</th>
                 {thSort(
                   "iznos",
                   <>
@@ -1631,36 +1642,30 @@ export default function Amortizacija() {
                       />
                     </td>
                     <td>
-                      <div className={styles.sufikWrap}>
-                        <input
-                          className={`${styles.tdInput} ${styles.tdCenter}`}
-                          value={row.vijekTrajanja}
-                          onChange={setRow(row.id, "vijekTrajanja")}
-                          placeholder="7"
-                          inputMode="numeric"
-                          style={{ maxWidth: 52 }}
-                          maxLength={3}
-                        />
-                        <span className={styles.sufikLabel}>god.</span>
-                      </div>
+                      <input
+                        className={`${styles.tdInput} ${styles.tdCenter}`}
+                        value={row.vijekTrajanja}
+                        onChange={setRow(row.id, "vijekTrajanja")}
+                        placeholder="7"
+                        inputMode="numeric"
+                        title="Vijek trajanja u godinama"
+                        maxLength={3}
+                      />
                     </td>
                     <td>
-                      <div className={styles.sufikWrap}>
-                        <input
-                          className={`${styles.tdInput} ${styles.tdCenter}`}
-                          value={row.stopaOverride}
-                          onChange={setRow(row.id, "stopaOverride")}
-                          placeholder={
-                            VIJEK_STOPA[row.vijekTrajanja]
-                              ? String(VIJEK_STOPA[row.vijekTrajanja])
-                              : "—"
-                          }
-                          inputMode="decimal"
-                          style={{ maxWidth: 82 }}
-                          maxLength={6}
-                        />
-                        <span className={styles.sufikLabel}>%</span>
-                      </div>
+                      <input
+                        className={`${styles.tdInput} ${styles.tdCenter}`}
+                        value={row.stopaOverride}
+                        onChange={setRow(row.id, "stopaOverride")}
+                        placeholder={
+                          VIJEK_STOPA[row.vijekTrajanja]
+                            ? String(VIJEK_STOPA[row.vijekTrajanja])
+                            : "—"
+                        }
+                        inputMode="decimal"
+                        title="Stopa amortizacije (%)"
+                        maxLength={6}
+                      />
                     </td>
                     <td>
                       <input
@@ -1795,24 +1800,49 @@ export default function Amortizacija() {
           )}
         </div>
 
-        <button
-          className={styles.exportBtn}
-          onClick={handleExport}
-          disabled={exportLoading}
-        >
-          {exportLoading ? (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ animation: "spin 1s linear infinite" }}
-            >
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
-          ) : (
+        {!isLoggedIn && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "0.75rem",
+              padding: "0.85rem 1rem",
+              margin: "0 0 1rem",
+              background: "var(--sage-pale, #eef3ee)",
+              border: "1px solid rgba(58, 92, 66, 0.25)",
+              borderRadius: "var(--radius)",
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: "var(--ink)",
+            }}
+          >
+            <span style={{ flexShrink: 0, fontSize: 18, lineHeight: 1 }}>🎁</span>
+            <div style={{ flex: 1 }}>
+              <strong>Preuzimanje PLDI-1043 PDF-a je besplatno za
+              registrovane korisnike.</strong>{" "}
+              Registracija je besplatna i traje minut. Plus dobijate 30 dana
+              PRO pretplate besplatno za sve napredne funkcije (plate, JS3100,
+              fakture).{" "}
+              <a
+                href="/registracija"
+                style={{
+                  color: "var(--sage)",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                }}
+              >
+                Registruj se besplatno →
+              </a>
+            </div>
+          </div>
+        )}
+
+        {!isLoggedIn ? (
+          <Link
+            href="/registracija"
+            className={styles.exportBtn}
+            title="Registrujte se besplatno da preuzmete PDF"
+          >
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -1825,9 +1855,43 @@ export default function Amortizacija() {
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-          )}
-          {exportLoading ? "Generišem PDF…" : "Preuzmi PLDI-1043 obrazac"}
-        </button>
+            Registruj se za preuzimanje
+          </Link>
+        ) : (
+          <button
+            className={styles.exportBtn}
+            onClick={handleExport}
+            disabled={exportLoading}
+          >
+            {exportLoading ? (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ animation: "spin 1s linear infinite" }}
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            )}
+            {exportLoading ? "Generišem PDF…" : "Preuzmi PLDI-1043 obrazac"}
+          </button>
+        )}
 
         <SaveToProfileButton
           type="PLDI"
@@ -1835,8 +1899,7 @@ export default function Amortizacija() {
           title={`PLDI-1043 · ${obveznik.naziv || obveznik.imeIPrezime} · ${pldiYear ?? "?"}`}
           buildData={buildPldiData}
           disabled={pldiYear === null}
-          defaultOrganizationId={sourceOrgId}
-          defaultClientId={selectedClientId}
+          defaultOrganizationId={selectedOrgId}
           onSuccess={handleSave}
         />
       </div>
@@ -1844,6 +1907,141 @@ export default function Amortizacija() {
       <p className={styles.napomena}>
         Obrazac PLDI-1043 · Popisna lista dugotrajne imovine · Federacija BiH
       </p>
+
+      {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+      <section className={styles.section} style={{ marginTop: "2rem" }}>
+        <h2 className={styles.sectionTitle}>
+          Šta su <em>stalna sredstva</em> i zašto se amortizuju?
+        </h2>
+        <p>
+          <strong>Stalna sredstva</strong> (dugotrajna imovina) su materijalna
+          i nematerijalna dobra koja se koriste u poslovanju duže od jedne
+          godine i čija nabavna vrijednost prelazi propisani prag. U FBiH se
+          evidentiraju na obrascu <strong>PLDI-1043</strong> — Popisnoj listi
+          dugotrajne imovine, koja se predaje kao prilog uz GPD-1051 i SPR-1053.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          <strong>Amortizacija</strong> je postupak postupnog prenošenja
+          nabavne vrijednosti sredstva na rashode poslovanja kroz njegov vijek
+          trajanja. Umjesto da cjelokupna nabavna vrijednost optereti rashode
+          u godini nabavke, ona se ravnomjerno raspoređuje na godine korištenja
+          — što daje stvarniju sliku poslovnog rezultata i smanjuje oporezivu
+          osnovicu kroz više godina.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Stope <em>amortizacije</em> u FBiH
+        </h2>
+        <p>
+          Porezno priznate stope amortizacije propisane su <em>Pravilnikom o
+          primjeni Zakona o porezu na dohodak FBiH</em>. Stopa ovisi o vrsti
+          sredstva i njegovom korisnom vijeku trajanja:
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Računari i softver</strong> — vijek 3 godine, stopa <strong>33,33%</strong>
+          </li>
+          <li>
+            <strong>Putnička vozila</strong> — vijek 5 godina, stopa <strong>20%</strong>
+          </li>
+          <li>
+            <strong>Oprema i mašine</strong> — vijek 7 godina, stopa <strong>14,29%</strong>
+          </li>
+          <li>
+            <strong>Namještaj</strong> — vijek 10 godina, stopa <strong>10%</strong>
+          </li>
+          <li>
+            <strong>Poslovni objekti</strong> — vijek 25–40 godina, stopa <strong>2,5%–4%</strong>
+          </li>
+          <li>
+            <strong>Nematerijalna imovina</strong> (patenti, licence) — prema ugovornom roku
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          U FBiH se primjenjuje <strong>linearna metoda amortizacije</strong> —
+          ravnomjerno tokom cijelog vijeka trajanja sredstva. Stopa za isto
+          sredstvo ne mijenja se iz godine u godinu.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Kako koristiti <em>generator stalnih sredstava</em>
+        </h2>
+        <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          <li>
+            <strong>Dodajte stalna sredstva</strong> — unesite naziv, datum
+            nabavke, nabavnu vrijednost, vijek trajanja i stopu amortizacije.
+            Za prijavljene korisnike sredstva se čuvaju u profilu.
+          </li>
+          <li>
+            <strong>Automatski obračun</strong> — sistem računa godišnju
+            amortizaciju, akumuliranu amortizaciju i preostalu knjigovodstvenu
+            vrijednost za odabranu godinu.
+          </li>
+          <li>
+            <strong>Prenos u sljedeću godinu</strong> — knjigovodstvena
+            vrijednost se automatski prenosi u narednu godinu kao početno stanje
+            (kolona 13 → kolona 4 sljedeće godine).
+          </li>
+          <li>
+            <strong>Označavanje prodaje/otpisa</strong> — kad prodate ili
+            otpišete sredstvo, označite to u obrascu. Sredstvo se neće prenijeti
+            u narednu godinu.
+          </li>
+          <li>
+            <strong>Preuzmite PLDI-1043 PDF</strong> kao prilog uz GPD-1051
+            i SPR-1053 godišnju prijavu.
+          </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Prodaja, otpis i <em>tehnička zastarjelost</em>
+        </h2>
+        <p>
+          Kada se sredstvo proda ili otpiše prije isteka vijeka trajanja,
+          amortizacija se obračunava samo za period korištenja u toj godini —
+          do datuma prodaje ili otpisa. Preostala knjigovodstvena vrijednost
+          se <strong>ne prenosi u sljedeću godinu</strong>, a u koloni 17
+          PLDI obrasca upisuje se napomena o prodaji.
+        </p>
+        <p style={{ marginTop: "0.85rem" }}>
+          Tehničko-tehnološka zastarjelost ili oštećenje koje znatno smanjuje
+          korisni vijek može biti osnov za ubrzanu amortizaciju ili otpis, ali
+          uz prateću dokumentaciju (mišljenje ovlaštenog procjenitelja,
+          inventurni zapisnik).
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Povezani <em>alati</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/spr" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              SPR-1053 — specifikacija dohotka samostalne djelatnosti
+            </a>{" "}
+            — amortizacija ulazi kao rashod u SPR.
+          </li>
+          <li>
+            <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 — godišnja prijava poreza
+            </a>{" "}
+            — PLDI je prilog uz GPD-1051.
+          </li>
+          <li>
+            <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Uplatni računi javnih prihoda
+            </a>{" "}
+            — računi za uplatu poreza i doprinosa nakon obračuna SPR-a.
+          </li>
+        </ul>
+      </section>
 
       <FaqSection
         items={[
@@ -1873,7 +2071,6 @@ export default function Amortizacija() {
           },
         ]}
       />
-    </div>
     </div>
   </div>
   );

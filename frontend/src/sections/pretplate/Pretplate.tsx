@@ -41,12 +41,12 @@ const PLANS: {
     tag: "Najpopularnije",
     features: [
       "Sve iz besplatnog plana",
-      "Šihterica — Evidencija radnog vremena",
+      "Šihterica: evidencija radnog vremena",
       "Višestruke vlastite djelatnosti",
       "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
-      "Prijave/odjave radnika, izrada JS3000 obrasca",
+      "Prijave/odjave radnika, izrada JS3100 obrasca",
       "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
-      "Generisanje uplatnica za plate i doprinose",
+      "Fakture/računi i predračuni/ponude",
     ],
   },
   {
@@ -58,9 +58,10 @@ const PLANS: {
     features: [
       "Sve iz Pro plana",
       "Upravljanje neograničenim brojem klijenata i fizičkih lica",
-      "Višekorisnički pristup (tim)",
-      "Ugovori o djelu i automatski obračun poreza i doprinosa",
       "Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima",
+      "Višekorisnički pristup (tim) za knjigovođe i agencije",
+      "Ugovor o radu i odluka o prestanku radnog odnosa, sa automatskom numeracijom",
+      "Ugovori o djelu i automatski obračun poreza i doprinosa",
       "Prioritetna podrška",
     ],
   },
@@ -276,7 +277,8 @@ export default function Pretplate() {
               </h2>
               <p className={styles.trialText}>
                 Bez kartice, bez automatske naplate. Aktivirajte odmah i
-                koristite šihtericu, fakture, klijente i sve PRO funkcije.
+                koristite sve PRO funkcije: obračun plata, prijave radnika,
+                šihtericu, fakture i klijente.
               </p>
               {trialStatus === "error" && (
                 <p className={styles.trialError}>{trialError}</p>
@@ -380,7 +382,7 @@ export default function Pretplate() {
             <input
               className={styles.input}
               type="text"
-              placeholder="Nativ firme"
+              placeholder="Naziv firme"
               value={buyer.name}
               onChange={handleField("name")}
               required
@@ -587,7 +589,7 @@ export default function Pretplate() {
           </div>
           <div className={styles.bankField}>
             <span className={styles.bankLabel}>Svrha uplate</span>
-            <span className={styles.bankValue}>Pretplata — Porezni kalkulator</span>
+            <span className={styles.bankValue}>Pretplata: Porezni kalkulator</span>
           </div>
         </div>
         <p className={styles.bankNote}>

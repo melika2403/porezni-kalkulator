@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./fakture.module.css";
-import { useRole } from "src/hooks/useRole";
+import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { unwrap } from "src/api/auth";
 import Modal from "src/components/Modal/Modal";
 import {
@@ -42,12 +43,27 @@ function fmtDate(iso: string | null) {
 }
 
 export default function Fakture() {
-  const { hasRole, isLoading: roleLoading } = useRole();
-  const isAllowed = hasRole("PRO", "BUSINESS", "ADMIN");
+  // Faza 3B: pristup imamo ako vlastiti plan je PRO+, ILI smo član bilo koje
+  // organizacije čiji je vlasnik PRO+. Backend već vraća uniju u listingu.
+  const { hasAccessToTier, isLoading: roleLoading } = useMaxAccessibleTier();
+  const isAllowed = hasAccessToTier("PRO");
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("ALL");
   const qc = useQueryClient();
 
-  const { data: invoices = [], isLoading, error } = useQuery({
+  // Korisnici bez PRO/BUSINESS nemaju listu — ali mogu da koriste preview formu.
+  // Umjesto intermediate "Probaj preview" ekrana, otvori formu direktno.
+  useEffect(() => {
+    if (!roleLoading && !isAllowed) {
+      router.replace("/fakture/nova");
+    }
+  }, [roleLoading, isAllowed, router]);
+
+  const {
+    data: invoices = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["invoices", tab],
     queryFn: () =>
       unwrap(
@@ -61,7 +77,8 @@ export default function Fakture() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
   });
   const cancel = useMutation({
-    mutationFn: (id: number) => unwrap(patchInvoice(id, { status: "CANCELLED" })),
+    mutationFn: (id: number) =>
+      unwrap(patchInvoice(id, { status: "CANCELLED" })),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
   });
   const remove = useMutation({
@@ -73,16 +90,27 @@ export default function Fakture() {
   const [confirmCancel, setConfirmCancel] = useState<Invoice | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Invoice | null>(null);
   const [confirmConvert, setConfirmConvert] = useState<Invoice | null>(null);
-  const [resultMsg, setResultMsg] = useState<{ title: string; message: string; isError?: boolean } | null>(null);
+  const [resultMsg, setResultMsg] = useState<{
+    title: string;
+    message: string;
+    isError?: boolean;
+  } | null>(null);
 
   const convert = useMutation({
     mutationFn: (id: number) => unwrap(convertProformaToInvoice(id)),
     onSuccess: (inv) => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
-      setResultMsg({ title: "Faktura kreirana", message: `Predračun je pretvoren u fakturu ${inv.fullNumber}.` });
+      setResultMsg({
+        title: "Faktura kreirana",
+        message: `Predračun je pretvoren u fakturu ${inv.fullNumber}.`,
+      });
     },
     onError: (e: Error) => {
-      setResultMsg({ title: "Greška pri konverziji", message: e.message, isError: true });
+      setResultMsg({
+        title: "Greška pri konverziji",
+        message: e.message,
+        isError: true,
+      });
     },
   });
 
@@ -91,16 +119,24 @@ export default function Fakture() {
       unwrap(emailInvoice(id, { to })),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
-      setResultMsg({ title: "Email poslat", message: `Faktura je uspješno poslana na ${data.sentTo}.` });
+      setResultMsg({
+        title: "Email poslat",
+        message: `Faktura je uspješno poslana na ${data.sentTo}.`,
+      });
     },
     onError: (e: Error) => {
-      setResultMsg({ title: "Greška pri slanju", message: e.message, isError: true });
+      setResultMsg({
+        title: "Greška pri slanju",
+        message: e.message,
+        isError: true,
+      });
     },
   });
 
   function validateEmail(v: string): string | null {
     if (!v) return "Unesite email adresu";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Neispravan format email adrese";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
+      return "Neispravan format email adrese";
     return null;
   }
 
@@ -112,7 +148,8 @@ export default function Fakture() {
   const convertedMap = useMemo(() => {
     const m = new Map<number, string>();
     for (const inv of invoices) {
-      if (inv.convertedFromProformaId) m.set(inv.convertedFromProformaId, inv.fullNumber);
+      if (inv.convertedFromProformaId)
+        m.set(inv.convertedFromProformaId, inv.fullNumber);
       if (inv.type === "PROFORMA" && inv.convertedToFullNumber) {
         m.set(inv.id, inv.convertedToFullNumber);
       }
@@ -120,39 +157,11 @@ export default function Fakture() {
     return m;
   }, [invoices]);
 
-  if (roleLoading) {
+  if (roleLoading || !isAllowed) {
+    // Tokom učitavanja, ili dok redirect-na-formu okine, prikaži minimalni placeholder.
     return (
       <div className={styles.page}>
-        <div className={styles.empty}>
-          Učitavanje…
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAllowed) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <div>
-            <div className={styles.label}>Fakture</div>
-            <h1 className={styles.h1}>Fakture i <em>predračuni</em></h1>
-            <p className={styles.subtitle}>Izrada profesionalnih računa i predračuna sa PDV-om i numeracijom.</p>
-          </div>
-        </div>
-        <div className={styles.upgradeBox}>
-          Ova funkcija je dostupna uz <strong>PRO</strong> ili <strong>BUSINESS</strong> pretplatu.
-          {" "}
-          <Link href="/pretplate">Pogledajte pretplate →</Link>
-        </div>
-        <div style={{ display: "flex", gap: ".75rem", flexWrap: "wrap" }}>
-          <Link href="/fakture/nova" className={`${styles.btn} ${styles.btnGhost}`}>
-            Probaj preview formu →
-          </Link>
-          <Link href="/pretplate" className={`${styles.btn} ${styles.btnPrimary}`}>
-            Pogledaj pretplate
-          </Link>
-        </div>
+        <div className={styles.empty}>Učitavanje…</div>
       </div>
     );
   }
@@ -162,34 +171,55 @@ export default function Fakture() {
       <div className={styles.header}>
         <div>
           <div className={styles.label}>Fakture</div>
-          <h1 className={styles.h1}>Fakture i <em>predračuni</em></h1>
-          <p className={styles.subtitle}>Lista svih izdanih dokumenata. Numeracija po godini, izvoz u PDF.</p>
+          <h1 className={styles.h1}>
+            Fakture i <em>predračuni</em>
+          </h1>
+          <p className={styles.subtitle}>
+            Lista svih izdanih dokumenata. Numeracija po godini, izvoz u PDF.
+          </p>
         </div>
         <div>
-          <Link href="/fakture/nova" className={`${styles.btn} ${styles.btnPrimary}`}>
+          <Link
+            href="/fakture/nova"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+          >
             + Novi dokument
           </Link>
         </div>
       </div>
 
       <div className={styles.tabs}>
-        <button className={`${styles.tab} ${tab === "ALL" ? styles.tabActive : ""}`} onClick={() => setTab("ALL")}>
+        <button
+          className={`${styles.tab} ${tab === "ALL" ? styles.tabActive : ""}`}
+          onClick={() => setTab("ALL")}
+        >
           Sve
         </button>
-        <button className={`${styles.tab} ${tab === "INVOICE" ? styles.tabActive : ""}`} onClick={() => setTab("INVOICE")}>
+        <button
+          className={`${styles.tab} ${tab === "INVOICE" ? styles.tabActive : ""}`}
+          onClick={() => setTab("INVOICE")}
+        >
           Fakture
         </button>
-        <button className={`${styles.tab} ${tab === "PROFORMA" ? styles.tabActive : ""}`} onClick={() => setTab("PROFORMA")}>
+        <button
+          className={`${styles.tab} ${tab === "PROFORMA" ? styles.tabActive : ""}`}
+          onClick={() => setTab("PROFORMA")}
+        >
           Predračuni
         </button>
       </div>
 
-      {error && <div className={styles.errorMsg}>Greška: {String((error as Error).message)}</div>}
+      {error && (
+        <div className={styles.errorMsg}>
+          Greška: {String((error as Error).message)}
+        </div>
+      )}
       {isLoading && <div className={styles.empty}>Učitavanje…</div>}
 
       {!isLoading && sorted.length === 0 && (
         <div className={styles.empty}>
-          Još nema dokumenata. Kliknite <strong>+ Novi dokument</strong> da kreirate prvu fakturu ili predračun.
+          Još nema dokumenata. Kliknite <strong>+ Novi dokument</strong> da
+          kreirate prvu fakturu ili predračun.
         </div>
       )}
 
@@ -210,15 +240,22 @@ export default function Fakture() {
           <tbody>
             {sorted.map((inv: Invoice) => (
               <tr key={inv.id}>
-                <td><strong>{inv.fullNumber}</strong></td>
+                <td>
+                  <strong>{inv.fullNumber}</strong>
+                </td>
                 <td>{inv.type === "INVOICE" ? "Faktura" : "Predračun"}</td>
                 <td>{inv.buyerName}</td>
                 <td>{fmtDate(inv.issueDate)}</td>
                 <td>{fmtDate(inv.dueDate)}</td>
-                <td className={styles.numeric}>{fmtMoney(inv.grossTotal)} {inv.currency === "EUR" ? "EUR" : "KM"}</td>
+                <td className={styles.numeric}>
+                  {fmtMoney(inv.grossTotal)}{" "}
+                  {inv.currency === "EUR" ? "EUR" : "KM"}
+                </td>
                 <td>
                   <div className={styles.statusCell}>
-                    <span className={`${styles.statusBadge} ${styles[`status${inv.status}`]}`}>
+                    <span
+                      className={`${styles.statusBadge} ${styles[`status${inv.status}`]}`}
+                    >
                       {STATUS_LABELS[inv.status]}
                     </span>
                     {inv.emailSentAt && (
@@ -250,10 +287,12 @@ export default function Fakture() {
                       disabled={sendEmail.isPending}
                       title="Pošalji PDF na email kupca"
                     >
-                      {sendEmail.isPending && sendEmail.variables?.id === inv.id ? "Šaljem…" : "✉ E-mail"}
+                      {sendEmail.isPending && sendEmail.variables?.id === inv.id
+                        ? "Šaljem…"
+                        : "✉ E-mail"}
                     </button>
-                    {inv.type === "PROFORMA" && (
-                      convertedMap.has(inv.id) ? (
+                    {inv.type === "PROFORMA" &&
+                      (convertedMap.has(inv.id) ? (
                         <span
                           className={`${styles.statusBadge} ${styles.statusCONVERTED}`}
                           title={`Pretvoreno u fakturu ${convertedMap.get(inv.id)}`}
@@ -269,8 +308,7 @@ export default function Fakture() {
                         >
                           Napravi fakturu
                         </button>
-                      )
-                    )}
+                      ))}
                     {inv.status !== "PAID" && inv.status !== "CANCELLED" && (
                       <button
                         className={`${styles.btn} ${styles.btnGhost}`}
@@ -314,7 +352,11 @@ export default function Fakture() {
       <Modal
         kind="prompt"
         open={!!emailFor}
-        title={emailFor?.emailSentAt ? "Ponovo poslati fakturu?" : "Pošalji fakturu emailom"}
+        title={
+          emailFor?.emailSentAt
+            ? "Ponovo poslati fakturu?"
+            : "Pošalji fakturu emailom"
+        }
         message={
           emailFor?.emailSentAt
             ? `⚠ Ova faktura je već poslana ${fmtDate(emailFor.emailSentAt)} na ${emailFor.emailSentTo || "—"}. Slanjem opet kupac će dobiti drugi email sa istom fakturom.`
@@ -336,11 +378,17 @@ export default function Fakture() {
         kind="confirm"
         open={!!confirmCancel}
         title="Otkazati dokument?"
-        message={confirmCancel ? `Dokument ${confirmCancel.fullNumber} će biti označen kao otkazan.` : ""}
+        message={
+          confirmCancel
+            ? `Dokument ${confirmCancel.fullNumber} će biti označen kao otkazan.`
+            : ""
+        }
         confirmLabel="Otkaži dokument"
         cancelLabel="Nazad"
         variant="danger"
-        onConfirm={() => { if (confirmCancel) cancel.mutate(confirmCancel.id); }}
+        onConfirm={() => {
+          if (confirmCancel) cancel.mutate(confirmCancel.id);
+        }}
         onClose={() => setConfirmCancel(null)}
       />
 
@@ -348,11 +396,17 @@ export default function Fakture() {
         kind="confirm"
         open={!!confirmDelete}
         title="Trajno obrisati dokument?"
-        message={confirmDelete ? `Dokument ${confirmDelete.fullNumber} će biti trajno obrisan. Ovu akciju nije moguće poništiti.` : ""}
+        message={
+          confirmDelete
+            ? `Dokument ${confirmDelete.fullNumber} će biti trajno obrisan. Ovu akciju nije moguće poništiti.`
+            : ""
+        }
         confirmLabel="Obriši"
         cancelLabel="Nazad"
         variant="danger"
-        onConfirm={() => { if (confirmDelete) remove.mutate(confirmDelete.id); }}
+        onConfirm={() => {
+          if (confirmDelete) remove.mutate(confirmDelete.id);
+        }}
         onClose={() => setConfirmDelete(null)}
       />
 
@@ -360,10 +414,16 @@ export default function Fakture() {
         kind="confirm"
         open={!!confirmConvert}
         title="Pretvoriti predračun u fakturu?"
-        message={confirmConvert ? `Iz predračuna ${confirmConvert.fullNumber} bit će kreirana nova faktura sa istim stavkama i kupcem. Predračun će biti označen kao realizovan.` : ""}
+        message={
+          confirmConvert
+            ? `Iz predračuna ${confirmConvert.fullNumber} bit će kreirana nova faktura sa istim stavkama i kupcem. Predračun će biti označen kao realizovan.`
+            : ""
+        }
         confirmLabel="Pretvori"
         cancelLabel="Nazad"
-        onConfirm={() => { if (confirmConvert) convert.mutate(confirmConvert.id); }}
+        onConfirm={() => {
+          if (confirmConvert) convert.mutate(confirmConvert.id);
+        }}
         onClose={() => setConfirmConvert(null)}
       />
 

@@ -1,0 +1,415 @@
+{
+  "KANTONI": {
+    "USK": {
+      "ime": "Unsko-sanski kanton",
+      "genitiv": "Unsko-sanskog kantona",
+      "zoRacun": "338-500-22751661-53",
+      "budzet": "338-000-22100058-77",
+      "nezapRacun": "338-000-22100129-58",
+      "opcine": [
+        {
+          "ime": "Bihać",
+          "kod": "003"
+        },
+        {
+          "ime": "Bosanska Krupa",
+          "kod": "008"
+        },
+        {
+          "ime": "Bosanski Petrovac",
+          "kod": "011"
+        },
+        {
+          "ime": "Cazin",
+          "kod": "019"
+        },
+        {
+          "ime": "Ključ",
+          "kod": "048"
+        },
+        {
+          "ime": "Sanski Most",
+          "kod": "076"
+        },
+        {
+          "ime": "Velika Kladuša",
+          "kod": "097"
+        },
+        {
+          "ime": "Bužim",
+          "kod": "124"
+        }
+      ]
+    },
+    "POS": {
+      "ime": "Posavski kanton",
+      "genitiv": "Posavskog kantona",
+      "zoRacun": "161-080-00026400-20",
+      "budzet": "338-000-22104571-21",
+      "nezapRacun": "306-042-00009586-97",
+      "opcine": [
+        {
+          "ime": "Orašje",
+          "kod": "068"
+        },
+        {
+          "ime": "Odžak",
+          "kod": "066"
+        },
+        {
+          "ime": "Domaljevac-Šamac",
+          "kod": "012"
+        }
+      ]
+    },
+    "TUZ": {
+      "ime": "Tuzlanski kanton",
+      "genitiv": "Tuzlanskog kantona",
+      "zoRacun": "338-440-22124691-66",
+      "budzet": "132-100-02560000-80",
+      "nezapRacun": "132-100-03110200-32",
+      "opcine": [
+        {
+          "ime": "Banovići",
+          "kod": "001"
+        },
+        {
+          "ime": "Gračanica",
+          "kod": "035"
+        },
+        {
+          "ime": "Gradačac",
+          "kod": "036"
+        },
+        {
+          "ime": "Kalesija",
+          "kod": "044"
+        },
+        {
+          "ime": "Kladanj",
+          "kod": "047"
+        },
+        {
+          "ime": "Čelić",
+          "kod": "056"
+        },
+        {
+          "ime": "Lukavac",
+          "kod": "057"
+        },
+        {
+          "ime": "Srebrenik",
+          "kod": "085"
+        },
+        {
+          "ime": "Tuzla",
+          "kod": "094"
+        },
+        {
+          "ime": "Živinice",
+          "kod": "106"
+        },
+        {
+          "ime": "Doboj-Istok",
+          "kod": "128"
+        },
+        {
+          "ime": "Sapna",
+          "kod": "138"
+        },
+        {
+          "ime": "Teočak",
+          "kod": "142"
+        }
+      ]
+    },
+    "ZDK": {
+      "ime": "Zeničko-dobojski kanton",
+      "genitiv": "Zeničko-dobojskog kantona",
+      "zoRacun": "134-010-00000021-57",
+      "budzet": "134-010-00000016-72",
+      "nezapRacun": "134-010-00001075-96",
+      "opcine": [
+        {
+          "ime": "Breza",
+          "kod": "016"
+        },
+        {
+          "ime": "Kakanj",
+          "kod": "043"
+        },
+        {
+          "ime": "Maglaj",
+          "kod": "060"
+        },
+        {
+          "ime": "Olovo",
+          "kod": "067"
+        },
+        {
+          "ime": "Tešanj",
+          "kod": "090"
+        },
+        {
+          "ime": "Vareš",
+          "kod": "096"
+        },
+        {
+          "ime": "Visoko",
+          "kod": "098"
+        },
+        {
+          "ime": "Zavidovići",
+          "kod": "102"
+        },
+        {
+          "ime": "Zenica",
+          "kod": "103"
+        },
+        {
+          "ime": "Žepče",
+          "kod": "105"
+        },
+        {
+          "ime": "Doboj-Jug",
+          "kod": "132"
+        },
+        {
+          "ime": "Usora",
+          "kod": "025"
+        }
+      ]
+    },
+    "BPK": {
+      "ime": "Bosansko-podrinjski kanton",
+      "genitiv": "Bosansko-podrinjskog kantona",
+      "zoRacun": "134-620-10082668-97",
+      "budzet": "101-140-0078226-394",
+      "nezapRacun": "101-140-00004638-22",
+      "opcine": [
+        {
+          "ime": "Goražde",
+          "kod": "033"
+        },
+        {
+          "ime": "Foča",
+          "kod": "134"
+        },
+        {
+          "ime": "Pale",
+          "kod": "136"
+        }
+      ]
+    },
+    "SBK": {
+      "ime": "Srednjobosanski kanton",
+      "genitiv": "Središnjobosanskog kantona",
+      "zoRacun": "134-481-10082431-53",
+      "budzet": "134-113-0360000-194",
+      "nezapRacun": "338-000-22100281-87",
+      "opcine": [
+        {
+          "ime": "Bugojno",
+          "kod": "017"
+        },
+        {
+          "ime": "Busovača",
+          "kod": "018"
+        },
+        {
+          "ime": "Donji Vakuf",
+          "kod": "026"
+        },
+        {
+          "ime": "Dobretići",
+          "kod": "050"
+        },
+        {
+          "ime": "Fojnica",
+          "kod": "030"
+        },
+        {
+          "ime": "Gornji Vakuf",
+          "kod": "034"
+        },
+        {
+          "ime": "Jajce",
+          "kod": "042"
+        },
+        {
+          "ime": "Kiseljak",
+          "kod": "046"
+        },
+        {
+          "ime": "Kreševo",
+          "kod": "051"
+        },
+        {
+          "ime": "Novi Travnik",
+          "kod": "065"
+        },
+        {
+          "ime": "Travnik",
+          "kod": "091"
+        },
+        {
+          "ime": "Vitez",
+          "kod": "100"
+        }
+      ]
+    },
+    "HNK": {
+      "ime": "Hercegovačko-neretvanski kanton",
+      "genitiv": "Hercegovačko-neretvanskog kantona",
+      "zoRacun": "555-090-0069475-156",
+      "budzet": "134-209-0360000-146",
+      "nezapRacun": "161-020-00138001-91",
+      "opcine": [
+        {
+          "ime": "Čapljina",
+          "kod": "021"
+        },
+        {
+          "ime": "Čitluk",
+          "kod": "023"
+        },
+        {
+          "ime": "Grad Mostar",
+          "kod": "180"
+        },
+        {
+          "ime": "Jablanica",
+          "kod": "041"
+        },
+        {
+          "ime": "Konjic",
+          "kod": "049"
+        },
+        {
+          "ime": "Neum",
+          "kod": "107"
+        },
+        {
+          "ime": "Prozor-Rama",
+          "kod": "073"
+        },
+        {
+          "ime": "Ravno",
+          "kod": "207"
+        },
+        {
+          "ime": "Stolac",
+          "kod": "086"
+        }
+      ]
+    },
+    "ZHK": {
+      "ime": "Zapadno-hercegovački kanton",
+      "genitiv": "Zapadno-hercegovačkog kantona",
+      "zoRacun": "102-874-0000000-362",
+      "budzet": "338-000-22000040-13",
+      "nezapRacun": "338-000-22000102-21",
+      "opcine": [
+        {
+          "ime": "Široki Brijeg",
+          "kod": "054"
+        },
+        {
+          "ime": "Grude",
+          "kod": "037"
+        },
+        {
+          "ime": "Ljubuški",
+          "kod": "059"
+        },
+        {
+          "ime": "Posušje",
+          "kod": "070"
+        }
+      ]
+    },
+    "KS": {
+      "ime": "Kanton Sarajevo",
+      "genitiv": "Kantona Sarajevo",
+      "zoRacun": "154-921-20146172-45",
+      "budzet": "141-196-53200084-75",
+      "nezapRacun": "154-921-20101710-56",
+      "opcine": [
+        {
+          "ime": "Hadžići",
+          "kod": "038"
+        },
+        {
+          "ime": "Ilijaš",
+          "kod": "040"
+        },
+        {
+          "ime": "Centar",
+          "kod": "077"
+        },
+        {
+          "ime": "Ilidža",
+          "kod": "078"
+        },
+        {
+          "ime": "Novo Sarajevo",
+          "kod": "079"
+        },
+        {
+          "ime": "Vogošća",
+          "kod": "080"
+        },
+        {
+          "ime": "Novi Grad",
+          "kod": "108"
+        },
+        {
+          "ime": "Stari Grad",
+          "kod": "109"
+        },
+        {
+          "ime": "Trnovo",
+          "kod": "093"
+        }
+      ]
+    },
+    "K10": {
+      "ime": "Kanton 10",
+      "genitiv": "Kantona 10",
+      "zoRacun": "154-921-20048246-10",
+      "budzet": "161-020-00335600-61",
+      "nezapRacun": "338-000-22000344-71",
+      "opcine": [
+        {
+          "ime": "Livno",
+          "kod": "055"
+        },
+        {
+          "ime": "Tomislavgrad",
+          "kod": "028"
+        },
+        {
+          "ime": "Kupres",
+          "kod": "052"
+        },
+        {
+          "ime": "Glamoč",
+          "kod": "032"
+        },
+        {
+          "ime": "Bosansko Grahovo",
+          "kod": "013"
+        },
+        {
+          "ime": "Drvar",
+          "kod": "027"
+        }
+      ]
+    }
+  },
+  "FBIH_BUDZET_RACUN": "102-050-00001066-98",
+  "FBIH_ZO_RACUN": "102-050-00000640-18",
+  "FBIH_NEZAP_RACUN": "161-000-00285700-03",
+  "FOND_INVALIDI_RACUN": "338-690-22963585-21",
+  "JRT_TREZOR_BIH_RACUN": "338-000-22100183-90"
+}

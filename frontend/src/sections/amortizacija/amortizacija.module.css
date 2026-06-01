@@ -587,9 +587,9 @@
 .thDatum { width: 152px; }
 .thDok  { width: 100px; }
 .thKm   { width: 114px; text-align: right; }
-.thVijek { width: 122px; }
-.thStopa { width: 98px; text-align: center; }
-.thMj   { width: 52px; text-align: center; }
+.thVijek { width: 76px; text-align: center; }
+.thStopa { width: 74px; text-align: center; }
+.thMj   { width: 44px; text-align: center; }
 .thAuto { background: var(--paper); }
 .thNap  { width: 100px; }
 .thDatumProdaje { width: 168px; }
@@ -1335,4 +1335,199 @@
   .page { padding: 2rem 1rem 4rem; }
   .section { padding: 1.25rem; }
   .twoCol { grid-template-columns: 1fr; gap: 1.25rem; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Mobile (≤ 768px) — additive only, listed AFTER the 700px block above so
+ * shared properties resolve here. Sidebar stacks above content, period
+ * fields wrap, table keeps horizontal scroll, actions become full-width.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pageOuter {
+    padding: 1.5rem 0.75rem 3rem;
+  }
+
+  /* neutralize the 700px block's .page padding — pageOuter handles outer spacing */
+  .page {
+    padding: 0;
+  }
+
+  .pageLayout {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    top: auto;
+  }
+
+  .sidebarList {
+    max-height: 280px;
+  }
+
+  .header {
+    margin-bottom: 1.5rem;
+  }
+
+  /* Year bar */
+  .yearBar {
+    gap: 0.35rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .yearPill {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.88rem;
+  }
+
+  .yearConfirm {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Section card */
+  .section {
+    padding: 1.25rem 0.85rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.15rem;
+  }
+
+  .sectionTitleRow {
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  /* Two-column collapsed (matches 700px block) */
+  .twoCol {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .colLabelRow {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .profileFillBtn {
+    flex-shrink: 0;
+  }
+
+  /* Period row */
+  .periodRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .periodFields {
+    gap: 0.6rem;
+  }
+
+  .manualToggle {
+    margin-left: 0;
+  }
+
+  /* Table — horizontal scroll with sticky Naziv column on the left, so the
+     user always knows which asset they're editing while scrolling sideways.
+     Rbr is hidden on mobile (it's just a counter, the Naziv identifies the row). */
+  .tableWrap {
+    margin: 0 -0.85rem;
+    padding: 0 0.85rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide Rbr column on mobile. Scoped to thead+tbody so tfoot's colspan label
+     stays intact (tfoot td:nth-child(1) carries the total label). */
+  .table thead th:nth-child(1),
+  .table tbody td:nth-child(1) {
+    display: none;
+  }
+
+  /* Sticky Naziv column (column 2). Background must be opaque so scrolled
+     content doesn't show through. Sold rows tint a different colour; we keep
+     transparent here and inherit the row's bg via a ::before overlay trick by
+     simply using paper as default and letting rowProdano override below. */
+  .table thead th:nth-child(2),
+  .table tbody td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--white);
+    box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.08);
+    min-width: 160px;
+  }
+  .table thead th:nth-child(2) {
+    background: var(--paper);
+  }
+  /* Sold-asset row tints the Naziv sticky cell too */
+  .rowProdano td:nth-child(2) {
+    background: #fdf6ee;
+  }
+
+  /* 16px font on inputs prevents iOS Safari auto-zoom on focus */
+  .tdInput,
+  .tdSelect {
+    font-size: 16px;
+    min-height: 38px;
+  }
+
+  /* Dirty warning */
+  .dirtyWarning {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .dirtyWarnSave,
+  .dirtyWarnDiscard,
+  .dirtyWarnCancel {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* Guide box */
+  .guideBox {
+    padding: 1rem;
+  }
+
+  /* Load-from-profile select */
+  .loadFromProfileSelect {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Actions row — stack buttons full-width */
+  .actionsRow {
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .saveBtn,
+  .carryoverBtn,
+  .exportBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .carryoverWrap {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .carryoverConfirm {
+    position: static;
+    margin-top: 0.5rem;
+    min-width: 0;
+    width: 100%;
+    box-shadow: none;
+  }
 }

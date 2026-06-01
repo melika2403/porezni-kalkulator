@@ -2,7 +2,7 @@ const organizationRepository = require("../repositories/organizationRepository")
 const { encryptJmbg } = require("../utils/encryptJmbg");
 const {
   Organization,
-  OrganizationMember,
+  Organization, Worker, PayrollMember,
   UserPreference,
 } = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
@@ -55,6 +55,53 @@ function validateOrgData(body, requireName = true) {
     data.bankAccount = body.bankAccount
       ? String(body.bankAccount).trim()
       : null;
+
+  // Režim oporezivanja vlasnika obrta (čl. 19 / 31 / 6 t.10)
+  if (body.taxRegime !== undefined) {
+    if (body.taxRegime === null || body.taxRegime === "") {
+      data.taxRegime = null;
+    } else if (
+      !["STVARNI_DOHODAK", "PAUSALNI", "OSTALI"].includes(body.taxRegime)
+    ) {
+      return { ok: false, message: "Nepoznat režim oporezivanja" };
+    } else {
+      data.taxRegime = body.taxRegime;
+    }
+  }
+  if (body.taxCategory !== undefined) {
+    if (body.taxCategory === null || body.taxCategory === "") {
+      data.taxCategory = null;
+    } else {
+      const cat = String(body.taxCategory).trim().toUpperCase();
+      const valid = [
+        "SLOBODNA_ZANIMANJA",
+        "OBRT_SRODNE",
+        "POLJOPRIVREDA_SUMARSTVO",
+        "TRGOVAC_POJEDINAC",
+        "ESNAFSKI_ZANATI",
+        "TAXI",
+      ];
+      if (!valid.includes(cat)) {
+        return { ok: false, message: "Nepoznata kategorija djelatnosti" };
+      }
+      data.taxCategory = cat;
+    }
+  }
+
+  // Default tip plate za nove radnike — knjigovođa može imati klijente sa
+  // različitim "stilom" (npr. svi na minimalcu = NETO_ISPLATA, drugi sa
+  // ugovornim bruto-platama = BRUTO).
+  if (body.defaultSalaryType !== undefined) {
+    if (body.defaultSalaryType === null || body.defaultSalaryType === "") {
+      data.defaultSalaryType = "NETO_ISPLATA";
+    } else if (
+      !["BRUTO", "NETO_UGOVOR", "NETO_ISPLATA"].includes(body.defaultSalaryType)
+    ) {
+      return { ok: false, message: "Nepoznat tip plate" };
+    } else {
+      data.defaultSalaryType = body.defaultSalaryType;
+    }
+  }
 
   if (body.jurisdiction !== undefined) {
     if (body.jurisdiction === null || body.jurisdiction === "") {
@@ -129,6 +176,30 @@ function validateOwnerData(owner, requireJmbg = true) {
     data.idCardNumber = idn;
   }
 
+  // prijavaDate i salaryBruto — ako su uneseni, vlasnik se računa kao
+  // prijavljen radnik. Ako prijavaDate nije unesen, ostaje DRAFT — prijavljuje
+  // se kasnije preko JS3100 ili ručnim editovanjem.
+  if (owner.prijavaDate !== undefined) {
+    if (owner.prijavaDate === null || owner.prijavaDate === "") {
+      data.prijavaDate = null;
+      data.employmentStatus = "DRAFT";
+    } else {
+      data.prijavaDate = new Date(owner.prijavaDate);
+      data.employmentStatus = "PRIJAVLJEN";
+    }
+  }
+  if (owner.salaryBruto !== undefined) {
+    data.salaryBruto =
+      owner.salaryBruto === null || owner.salaryBruto === ""
+        ? null
+        : Number(owner.salaryBruto);
+  }
+  if (owner.taxCoefficient !== undefined) {
+    const c = Number(owner.taxCoefficient);
+    // 0 je validna vrijednost (bez porezne kartice → bez ličnog odbitka).
+    if (Number.isFinite(c) && c >= 0) data.taxCoefficient = c;
+  }
+
   return { ok: true, value: data };
 }
 
@@ -137,14 +208,111 @@ async function list(req, res) {
   res.status(200).json({ ok: true, data: orgs });
 }
 
-const CLIENT_ORG_ROLES = ["PRO", "BUSINESS", "ADMIN"];
-
 async function listClients(req, res) {
-  if (!CLIENT_ORG_ROLES.includes(req.user?.role)) {
-    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
-  }
+  // Repository filters to orgs where this user has membership; no role gate needed.
   const orgs = await organizationRepository.getClientOrganizations(req.user.id);
   res.status(200).json({ ok: true, data: orgs });
+}
+
+// Lista svih organizacija (vlastite + klijentske) sa agregatnim podacima:
+//  • broj radnika (aktivni, ne odjavljeni za odabrani mjesec ako se prosljeđuje)
+//  • status payroll-a za odabrani mjesec
+//  • broj obračunatih (OBRACUNATO + ISPLACENO) i isplaćenih (ISPLACENO) payrolla
+// Query params: ?year=2026&month=5 (default = trenutni mjesec).
+async function listWithPayrollStatus(req, res) {
+  const now = new Date();
+  const year = Number(req.query.year) || now.getFullYear();
+  const month = Number(req.query.month) || now.getMonth() + 1;
+  if (year < 2000 || year > 2100 || month < 1 || month > 12) {
+    return res.status(400).json({ ok: false, error: "INVALID_PERIOD" });
+  }
+
+  const userId = req.user.id;
+  const own = await organizationRepository.getUserOrganizations(userId);
+  // Repository već filtrira na klijentske org. po user membership-u; ako user
+  // nije dodan ni u jednu klijentsku org, vraća prazno.
+  const clients = await organizationRepository.getClientOrganizations(userId);
+
+  const orgIds = [...own.map((o) => o.id), ...clients.map((o) => o.id)];
+  if (orgIds.length === 0) {
+    return res.json({ ok: true, data: { own: [], clients: [], year, month } });
+  }
+
+  // Agregat: broj radnika po org (svi koji nisu odjavljeni — RADNIK + VLASNIK).
+  const workersByOrg = new Map();
+  const workers = await Worker.findAll({
+    where: { organizationId: orgIds },
+    attributes: ["id", "organizationId", "employmentStatus", "role"],
+  });
+  for (const w of workers) {
+    if (w.employmentStatus === "ODJAVLJEN") continue;
+    workersByOrg.set(
+      w.organizationId,
+      (workersByOrg.get(w.organizationId) || 0) + 1,
+    );
+  }
+
+  // Agregat: payrolli za zadati mjesec po org → broj obračunatih i isplaćenih.
+  const payrollsByOrg = new Map();
+  const payrolls = await Payroll.findAll({
+    where: { organizationId: orgIds, year, month },
+    attributes: ["organizationId", "status"],
+  });
+  for (const p of payrolls) {
+    const cur = payrollsByOrg.get(p.organizationId) || {
+      total: 0,
+      obracunato: 0,
+      isplaceno: 0,
+    };
+    cur.total += 1;
+    if (p.status === "OBRACUNATO" || p.status === "ISPLACENO") {
+      cur.obracunato += 1;
+    }
+    if (p.status === "ISPLACENO") {
+      cur.isplaceno += 1;
+    }
+    payrollsByOrg.set(p.organizationId, cur);
+  }
+
+  const enrich = (orgs) =>
+    orgs.map((o) => {
+      const workerCount = workersByOrg.get(o.id) || 0;
+      const stats = payrollsByOrg.get(o.id) || {
+        total: 0,
+        obracunato: 0,
+        isplaceno: 0,
+      };
+      // payrollStatus:
+      //   "no_workers"   — org nema aktivnih radnika
+      //   "none"         — ima radnike ali ni jedan payroll za mjesec
+      //   "partial"      — neki obračunati, neki nisu
+      //   "obracunato"   — svi obračunati ali nisu svi isplaćeni
+      //   "isplaceno"    — svi obračunati I svi isplaćeni
+      let payrollStatus;
+      if (workerCount === 0) payrollStatus = "no_workers";
+      else if (stats.obracunato === 0) payrollStatus = "none";
+      else if (stats.isplaceno === workerCount) payrollStatus = "isplaceno";
+      else if (stats.obracunato === workerCount) payrollStatus = "obracunato";
+      else payrollStatus = "partial";
+
+      return {
+        ...o,
+        workerCount,
+        payrollObracunato: stats.obracunato,
+        payrollIsplaceno: stats.isplaceno,
+        payrollStatus,
+      };
+    });
+
+  return res.json({
+    ok: true,
+    data: {
+      own: enrich(own),
+      clients: enrich(clients),
+      year,
+      month,
+    },
+  });
 }
 
 async function create(req, res) {
@@ -305,6 +473,7 @@ async function adminListAll(req, res) {
 module.exports = {
   list,
   listClients,
+  listWithPayrollStatus,
   create,
   update,
   remove,
@@ -397,6 +566,7 @@ async function activate(req, res) {
 module.exports = {
   list,
   listClients,
+  listWithPayrollStatus,
   create,
   update,
   remove,

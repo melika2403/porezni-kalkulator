@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import Providers from "src/components/Providers/Providers";
+import ConsentBanner from "src/components/ConsentBanner/ConsentBanner";
 import ConditionalChrome from "src/components/ConditionalChrome/ConditionalChrome";
 import "./globals.css";
 
@@ -168,8 +169,8 @@ export const metadata: Metadata = {
     "popunjavanje uplatnica za porez",
     "porez na dohodak 10%",
     "zdravstveno osiguranje 4%",
-    "vrsta prihoda 716116",
-    "vrsta prihoda 712116",
+    "vrsta prihoda 716111",
+    "vrsta prihoda 712111",
     "uplatnica za porez na dohodak",
     "uplatnica za doprinos zdravstveno osiguranje",
 
@@ -322,6 +323,42 @@ const jsonLd = {
   areaServed: { "@type": "Country", name: "Bosnia and Herzegovina" },
 };
 
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Porezni Kalkulator BiH",
+  url: SITE_URL,
+  logo: `${SITE_URL}/og-image.png`,
+  description:
+    "Besplatni porezni alati za poduzetnike u Bosni i Hercegovini — obrasci, kalkulatori, obračun plata i reference za FBiH.",
+  email: "info@poreznikalkulator.ba",
+  address: {
+    "@type": "PostalAddress",
+    addressCountry: "BA",
+  },
+  sameAs: [
+    "https://www.facebook.com/profile.php?id=61569234208200",
+    "https://www.instagram.com/poreznikalkulator.ba/",
+    "https://www.linkedin.com/in/porezni-kalkulator-513429404/",
+  ],
+};
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Porezni Kalkulator BiH",
+  url: SITE_URL,
+  inLanguage: "bs-BA",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${SITE_URL}/sifre-djelatnosti?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -336,13 +373,46 @@ export default function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <Script
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
         />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
+          crossOrigin="anonymous"></script>
+
+        {/* Google Analytics 4 sa Consent Mode v2 (default = denied). */}
+        {/* Stvarno prati tek kad korisnik prihvati u ConsentBanner-u. */}
+        <script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-60NQQS6QXJ"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              window.gtag = gtag;
+              gtag('consent', 'default', {
+                'analytics_storage': 'denied',
+                'ad_storage': 'denied',
+                'ad_user_data': 'denied',
+                'ad_personalization': 'denied',
+                'wait_for_update': 500
+              });
+              gtag('js', new Date());
+              gtag('config', 'G-60NQQS6QXJ', { anonymize_ip: true });
+            `,
+          }}
+        />
+      </head>
+      <body>
         <Providers>
           <ConditionalChrome>{children}</ConditionalChrome>
+          <ConsentBanner />
         </Providers>
       </body>
     </html>
