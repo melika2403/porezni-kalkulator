@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Navbar from "src/components/Navbar/Navbar";
-import Footer from "src/components/Footer/Footer";
+import ConditionalFooter from "src/components/Footer/ConditionalFooter";
 import Providers from "src/components/Providers/Providers";
 import ConsentBanner from "src/components/ConsentBanner/ConsentBanner";
 import "./globals.css";
@@ -411,7 +411,7 @@ export default function RootLayout({
         <Providers>
           <Navbar />
           <div className="pageContent">{children}</div>
-          <Footer />
+          <ConditionalFooter />
           <ConsentBanner />
         </Providers>
       </body>

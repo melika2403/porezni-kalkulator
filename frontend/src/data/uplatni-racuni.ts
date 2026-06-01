@@ -268,6 +268,7 @@ const BANK_PREFIXES: Record<string, string> = {
   "199": "Sparkasse Bank d.d. BiH",
   "306": "Addiko Bank d.d. Sarajevo",
   "338": "UniCredit Bank d.d.",
+  "572": "MF Banka d.d. Sarajevo",
   // Mikrokreditne fondacije
   "401": "MKF MIKROFIN d.o.o. Banja Luka",
   "402": "MKF SUNRISE Sarajevo",

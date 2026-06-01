@@ -26,6 +26,7 @@ const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes"
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
 const payrollDocumentsRoutes = require("./routes/payrollDocumentsRoutes");
+const financeRoutes = require("./routes/financeRoutes");
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/payroll-documents", payrollDocumentsRoutes);
+app.use("/api/admin/finance", financeRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -330,6 +332,14 @@ async function ensureColumns() {
       column: "defaultSalaryType",
       ddl: "ALTER TABLE organizations ADD COLUMN defaultSalaryType VARCHAR(20) NOT NULL DEFAULT 'NETO_ISPLATA'",
     },
+    // Datum stvarne isplate plate — perzistira po (org, year, month) tako da
+    // se ne resetuje kad korisnik promijeni tab i vrati se. Svi payroll-i u
+    // mjesecu drže isti datum (sinhronizovani batch update).
+    {
+      table: "payrolls",
+      column: "paymentDate",
+      ddl: "ALTER TABLE payrolls ADD COLUMN paymentDate DATE NULL",
+    },
   ];
   for (const c of checks) {
     const [rows] = await sequelize.query(
@@ -386,6 +396,88 @@ async function ensureColumns() {
     }
   } catch (e) {
     console.warn("taxRegime ENUM→VARCHAR conversion failed:", e?.message || e);
+  }
+
+  // Cleanup: stari parseNum u ObracunPlata.tsx je brisao sve tačke iz inputa
+  // pa je "1.5" → 15, "0.4" → 4 itd. Snimanje pojedinačnog obračuna je upisivalo
+  // 10x veće brojeve u workers.taxCoefficient / minuliRadRate i u snapshot
+  // payrolls.minuliRadRate. Legitimne vrijednosti su:
+  //   • taxCoefficient: 0–4 (osnovni odbitak ×1 + izdržavani)
+  //   • minuliRadRate: 0–0.6 (% po godini staža, zakon FBiH)
+  // Vrijednosti iznad ovih sigurno su rezultat bug-a → dijelimo sa 10.
+  try {
+    const [taxCoefRes] = await sequelize.query(
+      "UPDATE workers SET taxCoefficient = taxCoefficient / 10 WHERE taxCoefficient >= 5 AND taxCoefficient <= 50",
+    );
+    const taxCoefFixed = taxCoefRes?.affectedRows ?? 0;
+    if (taxCoefFixed > 0) {
+      console.log(`Popravljeno ${taxCoefFixed} workers.taxCoefficient vrijednosti (parseNum bug).`);
+    }
+
+    const [minuliWorkersRes] = await sequelize.query(
+      "UPDATE workers SET minuliRadRate = minuliRadRate / 10 WHERE minuliRadRate >= 1 AND minuliRadRate <= 20",
+    );
+    const minuliWorkersFixed = minuliWorkersRes?.affectedRows ?? 0;
+    if (minuliWorkersFixed > 0) {
+      console.log(`Popravljeno ${minuliWorkersFixed} workers.minuliRadRate vrijednosti (parseNum bug).`);
+    }
+
+    const [minuliPayrollsRes] = await sequelize.query(
+      "UPDATE payrolls SET minuliRadRate = minuliRadRate / 10 WHERE minuliRadRate >= 1 AND minuliRadRate <= 20",
+    );
+    const minuliPayrollsFixed = minuliPayrollsRes?.affectedRows ?? 0;
+    if (minuliPayrollsFixed > 0) {
+      console.log(`Popravljeno ${minuliPayrollsFixed} payrolls.minuliRadRate snapshot vrijednosti (parseNum bug).`);
+    }
+  } catch (e) {
+    console.warn("parseNum cleanup migracija nije uspjela:", e?.message || e);
+  }
+
+  // Cleanup: empTotal/erpTotal su prije popravke računali "round(sum, 2)"
+  // umjesto "sum of round(component, 2)". To je dalo 1 fening razliku između
+  // empTotal i (empPio + empZdr + empNezap) na ~50% obračuna, što je rušilo
+  // PUFBiH validaciju ("zbir svih kol.15"). Sad usklađujemo postojeće redove:
+  //   • empTotal := round(empPio + empZdr + empNezap, 2)
+  //   • erpTotal := round(erpPio + erpZdr + erpNezap, 2)
+  // Pa onda net/taxBase/incomeTax/totalCost preraćunamo kako bi i platne liste
+  // i uplatnice bile konzistentne. Idempotentno: drugi put neće biti nekonzistentnih.
+  try {
+    const [empTotalRes] = await sequelize.query(
+      `UPDATE payrolls
+         SET empTotal = ROUND(empPio + empZdravstvo + empNezaposlenost, 2)
+       WHERE empTotal <> ROUND(empPio + empZdravstvo + empNezaposlenost, 2)`,
+    );
+    const empTotalFixed = empTotalRes?.affectedRows ?? 0;
+    if (empTotalFixed > 0) {
+      console.log(`Usklađeno ${empTotalFixed} payrolls.empTotal redova (PUFBiH round-then-sum convention).`);
+    }
+
+    const [erpTotalRes] = await sequelize.query(
+      `UPDATE payrolls
+         SET erpTotal = ROUND(erpPio + erpZdravstvo + erpNezaposlenost, 2)
+       WHERE erpTotal <> ROUND(erpPio + erpZdravstvo + erpNezaposlenost, 2)`,
+    );
+    const erpTotalFixed = erpTotalRes?.affectedRows ?? 0;
+    if (erpTotalFixed > 0) {
+      console.log(`Usklađeno ${erpTotalFixed} payrolls.erpTotal redova.`);
+    }
+
+    // Re-derive: taxBase, incomeTax, net iz konzistentnog empTotal.
+    // taxBase = max(gross - empTotal - deduction, 0). 10% porez. Net = gross - empTotal - incomeTax.
+    // totalCost = gross + erpTotal + vodna + nesrece + meal + regres + travel
+    const [netRes] = await sequelize.query(
+      `UPDATE payrolls
+         SET taxBase = GREATEST(ROUND(gross - empTotal - deduction, 2), 0),
+             incomeTax = ROUND(GREATEST(gross - empTotal - deduction, 0) * 0.10, 2),
+             net = ROUND(gross - empTotal - ROUND(GREATEST(gross - empTotal - deduction, 0) * 0.10, 2), 2)
+       WHERE empTotal IS NOT NULL AND gross IS NOT NULL`,
+    );
+    const netFixed = netRes?.affectedRows ?? 0;
+    if (netFixed > 0) {
+      console.log(`Re-derivovano ${netFixed} payrolls.taxBase/incomeTax/net redova.`);
+    }
+  } catch (e) {
+    console.warn("empTotal/erpTotal usklađivanje nije uspjelo:", e?.message || e);
   }
 }
 
