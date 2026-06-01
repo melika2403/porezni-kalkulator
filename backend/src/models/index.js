@@ -848,6 +848,62 @@ const InvoiceItemTemplate = sequelize.define(
   },
 );
 
+// ─── CLIENT PAYMENT ───────────────────────────────────────────────────────────
+// Mjesečna uplata klijenta (registrovanog korisnika) — admin finansije.
+// Jedan red po (userId, year, month). Ako je isAnnual=true, taj jedan unos
+// pokriva cijelu godinu (klijent se za ostale mjesece te godine vodi kao plaćen).
+const ClientPayment = sequelize.define(
+  "ClientPayment",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    year: { type: DataTypes.INTEGER, allowNull: false },
+    month: { type: DataTypes.INTEGER, allowNull: false }, // 1–12
+    amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 }, // KM
+    isAnnual: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    note: { type: DataTypes.STRING(255), allowNull: true },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "client_payments",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { unique: true, fields: ["userId", "year", "month"] },
+      { fields: ["year"] },
+    ],
+  },
+);
+
+// ─── COMPANY EXPENSE ──────────────────────────────────────────────────────────
+// Trošak/ulaganje firme (npr. oglasi) — admin finansije. Sve u KM.
+const CompanyExpense = sequelize.define(
+  "CompanyExpense",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    date: { type: DataTypes.DATEONLY, allowNull: false },
+    amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 }, // KM
+    description: { type: DataTypes.STRING(255), allowNull: false },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "company_expenses",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["date"] }],
+  },
+);
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 User.hasOne(Subscription, { foreignKey: "userId", as: "subscription" });
 Subscription.belongsTo(User, { foreignKey: "userId" });
@@ -916,6 +972,9 @@ User.hasMany(InvoiceItemTemplate, {
 });
 InvoiceItemTemplate.belongsTo(User, { foreignKey: "userId", as: "user" });
 
+User.hasMany(ClientPayment, { foreignKey: "userId", as: "clientPayments" });
+ClientPayment.belongsTo(User, { foreignKey: "userId", as: "user" });
+
 User.hasMany(KarticaMember, {
   foreignKey: "createdById",
   as: "karticaMembers",
@@ -968,4 +1027,6 @@ module.exports = {
   InvoiceItemTemplate,
   Payroll,
   PayrollDocument,
+  ClientPayment,
+  CompanyExpense,
 };

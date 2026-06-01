@@ -26,6 +26,7 @@ const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes"
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
 const payrollDocumentsRoutes = require("./routes/payrollDocumentsRoutes");
+const financeRoutes = require("./routes/financeRoutes");
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/payroll-documents", payrollDocumentsRoutes);
+app.use("/api/admin/finance", financeRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
