@@ -29,6 +29,7 @@ import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useRole } from "src/hooks/useRole";
+import { parseDecimal } from "src/utils/parseDecimal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -137,11 +138,15 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     strucnaSpremaIdx: f.strucnaSpremaIdx === "" ? null : Number(f.strucnaSpremaIdx),
     contractedHours: f.contractedHours === "" ? 8 : Number(f.contractedHours),
     taxCoefficient: (() => {
-      const c = Number(f.taxCoefficient.replace(",", "."));
+      const c = parseDecimal(f.taxCoefficient);
       // 0 je validna vrijednost (radnik bez porezne kartice → bez ličnog
       // odbitka). Prihvati svaku non-negative vrijednost; default 1.0 samo
-      // ako je input neispravan ili negativan.
-      return Number.isFinite(c) && c >= 0 ? c : 1.0;
+      // ako je input neispravan (ostao prazan/nečitljiv) ili negativan.
+      // parseDecimal vraća 0 za prazan/loš input — pa eksplicitno odvajamo
+      // praznu vrijednost da bismo joj dali default 1.0 umjesto 0.
+      const trimmed = f.taxCoefficient.trim();
+      if (!trimmed) return 1.0;
+      return c >= 0 ? c : 1.0;
     })(),
     firstEmploymentDate: f.firstEmploymentDate || null,
     priorWorkYears: (() => {

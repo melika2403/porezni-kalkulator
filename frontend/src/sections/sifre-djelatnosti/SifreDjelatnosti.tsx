@@ -120,41 +120,107 @@ function CopyCodeButton({ code }: { code: string }) {
   );
 }
 
+// Header lines koje sadrže "isključ" su izuzeci (npr. "Isključuje:",
+// "Ova grana isključuje:") — renderujemo ih s distinktnim stilom da korisnik
+// jasno vidi da su nabrojane djelatnosti IZUZETE iz ovog razreda.
+const EXCLUDE_HEADER_RE = /isključ/i;
+
 function renderDescription(text: string) {
   if (!text) return null;
-  // Split into paragraphs and bullet groups. PDF-extracted text uses "          - item"
-  // for sub-bullets and "          word" (no dash) for primary bullets.
-  const blocks = text.split(/\n\s*\n/);
-  return blocks.map((block, i) => {
-    const lines = block.split("\n").map((l) => l.trimEnd());
-    const hasBullets = lines.some((l) => /^\s{4,}[-•]?\s*\S/.test(l));
-    if (hasBullets) {
-      const items: string[] = [];
-      let intro = "";
-      for (const l of lines) {
-        if (/^\s{4,}[-•]?\s*\S/.test(l)) {
-          items.push(l.replace(/^\s+[-•]?\s*/, ""));
-        } else if (l.trim() && items.length === 0) {
-          intro += (intro ? " " : "") + l.trim();
-        }
+  // PDF-extracted tekst: bullet stavke su uvučene (4+ razmaka), opcionalno sa
+  // "-" za pod-stavke. Ne-uvučene linije su ili (a) header-i (završavaju ":",
+  // npr. "Ovaj razred uključuje:", "Isključuje:") ili (b) intro paragrafi.
+  // Linije se mogu prelomiti usred fraze (npr. "(vidi\n          88.99)") —
+  // spajamo ih dok zagrada nije zatvorena.
+  const rawLines = text.split("\n").map((l) => l.replace(/\s+$/, ""));
+
+  type DescNode =
+    | { kind: "header"; text: string; exclude: boolean }
+    | { kind: "para"; text: string }
+    | { kind: "list"; items: string[] };
+  const nodes: DescNode[] = [];
+
+  let listItems: string[] = [];
+  let paraBuf = "";
+
+  const isBullet = (l: string) => /^\s{2,}[-•]?\s*\S/.test(l);
+  const unbalancedParens = (s: string) =>
+    (s.match(/\(/g) || []).length - (s.match(/\)/g) || []).length > 0;
+
+  const flushList = () => {
+    if (listItems.length) {
+      nodes.push({ kind: "list", items: listItems });
+      listItems = [];
+    }
+  };
+  const flushPara = () => {
+    if (paraBuf.trim()) {
+      nodes.push({ kind: "para", text: paraBuf.trim() });
+      paraBuf = "";
+    }
+  };
+
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      // Prazna linija: kraj paragrafa. Lista se nastavlja (PDF ume da ubaci
+      // prazne linije unutar grupe stavki).
+      flushPara();
+      continue;
+    }
+    // Header: ne-uvučena linija koja završava ":".
+    if (!isBullet(line) && /:$/.test(trimmed)) {
+      flushPara();
+      flushList();
+      nodes.push({
+        kind: "header",
+        text: trimmed,
+        exclude: EXCLUDE_HEADER_RE.test(trimmed),
+      });
+      continue;
+    }
+    if (isBullet(line)) {
+      flushPara();
+      const item = line.replace(/^\s+[-•]?\s*/, "");
+      // Nastavak prelomljene stavke: prethodna ima otvorenu zagradu → spoji.
+      if (listItems.length && unbalancedParens(listItems[listItems.length - 1])) {
+        listItems[listItems.length - 1] += " " + item;
+      } else {
+        listItems.push(item);
       }
+    } else {
+      // Intro paragraf (ne-uvučen, ne završava ":").
+      flushList();
+      paraBuf += (paraBuf ? " " : "") + trimmed;
+    }
+  }
+  flushPara();
+  flushList();
+
+  return nodes.map((n, i) => {
+    if (n.kind === "header") {
       return (
-        <div key={i} className={styles.descBlock}>
-          {intro && <p>{intro}</p>}
-          {items.length > 0 && (
-            <ul>
-              {items.map((it, j) => (
-                <li key={j}>{it}</li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <p
+          key={i}
+          className={n.exclude ? styles.descExcludeHeader : styles.descHeader}
+        >
+          {n.text}
+        </p>
+      );
+    }
+    if (n.kind === "para") {
+      return (
+        <p key={i} className={styles.descPara}>
+          {n.text}
+        </p>
       );
     }
     return (
-      <p key={i} className={styles.descPara}>
-        {lines.join(" ").trim()}
-      </p>
+      <ul key={i} className={styles.descList}>
+        {n.items.map((it, j) => (
+          <li key={j}>{it}</li>
+        ))}
+      </ul>
     );
   });
 }
