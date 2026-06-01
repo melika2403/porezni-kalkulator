@@ -2,7 +2,7 @@ const { Op } = require("sequelize");
 const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "jurisdiction", "taxRegime", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "taxRegime", "taxCategory", "createdAt", "updatedAt"];
+const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "createdAt", "updatedAt"];
 
 function toPublicOrg(org, memberRole, ownerWorker, effectiveTier) {
   if (!org) return null;

@@ -25,8 +25,9 @@ const JURISDICTIONS: { value: Jurisdiction; label: string }[] = [
 ];
 
 const TAX_REGIMES: { value: TaxRegime; label: string }[] = [
-  { value: "PAUSALAC", label: "Paušalac" },
-  { value: "SLOBODNO_ZANIMANJE", label: "Slobodno zanimanje" },
+  { value: "STVARNI_DOHODAK", label: "Stvarni dohodak (poslovne knjige)" },
+  { value: "PAUSALNI", label: "Paušalni" },
+  { value: "OSTALI", label: "Ostali obveznici" },
 ];
 
 type FormState = {

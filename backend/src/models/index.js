@@ -139,12 +139,6 @@ const Organization = sequelize.define(
       allowNull: false,
       defaultValue: "NETO_ISPLATA",
     },
-    // Porezni režim za obrte u PK Office (utiče na stope doprinosa).
-    // Null dok korisnik ne izabere u app dijelu.
-    taxRegime: {
-      type: DataTypes.ENUM("PAUSALAC", "SLOBODNO_ZANIMANJE"),
-      allowNull: true,
-    },
   },
   { tableName: "organizations", timestamps: true },
 );

@@ -373,24 +373,34 @@ export default function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <script
+        <Script
+          id="ld-json-organization"
           type="application/ld+json"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
         />
-        <script
+        <Script
+          id="ld-json-website"
           type="application/ld+json"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
         />
-        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
-          crossOrigin="anonymous"></script>
+        <Script
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2397552510995902"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
 
         {/* Google Analytics 4 sa Consent Mode v2 (default = denied). */}
         {/* Stvarno prati tek kad korisnik prihvati u ConsentBanner-u. */}
-        <script
-          async
+        <Script
+          id="ga4-loader"
           src="https://www.googletagmanager.com/gtag/js?id=G-60NQQS6QXJ"
+          strategy="afterInteractive"
         />
-        <script
+        <Script
+          id="ga4-init"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               window.dataLayer = window.dataLayer || [];
@@ -408,8 +418,6 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>
-      <body>
         <Providers>
           <ConditionalChrome>{children}</ConditionalChrome>
           <ConsentBanner />

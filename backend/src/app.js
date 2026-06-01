@@ -335,11 +335,6 @@ async function ensureColumns() {
     },
     {
       table: "organizations",
-      column: "taxRegime",
-      ddl: "ALTER TABLE organizations ADD COLUMN taxRegime ENUM('PAUSALAC','SLOBODNO_ZANIMANJE') NULL",
-    },
-    {
-      table: "organizations",
       column: "jurisdiction",
       ddl: "ALTER TABLE organizations ADD COLUMN jurisdiction ENUM('FBIH','RS','BD') NULL",
     },

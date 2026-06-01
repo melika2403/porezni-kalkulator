@@ -1,8 +1,12 @@
 .page {
-  padding: 3rem 2rem 5rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: 2rem 1.75rem 3.5rem;
   animation: fadeUp 0.5s ease both;
+}
+
+@media (min-width: 1280px) {
+  .page {
+    padding: 2.5rem 2rem 4rem;
+  }
 }
 
 /* ── Header ───────────────────────────────────────────────────── */
@@ -70,7 +74,7 @@
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1440px) {
   .metricGrid {
     grid-template-columns: repeat(4, 1fr);
   }
@@ -80,10 +84,17 @@
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1.75rem;
+  padding: 1.25rem 1.4rem 1.5rem;
   display: flex;
   flex-direction: column;
   transition: border-color 0.15s;
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
+  .metric {
+    padding: 1.5rem 1.5rem 1.75rem;
+  }
 }
 
 .metric:hover {
@@ -116,7 +127,7 @@
 
 .metricValue {
   font-family: "DM Serif Display", serif;
-  font-size: 1.75rem;
+  font-size: clamp(1.4rem, 1.8vw, 1.75rem);
   line-height: 1.05;
   color: var(--ink);
   letter-spacing: -0.01em;

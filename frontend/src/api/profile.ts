@@ -169,7 +169,6 @@ export type TaxCategory =
   | "TAXI";
 
 export type Jurisdiction = "FBIH" | "RS" | "BD";
-export type TaxRegime = "PAUSALAC" | "SLOBODNO_ZANIMANJE";
 
 export type Organization = {
   id: number;
@@ -188,7 +187,6 @@ export type Organization = {
   city: string | null;
   bankAccount: string | null;
   logoUrl: string | null;
-  taxRegime: TaxRegime | null;
   taxCategory: TaxCategory | null;
   // Default tip plate za nove radnike u ovoj org-i. Vidi SalaryType u Worker.
   defaultSalaryType: SalaryType;
@@ -216,7 +214,6 @@ export type OrgPayload = {
   address?: string;
   city?: string;
   bankAccount?: string;
-  taxRegime?: TaxRegime | null;
   taxCategory?: TaxCategory | null;
   defaultSalaryType?: SalaryType;
   ownerData?: OrgOwnerPayload;

@@ -2,8 +2,10 @@ const organizationRepository = require("../repositories/organizationRepository")
 const { encryptJmbg } = require("../utils/encryptJmbg");
 const {
   Organization,
-  Organization, Worker, PayrollMember,
+  OrganizationMember,
   UserPreference,
+  Worker,
+  Payroll,
 } = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
@@ -118,19 +120,6 @@ function validateOrgData(body, requireName = true) {
 
   if (body.isPdvObveznik !== undefined) {
     data.isPdvObveznik = Boolean(body.isPdvObveznik);
-  }
-
-  if (body.taxRegime !== undefined) {
-    if (body.taxRegime === null || body.taxRegime === "") {
-      data.taxRegime = null;
-    } else if (["PAUSALAC", "SLOBODNO_ZANIMANJE"].includes(body.taxRegime)) {
-      data.taxRegime = body.taxRegime;
-    } else {
-      return {
-        ok: false,
-        message: "taxRegime mora biti PAUSALAC ili SLOBODNO_ZANIMANJE",
-      };
-    }
   }
 
   if (Object.keys(data).length === 0) {

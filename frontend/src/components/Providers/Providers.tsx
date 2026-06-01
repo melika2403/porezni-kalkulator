@@ -18,15 +18,15 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <NoticeProvider>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="light"
-        enableSystem={false}
-        storageKey="pk-office-theme"
-      >
-        {children}
-      </ThemeProvider>
-    </NoticeProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          storageKey="pk-office-theme"
+        >
+          {children}
+        </ThemeProvider>
+      </NoticeProvider>
     </QueryClientProvider>
   );
 }
