@@ -465,6 +465,37 @@
 .descBlock { margin-bottom: 0.5rem; }
 .descPara { margin: 0 0 0.4rem; }
 
+/* Section header u opisu razreda (npr. "Ovaj razred uključuje:"). */
+.descHeader {
+  margin: 0.6rem 0 0.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.descHeader:first-child { margin-top: 0; }
+
+/* "Isključuje:" i slični izuzeci — distinktan stil da se ne pomiješa sa
+   uključenim djelatnostima. */
+.descExcludeHeader {
+  margin: 0.85rem 0 0.3rem;
+  padding: 0.3rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 13px;
+  color: #8a4f10;
+  background: #f2dec0;
+  border-radius: 6px;
+}
+.descExcludeHeader::before {
+  content: "⨯";
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 700;
+}
+.descList { margin: 0.15rem 0 0.4rem 1.25rem; padding: 0; }
+.descList li { margin-bottom: 0.1rem; }
+
 /* ── FAQ ─────────────────────────────────────────────────── */
 .faqSection {
   margin: 4rem auto 2rem;

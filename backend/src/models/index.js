@@ -317,6 +317,11 @@ const Payroll = sequelize.define(
       defaultValue: "DRAFT",
     },
 
+    // Datum stvarne isplate plate. Postavlja ga user u "Mjesečni dokumenti"
+    // tabu; svi payroll-i u istom (org, year, month) drže isti datum (sinhroni
+    // batch update kad user mijenja u UI). Ulazi u MIP-1023 XML i platne liste.
+    paymentDate: { type: DataTypes.DATEONLY, allowNull: true },
+
     notes: { type: DataTypes.TEXT, allowNull: true },
   },
   {

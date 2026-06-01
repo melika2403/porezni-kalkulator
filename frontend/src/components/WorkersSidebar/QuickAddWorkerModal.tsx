@@ -8,6 +8,7 @@ import { createWorker, type Worker, type WorkerPayload } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
+import { parseDecimal } from "src/utils/parseDecimal";
 import DateInput from "src/components/DateInput/DateInput";
 import styles from "./QuickAddWorkerModal.module.css";
 
@@ -135,7 +136,8 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
     // Ako je korisnik unio datum prijave i nije označio "nije prijavljen",
     // radnik se odmah računa kao PRIJAVLJEN. Inače DRAFT.
     const isPrijavljen = !notRegistered && !!prijavaDate;
-    const coef = Number(taxCoefficient.replace(",", "."));
+    const trimmedCoef = taxCoefficient.trim();
+    const coef = trimmedCoef ? parseDecimal(trimmedCoef) : 1.0;
     mutation.mutate({
       role: "RADNIK",
       firstName: firstName.trim(),
