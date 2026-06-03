@@ -9,20 +9,10 @@ const nextConfig: NextConfig = {
   // Next po defaultu 308-redirecta /ams/ → /ams; postavljamo eksplicitno.
   trailingSlash: false,
 
-  // www → non-www (308). Sprječava cijepanje SEO signala između
-  // www.poreznikalkulator.ba i poreznikalkulator.ba (GSC pokazuje obje verzije).
-  // NAPOMENA: http → https preusmjeravanje je na nivou hostinga (Vercel/server),
-  // ne Next-a — provjeri da je na hostingu forsiran HTTPS.
-  async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.poreznikalkulator.ba" }],
-        destination: "https://poreznikalkulator.ba/:path*",
-        permanent: true,
-      },
-    ];
-  },
+  // NAPOMENA: www ↔ non-www kanonikalizaciju radi HOSTING (cPanel/.htaccess
+  // ili Cloudflare). Ranije je ovdje stajao Next www→non-www redirect koji je
+  // bio u suprotnom smjeru od hostinga → beskonačna petlja (ERR_TOO_MANY_REDIRECTS).
+  // Drži kanonikalizaciju na JEDNOM sloju (hostingu), ne i u Next-u.
 };
 
 export default nextConfig;
