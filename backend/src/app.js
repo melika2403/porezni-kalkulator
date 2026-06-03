@@ -27,6 +27,8 @@ const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
 const payrollDocumentsRoutes = require("./routes/payrollDocumentsRoutes");
 const financeRoutes = require("./routes/financeRoutes");
+const activityRoutes = require("./routes/activityRoutes");
+const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 
 const app = express();
 
@@ -77,6 +79,8 @@ app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/payroll-documents", payrollDocumentsRoutes);
 app.use("/api/admin/finance", financeRoutes);
+app.use("/api/activity", activityRoutes);
+app.use("/api/admin", adminDashboardRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -340,6 +344,82 @@ async function ensureColumns() {
       column: "paymentDate",
       ddl: "ALTER TABLE payrolls ADD COLUMN paymentDate DATE NULL",
     },
+    // Predračun: ciklus naplate + period pretplate.
+    {
+      table: "predracuni",
+      column: "billingCycle",
+      ddl: "ALTER TABLE predracuni ADD COLUMN billingCycle ENUM('monthly','yearly') NOT NULL DEFAULT 'yearly'",
+    },
+    {
+      table: "predracuni",
+      column: "periodStart",
+      ddl: "ALTER TABLE predracuni ADD COLUMN periodStart DATE NULL",
+    },
+    {
+      table: "predracuni",
+      column: "periodEnd",
+      ddl: "ALTER TABLE predracuni ADD COLUMN periodEnd DATE NULL",
+    },
+    // Subscription: plan + ciklus naplate (model ih sad čita; vidi models/index).
+    {
+      table: "subscriptions",
+      column: "plan",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN plan ENUM('PRO','BUSINESS') NULL",
+    },
+    {
+      table: "subscriptions",
+      column: "billingCycle",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN billingCycle ENUM('monthly','yearly') NULL",
+    },
+    {
+      table: "subscriptions",
+      column: "reminderSentAt",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN reminderSentAt DATETIME NULL",
+    },
+    {
+      table: "subscriptions",
+      column: "isTrial",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN isTrial TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    // JS3100 stabilna polja na radniku — prefill prijave i odjave.
+    {
+      table: "workers",
+      column: "osnovOsiguranjaOpis",
+      ddl: "ALTER TABLE workers ADD COLUMN osnovOsiguranjaOpis VARCHAR(120) NULL",
+    },
+    {
+      table: "workers",
+      column: "osnovOsiguranjaSifra",
+      ddl: "ALTER TABLE workers ADD COLUMN osnovOsiguranjaSifra VARCHAR(20) NULL",
+    },
+    {
+      table: "workers",
+      column: "zanimanjeOpis",
+      ddl: "ALTER TABLE workers ADD COLUMN zanimanjeOpis VARCHAR(120) NULL",
+    },
+    {
+      table: "workers",
+      column: "zanimanjeSifra",
+      ddl: "ALTER TABLE workers ADD COLUMN zanimanjeSifra VARCHAR(20) NULL",
+    },
+    // UTM atribucija — odakle je korisnik došao u trenutku registracije.
+    // Capture jednom (prva posjeta), perzistira na User-u za "registracije po izvoru".
+    {
+      table: "users",
+      column: "utmSource",
+      ddl: "ALTER TABLE users ADD COLUMN utmSource VARCHAR(80) NULL",
+    },
+    {
+      table: "users",
+      column: "utmCampaign",
+      ddl: "ALTER TABLE users ADD COLUMN utmCampaign VARCHAR(120) NULL",
+    },
+    // Kategorija troška — za breakdown i CAC (marketing spend / novi plaćeni).
+    {
+      table: "company_expenses",
+      column: "category",
+      ddl: "ALTER TABLE company_expenses ADD COLUMN category VARCHAR(40) NOT NULL DEFAULT 'OSTALO'",
+    },
   ];
   for (const c of checks) {
     const [rows] = await sequelize.query(
@@ -548,6 +628,9 @@ async function ensureUtf8Mb4() {
     "invoice_counters",
     "payrolls",
     "payroll_documents",
+    // Predračun tabele — buyerName i ostala polja sadrže bosanske znakove (ć,š…).
+    "predracuni",
+    "predracun_counters",
   ];
   for (const t of tables) {
     const [rows] = await sequelize.query(

@@ -15,6 +15,7 @@ import OrgFillSelect, {
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
+import { trackEvent } from "src/api/activity";
 
 /* ── Helpers ── */
 
@@ -278,6 +279,7 @@ export default function SprForm() {
     a.download = `SPR-1053_${isoToCompact(business.periodFrom) || "XXXXXXXX"}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
+    trackEvent("SPR_GENERATE", "SPR-1053");
   }, [buildSprData, business.periodFrom]);
 
   const sprYear = business.periodFrom
@@ -1073,6 +1075,23 @@ export default function SprForm() {
               Uplatni računi javnih prihoda
             </a>{" "}
             — šifre vrsta prihoda i računi za uplatu poreza i doprinosa.
+          </li>
+        </ul>
+        <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
+          Pročitaj <em>na blogu</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/blog/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Obrt vs d.o.o. 2026
+            </a>{" "}
+            — poređenje oporezivanja i kad se koja forma isplati.
+          </li>
+          <li>
+            <a href="/blog/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Priznati rashodi obrta
+            </a>{" "}
+            — koji troškovi smanjuju poreznu osnovicu u SPR-u.
           </li>
         </ul>
       </section>

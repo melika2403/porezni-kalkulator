@@ -26,6 +26,14 @@ const faqSchema = {
   mainEntity: [
     {
       "@type": "Question",
+      name: "Kako pretvoriti bruto u neto (i neto u bruto) platu u FBiH?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Kalkulator plate radi u oba smjera. Bruto u neto: od bruto plate oduzmu se doprinosi iz plate (31%) i porez na dohodak 10% (nakon ličnog odbitka). Neto u bruto: iz željenog neto iznosa kalkulator izračunava potrebnu bruto platu i kompletan pregled doprinosa i poreza. Unesite iznos i dobijete preračun odmah, besplatno.",
+      },
+    },
+    {
+      "@type": "Question",
       name: "Kako se računa neto plata iz bruto plate u FBiH?",
       acceptedAnswer: {
         "@type": "Answer",

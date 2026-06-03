@@ -14,12 +14,17 @@ import {
   createExpense,
   updateExpense,
   deleteExpense,
+  getOtherIncome,
+  createOtherIncome,
+  updateOtherIncome,
+  deleteOtherIncome,
+  EXPENSE_CATEGORIES,
+  EXPENSE_CATEGORY_LABELS,
   type PaymentsResponse,
   type FinancePaymentRow,
   type FinanceClient,
   type ClientPaymentCell,
-  type ExpensesResponse,
-  type CompanyExpense,
+  type ExpenseCategory,
 } from "src/api/finance";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,8 +44,13 @@ const MONTHS = [
   "Dec",
 ];
 
-function formatKM(n: number) {
-  return `${n.toLocaleString("bs-BA", {
+function formatKM(n: number | string) {
+  // de-DE format: tačka = hiljade, zarez = feninzi (npr. 1.234,56). "bs-BA"
+  // ICU nije pouzdan u svim okruženjima i znao je dati tačku za decimale.
+  // VAŽNO: API vraća DECIMAL kao string ("20.58") — Number() prije formatiranja,
+  // inače String.toLocaleString vrati string nepromijenjen (tačka ostane).
+  const num = typeof n === "number" ? n : Number(n);
+  return `${(Number.isFinite(num) ? num : 0).toLocaleString("de-DE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} KM`;
@@ -102,9 +112,22 @@ export default function AdminFinansije() {
     placeholderData: (prev) => prev,
   });
 
-  const expensesQuery = useQuery<ExpensesResponse>({
+  // Normalizovan oblik {items,total} — ISTI kao u LedgerColumn da nema kolizije
+  // React Query keša (isti queryKey mora imati isti oblik podataka).
+  const expensesQuery = useQuery({
     queryKey: ["finance-expenses", year],
-    queryFn: () => unwrap(getExpenses(year)),
+    queryFn: async () => {
+      const r = await unwrap(getExpenses(year));
+      return { items: r.items ?? [], total: r.summary?.totalInvested ?? 0 };
+    },
+  });
+
+  const otherIncomeQuery = useQuery({
+    queryKey: ["finance-other-income", year],
+    queryFn: async () => {
+      const r = await unwrap(getOtherIncome(year));
+      return { items: r.items ?? [], total: r.summary?.totalIncome ?? 0 };
+    },
   });
 
   const data = paymentsQuery.data;
@@ -115,8 +138,12 @@ export default function AdminFinansije() {
     [total],
   );
 
-  const totalEarned = data?.summary.totalEarned ?? 0;
-  const totalInvested = expensesQuery.data?.summary.totalInvested ?? 0;
+  // "Ukupno zarađeno" = pretplate korisnika + gotovinski (ostali) prihodi.
+  const subscriptionsEarned = data?.summary?.totalEarned ?? 0;
+  const totalOtherIncome = otherIncomeQuery.data?.total ?? 0;
+  const totalEarned =
+    Math.round((subscriptionsEarned + totalOtherIncome) * 100) / 100;
+  const totalInvested = expensesQuery.data?.total ?? 0;
   const profit = Math.round((totalEarned - totalInvested) * 100) / 100;
 
   const applySearch = (e: React.FormEvent) => {
@@ -261,8 +288,8 @@ export default function AdminFinansije() {
           </>
         )}
 
-        {/* Troškovi / ulaganja */}
-        <ExpensesSection year={year} />
+        {/* Troškovi (lijevo) i ostali prihodi (desno) + zbir/razlika */}
+        <LedgerSection year={year} />
       </div>
     </RoleGuard>
   );
@@ -457,33 +484,139 @@ function MonthCell({
   );
 }
 
-// ─── Expenses section ─────────────────────────────────────────────────────────
+// ─── Ledger (troškovi lijevo | ostali prihodi desno) ──────────────────────────
 
-function ExpensesSection({ year }: { year: number }) {
+type LedgerItem = {
+  id: number;
+  date: string;
+  amount: number;
+  description: string;
+  category?: ExpenseCategory;
+};
+
+type LedgerPayload = {
+  date: string;
+  amount: number;
+  description: string;
+  category?: ExpenseCategory;
+};
+
+type LedgerCfg = {
+  key: string;
+  title: (year: number) => string;
+  placeholder: string;
+  totalLabel: string;
+  emptyText: (year: number) => string;
+  accent: "expense" | "income";
+  /** Da li ledger ima kategoriju (samo troškovi — koristi se za CAC). */
+  hasCategory?: boolean;
+  fetch: (year: number) => Promise<{ items: LedgerItem[]; total: number }>;
+  create: (p: LedgerPayload) => Promise<unknown>;
+  update: (id: number, p: Partial<LedgerPayload>) => Promise<unknown>;
+  remove: (id: number) => Promise<unknown>;
+};
+
+const EXPENSE_CFG: LedgerCfg = {
+  key: "finance-expenses",
+  title: (y) => `Troškovi / ulaganja (${y})`,
+  placeholder: "npr. Facebook oglasi",
+  totalLabel: "Ukupno uloženo",
+  emptyText: (y) => `Nema unesenih troškova za ${y}.`,
+  accent: "expense",
+  hasCategory: true,
+  fetch: async (y) => {
+    const r = await unwrap(getExpenses(y));
+    return { items: r.items ?? [], total: r.summary?.totalInvested ?? 0 };
+  },
+  create: (p) => createExpense(p),
+  update: (id, p) => updateExpense(id, p),
+  remove: (id) => deleteExpense(id),
+};
+
+const INCOME_CFG: LedgerCfg = {
+  key: "finance-other-income",
+  title: (y) => `Ostali prihodi — gotovina (${y})`,
+  placeholder: "npr. Gotovinska naplata usluge",
+  totalLabel: "Ukupno prihoda",
+  emptyText: (y) => `Nema unesenih prihoda za ${y}.`,
+  accent: "income",
+  fetch: async (y) => {
+    const r = await unwrap(getOtherIncome(y));
+    return { items: r.items ?? [], total: r.summary?.totalIncome ?? 0 };
+  },
+  create: (p) => createOtherIncome(p),
+  update: (id, p) => updateOtherIncome(id, p),
+  remove: (id) => deleteOtherIncome(id),
+};
+
+function LedgerSection({ year }: { year: number }) {
+  const expQ = useQuery({
+    queryKey: [EXPENSE_CFG.key, year],
+    queryFn: () => EXPENSE_CFG.fetch(year),
+  });
+  const incQ = useQuery({
+    queryKey: [INCOME_CFG.key, year],
+    queryFn: () => INCOME_CFG.fetch(year),
+  });
+  const totalInvested = expQ.data?.total ?? 0;
+  const totalIncome = incQ.data?.total ?? 0;
+  const razlika = Math.round((totalIncome - totalInvested) * 100) / 100;
+
+  return (
+    <section className={styles.ledgerSection}>
+      <div className={styles.ledgerGrid}>
+        <LedgerColumn year={year} cfg={EXPENSE_CFG} />
+        <LedgerColumn year={year} cfg={INCOME_CFG} />
+      </div>
+
+      <div className={styles.ledgerBottom}>
+        <div className={styles.ledgerBottomItem}>
+          <span>Ukupno troškovi</span>
+          <strong>{formatKM(totalInvested)}</strong>
+        </div>
+        <div className={styles.ledgerBottomItem}>
+          <span>Ukupno gotovinski prihodi</span>
+          <strong>{formatKM(totalIncome)}</strong>
+        </div>
+        <div className={styles.ledgerBottomItem}>
+          <span>Razlika (prihodi − troškovi)</span>
+          <strong className={razlika >= 0 ? styles.posValue : styles.negValue}>
+            {formatKM(razlika)}
+          </strong>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LedgerColumn({ year, cfg }: { year: number; cfg: LedgerCfg }) {
   const queryClient = useQueryClient();
-  const query = useQuery<ExpensesResponse>({
-    queryKey: ["finance-expenses", year],
-    queryFn: () => unwrap(getExpenses(year)),
+  const query = useQuery({
+    queryKey: [cfg.key, year],
+    queryFn: () => cfg.fetch(year),
   });
 
   const [date, setDate] = useState(todayInputDate());
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState<ExpenseCategory>("OSTALO");
   const [formError, setFormError] = useState<string | null>(null);
 
   const add = useMutation({
     mutationFn: () =>
       unwrap(
-        createExpense({
+        cfg.create({
           date,
           description: description.trim(),
           amount: Number(amount.replace(",", ".")) || 0,
-        }),
+          ...(cfg.hasCategory ? { category } : {}),
+        }) as ReturnType<typeof createExpense>,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["finance-expenses"] });
+      queryClient.invalidateQueries({ queryKey: [cfg.key] });
       setDescription("");
       setAmount("");
+      setCategory("OSTALO");
       setDate(todayInputDate());
       setFormError(null);
     },
@@ -492,7 +625,7 @@ function ExpensesSection({ year }: { year: number }) {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) return setFormError("Unesite opis troška.");
+    if (!description.trim()) return setFormError("Unesite opis.");
     const amt = Number(amount.replace(",", "."));
     if (!Number.isFinite(amt) || amt <= 0)
       return setFormError("Unesite ispravan iznos.");
@@ -500,11 +633,11 @@ function ExpensesSection({ year }: { year: number }) {
   };
 
   const items = query.data?.items ?? [];
-  const totalInvested = query.data?.summary.totalInvested ?? 0;
+  const total = query.data?.total ?? 0;
 
   return (
-    <section className={styles.expensesSection}>
-      <h2 className={styles.sectionTitle}>Troškovi / ulaganja ({year})</h2>
+    <div className={`${styles.ledgerCol} ${styles[`ledger_${cfg.accent}`]}`}>
+      <h2 className={styles.sectionTitle}>{cfg.title(year)}</h2>
 
       <form className={styles.expenseForm} onSubmit={submit}>
         <div className={styles.expenseField}>
@@ -517,10 +650,26 @@ function ExpensesSection({ year }: { year: number }) {
             className={styles.input}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="npr. Facebook oglasi"
+            placeholder={cfg.placeholder}
             autoComplete="off"
           />
         </div>
+        {cfg.hasCategory && (
+          <div className={styles.expenseField}>
+            <label className={styles.fieldLabel}>Kategorija</label>
+            <select
+              className={styles.input}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+            >
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {EXPENSE_CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className={styles.expenseField}>
           <label className={styles.fieldLabel}>Iznos (KM)</label>
           <input
@@ -538,7 +687,7 @@ function ExpensesSection({ year }: { year: number }) {
       {formError && <div className={styles.errorMsg}>{formError}</div>}
 
       {items.length === 0 ? (
-        <div className={styles.empty}>Nema unesenih troškova za {year}.</div>
+        <div className={styles.empty}>{cfg.emptyText(year)}</div>
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -546,22 +695,23 @@ function ExpensesSection({ year }: { year: number }) {
               <tr>
                 <th>Datum</th>
                 <th>Opis</th>
+                {cfg.hasCategory && <th className={styles.catCol}>Kategorija</th>}
                 <th className={styles.totalCol}>Iznos</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {items.map((exp) => (
-                <ExpenseRow key={exp.id} expense={exp} />
+              {items.map((it) => (
+                <LedgerRow key={it.id} item={it} cfg={cfg} />
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={2} className={styles.tfootLabel}>
-                  Ukupno uloženo
+                <td colSpan={cfg.hasCategory ? 3 : 2} className={styles.tfootLabel}>
+                  {cfg.totalLabel}
                 </td>
                 <td className={styles.totalCol}>
-                  <strong>{formatKM(totalInvested)}</strong>
+                  <strong>{formatKM(total)}</strong>
                 </td>
                 <td></td>
               </tr>
@@ -569,39 +719,40 @@ function ExpensesSection({ year }: { year: number }) {
           </table>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
-// ─── Expense row (inline edit / delete) ───────────────────────────────────────
-
-function ExpenseRow({ expense }: { expense: CompanyExpense }) {
+function LedgerRow({ item, cfg }: { item: LedgerItem; cfg: LedgerCfg }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [date, setDate] = useState(expense.date.slice(0, 10));
-  const [description, setDescription] = useState(expense.description);
-  const [amount, setAmount] = useState(String(expense.amount));
+  const [date, setDate] = useState(item.date.slice(0, 10));
+  const [description, setDescription] = useState(item.description);
+  const [amount, setAmount] = useState(String(item.amount));
+  const [category, setCategory] = useState<ExpenseCategory>(
+    item.category ?? "OSTALO",
+  );
 
   const save = useMutation({
     mutationFn: () =>
       unwrap(
-        updateExpense(expense.id, {
+        cfg.update(item.id, {
           date,
           description: description.trim(),
           amount: Number(amount.replace(",", ".")) || 0,
-        }),
+          ...(cfg.hasCategory ? { category } : {}),
+        }) as ReturnType<typeof updateExpense>,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["finance-expenses"] });
+      queryClient.invalidateQueries({ queryKey: [cfg.key] });
       setEditing(false);
     },
   });
 
   const remove = useMutation({
-    mutationFn: () => unwrap(deleteExpense(expense.id)),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["finance-expenses"] }),
+    mutationFn: () => unwrap(cfg.remove(item.id) as ReturnType<typeof deleteExpense>),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [cfg.key] }),
   });
 
   if (editing) {
@@ -617,6 +768,21 @@ function ExpenseRow({ expense }: { expense: CompanyExpense }) {
             onChange={(e) => setDescription(e.target.value)}
           />
         </td>
+        {cfg.hasCategory && (
+          <td>
+            <select
+              className={styles.input}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+            >
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {EXPENSE_CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </td>
+        )}
         <td className={styles.totalCol}>
           <input
             className={styles.cellInput}
@@ -650,9 +816,16 @@ function ExpenseRow({ expense }: { expense: CompanyExpense }) {
 
   return (
     <tr>
-      <td>{formatDate(expense.date)}</td>
-      <td>{expense.description}</td>
-      <td className={styles.totalCol}>{formatKM(expense.amount)}</td>
+      <td>{formatDate(item.date)}</td>
+      <td>{item.description}</td>
+      {cfg.hasCategory && (
+        <td className={styles.catCol}>
+          <span className={styles.catBadge}>
+            {EXPENSE_CATEGORY_LABELS[item.category ?? "OSTALO"]}
+          </span>
+        </td>
+      )}
+      <td className={styles.totalCol}>{formatKM(item.amount)}</td>
       <td>
         <span className={styles.rowActions}>
           {confirmDelete ? (

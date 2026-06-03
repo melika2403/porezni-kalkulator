@@ -17,6 +17,7 @@ import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import { trackEvent } from "src/api/activity";
 
 /* ── Row definitions ── */
 
@@ -401,6 +402,7 @@ export default function GpdForm() {
     a.download = `GPD-1051_20${personal.taxYear || "XX"}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
+    trackEvent("GPD_GENERATE", "GPD-1051");
   }, [buildGpdData, personal.taxYear]);
 
   const gpdYear = /^\d{2}$/.test(personal.taxYear)
@@ -1415,6 +1417,29 @@ export default function GpdForm() {
               Preračun neto/bruto plate
             </a>{" "}
             — provjera obračunatih poreza i doprinosa.
+          </li>
+        </ul>
+        <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
+          Pročitaj <em>na blogu</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/blog/gpd-1051-korak-po-korak" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              GPD-1051 korak po korak
+            </a>{" "}
+            — detaljan vodič kroz godišnju prijavu poreza na dohodak.
+          </li>
+          <li>
+            <a href="/blog/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Obrt vs d.o.o. 2026
+            </a>{" "}
+            — koja forma se više isplati i kako se oporezuje.
+          </li>
+          <li>
+            <a href="/blog/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Priznati rashodi obrta
+            </a>{" "}
+            — šta smanjuje poreznu osnovicu.
           </li>
         </ul>
       </section>

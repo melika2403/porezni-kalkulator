@@ -5,6 +5,7 @@ import styles from "./js3100.module.css";
 import uorStyles from "src/sections/ugovor-o-radu/uor.module.css";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
 import {
+  createWorker,
   getOrganization,
   getWorkers,
   updateWorker,
@@ -33,6 +34,7 @@ import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useRole } from "src/hooks/useRole";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
+import { trackEvent } from "src/api/activity";
 import { useLastOrg } from "src/hooks/useLastOrg";
 
 /* ── Helpers ── */
@@ -309,10 +311,16 @@ function Js3100App() {
       ...p,
       sati: p.sati || "08",
       minuta: p.minuta || "00",
+      // Osnov osiguranja i zanimanje — prvo iz spremljenih worker polja (prijava
+      // ih je zapamtila), pa fallback na default/poziciju. Tako odjava povuče
+      // iste podatke kao prijava bez ručnog ponovnog unosa.
       osnovOsiguranjaOpis:
-        p.osnovOsiguranjaOpis || "Zaposleni — puno radno vrijeme",
-      osnovOsiguranjaSifra: p.osnovOsiguranjaSifra || "01",
-      zanimanjeOpis: w.position ?? p.zanimanjeOpis,
+        w.osnovOsiguranjaOpis ||
+        p.osnovOsiguranjaOpis ||
+        "Zaposleni — puno radno vrijeme",
+      osnovOsiguranjaSifra: w.osnovOsiguranjaSifra || p.osnovOsiguranjaSifra || "01",
+      zanimanjeOpis: w.zanimanjeOpis ?? w.position ?? p.zanimanjeOpis,
+      zanimanjeSifra: w.zanimanjeSifra ?? p.zanimanjeSifra,
       strucnaSpremaTraziSeIdx: w.strucnaSpremaIdx ?? p.strucnaSpremaTraziSeIdx,
       datumPromjeneIso,
       osnovUplateOpis:
@@ -427,9 +435,86 @@ function Js3100App() {
   ]);
 
   const queryClient = useQueryClient();
+  const [statusOnly, setStatusOnly] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  // Sinhronizuje employmentStatus + datume radnika u bazi (PRIJAVLJEN/ODJAVLJEN)
+  // koristeći datume IZ FORME. Auto-kreira radnika ako nije odabran. Vraća true
+  // ako je status promijenjen. Dijeli je "Preuzmi PDF" i "Samo prijavi/odjavi".
+  // throwOnError=true → baca grešku (za standalone akciju koja treba feedback);
+  // false → best-effort (download ne smije pasti zbog status update-a).
+  const syncWorkerStatus = async (throwOnError: boolean): Promise<boolean> => {
+    if (!sidebarOrgId || vrsta === "PROMJENA") return false;
+    const formPrijavaDate = datumPrijaveIso || getTodayIso();
+    const formOdjavaDate = treci.datumPromjeneIso || getTodayIso();
+    const payload =
+      vrsta === "PRIJAVA"
+        ? {
+            employmentStatus: "PRIJAVLJEN" as const,
+            prijavaDate: formPrijavaDate,
+            // Re-prijava: očisti staru odjavu da derivacija statusa
+            // (odjavaDate ima prioritet) ne zadrži ODJAVLJEN.
+            odjavaDate: null,
+            endDate: null,
+            // Zapamti JS3100 stabilna polja da ih odjava kasnije prefill-a.
+            osnovOsiguranjaOpis: treci.osnovOsiguranjaOpis || null,
+            osnovOsiguranjaSifra: treci.osnovOsiguranjaSifra || null,
+            zanimanjeOpis: treci.zanimanjeOpis || null,
+            zanimanjeSifra: treci.zanimanjeSifra || null,
+          }
+        : {
+            employmentStatus: "ODJAVLJEN" as const,
+            odjavaDate: formOdjavaDate,
+            endDate: formOdjavaDate,
+          };
+    try {
+      let targetWorkerId = sidebarWorkerId;
+      // Ako radnik nije odabran (JS3100 popunjen direktno bez biranja iz
+      // sidebar-a), auto-kreiraj ga iz forme pa ga prijavi/odjavi.
+      if (!targetWorkerId) {
+        const ime = (worker.ime || "").trim();
+        const prezime = (worker.prezime || "").trim();
+        if (!ime || !prezime) {
+          throw new Error(
+            "Unesite ime i prezime osiguranika da bi se radnik kreirao.",
+          );
+        }
+        if (!worker.jmbg || worker.jmbg.length !== 13) {
+          throw new Error(
+            "JMBG osiguranika mora imati 13 cifara da bi se radnik kreirao.",
+          );
+        }
+        const created = await unwrap(
+          createWorker(sidebarOrgId, {
+            role: "RADNIK",
+            firstName: ime,
+            lastName: prezime,
+            jmbg: worker.jmbg,
+            startDate: formPrijavaDate,
+            address: worker.adresa?.trim() || undefined,
+            email: worker.emailOsiguranika?.trim() || undefined,
+            spol: worker.spol || null,
+            strucnaSpremaIdx: worker.strucnaSpremaIdx ?? null,
+          }),
+        );
+        targetWorkerId = created.id;
+        setSidebarWorkerId(created.id);
+      }
+      await unwrap(updateWorker(sidebarOrgId, targetWorkerId, payload));
+      queryClient.invalidateQueries({ queryKey: ["workers", sidebarOrgId] });
+      queryClient.invalidateQueries({ queryKey: ["allMyWorkers"] });
+      return true;
+    } catch (e) {
+      console.warn("Greška pri ažuriranju statusa radnika:", e);
+      if (throwOnError) throw e;
+      return false;
+    }
+  };
+
   const handleExport = async () => {
     if (!canGenerate) return;
     setLoading(true);
+    setStatusMsg(null);
     try {
       const bytes = await fillJs3100Template(buildData());
       const suffix =
@@ -440,37 +525,34 @@ function Js3100App() {
             : "Promjena";
       const last = worker.prezime || worker.jmbg || "radnik";
       downloadPdf(bytes, `JS3100_${suffix}_${last}.pdf`);
+      trackEvent("JS3100_GENERATE", `JS3100 (${suffix})`);
 
-      // Sinhroniziraj employmentStatus + datume radnika u bazi (PRIJAVLJEN/ODJAVLJEN)
-      // koristeći datume IZ FORME (ono što je user odabrao), ne uvijek "danas".
-      // Ovo osigurava da 2001/2002 obrasci kasnije koriste iste datume kao i JS3100.
-      if (sidebarOrgId && sidebarWorkerId && vrsta !== "PROMJENA") {
-        const formPrijavaDate = datumPrijaveIso || getTodayIso();
-        const formOdjavaDate = treci.datumPromjeneIso || getTodayIso();
-        const payload =
-          vrsta === "PRIJAVA"
-            ? {
-                employmentStatus: "PRIJAVLJEN" as const,
-                prijavaDate: formPrijavaDate,
-              }
-            : {
-                employmentStatus: "ODJAVLJEN" as const,
-                odjavaDate: formOdjavaDate,
-                endDate: formOdjavaDate,
-              };
-        try {
-          await unwrap(updateWorker(sidebarOrgId, sidebarWorkerId, payload));
-          queryClient.invalidateQueries({
-            queryKey: ["workers", sidebarOrgId],
-          });
-          queryClient.invalidateQueries({ queryKey: ["allMyWorkers"] });
-        } catch (e) {
-          // Ne prekidaj download — status update je best-effort.
-          console.warn("Greška pri ažuriranju statusa radnika:", e);
-        }
-      }
+      // Status update je best-effort — download ne smije pasti zbog njega.
+      await syncWorkerStatus(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // "Samo prijavi/odjavi radnika" — promijeni status bez generisanja PDF-a
+  // (npr. JS3100 već predan elektronski preko ePortala).
+  const handleStatusOnly = async () => {
+    if (!canGenerate || vrsta === "PROMJENA") return;
+    setStatusOnly(true);
+    setStatusMsg(null);
+    try {
+      const ok = await syncWorkerStatus(true);
+      if (ok) {
+        setStatusMsg(
+          vrsta === "PRIJAVA"
+            ? "Radnik je označen kao Prijavljen."
+            : "Radnik je označen kao Odjavljen.",
+        );
+      }
+    } catch (e) {
+      setStatusMsg("Greška: " + (e as Error).message);
+    } finally {
+      setStatusOnly(false);
     }
   };
 
@@ -1150,7 +1232,7 @@ function Js3100App() {
               <button
                 type="submit"
                 className={styles.exportBtn}
-                disabled={loading || !canGenerate}
+                disabled={loading || statusOnly || !canGenerate}
                 title={
                   canGenerate
                     ? undefined
@@ -1168,7 +1250,46 @@ function Js3100App() {
                 </svg>
                 {loading ? "Generisanje..." : "Preuzmi PDF"}
               </button>
+              {vrsta !== "PROMJENA" && (
+                <button
+                  type="button"
+                  className={styles.statusOnlyBtn}
+                  onClick={handleStatusOnly}
+                  disabled={loading || statusOnly || !canGenerate}
+                  title={
+                    canGenerate
+                      ? "Promijeni status radnika u aplikaciji bez generisanja PDF-a (npr. ako je JS3100 već predan elektronski)"
+                      : "Dostupno uz Pro ili Business pretplatu"
+                  }
+                >
+                  {statusOnly
+                    ? "Spremam..."
+                    : vrsta === "PRIJAVA"
+                      ? "Samo prijavi radnika"
+                      : "Samo odjavi radnika"}
+                </button>
+              )}
             </div>
+
+            {vrsta !== "PROMJENA" && (
+              <p className={styles.statusNote}>
+                {vrsta === "PRIJAVA" ? (
+                  <>
+                    Napomena: preuzimanjem PDF-a (ili klikom na „Samo prijavi
+                    radnika") radnik se u aplikaciji označava kao{" "}
+                    <strong>Prijavljen</strong> i pojavljuje se u Aktivnim
+                    radnicima.
+                  </>
+                ) : (
+                  <>
+                    Napomena: preuzimanjem PDF-a (ili klikom na „Samo odjavi
+                    radnika") radnik se u aplikaciji označava kao{" "}
+                    <strong>Odjavljen</strong>.
+                  </>
+                )}
+              </p>
+            )}
+            {statusMsg && <p className={styles.statusDone}>{statusMsg}</p>}
           </form>
         </div>
       </div>

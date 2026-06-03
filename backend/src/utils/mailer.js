@@ -326,6 +326,164 @@ Bez kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate na bes
   });
 }
 
+// ── POZIV NA BESPLATNI TRIAL (admin → korisnik koji nije aktivirao trial) ────
+async function sendTrialInviteEmail(to, firstName, { trialUrl }) {
+  const transporter = createTransporter();
+  const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
+  const from = `"${displayName}" <${process.env.SMTP_USER}>`;
+
+  const features = [
+    "Fakture i predračuni za vaše klijente",
+    "Ugovori o djelu sa automatskim obračunom poreza i doprinosa",
+    "Šihterica, evidencija radnog vremena uz PDF obrazac",
+    "Obračun plata i doprinosa, sa uplatnicama",
+  ];
+  const featuresHtml = features
+    .map(
+      (f) =>
+        `<li style="margin-bottom:8px; color:#444; font-size:14px; line-height:1.5;">${f}</li>`,
+    )
+    .join("");
+  const featuresText = features.map((f) => `  • ${f}`).join("\n");
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: "Vaš besplatni mjesec vas i dalje čeka — Porezni Kalkulator",
+    text: `Zdravo ${firstName},
+
+Primijetili smo da još niste aktivirali svoj besplatni mjesec (30 dana PRO) na Porezni Kalkulator. Dobra vijest: i dalje vas čeka.
+
+Uz PRO besplatno mjesec dana dobijate:
+${featuresText}
+
+Aktivirajte ovdje (bez kartice, bez obaveza):
+${trialUrl}
+
+Ako imate bilo kakvo pitanje, slobodno odgovorite na ovaj email, rado pomažemo.
+
+— Porezni Kalkulator`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #7a8a7d; margin-bottom: 8px;">
+          Vaš besplatni mjesec
+        </div>
+        <h2 style="font-size: 24px; font-weight: 600; margin: 0 0 12px;">
+          30 dana <span style="color:#3a5c42;">PRO</span> vas i dalje čeka
+        </h2>
+        <p style="color: #555; font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+          Zdravo <strong>${firstName}</strong>, primijetili smo da još niste
+          aktivirali svoj besplatni mjesec. Evo šta dobijate uz PRO:
+        </p>
+        <ul style="padding-left: 20px; margin: 0 0 24px;">
+          ${featuresHtml}
+        </ul>
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${trialUrl}"
+             style="display: inline-block; background: #3a5c42; color: #fff; text-decoration: none;
+                    padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600;">
+            Aktiviraj 30 dana besplatno →
+          </a>
+        </div>
+        <p style="color: #666; font-size: 14px; line-height: 1.6;">
+          Bez kartice, bez obaveza. Ako imate pitanje, samo odgovorite na ovaj
+          email, rado pomažemo.
+        </p>
+        <p style="color: #999; font-size: 13px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          Link: <a href="${trialUrl}" style="color: #3a5c42;">${trialUrl}</a>
+        </p>
+      </div>
+    `,
+  });
+}
+
+// ── PODSJETNIK ZA OBNOVU PRETPLATE ──────────────────────────────────────────
+// Poruka se prilagođava stanju: pred istek (daysLeft > 0), ističe danas
+// (daysLeft === 0) ili već isteklo (daysLeft < 0).
+async function sendSubscriptionReminderEmail(
+  to,
+  firstName,
+  { plan, endDateStr, renewUrl, daysLeft = null, isTrial = false },
+) {
+  const transporter = createTransporter();
+  const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
+  const from = `"${displayName}" <${process.env.SMTP_USER}>`;
+  const planStr = plan ? ` ${plan}` : "";
+
+  const expired = typeof daysLeft === "number" && daysLeft < 0;
+  const today = typeof daysLeft === "number" && daysLeft === 0;
+  const dStr =
+    daysLeft === 1 ? "za 1 dan" : daysLeft != null ? `za ${daysLeft} dana` : "uskoro";
+
+  // Naziv onoga što ističe + glagol akcije (trial → aktivirajte, plaćena → obnovite).
+  const thing = isTrial ? "Vaš besplatni probni period (trial)" : `Vaša${planStr} pretplata`;
+  const thingShort = isTrial ? "Probni period" : "Pretplata";
+  const act = isTrial
+    ? "Aktivirajte pretplatu da nastavite bez prekida."
+    : "Obnovite je da nastavite bez prekida.";
+  const ctaLabel = isTrial ? "Aktiviraj pretplatu" : "Generiši novi predračun";
+  const renewLine = isTrial
+    ? "Da aktivirate pretplatu, odaberite Pro ili Business plan na stranici, ili odgovorite na ovaj email."
+    : "Ako želite produžiti pretplatu, odgovorite na ovaj email ili generišite novi predračun na stranici.";
+
+  let subject;
+  let heading;
+  let lead;
+  if (expired) {
+    subject = `${thingShort} je istek${isTrial ? "ao" : "la"} — Porezni Kalkulator`;
+    heading = `${thingShort} je istek${isTrial ? "ao" : "la"}`;
+    lead = `${thing} na Porezni Kalkulator ${isTrial ? "je istekao" : "je istekla"} ${endDateStr}. ${
+      isTrial
+        ? "Aktivirajte pretplatu da ponovo otključate sve funkcije."
+        : "Obnovite je da ponovo otključate sve funkcije."
+    }`;
+  } else if (today) {
+    subject = `${thingShort} ističe danas — Porezni Kalkulator`;
+    heading = `${thingShort} ističe danas`;
+    lead = `${thing} na Porezni Kalkulator ističe danas (${endDateStr}). ${act}`;
+  } else {
+    subject = `${thingShort} ističe ${dStr} — Porezni Kalkulator`;
+    heading = `${thingShort} ističe ${dStr}`;
+    lead = `${thing} na Porezni Kalkulator ističe ${dStr} (${endDateStr}). ${act}`;
+  }
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    text: `Zdravo ${firstName},
+
+${lead}
+
+${renewLine}
+${renewUrl}
+
+— Porezni Kalkulator`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${heading}</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 8px;">
+          Zdravo <strong>${firstName}</strong>,
+        </p>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+          ${lead}
+        </p>
+        <a href="${renewUrl}"
+           style="display: inline-block; background: #3a5c42; color: #fff; text-decoration: none;
+                  padding: 13px 28px; border-radius: 8px; font-size: 15px; font-weight: 500; margin-bottom: 24px;">
+          ${ctaLabel}
+        </a>
+        <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 4px;">
+          ${renewLine}
+        </p>
+        <p style="color: #999; font-size: 13px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          Link: <a href="${renewUrl}" style="color: #3a5c42;">${renewUrl}</a>
+        </p>
+      </div>
+    `,
+  });
+}
+
 // ── PAYSLIP MAILER (preko invoice mailbox-a noreply@) ───────────────────────
 async function sendPayslipEmail({
   to,
@@ -397,4 +555,6 @@ module.exports = {
   sendInvoiceEmail,
   sendWelcomeEmail,
   sendPayslipEmail,
+  sendSubscriptionReminderEmail,
+  sendTrialInviteEmail,
 };

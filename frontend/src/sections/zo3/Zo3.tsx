@@ -14,6 +14,7 @@ import OrgFillSelect, {
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
+import { trackEvent } from "src/api/activity";
 
 /* ── Constants ── */
 
@@ -350,6 +351,7 @@ export default function Zo3Form() {
     a.download = `ZO3_obrazac${insured.prezime ? `_${insured.prezime}` : ""}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
+    trackEvent("ZO3_GENERATE", "ZO3 obrazac");
   }, [buildZo3Data, insured.prezime]);
 
   const zo3Year = datum ? parseInt(datum.slice(0, 4)) || null : null;

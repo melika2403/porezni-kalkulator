@@ -17,6 +17,7 @@ import BuyerFillSelect, {
 } from "src/components/BuyerFillSelect/BuyerFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { me, unwrap } from "src/api/auth";
+import { trackEvent } from "src/api/activity";
 import { getOrganizations, type Organization } from "src/api/profile";
 import {
   createInvoice,
@@ -463,6 +464,10 @@ export default function InvoiceForm() {
       return unwrap(createInvoice(payload));
     },
     onSuccess: async (inv) => {
+      trackEvent(
+        inv.type === "INVOICE" ? "FAKTURA_GENERATE" : "PREDRACUN_GENERATE",
+        inv.type === "INVOICE" ? "Faktura" : "Predračun",
+      );
       try {
         await downloadInvoicePdf(
           inv.id,

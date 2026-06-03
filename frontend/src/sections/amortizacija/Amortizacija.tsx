@@ -22,6 +22,7 @@ import {
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import SaveToast from "src/components/SaveToast/SaveToast";
+import { trackEvent } from "src/api/activity";
 import {
   getOrganizations,
   getClientOrganizations,
@@ -942,6 +943,7 @@ function AmortizacijaApp() {
       a.download = `PLDI-1043-${obveznik.godina}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      trackEvent("PLDI_GENERATE", "PLDI-1043 (amortizacija)");
     } finally {
       setExportLoading(false);
     }

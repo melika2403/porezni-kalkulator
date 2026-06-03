@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "src/sections/ugovor-o-djelu/uod.module.css";
 import uorStyles from "./uor.module.css";
@@ -12,9 +12,14 @@ import { useRole } from "src/hooks/useRole";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
+import {
+  computeContractEndIso,
+  maxTrajanjeBroj,
+} from "src/utils/contractDuration";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import {
+  createWorker,
   getOrganization,
   getWorkers,
   peekContractNumber,
@@ -26,7 +31,8 @@ import {
   type WorkerPayload,
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
-import { isJmbgValid, parseJmbg } from "src/utils/jmbg";
+import { trackEvent } from "src/api/activity";
+import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
 import {
   clan1Tekst,
   clanPlate,
@@ -45,7 +51,7 @@ import { fillUorDocx, type UorTemplateData } from "./fillUorDocx";
 import { fillUorPdf } from "./fillUorPdf";
 import { fillOtkazDocx, type OtkazTemplateData } from "./fillOtkazDocx";
 import { fillOtkazPdf } from "./fillOtkazPdf";
-import { fillJs3100Template, type Js3100Data, type Js3100Vrsta } from "src/sections/prijave-radnika/fillJs3100";
+import { type Js3100Vrsta } from "src/sections/prijave-radnika/fillJs3100";
 
 type ActiveTab = "ugovor" | "otkaz";
 
@@ -71,28 +77,9 @@ const formatAmountForInput = (s: string): string => {
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-// Računa zadnji dan ugovora na osnovu početka + trajanja.
-// Dodaje N mjeseci/godina pa oduzme 1 dan (npr. 14.05 + 6 mjeseci → 13.11).
-const computeEndIso = (
-  startIso: string,
-  broj: number,
-  jedinica: "mjeseci" | "godine",
-): string => {
-  if (!startIso || !broj) return "";
-  const [y, m, d] = startIso.slice(0, 10).split("-").map(Number);
-  if (!y || !m || !d) return "";
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  if (jedinica === "mjeseci") {
-    dt.setUTCMonth(dt.getUTCMonth() + broj);
-  } else {
-    dt.setUTCFullYear(dt.getUTCFullYear() + broj);
-  }
-  dt.setUTCDate(dt.getUTCDate() - 1);
-  return dt.toISOString().slice(0, 10);
-};
-
-const maxTrajanjeBroj = (jedinica: "mjeseci" | "godine") =>
-  jedinica === "godine" ? 3 : 36;
+// computeEndIso/maxTrajanjeBroj žive u src/utils/contractDuration.ts (dijeli ih
+// i edit radnika). Lokalni alias zadržan radi minimalne izmjene call-sajtova.
+const computeEndIso = computeContractEndIso;
 
 const IconDownload = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -121,6 +108,7 @@ function UgovorORaduApp() {
   const canGenerate = hasAccessToTier("BUSINESS");
   const { findByName: findCity } = useCityLookup();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [tab, setTab] = useState<ActiveTab>(() => {
     const t = searchParams.get("tab");
     return t === "otkaz" ? "otkaz" : "ugovor";
@@ -139,6 +127,7 @@ function UgovorORaduApp() {
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(initialWorkerId);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [postDownloadPrompt, setPostDownloadPrompt] = useState<"prijava" | "odjava" | null>(null);
+  const [registerMsg, setRegisterMsg] = useState<string | null>(null);
 
   // ── Shared: Poslodavac ──
   const [nazivFirme, setNazivFirme] = useState("");
@@ -272,6 +261,8 @@ function UgovorORaduApp() {
   const handleWorkerPick = (workerId: number | null, w: Worker | null) => {
     setSidebarWorkerId(workerId);
     setSelectedWorker(w);
+    setRegisterMsg(null);
+    setPostDownloadPrompt(null);
     if (!w) return;
 
     // Osnovni podaci radnika
@@ -378,7 +369,8 @@ function UgovorORaduApp() {
     if (!nazivFirme) return "Unesite naziv poslodavca.";
     if (!imeRadnika) return "Unesite ime radnika.";
     if (!radnoMjesto) return "Unesite radno mjesto.";
-    if (!brutoPlata) return "Unesite bruto platu.";
+    if (!brutoPlata && !netoPlata)
+      return "Unesite bruto ili neto platu.";
     if (tipUgovora === "odredjeno" && !datumIstekaIso)
       return "Za ugovor na određeno, unesite datum isteka.";
     return null;
@@ -414,13 +406,74 @@ function UgovorORaduApp() {
     };
   };
 
-  const persistWorker = (extra: Partial<WorkerPayload> = {}) => {
-    if (!selectedWorker || !sidebarOrgId) return;
-    syncWorkerMutation.mutate({
+  // Osigurava da radnik postoji kao entitet i vraća njegov id. Ako je radnik
+  // odabran u sidebar-u → vrati njegov id. Inače, ako imamo organizaciju + ime +
+  // JMBG, AUTO-KREIRAJ radnika iz podataka forme (rješava: "ako prvo napravim
+  // ugovor/JS3100, radnik se ne doda u aktivne radnike"). Vraća null ako nema
+  // dovoljno podataka za kreiranje.
+  const ensureWorkerId = async (): Promise<number | null> => {
+    if (selectedWorker) return selectedWorker.id;
+    if (!sidebarOrgId) {
+      showError("Odaberite organizaciju (sidebar) prije snimanja radnika.");
+      return null;
+    }
+    const ime = imeRadnika.trim();
+    if (!ime) {
+      showError("Unesite ime i prezime radnika.");
+      return null;
+    }
+    if (!jmbgRadnika || jmbgRadnika.length !== 13) {
+      showError("JMBG radnika mora imati 13 cifara da bi se radnik kreirao.");
+      return null;
+    }
+    const parts = ime.split(/\s+/);
+    const firstName = parts[0] ?? "";
+    const lastName = parts.slice(1).join(" ") || firstName;
+    const startDate = datumPocetkaIso || todayIso();
+    try {
+      // startDate zadovoljava backend zahtjev (RADNIK treba startDate ILI
+      // prijavaDate). NE šaljemo prijavaDate → radnik se kreira kao DRAFT;
+      // PRIJAVLJEN postaje tek kad se uradi JS3100 prijava.
+      const created = await unwrap(
+        createWorker(sidebarOrgId, {
+          role: "RADNIK",
+          firstName,
+          lastName,
+          jmbg: jmbgRadnika,
+          startDate,
+          // Spol se izvodi iz JMBG-a (kao kod dodavanja radnika) — datum
+          // rođenja se uvijek derivira iz JMBG-a pa se ne čuva zasebno.
+          spol: spolFromJmbg(jmbgRadnika),
+          address: adresaRadnika.trim() || undefined,
+          bankAccount: ziroRadnika.trim() || undefined,
+          ...buildEmploymentPayload(),
+        }),
+      );
+      setSelectedWorker(created);
+      setSidebarWorkerId(created.id);
+      queryClient.invalidateQueries({ queryKey: ["workers", sidebarOrgId] });
+      queryClient.invalidateQueries({ queryKey: ["allMyWorkers"] });
+      return created.id;
+    } catch (e) {
+      showError("Greška pri kreiranju radnika: " + (e as Error).message);
+      return null;
+    }
+  };
+
+  // Snima employment podatke na radnika; auto-kreira radnika ako ne postoji.
+  // Vraća workerId (ili null ako nije moglo). Async da bi se moglo čekati prije
+  // navigacije na JS3100 stranicu.
+  const persistWorker = async (
+    extra: Partial<WorkerPayload> = {},
+  ): Promise<number | null> => {
+    const workerId = await ensureWorkerId();
+    if (!workerId || !sidebarOrgId) return null;
+    await syncWorkerMutation.mutateAsync({
       orgId: sidebarOrgId,
-      workerId: selectedWorker.id,
+      workerId,
       payload: { ...buildEmploymentPayload(), ...extra },
     });
+    return workerId;
   };
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -460,101 +513,14 @@ function UgovorORaduApp() {
       .catch((e) => console.warn("Document archive error:", e));
   };
 
-  // Sastavlja Js3100Data iz trenutne forme + odabranog radnika.
-  const buildJs3100Data = (vrsta: Js3100Vrsta): Js3100Data => {
-    const w = selectedWorker;
-    const employerCityInfo = grad ? findCity(grad) : null;
-    // Grad radnika — prvo iz Worker.city, inače pokušaj iz adresaRadnika izvući "...,grad"
-    const workerCityName =
-      w?.city ??
-      (adresaRadnika.includes(",")
-        ? adresaRadnika
-            .split(",")
-            .pop()!
-            .trim()
-            .replace(/^\d+\s*/, "") // ukloni poštanski broj ako ga ima na početku
-        : "");
-    const workerCityInfo = workerCityName ? findCity(workerCityName) : null;
-
-    // Split radnik ime "Ime Prezime" → firstName/lastName ako nemamo worker
-    const nameParts = imeRadnika.trim().split(/\s+/);
-    const firstName = w?.firstName ?? nameParts[0] ?? "";
-    const lastName = w?.lastName ?? nameParts.slice(1).join(" ") ?? "";
-
-    // Datum rođenja iz JMBG-a: DDMMGGG (XXX), gdje GGG < 800 → 2000+GGG, else 1000+GGG
-    let rodDan = "";
-    let rodMjesec = "";
-    let rodGodina = "";
-    if (jmbgRadnika.length === 13) {
-      rodDan = jmbgRadnika.slice(0, 2);
-      rodMjesec = jmbgRadnika.slice(2, 4);
-      const ggg = parseInt(jmbgRadnika.slice(4, 7), 10);
-      if (Number.isFinite(ggg)) {
-        rodGodina = String(ggg < 800 ? 2000 + ggg : 1000 + ggg);
-      }
-    }
-
-    // Datum promjene: za PRIJAVU = datum početka rada, za ODJAVU = datum prestanka
-    const datumPromjeneIso =
-      vrsta === "ODJAVA" ? datumPrestankaIso : datumPocetkaIso;
-    const [dpY, dpM, dpD] = (datumPromjeneIso || "").split("-");
-
-    return {
-      vrsta,
-      datumPrijave: formatDdMmYyyy(new Date().toISOString().slice(0, 10)),
-      jib: jibPoslodavca,
-      sifraOpcine: employerCityInfo?.municipalityCode ?? "",
-      naziv: nazivFirme,
-      adresa: adresaPoslodavca,
-      gradPoste: employerCityInfo?.postalCode
-        ? `${employerCityInfo.postalCode} ${grad}`
-        : grad,
-      telefon: "",
-      email: "",
-      jmbg: jmbgRadnika,
-      prezimeIme: `${lastName} ${firstName}`.trim(),
-      djevojackoPrezime: "",
-      datumRodjenjaDan: rodDan,
-      datumRodjenjaMjesec: rodMjesec,
-      datumRodjenjaGodina: rodGodina,
-      spol: w?.spol ?? "",
-      adresaPrebivalista: adresaRadnika,
-      sifraOpcineOsiguranika: workerCityInfo?.municipalityCode ?? "",
-      postanskiBroj: workerCityInfo?.postalCode ?? "",
-      mjestoPrebivalista: workerCityName,
-      // "MjestoEmail adresa" PDF field je u redu 10 (email), ne pored Poštanskog
-      // broja — pa ovo ostavljamo prazno; mjesto se crta na koordinatama reda 9.
-      postanskiMjestoCombined: "",
-      kontaktAdresa: "",
-      emailOsiguranika: w?.email ?? "",
-      strucnaSpremaIdx: w?.strucnaSpremaIdx ?? null,
-      popunioImeIPrezime: imePoslodavca,
-      popunioTelefon: "",
-      datumPopunjavanja: formatDdMmYyyy(new Date().toISOString().slice(0, 10)),
-      sati: "08",
-      minuta: "00",
-      osnovOsiguranjaOpis: "Zaposleni — puno radno vrijeme",
-      osnovOsiguranjaSifra: "01",
-      zanimanjeOpis: radnoMjesto,
-      zanimanjeSifra: "",
-      // Stručna sprema koja se traži na radnom mjestu = ista kao radnikova
-      strucnaSpremaTraziSeIdx: w?.strucnaSpremaIdx ?? null,
-      datumPromjeneDan: dpD ?? "",
-      datumPromjeneMjesec: dpM ?? "",
-      datumPromjeneGodina: dpY ?? "",
-      napomenaPromjene: "",
-      // Osnov za uplatu doprinosa = bruto plata (bez šifre)
-      osnovUplateOpis: brutoPlata ? `${brutoPlata} KM` : "",
-      osnovUplateSifra: "",
-      sifraRadnogMjesta: "",
-      stepenUvecanja: "",
-    };
-  };
-
-  const handleDownloadJs3100 = async (vrsta: Js3100Vrsta) => {
+  // Umjesto inline generisanja JS3100 (gdje fali pola polja koja nisu u ugovoru),
+  // snimi radnika (auto-kreiraj ako treba) pa preusmjeri na punu JS3100 stranicu
+  // sa deep-linkom (?worker=&vrsta=). Tamo se sve auto-popuni iz radnika, a user
+  // dopuni JS3100-specifična polja (osnov osiguranja, zanimanje, sati...).
+  const handleGoToJs3100 = async (vrsta: Js3100Vrsta) => {
     if (!canGenerate) return;
     if (!imeRadnika) {
-      showError("Unesite radnika prije generisanja JS3100.");
+      showError("Unesite radnika prije nastavka na JS3100.");
       return;
     }
     if (!jmbgRadnika || jmbgRadnika.length !== 13) {
@@ -564,29 +530,18 @@ function UgovorORaduApp() {
     setError(null);
     setGen("pdf");
     try {
-      const bytes = await fillJs3100Template(buildJs3100Data(vrsta));
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-      const suffix = imeRadnika.replace(/\s+/g, "_");
-      const filename = `JS3100_${vrsta}_${suffix}.pdf`;
-      downloadBlob(blob, filename);
-      archiveDocument(
-        blob,
-        filename,
-        vrsta === "PRIJAVA" ? "JS3100_PRIJAVA" : "JS3100_ODJAVA",
-        "PDF",
-      );
+      // Snimi ugovorne podatke + osiguraj da radnik postoji (auto-create).
+      const workerId = await persistWorker();
+      if (!workerId) return; // persistWorker je već prikazao grešku
       setPostDownloadPrompt(null);
-
-      // Sync employment + status. Pri prijavi: PRIJAVLJEN + prijavaDate.
-      // Pri odjavi: ODJAVLJEN + odjavaDate + endDate (kraj radnog odnosa).
-      const today = new Date().toISOString().slice(0, 10);
-      const statusExtra: Partial<WorkerPayload> =
-        vrsta === "PRIJAVA"
-          ? { employmentStatus: "PRIJAVLJEN", prijavaDate: today }
-          : { employmentStatus: "ODJAVLJEN", odjavaDate: today, endDate: today };
-      persistWorker(statusExtra);
+      const params = new URLSearchParams({
+        worker: String(workerId),
+        vrsta,
+      });
+      if (sidebarOrgId) params.set("org", String(sidebarOrgId));
+      router.push(`/prijave-radnika?${params.toString()}`);
     } catch (e) {
-      showError("Greška pri generisanju JS3100: " + (e as Error).message);
+      showError("Greška: " + (e as Error).message);
     } finally {
       setGen(null);
     }
@@ -623,6 +578,7 @@ function UgovorORaduApp() {
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
       downloadBlob(blob, filename);
+      trackEvent("UGOVOR_RADU_GENERATE", "Ugovor o radu");
       archiveDocument(
         blob,
         filename,
@@ -660,11 +616,57 @@ function UgovorORaduApp() {
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
       downloadBlob(blob, filename);
+      trackEvent("OTKAZ_GENERATE", "Otkaz ugovora o radu");
       archiveDocument(blob, filename, "OTKAZ", kind === "docx" ? "DOCX" : "PDF", brojUgovora);
       persistWorker();
       setPostDownloadPrompt("odjava");
     } catch (e) {
       showError("Greška pri generisanju: " + (e as Error).message);
+    } finally {
+      setGen(null);
+    }
+  };
+
+  // "Samo dodaj kao aktivnog / Samo odjavi" — postavi status u aplikaciji bez
+  // JS3100 dokumenta. Auto-kreira radnika ako treba (DRAFT → PRIJAVLJEN).
+  // NAPOMENA: ovo NE predaje JS3100 Poreznoj — to korisnik radi zasebno.
+  const handleRegisterWithoutJs3100 = async (vrsta: Js3100Vrsta) => {
+    if (!canGenerate) return;
+    if (!imeRadnika) {
+      showError("Unesite radnika prije dodavanja.");
+      return;
+    }
+    if (!jmbgRadnika || jmbgRadnika.length !== 13) {
+      showError("JMBG radnika mora imati 13 cifara.");
+      return;
+    }
+    setError(null);
+    setGen("pdf");
+    try {
+      const today = todayIso();
+      const statusExtra: Partial<WorkerPayload> =
+        vrsta === "PRIJAVA"
+          ? {
+              employmentStatus: "PRIJAVLJEN",
+              prijavaDate: today,
+              odjavaDate: null,
+              endDate: null,
+            }
+          : {
+              employmentStatus: "ODJAVLJEN",
+              odjavaDate: datumPrestankaIso || today,
+              endDate: datumPrestankaIso || today,
+            };
+      const workerId = await persistWorker(statusExtra);
+      if (!workerId) return;
+      setPostDownloadPrompt(null);
+      setRegisterMsg(
+        vrsta === "PRIJAVA"
+          ? "Radnik je dodan kao aktivan (Prijavljen) u aplikaciji. JS3100 predajte Poreznoj upravi zasebno (osim ako ste već)."
+          : "Radnik je označen kao Odjavljen u aplikaciji. JS3100 odjavu predajte Poreznoj upravi zasebno (osim ako ste već).",
+      );
+    } catch (e) {
+      showError("Greška: " + (e as Error).message);
     } finally {
       setGen(null);
     }
@@ -699,14 +701,22 @@ function UgovorORaduApp() {
         <button
           type="button"
           className={`${uorStyles.tab} ${tab === "ugovor" ? uorStyles.tabActive : ""}`}
-          onClick={() => setTab("ugovor")}
+          onClick={() => {
+            setTab("ugovor");
+            setRegisterMsg(null);
+            setPostDownloadPrompt(null);
+          }}
         >
           Ugovor o radu
         </button>
         <button
           type="button"
           className={`${uorStyles.tab} ${tab === "otkaz" ? uorStyles.tabActive : ""}`}
-          onClick={() => setTab("otkaz")}
+          onClick={() => {
+            setTab("otkaz");
+            setRegisterMsg(null);
+            setPostDownloadPrompt(null);
+          }}
         >
           Otkaz ugovora
         </button>
@@ -833,6 +843,24 @@ function UgovorORaduApp() {
                   {parseJmbg(jmbgRadnika).error}
                 </p>
               )}
+              {jmbgRadnika.length === 13 &&
+                isJmbgValid(jmbgRadnika) &&
+                (() => {
+                  // JMBG validan → prikaži izvedeni spol + datum rođenja (isto
+                  // kao kod dodavanja radnika). Vrijednosti se zapisuju na
+                  // radnika pri kreiranju (vidi ensureWorkerId).
+                  const info = parseJmbg(jmbgRadnika);
+                  const dob = info.birthDateIso
+                    ? info.birthDateIso.split("-").reverse().join(".") + "."
+                    : "";
+                  const spolLabel = info.spol === "Z" ? "Žensko" : "Muško";
+                  return (
+                    <p style={{ fontSize: 12, color: "var(--mid)", margin: "0.3rem 0 0" }}>
+                      Spol: <strong>{spolLabel}</strong> · Datum rođenja:{" "}
+                      <strong>{dob}</strong>
+                    </p>
+                  );
+                })()}
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Žiro račun (opcionalno)</span>
@@ -1129,25 +1157,48 @@ function UgovorORaduApp() {
             <button
               type="button"
               className={styles.btnOutline}
-              onClick={() => handleDownloadJs3100("PRIJAVA")}
+              onClick={() => handleGoToJs3100("PRIJAVA")}
               disabled={gen !== null || !canGenerate}
-              title={canGenerate ? "Generiše JS3100 obrazac za prijavu radnika kod PIO/ZZO sa istim podacima" : "Dostupno uz Business pretplatu"}
+              title={canGenerate ? "Snima radnika i otvara JS3100 prijavu sa svim podacima — tamo dopuniš osnov osiguranja, zanimanje itd." : "Dostupno uz Business pretplatu"}
             >
-              {IconForm} Preuzmi JS3100 prijavu (PDF)
+              {IconForm} Nastavi na JS3100 prijavu
+            </button>
+            <button
+              type="button"
+              className={styles.btnOutline}
+              onClick={() => handleRegisterWithoutJs3100("PRIJAVA")}
+              disabled={gen !== null || !canGenerate}
+              title={canGenerate ? "Označava radnika kao aktivnog u aplikaciji bez generisanja JS3100 (JS3100 predajete Poreznoj zasebno)" : "Dostupno uz Business pretplatu"}
+            >
+              Dodaj kao aktivnog radnika
             </button>
           </div>
+          <p style={{ fontSize: 12, color: "var(--mid)", textAlign: "center", margin: "0.75rem auto 0", maxWidth: 620, lineHeight: 1.5 }}>
+            „Dodaj kao aktivnog radnika" označava radnika kao prijavljenog samo u
+            aplikaciji. JS3100 morate zasebno predati Poreznoj upravi (osim ako
+            ste već).
+          </p>
 
           {postDownloadPrompt === "prijava" && (
             <div className={uorStyles.promptBanner}>
-              <span>✓ Ugovor preuzet. Sada možeš preuzeti i JS3100 prijavu za PIO/ZZO?</span>
+              <span>✓ Ugovor preuzet. Kako želiš prijaviti radnika?</span>
               <div className={uorStyles.promptActions}>
                 <button
                   type="button"
                   className={styles.btnPrimary}
-                  onClick={() => handleDownloadJs3100("PRIJAVA")}
+                  onClick={() => handleGoToJs3100("PRIJAVA")}
                   disabled={gen !== null}
                 >
-                  Da, preuzmi JS3100
+                  Nastavi na JS3100 prijavu
+                </button>
+                <button
+                  type="button"
+                  className={styles.btnOutline}
+                  onClick={() => handleRegisterWithoutJs3100("PRIJAVA")}
+                  disabled={gen !== null}
+                  title="Označava radnika kao aktivnog u aplikaciji bez generisanja JS3100 obrasca"
+                >
+                  Samo dodaj kao aktivnog radnika
                 </button>
                 <button
                   type="button"
@@ -1157,7 +1208,17 @@ function UgovorORaduApp() {
                   Preskoči
                 </button>
               </div>
+              <p style={{ fontSize: 12, color: "var(--mid)", margin: "0.5rem 0 0", lineHeight: 1.5 }}>
+                „Samo dodaj kao aktivnog" označava radnika kao prijavljenog samo
+                u aplikaciji. JS3100 morate zasebno predati Poreznoj upravi
+                (osim ako ste već).
+              </p>
             </div>
+          )}
+          {registerMsg && (
+            <p style={{ fontSize: 13, fontWeight: 500, color: "#2d6e54", textAlign: "center", margin: "0.8rem auto 0", maxWidth: 560, lineHeight: 1.5 }}>
+              {registerMsg}
+            </p>
           )}
         </>
       ) : (
@@ -1296,25 +1357,47 @@ function UgovorORaduApp() {
             <button
               type="button"
               className={styles.btnOutline}
-              onClick={() => handleDownloadJs3100("ODJAVA")}
+              onClick={() => handleGoToJs3100("ODJAVA")}
               disabled={gen !== null || !canGenerate}
-              title={canGenerate ? "Generiše JS3100 obrazac za odjavu radnika kod PIO/ZZO" : "Dostupno uz Business pretplatu"}
+              title={canGenerate ? "Snima radnika i otvara JS3100 odjavu sa svim podacima" : "Dostupno uz Business pretplatu"}
             >
-              {IconForm} Preuzmi JS3100 odjavu (PDF)
+              {IconForm} Nastavi na JS3100 odjavu
+            </button>
+            <button
+              type="button"
+              className={styles.btnOutline}
+              onClick={() => handleRegisterWithoutJs3100("ODJAVA")}
+              disabled={gen !== null || !canGenerate}
+              title={canGenerate ? "Označava radnika kao odjavljenog u aplikaciji bez generisanja JS3100 (JS3100 predajete Poreznoj zasebno)" : "Dostupno uz Business pretplatu"}
+            >
+              Odjavi radnika
             </button>
           </div>
+          <p style={{ fontSize: 12, color: "var(--mid)", textAlign: "center", margin: "0.75rem auto 0", maxWidth: 620, lineHeight: 1.5 }}>
+            „Odjavi radnika" mijenja status samo u aplikaciji. JS3100 odjavu
+            morate zasebno predati Poreznoj upravi (osim ako ste već).
+          </p>
 
           {postDownloadPrompt === "odjava" && (
             <div className={uorStyles.promptBanner}>
-              <span>✓ Otkaz preuzet. Sada možeš preuzeti i JS3100 odjavu za PIO/ZZO?</span>
+              <span>✓ Otkaz preuzet. Kako želiš odjaviti radnika?</span>
               <div className={uorStyles.promptActions}>
                 <button
                   type="button"
                   className={styles.btnPrimary}
-                  onClick={() => handleDownloadJs3100("ODJAVA")}
+                  onClick={() => handleGoToJs3100("ODJAVA")}
                   disabled={gen !== null}
                 >
-                  Da, preuzmi JS3100
+                  Nastavi na JS3100 odjavu
+                </button>
+                <button
+                  type="button"
+                  className={styles.btnOutline}
+                  onClick={() => handleRegisterWithoutJs3100("ODJAVA")}
+                  disabled={gen !== null}
+                  title="Označava radnika kao odjavljenog u aplikaciji bez generisanja JS3100 obrasca"
+                >
+                  Samo odjavi radnika
                 </button>
                 <button
                   type="button"
@@ -1324,7 +1407,16 @@ function UgovorORaduApp() {
                   Preskoči
                 </button>
               </div>
+              <p style={{ fontSize: 12, color: "var(--mid)", margin: "0.5rem 0 0", lineHeight: 1.5 }}>
+                „Samo odjavi radnika" mijenja status samo u aplikaciji. JS3100
+                odjavu morate zasebno predati Poreznoj upravi (osim ako ste već).
+              </p>
             </div>
+          )}
+          {registerMsg && (
+            <p style={{ fontSize: 13, fontWeight: 500, color: "#2d6e54", textAlign: "center", margin: "0.8rem auto 0", maxWidth: 560, lineHeight: 1.5 }}>
+              {registerMsg}
+            </p>
           )}
         </>
       )}
@@ -1497,6 +1589,23 @@ function UgovorORaduApp() {
               Preračun neto/bruto plate
             </a>{" "}
             — provjera obračuna prije ugovaranja iznosa plate.
+          </li>
+        </ul>
+        <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
+          Pročitaj <em>na blogu</em>
+        </h2>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+          <li>
+            <a href="/blog/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Otkaz radnika u FBiH
+            </a>{" "}
+            — razlozi, otkazni rokovi i postupak po Zakonu o radu.
+          </li>
+          <li>
+            <a href="/blog/ugovor-o-djelu-vs-ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+              Ugovor o djelu vs ugovor o radu
+            </a>{" "}
+            — koja vrsta angažmana odgovara kojoj situaciji.
           </li>
         </ul>
       </section>

@@ -360,6 +360,23 @@ export default function PreracunPlate() {
             za registraciju radnika prema vrsti djelatnosti.
           </li>
         </ul>
+        <h2 style={{ marginTop: "2rem" }}>
+          Pročitaj <em>na blogu</em>
+        </h2>
+        <ul>
+          <li>
+            <a href="/blog/kako-se-racuna-neto-plata-fbih">
+              Kako se računa neto plata u FBiH
+            </a>{" "}
+            — korak po korak kroz doprinose, lični odbitak i porez.
+          </li>
+          <li>
+            <a href="/blog/minimalna-plata-fbih-2026">
+              Minimalna plata u FBiH 2026
+            </a>{" "}
+            — iznos, doprinosi i trošak poslodavca.
+          </li>
+        </ul>
       </section>
 
       <section className={styles.eduSection}>

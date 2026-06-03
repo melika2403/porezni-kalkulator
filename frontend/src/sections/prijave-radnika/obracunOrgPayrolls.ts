@@ -167,6 +167,14 @@ export async function obracunOrgPayrolls(input: {
           grossBase,
           taxCoefficient: Number(w.taxCoefficient ?? 1.0),
           minuliRadRate: Number(w.minuliRadRate ?? 0.4),
+          // "Cilj neto za isplatu": pošalji ciljni neto pa backend fening-search
+          // bira bruto da finalni neto padne tačno na njega (PUFBiH zaokruživanje
+          // doprinosa inače zna promašiti za fening).
+          ...((w.salaryType ?? "NETO_ISPLATA") === "NETO_ISPLATA" &&
+          w.salaryNeto != null &&
+          Number(w.salaryNeto) > 0
+            ? { targetNet: Number(w.salaryNeto) }
+            : {}),
           ...(proRateFactor < 1 ? { proRateFactor } : {}),
           ...(workedMinutesDefault !== undefined
             ? { workedMinutes: workedMinutesDefault }

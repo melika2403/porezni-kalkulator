@@ -90,6 +90,35 @@ function computeTotals(items, applyVat) {
   };
 }
 
+// Fiksni kurs (currency board) — 1 EUR = 1,95583 KM.
+const BAM_PER_EUR = 1.95583;
+
+// Vraća kopiju fakture sa svim iznosima preračunatim u ciljnu valutu. Konvertuje
+// se samo unitPrice po stavci (količina/rabat/PDV% ostaju), pa se totali ponovo
+// izračunaju iz konvertovanih stavki — tako su per-stavka i totali interno
+// konzistentni, isto kao na originalu. Bez ikakve napomene; sve isto, druga valuta.
+function convertInvoiceCurrency(invoice, targetCurrency) {
+  const from = invoice.currency === "EUR" ? "EUR" : "BAM";
+  const to = targetCurrency === "EUR" ? "EUR" : "BAM";
+  if (from === to) return invoice;
+  // BAM → EUR: dijeli sa kursom; EUR → BAM: množi sa kursom.
+  const factor = from === "BAM" ? 1 / BAM_PER_EUR : BAM_PER_EUR;
+  const items = (invoice.items || []).map((it) => ({
+    ...it,
+    unitPrice: +(Number(it.unitPrice || 0) * factor).toFixed(4),
+  }));
+  const totals = computeTotals(items, invoice.applyVat);
+  return {
+    ...invoice,
+    currency: to,
+    items,
+    netTotal: totals.netTotal,
+    discountTotal: totals.discountTotal,
+    vatTotal: totals.vatTotal,
+    grossTotal: totals.grossTotal,
+  };
+}
+
 // ── SLOVIMA (jednostavna implementacija) ────────────────────────────────────
 const ONES = ["", "Jedan", "Dva", "Tri", "Četiri", "Pet", "Šest", "Sedam", "Osam", "Devet",
   "Deset", "Jedanaest", "Dvanaest", "Trinaest", "Četrnaest", "Petnaest", "Šesnaest",
@@ -153,7 +182,11 @@ async function embedLogo(pdf, sellerLogoUrl) {
 }
 
 // ── GLAVNA FUNKCIJA ─────────────────────────────────────────────────────────
-async function generateInvoicePdf(invoice) {
+async function generateInvoicePdf(invoice, opts = {}) {
+  // Opcioni ispis u protuvaluti — ista faktura, svi iznosi preračunati.
+  if (opts.displayCurrency) {
+    invoice = convertInvoiceCurrency(invoice, opts.displayCurrency);
+  }
   const isProforma = invoice.type === "PROFORMA";
   const docTitle = isProforma ? "Predračun" : "Faktura";
 

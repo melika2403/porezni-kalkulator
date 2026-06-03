@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LuPencil, LuCheck, LuX, LuTrash2 } from "react-icons/lu";
+import { LuPencil, LuCheck, LuX, LuTrash2, LuMail } from "react-icons/lu";
 import styles from "./korisnici.module.css";
 import {
   getUsers,
@@ -12,6 +12,7 @@ import {
   type Users,
   type UsersListResponse,
 } from "src/api/profile";
+import { sendTrialInvite } from "src/api/adminEntities";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
@@ -77,6 +78,9 @@ export default function Korisnici() {
     lastName: "",
     email: "",
   });
+  // Rola i sortiranje primjenjuju se odmah (bez dugmeta Pretraži).
+  const [role, setRole] = useState<"" | "USER" | "PRO" | "BUSINESS" | "ADMIN">("");
+  const [sort, setSort] = useState<"newest" | "oldest" | "name">("newest");
   const [page, setPage] = useState(1);
 
   const query = useQuery<UsersListResponse>({
@@ -85,6 +89,8 @@ export default function Korisnici() {
       filters.firstName,
       filters.lastName,
       filters.email,
+      role,
+      sort,
       page,
     ],
     queryFn: () =>
@@ -93,6 +99,8 @@ export default function Korisnici() {
           firstName: filters.firstName || undefined,
           lastName: filters.lastName || undefined,
           email: filters.email || undefined,
+          role: role || undefined,
+          sort,
           page,
           limit: LIMIT,
         }),
@@ -122,6 +130,8 @@ export default function Korisnici() {
     setDraftFirstName("");
     setDraftLastName("");
     setDraftEmail("");
+    setRole("");
+    setSort("newest");
     setPage(1);
     setFilters({ firstName: "", lastName: "", email: "" });
   };
@@ -179,6 +189,40 @@ export default function Korisnici() {
                   placeholder="npr. ana@gmail.com"
                   autoComplete="off"
                 />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Rola</label>
+                <select
+                  className={styles.input}
+                  value={role}
+                  onChange={(e) => {
+                    setRole(e.target.value as typeof role);
+                    setPage(1);
+                  }}
+                >
+                  <option value="">Sve role</option>
+                  <option value="USER">Korisnik</option>
+                  <option value="PRO">Pro</option>
+                  <option value="BUSINESS">Business</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Sortiraj</label>
+                <select
+                  className={styles.input}
+                  value={sort}
+                  onChange={(e) => {
+                    setSort(e.target.value as typeof sort);
+                    setPage(1);
+                  }}
+                >
+                  <option value="newest">Najnoviji</option>
+                  <option value="oldest">Najstariji</option>
+                  <option value="name">Po prezimenu</option>
+                </select>
               </div>
             </div>
 
@@ -280,6 +324,23 @@ function UserRow({ user }: { user: Users }) {
   const deleteUserMutation = useMutation({
     mutationFn: () => unwrap(deleteUser(user.id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  // ── poziv na trial (samo za korisnike koji ga još nisu aktivirali) ──
+  const [trialSent, setTrialSent] = useState(false);
+  const [trialError, setTrialError] = useState<string | null>(null);
+  const trialEligible = user.role === "USER" && !user.trialUsedAt;
+  const trialInvite = useMutation({
+    mutationFn: async () => {
+      const r = await sendTrialInvite(user.id);
+      if (!r.ok) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: () => {
+      setTrialError(null);
+      setTrialSent(true);
+    },
+    onError: (e: Error) => setTrialError(e.message),
   });
 
   // ── user edit state ──
@@ -507,6 +568,16 @@ function UserRow({ user }: { user: Users }) {
 
       <td>
         <span className={styles.rowActions}>
+          {!editing && trialEligible && (
+            <button
+              className={styles.btnIcon}
+              title={trialSent ? "Poziv na trial poslan" : "Pošalji poziv na trial"}
+              onClick={() => trialInvite.mutate()}
+              disabled={trialInvite.isPending || trialSent}
+            >
+              {trialSent ? <LuCheck /> : <LuMail />}
+            </button>
+          )}
           {editing ? (
             <>
               <button
@@ -547,6 +618,7 @@ function UserRow({ user }: { user: Users }) {
 
         {editError && <div className={styles.errorMsg}>{editError}</div>}
         {subError && <div className={styles.errorMsg}>{subError}</div>}
+        {trialError && <div className={styles.errorMsg}>{trialError}</div>}
       </td>
     </tr>
     {confirmDelete && !editing && (
