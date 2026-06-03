@@ -721,6 +721,7 @@ async function calculate(req, res) {
     vacationBonus,
     travelExpense,
     proRateFactor,
+    targetNet,
     notes,
   } = req.body ?? {};
 
@@ -878,7 +879,9 @@ async function calculate(req, res) {
     proRateFactor !== undefined && proRateFactor !== null && proRateFactor !== ""
       ? Number(proRateFactor)
       : 1;
-  const snapshot = computePayrollSnapshot({
+  const effTaxCoefficient =
+    taxCoefficient ?? (existing ? existing.taxCoefficient : worker.taxCoefficient) ?? 1.0;
+  const snapshotInput = {
     grossBase: effectiveGrossBase,
     minuliRadRate: effectiveMinuliRate,
     minuliRadYears: minuliYears,
@@ -891,12 +894,59 @@ async function calculate(req, res) {
     nightRate: effNightRate,
     sundayRate: effSundayRate,
     holidayRate: effHolidayRate,
-    taxCoefficient: taxCoefficient ?? (existing ? existing.taxCoefficient : worker.taxCoefficient) ?? 1.0,
+    taxCoefficient: effTaxCoefficient,
     contractedHours: worker.contractedHours ?? 8,
     mealAllowance: effectiveMeal,
     vacationBonus: effectiveVacation,
     travelExpense: effectiveTravel,
-  });
+  };
+
+  // Fening-search za "cilj neto za isplatu" (NETO_ISPLATA): zbog PUFBiH
+  // zaokruživanja doprinosa po komponenti, analitički riješen bruto zna
+  // promašiti ciljni neto za fening (npr. 1.030,01 umjesto 1.030,00). Ovdje
+  // pomjeramo bruto osnovicu ±10 feninga i biramo onu koja daje TAČNO ciljni
+  // neto (najbliža originalu). Samo kad nema uvećanja i pun je mjesec — inače
+  // neto legitimno odstupa od cilja.
+  const targetNetNum =
+    targetNet !== undefined && targetNet !== null && targetNet !== ""
+      ? Number(targetNet)
+      : null;
+  const noUvecanja =
+    effOvertimeHours === 0 &&
+    effNightHours === 0 &&
+    effSundayHours === 0 &&
+    effHolidayHours === 0;
+  if (
+    targetNetNum != null &&
+    Number.isFinite(targetNetNum) &&
+    targetNetNum > 0 &&
+    noUvecanja &&
+    effectiveProRateFactor === 1 &&
+    effectiveGrossBase > 0
+  ) {
+    let bestBase = null;
+    // Probaj offsete redom po rastućoj udaljenosti: 0, +1, -1, +2, -2, ...
+    // pa uzmi prvi koji daje tačan ciljni neto (najbliži originalnoj osnovici).
+    const offsets = [0];
+    for (let k = 1; k <= 10; k++) offsets.push(k, -k);
+    for (const cents of offsets) {
+      const candidateBase = +(effectiveGrossBase + cents / 100).toFixed(2);
+      if (candidateBase <= 0) continue;
+      const trial = computePayrollSnapshot({
+        ...snapshotInput,
+        grossBase: candidateBase,
+      });
+      if (trial.net === +targetNetNum.toFixed(2)) {
+        bestBase = candidateBase;
+        break;
+      }
+    }
+    if (bestBase != null) {
+      snapshotInput.grossBase = bestBase;
+    }
+  }
+
+  const snapshot = computePayrollSnapshot(snapshotInput);
 
   // workedMinutes: explicitly null OK; undefined = preserve existing
   const effectiveWorkedMinutes =

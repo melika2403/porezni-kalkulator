@@ -22,6 +22,8 @@ export type AuthUser = {
     startDate: string;
     endDate: string;
     isActive: boolean;
+    plan: "PRO" | "BUSINESS" | null;
+    billingCycle: "monthly" | "yearly" | null;
   } | null;
 };
 
@@ -66,6 +68,8 @@ export type RegisterPayload = {
   phone: string;
   address?: string;
   city?: string;
+  utmSource?: string;
+  utmCampaign?: string;
 };
 
 export function register(payload: RegisterPayload) {

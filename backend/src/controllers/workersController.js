@@ -122,6 +122,22 @@ function pickEmploymentFields(body, target) {
   if (prijavaDate !== undefined) target.prijavaDate = prijavaDate ? new Date(prijavaDate) : null;
   if (odjavaDate !== undefined) target.odjavaDate = odjavaDate ? new Date(odjavaDate) : null;
 
+  // JS3100 stabilna polja (osnov osiguranja, zanimanje) — prefill prijave/odjave.
+  const {
+    osnovOsiguranjaOpis,
+    osnovOsiguranjaSifra,
+    zanimanjeOpis,
+    zanimanjeSifra,
+  } = body ?? {};
+  if (osnovOsiguranjaOpis !== undefined)
+    target.osnovOsiguranjaOpis = osnovOsiguranjaOpis?.trim() || null;
+  if (osnovOsiguranjaSifra !== undefined)
+    target.osnovOsiguranjaSifra = osnovOsiguranjaSifra?.trim() || null;
+  if (zanimanjeOpis !== undefined)
+    target.zanimanjeOpis = zanimanjeOpis?.trim() || null;
+  if (zanimanjeSifra !== undefined)
+    target.zanimanjeSifra = zanimanjeSifra?.trim() || null;
+
   const { spol, strucnaSpremaIdx } = body ?? {};
   if (spol !== undefined) {
     if (spol === null || spol === "") {

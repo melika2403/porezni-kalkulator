@@ -37,6 +37,49 @@
   font-weight: 300;
 }
 
+.cycleToggle {
+  display: flex;
+  width: fit-content;
+  margin: 2rem auto 0;
+  background: var(--paper, #faf8f3);
+  border: 1px solid var(--border, #e4ded3);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.cycleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--mid);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cycleBtnActive {
+  background: var(--white, #fff);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.cycleBadge {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #2d6e54;
+  background: #d8ebe1;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));

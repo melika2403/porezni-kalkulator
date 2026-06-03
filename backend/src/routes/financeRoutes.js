@@ -19,6 +19,12 @@ router.post("/expenses", financeController.createExpense);
 router.put("/expenses/:id", financeController.updateExpense);
 router.delete("/expenses/:id", financeController.deleteExpense);
 
+// Ostali prihodi (gotovina, izvan korisnika)
+router.get("/other-income", financeController.listOtherIncome);
+router.post("/other-income", financeController.createOtherIncome);
+router.put("/other-income/:id", financeController.updateOtherIncome);
+router.delete("/other-income/:id", financeController.deleteOtherIncome);
+
 // Zbirne brojke (zarada / ulaganje / profit)
 router.get("/summary", financeController.getSummary);
 

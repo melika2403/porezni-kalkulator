@@ -1195,6 +1195,53 @@
   text-decoration: underline;
 }
 
+/* ── Obnova pretplate (predračun) ───────────────────────────────────────── */
+.renewalBox {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--sage-pale);
+}
+.renewalTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+.renewalDesc {
+  font-size: 13px;
+  color: var(--mid);
+  margin: 0;
+  line-height: 1.55;
+}
+.renewalHint {
+  font-size: 12px;
+  color: var(--mid);
+  margin: 0;
+  line-height: 1.5;
+}
+.renewalError {
+  font-size: 12.5px;
+  color: #b3261e;
+  margin: 0;
+}
+.renewalDone {
+  font-size: 13px;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.renewalDone p {
+  margin: 0;
+  line-height: 1.5;
+}
+.renewalBox .btnPrimary {
+  align-self: flex-start;
+}
+
 .subInfo {
   display: flex;
   flex-direction: column;

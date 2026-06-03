@@ -117,6 +117,9 @@ export type CalculatePayload = {
   // i vlasnika. Backend skalira osnovicu, minuli rad i min doprinosnu osnovu.
   // Default 1 (puni mjesec). Vidi computeProRateFactor u ObracunPlata.tsx.
   proRateFactor?: number;
+  // Ciljni neto za isplatu (NETO_ISPLATA) — backend fening-search prilagodi
+  // bruto osnovicu da finalni neto padne tačno na ovaj iznos.
+  targetNet?: number;
   notes?: string | null;
 };
 

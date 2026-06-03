@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
 import {
   adminGetPersonClients,
   type AdminPersonClient,
   type AdminPersonClientsListResponse,
 } from "src/api/profile";
+import { deleteAdminPersonClient } from "src/api/adminEntities";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import styles from "../../admin/korisnici/korisnici.module.css";
 
@@ -105,6 +106,7 @@ export default function AdminFizickaLica() {
                     <th>Grad</th>
                     <th>Kreirao</th>
                     <th>Datum</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -144,14 +146,29 @@ export default function AdminFizickaLica() {
 }
 
 function ClientRow({ client }: { client: AdminPersonClient }) {
+  const queryClient = useQueryClient();
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const fullName =
     [client.firstName, client.lastName].filter(Boolean).join(" ") || "—";
-
   const creatorName = client.createdBy
     ? `${client.createdBy.firstName} ${client.createdBy.lastName}`
     : "—";
-
   const creatorEmail = client.createdBy?.email ?? null;
+
+  const del = useMutation({
+    mutationFn: async () => {
+      const r = await deleteAdminPersonClient(client.id);
+      if (!r.ok) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-fizicka-lica"] });
+    },
+    onError: (e: Error) => setError(e.message),
+  });
 
   return (
     <tr>
@@ -173,6 +190,41 @@ function ClientRow({ client }: { client: AdminPersonClient }) {
         )}
       </td>
       <td className={styles.dateRange}>{formatDate(client.createdAt)}</td>
+      <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
+        {confirm ? (
+          <span style={{ display: "inline-flex", gap: "0.4rem" }}>
+            <button
+              className={styles.btnPrimary}
+              style={{ background: "#b3261e", padding: "0.3rem 0.7rem", fontSize: "12px" }}
+              onClick={() => del.mutate()}
+              disabled={del.isPending}
+            >
+              {del.isPending ? "Brišem…" : "Potvrdi"}
+            </button>
+            <button
+              className={styles.btnGhost}
+              style={{ padding: "0.3rem 0.7rem", fontSize: "12px" }}
+              onClick={() => setConfirm(false)}
+            >
+              Odustani
+            </button>
+          </span>
+        ) : (
+          <button
+            className={styles.btnGhost}
+            style={{ padding: "0.3rem 0.7rem", fontSize: "12px", color: "#b3261e", borderColor: "color-mix(in srgb, #b3261e 30%, transparent)" }}
+            onClick={() => setConfirm(true)}
+            title="Obriši fizičko lice (sa svim podacima)"
+          >
+            Obriši
+          </button>
+        )}
+        {error && (
+          <div className={styles.workerJmbg} style={{ color: "#b3261e", marginTop: 4 }}>
+            {error}
+          </div>
+        )}
+      </td>
     </tr>
   );
 }

@@ -305,6 +305,29 @@
   padding: 2px 7px;
 }
 
+/* Kolona kategorije: fiksna širina + lijevo poravnanje da se badge-ovi slažu. */
+.catCol {
+  width: 1%;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.catBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 104px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--paper, #f4f1ea);
+  color: var(--mid, #6b6358);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
 /* ── Paket (pretplata) ────────────────────────────────────────────────── */
 .clientSub {
   display: flex;
@@ -510,6 +533,73 @@
 /* ── Expenses ─────────────────────────────────────────────────────────── */
 .expensesSection {
   margin-top: 3rem;
+}
+
+/* ── Ledger: troškovi (lijevo) | ostali prihodi (desno) ───────────────────── */
+.ledgerSection {
+  margin-top: 3rem;
+}
+
+.ledgerGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .ledgerGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Suptilan lijevi rub po tipu — troškovi crveno, prihodi zeleno. */
+.ledgerCol {
+  border-left: 3px solid transparent;
+  padding-left: 1rem;
+}
+.ledger_expense {
+  border-left-color: #c0563a;
+}
+.ledger_income {
+  border-left-color: #2d6e54;
+}
+
+.ledgerBottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.ledgerBottomItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  min-width: 160px;
+}
+.ledgerBottomItem span {
+  font-size: 11.5px;
+  color: var(--mid);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ledgerBottomItem strong {
+  font-size: 1.15rem;
+  font-family: "DM Serif Display", serif;
+  color: var(--ink);
+}
+.posValue {
+  color: #2d6e54;
+}
+.negValue {
+  color: #c0563a;
 }
 
 .sectionTitle {

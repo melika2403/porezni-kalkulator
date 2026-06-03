@@ -9,6 +9,7 @@ import { getBackendUrl } from "src/utils/backendUrl";
 const BACKEND_URL = getBackendUrl();
 
 export type Plan = "PRO" | "BUSINESS";
+export type BillingCycle = "monthly" | "yearly";
 
 export interface BuyerInput {
   name: string;
@@ -36,14 +37,18 @@ export interface PredracunError {
 
 export async function createPredracun(
   plan: Plan,
+  billingCycle: BillingCycle,
   buyer: BuyerInput,
+  // Opciono: obnova — period nove pretplate počinje na ovaj datum (YYYY-MM-DD),
+  // dan nakon isteka tekuće pretplate (kontinuitet, bez prekida).
+  periodStart?: string,
 ): Promise<PredracunResult | PredracunError> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/predracun`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan, buyer }),
+      body: JSON.stringify({ plan, billingCycle, buyer, periodStart }),
     });
 
     if (!res.ok) {
@@ -144,15 +149,36 @@ export async function updatePredracunStatus(
   }
 }
 
+export async function deletePredracun(
+  id: number,
+): Promise<ApiResponse<null>> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/predracun/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const json = (await res.json().catch(() => null)) as ApiResponse<null> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "NETWORK_ERROR",
+    };
+  }
+}
+
 export async function listPredracuni(params?: {
   q?: string;
   plan?: Plan | "";
+  status?: PredracunStatus | "";
   page?: number;
   limit?: number;
 }): Promise<ApiResponse<PredracunListResponse>> {
   const sp = new URLSearchParams();
   if (params?.q) sp.set("q", params.q);
   if (params?.plan) sp.set("plan", params.plan);
+  if (params?.status) sp.set("status", params.status);
   sp.set("page", String(params?.page ?? 1));
   sp.set("limit", String(params?.limit ?? 20));
 

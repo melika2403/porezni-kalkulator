@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { reviewedFor } from "src/data/contentMeta";
 import SifreDjelatnosti from "src/sections/sifre-djelatnosti/SifreDjelatnosti";
 import { KD_BIH_DETAILED } from "src/data/kd-bih-detailed";
 
@@ -77,7 +78,8 @@ const datasetSchema = {
     "NACE Rev. 2",
     "klasifikacija djelatnosti",
   ],
-  inLanguage: "bs",
+  inLanguage: ["bs", "hr", "sr"],
+  dateModified: reviewedFor("/sifre-djelatnosti"),
   creator: {
     "@type": "Organization",
     name: "Agencija za statistiku Bosne i Hercegovine",

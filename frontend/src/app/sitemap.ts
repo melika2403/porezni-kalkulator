@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { BLOG_POSTS } from "src/sections/blog/posts";
+import { reviewedFor } from "src/data/contentMeta";
 
 const SITE_URL = "https://poreznikalkulator.ba";
 
@@ -10,6 +11,7 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
   { path: "/sihterica", priority: 0.9, changeFrequency: "weekly" },
   { path: "/spr", priority: 0.9, changeFrequency: "monthly" },
   { path: "/gpd", priority: 0.9, changeFrequency: "monthly" },
+  { path: "/gpd/upute", priority: 0.6, changeFrequency: "yearly" },
   { path: "/zo3", priority: 0.9, changeFrequency: "monthly" },
   { path: "/ams", priority: 0.9, changeFrequency: "monthly" },
   { path: "/amortizacija", priority: 0.8, changeFrequency: "monthly" },
@@ -32,10 +34,11 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const lastModified = new Date();
+  // lastModified = stvaran "reviewed" datum po ruti (CONTENT_META), ne build-time
+  // "danas" — pošten freshness signal.
   const staticRoutes = ROUTES.map(({ path, priority, changeFrequency }) => ({
     url: `${SITE_URL}${path}`,
-    lastModified,
+    lastModified: new Date(reviewedFor(path)),
     changeFrequency,
     priority,
   }));

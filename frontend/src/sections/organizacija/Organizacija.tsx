@@ -30,8 +30,19 @@ import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useRole } from "src/hooks/useRole";
 import { parseDecimal } from "src/utils/parseDecimal";
+import {
+  computeContractEndIso,
+  maxTrajanjeBroj,
+  type TrajanjeJedinica,
+} from "src/utils/contractDuration";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+function getTodayIsoOrg(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 type WorkerForm = {
   role: "VLASNIK" | "RADNIK";
@@ -379,6 +390,14 @@ function WorkerFormFields({
   // sve isto kao za radnika (on JE radnik sa stanovišta obračuna plate).
   const isObrtVlasnik = isVlasnik && orgType === "BUSINESS";
 
+  // Helper za trajanje ugovora na određeno (broj + jedinica → datum isteka).
+  // Datum isteka (contractEndDate) je ono što se perzistira; broj/jedinica su
+  // samo pomoćni unos koji ga auto-računa iz datuma početka.
+  const [trajanjeBroj, setTrajanjeBroj] = useState(1);
+  const [trajanjeJedinica, setTrajanjeJedinica] =
+    useState<TrajanjeJedinica>("godine");
+  const baseStartIso = value.startDate || getTodayIsoOrg();
+
   return (
     <div>
       {/* ── 1. Lični podaci ── */}
@@ -569,7 +588,36 @@ function WorkerFormFields({
             <select
               className={styles.input}
               value={value.employmentStatus}
-              onChange={set("employmentStatus")}
+              onChange={(e) => {
+                // Status je master: mijenjanje dropdowna reconciluje datume tako
+                // da backend (koji derivira status iz datuma) izvede isti status.
+                // Bez ovoga, re-prijava odjavljenog radnika ne radi jer ostane
+                // stari odjavaDate koji ima prioritet u derivaciji.
+                const status = e.target.value as WorkerForm["employmentStatus"];
+                const today = getTodayIsoOrg();
+                if (status === "PRIJAVLJEN") {
+                  onChange({
+                    ...value,
+                    employmentStatus: status,
+                    prijavaDate: value.prijavaDate || today,
+                    odjavaDate: "",
+                  });
+                } else if (status === "ODJAVLJEN") {
+                  onChange({
+                    ...value,
+                    employmentStatus: status,
+                    odjavaDate: value.odjavaDate || today,
+                  });
+                } else {
+                  // DRAFT — još nije prijavljen: očisti oba datuma.
+                  onChange({
+                    ...value,
+                    employmentStatus: status,
+                    prijavaDate: "",
+                    odjavaDate: "",
+                  });
+                }
+              }}
             >
               <option value="DRAFT">Draft (još nije prijavljen)</option>
               <option value="PRIJAVLJEN">Prijavljen kod PIO/ZZO</option>
@@ -609,16 +657,64 @@ function WorkerFormFields({
             </select>
           </div>
           {value.contractType === "ODREDJENO" && (
-            <div className={styles.field}>
-              <label className={styles.fieldLabel}>Datum isteka ugovora</label>
-              <DateInput
-                className={styles.input}
-                value={value.contractEndDate}
-                onValueChange={(iso) =>
-                  onChange({ ...value, contractEndDate: iso })
-                }
-              />
-            </div>
+            <>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Trajanje ugovora</label>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <select
+                    className={styles.input}
+                    style={{ flex: "0 0 80px" }}
+                    value={trajanjeBroj}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setTrajanjeBroj(v);
+                      const end = computeContractEndIso(
+                        baseStartIso,
+                        v,
+                        trajanjeJedinica,
+                      );
+                      if (end) onChange({ ...value, contractEndDate: end });
+                    }}
+                  >
+                    {Array.from(
+                      { length: maxTrajanjeBroj(trajanjeJedinica) },
+                      (_, i) => i + 1,
+                    ).map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className={styles.input}
+                    value={trajanjeJedinica}
+                    onChange={(e) => {
+                      const j = e.target.value as TrajanjeJedinica;
+                      setTrajanjeJedinica(j);
+                      const capped = Math.min(trajanjeBroj, maxTrajanjeBroj(j));
+                      if (capped !== trajanjeBroj) setTrajanjeBroj(capped);
+                      const end = computeContractEndIso(baseStartIso, capped, j);
+                      if (end) onChange({ ...value, contractEndDate: end });
+                    }}
+                  >
+                    <option value="mjeseci">mjeseci</option>
+                    <option value="godine">godine</option>
+                  </select>
+                </div>
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  Datum isteka ugovora
+                </label>
+                <DateInput
+                  className={styles.input}
+                  value={value.contractEndDate}
+                  onValueChange={(iso) =>
+                    onChange({ ...value, contractEndDate: iso })
+                  }
+                />
+              </div>
+            </>
           )}
           <div className={styles.field}>
             <label className={styles.fieldLabel}>

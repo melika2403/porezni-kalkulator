@@ -1,6 +1,10 @@
 const { Op } = require("sequelize");
-const { sequelize, User, Subscription, Organization, OrganizationMember, Worker, Client, Form, FormVersion, FormAttachment } = require("../models/index");
+const {
+  sequelize, User, Subscription, Organization, OrganizationMember, Client, Form,
+  InvoiceCounter, InvoiceItemTemplate, KarticaMember,
+} = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
+const cascade = require("../services/adminCascade");
 
 const userInclude = [
   { model: Subscription, as: "subscription", attributes: ["id", "startDate", "endDate", "isActive"] },
@@ -19,11 +23,26 @@ function toPublicUser(user) {
   return { ...rest, jmbg: jmbg ? decryptJmbg(jmbg) : null };
 }
 
-async function listUsers({ firstName, lastName, email, page = 1, limit = 20 }) {
+async function listUsers({
+  firstName,
+  lastName,
+  email,
+  role,
+  sort,
+  page = 1,
+  limit = 20,
+}) {
   const where = {};
   if (firstName) where.firstName = { [Op.like]: `%${firstName.trim()}%` };
   if (lastName) where.lastName = { [Op.like]: `%${lastName.trim()}%` };
   if (email) where.email = { [Op.like]: `%${email.trim()}%` };
+  if (role && ["USER", "PRO", "BUSINESS", "ADMIN"].includes(role)) {
+    where.role = role;
+  }
+
+  let order = [["id", "DESC"]]; // najnoviji (default)
+  if (sort === "oldest") order = [["id", "ASC"]];
+  else if (sort === "name") order = [["lastName", "ASC"], ["firstName", "ASC"]];
 
   const offset = (page - 1) * limit;
 
@@ -31,7 +50,7 @@ async function listUsers({ firstName, lastName, email, page = 1, limit = 20 }) {
     where,
     attributes: userAttributes,
     include: userInclude,
-    order: [["id", "DESC"]],
+    order,
     limit,
     offset,
   });
@@ -64,56 +83,36 @@ async function deleteUserById(id) {
   if (!exists) return false;
 
   await sequelize.transaction(async (t) => {
-    // Nullify updatedById references
+    // Forme koje je korisnik samo izmijenio (sama forma se ne briše) → odveži.
     await Form.update({ updatedById: null }, { where: { updatedById: id }, transaction: t });
 
-    // Delete orgs created by user
-    const orgIds = (await Organization.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })).map((o) => o.id);
-
-    if (orgIds.length > 0) {
-      const orgFormIds = (await Form.findAll({ where: { organizationId: { [Op.in]: orgIds } }, attributes: ["id"], transaction: t })).map((f) => f.id);
-      if (orgFormIds.length > 0) {
-        await FormAttachment.destroy({ where: { formId: { [Op.in]: orgFormIds } }, transaction: t });
-        await FormVersion.destroy({ where: { formId: { [Op.in]: orgFormIds } }, transaction: t });
-        await Form.destroy({ where: { id: { [Op.in]: orgFormIds } }, transaction: t });
-      }
-
-      await OrganizationMember.destroy({ where: { organizationId: { [Op.in]: orgIds } }, transaction: t });
-      await Worker.destroy({ where: { organizationId: { [Op.in]: orgIds } }, transaction: t });
-
-      const orgClientIds = (await Client.findAll({ where: { organizationId: { [Op.in]: orgIds } }, attributes: ["id"], transaction: t })).map((c) => c.id);
-      if (orgClientIds.length > 0) {
-        const clientFormIds = (await Form.findAll({ where: { clientId: { [Op.in]: orgClientIds } }, attributes: ["id"], transaction: t })).map((f) => f.id);
-        if (clientFormIds.length > 0) {
-          await FormAttachment.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
-          await FormVersion.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
-          await Form.destroy({ where: { id: { [Op.in]: clientFormIds } }, transaction: t });
-        }
-        await Client.destroy({ where: { id: { [Op.in]: orgClientIds } }, transaction: t });
-      }
-
-      await Organization.destroy({ where: { id: { [Op.in]: orgIds } }, transaction: t });
+    // Sve organizacije koje je korisnik kreirao → puna kaskada (radnici sa
+    // platama/dokumentima/formama, org klijenti, fakture, brojači, kartice…).
+    const orgIds = (
+      await Organization.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })
+    ).map((o) => o.id);
+    for (const orgId of orgIds) {
+      await cascade.deleteOrganizationInner(orgId, t);
     }
 
-    // Delete user's forms
-    const userFormIds = (await Form.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })).map((f) => f.id);
-    if (userFormIds.length > 0) {
-      await FormAttachment.destroy({ where: { formId: { [Op.in]: userFormIds } }, transaction: t });
-      await FormVersion.destroy({ where: { formId: { [Op.in]: userFormIds } }, transaction: t });
-      await Form.destroy({ where: { id: { [Op.in]: userFormIds } }, transaction: t });
-    }
+    // Lične forme korisnika (van obrisanih org-a).
+    const userFormIds = (
+      await Form.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })
+    ).map((f) => f.id);
+    await cascade.deleteFormsByIds(userFormIds, t);
 
-    // Delete user's clients
-    const userClientIds = (await Client.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })).map((c) => c.id);
-    if (userClientIds.length > 0) {
-      const clientFormIds = (await Form.findAll({ where: { clientId: { [Op.in]: userClientIds } }, attributes: ["id"], transaction: t })).map((f) => f.id);
-      if (clientFormIds.length > 0) {
-        await FormAttachment.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
-        await FormVersion.destroy({ where: { formId: { [Op.in]: clientFormIds } }, transaction: t });
-        await Form.destroy({ where: { id: { [Op.in]: clientFormIds } }, transaction: t });
-      }
-      await Client.destroy({ where: { id: { [Op.in]: userClientIds } }, transaction: t });
-    }
+    // Lični klijenti korisnika (van obrisanih org-a) + odvezivanje faktura.
+    const userClientIds = (
+      await Client.findAll({ where: { createdById: id }, attributes: ["id"], transaction: t })
+    ).map((c) => c.id);
+    await cascade.deleteClientsByIds(userClientIds, t);
+
+    // Lične (legacy) fakture bez organizacije + brojači + biblioteka stavki +
+    // članske kartice koje je korisnik kreirao.
+    await cascade.deleteInvoicesWhere({ userId: id, organizationId: null }, t);
+    await InvoiceCounter.destroy({ where: { userId: id }, transaction: t });
+    await InvoiceItemTemplate.destroy({ where: { userId: id }, transaction: t });
+    await KarticaMember.destroy({ where: { createdById: id }, transaction: t });
 
     await OrganizationMember.destroy({ where: { userId: id }, transaction: t });
     await Subscription.destroy({ where: { userId: id }, transaction: t });

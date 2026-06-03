@@ -24,12 +24,16 @@ function validate(body) {
   if (!body || typeof body !== "object") errors.push("Nedostaje tijelo zahtjeva.");
   const plan = String(body?.plan || "").toUpperCase();
   if (plan !== "PRO" && plan !== "BUSINESS") errors.push("Plan mora biti PRO ili BUSINESS.");
+  // billingCycle: "monthly" | "yearly" (default yearly za back-compat).
+  const billingCycle = String(body?.billingCycle || "yearly").toLowerCase() === "monthly"
+    ? "monthly"
+    : "yearly";
   const b = body?.buyer || {};
   if (!isStr(b.name)) errors.push("Naziv kupca je obavezan.");
   if (!isStr(b.email)) errors.push("Email kupca je obavezan.");
   if (b.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email).trim()))
     errors.push("Email nije validan.");
-  return { errors, plan, buyer: b };
+  return { errors, plan, billingCycle, buyer: b };
 }
 
 // Atomic next number za godinu — koristi transaction sa SELECT FOR UPDATE
@@ -57,7 +61,7 @@ async function nextSequence(year) {
 }
 
 async function create(req, res) {
-  const { errors, plan, buyer } = validate(req.body);
+  const { errors, plan, billingCycle, buyer } = validate(req.body);
   if (errors.length) {
     return res.status(400).json({ ok: false, error: errors.join(" ") });
   }
@@ -67,11 +71,27 @@ async function create(req, res) {
     const dueDate = new Date(issueDate);
     dueDate.setDate(dueDate.getDate() + 30);
 
+    // Period pretplate: start = datum predračuna, ILI override iz body-ja
+    // (obnova — period počinje dan nakon isteka tekuće pretplate, bez prekida).
+    // Kraj = +1 mjesec (mjesečno) ili +1 godina (godišnje), minus 1 dan.
+    let periodStart = new Date(issueDate);
+    if (req.body?.periodStart) {
+      const d = new Date(req.body.periodStart);
+      if (!Number.isNaN(d.getTime())) periodStart = d;
+    }
+    const periodEnd = new Date(periodStart);
+    if (billingCycle === "monthly") {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    } else {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    }
+    periodEnd.setDate(periodEnd.getDate() - 1);
+
     const year = issueDate.getFullYear();
     const seq = await nextSequence(year);
     const fullNumber = formatBroj(seq, year);
 
-    const { net, vat, gross } = calcAmounts(plan);
+    const { net, vat, gross } = calcAmounts(plan, billingCycle);
 
     // snimi predracun
     const pad6 = (n) => String(n).padStart(6, "0");
@@ -82,6 +102,9 @@ async function create(req, res) {
       sequence: seq,
       fullNumber,
       plan,
+      billingCycle,
+      periodStart,
+      periodEnd,
       netAmount: net,
       vatAmount: vat,
       grossAmount: gross,
@@ -103,6 +126,9 @@ async function create(req, res) {
     // generiraj PDF
     const pdfBuffer = await generatePredracunPdf({
       plan,
+      billingCycle,
+      periodStart,
+      periodEnd,
       fullNumber,
       issueDate,
       dueDate,
@@ -162,12 +188,14 @@ async function list(req, res) {
   try {
     const q = String(req.query.q || "").trim();
     const plan = String(req.query.plan || "").toUpperCase();
+    const status = String(req.query.status || "").toUpperCase();
     const page = parseInt1(req.query.page, 1);
     const limit = Math.min(parseInt1(req.query.limit, 20), 100);
     const offset = (page - 1) * limit;
 
     const where = {};
     if (plan === "PRO" || plan === "BUSINESS") where.plan = plan;
+    if (["ISSUED", "PAID", "CANCELLED"].includes(status)) where.status = status;
     if (q) {
       where[Op.or] = [
         { fullNumber: { [Op.like]: `%${q}%` } },
@@ -282,4 +310,23 @@ async function updateStatus(req, res) {
   }
 }
 
-module.exports = { create, list, updateStatus };
+// DELETE /api/predracun/:id — samo admin. Briše predračun zapis.
+async function remove(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "Nevažeći ID." });
+    }
+    const record = await Predracun.findByPk(id);
+    if (!record) {
+      return res.status(404).json({ ok: false, error: "Predračun nije pronađen." });
+    }
+    await record.destroy();
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error("predracun remove error:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+module.exports = { create, list, updateStatus, remove };

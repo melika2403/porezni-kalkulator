@@ -27,17 +27,24 @@ const LOGO_CANDIDATES = [path.join(__dirname, "..", "assets", "logo.jpg")];
 // ── CIJENE ───────────────────────────────────────────────────────────────────
 // Pricing model: BRUTO iznosi (cijena sa PDV-om) — ono što kupac plaća.
 // Neto i PDV se automatski back-kalkulišu iz bruta po stopi VAT_RATE.
+// Brojevi dolaze iz config/pricing.js (jedan izvor istine); ovdje dodajemo labele.
+const { PLAN_PRICES: PRICE_NUMBERS } = require("../config/pricing");
 const PLAN_PRICES = {
   PRO: {
-    gross: 199.0,
-    label: "Godišnja pretplata PRO na poreznikalkulator.ba",
+    yearly: { gross: PRICE_NUMBERS.PRO.yearly, label: "Godišnja pretplata PRO na poreznikalkulator.ba" },
+    monthly: { gross: PRICE_NUMBERS.PRO.monthly, label: "Mjesečna pretplata PRO na poreznikalkulator.ba" },
   },
   BUSINESS: {
-    gross: 499.0,
-    label: "Godišnja pretplata BUSINESS na poreznikalkulator.ba",
+    yearly: { gross: PRICE_NUMBERS.BUSINESS.yearly, label: "Godišnja pretplata BUSINESS na poreznikalkulator.ba" },
+    monthly: { gross: PRICE_NUMBERS.BUSINESS.monthly, label: "Mjesečna pretplata BUSINESS na poreznikalkulator.ba" },
   },
 };
 const VAT_RATE = 0.17;
+
+// Normalizuj ciklus na "yearly" | "monthly" (default yearly za back-compat).
+function normalizeCycle(cycle) {
+  return cycle === "monthly" ? "monthly" : "yearly";
+}
 
 // ── SLOVIMA (bosanski / hrvatski) ────────────────────────────────────────────
 const ONES = [
@@ -136,9 +143,11 @@ function formatBroj(seq, year) {
 //   PDV  = round(gross * VAT_RATE / (1 + VAT_RATE), 2)
 //   neto = gross - PDV
 // Garantujemo da je neto + PDV = gross (centa-ravno).
-function calcAmounts(plan) {
-  const cfg = PLAN_PRICES[plan];
-  if (!cfg) throw new Error(`Unknown plan: ${plan}`);
+function calcAmounts(plan, cycle) {
+  const planCfg = PLAN_PRICES[plan];
+  if (!planCfg) throw new Error(`Unknown plan: ${plan}`);
+  const cfg = planCfg[normalizeCycle(cycle)];
+  if (!cfg) throw new Error(`Unknown billing cycle: ${cycle}`);
   const gross = +Number(cfg.gross).toFixed(2);
   const vat = +(gross * (VAT_RATE / (1 + VAT_RATE))).toFixed(2);
   const net = +(gross - vat).toFixed(2);
@@ -241,13 +250,28 @@ function code39Width(text, narrow = 1.1, wide = null) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function generatePredracunPdf({
   plan,
+  billingCycle,
+  periodStart,
+  periodEnd,
   fullNumber,
   issueDate,
   dueDate,
   buyer,
   printedBy = "Amar Pjanić",
 }) {
-  const { net, vat, gross, label } = calcAmounts(plan);
+  const { net, vat, gross, label } = calcAmounts(plan, billingCycle);
+  // Period pretplate (DD.MM.YYYY - DD.MM.YYYY) — prikazuje se ispod stavke.
+  const fmtD = (d) => {
+    if (!d) return "";
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return "";
+    const p = (n) => String(n).padStart(2, "0");
+    return `${p(dt.getDate())}.${p(dt.getMonth() + 1)}.${dt.getFullYear()}.`;
+  };
+  const periodLabel =
+    periodStart && periodEnd
+      ? `Period pretplate: ${fmtD(periodStart)} - ${fmtD(periodEnd)}`
+      : "";
 
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
@@ -527,6 +551,13 @@ async function generatePredracunPdf({
   }
   drawText(l1, COLS.naziv, y, { size: 9 });
   if (l2) drawText(l2, COLS.naziv, y - 11, { size: 9 });
+  // Period pretplate ispod naziva (manji, sivi tekst).
+  if (periodLabel) {
+    drawText(periodLabel, COLS.naziv, y - (l2 ? 22 : 11), {
+      size: 7.5,
+      color: grey,
+    });
+  }
 
   drawText("KOM", COLS.jm, y, { size: 9 });
   drawRight("1,000", COLS.kol, y, { size: 9 });
@@ -538,7 +569,10 @@ async function generatePredracunPdf({
   });
   drawRight(formatNumber(net), COLS.bruto, y, { size: 9 });
 
-  y -= l2 ? 22 : 12;
+  // Visina reda: naziv (1 ili 2 linije) + opciona period linija.
+  let rowDrop = l2 ? 22 : 12;
+  if (periodLabel) rowDrop += 11;
+  y -= rowDrop;
   dashLine(MARGIN_L, MARGIN_R, y);
 
   // ── TOTALI (desno) i SLOVIMA (lijevo) ─────────────────────────────────────
