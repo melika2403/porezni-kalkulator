@@ -10,25 +10,25 @@ import {
   type Plan,
   type BuyerInput,
 } from "src/api/backend/predracun/predracun";
+import {
+  PLAN_PRICING,
+  annualSavings,
+  calcNet,
+  calcVat,
+  formatKm as fmt,
+  type BillingCycle,
+} from "src/data/pricing";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import BuyerFillSelect, {
   type BuyerFillData,
 } from "src/components/BuyerFillSelect/BuyerFillSelect";
 
-// ── Paketi (mora odgovarati onome što šalje backend) ─────────────────────────
-// priceGross = bruto (sa PDV-om) — ono što kupac plaća.
-// Neto i PDV se back-kalkulišu iz bruta po stopi 17%.
-const VAT_RATE = 0.17;
-const calcNet = (gross: number) =>
-  +(gross - gross * (VAT_RATE / (1 + VAT_RATE))).toFixed(2);
-const calcVat = (gross: number) =>
-  +(gross * (VAT_RATE / (1 + VAT_RATE))).toFixed(2);
-
+// ── Paketi ───────────────────────────────────────────────────────────────────
+// Cijene dolaze iz src/data/pricing.ts (PLAN_PRICING) po ciklusu naplate.
 const PLANS: {
   id: Plan;
   tier: string;
-  priceGross: number;
   features: string[];
   variant: "pro" | "business";
   tag: string;
@@ -36,7 +36,6 @@ const PLANS: {
   {
     id: "PRO",
     tier: "Pro",
-    priceGross: 199,
     variant: "pro",
     tag: "Najpopularnije",
     features: [
@@ -52,7 +51,6 @@ const PLANS: {
   {
     id: "BUSINESS",
     tier: "Business",
-    priceGross: 499,
     variant: "business",
     tag: "Najbolja vrijednost",
     features: [
@@ -66,12 +64,6 @@ const PLANS: {
     ],
   },
 ];
-
-const fmt = (n: number) =>
-  n
-    .toFixed(2)
-    .replace(".", ",")
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
 type Status = "idle" | "sending" | "done" | "error";
 
@@ -111,6 +103,12 @@ export default function Pretplate() {
   const [selected, setSelected] = useState<Plan>(
     initialPlan === "PRO" ? "PRO" : "BUSINESS",
   );
+  // Ciklus naplate — godišnje je default (bolja ponuda: 2 mjeseca gratis).
+  const initialCycle = (params.get("cycle") || "").toLowerCase();
+  const [cycle, setCycle] = useState<BillingCycle>(
+    initialCycle === "monthly" ? "monthly" : "yearly",
+  );
+  const priceFor = (plan: Plan) => PLAN_PRICING[plan][cycle];
 
   // forma kupca
   const [buyer, setBuyer] = useState<BuyerInput>({
@@ -185,7 +183,7 @@ export default function Pretplate() {
     e.preventDefault();
     setErrorMsg("");
     setStatus("sending");
-    const res = await createPredracun(selected, buyer);
+    const res = await createPredracun(selected, cycle, buyer);
     if (!res.ok) {
       setStatus("error");
       setErrorMsg(res.error || "Došlo je do greške.");
@@ -301,6 +299,29 @@ export default function Pretplate() {
         </div>
       )}
 
+      {/* ── Billing cycle toggle ────────────────────────────────────────── */}
+      <div className={styles.cycleToggle} role="tablist" aria-label="Ciklus naplate">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={cycle === "monthly"}
+          className={`${styles.cycleBtn} ${cycle === "monthly" ? styles.cycleBtnActive : ""}`}
+          onClick={() => setCycle("monthly")}
+        >
+          Mjesečno
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={cycle === "yearly"}
+          className={`${styles.cycleBtn} ${cycle === "yearly" ? styles.cycleBtnActive : ""}`}
+          onClick={() => setCycle("yearly")}
+        >
+          Godišnje
+          <span className={styles.cycleBadge}>2 mjeseca besplatno</span>
+        </button>
+      </div>
+
       {/* ── Plan picker ─────────────────────────────────────────────────── */}
       <div className={styles.plansGrid}>
         {PLANS.map((p) => {
@@ -320,8 +341,15 @@ export default function Pretplate() {
               <div className={styles.popularTag}>{p.tag}</div>
 
               <div className={styles.tier}>{p.tier}</div>
-              <div className={styles.price}>{fmt(p.priceGross)} KM</div>
-              <div className={styles.period}>godišnje, sa PDV-om</div>
+              <div className={styles.price}>{fmt(priceFor(p.id))} KM</div>
+              <div className={styles.period}>
+                {cycle === "monthly" ? "mjesečno, sa PDV-om" : "godišnje, sa PDV-om"}
+              </div>
+              {cycle === "yearly" && (
+                <div className={styles.saveNote}>
+                  2 mjeseca besplatno · ušteda {fmt(annualSavings(p.id))} KM
+                </div>
+              )}
 
               <div className={styles.divider} />
 
@@ -530,27 +558,22 @@ export default function Pretplate() {
         <div className={styles.summary}>
           <div className={styles.summaryRow}>
             <span>Plan</span>
-            <strong>{selected === "PRO" ? "Pro" : "Business"}</strong>
+            <strong>
+              {selected === "PRO" ? "Pro" : "Business"} ·{" "}
+              {cycle === "monthly" ? "mjesečno" : "godišnje"}
+            </strong>
           </div>
           <div className={styles.summaryRow}>
             <span>Iznos bez PDV-a</span>
-            <strong>
-              {fmt(calcNet(PLANS.find((p) => p.id === selected)!.priceGross))}{" "}
-              KM
-            </strong>
+            <strong>{fmt(calcNet(priceFor(selected)))} KM</strong>
           </div>
           <div className={styles.summaryRow}>
             <span>PDV (17%)</span>
-            <strong>
-              {fmt(calcVat(PLANS.find((p) => p.id === selected)!.priceGross))}{" "}
-              KM
-            </strong>
+            <strong>{fmt(calcVat(priceFor(selected)))} KM</strong>
           </div>
           <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
             <span>Za naplatu</span>
-            <strong>
-              {fmt(PLANS.find((p) => p.id === selected)!.priceGross)} KM
-            </strong>
+            <strong>{fmt(priceFor(selected))} KM</strong>
           </div>
         </div>
 

@@ -63,6 +63,11 @@ import {
   fillPldiTemplate,
   type PldiData,
 } from "src/sections/amortizacija/fillPldi";
+import {
+  createPredracun,
+  type Plan as PredracunPlan,
+  type BillingCycle,
+} from "src/api/backend/predracun/predracun";
 import { fillAmsTemplate, type AmsData } from "src/sections/ams/fillAms";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
@@ -3073,6 +3078,166 @@ function fmtDate(iso: string) {
   return `${dd}.${mm}.${yyyy}.`;
 }
 
+// Broj dana do isteka (negativno = isteklo). Računa se iz endDate jer rola/
+// isActive mogu biti spušteni lazy-expiry-jem nakon isteka.
+function daysUntil(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const parts = iso.slice(0, 10).split("-").map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+  const end = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+  const now = new Date();
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((end - today) / 86400000);
+}
+
+// Dan nakon isteka (YYYY-MM-DD) — prvi dan nove pretplate (kontinuitet).
+function dayAfterIso(iso: string): string {
+  const parts = iso.slice(0, 10).split("-").map(Number);
+  const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  dt.setUTCDate(dt.getUTCDate() + 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+// Kraj perioda nove pretplate (start + 1 mjesec/godina - 1 dan).
+function periodEndFrom(startIso: string, cycle: BillingCycle): string {
+  const parts = startIso.slice(0, 10).split("-").map(Number);
+  const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  if (cycle === "monthly") dt.setUTCMonth(dt.getUTCMonth() + 1);
+  else dt.setUTCFullYear(dt.getUTCFullYear() + 1);
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+// Plan za obnovu: subscription.plan (ako je PRO/BUSINESS), inače rola, inače PRO.
+function renewalPlan(user: AuthUser): PredracunPlan {
+  const sp = user.subscription?.plan;
+  if (sp === "PRO" || sp === "BUSINESS") return sp;
+  if (user.role === "PRO" || user.role === "BUSINESS") return user.role;
+  return "PRO";
+}
+
+function SubscriptionRenewal({
+  user,
+  daysLeft,
+}: {
+  user: AuthUser;
+  daysLeft: number;
+}) {
+  const sub = user.subscription!;
+  const plan = renewalPlan(user);
+  const cycle: BillingCycle = sub.billingCycle === "monthly" ? "monthly" : "yearly";
+  // Kontinuitet: dan nakon isteka. Ali ako je već isteklo, ne idemo unazad —
+  // počinjemo od danas (max(endDate+1, danas)). ISO datumi se porede leksički.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const afterExpiry = dayAfterIso(sub.endDate);
+  const periodStart = afterExpiry > todayIso ? afterExpiry : todayIso;
+  const periodEnd = periodEndFrom(periodStart, cycle);
+  const cycleLabel = cycle === "monthly" ? "mjesečna" : "godišnja";
+  const planLabel = PLAN_LABELS[plan] ?? plan;
+  const expired = daysLeft < 0;
+
+  const [done, setDone] = useState<{ number: string; url: string } | null>(null);
+
+  const gen = useMutation({
+    mutationFn: async () => {
+      if (!user.email) throw new Error("Vaš profil nema email adresu.");
+      const res = await createPredracun(
+        plan,
+        cycle,
+        {
+          name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+          email: user.email,
+          address: user.address ?? undefined,
+          city: user.city ?? undefined,
+          phone: user.phone ?? undefined,
+        },
+        periodStart,
+      );
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      setDone({ number: res.fullNumber, url: res.pdfUrl });
+      if (typeof window !== "undefined") window.open(res.pdfUrl, "_blank");
+    },
+  });
+
+  return (
+    <div className={styles.renewalBox}>
+      <p className={styles.renewalTitle}>
+        {expired ? "Obnovite pretplatu" : "Pretplata uskoro ističe"}
+      </p>
+      <p className={styles.renewalDesc}>
+        Generišite novi predračun za obnovu. Nova pretplata:{" "}
+        <strong>
+          {planLabel}, {cycleLabel}
+        </strong>{" "}
+        — period {fmtDate(periodStart)} do {fmtDate(periodEnd)}{" "}
+        {expired
+          ? "(počinje danas)."
+          : "(počinje dan nakon isteka tekuće, bez prekida)."}
+      </p>
+
+      {done ? (
+        <div className={styles.renewalDone}>
+          <p>
+            Predračun <strong>{done.number}</strong> je generisan i poslan na{" "}
+            <strong>{user.email}</strong>.
+          </p>
+          <a
+            href={done.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.planLink}
+          >
+            Ponovo otvori PDF
+          </a>
+        </div>
+      ) : (
+        <>
+          <button
+            className={styles.btnPrimary}
+            onClick={() => gen.mutate()}
+            disabled={gen.isPending || !user.email}
+          >
+            {gen.isPending ? "Generišem…" : "Generiši predračun za obnovu"}
+          </button>
+          {!user.email && (
+            <p className={styles.renewalHint}>
+              Dodajte email adresu u profilu da generišete predračun.
+            </p>
+          )}
+          {gen.isError && (
+            <p className={styles.renewalError}>
+              {(gen.error as Error).message}
+            </p>
+          )}
+        </>
+      )}
+
+      <p className={styles.renewalHint}>
+        Želite drugi plan ili način plaćanja (mjesečno/godišnje)?{" "}
+        <Link
+          href={`/pretplate?plan=${plan}&cycle=${cycle}`}
+          className={styles.planLink}
+        >
+          Promijeni pretplatu
+        </Link>
+        .
+      </p>
+
+      <p className={styles.renewalHint}>
+        Ako želite produžiti, možete i odgovoriti na email podsjetnik ili nas
+        kontaktirati putem{" "}
+        <a href="/kontakt" className={styles.planLink}>
+          kontakt forme
+        </a>
+        .
+      </p>
+    </div>
+  );
+}
+
 function PretplataTab({ user }: { user: AuthUser }) {
   const plan = user.role in PLAN_LABELS ? user.role : "USER";
   const isPaid = plan === "PRO" || plan === "BUSINESS";
@@ -3080,6 +3245,9 @@ function PretplataTab({ user }: { user: AuthUser }) {
   const sub = user.subscription;
   const isActive = isAdmin || (sub?.isActive ?? false);
   const isExpired = !isAdmin && sub && !sub.isActive;
+  // Obnova: pred istek (≤7 dana) ili već isteklo. Računamo iz endDate.
+  const daysLeft = !isAdmin && sub ? daysUntil(sub.endDate) : null;
+  const showRenewal = daysLeft !== null && daysLeft <= 7;
 
   return (
     <div className={styles.panel}>
@@ -3135,7 +3303,7 @@ function PretplataTab({ user }: { user: AuthUser }) {
               ) : (
                 <span className={styles.subExpired}>● Istekla</span>
               )}
-              {isExpired && (
+              {isExpired && !showRenewal && (
                 <span className={styles.subStatusNote}>
                   Za obnovu kontaktirajte nas putem{" "}
                   <a href="/kontakt" className={styles.planLink}>
@@ -3148,7 +3316,11 @@ function PretplataTab({ user }: { user: AuthUser }) {
           </div>
         )}
 
-        {!isPaid && (
+        {showRenewal && (
+          <SubscriptionRenewal user={user} daysLeft={daysLeft as number} />
+        )}
+
+        {!isPaid && !showRenewal && (
           <div className={styles.planUpgrade}>
             <p className={styles.planUpgradeText}>
               Nadogradite na <strong>Pro</strong> ili <strong>Business</strong>{" "}
@@ -3158,8 +3330,9 @@ function PretplataTab({ user }: { user: AuthUser }) {
               Nadogradi
             </Link>
             <p className={styles.planComingSoon}>
-              Online pretplata je u pripremi. Za aktivaciju plana kontaktirajte
-              nas putem{" "}
+              Na stranici za pretplatu generišete predračun i platite po
+              uplatnici. Nakon evidentiranja uplate aktiviramo vaš plan. Za
+              pomoć nas kontaktirajte putem{" "}
               <a href="/kontakt" className={styles.planLink}>
                 kontakt forme
               </a>

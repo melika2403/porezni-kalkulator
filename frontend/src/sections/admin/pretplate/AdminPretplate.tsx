@@ -6,6 +6,7 @@ import styles from "./adminPretplate.module.css";
 import {
   listPredracuni,
   updatePredracunStatus,
+  deletePredracun,
   type PredracunListItem,
   type PredracunListResponse,
   type PredracunStatus,
@@ -44,14 +45,16 @@ export default function AdminPretplate() {
   const [draftQ, setDraftQ] = useState("");
   const [q, setQ] = useState("");
   const [plan, setPlan] = useState<"" | "PRO" | "BUSINESS">("");
+  const [statusFilter, setStatusFilter] = useState<"" | PredracunStatus>("");
   const [page, setPage] = useState(1);
 
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, error, refetch } =
     useQuery<PredracunListResponse>({
-      queryKey: ["admin-predracuni", q, plan, page],
-      queryFn: () => unwrap(listPredracuni({ q, plan, page, limit: LIMIT })),
+      queryKey: ["admin-predracuni", q, plan, statusFilter, page],
+      queryFn: () =>
+        unwrap(listPredracuni({ q, plan, status: statusFilter, page, limit: LIMIT })),
       placeholderData: (prev) => prev,
       retry: false,
     });
@@ -62,6 +65,16 @@ export default function AdminPretplate() {
       unwrap(updatePredracunStatus(id, status)),
     onSuccess: () => {
       // refresh tabele nakon uspješne promjene
+      queryClient.invalidateQueries({ queryKey: ["admin-predracuni"] });
+    },
+  });
+
+  // ── Brisanje predračuna (inline potvrda po redu) ───────────────────────
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => unwrap(deletePredracun(id)),
+    onSuccess: () => {
+      setConfirmDeleteId(null);
       queryClient.invalidateQueries({ queryKey: ["admin-predracuni"] });
     },
   });
@@ -78,6 +91,7 @@ export default function AdminPretplate() {
     setDraftQ("");
     setQ("");
     setPlan("");
+    setStatusFilter("");
     setPage(1);
   };
 
@@ -116,6 +130,19 @@ export default function AdminPretplate() {
             <option value="">Svi planovi</option>
             <option value="PRO">Pro</option>
             <option value="BUSINESS">Business</option>
+          </select>
+          <select
+            className={styles.select}
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as "" | PredracunStatus);
+              setPage(1);
+            }}
+          >
+            <option value="">Svi statusi</option>
+            <option value="ISSUED">Izdat</option>
+            <option value="PAID">Plaćen</option>
+            <option value="CANCELLED">Otkazan</option>
           </select>
           <button
             type="button"
@@ -161,6 +188,7 @@ export default function AdminPretplate() {
                   <th>Plan</th>
                   <th className={styles.numCell}>Bruto</th>
                   <th>Status</th>
+                  <th>Akcije</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,6 +276,36 @@ export default function AdminPretplate() {
                           {STATUS_LABEL.CANCELLED}
                         </option>
                       </select>
+                    </td>
+                    <td>
+                      {confirmDeleteId === it.id ? (
+                        <div className={styles.deleteConfirm}>
+                          <button
+                            type="button"
+                            className={styles.deleteConfirmYes}
+                            disabled={deleteMutation.isPending}
+                            onClick={() => deleteMutation.mutate(it.id)}
+                          >
+                            {deleteMutation.isPending ? "Brišem…" : "Potvrdi"}
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.deleteConfirmNo}
+                            onClick={() => setConfirmDeleteId(null)}
+                          >
+                            Otkaži
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.deleteBtn}
+                          title="Obriši predračun"
+                          onClick={() => setConfirmDeleteId(it.id)}
+                        >
+                          Obriši
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -5,7 +5,7 @@ const PAGE_URL = "https://poreznikalkulator.ba/ams";
 
 export const metadata: Metadata = {
   title:
-    "AMS-1035 obrazac — akontacija poreza po odbitku na prihod iz inostranstva | Porezni Kalkulator BiH",
+    "AMS generator — AMS-1035 obrazac i uplatnice (FBiH) | Porezni Kalkulator",
   description:
     "Kako popuniti AMS-1035 obrazac? Online generator AMS-1035 obrasca za akontaciju poreza po odbitku na druge samostalne djelatnosti i prihod iz inostranstva u FBiH. Automatski obračun, popunjene uplatnice spremne za banku — besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
@@ -24,6 +24,14 @@ const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
+    {
+      "@type": "Question",
+      name: "Kolika je stopa doprinosa za zdravstveno osiguranje na drugi samostalni prihod (AMS-1035) u FBiH?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Doprinos za zdravstveno osiguranje na drugi samostalni prihod (prihod iz inostranstva po obrascu AMS-1035) u FBiH iznosi 4%. Pored toga obračunava se porez na dohodak 10%, uz normirane rashode 20% (30% za autorske naknade) koji umanjuju osnovicu. Zdravstveni doprinos od 4% plaća se bez obzira na to da li ste već osigurani po osnovu radnog odnosa.",
+      },
+    },
     {
       "@type": "Question",
       name: "Ko je obavezan podnositi AMS-1035 obrazac?",

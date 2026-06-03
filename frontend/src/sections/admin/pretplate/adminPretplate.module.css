@@ -185,6 +185,55 @@
 }
 
 /* Status dropdown — izgleda kao badge ali je <select> */
+.deleteBtn {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid #e3c3c3;
+  background: #fbeaea;
+  color: #b3261e;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.deleteBtn:hover {
+  background: #f6dada;
+}
+.deleteConfirm {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.deleteConfirmYes {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: none;
+  background: #b3261e;
+  color: #fff;
+  cursor: pointer;
+}
+.deleteConfirmYes:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.deleteConfirmNo {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #e4ded3);
+  background: transparent;
+  color: var(--mid);
+  cursor: pointer;
+}
+
 .statusSelect {
   font-family: "DM Sans", sans-serif;
   font-size: 11px;

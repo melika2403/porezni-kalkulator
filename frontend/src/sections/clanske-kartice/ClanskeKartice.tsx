@@ -22,6 +22,7 @@ import {
 import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
+import { trackEvent } from "src/api/activity";
 import { generateKartica } from "./generateKartica";
 import QRCode from "qrcode";
 
@@ -771,6 +772,7 @@ function ClanskeKarticeApp() {
       a.download = `Kartica_${safeName}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      trackEvent("KARTICA_GENERATE", "Članska kartica");
     } finally {
       setGenerating(false);
     }

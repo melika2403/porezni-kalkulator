@@ -4077,6 +4077,13 @@ function PayrollModal({
           grossBase: parseNum(gross),
           minuliRadRate: parseNum(minuliRad),
           taxCoefficient: parseNum(coeff),
+          // "Cilj neto za isplatu": pošalji ciljni neto (iz polja koje user vidi)
+          // pa backend fening-search prilagodi bruto da finalni neto bude tačan.
+          // Backend primijeni samo bez uvećanja i za pun mjesec.
+          ...(worker.salaryType === "NETO_ISPLATA" &&
+          parseNum(netoIsplataDisplay) > 0
+            ? { targetNet: parseNum(netoIsplataDisplay) }
+            : {}),
           // Pro-rate factor (0..1) — automatski za mid-month, user može
           // isključiti checkbox-om. Backend skalira osnovicu, minuli rad,
           // i min doprinosnu osnovu.

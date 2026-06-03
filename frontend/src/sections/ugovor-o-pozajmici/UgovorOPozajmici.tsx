@@ -8,6 +8,7 @@ import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import { iznosUSlova } from "../ugovor-o-djelu/iznosSlovima";
+import { trackEvent } from "src/api/activity";
 
 const isoToDisplay = (iso: string) => {
   if (!iso || !iso.includes("-")) return iso;
@@ -134,6 +135,7 @@ export default function UgovorOPozajmici() {
         iznos: composeIznosString(form.iznos),
       });
       downloadBlob(blob, "Ugovor-o-pozajmici.docx");
+      trackEvent("UGOVOR_POZAJMICA_GENERATE", "Ugovor o pozajmici");
     } finally {
       setLoadingDocx(false);
     }
@@ -149,6 +151,7 @@ export default function UgovorOPozajmici() {
         iznos: composeIznosString(form.iznos),
       });
       downloadBlob(blob, "Ugovor-o-pozajmici.pdf");
+      trackEvent("UGOVOR_POZAJMICA_GENERATE", "Ugovor o pozajmici");
     } finally {
       setLoadingPdf(false);
     }

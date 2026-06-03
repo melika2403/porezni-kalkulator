@@ -109,8 +109,30 @@ function requireOwnerTier(...allowedTiers) {
   };
 }
 
+// Postavi req.user ako validan token postoji; NE odbija ako ga nema.
+// Koristi se za rute koje rade i za anonimne (npr. tracking aktivnosti).
+function optionalAuth(req, _res, next) {
+  try {
+    const token = getTokenFromRequest(req);
+    if (token) {
+      const payload = jwt.verify(token, getJwtSecret());
+      const userId = Number(payload.sub);
+      if (Number.isInteger(userId) && userId > 0) {
+        req.user = {
+          id: userId,
+          role: typeof payload.role === "string" ? payload.role : undefined,
+        };
+      }
+    }
+  } catch {
+    // nevažeći token → tretiraj kao anonimnog
+  }
+  next();
+}
+
 module.exports = {
   requireAuth,
+  optionalAuth,
   requireRole,
   requireOrgRole,
   requireOwnerTier,

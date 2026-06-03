@@ -25,6 +25,7 @@ import { formatAddress } from "src/utils/formatAddress";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
+import { trackEvent } from "src/api/activity";
 
 type Mode = "neto" | "bruto";
 
@@ -240,6 +241,7 @@ function UgovorODjeluApp() {
       a.download = `Ugovor-o-djelu${brojUgovora ? "_" + brojUgovora.replace(/\//g, "-") : ""}.docx`;
       a.click();
       URL.revokeObjectURL(url);
+      trackEvent("UGOVOR_DJELU_GENERATE", "Ugovor o djelu");
     } catch (e) {
       notify("Greška pri generisanju DOCX-a: " + (e as Error).message, "error");
     } finally {
@@ -261,6 +263,7 @@ function UgovorODjeluApp() {
       a.download = `Ugovor-o-djelu${brojUgovora ? "_" + brojUgovora.replace(/\//g, "-") : ""}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      trackEvent("UGOVOR_DJELU_GENERATE", "Ugovor o djelu");
     } catch (e) {
       notify("Greška pri generisanju PDF-a: " + (e as Error).message, "error");
     } finally {
@@ -1234,6 +1237,26 @@ function UgovorODjeluApp() {
               Preračun neto/bruto plate
             </a>{" "}
             — provjera obračuna za radnike u radnom odnosu.
+          </li>
+        </ul>
+        <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
+          Pročitaj <em>na blogu</em>
+        </h2>
+        <ul
+          style={{
+            marginTop: "0.5rem",
+            paddingLeft: "1.25rem",
+            lineHeight: 1.9,
+          }}
+        >
+          <li>
+            <a
+              href="/blog/ugovor-o-djelu-vs-ugovor-o-radu"
+              style={{ color: "var(--sage)", fontWeight: 600 }}
+            >
+              Ugovor o djelu vs ugovor o radu
+            </a>{" "}
+            — kad koristiti koji i kako se razlikuje oporezivanje.
           </li>
         </ul>
       </section>

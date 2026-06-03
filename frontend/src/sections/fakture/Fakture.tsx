@@ -279,7 +279,22 @@ export default function Fakture() {
                         )
                       }
                     >
-                      PDF
+                      PDF ({inv.currency === "EUR" ? "EUR" : "KM"})
+                    </button>
+                    {/* Ista faktura u protuvaluti (carina traži oba). */}
+                    <button
+                      className={`${styles.btn} ${styles.btnGhost}`}
+                      title="Ista faktura preračunata u protuvalutu (fiksni kurs 1 EUR = 1,95583 KM)"
+                      onClick={() => {
+                        const counter = inv.currency === "EUR" ? "BAM" : "EUR";
+                        downloadInvoicePdf(
+                          inv.id,
+                          `${inv.type === "INVOICE" ? "Faktura" : "Predracun"}-${inv.fullNumber}-${counter}.pdf`,
+                          counter,
+                        );
+                      }}
+                    >
+                      PDF ({inv.currency === "EUR" ? "KM" : "EUR"})
                     </button>
                     <button
                       className={`${styles.btn} ${styles.btnGhost}`}

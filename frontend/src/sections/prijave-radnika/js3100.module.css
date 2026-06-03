@@ -311,6 +311,62 @@
   height: 18px;
 }
 
+/* Sekundarno dugme — "Samo prijavi/odjavi radnika" (bez PDF-a) */
+.statusOnlyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--sage);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--sage);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    transform 0.15s;
+}
+
+.statusOnlyBtn:hover:not(:disabled) {
+  background: var(--sage-pale);
+}
+
+.statusOnlyBtn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.statusOnlyBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Napomena ispod dugmadi — pojašnjava nuspojav (promjena statusa). */
+.statusNote {
+  margin: 0.9rem auto 0;
+  max-width: 540px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.statusNote strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.statusDone {
+  margin: 0.6rem auto 0;
+  max-width: 540px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d6e54;
+}
+
 /* ── Responsive ── */
 @media (max-width: 640px) {
   .page {

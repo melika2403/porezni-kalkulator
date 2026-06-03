@@ -23,6 +23,7 @@ import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
 import { useNotice } from "src/components/Notice/Notice";
+import { trackEvent } from "src/api/activity";
 import Link from "next/link";
 
 const MONTHS = [
@@ -817,6 +818,7 @@ function SihtericaApp() {
     a.download = `Sihterica${wName}_${String(month).padStart(2, "0")}_${year}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
+    trackEvent("SIH_GENERATE", "Šihterica");
   }, [workerName, month, year, entries, daysInMonth, selectedOrg, autoDaysOff, countCodes]);
 
   // ─── Bulk export — all workers in selected org for current month ───────────

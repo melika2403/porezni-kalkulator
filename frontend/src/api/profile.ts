@@ -58,6 +58,7 @@ export type Users = {
   city: string | null;
   createdAt: string;
   isEmailVerified: boolean;
+  trialUsedAt: string | null;
   subscription: Subscription | null;
 };
 
@@ -87,6 +88,8 @@ export function getUsers(params?: {
   firstName?: string;
   lastName?: string;
   email?: string;
+  role?: "USER" | "PRO" | "BUSINESS" | "ADMIN";
+  sort?: "newest" | "oldest" | "name";
   page?: number;
   limit?: number;
 }) {
@@ -94,6 +97,8 @@ export function getUsers(params?: {
   if (params?.firstName) sp.set("firstName", params.firstName);
   if (params?.lastName) sp.set("lastName", params.lastName);
   if (params?.email) sp.set("email", params.email);
+  if (params?.role) sp.set("role", params.role);
+  if (params?.sort) sp.set("sort", params.sort);
   sp.set("page", String(params?.page ?? 1));
   sp.set("limit", String(params?.limit ?? 20));
 
@@ -381,6 +386,10 @@ export type Worker = {
   odjavaDate: string | null;
   spol: "M" | "Z" | null;
   strucnaSpremaIdx: number | null;
+  osnovOsiguranjaOpis: string | null;
+  osnovOsiguranjaSifra: string | null;
+  zanimanjeOpis: string | null;
+  zanimanjeSifra: string | null;
   taxCoefficient: number;
   minuliRadRate: number;
   // Ukupan radni staž (za minuli rad). Dva opciona unosa — user bira jedan:
@@ -432,6 +441,10 @@ export type WorkerPayload = {
   odjavaDate?: string | null;
   spol?: "M" | "Z" | null;
   strucnaSpremaIdx?: number | null;
+  osnovOsiguranjaOpis?: string | null;
+  osnovOsiguranjaSifra?: string | null;
+  zanimanjeOpis?: string | null;
+  zanimanjeSifra?: string | null;
   taxCoefficient?: number | string | null;
   minuliRadRate?: number | string | null;
   firstEmploymentDate?: string | null;

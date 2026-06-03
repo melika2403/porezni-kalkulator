@@ -4,6 +4,7 @@ const {
   Subscription,
   ClientPayment,
   CompanyExpense,
+  OtherIncome,
 } = require("../models/index");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -240,9 +241,18 @@ async function listExpenses(req, res) {
   }
 }
 
+// Dozvoljene kategorije troška. MARKETING ulazi u CAC obračun.
+const EXPENSE_CATEGORIES = [
+  "MARKETING",
+  "INFRASTRUKTURA",
+  "ALATI",
+  "PLATE",
+  "OSTALO",
+];
+
 function validateExpenseBody(body, { partial = false } = {}) {
   const data = {};
-  const { date, amount, description } = body ?? {};
+  const { date, amount, description, category } = body ?? {};
 
   if (date !== undefined || !partial) {
     const d = parseDateOnly(date);
@@ -259,6 +269,12 @@ function validateExpenseBody(body, { partial = false } = {}) {
       return { ok: false, message: "Description is required" };
     }
     data.description = description.trim().slice(0, 255);
+  }
+  if (category !== undefined) {
+    const c = String(category).trim().toUpperCase();
+    data.category = EXPENSE_CATEGORIES.includes(c) ? c : "OSTALO";
+  } else if (!partial) {
+    data.category = "OSTALO";
   }
 
   if (Object.keys(data).length === 0) {
@@ -317,6 +333,85 @@ async function deleteExpense(req, res) {
   return res.status(200).json({ ok: true });
 }
 
+// ─── Ostali prihodi (gotovina) ─────────────────────────────────────────────────
+// Isti oblik kao troškovi; validacija dijeli validateExpenseBody (date/amount/opis).
+
+// GET /api/admin/finance/other-income?year
+async function listOtherIncome(req, res) {
+  const year = parseYear(req.query.year);
+  try {
+    const items = await OtherIncome.findAll({
+      where: { date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
+      order: [
+        ["date", "DESC"],
+        ["id", "DESC"],
+      ],
+    });
+    const totalIncome = items.reduce((sum, e) => sum + Number(e.amount), 0);
+    return res.status(200).json({
+      ok: true,
+      data: {
+        items,
+        year,
+        summary: { totalIncome: Math.round(totalIncome * 100) / 100 },
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
+}
+
+// POST /api/admin/finance/other-income
+async function createOtherIncome(req, res) {
+  const validation = validateExpenseBody(req.body);
+  if (!validation.ok) {
+    return res.status(400).json({ ok: false, error: validation.message });
+  }
+  try {
+    const created = await OtherIncome.create({
+      ...validation.value,
+      createdById: req.user?.id ?? null,
+    });
+    return res.status(201).json({ ok: true, data: created });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
+}
+
+// PUT /api/admin/finance/other-income/:id
+async function updateOtherIncome(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  }
+  const validation = validateExpenseBody(req.body, { partial: true });
+  if (!validation.ok) {
+    return res.status(400).json({ ok: false, error: validation.message });
+  }
+  try {
+    const row = await OtherIncome.findByPk(id);
+    if (!row) return res.status(404).json({ ok: false, error: "Income not found" });
+    await row.update(validation.value);
+    return res.status(200).json({ ok: true, data: row });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
+}
+
+// DELETE /api/admin/finance/other-income/:id
+async function deleteOtherIncome(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  }
+  const deleted = await OtherIncome.destroy({ where: { id } });
+  if (!deleted) return res.status(404).json({ ok: false, error: "Income not found" });
+  return res.status(200).json({ ok: true });
+}
+
 // ─── Summary ──────────────────────────────────────────────────────────────────
 
 // GET /api/admin/finance/summary?year
@@ -328,18 +423,27 @@ async function getSummary(req, res) {
       attributes: [[fn("COALESCE", fn("SUM", col("amount")), 0), "total"]],
       raw: true,
     });
+    const otherRow = await OtherIncome.findOne({
+      where: { date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
+      attributes: [[fn("COALESCE", fn("SUM", col("amount")), 0), "total"]],
+      raw: true,
+    });
     const investedRow = await CompanyExpense.findOne({
       where: { date: { [Op.between]: [`${year}-01-01`, `${year}-12-31`] } },
       attributes: [[fn("COALESCE", fn("SUM", col("amount")), 0), "total"]],
       raw: true,
     });
-    const totalEarned = Math.round(Number(earnedRow?.total || 0) * 100) / 100;
+    const subscriptionsEarned = Math.round(Number(earnedRow?.total || 0) * 100) / 100;
+    const totalOtherIncome = Math.round(Number(otherRow?.total || 0) * 100) / 100;
+    const totalEarned = Math.round((subscriptionsEarned + totalOtherIncome) * 100) / 100;
     const totalInvested = Math.round(Number(investedRow?.total || 0) * 100) / 100;
     return res.status(200).json({
       ok: true,
       data: {
         year,
         totalEarned,
+        subscriptionsEarned,
+        totalOtherIncome,
         totalInvested,
         profit: Math.round((totalEarned - totalInvested) * 100) / 100,
       },
@@ -358,5 +462,9 @@ module.exports = {
   createExpense,
   updateExpense,
   deleteExpense,
+  listOtherIncome,
+  createOtherIncome,
+  updateOtherIncome,
+  deleteOtherIncome,
   getSummary,
 };

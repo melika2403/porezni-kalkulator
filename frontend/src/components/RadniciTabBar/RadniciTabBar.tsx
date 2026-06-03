@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useLastOrg } from "src/hooks/useLastOrg";
 
-type ActiveKey = "js3100" | "obracun" | "aktivni";
+type ActiveKey = "js3100" | "obracun" | "aktivni" | "ugovori";
 
 function detectActive(pathname: string | null, tab: string | null): ActiveKey {
+  if (pathname?.startsWith("/ugovor-o-radu")) return "ugovori";
   if (pathname?.startsWith("/aktivni-radnici")) return "aktivni";
   if (tab === "obracun") return "obracun";
   return "js3100";
@@ -46,6 +47,11 @@ export default function RadniciTabBar() {
       key: "aktivni",
       label: "Aktivni radnici",
       href: `/aktivni-radnici${orgQs ? `?${orgQs}` : ""}`,
+    },
+    {
+      key: "ugovori",
+      label: "Ugovori",
+      href: `/ugovor-o-radu${orgQs ? `?${orgQs}` : ""}`,
     },
   ];
 

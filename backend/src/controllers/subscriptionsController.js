@@ -32,7 +32,7 @@ async function upsert(req, res) {
     return res.status(400).json({ ok: false, error: "Invalid user id" });
   }
 
-  const { startDate, endDate, isActive } = req.body ?? {};
+  const { startDate, endDate, isActive, plan, billingCycle } = req.body ?? {};
 
   const data = {};
 
@@ -49,6 +49,30 @@ async function upsert(req, res) {
     data.endDate = d;
   }
   if (isActive !== undefined) data.isActive = Boolean(isActive);
+
+  // Plan + ciklus naplate (opciono). Plan određuje i finalnu rolu korisnika.
+  let normalizedPlan = null;
+  if (plan !== undefined && plan !== null && plan !== "") {
+    normalizedPlan = String(plan).toUpperCase();
+    if (normalizedPlan !== "PRO" && normalizedPlan !== "BUSINESS") {
+      return res.status(400).json({ ok: false, error: "Plan mora biti PRO ili BUSINESS" });
+    }
+    data.plan = normalizedPlan;
+  }
+  let normalizedCycle = null;
+  if (billingCycle !== undefined && billingCycle !== null && billingCycle !== "") {
+    normalizedCycle = String(billingCycle).toLowerCase() === "monthly" ? "monthly" : "yearly";
+    data.billingCycle = normalizedCycle;
+  }
+
+  // Ako endDate nije dat ali imamo startDate + ciklus → izračunaj automatski
+  // (+1 mjesec / +1 godina od početka).
+  if (data.endDate === undefined && data.startDate && normalizedCycle) {
+    const e = new Date(data.startDate);
+    if (normalizedCycle === "monthly") e.setMonth(e.getMonth() + 1);
+    else e.setFullYear(e.getFullYear() + 1);
+    data.endDate = e;
+  }
 
   if (data.isActive === false && data.endDate === undefined) {
     data.endDate = new Date();
@@ -71,9 +95,14 @@ async function upsert(req, res) {
     const sub = await subscriptionRepository.upsert(userId, data);
     if (data.isActive === true) {
       const user = await userRepository.getUserById(userId);
-
-      if (user && user.role === "USER") {
-        await userRepository.updateUserById(userId, { role: "PRO" });
+      // Rola prati plan (PRO/BUSINESS). Ako plan nije poslan, zadrži staro
+      // ponašanje (USER → PRO). Ne diramo ADMIN rolu.
+      const targetRole = normalizedPlan || "PRO";
+      if (user && user.role !== "ADMIN" && user.role !== targetRole) {
+        // Ne degradiraj BUSINESS na PRO ako plan nije eksplicitno poslan.
+        if (normalizedPlan || user.role === "USER") {
+          await userRepository.updateUserById(userId, { role: targetRole });
+        }
       }
     }
     res.status(200).json({ ok: true, data: sub });
@@ -110,6 +139,7 @@ async function startTrial(req, res) {
       startDate: start,
       endDate: end,
       isActive: true,
+      isTrial: true,
     });
     await userRepository.updateUserById(userId, {
       role: "PRO",

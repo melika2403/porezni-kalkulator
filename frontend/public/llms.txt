@@ -1,0 +1,42 @@
+# Porezni Kalkulator BiH
+
+> Besplatni online porezni alati, kalkulatori i generatori obrazaca za preduzetnike, obrtnike i knjigovođe u Federaciji Bosne i Hercegovine (FBiH). Sadržaj je na bosanskom, hrvatskom i srpskom jeziku. Stope i obrasci se odnose na propise FBiH; provjerite važeću fiskalnu godinu na svakoj stranici.
+
+Napomena: porezni propisi se mijenjaju. Svaka stranica navodi fiskalnu godinu i datum posljednje provjere. Za zvanične podatke konsultujte Poreznu upravu FBiH (pufbih.ba) i Službene novine FBiH.
+
+## Kalkulatori i alati
+
+- [Kalkulator plate FBiH (neto ↔ bruto)](https://poreznikalkulator.ba/preracun-neto-bruto): preračun neto u bruto i obrnuto, doprinosi radnika i poslodavca, porez na dohodak, ukupan trošak poslodavca.
+- [PDV kalkulator BiH](https://poreznikalkulator.ba/pdv-kalkulator): preračun PDV-a (stopa 17%) u oba smjera, KM i EUR.
+- [Obračun plata + JS3100](https://poreznikalkulator.ba/prijave-radnika): mjesečni obračun plata i doprinosa, platni listići, uplatnice, obrasci 2001/2002, JS3100 prijava/odjava radnika.
+- [Stalna sredstva i amortizacija (PLDI-1043)](https://poreznikalkulator.ba/amortizacija): popis dugotrajne imovine i obračun amortizacije.
+- [Šihterica](https://poreznikalkulator.ba/sihterica): evidencija radnog vremena radnika, PDF.
+
+## Generatori obrazaca
+
+- [AMS-1035](https://poreznikalkulator.ba/ams): akontacija poreza po odbitku na druge samostalne djelatnosti i prihod iz inostranstva, sa uplatnicama.
+- [SPR-1053](https://poreznikalkulator.ba/spr): specifikacija dohotka od samostalne djelatnosti (uz GPD-1051).
+- [GPD-1051](https://poreznikalkulator.ba/gpd): godišnja prijava poreza na dohodak fizičkih lica. Vidi i [upute](https://poreznikalkulator.ba/gpd/upute).
+- [ZO3](https://poreznikalkulator.ba/zo3): prijava člana porodice na zdravstveno osiguranje.
+
+## Ugovori
+
+- [Ugovor o radu i otkaz](https://poreznikalkulator.ba/ugovor-o-radu): predložak ugovora o radu i odluke o prestanku radnog odnosa (Word/PDF), Zakon o radu FBiH.
+- [Ugovor o djelu](https://poreznikalkulator.ba/ugovor-o-djelu): kalkulator poreza i doprinosa + predložak i uplatnice.
+- [Ugovor o pozajmici novca](https://poreznikalkulator.ba/ugovor-o-pozajmici): predložak ugovora između fizičkih ili pravnih lica.
+
+## Reference
+
+- [Šifre djelatnosti FBiH (KD BiH 2010)](https://poreznikalkulator.ba/sifre-djelatnosti): kompletna lista šifri djelatnosti sa opisima (NACE Rev. 2).
+- [Uplatni računi javnih prihoda FBiH](https://poreznikalkulator.ba/javni-prihodi): vrste prihoda, općinski i kantonalni računi.
+- [Fakture i predračuni](https://poreznikalkulator.ba/fakture): izrada faktura, predračuna i profaktura sa PDV-om.
+- [Generator članskih kartica](https://poreznikalkulator.ba/clanske-kartice): članske kartice sa QR kodom.
+
+## Blog
+
+- [Blog: vodiči o porezima, plati i obrascima u FBiH](https://poreznikalkulator.ba/blog): praktični vodiči sa primjerima i brojevima za obrtnike, d.o.o. i knjigovođe.
+
+## O nama
+
+- [O nama](https://poreznikalkulator.ba/o-nama)
+- [Kontakt](https://poreznikalkulator.ba/kontakt)

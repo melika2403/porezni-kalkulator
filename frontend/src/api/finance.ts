@@ -93,11 +93,29 @@ export function deletePayment(id: number) {
 
 // ─── Troškovi / ulaganja ──────────────────────────────────────────────────────
 
+export const EXPENSE_CATEGORIES = [
+  "MARKETING",
+  "INFRASTRUKTURA",
+  "ALATI",
+  "PLATE",
+  "OSTALO",
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  MARKETING: "Marketing",
+  INFRASTRUKTURA: "Infrastruktura",
+  ALATI: "Alati",
+  PLATE: "Plate",
+  OSTALO: "Ostalo",
+};
+
 export type CompanyExpense = {
   id: number;
   date: string; // YYYY-MM-DD
   amount: number;
   description: string;
+  category: ExpenseCategory;
   createdAt: string;
   updatedAt: string;
 };
@@ -112,6 +130,7 @@ export type ExpensePayload = {
   date: string;
   amount: number;
   description: string;
+  category?: ExpenseCategory;
 };
 
 export function getExpenses(year: number) {
@@ -134,6 +153,58 @@ export function updateExpense(id: number, payload: Partial<ExpensePayload>) {
 
 export function deleteExpense(id: number) {
   return request<null>(`/api/admin/finance/expenses/${id}`, { method: "DELETE" });
+}
+
+// ─── Ostali prihodi (gotovina) ──────────────────────────────────────────────────
+
+export type OtherIncome = {
+  id: number;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OtherIncomeResponse = {
+  items: OtherIncome[];
+  year: number;
+  summary: { totalIncome: number };
+};
+
+export type OtherIncomePayload = {
+  date: string;
+  amount: number;
+  description: string;
+};
+
+export function getOtherIncome(year: number) {
+  return request<OtherIncomeResponse>(
+    `/api/admin/finance/other-income?year=${year}`,
+  );
+}
+
+export function createOtherIncome(payload: OtherIncomePayload) {
+  return request<OtherIncome>(`/api/admin/finance/other-income`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateOtherIncome(
+  id: number,
+  payload: Partial<OtherIncomePayload>,
+) {
+  return request<OtherIncome>(`/api/admin/finance/other-income/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteOtherIncome(id: number) {
+  return request<null>(`/api/admin/finance/other-income/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // ─── Zbir ─────────────────────────────────────────────────────────────────────
