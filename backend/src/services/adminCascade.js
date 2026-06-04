@@ -116,6 +116,15 @@ async function deleteOrganizationCascade(orgId) {
   });
 }
 
+async function deleteFormCascade(formId) {
+  return sequelize.transaction(async (t) => {
+    const exists = await Form.findOne({ where: { id: formId }, attributes: ["id"], transaction: t });
+    if (!exists) return false;
+    await deleteFormsByIds([formId], t);
+    return true;
+  });
+}
+
 async function deleteWorkerCascade(workerId) {
   return sequelize.transaction(async (t) => {
     const exists = await Worker.findOne({ where: { id: workerId }, attributes: ["id"], transaction: t });
@@ -138,6 +147,7 @@ module.exports = {
   deleteOrganizationCascade,
   deleteWorkerCascade,
   deletePersonClientCascade,
+  deleteFormCascade,
   // Helperi za upotrebu unutar druge transakcije (npr. deleteUserById):
   deleteOrganizationInner,
   deleteWorkersByIds,

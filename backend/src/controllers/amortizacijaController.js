@@ -123,13 +123,18 @@ async function save(req, res) {
   let form = await Form.findOne({ where });
 
   if (!form) {
+    // PLDI je gotov dokument čim se snimi (PDF se renderuje iz snimljenih
+    // podataka bilo kad), pa ide odmah u GENERATED, ne DRAFT.
     form = await Form.create({
       type: "PLDI",
       year,
-      status: "DRAFT",
+      status: "GENERATED",
       createdById: req.user.id,
       organizationId: orgId,
     });
+  } else if (form.status === "DRAFT") {
+    // Postojeći "Nacrt" iz starog ponašanja podigni na GENERATED pri snimanju.
+    await Form.update({ status: "GENERATED" }, { where: { id: form.id } });
   }
 
   const dataStr = JSON.stringify({ obveznik, rows });
@@ -215,4 +220,29 @@ async function getOrgYears(req, res) {
   return res.status(200).json({ ok: true, data: map });
 }
 
-module.exports = { getYears, get, save, remove, getOrgYears };
+// POST /api/amortizacija/mark-generated { godina, organizationId }
+// Preuzimanje PLDI obrasca → status DRAFT prelazi u GENERATED.
+async function markGenerated(req, res) {
+  const year = parseInt(req.body?.godina, 10);
+  if (Number.isNaN(year)) return res.status(400).json({ ok: false, error: "Invalid godina" });
+
+  const orgId = parseIntId(req.body.organizationId ?? req.body.orgId);
+  const access = await ensureOrgAccess(orgId, req.user.id);
+  if (!access.ok) {
+    const status = access.reason === "ORG_NOT_FOUND" ? 404 : 403;
+    return res.status(status).json({ ok: false, error: access.reason });
+  }
+
+  const where = { type: "PLDI", year };
+  if (orgId !== null) {
+    where.organizationId = orgId;
+  } else {
+    where.organizationId = null;
+    where.clientId = null;
+    where.createdById = req.user.id;
+  }
+  await Form.update({ status: "GENERATED" }, { where });
+  return res.status(200).json({ ok: true });
+}
+
+module.exports = { getYears, get, save, markGenerated, remove, getOrgYears };

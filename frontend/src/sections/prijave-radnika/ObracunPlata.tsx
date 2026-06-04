@@ -34,6 +34,7 @@ import {
   type PayrollDocumentType,
 } from "src/api/payroll";
 import { getSihterica } from "src/api/sihterica";
+import { trackEvent } from "src/api/activity";
 import {
   fromGross,
   fromNet,
@@ -628,6 +629,13 @@ function ObracunPlataApp() {
       );
     } else if (result.calculated > 0) {
       notify(`Obračunato ${result.calculated} radnik(a).`, "success");
+    }
+    if (result.calculated > 0) {
+      trackEvent(
+        "PLATA_GENERATE",
+        `Plate ${String(month).padStart(2, "0")}/${year} (${result.calculated})`,
+        orgId,
+      );
     }
     if (result.warnings.length > 0) {
       notify(result.warnings.join(" · "), "warning");

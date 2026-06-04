@@ -578,7 +578,7 @@ function UgovorORaduApp() {
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
       downloadBlob(blob, filename);
-      trackEvent("UGOVOR_RADU_GENERATE", "Ugovor o radu");
+      trackEvent("UGOVOR_RADU_GENERATE", "Ugovor o radu", sidebarOrgId);
       archiveDocument(
         blob,
         filename,
@@ -616,7 +616,7 @@ function UgovorORaduApp() {
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
       downloadBlob(blob, filename);
-      trackEvent("OTKAZ_GENERATE", "Otkaz ugovora o radu");
+      trackEvent("OTKAZ_GENERATE", "Otkaz ugovora o radu", sidebarOrgId);
       archiveDocument(blob, filename, "OTKAZ", kind === "docx" ? "DOCX" : "PDF", brojUgovora);
       persistWorker();
       setPostDownloadPrompt("odjava");

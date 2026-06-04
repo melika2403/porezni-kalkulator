@@ -18,6 +18,7 @@ import {
   getAmortizacija,
   saveAmortizacija,
   deleteAmortizacija,
+  markAmortizacijaGenerated,
   getOrgYears,
 } from "src/api/amortizacija";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
@@ -943,7 +944,9 @@ function AmortizacijaApp() {
       a.download = `PLDI-1043-${obveznik.godina}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-      trackEvent("PLDI_GENERATE", "PLDI-1043 (amortizacija)");
+      trackEvent("PLDI_GENERATE", "PLDI-1043 (amortizacija)", selectedOrgId);
+      // Preuzimanje → sačuvana PLDI forma prelazi iz Nacrt u Generisan (best-effort).
+      void markAmortizacijaGenerated(obveznik.godina, selectedOrgId).catch(() => {});
     } finally {
       setExportLoading(false);
     }
@@ -1114,7 +1117,7 @@ function AmortizacijaApp() {
       {/* Slučaj: user nema nijednu org-u → link na profil za dodavanje. */}
       {!hasAnyOrg && (
         <a
-          href="/profil?tab=djelatnost"
+          href="/profil?novaOrg=1"
           style={{
             padding: "0.5rem 0.9rem",
             background: "#3a5c42",

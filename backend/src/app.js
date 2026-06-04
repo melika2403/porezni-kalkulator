@@ -29,6 +29,7 @@ const payrollDocumentsRoutes = require("./routes/payrollDocumentsRoutes");
 const financeRoutes = require("./routes/financeRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
+const meRoutes = require("./routes/meRoutes");
 
 const app = express();
 
@@ -81,6 +82,7 @@ app.use("/api/payroll-documents", payrollDocumentsRoutes);
 app.use("/api/admin/finance", financeRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/admin", adminDashboardRoutes);
+app.use("/api/me", meRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -419,6 +421,11 @@ async function ensureColumns() {
       table: "company_expenses",
       column: "category",
       ddl: "ALTER TABLE company_expenses ADD COLUMN category VARCHAR(40) NOT NULL DEFAULT 'OSTALO'",
+    },
+    {
+      table: "activity_logs",
+      column: "organizationId",
+      ddl: "ALTER TABLE activity_logs ADD COLUMN organizationId INT UNSIGNED NULL",
     },
   ];
   for (const c of checks) {

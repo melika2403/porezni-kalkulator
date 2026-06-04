@@ -62,11 +62,11 @@
 }
 
 .statLabel {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--mid);
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .statValue {
@@ -87,6 +87,25 @@
 .statHint {
   font-size: 11px;
   color: var(--mid);
+}
+
+/* Tanka progres traka ispod frakcije na KPI karticama (obračunate/isplaćene).
+   Širina ispune = omjer, da se napredak vidi i bez čitanja brojeva. */
+.statBar {
+  display: block;
+  height: 4px;
+  margin-top: 0.4rem;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.statBarFill {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+  border-radius: 999px;
+  transition: width 0.3s ease;
 }
 
 /* Quick filter chips */
@@ -248,14 +267,15 @@
 }
 
 .sectionTitle {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--sage);
-  margin: 1.5rem 0 0.6rem;
+  font-family: "DM Serif Display", serif;
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
+  margin: 1.75rem 0 0.75rem;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.5rem;
 }
 
@@ -430,53 +450,6 @@
   letter-spacing: 0;
 }
 
-.actions {
-  display: flex;
-  gap: 0.3rem;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.actionLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--sage);
-  background: var(--sage-pale);
-  padding: 0.35rem 0.6rem;
-  border-radius: var(--radius);
-  border: none;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-  font-family: inherit;
-  /* Suzbi default browser focus outline na button-u — koristimo
-     accessible focus-visible umjesto toga (samo kad korisnik koristi tab). */
-  outline: none;
-  transition: all 0.12s;
-}
-
-.actionLink:hover {
-  background: var(--sage);
-  color: #fff;
-}
-
-.actionLink:focus {
-  outline: none;
-}
-
-.actionLink:focus-visible {
-  outline: 2px solid var(--sage);
-  outline-offset: 2px;
-}
-
-.actionLink svg {
-  flex-shrink: 0;
-}
-
 /* ── Mobile (<= 768px) ── */
 @media (max-width: 768px) {
   .page {
@@ -554,16 +527,5 @@
 
   .table tbody td[data-label="Akcije"]::before {
     margin-bottom: 0.3rem;
-  }
-
-  .actions {
-    justify-content: flex-start;
-  }
-
-  .actionLink {
-    flex: 1 1 auto;
-    text-align: center;
-    padding: 0.5rem 0.75rem;
-    font-size: 13px;
   }
 }

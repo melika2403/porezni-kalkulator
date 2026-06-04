@@ -525,7 +525,7 @@ function Js3100App() {
             : "Promjena";
       const last = worker.prezime || worker.jmbg || "radnik";
       downloadPdf(bytes, `JS3100_${suffix}_${last}.pdf`);
-      trackEvent("JS3100_GENERATE", `JS3100 (${suffix})`);
+      trackEvent("JS3100_GENERATE", `JS3100 (${suffix})`, sidebarOrgId);
 
       // Status update je best-effort — download ne smije pasti zbog njega.
       await syncWorkerStatus(false);

@@ -146,6 +146,8 @@ export type OrgOwner = {
   idCardNumber: string | null;
   prijavaDate: string | null;
   salaryBruto: number | null;
+  salaryNeto: number | null;
+  salaryType: SalaryType;
   employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
   taxCoefficient: number;
 };
@@ -161,6 +163,8 @@ export type OrgOwnerPayload = {
   idCardNumber?: string;
   prijavaDate?: string | null;
   salaryBruto?: number | null;
+  salaryNeto?: number | null;
+  salaryType?: SalaryType;
   taxCoefficient?: number;
 };
 
@@ -217,6 +221,20 @@ export type OrgPayload = {
   defaultSalaryType?: SalaryType;
   ownerData?: OrgOwnerPayload;
 };
+
+export type MyStats = {
+  djelatnosti: number;
+  klijenti: number;
+  radnici: number;
+  dokumenti: number;
+  fakture: number;
+  obracuniMjesec: number;
+  obracuniDelta: number;
+};
+
+export function getMyStats() {
+  return request<MyStats>("/api/me/stats");
+}
 
 export function getOrganizations() {
   return request<Organization[]>("/api/organizations");

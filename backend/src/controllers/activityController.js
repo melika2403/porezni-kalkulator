@@ -1,7 +1,7 @@
 // Dnevnik aktivnosti — bilježenje generisanja dokumenata (registrovani + anonimni)
 // i admin pregled/statistika.
 const { Op, fn, col, literal } = require("sequelize");
-const { ActivityLog, User } = require("../models/index");
+const { ActivityLog, User, Organization } = require("../models/index");
 
 // POST /api/activity  (optionalAuth — radi i za anonimne)
 // body: { action: string, label?: string }
@@ -12,10 +12,13 @@ async function track(req, res) {
     const label = req.body?.label
       ? String(req.body.label).trim().slice(0, 160)
       : null;
+    const orgRaw = Number(req.body?.organizationId);
+    const organizationId = Number.isInteger(orgRaw) && orgRaw > 0 ? orgRaw : null;
     await ActivityLog.create({
       userId: req.user?.id ?? null,
       action,
       label,
+      organizationId,
     });
     return res.status(201).json({ ok: true });
   } catch (e) {
@@ -56,6 +59,12 @@ async function adminList(req, res) {
         attributes: ["id", "firstName", "lastName", "email", "role"],
         required: false,
       },
+      {
+        model: Organization,
+        as: "organization",
+        attributes: ["id", "name"],
+        required: false,
+      },
     ];
 
     // Pretraga po imenu/emailu korisnika (samo registrovani pogođeni).
@@ -86,6 +95,9 @@ async function adminList(req, res) {
         action: plain.action,
         label: plain.label,
         createdAt: plain.createdAt,
+        organization: plain.organization
+          ? { id: plain.organization.id, name: plain.organization.name }
+          : null,
         user: u
           ? {
               id: u.id,

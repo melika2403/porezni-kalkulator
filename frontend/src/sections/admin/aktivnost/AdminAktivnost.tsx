@@ -20,6 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   PLDI_GENERATE: "PLDI-1043 (amortizacija)",
   SIH_GENERATE: "Šihterica",
   JS3100_GENERATE: "JS3100 prijava/odjava",
+  PLATA_GENERATE: "Obračun plata",
   UGOVOR_RADU_GENERATE: "Ugovor o radu",
   OTKAZ_GENERATE: "Otkaz ugovora",
   UGOVOR_DJELU_GENERATE: "Ugovor o djelu",
@@ -249,6 +250,7 @@ export default function AdminAktivnost() {
                   <th>Vrijeme</th>
                   <th>Korisnik</th>
                   <th>Dokument</th>
+                  <th>Organizacija</th>
                 </tr>
               </thead>
               <tbody>
@@ -282,6 +284,13 @@ export default function AdminAktivnost() {
                       </span>
                       {it.label && it.label !== actionLabel(it.action) && (
                         <span className={styles.docSub}> · {it.label}</span>
+                      )}
+                    </td>
+                    <td>
+                      {it.organization ? (
+                        it.organization.name
+                      ) : (
+                        <span className={styles.docSub}>—</span>
                       )}
                     </td>
                   </tr>

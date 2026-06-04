@@ -8,6 +8,7 @@ router.get("/months", requireAuth, ctrl.getMonths);
 router.get("/worker-months", requireAuth, ctrl.getWorkerMonths);
 router.get("/", requireAuth, ctrl.get);
 router.post("/", requireAuth, ctrl.save);
+router.post("/mark-generated", requireAuth, ctrl.markGenerated);
 router.delete("/", requireAuth, ctrl.remove);
 
 module.exports = router;

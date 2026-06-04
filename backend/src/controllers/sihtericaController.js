@@ -97,7 +97,7 @@ async function get(req, res) {
 
 // POST /api/sihterica  body: { workerId, year, month, days }
 async function save(req, res) {
-  const { workerId: rawWorkerId, year: rawYear, month: rawMonth, days } = req.body ?? {};
+  const { workerId: rawWorkerId, year: rawYear, month: rawMonth, days, meta } = req.body ?? {};
   const workerId = parseId(rawWorkerId);
   const year = parseId(rawYear);
   const month = parseId(rawMonth);
@@ -116,18 +116,27 @@ async function save(req, res) {
   });
 
   if (!form) {
+    // Šihterica je gotov dokument čim se snimi (PDF se renderuje iz snimljenih
+    // podataka bilo kad), pa ide odmah u GENERATED, ne DRAFT.
     form = await Form.create({
       type: "SIH",
       year,
       month,
-      status: "DRAFT",
+      status: "GENERATED",
       createdById: req.user.id,
       organizationId: worker.organizationId,
       workerId,
     });
+  } else if (form.status === "DRAFT") {
+    // Postojeći "Nacrt" iz starog ponašanja podigni na GENERATED pri snimanju.
+    await Form.update({ status: "GENERATED" }, { where: { id: form.id } });
   }
 
-  const dataStr = JSON.stringify({ days });
+  // Uz `days` snimamo i `meta` (ime radnika, org, slobodni dani) da bi se PDF
+  // mogao vjerno re-renderovati iz liste dokumenata bez ponovnog ulaska u alat.
+  const dataStr = JSON.stringify(
+    meta && typeof meta === "object" ? { days, meta } : { days },
+  );
 
   const existing = await FormVersion.findOne({ where: { formId: form.id, versionNumber: 1 } });
   if (existing) {
@@ -137,6 +146,25 @@ async function save(req, res) {
   }
 
   return res.status(200).json({ ok: true, data: { id: form.id } });
+}
+
+// POST /api/sihterica/mark-generated  { workerId, year, month }
+// Preuzimanje šihterice → status DRAFT prelazi u GENERATED.
+async function markGenerated(req, res) {
+  const workerId = parseId(req.body?.workerId);
+  const year = parseId(req.body?.year);
+  const month = parseId(req.body?.month);
+  if (!workerId || !year || !month) {
+    return res.status(400).json({ ok: false, error: "Missing workerId/year/month" });
+  }
+  const worker = await ensureWorkerAccess(workerId, req.user.id);
+  if (!worker) return res.status(404).json({ ok: false, error: "Worker not found" });
+
+  await Form.update(
+    { status: "GENERATED" },
+    { where: { type: "SIH", workerId, year, month } },
+  );
+  return res.status(200).json({ ok: true });
 }
 
 // DELETE /api/sihterica?workerId=X&year=Y&month=M
@@ -161,4 +189,4 @@ async function remove(req, res) {
   return res.status(200).json({ ok: true, data: null });
 }
 
-module.exports = { getMonths, getWorkerMonths, get, save, remove };
+module.exports = { getMonths, getWorkerMonths, get, save, markGenerated, remove };
