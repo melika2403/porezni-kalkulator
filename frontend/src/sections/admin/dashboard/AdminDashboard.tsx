@@ -20,6 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   PLDI_GENERATE: "Amortizacija",
   SIH_GENERATE: "Šihterica",
   JS3100_GENERATE: "JS3100",
+  PLATA_GENERATE: "Obračun plata",
   UGOVOR_RADU_GENERATE: "Ugovor o radu",
   OTKAZ_GENERATE: "Otkaz",
   UGOVOR_DJELU_GENERATE: "Ugovor o djelu",

@@ -6,13 +6,17 @@ const BACKEND_URL = getBackendUrl();
 
 // Pozovi pri USPJEŠNOM generisanju dokumenta. Best-effort — nikad ne baca.
 // Radi i za anonimne (backend veže userId iz cookie-a ako postoji).
-export function trackEvent(action: string, label?: string): void {
+export function trackEvent(
+  action: string,
+  label?: string,
+  organizationId?: number | null,
+): void {
   try {
     fetch(`${BACKEND_URL}/api/activity`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, label }),
+      body: JSON.stringify({ action, label, organizationId: organizationId ?? undefined }),
       keepalive: true,
     }).catch(() => {});
   } catch {
@@ -27,6 +31,7 @@ export type ActivityItem = {
   action: string;
   label: string | null;
   createdAt: string;
+  organization: { id: number; name: string } | null;
   user: { id: number; name: string; email: string | null; role: string } | null;
 };
 

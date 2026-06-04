@@ -1,0 +1,168 @@
+.wrap {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sage);
+  background: var(--sage-pale);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius);
+  border: none;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.12s;
+}
+
+.primary:hover {
+  background: var(--sage);
+  color: #fff;
+}
+
+.primary:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+.primary svg {
+  flex-shrink: 0;
+}
+
+.kebabWrap {
+  position: relative;
+  display: inline-block;
+}
+
+.kebab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--mid);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.12s;
+}
+
+.kebab:hover {
+  color: var(--ink);
+  border-color: var(--sage);
+}
+
+.kebab:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+.kebab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.kebabBusy {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--sage);
+  border-radius: 50%;
+  animation: ramSpin 0.7s linear infinite;
+}
+
+@keyframes ramSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.menu {
+  position: fixed;
+  min-width: 232px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+  z-index: 9999;
+  overflow: hidden;
+  padding: 0.25rem 0;
+}
+
+.menuGroup {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+  padding: 0.5rem 0.85rem 0.25rem;
+}
+
+.menuItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.menuItem:hover {
+  background: var(--paper);
+}
+
+.menuItem:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.menuItemLabel {
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.menuItemSub {
+  font-size: 0.72rem;
+  color: var(--mid);
+}
+
+@media (max-width: 768px) {
+  .wrap {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .primary {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 0.5rem 0.75rem;
+    font-size: 13px;
+  }
+
+  .kebab {
+    width: 40px;
+    height: 40px;
+  }
+}

@@ -16,6 +16,7 @@ router.get("/invoices", requireAuth, requireRole("ADMIN"), invoices.adminList);
 
 // Svi sačuvani dokumenti (forms) registrovanih korisnika.
 router.get("/forms", requireAuth, requireRole("ADMIN"), forms.adminList);
+router.delete("/forms/:id", requireAuth, requireRole("ADMIN"), entities.deleteForm);
 
 // Admin brisanje entiteta (puna kaskada) + pregled radnika organizacije.
 router.get("/organizations/:id/workers", requireAuth, requireRole("ADMIN"), entities.listOrgWorkers);

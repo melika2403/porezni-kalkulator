@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import {
   getAdminForms,
+  deleteAdminForm,
   type AdminFormsResponse,
+  type AdminFormItem,
 } from "src/api/adminForms";
 import styles from "./dokumenti.module.css";
 
@@ -160,48 +162,19 @@ export default function AdminDokumenti() {
                   <th>Period</th>
                   <th>Status</th>
                   <th>Zadnja izmjena</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((f) => (
-                  <tr key={f.id}>
-                    <td>
-                      <span className={styles.docBadge}>{typeLabel(f.type)}</span>
-                      {f.title && <span className={styles.docTitle}> · {f.title}</span>}
-                    </td>
-                    <td>
-                      {f.creator ? (
-                        <>
-                          <div className={styles.creatorName}>{f.creator.name}</div>
-                          <div className={styles.creatorSub}>
-                            {f.organization?.name || f.creator.email || "—"}
-                          </div>
-                        </>
-                      ) : (
-                        <span className={styles.creatorSub}>—</span>
-                      )}
-                    </td>
-                    <td className={styles.dateCell}>
-                      {f.month ? `${String(f.month).padStart(2, "0")}/` : ""}
-                      {f.year}
-                    </td>
-                    <td>
-                      <span
-                        className={`${styles.statusBadge} ${
-                          styles[STATUS_CLASS[f.status] as keyof typeof styles] ?? ""
-                        }`}
-                      >
-                        {STATUS_LABELS[f.status] ?? f.status}
-                      </span>
-                    </td>
-                    <td className={styles.dateCell}>{fmtDateTime(f.updatedAt)}</td>
-                  </tr>
+                  <FormRow key={f.id} form={f} />
                 ))}
               </tbody>
             </table>
           </div>
         )}
 
+        {/* paginacija */}
         {totalPages > 1 && (
           <div className={styles.pagination}>
             <button
@@ -227,5 +200,90 @@ export default function AdminDokumenti() {
         )}
       </div>
     </RoleGuard>
+  );
+}
+
+function FormRow({ form: f }: { form: AdminFormItem }) {
+  const queryClient = useQueryClient();
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const del = useMutation({
+    mutationFn: async () => {
+      const r = await deleteAdminForm(f.id);
+      if (!r.ok) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-forms"] });
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  return (
+    <tr>
+      <td>
+        <span className={styles.docBadge}>{typeLabel(f.type)}</span>
+        {f.title && <span className={styles.docTitle}> · {f.title}</span>}
+      </td>
+      <td>
+        {f.creator ? (
+          <>
+            <div className={styles.creatorName}>{f.creator.name}</div>
+            <div className={styles.creatorSub}>
+              {f.organization?.name || f.creator.email || "—"}
+            </div>
+          </>
+        ) : (
+          <span className={styles.creatorSub}>—</span>
+        )}
+      </td>
+      <td className={styles.dateCell}>
+        {f.month ? `${String(f.month).padStart(2, "0")}/` : ""}
+        {f.year}
+      </td>
+      <td>
+        <span
+          className={`${styles.statusBadge} ${
+            styles[STATUS_CLASS[f.status] as keyof typeof styles] ?? ""
+          }`}
+        >
+          {STATUS_LABELS[f.status] ?? f.status}
+        </span>
+      </td>
+      <td className={styles.dateCell}>{fmtDateTime(f.updatedAt)}</td>
+      <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
+        {confirm ? (
+          <span style={{ display: "inline-flex", gap: "0.4rem" }}>
+            <button
+              className={styles.btnDanger}
+              type="button"
+              onClick={() => del.mutate()}
+              disabled={del.isPending}
+            >
+              {del.isPending ? "Brišem…" : "Potvrdi"}
+            </button>
+            <button
+              className={styles.btnGhostSm}
+              type="button"
+              onClick={() => setConfirm(false)}
+            >
+              Odustani
+            </button>
+          </span>
+        ) : (
+          <button
+            className={styles.btnDangerGhost}
+            type="button"
+            onClick={() => setConfirm(true)}
+            title="Obriši dokument (trajno)"
+          >
+            Obriši
+          </button>
+        )}
+        {error && <div className={styles.errorMsg}>{error}</div>}
+      </td>
+    </tr>
   );
 }
