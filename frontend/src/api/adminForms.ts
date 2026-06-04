@@ -30,6 +30,20 @@ export type AdminFormsResponse = {
   byType: { type: string; count: number }[];
 };
 
+export async function deleteAdminForm(id: number): Promise<ApiResponse<null>> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/admin/forms/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const json = (await res.json().catch(() => null)) as ApiResponse<null> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
 export async function getAdminForms(params: {
   type?: string;
   status?: string;

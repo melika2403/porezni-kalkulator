@@ -162,7 +162,7 @@ export default function WorkersSidebar({
         (clientOrgsQuery.data?.length ?? 0) === 0 && (
         <div className={styles.hint}>
           <p className={styles.hintText}>{noOrgsHint}</p>
-          <Link href="/profil" className={styles.hintBtnPrimary}>
+          <Link href="/profil?novaOrg=1" className={styles.hintBtnPrimary}>
             Dodaj djelatnost →
           </Link>
         </div>

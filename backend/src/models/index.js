@@ -973,6 +973,9 @@ const ActivityLog = sequelize.define(
     userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     action: { type: DataTypes.STRING(60), allowNull: false },
     label: { type: DataTypes.STRING(160), allowNull: true },
+    // Za koju organizaciju je akcija (in-app alati: plate, šihterica, JS3100,
+    // ugovori). Javni alati (AMS/SPR/GPD…) nemaju org → NULL.
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   },
   {
     tableName: "activity_logs",
@@ -1056,6 +1059,7 @@ User.hasMany(ClientPayment, { foreignKey: "userId", as: "clientPayments" });
 ClientPayment.belongsTo(User, { foreignKey: "userId", as: "user" });
 
 ActivityLog.belongsTo(User, { foreignKey: "userId", as: "user" });
+ActivityLog.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" });
 
 User.hasMany(KarticaMember, {
   foreignKey: "createdById",

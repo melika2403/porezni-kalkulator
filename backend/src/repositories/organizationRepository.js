@@ -26,6 +26,9 @@ function toPublicOrg(org, memberRole, ownerWorker, effectiveTier) {
       prijavaDate,
       salaryBruto:
         ownerPlain.salaryBruto != null ? Number(ownerPlain.salaryBruto) : null,
+      salaryNeto:
+        ownerPlain.salaryNeto != null ? Number(ownerPlain.salaryNeto) : null,
+      salaryType: ownerPlain.salaryType ?? "NETO_ISPLATA",
       taxCoefficient:
         ownerPlain.taxCoefficient != null
           ? Number(ownerPlain.taxCoefficient)
@@ -54,6 +57,8 @@ const ownerWorkerAttributes = [
   "idCardNumber",
   "prijavaDate",
   "salaryBruto",
+  "salaryNeto",
+  "salaryType",
   "employmentStatus",
   "taxCoefficient",
 ];

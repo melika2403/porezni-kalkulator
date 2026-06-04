@@ -41,15 +41,41 @@ export function getSihterica(workerId: number, year: number, month: number) {
   );
 }
 
+// Kontekst za vjeran re-render PDF-a iz liste dokumenata (ime radnika, org,
+// raspored slobodnih dana). Snima se uz `days` da Šihterica bude preuzimljiva
+// i bez ponovnog ulaska u alat.
+export type SihtericaMeta = {
+  workerName: string;
+  orgName: string;
+  orgAddress: string;
+  orgCity: string;
+  orgTaxNumber: string;
+  weeklyDaysOff: number[];
+  countAbsenceCodes: string[];
+};
+
 export function saveSihterica(payload: {
   workerId: number;
   year: number;
   month: number;
   days: (DayEntry | null)[];
+  meta?: SihtericaMeta;
 }) {
   return request<{ id: number }>(`/api/sihterica`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+// Preuzimanje šihterice → označi sačuvanu formu kao GENERATED (best-effort).
+export function markSihtericaGenerated(
+  workerId: number,
+  year: number,
+  month: number,
+) {
+  return request<null>(`/api/sihterica/mark-generated`, {
+    method: "POST",
+    body: JSON.stringify({ workerId, year, month }),
   });
 }
 

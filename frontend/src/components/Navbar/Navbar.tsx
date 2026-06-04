@@ -242,7 +242,7 @@ export default function Navbar() {
           <>
             {needsOrg && (
               <Link
-                href="/profil"
+                href="/profil?novaOrg=1"
                 className={styles.addOrgHint}
                 title="Dodajte svoju djelatnost da otključate sve funkcije"
               >

@@ -160,6 +160,25 @@ function validateOwnerData(owner, requireJmbg = true) {
         ? null
         : Number(owner.salaryBruto);
   }
+  if (owner.salaryNeto !== undefined) {
+    data.salaryNeto =
+      owner.salaryNeto === null || owner.salaryNeto === ""
+        ? null
+        : Number(owner.salaryNeto);
+  }
+  // Tip plate određuje šta engine vuče: BRUTO → salaryBruto, NETO_* → salaryNeto.
+  if (
+    owner.salaryType !== undefined &&
+    owner.salaryType !== null &&
+    owner.salaryType !== ""
+  ) {
+    if (
+      !["BRUTO", "NETO_UGOVOR", "NETO_ISPLATA"].includes(owner.salaryType)
+    ) {
+      return { ok: false, message: "Nepoznat tip plate vlasnika" };
+    }
+    data.salaryType = owner.salaryType;
+  }
   if (owner.taxCoefficient !== undefined) {
     const c = Number(owner.taxCoefficient);
     // 0 je validna vrijednost (bez porezne kartice → bez ličnog odbitka).

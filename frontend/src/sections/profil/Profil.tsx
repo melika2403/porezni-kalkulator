@@ -23,6 +23,16 @@ import {
   LuShield,
   LuCreditCard,
   LuSettings,
+  LuLayoutDashboard,
+  LuCheck,
+  LuPlus,
+  LuChevronRight,
+  LuCalculator,
+  LuFileText,
+  LuClock,
+  LuReceipt,
+  LuArrowRight,
+  LuWallet,
 } from "react-icons/lu";
 import {
   updateProfile,
@@ -31,7 +41,11 @@ import {
   createOrganization,
   updateOrganization,
   deleteOrganization,
+  updateWorker,
   getForms,
+  getAllMyWorkers,
+  getMyStats,
+  type MyStats,
   getPersonClients,
   createPersonClient,
   updatePersonClient,
@@ -68,10 +82,15 @@ import {
   type Plan as PredracunPlan,
   type BillingCycle,
 } from "src/api/backend/predracun/predracun";
+import { PLAN_PRICING, formatKm } from "src/data/pricing";
 import { fillAmsTemplate, type AmsData } from "src/sections/ams/fillAms";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
+import {
+  fillSihterica,
+  type DayEntry as SihDayEntry,
+} from "src/sections/sihterica/fillSihterica";
 import {
   fillJs3100Template,
   type Js3100Data,
@@ -158,21 +177,274 @@ function statusClass(status: string, s: Record<string, string>) {
 }
 
 type Tab =
+  | "pregled"
   | "profil"
+  | "djelatnosti"
   | "klijenti"
   | "historija"
   | "sigurnost"
   | "pretplata"
   | "admin";
 
+// ─── Moja djelatnost i primanja (vlastite org) ────────────────────────────────
+// Za vlastite organizacije ne unosimo "podatke vlasnika" (vlasnik smo mi).
+// Umjesto toga, ovdje na profilu biramo u kojoj smo svojoj org prijavljeni i,
+// ovisno o tipu, postavljamo režim oporezivanja (obrt) ili svoju platu (d.o.o.).
+function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
+  const queryClient = useQueryClient();
+  const [selId, setSelId] = useState<number | null>(ownOrgs[0]?.id ?? null);
+  const selected = ownOrgs.find((o) => o.id === selId) ?? null;
+  const isObrt = selected?.type === "BUSINESS";
+
+  const [regime, setRegime] = useState<OrgFormState["taxRegime"]>("");
+  const [category, setCategory] = useState("");
+  const [bruto, setBruto] = useState("");
+  const [neto, setNeto] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const fmtMoney = (n: number) =>
+    n.toLocaleString("de-DE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  // Učitaj trenutne vrijednosti odabrane org kad se promijeni izbor.
+  useEffect(() => {
+    if (!selected) return;
+    setRegime(selected.taxRegime ?? "");
+    setCategory(selected.taxCategory ?? "");
+    const ow = selected.owner;
+    setBruto(ow?.salaryBruto != null ? fmtMoney(ow.salaryBruto) : "");
+    setNeto(ow?.salaryNeto != null ? fmtMoney(ow.salaryNeto) : "");
+    setSaved(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selId, selected?.taxRegime, selected?.taxCategory, selected?.owner?.id]);
+
+  const flash = () => {
+    queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  const regimeMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: OrgPayload }) =>
+      unwrap(updateOrganization(id, payload)),
+    onSuccess: flash,
+  });
+  const salaryMutation = useMutation({
+    mutationFn: ({
+      orgId,
+      workerId,
+      payload,
+    }: {
+      orgId: number;
+      workerId: number;
+      payload: Parameters<typeof updateWorker>[2];
+    }) => unwrap(updateWorker(orgId, workerId, payload)),
+    onSuccess: flash,
+  });
+
+  if (ownOrgs.length === 0) return null;
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    if (isObrt) {
+      regimeMutation.mutate({
+        id: selected.id,
+        payload: {
+          name: selected.name,
+          type: selected.type,
+          taxRegime: (regime || null) as OrgPayload["taxRegime"],
+          taxCategory:
+            regime && regime !== "OSTALI"
+              ? ((category || null) as OrgPayload["taxCategory"])
+              : null,
+        },
+      });
+    } else {
+      if (!selected.owner) return;
+      const b = parseMoney(bruto);
+      const n = parseMoney(neto);
+      const salaryType =
+        n != null ? "NETO_ISPLATA" : b != null ? "BRUTO" : undefined;
+      salaryMutation.mutate({
+        orgId: selected.id,
+        workerId: selected.owner.id,
+        payload: {
+          salaryBruto: b,
+          salaryNeto: n,
+          ...(salaryType && { salaryType }),
+        },
+      });
+    }
+  };
+
+  const pending = regimeMutation.isPending || salaryMutation.isPending;
+  const error = regimeMutation.error || salaryMutation.error;
+
+  return (
+    <div className={styles.card} style={{ marginTop: "1.5rem" }}>
+      <div className={styles.cardHeader}>
+        <p className={styles.cardTitle}>Moja djelatnost i primanja</p>
+      </div>
+      <div className={styles.infoCallout}>
+        <LuShield size={16} />
+        <span>
+          Postavi svoje porezne obaveze kao vlasnik. Za obrt biraš režim
+          oporezivanja, za d.o.o. upisuješ svoju platu, na osnovu toga se računa
+          tvoj mjesečni obračun.
+        </span>
+      </div>
+
+      <form className={styles.form} onSubmit={handleSave}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Prijavljen sam u</label>
+          <select
+            className={styles.select}
+            value={selId ?? ""}
+            onChange={(e) => setSelId(Number(e.target.value))}
+          >
+            {ownOrgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name} ({ORG_TYPE_LABELS[o.type] ?? o.type})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selected && isObrt && (
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Režim oporezivanja</label>
+              <select
+                className={styles.select}
+                value={regime}
+                onChange={(e) => {
+                  setRegime(e.target.value as OrgFormState["taxRegime"]);
+                  setCategory("");
+                }}
+              >
+                <option value="">— Odaberi —</option>
+                <option value="STVARNI_DOHODAK">
+                  Stvarni dohodak (poslovne knjige, čl. 19)
+                </option>
+                <option value="PAUSALNI">Paušalni iznos (čl. 31)</option>
+                <option value="OSTALI">Ostali obveznici (čl. 6 t.10)</option>
+              </select>
+            </div>
+            {regime && regime !== "OSTALI" && (
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  Kategorija djelatnosti
+                </label>
+                <select
+                  className={styles.select}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="">— Odaberi —</option>
+                  {regime === "STVARNI_DOHODAK" && (
+                    <>
+                      <option value="SLOBODNA_ZANIMANJA">
+                        Slobodna zanimanja (2.710 KM)
+                      </option>
+                      <option value="OBRT_SRODNE">
+                        Obrt i srodne djelatnosti (1.602 KM)
+                      </option>
+                      <option value="POLJOPRIVREDA_SUMARSTVO">
+                        Poljoprivreda i šumarstvo (715 KM)
+                      </option>
+                      <option value="TRGOVAC_POJEDINAC">
+                        Trgovac pojedinac (715 KM)
+                      </option>
+                    </>
+                  )}
+                  {regime === "PAUSALNI" && (
+                    <>
+                      <option value="OBRT_SRODNE">
+                        Obrt i srodne djelatnosti (1.355 KM)
+                      </option>
+                      <option value="ESNAFSKI_ZANATI">
+                        Niskoakumulativni esnafski zanati (616 KM)
+                      </option>
+                      <option value="POLJOPRIVREDA_SUMARSTVO">
+                        Poljoprivreda i šumarstvo (616 KM)
+                      </option>
+                      <option value="TAXI">Taxi prijevoz (616 KM)</option>
+                      <option value="TRGOVAC_POJEDINAC">
+                        Trgovac pojedinac (715 KM)
+                      </option>
+                    </>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {selected && !isObrt && (
+          <>
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Bruto plata (KM)</label>
+                <input
+                  className={styles.input}
+                  value={bruto}
+                  onChange={(e) => setBruto(e.target.value)}
+                  placeholder="0,00"
+                  inputMode="decimal"
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Neto plata (KM)</label>
+                <input
+                  className={styles.input}
+                  value={neto}
+                  onChange={(e) => setNeto(e.target.value)}
+                  placeholder="0,00"
+                  inputMode="decimal"
+                />
+              </div>
+            </div>
+            <p
+              className={styles.fieldHint}
+              style={{ marginTop: "-0.3rem", fontSize: 12, color: "#666" }}
+            >
+              Upiši bruto ili neto (ili oba). Neto je ciljni iznos na ruke i vodi
+              obračun.
+            </p>
+          </>
+        )}
+
+        {error && <div className={styles.errorMsg}>{error.message}</div>}
+        {saved && <div className={styles.successMsg}>Sačuvano.</div>}
+        <div className={styles.formActions}>
+          <button
+            type="submit"
+            className={styles.btnPrimary}
+            disabled={pending || !selected}
+          >
+            {pending ? "Snimanje..." : "Sačuvaj"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ─── Profile tab ──────────────────────────────────────────────────────────────
 
 function ProfilTab({
   user,
   requestedEditOrgId,
+  section = "all",
 }: {
   user: AuthUser;
   requestedEditOrgId?: number | null;
+  // "licni" = samo lični podaci (Profil tab), "djelatnost" = samo Moja
+  // djelatnost (Moje Djelatnosti tab), "all" = oboje (back-compat).
+  section?: "all" | "licni" | "djelatnost";
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -187,8 +459,8 @@ function ProfilTab({
 
   const [editOwnId, setEditOwnId] = useState<number | null>(null);
   const [editOwnOrg, setEditOwnOrg] = useState<OrgFormState>(emptyOrgForm);
+  // Dodavanje nove djelatnosti ide kroz QuickCreateOrgModal (brzi wizard).
   const [showAddOrg, setShowAddOrg] = useState(false);
-  const [addOrg, setAddOrg] = useState<OrgFormState>(emptyOrgForm);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const updateOwnOrgMutation = useMutation({
@@ -197,15 +469,6 @@ function ProfilTab({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
       setEditOwnId(null);
-    },
-  });
-
-  const createOwnOrgMutation = useMutation({
-    mutationFn: (payload: OrgPayload) => unwrap(createOrganization(payload)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      setShowAddOrg(false);
-      setAddOrg(emptyOrgForm);
     },
   });
 
@@ -304,8 +567,23 @@ function ProfilTab({
         : "Greška pri snimanju. Pokušajte ponovo."
     : null;
 
+  // Postotak popunjenosti ličnih podataka (za prsten napretka).
+  const personalDone = [
+    !!(user.firstName && user.lastName),
+    !!user.email,
+    !!user.phone,
+    !!user.jmbg,
+    !!user.address,
+    !!user.city,
+    !!user.idCardNumber,
+  ];
+  const personalPct = Math.round(
+    (personalDone.filter(Boolean).length / personalDone.length) * 100,
+  );
+
   return (
     <div className={styles.panel}>
+      {section !== "djelatnost" && (
       <div className={styles.card}>
         <div className={styles.cardHeader}>
           <p className={styles.cardTitle}>Lični podaci</p>
@@ -324,68 +602,102 @@ function ProfilTab({
         )}
 
         {!editing ? (
-          <div className={styles.infoList}>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>Ime i prezime</span>
-              <span className={styles.infoValue}>
-                {user.firstName} {user.lastName}
-              </span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>Email</span>
-              <span className={styles.infoValue}>{user.email ?? "—"}</span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>Telefon</span>
-              <span className={styles.infoValue}>
-                {user.phone || (
-                  <span className={styles.infoEmpty}>Nije unesen</span>
+          <>
+            <div className={styles.profileHead}>
+              <div className={styles.profileAvatar}>{initials(user)}</div>
+              <div className={styles.profileHeadInfo}>
+                <div className={styles.profileHeadName}>
+                  {user.firstName} {user.lastName}
+                </div>
+                {user.email && (
+                  <div className={styles.profileHeadEmail}>{user.email}</div>
                 )}
-              </span>
+                <span
+                  className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}
+                >
+                  {user.role}
+                </span>
+              </div>
+              <button
+                type="button"
+                className={styles.progressChip}
+                onClick={() => setEditing(true)}
+                title="Dovrši podatke profila"
+              >
+                <ProgressRing pct={personalPct} />
+                <span>
+                  <span className={styles.progressVal}>Profil {personalPct}%</span>
+                  <span className={styles.progressSub}>Dovrši podatke</span>
+                </span>
+              </button>
             </div>
-            <div className={styles.infoRowColumn}>
-              <div className={styles.infoRowInner}>
-                <span className={styles.infoLabel}>JMBG</span>
-                <span className={styles.infoValue}>
+
+            <div className={styles.detailGroup}>
+              <div className={styles.detailGroupTitle}>Osnovni podaci</div>
+              <ProfileDetailRow
+                label="Ime i prezime"
+                value={`${user.firstName} ${user.lastName}`}
+              />
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>JMBG</span>
+                <span className={styles.detailValue}>
                   {user.jmbg ? (
                     <span className={styles.jmbgBadge}>
                       🔒 Pohranjen i kriptiran
                     </span>
                   ) : (
-                    <span className={styles.infoEmpty}>Nije unesen</span>
+                    <button
+                      type="button"
+                      className={styles.addLink}
+                      onClick={() => setEditing(true)}
+                    >
+                      Dodaj
+                    </button>
                   )}
                 </span>
               </div>
-              <p className={styles.jmbgDisclaimer}>
-                JMBG je uvijek zaštićen kao lozinka i vidljiv samo Vama — ni
+              <ProfileDetailRow
+                label="Broj lične karte"
+                value={user.idCardNumber}
+                onAdd={() => setEditing(true)}
+                last
+              />
+            </div>
+
+            <div className={styles.infoCallout}>
+              <LuShield size={16} />
+              <span>
+                JMBG je uvijek zaštićen kao lozinka i vidljiv samo Vama, ni
                 administrator sistema nema pristup ovom podatku.
-              </p>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>Adresa</span>
-              <span className={styles.infoValue}>
-                {user.address || (
-                  <span className={styles.infoEmpty}>Nije unesena</span>
-                )}
               </span>
             </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>Grad</span>
-              <span className={styles.infoValue}>
-                {user.city || (
-                  <span className={styles.infoEmpty}>Nije unesen</span>
-                )}
-              </span>
+
+            <div className={styles.detailGroup}>
+              <div className={styles.detailGroupTitle}>Kontakt</div>
+              <ProfileDetailRow label="Email" value={user.email} />
+              <ProfileDetailRow
+                label="Telefon"
+                value={user.phone}
+                onAdd={() => setEditing(true)}
+                last
+              />
             </div>
-            <div className={styles.infoRow} style={{ borderBottom: "none" }}>
-              <span className={styles.infoLabel}>Broj lične karte</span>
-              <span className={styles.infoValue}>
-                {user.idCardNumber || (
-                  <span className={styles.infoEmpty}>Nije unesen</span>
-                )}
-              </span>
+
+            <div className={styles.detailGroup}>
+              <div className={styles.detailGroupTitle}>Adresa</div>
+              <ProfileDetailRow
+                label="Adresa"
+                value={user.address}
+                onAdd={() => setEditing(true)}
+              />
+              <ProfileDetailRow
+                label="Grad"
+                value={user.city}
+                onAdd={() => setEditing(true)}
+                last
+              />
             </div>
-          </div>
+          </>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>
             <div className={styles.row}>
@@ -511,9 +823,14 @@ function ProfilTab({
           </form>
         )}
       </div>
+      )}
 
-      {/* ── Moja djelatnost ── */}
-      <div className={styles.card} style={{ marginTop: "1.5rem" }}>
+      {section !== "djelatnost" && ownOrgs.length > 0 && (
+        <MyEmploymentCard ownOrgs={ownOrgs} />
+      )}
+
+      {section !== "licni" && (
+      <div className={styles.card} style={section === "all" ? { marginTop: "1.5rem" } : undefined}>
         <div className={styles.cardHeader}>
           <p className={styles.cardTitle}>Moja djelatnost</p>
         </div>
@@ -537,6 +854,9 @@ function ProfilTab({
                     {updateOwnOrgMutation.error.message}
                   </div>
                 )}
+                <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
+                  <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+                </RoleGuard>
                 {deleteOwnOrgMutation.error && confirmDeleteId === org.id && (
                   <div className={styles.errorMsg}>
                     Greška pri brisanju. Pokušajte ponovo.
@@ -599,79 +919,21 @@ function ProfilTab({
                 )}
               </form>
             ) : (
-              <>
-                <div className={styles.infoList}>
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Naziv</span>
-                    <span className={styles.infoValue}>{org.name}</span>
-                  </div>
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Tip</span>
-                    <span className={styles.infoValue}>
-                      {ORG_TYPE_LABELS[org.type] ?? org.type}
-                    </span>
-                  </div>
-                  {org.taxNumber && (
-                    <div className={styles.infoRow}>
-                      <span className={styles.infoLabel}>JIB</span>
-                      <span className={styles.infoValue}>{org.taxNumber}</span>
-                    </div>
-                  )}
-                  {org.activityCode && (
-                    <div className={styles.infoRow}>
-                      <span className={styles.infoLabel}>
-                        Šifra djelatnosti
-                      </span>
-                      <span className={styles.infoValue}>
-                        {org.activityCode}
-                        {org.activityName ? ` — ${org.activityName}` : ""}
-                      </span>
-                    </div>
-                  )}
-                  {org.email && (
-                    <div className={styles.infoRow}>
-                      <span className={styles.infoLabel}>Email</span>
-                      <span className={styles.infoValue}>{org.email}</span>
-                    </div>
-                  )}
-                  {org.phone && (
-                    <div className={styles.infoRow}>
-                      <span className={styles.infoLabel}>Telefon</span>
-                      <span className={styles.infoValue}>{org.phone}</span>
-                    </div>
-                  )}
-                  <div
-                    className={styles.infoRow}
-                    style={{ borderBottom: "none" }}
-                  >
-                    <span className={styles.infoLabel}>Adresa</span>
-                    <span className={styles.infoValue}>
-                      {org.address || (
-                        <span className={styles.infoEmpty}>Nije unesena</span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
-                  <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
-                </RoleGuard>
-                <div className={styles.ownOrgActions}>
-                  <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
-                    <Link
-                      href={`/organizacija/${org.id}`}
-                      className={styles.btnEditInline}
-                    >
-                      <LuSquareArrowUpRight size={14} /> Otvori
-                    </Link>
-                  </RoleGuard>
-                  <button
-                    className={styles.btnEditInline}
-                    onClick={() => startEditOwnOrg(org)}
-                  >
-                    <LuPencil size={14} /> Izmijeni
-                  </button>
-                </div>
-              </>
+              <button
+                type="button"
+                className={styles.bizCard}
+                onClick={() => startEditOwnOrg(org)}
+              >
+                <span className={styles.bizAvatar}>{initials2(org.name)}</span>
+                <span className={styles.bizInfo}>
+                  <span className={styles.bizName}>{org.name}</span>
+                  <span className={styles.bizSub}>
+                    {ORG_TYPE_LABELS[org.type] ?? org.type}
+                    {org.taxNumber ? ` · JIB: ${org.taxNumber}` : ""}
+                  </span>
+                </span>
+                <LuChevronRight size={17} className={styles.bizChevron} />
+              </button>
             )}
           </div>
         ))}
@@ -691,10 +953,11 @@ function ProfilTab({
             </button>
           )}
 
-        {/* locked upsell for USER with an existing org */}
+        {/* Upsell poruka samo za FREE (USER) plan. PRO/BUSINESS/ADMIN je ne
+            vide; limit poruka se prikaže u wizardu tek ako dosegnu limit. */}
         {!showAddOrg &&
           editOwnId === null &&
-          !isSubscriber &&
+          user.role === "USER" &&
           ownOrgs.length > 0 && (
             <div className={styles.lockedFeature}>
               <span>🔒</span>
@@ -705,50 +968,15 @@ function ProfilTab({
             </div>
           )}
 
+        {/* Dodavanje djelatnosti ide kroz isti brzi wizard kao na Pregledu. */}
         {showAddOrg && (
-          <form
-            className={styles.form}
-            onSubmit={(e) => {
-              e.preventDefault();
-              createOwnOrgMutation.mutate(orgFormToPayload(addOrg, null));
-            }}
-          >
-            <OrgFormFields value={addOrg} onChange={setAddOrg} />
-            {createOwnOrgMutation.error && (
-              <div className={styles.errorMsg}>
-                {createOwnOrgMutation.error.message ===
-                "ALREADY_HAS_OWN_ORG_LIMIT"
-                  ? "Možete imati najviše dvije vlastite djelatnosti."
-                  : createOwnOrgMutation.error.message === "ALREADY_HAS_OWN_ORG"
-                    ? "Možete imati samo jednu vlastitu organizaciju."
-                    : createOwnOrgMutation.error.message ===
-                        "ACCOUNTANT_CANNOT_OWN_ORG"
-                      ? "Računovođe ne mogu imati vlastitu organizaciju."
-                      : createOwnOrgMutation.error.message}
-              </div>
-            )}
-            <div className={styles.formActions}>
-              <button
-                type="button"
-                className={styles.btnGhost}
-                onClick={() => {
-                  setShowAddOrg(false);
-                  setAddOrg(emptyOrgForm);
-                }}
-              >
-                Odustani
-              </button>
-              <button
-                type="submit"
-                className={styles.btnPrimary}
-                disabled={createOwnOrgMutation.isPending}
-              >
-                {createOwnOrgMutation.isPending ? "Dodavanje..." : "Dodaj"}
-              </button>
-            </div>
-          </form>
+          <QuickCreateOrgModal
+            onClose={() => setShowAddOrg(false)}
+            onCreated={() => setShowAddOrg(false)}
+          />
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -766,6 +994,7 @@ type OwnerFormState = {
   idCardNumber: string;
   prijavaDate: string;
   salaryBruto: string;
+  salaryNeto: string;
   taxCoefficient: string;
 };
 
@@ -780,13 +1009,21 @@ const emptyOwner: OwnerFormState = {
   idCardNumber: "",
   prijavaDate: "",
   salaryBruto: "",
+  salaryNeto: "",
   taxCoefficient: "1.0",
 };
 
+const parseMoney = (s: string): number | null =>
+  s.trim() ? Number(s.replace(/\./g, "").replace(",", ".")) : null;
+
 function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
-  const salary = o.salaryBruto.trim()
-    ? Number(o.salaryBruto.replace(/\./g, "").replace(",", "."))
-    : null;
+  const bruto = parseMoney(o.salaryBruto);
+  const neto = parseMoney(o.salaryNeto);
+  // Neto je ciljni take-home i vodi obračun (NETO_ISPLATA). Ako je upisan samo
+  // bruto, on je osnovica (BRUTO). Ako nije ništa upisano, ostavi tip neodređen
+  // da backend ne dira postojeću vrijednost.
+  const salaryType =
+    neto != null ? "NETO_ISPLATA" : bruto != null ? "BRUTO" : undefined;
   const coef = Number(o.taxCoefficient.replace(",", "."));
   return {
     firstName: o.firstName.trim(),
@@ -798,7 +1035,9 @@ function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
     ...(o.city.trim() && { city: o.city.trim() }),
     ...(o.idCardNumber.trim() && { idCardNumber: o.idCardNumber.trim() }),
     prijavaDate: o.prijavaDate || null,
-    salaryBruto: salary,
+    salaryBruto: bruto,
+    salaryNeto: neto,
+    ...(salaryType && { salaryType }),
     taxCoefficient: Number.isFinite(coef) && coef >= 0 ? coef : 1.0,
   };
 }
@@ -807,11 +1046,16 @@ function OwnerFields({
   value,
   onChange,
   requireJmbg = true,
+  orgType = "COMPANY",
 }: {
   value: OwnerFormState;
   onChange: (v: OwnerFormState) => void;
   requireJmbg?: boolean;
+  // Obrt (BUSINESS): vlasnik nema platu — doprinosi po režimu oporezivanja.
+  // d.o.o. (COMPANY): vlasnik se tretira kao radnik → ima platu.
+  orgType?: "COMPANY" | "BUSINESS";
 }) {
+  const isObrt = orgType === "BUSINESS";
   const set =
     (field: keyof OwnerFormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
       onChange({ ...value, [field]: e.target.value });
@@ -925,17 +1169,50 @@ function OwnerFields({
             onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
           />
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>Bruto plata vlasnika (KM)</label>
-          <input
-            className={styles.input}
-            value={value.salaryBruto}
-            onChange={set("salaryBruto")}
-            placeholder="0,00"
-            inputMode="decimal"
-          />
-        </div>
+        {!isObrt && (
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Bruto plata vlasnika (KM)</label>
+            <input
+              className={styles.input}
+              value={value.salaryBruto}
+              onChange={set("salaryBruto")}
+              placeholder="0,00"
+              inputMode="decimal"
+            />
+          </div>
+        )}
       </div>
+      {!isObrt && (
+        <div className={styles.row}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Neto plata vlasnika (KM)</label>
+            <input
+              className={styles.input}
+              value={value.salaryNeto}
+              onChange={set("salaryNeto")}
+              placeholder="0,00"
+              inputMode="decimal"
+            />
+            <span
+              className={styles.fieldHint}
+              style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}
+            >
+              Upiši bruto ili neto (ili oba). Neto je ciljni iznos na ruke i
+              vodi obračun.
+            </span>
+          </div>
+          <div className={styles.field} />
+        </div>
+      )}
+      {isObrt && (
+        <p
+          className={styles.fieldHint}
+          style={{ marginTop: "-0.2rem", fontSize: 12, color: "#666" }}
+        >
+          Vlasnik obrta nema platu, doprinosi se računaju po režimu oporezivanja
+          odabranom iznad.
+        </p>
+      )}
       <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>
@@ -1545,6 +1822,7 @@ function DjelatnostTab({
 }: {
   requestedEditOrgId?: number | null;
 }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { role } = useRole();
   const isPro = role === "PRO";
@@ -1699,6 +1977,13 @@ function DjelatnostTab({
                     maximumFractionDigits: 2,
                   })
                 : "",
+            salaryNeto:
+              ow.salaryNeto != null
+                ? ow.salaryNeto.toLocaleString("de-DE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : "",
             taxCoefficient:
               ow.taxCoefficient != null ? String(ow.taxCoefficient) : "1.0",
           }
@@ -1751,7 +2036,9 @@ function DjelatnostTab({
     <div className={styles.panel}>
       {/* ── Organizations ── */}
       <div className={styles.card} style={{ marginBottom: "1.5rem" }}>
-        <p className={styles.cardTitle}>Klijentske organizacije</p>
+        <div className={styles.cardHeader}>
+          <p className={styles.cardTitle}>Klijentske organizacije</p>
+        </div>
 
         {clientOrgs.length === 0 && (
           <div className={styles.empty} style={{ padding: "1.5rem 0" }}>
@@ -1798,12 +2085,16 @@ function DjelatnostTab({
                       value={editOwner}
                       onChange={setEditOwner}
                       requireJmbg={false}
+                      orgType={editOrg.type}
                     />
                   )}
                   {updateOrgMutation.error && (
                     <div className={styles.errorMsg}>
                       {updateOrgMutation.error.message}
                     </div>
+                  )}
+                  {(org.memberRole === "OWNER" || org.memberRole === "ADMIN") && (
+                    <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
                   )}
                   {confirmDeleteOrgId === org.id ? (
                     <div className={styles.deleteConfirm}>
@@ -1860,40 +2151,28 @@ function DjelatnostTab({
                   )}
                 </form>
               ) : (
-                <div key={org.id} className={styles.orgItem}>
-                  <div className={styles.orgInfo}>
-                    <div className={styles.orgName}>{org.name}</div>
-                    <div className={styles.orgMeta}>
+                <button
+                  key={org.id}
+                  type="button"
+                  className={styles.bizCard}
+                  onClick={() =>
+                    org.memberRole === "OWNER" || org.memberRole === "ADMIN"
+                      ? startEditOrg(org)
+                      : router.push(`/organizacija/${org.id}`)
+                  }
+                >
+                  <span className={`${styles.bizAvatar} ${styles.bizAvatarAccent}`}>
+                    {initials2(org.name)}
+                  </span>
+                  <span className={styles.bizInfo}>
+                    <span className={styles.bizName}>{org.name}</span>
+                    <span className={styles.bizSub}>
                       {ORG_TYPE_LABELS[org.type] ?? org.type}
-                      {org.taxNumber && ` · JIB: ${org.taxNumber}`}
-                      {org.activityCode &&
-                        ` · ${org.activityCode}${org.activityName ? ` ${org.activityName}` : ""}`}
-                      {org.owner &&
-                        ` · Vlasnik: ${org.owner.firstName} ${org.owner.lastName}`}
-                    </div>
-                  </div>
-                  {(org.memberRole === "OWNER" || org.memberRole === "ADMIN") && (
-                    <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
-                  )}
-                  <div className={styles.orgActions}>
-                    <Link
-                      href={`/organizacija/${org.id}`}
-                      className={styles.btnEditInline}
-                    >
-                      <LuSquareArrowUpRight size={14} /> Otvori
-                    </Link>
-                    {(org.memberRole === "OWNER" ||
-                      org.memberRole === "ADMIN") && (
-                      <button
-                        type="button"
-                        className={styles.btnEditInline}
-                        onClick={() => startEditOrg(org)}
-                      >
-                        <LuPencil size={14} /> Izmijeni
-                      </button>
-                    )}
-                  </div>
-                </div>
+                      {org.taxNumber ? ` · JIB: ${org.taxNumber}` : ""}
+                    </span>
+                  </span>
+                  <LuChevronRight size={17} className={styles.bizChevron} />
+                </button>
               ),
             )}
           </div>
@@ -1902,7 +2181,9 @@ function DjelatnostTab({
 
       {/* ── Person clients ── */}
       <div className={styles.card} style={{ marginBottom: "1.5rem" }}>
-        <p className={styles.cardTitle}>Fizička lica (klijenti)</p>
+        <div className={styles.cardHeader}>
+          <p className={styles.cardTitle}>Fizička lica (klijenti)</p>
+        </div>
         <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]}>
           <>
             {persons.length === 0 && (
@@ -1995,27 +2276,26 @@ function DjelatnostTab({
                       )}
                     </form>
                   ) : (
-                    <div key={p.id} className={styles.orgItem}>
-                      <div className={styles.orgInfo}>
-                        <div className={styles.orgName}>
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={styles.bizCard}
+                      onClick={() => startEditPerson(p)}
+                    >
+                      <span className={`${styles.bizAvatar} ${styles.bizAvatarAccent}`}>
+                        {initials2(`${p.firstName ?? ""} ${p.lastName ?? ""}`)}
+                      </span>
+                      <span className={styles.bizInfo}>
+                        <span className={styles.bizName}>
                           {p.firstName} {p.lastName}
-                        </div>
-                        <div className={styles.orgMeta}>
+                        </span>
+                        <span className={styles.bizSub}>
                           Fizičko lice
-                          {p.taxNumber && ` · Porezni: ${p.taxNumber}`}
-                          {p.email && ` · ${p.email}`}
-                        </div>
-                      </div>
-                      <div className={styles.orgActions}>
-                        <button
-                          type="button"
-                          className={styles.btnEditInline}
-                          onClick={() => startEditPerson(p)}
-                        >
-                          <LuPencil size={14} /> Izmijeni
-                        </button>
-                      </div>
-                    </div>
+                          {p.taxNumber ? ` · ${p.taxNumber}` : ""}
+                        </span>
+                      </span>
+                      <LuChevronRight size={17} className={styles.bizChevron} />
+                    </button>
                   ),
                 )}
               </div>
@@ -2150,7 +2430,11 @@ function DjelatnostTab({
               >
                 <OrgFormFields value={addOrg} onChange={setAddOrg} />
                 {addMode === "client-org" && (
-                  <OwnerFields value={addOwner} onChange={setAddOwner} />
+                  <OwnerFields
+                    value={addOwner}
+                    onChange={setAddOwner}
+                    orgType={addOrg.type}
+                  />
                 )}
                 {createOrgMutation.error && (
                   <div className={styles.errorMsg}>
@@ -2285,6 +2569,38 @@ async function regenerateAndDownload(form: FormRecord) {
       .replace(/[^a-zA-Z0-9._-]+/g, "_")
       .slice(0, 80);
     filename = `${safeTitle || "JS3100"}.pdf`;
+  } else if (form.type === "SIH") {
+    // Šihterica: re-render iz snimljenih sati + meta (ime radnika, org,
+    // slobodni dani). Stari zapisi bez meta koriste sigurne defaulte.
+    const sih = raw as {
+      days?: (SihDayEntry | null)[];
+      meta?: {
+        workerName?: string;
+        orgName?: string;
+        orgAddress?: string;
+        orgCity?: string;
+        orgTaxNumber?: string;
+        weeklyDaysOff?: number[];
+        countAbsenceCodes?: string[];
+      };
+    };
+    const m = sih.meta ?? {};
+    bytes = await fillSihterica({
+      workerName: m.workerName ?? "",
+      month: form.month ?? 1,
+      year: form.year,
+      days: sih.days ?? [],
+      orgName: m.orgName ?? form.organization?.name ?? "",
+      orgAddress: m.orgAddress ?? "",
+      orgCity: m.orgCity ?? "",
+      orgTaxNumber: m.orgTaxNumber ?? "",
+      weeklyDaysOff: m.weeklyDaysOff ?? [0, 6],
+      countAbsenceCodes: m.countAbsenceCodes,
+    });
+    const wName = m.workerName ? `_${m.workerName.replace(/\s+/g, "_")}` : "";
+    filename = `Sihterica${wName}_${
+      form.month ? String(form.month).padStart(2, "0") : "XX"
+    }_${form.year}.pdf`;
   }
   if (!bytes) return;
   const ab =
@@ -2317,7 +2633,8 @@ function FormDownloadButton({
     form.type === "ZO3" ||
     form.type === "GPD" ||
     form.type === "PLDI" ||
-    form.type === "JS3100";
+    form.type === "JS3100" ||
+    form.type === "SIH";
   if (!supported) return null;
   return (
     <button
@@ -2804,6 +3121,7 @@ function SigurnostTab({ user }: { user: AuthUser }) {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [pwSuccess, setPwSuccess] = useState(false);
   const [resentEmail, setResentEmail] = useState(false);
 
@@ -2938,6 +3256,13 @@ function SigurnostTab({ user }: { user: AuthUser }) {
         <div className={styles.card} style={{ marginTop: "1.5rem" }}>
           <div className={styles.cardHeader}>
             <p className={styles.cardTitle}>Promjena lozinke</p>
+            <button
+              type="button"
+              className={styles.btnEditInline}
+              onClick={() => setShowPw((v) => !v)}
+            >
+              {showPw ? "Sakrij lozinke" : "Prikaži lozinke"}
+            </button>
           </div>
           {pwSuccess && (
             <div className={styles.successMsg}>
@@ -2954,7 +3279,7 @@ function SigurnostTab({ user }: { user: AuthUser }) {
             <div className={styles.field}>
               <label className={styles.fieldLabel}>Trenutna lozinka</label>
               <input
-                type="password"
+                type={showPw ? "text" : "password"}
                 className={styles.input}
                 value={currentPw}
                 onChange={(e) => {
@@ -2969,7 +3294,7 @@ function SigurnostTab({ user }: { user: AuthUser }) {
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>Nova lozinka</label>
                 <input
-                  type="password"
+                  type={showPw ? "text" : "password"}
                   className={styles.input}
                   value={newPw}
                   onChange={(e) => setNewPw(e.target.value)}
@@ -2985,7 +3310,7 @@ function SigurnostTab({ user }: { user: AuthUser }) {
                   Potvrdi novu lozinku
                 </label>
                 <input
-                  type="password"
+                  type={showPw ? "text" : "password"}
                   className={`${styles.input}${pwMismatch ? ` ${styles.inputError}` : ""}`}
                   value={confirmPw}
                   onChange={(e) => setConfirmPw(e.target.value)}
@@ -3357,6 +3682,84 @@ function PretplataTab({ user }: { user: AuthUser }) {
           </div>
         )}
       </div>
+
+      <PlanComparison currentPlan={plan} />
+    </div>
+  );
+}
+
+function PlanComparison({ currentPlan }: { currentPlan: string }) {
+  const plans = [
+    {
+      key: "USER",
+      title: "Besplatan",
+      price: "0 KM",
+      note: "Osnovni alati, bez obaveza",
+      features: PLAN_FEATURES.USER,
+      href: null as string | null,
+      recommended: false,
+    },
+    {
+      key: "PRO",
+      title: "Pro",
+      price: `${formatKm(PLAN_PRICING.PRO.yearly)} KM`,
+      note: `godišnje · ili ${formatKm(PLAN_PRICING.PRO.monthly)} KM mjesečno`,
+      features: PLAN_FEATURES.PRO,
+      href: "/pretplate?plan=PRO",
+      recommended: true,
+    },
+    {
+      key: "BUSINESS",
+      title: "Business",
+      price: `${formatKm(PLAN_PRICING.BUSINESS.yearly)} KM`,
+      note: `godišnje · ili ${formatKm(PLAN_PRICING.BUSINESS.monthly)} KM mjesečno`,
+      features: PLAN_FEATURES.BUSINESS,
+      href: "/pretplate?plan=BUSINESS",
+      recommended: false,
+    },
+  ];
+
+  return (
+    <div className={styles.card} style={{ marginTop: "1.5rem" }}>
+      <div className={styles.cardHeader}>
+        <p className={styles.cardTitle}>Planovi i cijene</p>
+      </div>
+      <div className={styles.planCompareGrid}>
+        {plans.map((p) => {
+          const isCurrent = currentPlan === p.key;
+          return (
+            <div
+              key={p.key}
+              className={`${styles.planCompareCard} ${p.recommended ? styles.planCompareRec : ""}`}
+            >
+              {p.recommended && (
+                <span className={styles.planCompareRecBadge}>Preporučeno</span>
+              )}
+              <div className={styles.planCompareTitle}>{p.title}</div>
+              <div className={styles.planComparePrice}>{p.price}</div>
+              <div className={styles.planCompareNote}>{p.note}</div>
+              <ul className={styles.planCompareFeatures}>
+                {p.features.map((f) => (
+                  <li key={f}>
+                    <span className={styles.planCheck}>✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {isCurrent ? (
+                <span className={styles.planCompareCurrent}>Trenutni plan</span>
+              ) : p.href ? (
+                <Link
+                  href={p.href}
+                  className={p.recommended ? styles.btnPrimary : styles.btnGhost}
+                >
+                  Izaberi {p.title}
+                </Link>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -3368,10 +3771,14 @@ export default function Profil() {
   const searchParams = useSearchParams();
   // URL params (?tab=klijenti&editOrg=12) — koriste se iz /organizacije Edit
   // dugmeta da auto-otvori edit formu za specifičnu organizaciju.
+  // ?novaOrg=1 (sa bilo koje "Dodaj djelatnost" tačke) → otvori brzi wizard.
+  const wantNovaOrg = searchParams.get("novaOrg") === "1";
   const initialTab: Tab = (() => {
     const t = searchParams.get("tab");
     if (
+      t === "pregled" ||
       t === "profil" ||
+      t === "djelatnosti" ||
       t === "klijenti" ||
       t === "historija" ||
       t === "sigurnost" ||
@@ -3380,7 +3787,8 @@ export default function Profil() {
     ) {
       return t;
     }
-    return "profil";
+    // Stari ?tab=djelatnost i sl. padaju na Pregled (novi landing).
+    return "pregled";
   })();
   const requestedEditOrgId = (() => {
     const v = searchParams.get("editOrg");
@@ -3406,6 +3814,18 @@ export default function Profil() {
     }
   }, [isError, error, router]);
 
+  // Sinhronizuj aktivni tab kad se promijeni ?tab= u URL-u (npr. klik na karticu
+  // djelatnosti/klijenta sa Pregleda → router.push(?tab=djelatnosti&editOrg=ID)).
+  useEffect(() => {
+    const t = searchParams.get("tab") as Tab | null;
+    const valid: Tab[] = [
+      "pregled", "profil", "djelatnosti", "klijenti",
+      "historija", "sigurnost", "pretplata", "admin",
+    ];
+    if (t && valid.includes(t)) setTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   if (isLoading) {
     return (
       <div className={styles.page}>
@@ -3419,30 +3839,27 @@ export default function Profil() {
   if (!user) return null;
 
   const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: "profil", label: "Profil", icon: <LuUser size={17} /> },
-    { key: "klijenti", label: "Klijenti", icon: <LuUsers size={17} /> },
-    { key: "historija", label: "Dokumenti", icon: <LuHistory size={17} /> },
-    { key: "sigurnost", label: "Sigurnost", icon: <LuShield size={17} /> },
-    { key: "pretplata", label: "Pretplata", icon: <LuCreditCard size={17} /> },
-    { key: "admin", label: "Admin", icon: <LuSettings size={17} /> },
+    { key: "pregled", label: "Pregled", icon: <LuLayoutDashboard size={19} /> },
+    { key: "profil", label: "Profil", icon: <LuUser size={19} /> },
+    { key: "djelatnosti", label: "Moje Djelatnosti", icon: <LuBuilding size={19} /> },
+    { key: "klijenti", label: "Klijenti", icon: <LuUsers size={19} /> },
+    { key: "historija", label: "Dokumenti", icon: <LuHistory size={19} /> },
+    { key: "sigurnost", label: "Sigurnost", icon: <LuShield size={19} /> },
+    { key: "pretplata", label: "Pretplata", icon: <LuCreditCard size={19} /> },
+    { key: "admin", label: "Admin", icon: <LuSettings size={19} /> },
   ];
 
   return (
     <div className={styles.page}>
       <aside className={styles.sidebar}>
-        <div className={styles.sidebarProfile}>
-          <div className={styles.avatar}>{initials(user)}</div>
-          <div>
-            <div className={styles.name}>
-              {user.firstName} <em>{user.lastName}</em>
-            </div>
-            {user.email && <div className={styles.email}>{user.email}</div>}
-            <div
-              className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}
-            >
-              {user.role}
-            </div>
-          </div>
+        {/* Brand na vrhu */}
+        <div className={styles.brand}>
+          <div className={styles.brandMark}>PK</div>
+          <span className={styles.brandText}>
+            Porezni
+            <br />
+            Kalkulator
+          </span>
         </div>
 
         <nav className={styles.sidebarNav}>
@@ -3463,30 +3880,56 @@ export default function Profil() {
             title="Pregled svih vlastitih i klijentskih organizacija"
           >
             <span className={styles.navIcon}>
-              <LuBuilding size={17} />
+              <LuBuilding size={19} />
             </span>
             Pregled organizacija
           </button>
-          {/* Admin — uvijek na dnu, vidljiv samo ADMIN korisnicima. */}
+          {/* Admin — vidljiv samo ADMIN korisnicima. */}
           <RoleGuard roles={["ADMIN"]} mode="hide">
             <button
               className={styles.navItem}
               onClick={() => router.push("/admin/korisnici")}
             >
               <span className={styles.navIcon}>
-                <LuSettings size={17} />
+                <LuSettings size={19} />
               </span>
               Admin
             </button>
           </RoleGuard>
         </nav>
+
+        {/* Mini profil na dnu */}
+        <div className={styles.sidebarFoot}>
+          <div className={styles.avatarSm}>{initials(user)}</div>
+          <div className={styles.sidebarFootInfo}>
+            <div className={styles.sidebarFootName}>
+              {user.firstName} {user.lastName}
+            </div>
+            <span
+              className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}
+            >
+              {user.role}
+            </span>
+          </div>
+        </div>
       </aside>
 
       <main className={styles.content}>
-        {tab === "profil" && (
-          <ProfilTab
-            key={user.id}
+        {tab === "pregled" && (
+          <PregledTab
             user={user}
+            openNovaOrg={wantNovaOrg}
+            onGoTab={(t) => setTab(t)}
+          />
+        )}
+        {tab === "profil" && (
+          <ProfilTab key={user.id} user={user} section="licni" />
+        )}
+        {tab === "djelatnosti" && (
+          <ProfilTab
+            key={`dj-${user.id}`}
+            user={user}
+            section="djelatnost"
             requestedEditOrgId={requestedEditOrgId}
           />
         )}
@@ -3497,6 +3940,564 @@ export default function Profil() {
         {tab === "sigurnost" && <SigurnostTab user={user} />}
         {tab === "pretplata" && <PretplataTab user={user} />}
       </main>
+    </div>
+  );
+}
+
+// ─── Pregled tab (landing + onboarding) ─────────────────────────────────────
+// Cilj: korisnik nakon registracije lako napravi djelatnost, doda radnike
+// (opcionalno) i proba alat. Sve tačke "Dodaj djelatnost" vode ovdje.
+const TOOLS = [
+  { href: "/aktivni-radnici", title: "Plate i radnici", desc: "Obračun plata po FBiH", icon: <LuWallet size={18} />, hot: true },
+  { href: "/sihterica", title: "Šihterica", desc: "Evidencija radnih sati", icon: <LuClock size={18} />, hot: false },
+  { href: "/fakture", title: "Fakture", desc: "Izrada i slanje faktura", icon: <LuReceipt size={18} />, hot: false },
+  { href: "/amortizacija", title: "Amortizacija", desc: "Obračun amortizacije", icon: <LuFileText size={18} />, hot: false },
+];
+
+function PregledTab({
+  user,
+  openNovaOrg,
+  onGoTab,
+}: {
+  user: AuthUser;
+  openNovaOrg: boolean;
+  onGoTab: (t: Tab) => void;
+}) {
+  const router = useRouter();
+  const [wizardOpen, setWizardOpen] = useState(openNovaOrg);
+  const [workersSkipped, setWorkersSkipped] = useState(false);
+
+  const orgsQuery = useQuery({
+    queryKey: ["organizations"],
+    queryFn: () => unwrap(getOrganizations()),
+  });
+  const ownOrgs = orgsQuery.data ?? [];
+  const hasOrg = ownOrgs.length > 0;
+
+  const workersQuery = useQuery({
+    queryKey: ["allMyWorkers"],
+    queryFn: () => unwrap(getAllMyWorkers()),
+    enabled: hasOrg,
+  });
+  const hasWorkers = (workersQuery.data?.length ?? 0) > 0;
+
+  const statsQuery = useQuery<MyStats>({
+    queryKey: ["myStats"],
+    queryFn: () => unwrap(getMyStats()),
+    enabled: hasOrg,
+  });
+  const clientOrgsQuery = useQuery({
+    queryKey: ["clientOrganizations"],
+    queryFn: () => unwrap(getClientOrganizations()),
+    enabled: hasOrg,
+  });
+  const personClientsQuery = useQuery({
+    queryKey: ["personClients"],
+    queryFn: () => unwrap(getPersonClients()),
+    enabled: hasOrg,
+  });
+
+  const onboardingDone = hasOrg && (hasWorkers || workersSkipped);
+  const st = statsQuery.data;
+
+  const ownOrg = ownOrgs[0] ?? null;
+  const orgIncomplete =
+    !!ownOrg && (!ownOrg.address || !ownOrg.activityCode || !ownOrg.bankAccount);
+
+  // Procenat popunjenosti djelatnosti (za prsten napretka).
+  const pFields = ownOrg
+    ? [
+        ownOrg.name,
+        ownOrg.taxNumber,
+        ownOrg.address,
+        ownOrg.city,
+        ownOrg.activityCode,
+        ownOrg.bankAccount,
+        ownOrg.phone || ownOrg.email,
+      ]
+    : [];
+  const progressPct = pFields.length
+    ? Math.round((pFields.filter(Boolean).length / pFields.length) * 100)
+    : 0;
+
+  // Lista klijenata (klijentske org-e + fizička lica), prvih 5.
+  const clientItems = [
+    ...(clientOrgsQuery.data ?? []).map((o) => ({
+      key: `org-${o.id}`,
+      name: o.name,
+      sub: o.activityName || "Klijentska organizacija",
+      onClick: () => router.push(`/profil?tab=klijenti&editOrg=${o.id}`),
+    })),
+    ...(personClientsQuery.data ?? []).map((c) => ({
+      key: `pc-${c.id}`,
+      name: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "Klijent",
+      sub: "Fizičko lice",
+      onClick: () => onGoTab("klijenti"),
+    })),
+  ].slice(0, 5);
+
+  const danas = new Date();
+  const DANI = [
+    "Nedjelja",
+    "Ponedjeljak",
+    "Utorak",
+    "Srijeda",
+    "Četvrtak",
+    "Petak",
+    "Subota",
+  ];
+  const todayLabel = `Danas je ${DANI[danas.getDay()]}, ${String(
+    danas.getDate(),
+  ).padStart(2, "0")}.${String(danas.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}.${danas.getFullYear()}. godine.`;
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.pregledHeader}>
+        <div>
+          <h1 className={styles.pregledTitle}>
+            Dobro došli, <em>{user.firstName}</em>
+          </h1>
+          <p className={styles.pregledDate}>{todayLabel}</p>
+          <p className={styles.pregledLead}>
+            {hasOrg
+              ? "Sve je spremno za rad."
+              : "Postavimo vaš nalog u nekoliko koraka."}
+          </p>
+        </div>
+        {hasOrg && (
+          <button
+            className={styles.progressChip}
+            onClick={() => onGoTab("djelatnosti")}
+            title="Dovrši podatke djelatnosti"
+          >
+            <ProgressRing pct={progressPct} />
+            <span>
+              <span className={styles.progressVal}>Profil {progressPct}%</span>
+              <span className={styles.progressSub}>Dovrši podatke</span>
+            </span>
+          </button>
+        )}
+      </div>
+
+      {/* Onboarding (novi korisnik bez djelatnosti / radnika) */}
+      {!onboardingDone && (
+        <div className={styles.card}>
+          <p className={styles.cardTitle}>Pokrenite svoju djelatnost</p>
+          <ChecklistStep
+            n={1}
+            done={hasOrg}
+            title="Napravite djelatnost"
+            desc="Obrt ili firma. Otključava plate, fakture, radnike i obrasce."
+          >
+            {!hasOrg && (
+              <button className={styles.btnPrimary} onClick={() => setWizardOpen(true)}>
+                <LuPlus size={15} /> Napravi djelatnost
+              </button>
+            )}
+          </ChecklistStep>
+          <ChecklistStep
+            n={2}
+            done={hasWorkers}
+            dimmed={!hasOrg}
+            optional
+            title="Dodajte radnike"
+            desc="Ako radite sami kao vlasnik, slobodno preskočite."
+          >
+            {hasOrg && !hasWorkers && !workersSkipped && (
+              <>
+                <button className={styles.btnPrimary} onClick={() => router.push("/aktivni-radnici")}>
+                  Dodaj radnike
+                </button>
+                <button className={styles.btnGhost} onClick={() => setWorkersSkipped(true)}>
+                  Preskoči
+                </button>
+              </>
+            )}
+          </ChecklistStep>
+          <ChecklistStep
+            n={3}
+            done={false}
+            dimmed={!hasOrg}
+            title="Probajte alat"
+            desc="Obračun plata, šihterica ili faktura."
+          >
+            {hasOrg && (
+              <div className={styles.pregledShortcuts}>
+                <button className={styles.btnGhost} onClick={() => router.push("/aktivni-radnici")}>Obračun plata</button>
+                <button className={styles.btnGhost} onClick={() => router.push("/sihterica")}>Šihterica</button>
+                <button className={styles.btnGhost} onClick={() => router.push("/fakture")}>Faktura</button>
+              </div>
+            )}
+          </ChecklistStep>
+        </div>
+      )}
+
+      {/* Dopuna podataka djelatnosti (accent banner) */}
+      {hasOrg && orgIncomplete && (
+        <div className={styles.onbBanner}>
+          <span className={styles.onbBannerText}>
+            Dodajte adresu, šifru djelatnosti i žiro račun da fakture i obrasci
+            budu potpuni.
+          </span>
+          <button className={styles.onbBannerBtn} onClick={() => onGoTab("djelatnosti")}>
+            Dopuni
+          </button>
+        </div>
+      )}
+
+      {/* Bogati dashboard kad postoji djelatnost */}
+      {hasOrg && (
+        <>
+          <div className={styles.statGrid}>
+            <StatCard icon={<LuBuilding size={14} />} label="Djelatnosti" value={st?.djelatnosti} />
+            <StatCard icon={<LuUsers size={14} />} label="Klijenti" value={st?.klijenti} />
+            <StatCard icon={<LuCalculator size={14} />} label="Obračuna (mj.)" value={st?.obracuniMjesec} delta={st?.obracuniDelta} />
+            <StatCard icon={<LuFileText size={14} />} label="Dokumenti" value={st?.dokumenti} />
+            <StatCard icon={<LuReceipt size={14} />} label="Fakture" value={st?.fakture} />
+            <StatCard icon={<LuUsers size={14} />} label="Radnici" value={st?.radnici} />
+          </div>
+
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Preporučeni alati</h2>
+          </div>
+          <div className={styles.toolGrid}>
+            {TOOLS.map((t) => (
+              <button
+                key={t.href}
+                className={`${styles.toolCard} ${t.hot ? styles.toolCardHot : ""}`}
+                onClick={() => router.push(t.href)}
+              >
+                <span className={styles.toolIcon}>{t.icon}</span>
+                <span className={styles.toolBody}>
+                  <span className={styles.toolTitle}>
+                    {t.title}
+                    {t.hot && <span className={styles.toolBadge}>Najčešće</span>}
+                  </span>
+                  <span className={styles.toolDesc}>{t.desc}</span>
+                </span>
+                <LuArrowRight size={15} className={styles.toolArrow} />
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Moje djelatnosti</h2>
+            <button className={styles.sectionAction} onClick={() => onGoTab("djelatnosti")}>
+              Upravljaj →
+            </button>
+          </div>
+          <div className={styles.bizList}>
+            {ownOrgs.map((o) => (
+              <button
+                key={o.id}
+                className={styles.bizCard}
+                onClick={() => router.push(`/profil?tab=djelatnosti&editOrg=${o.id}`)}
+              >
+                <span className={styles.bizAvatar}>{initials2(o.name)}</span>
+                <span className={styles.bizInfo}>
+                  <span className={styles.bizName}>{o.name}</span>
+                  <span className={styles.bizSub}>
+                    {o.type === "BUSINESS" ? "Obrt" : "Firma"}
+                    {o.activityName ? ` · ${o.activityName}` : ""}
+                  </span>
+                </span>
+                <LuChevronRight size={17} className={styles.bizChevron} />
+              </button>
+            ))}
+            <button
+              className={styles.dashedAdd}
+              onClick={() => setWizardOpen(true)}
+            >
+              + Dodaj djelatnost
+            </button>
+          </div>
+
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Klijenti</h2>
+            <button className={styles.sectionAction} onClick={() => onGoTab("klijenti")}>
+              Upravljaj →
+            </button>
+          </div>
+          <div className={styles.bizList}>
+            {clientItems.map((c) => (
+              <button key={c.key} className={styles.bizCard} onClick={c.onClick}>
+                <span className={`${styles.bizAvatar} ${styles.bizAvatarAccent}`}>
+                  {initials2(c.name)}
+                </span>
+                <span className={styles.bizInfo}>
+                  <span className={styles.bizName}>{c.name}</span>
+                  <span className={styles.bizSub}>{c.sub}</span>
+                </span>
+                <LuChevronRight size={17} className={styles.bizChevron} />
+              </button>
+            ))}
+            <button className={styles.dashedAdd} onClick={() => onGoTab("klijenti")}>
+              + Dodaj klijenta
+            </button>
+          </div>
+        </>
+      )}
+
+      {wizardOpen && (
+        <QuickCreateOrgModal
+          onClose={() => setWizardOpen(false)}
+          onCreated={() => {
+            setWizardOpen(false);
+            orgsQuery.refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Inicijali iz naziva (za avatare kartica).
+function initials2(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function ProgressRing({ pct }: { pct: number }) {
+  const r = 13;
+  const c = 2 * Math.PI * r;
+  const off = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
+  return (
+    <svg width={30} height={30} viewBox="0 0 32 32" style={{ flex: "none" }}>
+      <circle cx="16" cy="16" r={r} fill="none" stroke="var(--border)" strokeWidth="4" />
+      <circle
+        cx="16"
+        cy="16"
+        r={r}
+        fill="none"
+        stroke="var(--sage)"
+        strokeWidth="4"
+        strokeDasharray={c}
+        strokeDashoffset={off}
+        strokeLinecap="round"
+        transform="rotate(-90 16 16)"
+      />
+    </svg>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  delta,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: number;
+  delta?: number;
+}) {
+  return (
+    <div className={styles.statCard}>
+      <span className={styles.statLabel}>
+        {icon}
+        {label}
+      </span>
+      <span className={styles.statValue}>
+        {value ?? "—"}
+        {typeof delta === "number" && delta > 0 && (
+          <span className={styles.statDelta}> +{delta}</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+// Red detalja (label / vrijednost). Prazna vrijednost → "Dodaj" affordance.
+function ProfileDetailRow({
+  label,
+  value,
+  onAdd,
+  last,
+}: {
+  label: string;
+  value?: string | null;
+  onAdd?: () => void;
+  last?: boolean;
+}) {
+  return (
+    <div
+      className={styles.detailRow}
+      style={last ? { borderBottom: "none" } : undefined}
+    >
+      <span className={styles.detailLabel}>{label}</span>
+      <span className={styles.detailValue}>
+        {value ? (
+          value
+        ) : onAdd ? (
+          <button type="button" className={styles.addLink} onClick={onAdd}>
+            Dodaj
+          </button>
+        ) : (
+          <span className={styles.infoEmpty}>—</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function ChecklistStep({
+  n,
+  done,
+  optional,
+  dimmed,
+  title,
+  desc,
+  children,
+}: {
+  n: number;
+  done: boolean;
+  optional?: boolean;
+  dimmed?: boolean;
+  title: string;
+  desc: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={`${styles.obStep} ${dimmed ? styles.obStepDimmed : ""}`}>
+      <div className={`${styles.obNum} ${done ? styles.obNumDone : ""}`}>
+        {done ? <LuCheck size={16} /> : n}
+      </div>
+      <div className={styles.obBody}>
+        <div className={styles.obTitle}>
+          {title}
+          {optional && <span className={styles.obOptional}> · opcionalno</span>}
+        </div>
+        <div className={styles.obDesc}>{desc}</div>
+        {children && <div className={styles.obActions}>{children}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Brzi wizard za kreiranje djelatnosti — minimalna polja (tip, naziv, JIB).
+// Ostalo (adresa, šifra, računi, režim) korisnik dopunjuje kasnije na profilu.
+function QuickCreateOrgModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [type, setType] = useState<"BUSINESS" | "COMPANY">("BUSINESS");
+  const [name, setName] = useState("");
+  const [taxNumber, setTaxNumber] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: () =>
+      unwrap(
+        createOrganization({
+          name: name.trim(),
+          type,
+          ...(taxNumber.trim() && { taxNumber: taxNumber.trim() }),
+        }),
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      onCreated();
+    },
+    onError: (e: Error) => {
+      const m = e.message;
+      setError(
+        m === "ALREADY_HAS_OWN_ORG"
+          ? "Već imate registrovanu vlastitu djelatnost."
+          : m === "ALREADY_HAS_OWN_ORG_LIMIT"
+            ? "Dosegli ste limit vlastitih djelatnosti za vaš plan. Nadogradite pretplatu za više."
+            : m === "ACCOUNTANT_CANNOT_OWN_ORG"
+              ? "Računovođe ne mogu imati vlastitu organizaciju."
+              : m === "NETWORK_ERROR"
+                ? "Server nije dostupan. Pokušajte ponovo."
+                : m || "Došlo je do greške.",
+      );
+    },
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError("Unesite naziv djelatnosti.");
+      return;
+    }
+    setError(null);
+    create.mutate();
+  };
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+        <p className={styles.cardTitle}>Napravite svoju djelatnost</p>
+        <p className={styles.modalSub}>
+          Samo osnovno. Ostale podatke (adresa, šifra djelatnosti, računi)
+          možete dopuniti kasnije na profilu.
+        </p>
+
+        <form onSubmit={submit}>
+          <div className={styles.typeToggle}>
+            <button
+              type="button"
+              className={`${styles.typeBtn} ${type === "BUSINESS" ? styles.typeBtnActive : ""}`}
+              onClick={() => setType("BUSINESS")}
+            >
+              Obrt / samostalna djelatnost
+            </button>
+            <button
+              type="button"
+              className={`${styles.typeBtn} ${type === "COMPANY" ? styles.typeBtnActive : ""}`}
+              onClick={() => setType("COMPANY")}
+            >
+              Firma (d.o.o. / d.d.)
+            </button>
+          </div>
+
+          <label className={styles.modalLabel}>Naziv djelatnosti</label>
+          <input
+            className={styles.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={type === "BUSINESS" ? "npr. Obrt Kovač" : "npr. Kovač d.o.o."}
+            autoFocus
+          />
+
+          <label className={styles.modalLabel}>JIB / ID broj (opcionalno)</label>
+          <input
+            className={styles.input}
+            value={taxNumber}
+            onChange={(e) =>
+              setTaxNumber(e.target.value.replace(/\D/g, "").slice(0, 13))
+            }
+            placeholder="13 cifara"
+            inputMode="numeric"
+            maxLength={13}
+          />
+
+          {error && <div className={styles.errorMsg}>{error}</div>}
+
+          <div className={styles.modalActions}>
+            <button
+              className={styles.btnPrimary}
+              type="submit"
+              disabled={create.isPending}
+            >
+              {create.isPending ? "Pravim..." : "Napravi djelatnost"}
+            </button>
+            <button className={styles.btnGhost} type="button" onClick={onClose}>
+              Otkaži
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

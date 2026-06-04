@@ -80,6 +80,20 @@ async function deletePersonClient(req, res) {
   }
 }
 
+// DELETE /api/admin/forms/:id  — obriši sačuvani dokument (formu) + verzije/attachmente.
+async function deleteForm(req, res) {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ ok: false, error: "Invalid id" });
+  try {
+    const ok = await cascade.deleteFormCascade(id);
+    if (!ok) return res.status(404).json({ ok: false, error: "Dokument nije pronađen" });
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("admin deleteForm failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
 // POST /api/admin/users/:id/trial-invite
 // Pošalji poziv na besplatni trial — samo korisnicima koji ga još nisu
 // aktivirali (trialUsedAt == null) i koji su na besplatnom planu (USER).
@@ -105,4 +119,4 @@ async function sendTrialInvite(req, res) {
   }
 }
 
-module.exports = { listOrgWorkers, deleteOrganization, deleteWorker, deletePersonClient, sendTrialInvite };
+module.exports = { listOrgWorkers, deleteOrganization, deleteWorker, deletePersonClient, deleteForm, sendTrialInvite };
