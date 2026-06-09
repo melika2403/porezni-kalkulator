@@ -82,6 +82,7 @@ export type Payroll = {
 
   bankAccount: string | null;
   status: PayrollStatus;
+  paymentDate: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -116,6 +117,9 @@ export type CalculatePayload = {
   // i vlasnika. Backend skalira osnovicu, minuli rad i min doprinosnu osnovu.
   // Default 1 (puni mjesec). Vidi computeProRateFactor u ObracunPlata.tsx.
   proRateFactor?: number;
+  // Ciljni neto za isplatu (NETO_ISPLATA) — backend fening-search prilagodi
+  // bruto osnovicu da finalni neto padne tačno na ovaj iznos.
+  targetNet?: number;
   notes?: string | null;
 };
 
@@ -194,6 +198,23 @@ export function markMonthPaid(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+// Postavlja paymentDate na sve payroll-e u (org, year, month). Vraća ga svim
+// dokumentima (MIP-1023 XML, platne liste, uplatnice).
+export function setPayrollPaymentDate(payload: {
+  organizationId: number;
+  year: number;
+  month: number;
+  paymentDate: string | null;
+}) {
+  return request<{ updated: number; paymentDate: string | null }>(
+    `/api/payroll/payment-date`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 // ── Payroll documents (uplatnice) ──────────────────────────────────────────

@@ -42,6 +42,9 @@ const User = sequelize.define(
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
     trialUsedAt: { type: DataTypes.DATE, allowNull: true },
+    // UTM atribucija — odakle korisnik dolazi (capture pri registraciji).
+    utmSource: { type: DataTypes.STRING(80), allowNull: true },
+    utmCampaign: { type: DataTypes.STRING(120), allowNull: true },
   },
   { tableName: "users", timestamps: true },
 );
@@ -63,23 +66,14 @@ const Subscription = sequelize.define(
     startDate: { type: DataTypes.DATEONLY, allowNull: false },
     endDate: { type: DataTypes.DATEONLY, allowNull: false },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
-    plan: {
-      type: DataTypes.ENUM("free", "pro", "business"),
-      allowNull: false,
-      defaultValue: "free",
-    },
-    status: {
-      type: DataTypes.ENUM("active", "cancelled", "expired", "past_due", "trialing"),
-      allowNull: false,
-      defaultValue: "active",
-    },
-    billingCycle: {
-      type: DataTypes.ENUM("monthly", "yearly"),
-      allowNull: true,
-    },
-    cancelAtPeriodEnd: { type: DataTypes.BOOLEAN, defaultValue: false },
-    cancelledAt: { type: DataTypes.DATE, allowNull: true },
-    externalSubscriptionId: { type: DataTypes.STRING(255), allowNull: true },
+    // Plan i ciklus naplate pretplate (za evidenciju i ispravnu rolu).
+    plan: { type: DataTypes.ENUM("PRO", "BUSINESS"), allowNull: true },
+    billingCycle: { type: DataTypes.ENUM("monthly", "yearly"), allowNull: true },
+    // Kad je zadnji put poslan podsjetnik za obnovu (admin akcija).
+    reminderSentAt: { type: DataTypes.DATE, allowNull: true },
+    // Probni period (trial). Self-service trial ga postavlja automatski; admin
+    // ga može ručno označiti (npr. kad ručno da Business na mjesec za probu).
+    isTrial: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   },
   { tableName: "subscriptions", timestamps: true },
 );
@@ -204,6 +198,12 @@ const Worker = sequelize.define(
     odjavaDate: { type: DataTypes.DATEONLY, allowNull: true },
     spol: { type: DataTypes.ENUM("M", "Z"), allowNull: true },
     strucnaSpremaIdx: { type: DataTypes.TINYINT.UNSIGNED, allowNull: true },
+    // JS3100 "Treći dio" stabilna polja — pamte se da bi se prefill-ala i
+    // prijava i odjava (osnov osiguranja i zanimanje se ne mijenjaju između).
+    osnovOsiguranjaOpis: { type: DataTypes.STRING(120), allowNull: true },
+    osnovOsiguranjaSifra: { type: DataTypes.STRING(20), allowNull: true },
+    zanimanjeOpis: { type: DataTypes.STRING(120), allowNull: true },
+    zanimanjeSifra: { type: DataTypes.STRING(20), allowNull: true },
     // Porezni koeficijent ličnog odbitka (1.0 = 300 KM osnovnog odbitka).
     // User upiše finalni koeficijent (npr. 1.5 = 450 KM ako ima jedno dijete).
     taxCoefficient: {
@@ -338,6 +338,11 @@ const Payroll = sequelize.define(
       allowNull: false,
       defaultValue: "DRAFT",
     },
+
+    // Datum stvarne isplate plate. Postavlja ga user u "Mjesečni dokumenti"
+    // tabu; svi payroll-i u istom (org, year, month) drže isti datum (sinhroni
+    // batch update kad user mijenja u UI). Ulazi u MIP-1023 XML i platne liste.
+    paymentDate: { type: DataTypes.DATEONLY, allowNull: true },
 
     notes: { type: DataTypes.TEXT, allowNull: true },
   },
@@ -660,6 +665,14 @@ const Predracun = sequelize.define(
     fullNumber: { type: DataTypes.STRING(40), allowNull: false, unique: true },
     // plan
     plan: { type: DataTypes.ENUM("PRO", "BUSINESS"), allowNull: false },
+    // ciklus naplate i period pretplate koji predračun pokriva
+    billingCycle: {
+      type: DataTypes.ENUM("monthly", "yearly"),
+      allowNull: false,
+      defaultValue: "yearly",
+    },
+    periodStart: { type: DataTypes.DATEONLY, allowNull: true },
+    periodEnd: { type: DataTypes.DATEONLY, allowNull: true },
     // iznosi (KM)
     netAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     vatAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
@@ -897,6 +910,115 @@ const InvoiceItemTemplate = sequelize.define(
   },
 );
 
+// ─── CLIENT PAYMENT ───────────────────────────────────────────────────────────
+// Mjesečna uplata klijenta (registrovanog korisnika) — admin finansije.
+// Jedan red po (userId, year, month). Ako je isAnnual=true, taj jedan unos
+// pokriva cijelu godinu (klijent se za ostale mjesece te godine vodi kao plaćen).
+const ClientPayment = sequelize.define(
+  "ClientPayment",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    year: { type: DataTypes.INTEGER, allowNull: false },
+    month: { type: DataTypes.INTEGER, allowNull: false }, // 1–12
+    amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 }, // KM
+    isAnnual: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    note: { type: DataTypes.STRING(255), allowNull: true },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "client_payments",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { unique: true, fields: ["userId", "year", "month"] },
+      { fields: ["year"] },
+    ],
+  },
+);
+
+// ─── COMPANY EXPENSE ──────────────────────────────────────────────────────────
+// Trošak/ulaganje firme (npr. oglasi) — admin finansije. Sve u KM.
+const CompanyExpense = sequelize.define(
+  "CompanyExpense",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    date: { type: DataTypes.DATEONLY, allowNull: false },
+    amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 }, // KM
+    description: { type: DataTypes.STRING(255), allowNull: false },
+    // Kategorija troška. MARKETING se koristi za CAC obračun.
+    category: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "OSTALO" },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "company_expenses",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["date"] }],
+  },
+);
+
+// Ostali prihodi (gotovina i sl.) — prihod koji NIJE vezan za korisnika/pretplatu.
+// Ulazi u ukupan prihod i profit, evidentira se odvojeno od ClientPayment.
+const OtherIncome = sequelize.define(
+  "OtherIncome",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    date: { type: DataTypes.DATEONLY, allowNull: false },
+    amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 }, // KM
+    description: { type: DataTypes.STRING(255), allowNull: false },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "other_incomes",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["date"] }],
+  },
+);
+
+// Dnevnik aktivnosti — bilježi generisanje dokumenata. userId=null = neregistrovan.
+// action = mašinski kod (npr. "AMS_GENERATE"); label = čitljiv naziv za prikaz.
+const ActivityLog = sequelize.define(
+  "ActivityLog",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    action: { type: DataTypes.STRING(60), allowNull: false },
+    label: { type: DataTypes.STRING(160), allowNull: true },
+    // Za koju organizaciju je akcija (in-app alati: plate, šihterica, JS3100,
+    // ugovori). Javni alati (AMS/SPR/GPD…) nemaju org → NULL.
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "activity_logs",
+    timestamps: true,
+    updatedAt: false,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["action"] }, { fields: ["userId"] }, { fields: ["createdAt"] }],
+  },
+);
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 User.hasOne(Subscription, { foreignKey: "userId", as: "subscription" });
 Subscription.belongsTo(User, { foreignKey: "userId" });
@@ -965,12 +1087,11 @@ User.hasMany(InvoiceItemTemplate, {
 });
 InvoiceItemTemplate.belongsTo(User, { foreignKey: "userId", as: "user" });
 
-User.hasOne(UserPreference, { foreignKey: "userId", as: "preferences" });
-UserPreference.belongsTo(User, { foreignKey: "userId" });
-UserPreference.belongsTo(Organization, {
-  foreignKey: "activeOrganizationId",
-  as: "activeOrganization",
-});
+User.hasMany(ClientPayment, { foreignKey: "userId", as: "clientPayments" });
+ClientPayment.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+ActivityLog.belongsTo(User, { foreignKey: "userId", as: "user" });
+ActivityLog.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" });
 
 User.hasMany(KarticaMember, {
   foreignKey: "createdById",
@@ -1024,5 +1145,8 @@ module.exports = {
   InvoiceItemTemplate,
   Payroll,
   PayrollDocument,
-  UserPreference,
+  ClientPayment,
+  CompanyExpense,
+  OtherIncome,
+  ActivityLog,
 };

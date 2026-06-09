@@ -9,6 +9,7 @@ import PdvObveznik100000 from "./posts/PdvObveznik100000";
 import Gpd1051KorakPoKorak from "./posts/Gpd1051KorakPoKorak";
 import OtkazRadnikaFbih from "./posts/OtkazRadnikaFbih";
 import TopliObrokRegres from "./posts/TopliObrokRegres";
+import KolikoKostaRadnikPoslodavca from "./posts/KolikoKostaRadnikPoslodavca";
 
 export type BlogPost = {
   slug: string;
@@ -25,6 +26,16 @@ export type BlogPost = {
 
 // Najnoviji prvi (`date` desc).
 export const BLOG_POSTS: BlogPost[] = [
+  {
+    slug: "koliko-kosta-radnik-poslodavca-fbih",
+    title: "Koliko košta radnik poslodavca u FBiH 2026: ukupan trošak zaposlenog",
+    excerpt:
+      "Neto na oglasu je samo dio priče. Računamo stvarni mjesečni i godišnji trošak radnika u FBiH za 2026: doprinosi, porez, dodatne naknade, tabela po platama i skriveni troškovi (topli obrok, prevoz, regres).",
+    date: "2026-06-04",
+    readingTime: "8 min",
+    category: "Plate i doprinosi",
+    Content: KolikoKostaRadnikPoslodavca,
+  },
   {
     slug: "topli-obrok-regres-fbih-2026",
     title: "Topli obrok i regres u FBiH 2026: neoporezivi iznosi i pravila",

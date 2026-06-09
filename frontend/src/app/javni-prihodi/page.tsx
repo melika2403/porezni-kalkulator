@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { reviewedFor } from "src/data/contentMeta";
 import JavniPrihodi from "src/sections/javni-prihodi/JavniPrihodi";
 import {
   VRSTE_PRIHODA_GROUPS,
@@ -148,8 +149,9 @@ const datasetSchema = {
     "PUFBiH",
     "Pravilnik o uplati javnih prihoda",
   ],
-  inLanguage: "bs",
+  inLanguage: ["bs", "hr", "sr"],
   isAccessibleForFree: true,
+  dateModified: reviewedFor("/javni-prihodi"),
   variableMeasured: [
     `${totalRacuni} federalnih i kantonalnih uplatnih računa`,
     `${totalVrste} šifri vrsta prihoda`,

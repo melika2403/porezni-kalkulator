@@ -28,17 +28,20 @@ import {
   markMonthPaid,
   patchPayroll,
   savePayrollInputs,
+  setPayrollPaymentDate,
   type MonthlyUplatnicaSummary,
   type Payroll,
   type PayrollDocumentType,
 } from "src/api/payroll";
 import { getSihterica } from "src/api/sihterica";
+import { trackEvent } from "src/api/activity";
 import {
   fromGross,
   fromNet,
   deductionFromCoefficient,
   computeMinContribBase,
 } from "src/utils/payrollFbih";
+import { parseDecimal } from "src/utils/parseDecimal";
 import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
@@ -626,6 +629,13 @@ function ObracunPlataApp() {
       );
     } else if (result.calculated > 0) {
       notify(`Obračunato ${result.calculated} radnik(a).`, "success");
+    }
+    if (result.calculated > 0) {
+      trackEvent(
+        "PLATA_GENERATE",
+        `Plate ${String(month).padStart(2, "0")}/${year} (${result.calculated})`,
+        orgId,
+      );
     }
     if (result.warnings.length > 0) {
       notify(result.warnings.join(" · "), "warning");
@@ -1594,20 +1604,61 @@ function MonthlyPanel({
   payrollByWorker: Map<number, Payroll>;
   canGenerate: boolean;
 }) {
-  // Datum isplate plate (YYYY-MM-DD). Default: zadnji dan mjeseca obračuna.
+  // Datum isplate plate (YYYY-MM-DD). Perzistira po (org, year, month) preko
+  // payrolls.paymentDate snapshot-a — čita iz prvog payroll-a u mjesecu, snima
+  // na promjenu (batch update svih payroll-a u mjesecu). Ako nema postojećeg
+  // obračuna, default je zadnji dan mjeseca obračuna.
   const defaultPaymentDate = (() => {
     const last = new Date(year, month, 0).getDate();
     return `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
   })();
-  const [paymentDate, setPaymentDate] = useState<string>(defaultPaymentDate);
+  // Postojeći paymentDate iz bilo kojeg payroll-a tog mjeseca (svi su sinhroni).
+  const persistedPaymentDate = (() => {
+    for (const p of payrollByWorker.values()) {
+      if (p.paymentDate) return p.paymentDate;
+    }
+    return null;
+  })();
+  const [paymentDate, setPaymentDate] = useState<string>(
+    persistedPaymentDate ?? defaultPaymentDate,
+  );
 
   // notify za payslipsEmailMutation feedback (uspjeh/skip/error rezime).
   const { notify } = useNotice();
 
-  // Reset kada se promijeni mjesec/godina
+  // Resync state kad se promijeni mjesec/godina ili kad se učitaju payroll-i
+  // iz DB-a (npr. tek nakon prvog obračuna paymentDate može biti dostupan).
   useEffect(() => {
-    setPaymentDate(defaultPaymentDate);
-  }, [defaultPaymentDate]);
+    setPaymentDate(persistedPaymentDate ?? defaultPaymentDate);
+  }, [persistedPaymentDate, defaultPaymentDate]);
+
+  const queryClient = useQueryClient();
+  const paymentDateMutation = useMutation({
+    mutationFn: async (nextDate: string) => {
+      const r = await setPayrollPaymentDate({
+        organizationId: orgId,
+        year,
+        month,
+        paymentDate: nextDate,
+      });
+      if (!r.ok) throw new Error(r.error);
+      return r.data;
+    },
+    onSuccess: () => {
+      // Invalidate payroll list query — refresh paymentDate u payrollByWorker.
+      queryClient.invalidateQueries({ queryKey: ["payrolls", orgId, year, month] });
+    },
+  });
+
+  const handlePaymentDateChange = (next: string) => {
+    setPaymentDate(next);
+    // Snimi samo ako postoji bar jedan payroll u mjesecu (inače DB UPDATE
+    // pogađa 0 redova — nema gdje upisati). Ako nema obračuna, paymentDate
+    // je samo lokalni state dok user ne pokrene "Obračunaj sve".
+    if (payrollByWorker.size > 0 && /^\d{4}-\d{2}-\d{2}$/.test(next)) {
+      paymentDateMutation.mutate(next);
+    }
+  };
 
   const summaryQuery = useQuery({
     queryKey: ["monthlySummary", orgId, year, month],
@@ -2814,7 +2865,7 @@ function MonthlyPanel({
           <DateInput
             id="paymentDate"
             value={paymentDate}
-            onValueChange={(iso) => setPaymentDate(iso)}
+            onValueChange={handlePaymentDateChange}
             className={js3Styles.fieldInput}
           />
         </div>
@@ -3882,12 +3933,7 @@ function PayrollModal({
   // Parsira de-DE format ("1.234,56") u broj. Tačka je UVIJEK thousands separator,
   // zarez je UVIJEK decimalni separator — što proizvodi formatMoneyLive. Tako
   // "1.234" = 1234 (hiljadu dvjesta trideset četiri), ne 1,234 (jedan cijela 234).
-  const parseNum = (s: string): number => {
-    if (!s) return 0;
-    const cleaned = s.trim().replace(/\./g, "").replace(",", ".");
-    const n = parseFloat(cleaned);
-    return Number.isFinite(n) ? n : 0;
-  };
+  const parseNum = parseDecimal;
 
   // Preview izračun u modalu (bez minimum-base logike — server primjenjuje to).
   // Efektivni bruto = osnovica + minuli rad + uvećanja (po istoj logici kao server).
@@ -4039,6 +4085,13 @@ function PayrollModal({
           grossBase: parseNum(gross),
           minuliRadRate: parseNum(minuliRad),
           taxCoefficient: parseNum(coeff),
+          // "Cilj neto za isplatu": pošalji ciljni neto (iz polja koje user vidi)
+          // pa backend fening-search prilagodi bruto da finalni neto bude tačan.
+          // Backend primijeni samo bez uvećanja i za pun mjesec.
+          ...(worker.salaryType === "NETO_ISPLATA" &&
+          parseNum(netoIsplataDisplay) > 0
+            ? { targetNet: parseNum(netoIsplataDisplay) }
+            : {}),
           // Pro-rate factor (0..1) — automatski za mid-month, user može
           // isključiti checkbox-om. Backend skalira osnovicu, minuli rad,
           // i min doprinosnu osnovu.

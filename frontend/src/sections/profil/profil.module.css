@@ -1,6 +1,6 @@
 .page {
   padding: 5.5rem 2rem 6rem;
-  max-width: 1000px;
+  max-width: 1080px;
   margin: 0 auto;
   animation: fadeUp 0.5s ease both;
   display: flex;
@@ -10,7 +10,7 @@
 
 /* ── Sidebar ─────────────────────────────────────────────────── */
 .sidebar {
-  width: 220px;
+  width: 248px;
   flex-shrink: 0;
 }
 
@@ -71,11 +71,11 @@
 .navItem {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   width: 100%;
-  padding: 0.6rem 0.85rem;
+  padding: 0.72rem 0.95rem;
   font-family: "DM Sans", sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   font-weight: 500;
   color: var(--mid);
   background: transparent;
@@ -141,11 +141,12 @@
 }
 
 .cardTitle {
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--mid);
+  font-family: "DM Serif Display", serif;
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
   margin: 0;
 }
 
@@ -273,11 +274,11 @@
 }
 
 .fieldLabel {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--mid);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .input {
@@ -496,8 +497,7 @@
 .orgList {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  gap: 0.65rem;
 }
 
 .orgItem {
@@ -550,10 +550,11 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-top: 0.65rem;
   font-family: "DM Sans", sans-serif;
   font-size: 13px;
   font-weight: 500;
-  padding: 0.65rem 1.25rem;
+  padding: 0.75rem 1.25rem;
   background: transparent;
   color: var(--sage);
   border: 1px dashed var(--sage);
@@ -736,6 +737,22 @@
 .badgePldi {
   background: #f0fdf4;
   color: #166534;
+}
+.badgeAms {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+.badgeSih {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+.badgeJs3100 {
+  background: #e2e8f0;
+  color: #475569;
+}
+.badgeUod {
+  background: #fce7f3;
+  color: #be185d;
 }
 
 .formDetails {
@@ -941,9 +958,10 @@
 
 /* ── Own org list ────────────────────────────────────────────── */
 .ownOrgItem {
-  padding-bottom: 1.25rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.65rem;
+}
+.ownOrgItem:last-of-type {
+  margin-bottom: 0;
 }
 
 .ownOrgItem:last-of-type {
@@ -1195,6 +1213,53 @@
   text-decoration: underline;
 }
 
+/* ── Obnova pretplate (predračun) ───────────────────────────────────────── */
+.renewalBox {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--sage-pale);
+}
+.renewalTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+.renewalDesc {
+  font-size: 13px;
+  color: var(--mid);
+  margin: 0;
+  line-height: 1.55;
+}
+.renewalHint {
+  font-size: 12px;
+  color: var(--mid);
+  margin: 0;
+  line-height: 1.5;
+}
+.renewalError {
+  font-size: 12.5px;
+  color: #b3261e;
+  margin: 0;
+}
+.renewalDone {
+  font-size: 13px;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.renewalDone p {
+  margin: 0;
+  line-height: 1.5;
+}
+.renewalBox .btnPrimary {
+  align-self: flex-start;
+}
+
 .subInfo {
   display: flex;
   flex-direction: column;
@@ -1267,18 +1332,14 @@
 
 @media (max-width: 700px) {
   .page {
-    padding: 2rem 1rem 4rem;
+    /* Top padding mora očistiti fiksni navbar (inače sidebar brand "presiječe"). */
+    padding: 5rem 1rem 4rem;
     flex-direction: column;
     gap: 1.5rem;
   }
   .sidebar {
     width: 100%;
     position: static;
-  }
-  .sidebarProfile {
-    flex-direction: row;
-    text-align: left;
-    align-items: center;
   }
   .sidebarNav {
     flex-direction: row;
@@ -1300,4 +1361,681 @@
   .orgTypeRadios {
     grid-template-columns: 1fr !important;
   }
+}
+
+/* ── Pregled tab (landing + onboarding) ─────────────────────────────────── */
+.pregledTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
+  color: var(--ink);
+  margin: 0;
+}
+.pregledTitle em {
+  color: var(--sage);
+  font-style: normal;
+}
+.pregledDate {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sage);
+  margin: 0.5rem 0 0;
+  letter-spacing: 0.01em;
+}
+
+.pregledLead {
+  font-size: 15px;
+  color: var(--mid);
+  margin: 0.25rem 0 0;
+}
+.pregledShortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Onboarding koraci */
+.obStep {
+  display: flex;
+  gap: 0.9rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.obStep:last-child {
+  border-bottom: none;
+}
+.obStepDimmed {
+  opacity: 0.5;
+}
+.obNum {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  color: var(--mid);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+}
+.obNumDone {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fff;
+}
+.obBody {
+  flex: 1;
+  min-width: 0;
+}
+.obTitle {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14.5px;
+}
+.obOptional {
+  font-weight: 400;
+  color: var(--mid);
+  font-size: 12.5px;
+}
+.obDesc {
+  font-size: 13px;
+  color: var(--mid);
+  margin-top: 2px;
+}
+.obActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+/* Brzi wizard (modal) */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 14, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+}
+.modalCard {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 460px;
+  padding: 1.5rem 1.6rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.modalSub {
+  font-size: 13px;
+  color: var(--mid);
+  margin: 0.3rem 0 1.1rem;
+  line-height: 1.5;
+}
+.modalLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  margin: 0.9rem 0 0.3rem;
+}
+.modalActions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.3rem;
+}
+.typeToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.typeBtn {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 0.6rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--mid);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.typeBtnActive {
+  border-color: var(--sage);
+  background: var(--sage-pale);
+  color: var(--ink);
+}
+
+/* ── Novi sidebar (brand gore, profil UVIJEK dole) ──────────────────────── */
+/* Sticky pune visine → mini profil je dosljedno na dnu na svim tabovima,
+   bez obzira na dužinu sadržaja. */
+.sidebar {
+  position: sticky;
+  top: 5.5rem;
+  display: flex;
+  flex-direction: column;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0 0.25rem 1.1rem;
+  margin-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.brandMark {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--sage);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+.brandText {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.sidebarFoot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.85rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.avatarSm {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sage) 0%, var(--sage-light) 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.sidebarFootInfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+.sidebarFootName {
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+/* ── Pregled: bogati dashboard ───────────────────────────────────────────── */
+.pregledHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+  flex-wrap: wrap;
+}
+.progressChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.progressChip span {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.progressVal {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.progressSub {
+  font-size: 11px;
+  color: var(--mid);
+}
+
+.onbBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--accent-pale);
+  border-radius: 11px;
+  padding: 0.65rem 0.9rem;
+  margin-bottom: 1.1rem;
+}
+.onbBannerText {
+  flex: 1;
+  font-size: 12.5px;
+  color: #7a3a18;
+  line-height: 1.45;
+}
+.onbBannerBtn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1.8rem;
+}
+.statCard {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+}
+.statLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--mid);
+  font-size: 13px;
+  margin-bottom: 0.5rem;
+}
+.statValue {
+  font-size: 27px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.statDelta {
+  font-size: 11px;
+  color: var(--sage);
+  font-weight: 400;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+.sectionTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 20px;
+  margin: 0;
+  color: var(--ink);
+}
+.sectionAction {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--sage);
+  cursor: pointer;
+}
+
+.toolGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  margin-bottom: 1.6rem;
+}
+@media (max-width: 560px) {
+  .toolGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.toolCard {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.toolCard:hover {
+  border-color: var(--sage);
+  transform: translateY(-1px);
+}
+.toolCardHot {
+  border: 1.5px solid var(--sage);
+}
+.toolIcon {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--sage-pale);
+  color: var(--sage);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.toolBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.toolTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.toolBadge {
+  font-size: 9.5px;
+  color: var(--sage);
+  background: var(--sage-pale);
+  padding: 1px 6px;
+  border-radius: 20px;
+}
+.toolDesc {
+  font-size: 12.5px;
+  color: var(--mid);
+}
+.toolArrow {
+  color: var(--mid);
+  flex: none;
+}
+
+.bizList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 1.6rem;
+}
+.bizCard {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.bizCard:hover {
+  border-color: var(--sage);
+  transform: translateY(-1px);
+}
+.bizAvatar {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--sage);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 14px;
+}
+.bizAvatarAccent {
+  background: var(--accent);
+}
+.bizInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bizName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bizSub {
+  font-size: 12.5px;
+  color: var(--mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bizChevron {
+  color: var(--mid);
+  flex: none;
+}
+.dashedAdd {
+  border: 1px dashed color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 12px;
+  padding: 0.9rem;
+  text-align: center;
+  font-size: 14px;
+  color: var(--mid);
+  cursor: pointer;
+  background: transparent;
+  font-family: inherit;
+}
+.dashedAdd:hover {
+  border-color: var(--sage);
+  color: var(--sage);
+}
+
+/* Mobilni: sidebar nije sticky/pune visine (page postaje kolona). */
+@media (max-width: 700px) {
+  .sidebar {
+    position: static;
+    height: auto;
+  }
+  .sidebar .sidebarNav {
+    overflow-y: visible;
+  }
+}
+
+/* ── Poredba planova (Pretplata tab) ─────────────────────────────────────── */
+.planCompareGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.9rem;
+}
+@media (max-width: 720px) {
+  .planCompareGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.planCompareCard {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  background: var(--paper);
+}
+.planCompareRec {
+  border: 2px solid var(--sage);
+  background: var(--white);
+}
+.planCompareRecBadge {
+  position: absolute;
+  top: -10px;
+  left: 1.1rem;
+  background: var(--sage);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.planCompareTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 19px;
+  color: var(--ink);
+}
+.planComparePrice {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.planCompareNote {
+  font-size: 12px;
+  color: var(--mid);
+  margin-top: -0.3rem;
+}
+.planCompareFeatures {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+}
+.planCompareFeatures li {
+  display: flex;
+  gap: 0.45rem;
+  font-size: 12.5px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.planCompareCurrent {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sage);
+  background: var(--sage-pale);
+  border-radius: var(--radius);
+  padding: 0.55rem;
+}
+
+/* ── Profil (Lični podaci) redizajn ──────────────────────────────────────── */
+.profileHead {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.profileAvatar {
+  width: 58px;
+  height: 58px;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sage) 0%, var(--sage-light) 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.profileHeadInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+.profileHeadName {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.2rem;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.profileHeadEmail {
+  font-size: 12.5px;
+  color: var(--mid);
+}
+
+.detailGroup {
+  padding: 0.6rem 0;
+}
+.detailGroupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin-bottom: 0.3rem;
+}
+.detailRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.detailLabel {
+  font-size: 13.5px;
+  color: var(--mid);
+}
+.detailValue {
+  font-size: 0.95rem;
+  color: var(--ink);
+  text-align: right;
+}
+.addLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--sage);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.infoCallout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  background: var(--sage-pale);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.85rem;
+  margin: 0.6rem 0;
+  font-size: 12.5px;
+  color: var(--sage);
+  line-height: 1.5;
+}
+.infoCallout svg {
+  flex: none;
+  margin-top: 1px;
 }

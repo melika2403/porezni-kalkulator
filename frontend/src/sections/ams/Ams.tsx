@@ -14,6 +14,7 @@ import OrgFillSelect, {
   type OrgFillData,
 } from "src/components/PersonFillSelect/OrgFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import { trackEvent } from "src/api/activity";
 
 /* ── Helpers ── */
 
@@ -232,6 +233,7 @@ export default function AmsForm() {
         bytes,
         `AMS-1035_${periodMjesec || "XX"}_20${periodGodina || "XX"}.pdf`,
       );
+      trackEvent("AMS_GENERATE", "AMS-1035");
     } finally {
       setLoading(false);
     }
@@ -831,6 +833,45 @@ export default function AmsForm() {
           inostranstva — bilo da su freelanceri, konsultanti, predavači, autori
           ili drugi izvođači koji rade za naručioce van BiH (Upwork, Fiverr,
           direktni klijenti, evropski poslodavci, itd.).
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          Stope doprinosa i poreza na <em>drugi samostalni prihod</em>
+        </h2>
+        <p>
+          Na drugi samostalni prihod (prihod iz inostranstva koji se prijavljuje
+          obrascem AMS-1035) u FBiH obračunava se{" "}
+          <strong>doprinos za zdravstveno osiguranje 4%</strong> i{" "}
+          <strong>porez na dohodak 10%</strong>, uz{" "}
+          <strong>normirane rashode 20%</strong> (30% za autorske naknade) koji
+          umanjuju osnovicu.
+        </p>
+        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.8 }}>
+          <li>
+            <strong>Normirani rashodi — 20%</strong> od bruto prihoda (30% za
+            autorske naknade); umanjuju poreznu osnovicu.
+          </li>
+          <li>
+            <strong>Doprinos za zdravstveno osiguranje — 4%</strong> na osnovicu
+            (drugi samostalni prihod), bez obzira na to da li ste već zdravstveno
+            osigurani po osnovu radnog odnosa.
+          </li>
+          <li>
+            <strong>Porez na dohodak — 10%</strong> na osnovicu nakon
+            umanjenja za normirane rashode i doprinose.
+          </li>
+          <li>
+            <strong>Porezni kredit</strong> — porez već plaćen u inostranstvu na
+            isti prihod odbija se od obaveze u FBiH (sporazumi o izbjegavanju
+            dvostrukog oporezivanja).
+          </li>
+        </ul>
+        <p style={{ marginTop: "0.85rem" }}>
+          Kalkulator iznad automatski primjenjuje ove stope i izračunava
+          osnovicu, doprinos, porez i konačnu obavezu, te popunjava AMS-1035 i
+          uplatnice.
         </p>
       </section>
 

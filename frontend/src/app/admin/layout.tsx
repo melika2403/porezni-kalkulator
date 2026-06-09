@@ -12,6 +12,25 @@ const NAV_ITEMS: {
   icon: React.ReactNode;
 }[] = [
   {
+    href: "/admin",
+    label: "Pregled",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="3" y="3" width="7" height="9" rx="1" />
+        <rect x="14" y="3" width="7" height="5" rx="1" />
+        <rect x="14" y="12" width="7" height="9" rx="1" />
+        <rect x="3" y="16" width="7" height="5" rx="1" />
+      </svg>
+    ),
+  },
+  {
     href: "/admin/korisnici",
     label: "Korisnici",
     icon: (
@@ -83,6 +102,94 @@ const NAV_ITEMS: {
       </svg>
     ),
   },
+  {
+    href: "/admin/obnove",
+    label: "Obnove",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M3 2v6h6" />
+        <path d="M3 13a9 9 0 1 0 3-7.7L3 8" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/aktivnost",
+    label: "Aktivnost",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/dokumenti",
+    label: "Dokumenti",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="8" y1="13" x2="16" y2="13" />
+        <line x1="8" y1="17" x2="16" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/fakture",
+    label: "Korisničke fakture",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M4 2h11l5 5v15a0 0 0 0 1 0 0H4a0 0 0 0 1 0 0z" />
+        <polyline points="15 2 15 7 20 7" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+        <line x1="8" y1="16" x2="13" y2="16" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/finansije",
+    label: "Finansije",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminLayout({
@@ -120,9 +227,13 @@ export default function AdminLayout({
           <div className={styles.navHeader}>Navigacija</div>
           <nav className={styles.nav}>
             {NAV_ITEMS.map((item) => {
+              // "/admin" (Pregled) je aktivan samo na tačnom putu, inače bi
+              // matchirao sve podstranice. Ostali: tačno ili pod-ruta.
               const active =
-                pathname === item.href ||
-                pathname?.startsWith(item.href + "/");
+                item.href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname === item.href ||
+                    pathname?.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}

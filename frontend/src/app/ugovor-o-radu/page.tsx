@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import UgovorORadu from "src/sections/ugovor-o-radu/UgovorORadu";
+import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import type { Metadata } from "next";
 
 const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-radu";
@@ -149,6 +150,7 @@ export default function UgovorORaduPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <Suspense fallback={null}>
+        <RadniciTabBar />
         <UgovorORadu />
       </Suspense>
     </>

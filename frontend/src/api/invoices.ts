@@ -178,13 +178,19 @@ export function emailInvoice(id: number, body: { to?: string; message?: string }
   });
 }
 
-export function invoicePdfUrl(id: number) {
-  return `${BACKEND_URL}/api/invoices/${id}/pdf`;
+export function invoicePdfUrl(id: number, currency?: "BAM" | "EUR") {
+  const q = currency ? `?currency=${currency}` : "";
+  return `${BACKEND_URL}/api/invoices/${id}/pdf${q}`;
 }
 
-// Otvori PDF u novom tabu (uz cookie auth)
-export async function downloadInvoicePdf(id: number, filename?: string) {
-  const res = await fetch(`${BACKEND_URL}/api/invoices/${id}/pdf`, {
+// Otvori/preuzmi PDF (uz cookie auth). currency = opciona protuvaluta.
+export async function downloadInvoicePdf(
+  id: number,
+  filename?: string,
+  currency?: "BAM" | "EUR",
+) {
+  const q = currency ? `?currency=${currency}` : "";
+  const res = await fetch(`${BACKEND_URL}/api/invoices/${id}/pdf${q}`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

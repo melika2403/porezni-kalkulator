@@ -88,17 +88,7 @@ async function findUserWithSub(where) {
       {
         model: Subscription,
         as: "subscription",
-        attributes: [
-          "id",
-          "startDate",
-          "endDate",
-          "isActive",
-          "plan",
-          "status",
-          "billingCycle",
-          "cancelAtPeriodEnd",
-          "cancelledAt",
-        ],
+        attributes: ["id", "startDate", "endDate", "isActive", "plan", "billingCycle"],
       },
     ],
   });
@@ -126,8 +116,17 @@ function signJwtForUser(user, expiresIn) {
 }
 
 async function register(req, res) {
-  const { email, password, firstName, lastName, phone, address, city } =
-    req.body ?? {};
+  const {
+    email,
+    password,
+    firstName,
+    lastName,
+    phone,
+    address,
+    city,
+    utmSource,
+    utmCampaign,
+  } = req.body ?? {};
 
   if (!isNonEmptyString(email))
     return res.status(400).json({ ok: false, error: "email is required" });
@@ -169,6 +168,14 @@ async function register(req, res) {
       isEmailVerified: false,
       emailVerificationToken: hashedToken,
       emailVerificationExpiry: expiry,
+      utmSource:
+        typeof utmSource === "string" && utmSource.trim()
+          ? utmSource.trim().slice(0, 80)
+          : null,
+      utmCampaign:
+        typeof utmCampaign === "string" && utmCampaign.trim()
+          ? utmCampaign.trim().slice(0, 120)
+          : null,
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";

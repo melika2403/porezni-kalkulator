@@ -61,6 +61,17 @@ export function saveAmortizacija(
   });
 }
 
+// Preuzimanje PLDI obrasca → označi sačuvanu formu kao GENERATED (best-effort).
+export function markAmortizacijaGenerated(
+  godina: string,
+  organizationId?: number | null,
+) {
+  return request<null>("/api/amortizacija/mark-generated", {
+    method: "POST",
+    body: JSON.stringify({ godina, organizationId: organizationId ?? null }),
+  });
+}
+
 // Mapa: organizationId → [godine za koje PLDI postoji]. Frontend koristi za
 // "ima li podataka" indikator pored org-e u dropdown-u.
 export function getOrgYears() {

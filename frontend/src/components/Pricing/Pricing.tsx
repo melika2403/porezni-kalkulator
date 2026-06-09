@@ -3,6 +3,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./Pricing.module.css";
 import ComingSoonModal from "../ComingSoonModal/ComingSoonModal";
+import {
+  PLAN_PRICING,
+  annualSavings,
+  formatKm,
+  type BillingCycle,
+} from "src/data/pricing";
 
 interface Plan {
   tier: string;
@@ -81,6 +87,7 @@ const PLANS: Plan[] = [
 
 export default function Pricing() {
   const [showModal, setShowModal] = useState(false);
+  const [cycle, setCycle] = useState<BillingCycle>("yearly");
   const router = useRouter();
 
   const handleCta = (plan: Plan) => {
@@ -90,11 +97,23 @@ export default function Pricing() {
         ?.scrollIntoView({ behavior: "smooth" });
     } else if (plan.action === "subscribe" && plan.planId) {
       const trial = plan.planId === "PRO" ? "&trial=1" : "";
-      router.push(`/pretplate?plan=${plan.planId.toLowerCase()}${trial}`);
+      router.push(
+        `/pretplate?plan=${plan.planId.toLowerCase()}&cycle=${cycle}${trial}`,
+      );
     } else {
       setShowModal(true);
     }
   };
+
+  // Cijena/period za prikaz na kartici — paid planovi iz PLAN_PRICING po ciklusu.
+  const displayPrice = (plan: Plan) =>
+    plan.planId ? `${formatKm(PLAN_PRICING[plan.planId][cycle])} KM` : plan.price;
+  const displayPeriod = (plan: Plan) =>
+    plan.planId
+      ? cycle === "monthly"
+        ? "mjesečno / po korisniku"
+        : "godišnje / po korisniku"
+      : plan.period;
 
   return (
     <>
@@ -110,6 +129,28 @@ export default function Pricing() {
             Počnite besplatno. Nadogradite kada vam zatreba više.
           </p>
 
+          <div className={styles.cycleToggle} role="tablist" aria-label="Ciklus naplate">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={cycle === "monthly"}
+              className={`${styles.cycleBtn} ${cycle === "monthly" ? styles.cycleBtnActive : ""}`}
+              onClick={() => setCycle("monthly")}
+            >
+              Mjesečno
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={cycle === "yearly"}
+              className={`${styles.cycleBtn} ${cycle === "yearly" ? styles.cycleBtnActive : ""}`}
+              onClick={() => setCycle("yearly")}
+            >
+              Godišnje
+              <span className={styles.cycleBadge}>2 mjeseca besplatno</span>
+            </button>
+          </div>
+
           <div className={styles.grid}>
             {PLANS.map((plan) => (
               <div
@@ -120,13 +161,21 @@ export default function Pricing() {
                   <div className={styles.popularTag}>{plan.tag}</div>
                 )}
                 <div className={styles.tier}>{plan.tier}</div>
-                <div className={styles.price}>{plan.price}</div>
-                <div className={styles.period}>{plan.period}</div>
+                <div className={styles.price}>{displayPrice(plan)}</div>
+                <div className={styles.period}>{displayPeriod(plan)}</div>
                 <div
                   className={styles.trialBadge}
-                  aria-hidden={plan.trial ? undefined : true}
+                  aria-hidden={
+                    plan.trial || (plan.planId && cycle === "yearly")
+                      ? undefined
+                      : true
+                  }
                 >
-                  {plan.trial ? `✓ ${plan.trial}` : " "}
+                  {plan.planId && cycle === "yearly"
+                    ? `✓ 2 mjeseca besplatno · ušteda ${formatKm(annualSavings(plan.planId))} KM`
+                    : plan.trial
+                      ? `✓ ${plan.trial}`
+                      : " "}
                 </div>
                 <div className={styles.divider} />
                 <ul className={styles.features}>

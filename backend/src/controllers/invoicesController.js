@@ -47,8 +47,11 @@ async function userCanAccessInvoice(invoice, userId, userRole) {
 
 // Vraća sve organizationId-eve gdje pozivaoc ima pristup za fakturisanje
 // (član + owner je PRO+).
-async function getAccessibleInvoicingOrgIds(userId, userRole) {
-  if (userRole === "ADMIN") {
+// adminGlobal=true (default) zadržava staro ponašanje gdje ADMIN vidi sve org-e
+// (npr. za admin panele). Za LIČNU listu faktura proslijediti adminGlobal=false
+// da admin ne vidi tuđe fakture na svojoj /fakture stranici.
+async function getAccessibleInvoicingOrgIds(userId, userRole, { adminGlobal = true } = {}) {
+  if (userRole === "ADMIN" && adminGlobal) {
     const all = await Organization.findAll({ attributes: ["id"] });
     return all.map((o) => o.id);
   }
@@ -144,7 +147,11 @@ function validateCreate(body) {
 
 // ── LIST ───────────────────────────────────────────────────────────────────
 async function list(req, res) {
-  const orgIds = await getAccessibleInvoicingOrgIds(req.user.id, req.user.role);
+  // Lična lista — admin NE vidi tuđe fakture ovdje (adminGlobal:false).
+  // Za pregled svih faktura postoji zaseban admin endpoint.
+  const orgIds = await getAccessibleInvoicingOrgIds(req.user.id, req.user.role, {
+    adminGlobal: false,
+  });
 
   // OR: fakture iz pristupačnih org-a + legacy lične (userId === me, organizationId IS NULL)
   const orClauses = [{ userId: req.user.id, organizationId: null }];
@@ -184,6 +191,96 @@ async function list(req, res) {
     return plain;
   });
   res.status(200).json({ ok: true, data });
+}
+
+// ── ADMIN: lista SVIH faktura (sa tvorcem i organizacijom) ──────────────────
+// GET /api/admin/invoices?q&type&status&year&page&limit  (ADMIN)
+async function adminList(req, res) {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(Math.max(1, Number(req.query.limit) || 20), 100);
+    const where = {};
+    const t = String(req.query.type || "").toUpperCase();
+    if (t === "INVOICE" || t === "PROFORMA") where.type = t;
+    const st = String(req.query.status || "").toUpperCase();
+    if (["DRAFT", "ISSUED", "PAID", "CANCELLED"].includes(st)) where.status = st;
+    const y = Number(req.query.year);
+    if (Number.isInteger(y)) where.year = y;
+    const q = String(req.query.q || "").trim();
+    if (q) {
+      where[Op.or] = [
+        { fullNumber: { [Op.like]: `%${q}%` } },
+        { buyerName: { [Op.like]: `%${q}%` } },
+        { sellerName: { [Op.like]: `%${q}%` } },
+        { buyerEmail: { [Op.like]: `%${q}%` } },
+      ];
+    }
+
+    const { count, rows } = await Invoice.findAndCountAll({
+      where,
+      include: [
+        { model: require("../models/index").User, as: "user", attributes: ["id", "firstName", "lastName", "email", "role"], required: false },
+        { model: Organization, as: "organization", attributes: ["id", "name"], required: false },
+      ],
+      order: [["createdAt", "DESC"]],
+      offset: (page - 1) * limit,
+      limit,
+    });
+
+    const items = rows.map((inv) => {
+      const p = inv.toJSON();
+      return {
+        id: p.id,
+        type: p.type,
+        fullNumber: p.fullNumber,
+        status: p.status,
+        currency: p.currency,
+        issueDate: p.issueDate,
+        dueDate: p.dueDate,
+        paidAt: p.paidAt,
+        grossTotal: Number(p.grossTotal),
+        netTotal: Number(p.netTotal),
+        buyerName: p.buyerName,
+        sellerName: p.sellerName,
+        emailSentAt: p.emailSentAt,
+        createdAt: p.createdAt,
+        organization: p.organization ? { id: p.organization.id, name: p.organization.name } : null,
+        creator: p.user
+          ? {
+              id: p.user.id,
+              name: `${p.user.firstName ?? ""} ${p.user.lastName ?? ""}`.trim() || p.user.email,
+              email: p.user.email,
+              role: p.user.role,
+            }
+          : null,
+      };
+    });
+
+    // Zbirni podaci za prikazani filter (svi redovi, ne samo stranica).
+    const totalsRow = await Invoice.findAll({
+      where,
+      attributes: [
+        "currency",
+        [sequelize.fn("COUNT", sequelize.col("id")), "cnt"],
+        [sequelize.fn("COALESCE", sequelize.fn("SUM", sequelize.col("grossTotal")), 0), "gross"],
+      ],
+      group: ["currency"],
+      raw: true,
+    });
+    const totalsByCurrency = totalsRow.map((r) => ({
+      currency: r.currency,
+      count: Number(r.cnt),
+      gross: Math.round(Number(r.gross) * 100) / 100,
+    }));
+
+    return res.json({
+      ok: true,
+      data: { items, total: count, page, limit, totalsByCurrency },
+    });
+  } catch (e) {
+    console.error("admin invoices list failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
 }
 
 // ── GET BY ID ──────────────────────────────────────────────────────────────
@@ -472,8 +569,17 @@ async function pdf(req, res) {
   }
 
   try {
-    const buf = await generateInvoicePdf(publicInvoice(inv));
-    const fname = `${inv.type === "PROFORMA" ? "Predracun" : "Faktura"}-${inv.fullNumber}.pdf`;
+    // Opcioni ispis u protuvaluti: ?currency=EUR ili ?currency=BAM.
+    const reqCur = String(req.query.currency || "").toUpperCase();
+    const displayCurrency = reqCur === "EUR" || reqCur === "BAM" ? reqCur : null;
+    const buf = await generateInvoicePdf(publicInvoice(inv), { displayCurrency });
+    const base = inv.type === "PROFORMA" ? "Predracun" : "Faktura";
+    // Sufiks valute u nazivu fajla samo kad je protuvaluta (različita od originalne).
+    const curSuffix =
+      displayCurrency && displayCurrency !== inv.currency
+        ? `-${displayCurrency}`
+        : "";
+    const fname = `${base}-${inv.fullNumber}${curSuffix}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${fname}"`);
     return res.status(200).end(buf);
@@ -638,4 +744,4 @@ async function convertProforma(req, res) {
   }
 }
 
-module.exports = { list, getById, create, patch, remove, pdf, emailToBuyer, convertProforma };
+module.exports = { list, adminList, getById, create, patch, remove, pdf, emailToBuyer, convertProforma };

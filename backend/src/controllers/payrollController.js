@@ -433,6 +433,9 @@ function toPublicPayroll(p) {
   for (const f of numFields) {
     if (plain[f] != null) plain[f] = Number(plain[f]);
   }
+  if (plain.paymentDate) {
+    plain.paymentDate = String(plain.paymentDate).slice(0, 10);
+  }
   return plain;
 }
 
@@ -542,35 +545,41 @@ function computePayrollSnapshot(input) {
   const deduction = deductionFromCoefficient(coeff);
 
   // Doprinosi se obračunavaju na stvarnu bruto platu (grossInput).
-  const empPio = grossInput * 0.17;
-  const empZdravstvo = grossInput * 0.125;
-  const empNezaposlenost = grossInput * 0.015;
-  const empTotal = empPio + empZdravstvo + empNezaposlenost;
+  // VAŽNO: zaokružujemo svaku komponentu posebno (na 2 decimale) PRIJE sabiranja,
+  // jer PUFBiH MIP-1023/Obrazac 2001 validacija očekuje da je "Ukupan iznos
+  // doprinosa" jednak zbiru kol.15 (per-radnik kol.11+kol.13+kol.14), gdje su
+  // sve kolone već zaokružene. Bez ovoga znamo da DB-snapshot empTotal može
+  // biti 1 fening različit od zbira komponenti (round-then-sum vs sum-then-round).
+  const empPio = +(grossInput * 0.17).toFixed(2);
+  const empZdravstvo = +(grossInput * 0.125).toFixed(2);
+  const empNezaposlenost = +(grossInput * 0.015).toFixed(2);
+  const empTotal = +(empPio + empZdravstvo + empNezaposlenost).toFixed(2);
 
-  const taxBase = Math.max(grossInput - empTotal - deduction, 0);
-  const incomeTax = taxBase * TAX_RATE;
-  const net = grossInput - empTotal - incomeTax;
+  const taxBase = +Math.max(grossInput - empTotal - deduction, 0).toFixed(2);
+  const incomeTax = +(taxBase * TAX_RATE).toFixed(2);
+  const net = +(grossInput - empTotal - incomeTax).toFixed(2);
 
-  const erpPio = grossInput * ERP_PIO;
-  const erpZdravstvo = grossInput * ERP_ZDRAVSTVO;
-  const erpNezaposlenost = grossInput * ERP_NEZAPOSLENOST;
-  const erpTotal = erpPio + erpZdravstvo + erpNezaposlenost;
+  const erpPio = +(grossInput * ERP_PIO).toFixed(2);
+  const erpZdravstvo = +(grossInput * ERP_ZDRAVSTVO).toFixed(2);
+  const erpNezaposlenost = +(grossInput * ERP_NEZAPOSLENOST).toFixed(2);
+  const erpTotal = +(erpPio + erpZdravstvo + erpNezaposlenost).toFixed(2);
 
-  const vodnaNaknada = net * VODNA_NAKNADA;
-  const naknadaNesrece = net * NAKNADA_NESRECE;
+  const vodnaNaknada = +(net * VODNA_NAKNADA).toFixed(2);
+  const naknadaNesrece = +(net * NAKNADA_NESRECE).toFixed(2);
 
   const mealAllowance = Number(input.mealAllowance) || 0;
   const vacationBonus = Number(input.vacationBonus) || 0;
   const travelExpense = Number(input.travelExpense) || 0;
 
-  const totalCost =
+  const totalCost = +(
     grossInput +
     erpTotal +
     vodnaNaknada +
     naknadaNesrece +
     mealAllowance +
     vacationBonus +
-    travelExpense;
+    travelExpense
+  ).toFixed(2);
 
   // Sanity: ako gross nije unesen (0), sve je 0 i flag-ovi se gase.
   if (grossInput <= 0) {
@@ -712,6 +721,7 @@ async function calculate(req, res) {
     vacationBonus,
     travelExpense,
     proRateFactor,
+    targetNet,
     notes,
   } = req.body ?? {};
 
@@ -817,11 +827,29 @@ async function calculate(req, res) {
     minuliRadRate !== undefined && minuliRadRate !== null && minuliRadRate !== ""
       ? Number(minuliRadRate)
       : Number(existing?.minuliRadRate ?? worker.minuliRadRate ?? 0.4);
-  // Datum isplate iz body-ja ili zadnji dan mjeseca obračuna
-  const effectivePaymentDate =
-    typeof paymentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)
-      ? paymentDate
-      : new Date(year, month, 0).toISOString().slice(0, 10);
+  // Datum isplate plate:
+  //   1) Eksplicitno iz body-ja ako je validan YYYY-MM-DD
+  //   2) Inače naslijedi od bilo kog postojećeg payroll-a u (org, year, month)
+  //      — svi su sinhroni; ovo pokriva slučaj kad bulk "Obračunaj sve" ne
+  //      pošalje datum a korisnik je ranije unio paymentDate u UI
+  //   3) Fallback: zadnji dan mjeseca obračuna
+  let effectivePaymentDate = null;
+  if (typeof paymentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+    effectivePaymentDate = paymentDate;
+  } else if (existing && existing.paymentDate) {
+    effectivePaymentDate = String(existing.paymentDate).slice(0, 10);
+  } else {
+    const peer = await Payroll.findOne({
+      where: { organizationId, year, month, paymentDate: { [Op.ne]: null } },
+      attributes: ["paymentDate"],
+    });
+    if (peer && peer.paymentDate) {
+      effectivePaymentDate = String(peer.paymentDate).slice(0, 10);
+    }
+  }
+  if (!effectivePaymentDate) {
+    effectivePaymentDate = new Date(year, month, 0).toISOString().slice(0, 10);
+  }
   const minuliYears = totalYearsOfService(worker, effectivePaymentDate);
 
   // grossBase: ako frontend pošalje, koristi ga; inače gross (backward-compat).
@@ -851,7 +879,9 @@ async function calculate(req, res) {
     proRateFactor !== undefined && proRateFactor !== null && proRateFactor !== ""
       ? Number(proRateFactor)
       : 1;
-  const snapshot = computePayrollSnapshot({
+  const effTaxCoefficient =
+    taxCoefficient ?? (existing ? existing.taxCoefficient : worker.taxCoefficient) ?? 1.0;
+  const snapshotInput = {
     grossBase: effectiveGrossBase,
     minuliRadRate: effectiveMinuliRate,
     minuliRadYears: minuliYears,
@@ -864,12 +894,59 @@ async function calculate(req, res) {
     nightRate: effNightRate,
     sundayRate: effSundayRate,
     holidayRate: effHolidayRate,
-    taxCoefficient: taxCoefficient ?? (existing ? existing.taxCoefficient : worker.taxCoefficient) ?? 1.0,
+    taxCoefficient: effTaxCoefficient,
     contractedHours: worker.contractedHours ?? 8,
     mealAllowance: effectiveMeal,
     vacationBonus: effectiveVacation,
     travelExpense: effectiveTravel,
-  });
+  };
+
+  // Fening-search za "cilj neto za isplatu" (NETO_ISPLATA): zbog PUFBiH
+  // zaokruživanja doprinosa po komponenti, analitički riješen bruto zna
+  // promašiti ciljni neto za fening (npr. 1.030,01 umjesto 1.030,00). Ovdje
+  // pomjeramo bruto osnovicu ±10 feninga i biramo onu koja daje TAČNO ciljni
+  // neto (najbliža originalu). Samo kad nema uvećanja i pun je mjesec — inače
+  // neto legitimno odstupa od cilja.
+  const targetNetNum =
+    targetNet !== undefined && targetNet !== null && targetNet !== ""
+      ? Number(targetNet)
+      : null;
+  const noUvecanja =
+    effOvertimeHours === 0 &&
+    effNightHours === 0 &&
+    effSundayHours === 0 &&
+    effHolidayHours === 0;
+  if (
+    targetNetNum != null &&
+    Number.isFinite(targetNetNum) &&
+    targetNetNum > 0 &&
+    noUvecanja &&
+    effectiveProRateFactor === 1 &&
+    effectiveGrossBase > 0
+  ) {
+    let bestBase = null;
+    // Probaj offsete redom po rastućoj udaljenosti: 0, +1, -1, +2, -2, ...
+    // pa uzmi prvi koji daje tačan ciljni neto (najbliži originalnoj osnovici).
+    const offsets = [0];
+    for (let k = 1; k <= 10; k++) offsets.push(k, -k);
+    for (const cents of offsets) {
+      const candidateBase = +(effectiveGrossBase + cents / 100).toFixed(2);
+      if (candidateBase <= 0) continue;
+      const trial = computePayrollSnapshot({
+        ...snapshotInput,
+        grossBase: candidateBase,
+      });
+      if (trial.net === +targetNetNum.toFixed(2)) {
+        bestBase = candidateBase;
+        break;
+      }
+    }
+    if (bestBase != null) {
+      snapshotInput.grossBase = bestBase;
+    }
+  }
+
+  const snapshot = computePayrollSnapshot(snapshotInput);
 
   // workedMinutes: explicitly null OK; undefined = preserve existing
   const effectiveWorkedMinutes =
@@ -894,6 +971,7 @@ async function calculate(req, res) {
     sundayHours: effSundayHours,
     holidayHours: effHolidayHours,
     bankAccount: worker.bankAccount || null,
+    paymentDate: effectivePaymentDate,
     // Status: ako gross > 0 → OBRACUNATO (puni obračun), inače DRAFT (samo
     // sačuvani dodaci/sati prije konačnog obračuna).
     status: snapshot.gross > 0 ? "OBRACUNATO" : "DRAFT",
@@ -1469,12 +1547,12 @@ async function generateMonthlyUplatnice(req, res) {
     const organizationId = parseId(req.query.organizationId);
     const year = parseId(req.query.year);
     const month = parseId(req.query.month);
-    // Datum isplate plate (YYYY-MM-DD). Default: zadnji dan mjeseca obračuna.
+    // Datum isplate plate (YYYY-MM-DD).
+    // Hierarchy: query override > payroll snapshot > zadnji dan mjeseca.
     const paymentDateRaw = String(req.query.paymentDate || "").slice(0, 10);
-    const paymentDate =
-      /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
-        ? paymentDateRaw
-        : new Date(year, month, 0).toISOString().slice(0, 10);
+    const queryPaymentDate = /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
+      ? paymentDateRaw
+      : null;
 
     if (!organizationId || !year || !month) {
       return res
@@ -1495,6 +1573,12 @@ async function generateMonthlyUplatnice(req, res) {
       where: { organizationId, year, month },
     });
     const payrolls = rawPayrolls.filter((p) => validWorkerIds.has(p.workerId));
+    const payrollPaymentDate =
+      payrolls.find((p) => p.paymentDate)?.paymentDate || null;
+    const paymentDate =
+      queryPaymentDate ||
+      (payrollPaymentDate ? String(payrollPaymentDate).slice(0, 10) : null) ||
+      new Date(year, month, 0).toISOString().slice(0, 10);
 
     const round = (n) => +Number(n).toFixed(2);
     const orgPlain = org.toJSON();
@@ -1634,10 +1718,9 @@ async function generateMonthlyPayslips(req, res) {
     const year = parseId(req.query.year);
     const month = parseId(req.query.month);
     const paymentDateRaw = String(req.query.paymentDate || "").slice(0, 10);
-    const paymentDate =
-      /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
-        ? paymentDateRaw
-        : new Date(year, month, 0).toISOString().slice(0, 10);
+    const queryPaymentDate = /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
+      ? paymentDateRaw
+      : null;
 
     if (!organizationId || !year || !month) {
       return res.status(400).json({ ok: false, error: "Missing parameters" });
@@ -1665,6 +1748,15 @@ async function generateMonthlyPayslips(req, res) {
     if (payrolls.length === 0) {
       return res.status(404).json({ ok: false, error: "NO_PAYROLLS" });
     }
+    // Hierarchy: query override > payroll snapshot > zadnji dan mjeseca.
+    // payrollPaymentDate je jedan datum iz prvog payroll-a koji ga ima
+    // (svi payroll-i u mjesecu su sinhroni preko setPaymentDate batch update-a).
+    const payrollPaymentDate =
+      payrolls.find((p) => p.paymentDate)?.paymentDate || null;
+    const paymentDate =
+      queryPaymentDate ||
+      (payrollPaymentDate ? String(payrollPaymentDate).slice(0, 10) : null) ||
+      new Date(year, month, 0).toISOString().slice(0, 10);
     const workerIds = payrolls.map((p) => p.workerId);
     const workers = await Worker.findAll({
       where: { id: workerIds, organizationId },
@@ -1718,9 +1810,11 @@ async function generateWorkerPayslip(req, res) {
     const org = await assertOrgAccess(payroll.organizationId, req.user.id);
     if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
-    const paymentDate =
-      /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
-        ? paymentDateRaw
+    // Hierarchy: query param > payroll snapshot iz DB > zadnji dan mjeseca
+    const paymentDate = /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
+      ? paymentDateRaw
+      : payroll.paymentDate
+        ? String(payroll.paymentDate).slice(0, 10)
         : new Date(payroll.year, payroll.month, 0).toISOString().slice(0, 10);
 
     const worker = await Worker.findOne({
@@ -1803,9 +1897,11 @@ async function emailWorkerPayslip(req, res) {
     if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
     const paymentDateRaw = String(req.body?.paymentDate || "").slice(0, 10);
-    const paymentDate =
-      /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
-        ? paymentDateRaw
+    // Hierarchy: body override > payroll snapshot > zadnji dan mjeseca
+    const paymentDate = /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
+      ? paymentDateRaw
+      : payroll.paymentDate
+        ? String(payroll.paymentDate).slice(0, 10)
         : new Date(payroll.year, payroll.month, 0).toISOString().slice(0, 10);
 
     const built = await buildPayslipPdf(payroll, paymentDate);
@@ -1861,14 +1957,20 @@ async function emailMonthlyPayslipsBulk(req, res) {
     if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
     const paymentDateRaw = String(req.body?.paymentDate || "").slice(0, 10);
-    const paymentDate =
-      /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
-        ? paymentDateRaw
-        : new Date(year, month, 0).toISOString().slice(0, 10);
+    const queryPaymentDate = /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
+      ? paymentDateRaw
+      : null;
 
     const payrolls = await Payroll.findAll({
       where: { organizationId, year, month, status: { [Op.in]: ["OBRACUNATO", "ISPLACENO"] } },
     });
+    // Hierarchy: body override > payroll snapshot > zadnji dan mjeseca
+    const payrollPaymentDate =
+      payrolls.find((p) => p.paymentDate)?.paymentDate || null;
+    const paymentDate =
+      queryPaymentDate ||
+      (payrollPaymentDate ? String(payrollPaymentDate).slice(0, 10) : null) ||
+      new Date(year, month, 0).toISOString().slice(0, 10);
     if (payrolls.length === 0) {
       return res.status(400).json({ ok: false, error: "Nema obračunatih plata za taj mjesec" });
     }
@@ -1973,6 +2075,44 @@ async function markMonthPaid(req, res) {
   }
 }
 
+// ── POST /api/payroll/payment-date ──────────────────────────────────────────
+// Postavlja paymentDate na sve payroll-e u (organizationId, year, month).
+// Datum se koristi za MIP-1023 XML, platne liste i uplatnice. Body:
+//   { organizationId, year, month, paymentDate: "YYYY-MM-DD" | null }
+async function setPaymentDate(req, res) {
+  try {
+    const organizationId = parseId(req.body?.organizationId);
+    const year = parseId(req.body?.year);
+    const month = parseId(req.body?.month);
+    const rawDate = req.body?.paymentDate;
+    if (!organizationId || !year || !month) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing organizationId/year/month" });
+    }
+    const paymentDate =
+      rawDate == null || rawDate === ""
+        ? null
+        : /^\d{4}-\d{2}-\d{2}$/.test(String(rawDate))
+          ? String(rawDate)
+          : null;
+    if (rawDate && !paymentDate) {
+      return res.status(400).json({ ok: false, error: "Invalid paymentDate format (expected YYYY-MM-DD)" });
+    }
+    const org = await assertOrgAccess(organizationId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+    const [updatedCount] = await Payroll.update(
+      { paymentDate },
+      { where: { organizationId, year, month } },
+    );
+    return res.json({ ok: true, data: { updated: updatedCount, paymentDate } });
+  } catch (e) {
+    console.error("setPaymentDate failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
+  }
+}
+
 module.exports = {
   list,
   calculate,
@@ -1986,6 +2126,7 @@ module.exports = {
   monthlySummary,
   generateMonthlyUplatnice,
   markMonthPaid,
+  setPaymentDate,
   generateMonthlyPayslips,
   generateWorkerPayslip,
   emailWorkerPayslip,

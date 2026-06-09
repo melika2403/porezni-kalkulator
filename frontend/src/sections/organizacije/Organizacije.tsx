@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
@@ -13,6 +12,10 @@ import {
 import { markMonthPaid } from "src/api/payroll";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useNotice } from "src/components/Notice/Notice";
+import RowActionsMenu, {
+  type RowPrimaryAction,
+  type RowMenuItem,
+} from "src/components/RowActionsMenu/RowActionsMenu";
 import styles from "./organizacije.module.css";
 
 const MONTHS = [
@@ -216,7 +219,7 @@ export default function Organizacije() {
         return false; // već je obračunato
       }
       if (o.payrollStatus === "no_workers" && o.type !== "BUSINESS") {
-        return false; // d.o.o. bez radnika — ništa za obračunati
+        return false; // d.o.o. bez radnika, ništa za obračunati
       }
       return true;
     });
@@ -315,7 +318,7 @@ export default function Organizacije() {
     setBulkCalcResults(results);
     setBulkCalcRunning(false);
     setBulkCalcProgress(null);
-    // Refresh status — pregled mora reflektovati nove payroll-e.
+    // Refresh status, pregled mora reflektovati nove payroll-e.
     queryClient.invalidateQueries({
       queryKey: ["organizationsPayrollStatus", year, month],
     });
@@ -404,7 +407,7 @@ export default function Organizacije() {
         </h1>
         <p className={styles.subtitle}>
           Pregled svih vaših organizacija i klijentskih organizacija na jednom
-          mjestu — sa statusom obračunatih plata za odabrani mjesec, brojem
+          mjestu, sa statusom obračunatih plata za odabrani mjesec, brojem
           radnika i brzim akcijama.
         </p>
       </div>
@@ -433,6 +436,20 @@ export default function Organizacije() {
             <span className={styles.statHint}>
               org. sa kompletnim obračunom za {MONTHS[month - 1].toLowerCase()}
             </span>
+            <span className={styles.statBar} aria-hidden="true">
+              <span
+                className={styles.statBarFill}
+                style={{
+                  width: `${
+                    stats.orgsWithWorkers
+                      ? Math.round(
+                          (stats.obracunato / stats.orgsWithWorkers) * 100,
+                        )
+                      : 0
+                  }%`,
+                }}
+              />
+            </span>
           </div>
           <div className={styles.statCard}>
             <span className={styles.statLabel}>Plate isplaćene</span>
@@ -442,6 +459,20 @@ export default function Organizacije() {
             </span>
             <span className={styles.statHint}>
               org. sa označenim isplatama
+            </span>
+            <span className={styles.statBar} aria-hidden="true">
+              <span
+                className={styles.statBarFill}
+                style={{
+                  width: `${
+                    stats.orgsWithWorkers
+                      ? Math.round(
+                          (stats.isplaceno / stats.orgsWithWorkers) * 100,
+                        )
+                      : 0
+                  }%`,
+                }}
+              />
             </span>
           </div>
         </div>
@@ -504,10 +535,10 @@ export default function Organizacije() {
             <option value="radnika">Broju radnika</option>
             <option value="datum">Datumu kreiranja</option>
             <option value="status_paid_first">
-              Status plata — isplaćeno prvo
+              Status plata: isplaćeno prvo
             </option>
             <option value="status_unpaid_first">
-              Status plata — neobračunate prvo
+              Status plata: neobračunate prvo
             </option>
           </select>
         </div>
@@ -552,7 +583,7 @@ export default function Organizacije() {
         </div>
       )}
 
-      {/* Bulk akcije — glavna akcija lijevo (Obračunaj sve plate, ispunjen
+      {/* Bulk akcije: glavna akcija lijevo (Obračunaj sve plate, ispunjen
           sage style), utility akcije desno (Export, Označi isplaćene). */}
       {hasAnyOrg && (
         <div className={styles.bulkBar}>
@@ -673,7 +704,7 @@ export default function Organizacije() {
             <p style={{ margin: "0 0 1rem", color: "var(--mid)", fontSize: 14 }}>
               Označit će se {bulkMarkPaidCandidates.length} org. (status{" "}
               <strong>Obračunato</strong>) za{" "}
-              {MONTHS[month - 1]} {year}. — sve obračunate plate u tim org.
+              {MONTHS[month - 1]} {year}. Sve obračunate plate u tim org.
               prelaze u status <strong>Isplaćeno</strong>. Ova akcija nije
               automatski reverzibilna iz pregleda.
             </p>
@@ -716,7 +747,7 @@ export default function Organizacije() {
         </div>
       )}
 
-      {/* Bulk obračun confirm modal — sa pregledom kandidata + warnings */}
+      {/* Bulk obračun confirm modal, sa pregledom kandidata + warnings */}
       {bulkCalcConfirmOpen && (
         <div
           role="dialog"
@@ -769,13 +800,13 @@ export default function Organizacije() {
                   }}
                 >
                   {bulkCalcCandidates.map((o) => {
-                    // Warnings pri pregledu — koristimo iste signale kao u
+                    // Warnings pri pregledu, koristimo iste signale kao u
                     // postojećem status modelu.
                     const noWorkers = o.workerCount === 0;
                     const isObrt = o.type === "BUSINESS";
                     let warning = "";
                     if (noWorkers && isObrt) warning = "Samo vlasnik (2002)";
-                    else if (noWorkers) warning = "Nema radnika — preskočiće se";
+                    else if (noWorkers) warning = "Nema radnika, preskočiće se";
                     return (
                       <div
                         key={o.id}
@@ -994,7 +1025,7 @@ export default function Organizacije() {
 
       {!statusQuery.isLoading && hasAnyOrg && (
         <>
-          {/* Sekcija 1 — Moje organizacije */}
+          {/* Sekcija 1: Moje organizacije */}
           <div className={styles.sectionTitle}>
             Moje organizacije
             <span className={styles.sectionCount}>({ownAll.length})</span>
@@ -1012,7 +1043,7 @@ export default function Organizacije() {
             <OrgsTable orgs={own} year={year} month={month} section="own" />
           )}
 
-          {/* Sekcija 2 — Klijentske organizacije */}
+          {/* Sekcija 2: Klijentske organizacije */}
           {clientsAll.length > 0 && (
             <>
               <div className={styles.sectionTitle}>
@@ -1054,7 +1085,7 @@ function OrgsTable({
 }) {
   // Edit org → /profil sa parametrima: tab + editOrg id. Profile prepoznaje
   // ove parametre i auto-otvara edit formu za tu organizaciju.
-  const editTab = section === "own" ? "profil" : "klijenti";
+  const editTab = section === "own" ? "djelatnosti" : "klijenti";
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -1073,7 +1104,7 @@ function OrgsTable({
         </thead>
         <tbody>
           {orgs.map((o) => {
-            // Attention dot — org sa radnicima ali bez ijednog obračuna (crveno)
+            // Attention dot: org sa radnicima ali bez ijednog obračuna (crveno)
             // ili sa djelimičnim obračunom (žuto).
             const needsRed =
               o.workerCount > 0 && o.payrollStatus === "none";
@@ -1098,8 +1129,8 @@ function OrgsTable({
                 <td className={styles.muted} data-label="Vlasnik">
                   {o.owner
                     ? `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim() ||
-                      "—"
-                    : "—"}
+                      "–"
+                    : "–"}
                 </td>
                 <td data-label="Tip">
                   <span
@@ -1116,13 +1147,13 @@ function OrgsTable({
                   {o.workerCount}
                 </td>
                 <td className={styles.muted} data-label="JIB">
-                  {o.taxNumber || "—"}
+                  {o.taxNumber || "–"}
                 </td>
                 <td className={styles.muted} data-label="Šifra dj.">
-                  {o.activityCode || "—"}
+                  {o.activityCode || "–"}
                 </td>
                 <td className={styles.muted} data-label="Grad">
-                  {o.city || "—"}
+                  {o.city || "–"}
                 </td>
                 <td data-label="Status plata">
                   <span
@@ -1141,85 +1172,12 @@ function OrgsTable({
                   )}
                 </td>
                 <td data-label="Akcije">
-                  <div className={styles.actions}>
-                    <Link
-                      href={`/prijave-radnika?tab=obracun&org=${o.id}&year=${year}&month=${month}`}
-                      className={styles.actionLink}
-                      title="Otvori obračun plata za ovu organizaciju"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        width="14"
-                        height="14"
-                        aria-hidden="true"
-                      >
-                        <rect x="4" y="2" width="16" height="20" rx="2" />
-                        <line x1="8" y1="6" x2="16" y2="6" />
-                        <line x1="8" y1="11" x2="8" y2="11" />
-                        <line x1="12" y1="11" x2="12" y2="11" />
-                        <line x1="16" y1="11" x2="16" y2="11" />
-                        <line x1="8" y1="15" x2="8" y2="15" />
-                        <line x1="12" y1="15" x2="12" y2="15" />
-                        <line x1="16" y1="15" x2="16" y2="15" />
-                        <line x1="8" y1="19" x2="16" y2="19" />
-                      </svg>
-                      Plate
-                    </Link>
-                    <Link
-                      href={`/aktivni-radnici?org=${o.id}`}
-                      className={styles.actionLink}
-                      title="Aktivni radnici za ovu organizaciju"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        width="14"
-                        height="14"
-                        aria-hidden="true"
-                      >
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                      </svg>
-                      Radnici
-                    </Link>
-                    <ObrazciDropdown
-                      org={o}
-                      year={year}
-                      month={month}
-                    />
-                    <Link
-                      href={`/profil?tab=${editTab}&editOrg=${o.id}`}
-                      className={styles.actionLink}
-                      title="Uredi podatke organizacije (naziv, JIB, adresa…)"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        width="14"
-                        height="14"
-                        aria-hidden="true"
-                      >
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                      Uredi
-                    </Link>
-                  </div>
+                  <OrgRowActions
+                    org={o}
+                    year={year}
+                    month={month}
+                    editTab={editTab}
+                  />
                 </td>
               </tr>
             );
@@ -1230,65 +1188,22 @@ function OrgsTable({
   );
 }
 
-// ObrazciDropdown — jedan dropdown za 3 export-a:
-//   • PLDI-1043 → navigacija na /amortizacija (stateful editor, treba forma)
-//   • MIP-1023  → DIREKTAN XML download za odabrani mjesec
-//   • GIP-1022  → DIREKTAN XML download za odabranu godinu (fetch-uje 12 mj.)
-function ObrazciDropdown({
+// OrgRowActions: red akcija za jednu organizaciju. Plate + Radnici su vidljivi,
+// Obrasci (PLDI/MIP/GIP) i Uredi idu u overflow (kebab) meni. MIP/GIP rade
+// direktan XML download (lazy-load buildera da ne uvećavamo bundle).
+function OrgRowActions({
   org,
   year,
   month,
+  editTab,
 }: {
   org: OrganizationWithPayrollStatus;
   year: number;
   month: number;
+  editTab: string;
 }) {
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<"mip" | "gip" | null>(null);
-  // Menu se renderuje kroz portal u document.body sa position:fixed jer
-  // table row-ovi imaju vlastiti stacking context koji ignoriše z-index na
-  // descendant-ima. Bez ovoga je dropdown sječen redom ispod.
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const { notify } = useNotice();
-
-  // Pozicioniraj menu ispod dugmeta (right-aligned) kad se otvori.
-  // Recompute na scroll/resize tako da menu prati dugme.
-  useEffect(() => {
-    if (!open) return;
-    const recompute = () => {
-      const btn = buttonRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      setMenuPos({
-        top: rect.bottom + 4,
-        right: window.innerWidth - rect.right,
-      });
-    };
-    recompute();
-    window.addEventListener("scroll", recompute, true);
-    window.addEventListener("resize", recompute);
-    return () => {
-      window.removeEventListener("scroll", recompute, true);
-      window.removeEventListener("resize", recompute);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        containerRef.current && !containerRef.current.contains(target) &&
-        !(target instanceof Element && target.closest("[data-obrazci-menu]"))
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
 
   const triggerDownload = (xml: string, filename: string) => {
     const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
@@ -1303,7 +1218,6 @@ function ObrazciDropdown({
   };
 
   const handleMipDownload = async () => {
-    setOpen(false);
     setBusy("mip");
     try {
       // Lazy-load builder + API klijente da ne uvećavamo bundle za korisnike
@@ -1343,7 +1257,6 @@ function ObrazciDropdown({
   };
 
   const handleGipDownload = async () => {
-    setOpen(false);
     setBusy("gip");
     try {
       const { buildGip1022Xml } = await import(
@@ -1369,18 +1282,13 @@ function ObrazciDropdown({
     }
   };
 
-  return (
-    <div ref={containerRef} style={{ position: "relative", display: "inline-block" }}>
-      <button
-        ref={buttonRef}
-        type="button"
-        className={styles.actionLink}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={busy !== null}
-        title="Obrasci za eksport (PLDI, MIP, GIP)"
-      >
+  const primaryActions: RowPrimaryAction[] = [
+    {
+      key: "plate",
+      label: "Plate",
+      href: `/prijave-radnika?tab=obracun&org=${org.id}&year=${year}&month=${month}`,
+      title: "Otvori obračun plata za ovu organizaciju",
+      icon: (
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -1392,80 +1300,92 @@ function ObrazciDropdown({
           height="14"
           aria-hidden="true"
         >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
+          <rect x="4" y="2" width="16" height="20" rx="2" />
+          <line x1="8" y1="6" x2="16" y2="6" />
+          <line x1="8" y1="11" x2="8" y2="11" />
+          <line x1="12" y1="11" x2="12" y2="11" />
+          <line x1="16" y1="11" x2="16" y2="11" />
+          <line x1="8" y1="15" x2="8" y2="15" />
+          <line x1="12" y1="15" x2="12" y2="15" />
+          <line x1="16" y1="15" x2="16" y2="15" />
+          <line x1="8" y1="19" x2="16" y2="19" />
         </svg>
-        {busy === "mip" ? "MIP…" : busy === "gip" ? "GIP…" : "Obrasci"}
+      ),
+    },
+    {
+      key: "radnici",
+      label: "Radnici",
+      href: `/aktivni-radnici?org=${org.id}`,
+      title: "Aktivni radnici za ovu organizaciju",
+      icon: (
         <svg
-          viewBox="0 0 12 12"
-          width="10"
-          height="10"
+          viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
-          style={{ marginLeft: 2 }}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          width="14"
+          height="14"
           aria-hidden="true"
         >
-          <path d="M3 4.5l3 3 3-3" />
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
-      </button>
-      {open && menuPos && typeof document !== "undefined" &&
-        createPortal(
-          <div
-            role="menu"
-            data-obrazci-menu
-            style={{
-              position: "fixed",
-              top: menuPos.top,
-              right: menuPos.right,
-              minWidth: 240,
-              background: "white",
-              border: "1px solid #d4cfc4",
-              borderRadius: 8,
-              boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
-              zIndex: 9999,
-              overflow: "hidden",
-            }}
-          >
-            <Link
-              href={`/amortizacija?org=${org.id}`}
-              onClick={() => setOpen(false)}
-              style={ddItemStyle}
-            >
-              <div style={ddTitle}>PLDI-1043</div>
-              <div style={ddSub}>Amortizacija (godišnje)</div>
-            </Link>
-            <button
-              type="button"
-              onClick={handleMipDownload}
-              style={{ ...ddItemStyle, width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", font: "inherit" }}
-            >
-              <div style={ddTitle}>MIP-1023 XML</div>
-              <div style={ddSub}>Mjesečni izvještaj — {String(month).padStart(2, "0")}/{year}</div>
-            </button>
-            <button
-              type="button"
-              onClick={handleGipDownload}
-              style={{ ...ddItemStyle, width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", font: "inherit", borderBottom: 0 }}
-            >
-              <div style={ddTitle}>GIP-1022 XML</div>
-              <div style={ddSub}>Godišnji izvještaj — {year}</div>
-            </button>
-          </div>,
-          document.body,
-        )}
-    </div>
+      ),
+    },
+  ];
+
+  const menuItems: RowMenuItem[] = [
+    { kind: "group", key: "g-radno", label: "Radno vrijeme" },
+    {
+      kind: "item",
+      key: "sihterica",
+      label: "Šihterica",
+      sub: "Evidencija radnih sati",
+      href: `/sihterica?org=${org.id}`,
+    },
+    { kind: "group", key: "g-obrasci", label: "Obrasci" },
+    {
+      kind: "item",
+      key: "pldi",
+      label: "PLDI-1043",
+      sub: "Amortizacija (godišnje)",
+      href: `/amortizacija?org=${org.id}`,
+    },
+    {
+      kind: "item",
+      key: "mip",
+      label: "MIP-1023 XML",
+      sub: `Mjesečni izvještaj, ${String(month).padStart(2, "0")}/${year}`,
+      onClick: handleMipDownload,
+      disabled: busy !== null,
+    },
+    {
+      kind: "item",
+      key: "gip",
+      label: "GIP-1022 XML",
+      sub: `Godišnji izvještaj, ${year}`,
+      onClick: handleGipDownload,
+      disabled: busy !== null,
+    },
+    { kind: "group", key: "g-org", label: "Organizacija" },
+    {
+      kind: "item",
+      key: "uredi",
+      label: "Uredi",
+      sub: "Naziv, JIB, adresa",
+      href: `/profil?tab=${editTab}&editOrg=${org.id}`,
+    },
+  ];
+
+  return (
+    <RowActionsMenu
+      primaryActions={primaryActions}
+      menuItems={menuItems}
+      busy={busy !== null}
+    />
   );
 }
-
-const ddItemStyle: CSSProperties = {
-  display: "block",
-  padding: "0.55rem 0.85rem",
-  textDecoration: "none",
-  color: "var(--ink, #1a1a1a)",
-  borderBottom: "1px solid #f0ebe2",
-};
-const ddTitle: CSSProperties = { fontWeight: 600, fontSize: "0.85rem" };
-const ddSub: CSSProperties = { fontSize: "0.72rem", color: "#888", marginTop: 1 };

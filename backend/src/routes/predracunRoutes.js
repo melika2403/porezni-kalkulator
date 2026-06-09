@@ -15,6 +15,14 @@ router.patch(
   predracunController.updateStatus,
 );
 
+// Brisanje predračuna — samo admin.
+router.delete(
+  "/:id",
+  requireAuth,
+  requireRole("ADMIN"),
+  predracunController.remove,
+);
+
 // Kreiranje predračuna — bilo koji ulogovan korisnik.
 router.post("/", requireAuth, predracunController.create);
 

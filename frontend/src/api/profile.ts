@@ -58,6 +58,7 @@ export type Users = {
   city: string | null;
   createdAt: string;
   isEmailVerified: boolean;
+  trialUsedAt: string | null;
   subscription: Subscription | null;
 };
 
@@ -87,6 +88,8 @@ export function getUsers(params?: {
   firstName?: string;
   lastName?: string;
   email?: string;
+  role?: "USER" | "PRO" | "BUSINESS" | "ADMIN";
+  sort?: "newest" | "oldest" | "name";
   page?: number;
   limit?: number;
 }) {
@@ -94,6 +97,8 @@ export function getUsers(params?: {
   if (params?.firstName) sp.set("firstName", params.firstName);
   if (params?.lastName) sp.set("lastName", params.lastName);
   if (params?.email) sp.set("email", params.email);
+  if (params?.role) sp.set("role", params.role);
+  if (params?.sort) sp.set("sort", params.sort);
   sp.set("page", String(params?.page ?? 1));
   sp.set("limit", String(params?.limit ?? 20));
 
@@ -141,6 +146,8 @@ export type OrgOwner = {
   idCardNumber: string | null;
   prijavaDate: string | null;
   salaryBruto: number | null;
+  salaryNeto: number | null;
+  salaryType: SalaryType;
   employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
   taxCoefficient: number;
 };
@@ -156,6 +163,8 @@ export type OrgOwnerPayload = {
   idCardNumber?: string;
   prijavaDate?: string | null;
   salaryBruto?: number | null;
+  salaryNeto?: number | null;
+  salaryType?: SalaryType;
   taxCoefficient?: number;
 };
 
@@ -219,83 +228,18 @@ export type OrgPayload = {
   ownerData?: OrgOwnerPayload;
 };
 
-export type OrgSettingsPayload = Partial<Omit<OrgPayload, "ownerData">>;
-
-export function getOrganizationSettings(id: number) {
-  return request<Organization>(`/api/organizations/${id}/settings`);
-}
-
-export function updateOrganizationSettings(
-  id: number,
-  payload: OrgSettingsPayload,
-) {
-  return request<Organization>(`/api/organizations/${id}/settings`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
-}
-
-// ─── PK Office: /api/profile (current user) ─────────────────────────────────
-
-export type ProfilePreferences = {
-  activeOrganizationId: number | null;
-  theme: "light" | "dark" | "system";
-  commandPaletteEnabled: boolean;
+export type MyStats = {
+  djelatnosti: number;
+  klijenti: number;
+  radnici: number;
+  dokumenti: number;
+  fakture: number;
+  obracuniMjesec: number;
+  obracuniDelta: number;
 };
 
-export type Profile = {
-  id: number;
-  email: string | null;
-  firstName: string;
-  lastName: string;
-  phone: string | null;
-  address: string | null;
-  city: string | null;
-  role: string;
-  isEmailVerified: boolean;
-  createdAt: string;
-  preferences: ProfilePreferences;
-};
-
-export type ProfilePatchPayload = {
-  firstName?: string;
-  lastName?: string;
-  phone?: string | null;
-  address?: string | null;
-  city?: string | null;
-};
-
-export type PreferencesPatchPayload = {
-  theme?: "light" | "dark" | "system";
-  commandPaletteEnabled?: boolean;
-};
-
-export function getMyProfile() {
-  return request<Profile>("/api/profile");
-}
-
-export function patchMyProfile(payload: ProfilePatchPayload) {
-  return request<Profile>("/api/profile", {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function changeProfilePassword(
-  currentPassword: string,
-  newPassword: string,
-) {
-  return request<null>("/api/profile/change-password", {
-    method: "POST",
-    body: JSON.stringify({ currentPassword, newPassword }),
-  });
-}
-
-export function patchPreferences(payload: PreferencesPatchPayload) {
-  return request<ProfilePreferences>("/api/profile/preferences", {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
+export function getMyStats() {
+  return request<MyStats>("/api/me/stats");
 }
 
 export function getOrganizations() {
@@ -466,6 +410,10 @@ export type Worker = {
   odjavaDate: string | null;
   spol: "M" | "Z" | null;
   strucnaSpremaIdx: number | null;
+  osnovOsiguranjaOpis: string | null;
+  osnovOsiguranjaSifra: string | null;
+  zanimanjeOpis: string | null;
+  zanimanjeSifra: string | null;
   taxCoefficient: number;
   minuliRadRate: number;
   // Ukupan radni staž (za minuli rad). Dva opciona unosa — user bira jedan:
@@ -517,6 +465,10 @@ export type WorkerPayload = {
   odjavaDate?: string | null;
   spol?: "M" | "Z" | null;
   strucnaSpremaIdx?: number | null;
+  osnovOsiguranjaOpis?: string | null;
+  osnovOsiguranjaSifra?: string | null;
+  zanimanjeOpis?: string | null;
+  zanimanjeSifra?: string | null;
   taxCoefficient?: number | string | null;
   minuliRadRate?: number | string | null;
   firstEmploymentDate?: string | null;

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Sihterica from "src/sections/sihterica/Sihterica";
 import SihtericaEdu from "src/sections/sihterica/SihtericaEdu";
@@ -153,7 +154,9 @@ export default function SihtenicaPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }}
       />
-      <Sihterica />
+      <Suspense fallback={null}>
+        <Sihterica />
+      </Suspense>
       <SihtericaEdu />
     </>
   );

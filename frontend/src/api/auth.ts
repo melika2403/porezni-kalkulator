@@ -22,11 +22,8 @@ export type AuthUser = {
     startDate: string;
     endDate: string;
     isActive: boolean;
-    plan: "free" | "pro" | "business";
-    status: "active" | "cancelled" | "expired" | "past_due" | "trialing";
+    plan: "PRO" | "BUSINESS" | null;
     billingCycle: "monthly" | "yearly" | null;
-    cancelAtPeriodEnd: boolean;
-    cancelledAt: string | null;
   } | null;
 };
 
@@ -71,6 +68,8 @@ export type RegisterPayload = {
   phone: string;
   address?: string;
   city?: string;
+  utmSource?: string;
+  utmCampaign?: string;
 };
 
 export function register(payload: RegisterPayload) {

@@ -313,6 +313,17 @@ export default function PdvKalkulator() {
             računi za uplatu PDV-a.
           </li>
         </ul>
+        <h2 style={{ marginTop: "2rem" }}>
+          Pročitaj <em>na blogu</em>
+        </h2>
+        <ul>
+          <li>
+            <a href="/blog/pdv-obveznik-prag-100000-km">
+              PDV obveznik — prag 100.000 KM
+            </a>{" "}
+            — kada postajete obvezni za PDV i šta to znači.
+          </li>
+        </ul>
       </section>
 
       <section className={styles.eduSection}>

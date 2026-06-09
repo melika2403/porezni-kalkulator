@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Script from "next/script";
+import Navbar from "src/components/Navbar/Navbar";
+import ConditionalFooter from "src/components/Footer/ConditionalFooter";
 import Providers from "src/components/Providers/Providers";
 import ConsentBanner from "src/components/ConsentBanner/ConsentBanner";
 import ConditionalChrome from "src/components/ConditionalChrome/ConditionalChrome";
@@ -309,9 +310,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Jezici sadržaja — isti sadržaj razumljiv na bs/hr/sr (ne pravimo odvojene
+// verzije). @id-ovi omogućavaju da se entiteti međusobno referenciraju.
+const CONTENT_LANGS = ["bs", "hr", "sr"];
+
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
+  "@id": `${SITE_URL}/#webapp`,
   name: "Porezni Kalkulator BiH",
   url: SITE_URL,
   description:
@@ -319,13 +325,15 @@ const jsonLd = {
   applicationCategory: "FinanceApplication",
   operatingSystem: "Web",
   offers: { "@type": "Offer", price: "0", priceCurrency: "BAM" },
-  inLanguage: "bs",
+  inLanguage: CONTENT_LANGS,
+  publisher: { "@id": `${SITE_URL}/#organization` },
   areaServed: { "@type": "Country", name: "Bosnia and Herzegovina" },
 };
 
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
+  "@id": `${SITE_URL}/#organization`,
   name: "Porezni Kalkulator BiH",
   url: SITE_URL,
   logo: `${SITE_URL}/og-image.png`,
@@ -346,9 +354,11 @@ const organizationSchema = {
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
+  "@id": `${SITE_URL}/#website`,
   name: "Porezni Kalkulator BiH",
   url: SITE_URL,
-  inLanguage: "bs-BA",
+  inLanguage: CONTENT_LANGS,
+  publisher: { "@id": `${SITE_URL}/#organization` },
   potentialAction: {
     "@type": "SearchAction",
     target: {
@@ -419,7 +429,9 @@ export default function RootLayout({
           }}
         />
         <Providers>
-          <ConditionalChrome>{children}</ConditionalChrome>
+          <Navbar />
+          <div className="pageContent">{children}</div>
+          <ConditionalFooter />
           <ConsentBanner />
         </Providers>
       </body>

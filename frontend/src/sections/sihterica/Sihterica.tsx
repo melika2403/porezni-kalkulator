@@ -15,6 +15,7 @@ import {
   getSihtericaMonths,
   getSihtericaWorkerMonths,
   saveSihterica,
+  markSihtericaGenerated,
   deleteSihterica,
 } from "src/api/sihterica";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
@@ -23,7 +24,9 @@ import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
 import { useNotice } from "src/components/Notice/Notice";
+import { trackEvent } from "src/api/activity";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const MONTHS = [
   "Januar",
@@ -407,7 +410,16 @@ function SihtericaApp() {
     return set;
   }, [countGodisnji, countPraznik, countBolovanje]);
 
-  const [orgId, setOrgId] = useState<number | null>(null);
+  // ?org=X iz URL-a (npr. poziv "Šihterica" iz pregleda organizacija) pretpopuni
+  // organizaciju odmah, prije auto-selecta.
+  const searchParams = useSearchParams();
+  const urlOrg = (() => {
+    const v = searchParams.get("org");
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+
+  const [orgId, setOrgId] = useState<number | null>(urlOrg);
   const [workerId, setWorkerId] = useState<number | null>(null);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -753,7 +765,18 @@ function SihtericaApp() {
       const days = entries
         .slice(0, daysInMonth)
         .map((e) => (isEntryEmpty(e) ? null : e));
-      const res = await saveSihterica({ workerId, year, month, days });
+      // Snimi i kontekst za vjeran re-render PDF-a iz liste dokumenata.
+      const org = orgsQuery.data?.find((o) => o.id === orgId) ?? null;
+      const meta = {
+        workerName,
+        orgName: org?.name ?? "",
+        orgAddress: org?.address ?? "",
+        orgCity: org?.city ?? "",
+        orgTaxNumber: org?.taxNumber ?? "",
+        weeklyDaysOff: [...autoDaysOff],
+        countAbsenceCodes: [...countCodes],
+      };
+      const res = await saveSihterica({ workerId, year, month, days, meta });
       if (res.ok) {
         setSaveStatus("saved");
         isDirty.current = false;
@@ -777,6 +800,10 @@ function SihtericaApp() {
     currentMonthSaved,
     orgId,
     queryClient,
+    workerName,
+    autoDaysOff,
+    countCodes,
+    orgsQuery.data,
   ]);
 
   // ─── PDF export ────────────────────────────────────────────────────────────
@@ -817,7 +844,10 @@ function SihtericaApp() {
     a.download = `Sihterica${wName}_${String(month).padStart(2, "0")}_${year}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [workerName, month, year, entries, daysInMonth, selectedOrg, autoDaysOff, countCodes]);
+    trackEvent("SIH_GENERATE", "Šihterica", orgId);
+    // Preuzimanje → sačuvana šihterica prelazi iz Nacrt u Generisan (best-effort).
+    if (workerId) void markSihtericaGenerated(workerId, year, month).catch(() => {});
+  }, [workerName, month, year, entries, daysInMonth, selectedOrg, autoDaysOff, countCodes, orgId, workerId]);
 
   // ─── Bulk export — all workers in selected org for current month ───────────
   const [bulkExporting, setBulkExporting] = useState(false);

@@ -7,6 +7,7 @@ import styles from "./auth.module.css";
 import { me, register, resendVerification, unwrap } from "src/api/auth";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { getBackendUrl } from "src/utils/backendUrl";
+import { getUtmForRegister, clearUtm } from "src/utils/utm";
 
 function safeNext(raw: string | null): string {
   if (!raw) return "/";
@@ -53,6 +54,7 @@ export default function Register() {
       unwrap(register(payload)),
     onSuccess: (data) => {
       setSentTo(data.email);
+      clearUtm();
     },
   });
 
@@ -86,6 +88,7 @@ export default function Register() {
       phone: phone.trim(),
       address: address.trim() || undefined,
       city: city.trim() || undefined,
+      ...getUtmForRegister(),
     });
   };
 

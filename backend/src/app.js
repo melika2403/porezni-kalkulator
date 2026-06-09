@@ -26,7 +26,10 @@ const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes"
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
 const payrollDocumentsRoutes = require("./routes/payrollDocumentsRoutes");
-const profileRoutes = require("./routes/profileRoutes");
+const financeRoutes = require("./routes/financeRoutes");
+const activityRoutes = require("./routes/activityRoutes");
+const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
+const meRoutes = require("./routes/meRoutes");
 
 const app = express();
 
@@ -77,7 +80,10 @@ app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/payroll-documents", payrollDocumentsRoutes);
-app.use("/api/profile", profileRoutes);
+app.use("/api/admin/finance", financeRoutes);
+app.use("/api/activity", activityRoutes);
+app.use("/api/admin", adminDashboardRoutes);
+app.use("/api/me", meRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -333,25 +339,35 @@ async function ensureColumns() {
       column: "defaultSalaryType",
       ddl: "ALTER TABLE organizations ADD COLUMN defaultSalaryType VARCHAR(20) NOT NULL DEFAULT 'NETO_ISPLATA'",
     },
+    // Datum stvarne isplate plate — perzistira po (org, year, month) tako da
+    // se ne resetuje kad korisnik promijeni tab i vrati se. Svi payroll-i u
+    // mjesecu drže isti datum (sinhronizovani batch update).
     {
-      table: "organizations",
-      column: "jurisdiction",
-      ddl: "ALTER TABLE organizations ADD COLUMN jurisdiction ENUM('FBIH','RS','BD') NULL",
+      table: "payrolls",
+      column: "paymentDate",
+      ddl: "ALTER TABLE payrolls ADD COLUMN paymentDate DATE NULL",
+    },
+    // Predračun: ciklus naplate + period pretplate.
+    {
+      table: "predracuni",
+      column: "billingCycle",
+      ddl: "ALTER TABLE predracuni ADD COLUMN billingCycle ENUM('monthly','yearly') NOT NULL DEFAULT 'yearly'",
     },
     {
-      table: "organizations",
-      column: "isPdvObveznik",
-      ddl: "ALTER TABLE organizations ADD COLUMN isPdvObveznik TINYINT(1) NOT NULL DEFAULT 0",
+      table: "predracuni",
+      column: "periodStart",
+      ddl: "ALTER TABLE predracuni ADD COLUMN periodStart DATE NULL",
     },
+    {
+      table: "predracuni",
+      column: "periodEnd",
+      ddl: "ALTER TABLE predracuni ADD COLUMN periodEnd DATE NULL",
+    },
+    // Subscription: plan + ciklus naplate (model ih sad čita; vidi models/index).
     {
       table: "subscriptions",
       column: "plan",
-      ddl: "ALTER TABLE subscriptions ADD COLUMN plan ENUM('free','pro','business') NOT NULL DEFAULT 'free'",
-    },
-    {
-      table: "subscriptions",
-      column: "status",
-      ddl: "ALTER TABLE subscriptions ADD COLUMN status ENUM('active','cancelled','expired','past_due','trialing') NOT NULL DEFAULT 'active'",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN plan ENUM('PRO','BUSINESS') NULL",
     },
     {
       table: "subscriptions",
@@ -360,23 +376,57 @@ async function ensureColumns() {
     },
     {
       table: "subscriptions",
-      column: "cancelAtPeriodEnd",
-      ddl: "ALTER TABLE subscriptions ADD COLUMN cancelAtPeriodEnd TINYINT(1) NOT NULL DEFAULT 0",
+      column: "reminderSentAt",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN reminderSentAt DATETIME NULL",
     },
     {
       table: "subscriptions",
-      column: "cancelledAt",
-      ddl: "ALTER TABLE subscriptions ADD COLUMN cancelledAt DATETIME NULL",
+      column: "isTrial",
+      ddl: "ALTER TABLE subscriptions ADD COLUMN isTrial TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    // JS3100 stabilna polja na radniku — prefill prijave i odjave.
+    {
+      table: "workers",
+      column: "osnovOsiguranjaOpis",
+      ddl: "ALTER TABLE workers ADD COLUMN osnovOsiguranjaOpis VARCHAR(120) NULL",
     },
     {
-      table: "subscriptions",
-      column: "externalSubscriptionId",
-      ddl: "ALTER TABLE subscriptions ADD COLUMN externalSubscriptionId VARCHAR(255) NULL",
+      table: "workers",
+      column: "osnovOsiguranjaSifra",
+      ddl: "ALTER TABLE workers ADD COLUMN osnovOsiguranjaSifra VARCHAR(20) NULL",
     },
     {
-      table: "user_preferences",
-      column: "commandPaletteEnabled",
-      ddl: "ALTER TABLE user_preferences ADD COLUMN commandPaletteEnabled TINYINT(1) NOT NULL DEFAULT 0",
+      table: "workers",
+      column: "zanimanjeOpis",
+      ddl: "ALTER TABLE workers ADD COLUMN zanimanjeOpis VARCHAR(120) NULL",
+    },
+    {
+      table: "workers",
+      column: "zanimanjeSifra",
+      ddl: "ALTER TABLE workers ADD COLUMN zanimanjeSifra VARCHAR(20) NULL",
+    },
+    // UTM atribucija — odakle je korisnik došao u trenutku registracije.
+    // Capture jednom (prva posjeta), perzistira na User-u za "registracije po izvoru".
+    {
+      table: "users",
+      column: "utmSource",
+      ddl: "ALTER TABLE users ADD COLUMN utmSource VARCHAR(80) NULL",
+    },
+    {
+      table: "users",
+      column: "utmCampaign",
+      ddl: "ALTER TABLE users ADD COLUMN utmCampaign VARCHAR(120) NULL",
+    },
+    // Kategorija troška — za breakdown i CAC (marketing spend / novi plaćeni).
+    {
+      table: "company_expenses",
+      column: "category",
+      ddl: "ALTER TABLE company_expenses ADD COLUMN category VARCHAR(40) NOT NULL DEFAULT 'OSTALO'",
+    },
+    {
+      table: "activity_logs",
+      column: "organizationId",
+      ddl: "ALTER TABLE activity_logs ADD COLUMN organizationId INT UNSIGNED NULL",
     },
   ];
   for (const c of checks) {
@@ -434,6 +484,88 @@ async function ensureColumns() {
     }
   } catch (e) {
     console.warn("taxRegime ENUM→VARCHAR conversion failed:", e?.message || e);
+  }
+
+  // Cleanup: stari parseNum u ObracunPlata.tsx je brisao sve tačke iz inputa
+  // pa je "1.5" → 15, "0.4" → 4 itd. Snimanje pojedinačnog obračuna je upisivalo
+  // 10x veće brojeve u workers.taxCoefficient / minuliRadRate i u snapshot
+  // payrolls.minuliRadRate. Legitimne vrijednosti su:
+  //   • taxCoefficient: 0–4 (osnovni odbitak ×1 + izdržavani)
+  //   • minuliRadRate: 0–0.6 (% po godini staža, zakon FBiH)
+  // Vrijednosti iznad ovih sigurno su rezultat bug-a → dijelimo sa 10.
+  try {
+    const [taxCoefRes] = await sequelize.query(
+      "UPDATE workers SET taxCoefficient = taxCoefficient / 10 WHERE taxCoefficient >= 5 AND taxCoefficient <= 50",
+    );
+    const taxCoefFixed = taxCoefRes?.affectedRows ?? 0;
+    if (taxCoefFixed > 0) {
+      console.log(`Popravljeno ${taxCoefFixed} workers.taxCoefficient vrijednosti (parseNum bug).`);
+    }
+
+    const [minuliWorkersRes] = await sequelize.query(
+      "UPDATE workers SET minuliRadRate = minuliRadRate / 10 WHERE minuliRadRate >= 1 AND minuliRadRate <= 20",
+    );
+    const minuliWorkersFixed = minuliWorkersRes?.affectedRows ?? 0;
+    if (minuliWorkersFixed > 0) {
+      console.log(`Popravljeno ${minuliWorkersFixed} workers.minuliRadRate vrijednosti (parseNum bug).`);
+    }
+
+    const [minuliPayrollsRes] = await sequelize.query(
+      "UPDATE payrolls SET minuliRadRate = minuliRadRate / 10 WHERE minuliRadRate >= 1 AND minuliRadRate <= 20",
+    );
+    const minuliPayrollsFixed = minuliPayrollsRes?.affectedRows ?? 0;
+    if (minuliPayrollsFixed > 0) {
+      console.log(`Popravljeno ${minuliPayrollsFixed} payrolls.minuliRadRate snapshot vrijednosti (parseNum bug).`);
+    }
+  } catch (e) {
+    console.warn("parseNum cleanup migracija nije uspjela:", e?.message || e);
+  }
+
+  // Cleanup: empTotal/erpTotal su prije popravke računali "round(sum, 2)"
+  // umjesto "sum of round(component, 2)". To je dalo 1 fening razliku između
+  // empTotal i (empPio + empZdr + empNezap) na ~50% obračuna, što je rušilo
+  // PUFBiH validaciju ("zbir svih kol.15"). Sad usklađujemo postojeće redove:
+  //   • empTotal := round(empPio + empZdr + empNezap, 2)
+  //   • erpTotal := round(erpPio + erpZdr + erpNezap, 2)
+  // Pa onda net/taxBase/incomeTax/totalCost preraćunamo kako bi i platne liste
+  // i uplatnice bile konzistentne. Idempotentno: drugi put neće biti nekonzistentnih.
+  try {
+    const [empTotalRes] = await sequelize.query(
+      `UPDATE payrolls
+         SET empTotal = ROUND(empPio + empZdravstvo + empNezaposlenost, 2)
+       WHERE empTotal <> ROUND(empPio + empZdravstvo + empNezaposlenost, 2)`,
+    );
+    const empTotalFixed = empTotalRes?.affectedRows ?? 0;
+    if (empTotalFixed > 0) {
+      console.log(`Usklađeno ${empTotalFixed} payrolls.empTotal redova (PUFBiH round-then-sum convention).`);
+    }
+
+    const [erpTotalRes] = await sequelize.query(
+      `UPDATE payrolls
+         SET erpTotal = ROUND(erpPio + erpZdravstvo + erpNezaposlenost, 2)
+       WHERE erpTotal <> ROUND(erpPio + erpZdravstvo + erpNezaposlenost, 2)`,
+    );
+    const erpTotalFixed = erpTotalRes?.affectedRows ?? 0;
+    if (erpTotalFixed > 0) {
+      console.log(`Usklađeno ${erpTotalFixed} payrolls.erpTotal redova.`);
+    }
+
+    // Re-derive: taxBase, incomeTax, net iz konzistentnog empTotal.
+    // taxBase = max(gross - empTotal - deduction, 0). 10% porez. Net = gross - empTotal - incomeTax.
+    // totalCost = gross + erpTotal + vodna + nesrece + meal + regres + travel
+    const [netRes] = await sequelize.query(
+      `UPDATE payrolls
+         SET taxBase = GREATEST(ROUND(gross - empTotal - deduction, 2), 0),
+             incomeTax = ROUND(GREATEST(gross - empTotal - deduction, 0) * 0.10, 2),
+             net = ROUND(gross - empTotal - ROUND(GREATEST(gross - empTotal - deduction, 0) * 0.10, 2), 2)
+       WHERE empTotal IS NOT NULL AND gross IS NOT NULL`,
+    );
+    const netFixed = netRes?.affectedRows ?? 0;
+    if (netFixed > 0) {
+      console.log(`Re-derivovano ${netFixed} payrolls.taxBase/incomeTax/net redova.`);
+    }
+  } catch (e) {
+    console.warn("empTotal/erpTotal usklađivanje nije uspjelo:", e?.message || e);
   }
 }
 
@@ -504,6 +636,9 @@ async function ensureUtf8Mb4() {
     "invoice_counters",
     "payrolls",
     "payroll_documents",
+    // Predračun tabele — buyerName i ostala polja sadrže bosanske znakove (ć,š…).
+    "predracuni",
+    "predracun_counters",
   ];
   for (const t of tables) {
     const [rows] = await sequelize.query(

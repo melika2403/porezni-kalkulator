@@ -94,6 +94,8 @@ async function list(req, res) {
   const firstName = firstQueryValue(req.query.firstName);
   const lastName = firstQueryValue(req.query.lastName);
   const email = firstQueryValue(req.query.email);
+  const role = firstQueryValue(req.query.role);
+  const sort = firstQueryValue(req.query.sort);
 
   const pageNum = parsePositiveInt(req.query.page, 1);
   const limitNum = Math.min(parsePositiveInt(req.query.limit, 20), 100);
@@ -102,6 +104,8 @@ async function list(req, res) {
     firstName,
     lastName,
     email,
+    role,
+    sort,
     page: pageNum,
     limit: limitNum,
   });
