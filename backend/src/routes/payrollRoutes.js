@@ -9,6 +9,7 @@ router.get("/monthly-summary", requireAuth, ctrl.monthlySummary);
 router.post("/monthly-uplatnice", requireAuth, ctrl.generateMonthlyUplatnice);
 router.post("/mark-month-paid", requireAuth, ctrl.markMonthPaid);
 router.post("/payment-date", requireAuth, ctrl.setPaymentDate);
+router.post("/mark-mip-downloaded", requireAuth, ctrl.markMipDownloaded);
 router.post("/monthly-payslips", requireAuth, ctrl.generateMonthlyPayslips);
 router.post("/email-payslips-bulk", requireAuth, ctrl.emailMonthlyPayslipsBulk);
 router.get("/:id/payslip", requireAuth, ctrl.generateWorkerPayslip);

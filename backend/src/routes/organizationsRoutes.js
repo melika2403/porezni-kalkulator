@@ -45,13 +45,6 @@ router.post("/:id/activate", requireAuth, organizationsController.activate);
 router.get("/:id/settings", requireAuth, organizationsController.getById);
 router.patch("/:id/settings", requireAuth, organizationsController.update);
 
-// PK Office: postavi aktivnu organizaciju u user_preferences
-router.post("/:id/activate", requireAuth, organizationsController.activate);
-
-// Aliases za PK Office (settings stranica) — koriste isti getById/update controller
-router.get("/:id/settings", requireAuth, organizationsController.getById);
-router.patch("/:id/settings", requireAuth, organizationsController.update);
-
 // Logo upload — owner of org must be PRO or BUSINESS, and caller must be OWNER/ADMIN
 router.post(
   "/:id/logo",

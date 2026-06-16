@@ -6,23 +6,10 @@ import type { Metadata } from "next";
 const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-radu";
 
 export const metadata: Metadata = {
-  title: "Ugovor o radu i otkaz — predložak (Word/PDF) FBiH | Porezni Kalkulator BiH",
+  title: "Ugovor o radu i otkaz — predložak (Word/PDF) FBiH",
   description:
     "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Popunite podatke jednom i preuzmite oba dokumenta u Word i PDF formatu — sa probnim radom, određenim/neodređenim trajanjem i automatskim popunjavanjem podataka iz profila.",
-  keywords: [
-    "ugovor o radu",
-    "ugovor o radu FBiH",
-    "ugovor o radu predložak",
-    "ugovor o radu Word",
-    "ugovor o radu PDF",
-    "otkaz ugovora o radu",
-    "odluka o prestanku radnog odnosa",
-    "probni rad",
-    "ugovor o radu na određeno",
-    "ugovor o radu na neodređeno",
-    "Zakon o radu FBiH",
-  ],
-  alternates: { canonical: PAGE_URL },
+alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "article",
     locale: "bs_BA",

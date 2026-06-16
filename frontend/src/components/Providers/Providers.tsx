@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { NoticeProvider } from "src/components/Notice/Notice";
 import { captureUtm } from "src/utils/utm";
 

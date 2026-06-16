@@ -1246,6 +1246,10 @@ function OrgRowActions({
         return;
       }
       triggerDownload(result.xml, result.filename);
+      // Fire-and-forget: zabilježi preuzimanje za status na PK Office početnoj.
+      import("src/api/payroll").then(({ markMipDownloaded }) =>
+        markMipDownloaded({ organizationId: org.id, year, month }),
+      );
     } catch (e) {
       notify(
         `Greška pri generisanju MIP XML-a: ${(e as Error).message ?? e}`,

@@ -15,6 +15,11 @@ export default function BlogPostPage({ slug }: { slug: string }) {
   const Content = post.Content;
   const related = BLOG_POSTS.filter((p) => p.slug !== post.slug).slice(0, 3);
 
+  // prev/next hronološki (BLOG_POSTS je najnoviji prvi)
+  const idx = BLOG_POSTS.findIndex((p) => p.slug === post.slug);
+  const noviji = idx > 0 ? BLOG_POSTS[idx - 1] : null;
+  const stariji = idx < BLOG_POSTS.length - 1 ? BLOG_POSTS[idx + 1] : null;
+
   return (
     <main className={styles.postWrap}>
       <article>
@@ -38,6 +43,35 @@ export default function BlogPostPage({ slug }: { slug: string }) {
         </div>
 
         <footer className={styles.postFooter}>
+          {(stariji || noviji) && (
+            <nav
+              aria-label="Navigacija među člancima"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "1rem",
+                flexWrap: "wrap",
+                margin: "2rem 0 1rem",
+              }}
+            >
+              {stariji ? (
+                <Link href={`/blog/${stariji.slug}`} className={styles.backLink}>
+                  ← {stariji.title}
+                </Link>
+              ) : (
+                <span />
+              )}
+              {noviji && (
+                <Link
+                  href={`/blog/${noviji.slug}`}
+                  className={styles.backLink}
+                  style={{ textAlign: "right" }}
+                >
+                  {noviji.title} →
+                </Link>
+              )}
+            </nav>
+          )}
           {related.length > 0 && (
             <div className={styles.related}>
               <h3 className={styles.relatedTitle}>Pročitajte još</h3>

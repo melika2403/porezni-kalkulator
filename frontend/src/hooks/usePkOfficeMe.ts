@@ -1,13 +1,24 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { activateOrganization, meWithOrgs } from "src/api/pkOffice";
+import {
+  activateOrganization,
+  meWithOrgs,
+  payrollStatusForMonth,
+} from "src/api/pkOffice";
 import { unwrap } from "src/api/auth";
 
 export function usePkOfficeMe() {
   return useQuery({
     queryKey: ["pk-office", "me"],
     queryFn: () => unwrap(meWithOrgs()),
+  });
+}
+
+export function usePayrollStatus(year?: number, month?: number) {
+  return useQuery({
+    queryKey: ["pk-office", "payroll-status", year ?? null, month ?? null],
+    queryFn: () => unwrap(payrollStatusForMonth(year, month)),
   });
 }
 

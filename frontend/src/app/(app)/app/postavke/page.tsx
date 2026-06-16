@@ -29,7 +29,7 @@ export default function PostavkePage() {
 
   return (
     <div className="px-8 py-8 lg:px-12 lg:py-10 max-w-[1200px] mx-auto">
-      {/* Sekundarna navigacija — chip stil */}
+      {/* Sekundarna navigacija, chip stil */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {TABS.map((tab) => (
           <button

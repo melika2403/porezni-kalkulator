@@ -11,6 +11,7 @@ import {
   IconMoon,
   IconSun,
   IconUser,
+  IconChevronDown,
 } from "@tabler/icons-react";
 import { logout } from "src/api/auth";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
@@ -70,35 +71,49 @@ export function UserDropdown() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         title={`${user.firstName} ${user.lastName}`}
-        className="w-12 h-12 rounded-full bg-brand-100 hover:bg-brand-100/80 text-brand-700 flex items-center justify-center text-[15px] font-semibold transition-colors"
+        className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-3xl hover:bg-[rgba(15,26,18,0.05)] transition-colors"
       >
-        {initials || <IconUser size={22} />}
+        <span className="w-9 h-9 rounded-full bg-brand-600 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
+          {initials || <IconUser size={20} />}
+        </span>
+        <span className="text-[13.5px] font-medium text-text-primary leading-none max-[600px]:hidden">
+          {user.firstName} {user.lastName}
+        </span>
+        <IconChevronDown
+          size={16}
+          className={`text-text-tertiary shrink-0 transition ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-30 w-56 bg-cream-100 border border-cream-300 rounded-lg shadow-[0_8px_28px_-8px_rgba(15,26,18,0.18)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-cream-300">
-            <div className="text-[13px] font-medium text-text-primary truncate">
-              {user.firstName} {user.lastName}
-            </div>
-            <div className="text-[11.5px] text-text-tertiary truncate mt-0.5">
-              {user.email}
+        <div className="absolute right-0 top-full mt-2.5 z-30 w-[270px] bg-cream-100 border border-cream-300 rounded-xl shadow-[0_12px_34px_-10px_rgba(15,26,18,0.24)] overflow-hidden p-2">
+          <div className="flex items-center gap-3 px-2.5 py-2.5 mb-1">
+            <span className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center text-[14px] font-semibold shrink-0">
+              {initials || <IconUser size={20} />}
+            </span>
+            <div className="min-w-0">
+              <div className="text-[14px] font-medium text-text-primary truncate">
+                {user.firstName} {user.lastName}
+              </div>
+              <div className="text-[12px] text-text-tertiary truncate mt-0.5">
+                {user.email}
+              </div>
             </div>
           </div>
-          <div className="py-1">
+          <div className="border-t border-cream-300 pt-1.5 flex flex-col gap-0.5">
             <a
               href={`${getMarketingUrl()}/profil`}
-              className="flex items-center gap-2.5 px-4 py-2 text-[13px] hover:bg-cream-200 text-text-primary transition-colors"
+              className="flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] hover:bg-cream-200 text-text-primary transition-colors"
             >
-              <IconUser size={16} className="text-text-secondary" />
+              <IconUser size={19} className="text-text-secondary shrink-0" />
               Moj profil
             </a>
             <Link
               href="/app/pretplata"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-[13px] hover:bg-cream-200 text-text-primary transition-colors"
+              className="flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] hover:bg-cream-200 text-text-primary transition-colors"
             >
-              <IconCreditCard size={16} className="text-text-secondary" />
+              <IconCreditCard size={19} className="text-text-secondary shrink-0" />
               Pretplata
             </Link>
             <button
@@ -107,24 +122,24 @@ export function UserDropdown() {
                 setTheme(isDark ? "light" : "dark");
                 setOpen(false);
               }}
-              className="w-full flex items-center gap-2.5 px-4 py-2 text-[13px] hover:bg-cream-200 text-text-primary text-left transition-colors"
+              className="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] hover:bg-cream-200 text-text-primary text-left transition-colors"
             >
               {isDark ? (
-                <IconSun size={16} className="text-text-secondary" />
+                <IconSun size={19} className="text-text-secondary shrink-0" />
               ) : (
-                <IconMoon size={16} className="text-text-secondary" />
+                <IconMoon size={19} className="text-text-secondary shrink-0" />
               )}
               {isDark ? "Svijetla tema" : "Tamna tema"}
             </button>
           </div>
-          <div className="border-t border-cream-300 py-1">
+          <div className="border-t border-cream-300 mt-1.5 pt-1.5">
             <button
               type="button"
               onClick={() => logoutMutation.mutate()}
               disabled={logoutMutation.isPending}
-              className="w-full flex items-center gap-2.5 px-4 py-2 text-[13px] hover:bg-danger-bg text-danger text-left disabled:opacity-50 transition-colors"
+              className="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] hover:bg-danger-bg text-danger text-left disabled:opacity-50 transition-colors"
             >
-              <IconLogout size={16} />
+              <IconLogout size={19} className="shrink-0" />
               {logoutMutation.isPending ? "Odjavljivanje..." : "Odjavi se"}
             </button>
           </div>

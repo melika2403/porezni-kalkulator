@@ -275,8 +275,10 @@ async function me(req, res) {
     where: { userId },
     include: [{ model: Organization, as: "organization" }],
   });
+  // PK Office radi samo sa obrtima (BUSINESS) — d.o.o. (COMPANY) se ne nudi
+  // u switcheru ni kao aktivna organizacija.
   const organizations = memberships
-    .filter((m) => m.organization)
+    .filter((m) => m.organization && m.organization.type === "BUSINESS")
     .map((m) => ({
       id: m.organization.id,
       name: m.organization.name,
@@ -284,6 +286,7 @@ async function me(req, res) {
       type: m.organization.type,
       taxRegime: m.organization.taxRegime,
       logoUrl: m.organization.logoUrl,
+      isClientOrg: !!m.organization.isClientOrg,
       role: m.role,
     }));
 

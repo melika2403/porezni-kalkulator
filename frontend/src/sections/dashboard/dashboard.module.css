@@ -1,5 +1,7 @@
 .page {
   padding: 2rem 1.75rem 3.5rem;
+  max-width: 1280px;
+  margin: 0 auto;
   animation: fadeUp 0.5s ease both;
 }
 
@@ -39,11 +41,11 @@
 
 .h1 {
   font-family: "DM Serif Display", serif;
-  font-size: clamp(2rem, 4vw, 2.8rem);
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  font-size: clamp(1.6rem, 2.6vw, 1.75rem);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
   margin: 0 0 0.75rem;
-  color: var(--ink);
+  color: var(--sage);
 }
 
 .h1 em {
@@ -51,13 +53,171 @@
   color: var(--sage);
 }
 
-.lead {
-  font-size: 0.95rem;
+/* Meta red ispod pozdrava: datum · org + badge + status plata */
+.headerMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  font-size: 15px;
   color: var(--mid);
-  line-height: 1.6;
-  font-weight: 300;
-  max-width: 560px;
+}
+
+.metaDot {
+  color: var(--border);
+}
+
+.metaOrg {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.orgBadge,
+.orgBadgeClient {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.orgBadge {
+  background: var(--sage-pale);
+  color: var(--sage);
+}
+
+.orgBadgeClient {
+  background: var(--color-info-bg, #d8e6f1);
+  color: var(--color-info, #1f5a8c);
+}
+
+.payrollChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.payrollChip:hover {
+  opacity: 0.8;
+}
+
+.payrollChipWarn {
+  background: var(--color-warning-bg, #f2dec0);
+  color: var(--color-warning, #8a4f10);
+}
+
+.payrollChipOk {
+  background: var(--color-success-bg, #d8ebe1);
+  color: var(--color-success, #2d6e54);
+}
+
+/* ── Plate/MIP kartica ────────────────────────────────────────── */
+.payrollRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.payrollRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.payrollRowLabel {
+  font-size: 13.5px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.payrollCardLink {
+  margin-top: 0.5rem;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--sage);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--sage);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.payrollCardLink:hover {
+  background: var(--sage);
+  color: var(--white);
+}
+
+.payrollCardLink svg {
+  transition: transform 0.15s;
+}
+
+.payrollCardLink:hover svg {
+  transform: translateX(2px);
+}
+
+/* ── Gornji red: stanje računa + plate/MIP kartica ───────────── */
+.topGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .topGrid {
+    grid-template-columns: 1.6fr 1fr;
+  }
+}
+
+.balanceCard {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem 1.6rem 1.5rem;
+}
+
+.balanceLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin: 0 0 0.65rem;
+}
+
+.balanceValue {
+  font-size: 27px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   margin: 0;
+}
+
+.balanceValueNeg {
+  color: var(--danger, #9b2e2e);
+}
+
+.balanceMeta {
+  font-size: 12px;
+  color: var(--mid);
+  margin: 0.6rem 0 0;
 }
 
 /* ── Metric grid ──────────────────────────────────────────────── */

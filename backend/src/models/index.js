@@ -344,6 +344,11 @@ const Payroll = sequelize.define(
     // batch update kad user mijenja u UI). Ulazi u MIP-1023 XML i platne liste.
     paymentDate: { type: DataTypes.DATEONLY, allowNull: true },
 
+    // Kad je MIP-1023 XML za (org, year, month) zadnji put preuzet. Batch
+    // update na sve payroll-e mjeseca, isti pattern kao paymentDate. XML se
+    // generiše client-side pa frontend javlja preuzimanje posebnim pozivom.
+    mipDownloadedAt: { type: DataTypes.DATE, allowNull: true },
+
     notes: { type: DataTypes.TEXT, allowNull: true },
   },
   {
@@ -1019,6 +1024,207 @@ const ActivityLog = sequelize.define(
   },
 );
 
+// ─── BANK STATEMENTS (PK Office: bankovni izvodi) ────────────────────────────
+// Jedan upload PDF izvoda = jedan BankStatement + N BankTransaction redova.
+// Izvod se snima tek kad parsiranje prođe validaciju salda.
+const BankStatement = sequelize.define(
+  "BankStatement",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    uploadedById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // id parser modula (unicredit, raiffeisen, kib, sparkasse, asseco)
+    bankId: { type: DataTypes.STRING(30), allowNull: false },
+    bankName: { type: DataTypes.STRING(100), allowNull: true },
+    account: { type: DataTypes.STRING(34), allowNull: true },
+    statementNumber: { type: DataTypes.STRING(20), allowNull: true },
+    statementDate: { type: DataTypes.DATEONLY, allowNull: true },
+    currency: { type: DataTypes.STRING(3), allowNull: true },
+    openingBalance: { type: DataTypes.DECIMAL(14, 2), allowNull: true },
+    closingBalance: { type: DataTypes.DECIMAL(14, 2), allowNull: true },
+    fileName: { type: DataTypes.STRING(255), allowNull: true },
+    // upozorenja iz parsera (npr. "datum transakcije = datum izvoda")
+    warnings: { type: DataTypes.JSON, allowNull: true },
+  },
+  {
+    tableName: "bank_statements",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["organizationId", "statementDate"] }],
+  },
+);
+
+const BankTransaction = sequelize.define(
+  "BankTransaction",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    statementId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    date: { type: DataTypes.DATEONLY, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    reference: { type: DataTypes.STRING(100), allowNull: true },
+    counterpartyName: { type: DataTypes.STRING(255), allowNull: true },
+    counterpartyAccount: { type: DataTypes.STRING(34), allowNull: true },
+    // amount je uvijek pozitivan; smjer nosi direction
+    amount: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    direction: { type: DataTypes.ENUM("IN", "OUT"), allowNull: false },
+    balanceAfter: { type: DataTypes.DECIMAL(14, 2), allowNull: true },
+    // Faza 1: UNMATCHED → korisnik potvrdi/ignoriše. Matching engine (fakture,
+    // javni prihodi, naučena pravila) dolazi u Fazi 2 i radi nad ovim statusom.
+    status: {
+      type: DataTypes.ENUM("UNMATCHED", "CONFIRMED", "IGNORED"),
+      allowNull: false,
+      defaultValue: "UNMATCHED",
+    },
+    // privremena kategorija kao string dok Faza 2 ne uvede Category model
+    category: { type: DataTypes.STRING(60), allowNull: true },
+    // povezana faktura (auto-match priliva ili ručni izbor); potvrda
+    // stavke označava fakturu naplaćenom
+    invoiceId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // poslovni partner (vezan automatski po žiro računu partnera)
+    partnerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // ulazni račun koji je ova isplata zatvorila (auto-knjiženje)
+    ulazniRacunId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "bank_transactions",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "date"] },
+      { fields: ["organizationId", "status"] },
+      { fields: ["statementId"] },
+    ],
+  },
+);
+
+// Naučena pravila kategorizacije po organizaciji: kad korisnik potvrdi
+// stavku sa kategorijom, zapamti (protivračun ili naziv) → kategorija,
+// pa sljedeći upload iste protivstrane dolazi sa prijedlogom.
+const BankMatchRule = sequelize.define(
+  "BankMatchRule",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // ACCOUNT = normalizovan protivračun (samo cifre), NAME = normalizovan naziv
+    matchType: { type: DataTypes.ENUM("ACCOUNT", "NAME"), allowNull: false },
+    matchValue: { type: DataTypes.STRING(255), allowNull: false },
+    direction: { type: DataTypes.ENUM("IN", "OUT"), allowNull: false },
+    category: { type: DataTypes.STRING(60), allowNull: false },
+    timesConfirmed: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 1,
+    },
+  },
+  {
+    tableName: "bank_match_rules",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      {
+        // MySQL limit za naziv identifikatora je 64 znaka — auto-generisano
+        // ime iz kolona bi bilo predugačko, pa eksplicitno kratko ime
+        name: "uq_bank_match_rule",
+        unique: true,
+        fields: ["organizationId", "matchType", "matchValue", "direction"],
+      },
+    ],
+  },
+);
+
+// Poslovni partneri obrta (kupci i dobavljači). Auto-popunjavaju se iz
+// faktura i bankovnih izvoda, a korisnik ih dopunjava punim podacima
+// (JIB, adresa) — osnova za kartice partnera i kasnije KUF/KIF.
+const Partner = sequelize.define(
+  "Partner",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // šifra partnera: redni broj unutar organizacije (prikaz npr. "0003")
+    code: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    name: { type: DataTypes.STRING(255), allowNull: false },
+    // JIB/ID broj (13 cifara) i PDV broj (12); opciono dok korisnik ne unese
+    jib: { type: DataTypes.STRING(20), allowNull: true },
+    pdvBroj: { type: DataTypes.STRING(20), allowNull: true },
+    address: { type: DataTypes.STRING(255), allowNull: true },
+    city: { type: DataTypes.STRING(120), allowNull: true },
+    email: { type: DataTypes.STRING(255), allowNull: true },
+    phone: { type: DataTypes.STRING(64), allowNull: true },
+    // žiro računi partnera, niz normalizovanih brojeva (samo cifre);
+    // po njima se transakcije sa izvoda automatski vežu za partnera
+    accounts: { type: DataTypes.JSON, allowNull: true },
+    isKupac: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    isDobavljac: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    note: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    tableName: "partners",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["organizationId"] }],
+  },
+);
+
+// Ulazni računi (fakture dobavljača). Knjiže se na partnera; plaćanje na
+// izvodu ih automatski zatvara. Polja pokrivaju i buduće KUF potrebe
+// (broj, datum, dobavljač preko partnera, iznos, PDV).
+const UlazniRacun = sequelize.define(
+  "UlazniRacun",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    partnerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // broj fakture kako ga je dobavljač izdao
+    brojRacuna: { type: DataTypes.STRING(100), allowNull: false },
+    datumRacuna: { type: DataTypes.DATEONLY, allowNull: false },
+    rokPlacanja: { type: DataTypes.DATEONLY, allowNull: true },
+    // ukupan iznos sa PDV-om; pdvIznos opciono (dobavljač PDV obveznik)
+    iznos: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+    pdvIznos: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    status: {
+      type: DataTypes.ENUM("OTVOREN", "PLACEN"),
+      allowNull: false,
+      defaultValue: "OTVOREN",
+    },
+    paidAt: { type: DataTypes.DATEONLY, allowNull: true },
+    note: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    tableName: "ulazni_racuni",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "status"] },
+      { fields: ["partnerId"] },
+    ],
+  },
+);
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 User.hasOne(Subscription, { foreignKey: "userId", as: "subscription" });
 Subscription.belongsTo(User, { foreignKey: "userId" });
@@ -1122,6 +1328,58 @@ Payroll.hasMany(PayrollDocument, {
 });
 PayrollDocument.belongsTo(Payroll, { foreignKey: "payrollId", as: "payroll" });
 
+// Bank statements associations
+Organization.hasMany(BankStatement, {
+  foreignKey: "organizationId",
+  as: "bankStatements",
+});
+BankStatement.belongsTo(Organization, {
+  foreignKey: "organizationId",
+  as: "organization",
+});
+BankStatement.hasMany(BankTransaction, {
+  foreignKey: "statementId",
+  as: "transactions",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+BankTransaction.belongsTo(BankStatement, {
+  foreignKey: "statementId",
+  as: "statement",
+});
+Organization.hasMany(BankTransaction, {
+  foreignKey: "organizationId",
+  as: "bankTransactions",
+});
+BankTransaction.belongsTo(Organization, {
+  foreignKey: "organizationId",
+  as: "organization",
+});
+Invoice.hasMany(BankTransaction, {
+  foreignKey: "invoiceId",
+  as: "bankTransactions",
+});
+BankTransaction.belongsTo(Invoice, { foreignKey: "invoiceId", as: "invoice" });
+
+Organization.hasMany(Partner, { foreignKey: "organizationId", as: "partners" });
+Partner.belongsTo(Organization, { foreignKey: "organizationId" });
+Partner.hasMany(BankTransaction, {
+  foreignKey: "partnerId",
+  as: "bankTransactions",
+});
+BankTransaction.belongsTo(Partner, { foreignKey: "partnerId", as: "partner" });
+
+Partner.hasMany(UlazniRacun, { foreignKey: "partnerId", as: "ulazniRacuni" });
+UlazniRacun.belongsTo(Partner, { foreignKey: "partnerId", as: "partner" });
+UlazniRacun.hasMany(BankTransaction, {
+  foreignKey: "ulazniRacunId",
+  as: "bankTransactions",
+});
+BankTransaction.belongsTo(UlazniRacun, {
+  foreignKey: "ulazniRacunId",
+  as: "ulazniRacun",
+});
+
 module.exports = {
   sequelize,
   User,
@@ -1149,4 +1407,10 @@ module.exports = {
   CompanyExpense,
   OtherIncome,
   ActivityLog,
+  UserPreference,
+  BankStatement,
+  BankTransaction,
+  BankMatchRule,
+  Partner,
+  UlazniRacun,
 };

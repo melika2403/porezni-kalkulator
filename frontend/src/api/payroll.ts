@@ -200,6 +200,19 @@ export function markMonthPaid(payload: {
   });
 }
 
+// Zabilježi da je MIP-1023 XML za (org, year, month) preuzet. XML se generiše
+// client-side pa backend sam ne vidi download; zove se nakon preuzimanja.
+export function markMipDownloaded(payload: {
+  organizationId: number;
+  year: number;
+  month: number;
+}) {
+  return request<{ updated: number }>(`/api/payroll/mark-mip-downloaded`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // Postavlja paymentDate na sve payroll-e u (org, year, month). Vraća ga svim
 // dokumentima (MIP-1023 XML, platne liste, uplatnice).
 export function setPayrollPaymentDate(payload: {

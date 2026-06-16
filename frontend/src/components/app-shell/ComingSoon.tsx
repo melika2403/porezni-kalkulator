@@ -11,7 +11,7 @@ export function ComingSoon({ title }: { title: string }) {
         {title}<span className="text-brand-600" style={{ fontStyle: "italic" }}>.</span>
       </h1>
       <p className="text-[15px] leading-7 text-text-tertiary mt-5 max-w-xl">
-        Ova sekcija stiže uskoro. Sidebar i navigacija već rade — sadržaj
+        Ova sekcija stiže uskoro. Sidebar i navigacija već rade, sadržaj
         dolazi u sljedećem koraku.
       </p>
 

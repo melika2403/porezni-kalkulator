@@ -2113,6 +2113,34 @@ async function setPaymentDate(req, res) {
   }
 }
 
+// ── POST /api/payroll/mark-mip-downloaded ───────────────────────────────────
+// Zabilježi da je MIP-1023 XML za (organizationId, year, month) preuzet.
+// XML se generiše client-side pa backend ne vidi sam download; frontend javi.
+// Body: { organizationId, year, month }
+async function markMipDownloaded(req, res) {
+  try {
+    const organizationId = parseId(req.body?.organizationId);
+    const year = parseId(req.body?.year);
+    const month = parseId(req.body?.month);
+    if (!organizationId || !year || !month) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing organizationId/year/month" });
+    }
+    const org = await assertOrgAccess(organizationId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+    const [updatedCount] = await Payroll.update(
+      { mipDownloadedAt: new Date() },
+      { where: { organizationId, year, month } },
+    );
+    return res.json({ ok: true, data: { updated: updatedCount } });
+  } catch (e) {
+    console.error("markMipDownloaded failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
+  }
+}
+
 module.exports = {
   list,
   calculate,
@@ -2127,6 +2155,7 @@ module.exports = {
   generateMonthlyUplatnice,
   markMonthPaid,
   setPaymentDate,
+  markMipDownloaded,
   generateMonthlyPayslips,
   generateWorkerPayslip,
   emailWorkerPayslip,

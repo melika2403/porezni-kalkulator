@@ -547,6 +547,47 @@ const MJESECI = [
   "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar",
 ];
 
+// Kartica prometa partnera (PK Office): šalje PDF kartice kupcu/dobavljaču.
+async function sendKarticaEmail({
+  to,
+  partnerName,
+  orgName,
+  type,
+  periodLabel,
+  pdfBuffer,
+  filename,
+}) {
+  const transporter = createInvoiceTransporter();
+  const fromAddr =
+    process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
+  const displayName = orgName || "Porezni Kalkulator";
+  const docTitle = type === "kupac" ? "Kartica kupca" : "Kartica dobavljača";
+
+  await transporter.sendMail({
+    from: `"${displayName}" <${fromAddr}>`,
+    to,
+    subject: `${docTitle} za period ${periodLabel} - ${displayName}`,
+    text: `Poštovani${partnerName ? ` ${partnerName}` : ""},
+
+U prilogu se nalazi ${docTitle.toLowerCase()} za period ${periodLabel} od ${displayName}.
+
+Srdačan pozdrav,
+${displayName}`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${docTitle}</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6;">
+          Poštovani${partnerName ? ` <strong>${partnerName}</strong>` : ""},<br/>
+          u prilogu se nalazi ${docTitle.toLowerCase()} za period ${periodLabel} od <strong>${displayName}</strong>.
+        </p>
+        <p style="color: #999; font-size: 13px; margin-top: 28px;">
+          Poslano putem <a href="https://poreznikalkulator.ba" style="color:#3a5c42;">poreznikalkulator.ba</a>
+        </p>
+      </div>`,
+    attachments: [{ filename, content: pdfBuffer }],
+  });
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendVerificationEmail,
@@ -557,4 +598,5 @@ module.exports = {
   sendPayslipEmail,
   sendSubscriptionReminderEmail,
   sendTrialInviteEmail,
+  sendKarticaEmail,
 };

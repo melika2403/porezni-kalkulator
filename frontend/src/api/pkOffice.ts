@@ -14,6 +14,7 @@ export type OrganizationSummary = {
   type: OrgType;
   taxRegime: TaxRegime;
   logoUrl: string | null;
+  isClientOrg: boolean;
   role: OrgRole;
 };
 
@@ -62,5 +63,40 @@ export function activateOrganization(id: number) {
   return request<{ activeOrganizationId: number }>(
     `/api/organizations/${id}/activate`,
     { method: "POST" },
+  );
+}
+
+export type PayrollStatus =
+  | "no_workers"
+  | "none"
+  | "partial"
+  | "obracunato"
+  | "isplaceno";
+
+export type OrgWithPayrollStatus = {
+  id: number;
+  name: string;
+  workerCount: number;
+  payrollObracunato: number;
+  payrollIsplaceno: number;
+  payrollStatus: PayrollStatus;
+  mipDownloadedAt: string | null;
+};
+
+export type PayrollStatusResponse = {
+  own: OrgWithPayrollStatus[];
+  clients: OrgWithPayrollStatus[];
+  year: number;
+  month: number;
+};
+
+export function payrollStatusForMonth(year?: number, month?: number) {
+  const qs =
+    year && month
+      ? `?${new URLSearchParams({ year: String(year), month: String(month) })}`
+      : "";
+  return request<PayrollStatusResponse>(
+    `/api/organizations/payroll-status${qs}`,
+    { method: "GET" },
   );
 }

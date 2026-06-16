@@ -264,13 +264,14 @@ async function listWithPayrollStatus(req, res) {
   const payrollsByOrg = new Map();
   const payrolls = await Payroll.findAll({
     where: { organizationId: orgIds, year, month },
-    attributes: ["organizationId", "status"],
+    attributes: ["organizationId", "status", "mipDownloadedAt"],
   });
   for (const p of payrolls) {
     const cur = payrollsByOrg.get(p.organizationId) || {
       total: 0,
       obracunato: 0,
       isplaceno: 0,
+      mipDownloadedAt: null,
     };
     cur.total += 1;
     if (p.status === "OBRACUNATO" || p.status === "ISPLACENO") {
@@ -278,6 +279,13 @@ async function listWithPayrollStatus(req, res) {
     }
     if (p.status === "ISPLACENO") {
       cur.isplaceno += 1;
+    }
+    // Batch update drži isti timestamp na svim payrollima mjeseca; uzmi najnoviji.
+    if (
+      p.mipDownloadedAt &&
+      (!cur.mipDownloadedAt || p.mipDownloadedAt > cur.mipDownloadedAt)
+    ) {
+      cur.mipDownloadedAt = p.mipDownloadedAt;
     }
     payrollsByOrg.set(p.organizationId, cur);
   }
@@ -289,6 +297,7 @@ async function listWithPayrollStatus(req, res) {
         total: 0,
         obracunato: 0,
         isplaceno: 0,
+        mipDownloadedAt: null,
       };
       // payrollStatus:
       //   "no_workers"   — org nema aktivnih radnika
@@ -309,6 +318,7 @@ async function listWithPayrollStatus(req, res) {
         payrollObracunato: stats.obracunato,
         payrollIsplaceno: stats.isplaceno,
         payrollStatus,
+        mipDownloadedAt: stats.mipDownloadedAt,
       };
     });
 
@@ -555,6 +565,14 @@ async function activate(req, res) {
     return res
       .status(403)
       .json({ ok: false, error: "FORBIDDEN_ORGANIZATION" });
+  }
+
+  // PK Office radi samo sa obrtima — COMPANY se ne može aktivirati.
+  const org = await Organization.findByPk(id, { attributes: ["id", "type"] });
+  if (!org || org.type !== "BUSINESS") {
+    return res
+      .status(400)
+      .json({ ok: false, error: "ORGANIZATION_NOT_BUSINESS" });
   }
 
   const [pref] = await UserPreference.findOrCreate({

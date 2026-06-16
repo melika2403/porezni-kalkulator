@@ -16,7 +16,7 @@ export default async function PkOfficeLayout({
   const token = cookieStore.get("access_token");
 
   if (!token) {
-    // /prijava živi na marketing hostu — proxy.ts na app subdomenu
+    // /prijava živi na marketing hostu, proxy.ts na app subdomenu
     // rewrite-uje sve ne-/app putanje u /app/* (404). Konstruišemo
     // apsolutni URL na marketing host striping-om "app." prefiksa.
     const h = await headers();

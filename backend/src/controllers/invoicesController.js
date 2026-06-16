@@ -158,6 +158,17 @@ async function list(req, res) {
   if (orgIds.length > 0) orClauses.push({ organizationId: { [Op.in]: orgIds } });
 
   const where = { [Op.or]: orClauses };
+
+  // PK Office: lista samo za jednu (aktivnu) organizaciju
+  if (req.query.organizationId) {
+    const oid = Number(req.query.organizationId);
+    if (!Number.isInteger(oid) || oid <= 0 || !orgIds.includes(oid)) {
+      return res.status(200).json({ ok: true, data: [] });
+    }
+    delete where[Op.or];
+    where.organizationId = oid;
+  }
+
   if (req.query.type && ["INVOICE", "PROFORMA"].includes(String(req.query.type).toUpperCase())) {
     where.type = String(req.query.type).toUpperCase();
   }

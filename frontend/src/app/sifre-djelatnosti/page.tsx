@@ -6,26 +6,10 @@ import { KD_BIH_DETAILED } from "src/data/kd-bih-detailed";
 const PAGE_URL = "https://poreznikalkulator.ba/sifre-djelatnosti";
 
 export const metadata: Metadata = {
-  title: "Šifre djelatnosti FBiH (KD BiH 2010) — kompletna lista sa opisima | Porezni Kalkulator BiH",
+  title: "Šifre djelatnosti FBiH (KD BiH 2010) — kompletna lista sa opisima",
   description:
     "Kompletna lista šifri djelatnosti za Federaciju BiH prema KD BiH 2010 (NACE Rev. 2). Pretražite po nazivu ili šifri, pročitajte detaljne opise i šta razred uključuje/izuzima — sve potrebno za otvaranje obrta ili registraciju djelatnosti u FBiH.",
-  keywords: [
-    "šifre djelatnosti FBiH",
-    "šifre djelatnosti BiH",
-    "KD BiH 2010",
-    "klasifikacija djelatnosti",
-    "NACE Rev. 2",
-    "šifra djelatnosti za obrt",
-    "registracija obrta FBiH",
-    "klasifikacija djelatnosti BiH",
-    "šifre djelatnosti lista",
-    "šifre djelatnosti Federacija",
-    "pretežna djelatnost obrta",
-    "šifre djelatnosti pretraga",
-    "Federalni zavod za statistiku",
-    "Agencija za statistiku BiH",
-  ],
-  alternates: { canonical: PAGE_URL },
+alternates: { canonical: PAGE_URL },
   robots: {
     index: true,
     follow: true,
@@ -72,13 +56,7 @@ const datasetSchema = {
   description:
     "Kompletna lista šifri djelatnosti u Bosni i Hercegovini prema KD BiH 2010, zasnovanoj na evropskoj klasifikaciji NACE Rev. 2.",
   url: PAGE_URL,
-  keywords: [
-    "šifre djelatnosti FBiH",
-    "KD BiH 2010",
-    "NACE Rev. 2",
-    "klasifikacija djelatnosti",
-  ],
-  inLanguage: ["bs", "hr", "sr"],
+inLanguage: ["bs", "hr", "sr"],
   dateModified: reviewedFor("/sifre-djelatnosti"),
   creator: {
     "@type": "Organization",

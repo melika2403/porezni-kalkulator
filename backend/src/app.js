@@ -30,6 +30,9 @@ const financeRoutes = require("./routes/financeRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 const meRoutes = require("./routes/meRoutes");
+const profileRoutes = require("./routes/profileRoutes");
+const bankStatementsRoutes = require("./routes/bankStatementsRoutes");
+const partnersRoutes = require("./routes/partnersRoutes");
 
 const app = express();
 
@@ -84,6 +87,9 @@ app.use("/api/admin/finance", financeRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/me", meRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/bank-statements", bankStatementsRoutes);
+app.use("/api/partners", partnersRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -346,6 +352,36 @@ async function ensureColumns() {
       table: "payrolls",
       column: "paymentDate",
       ddl: "ALTER TABLE payrolls ADD COLUMN paymentDate DATE NULL",
+    },
+    // Kad je MIP-1023 XML za (org, year, month) zadnji put preuzet.
+    {
+      table: "payrolls",
+      column: "mipDownloadedAt",
+      ddl: "ALTER TABLE payrolls ADD COLUMN mipDownloadedAt DATETIME NULL",
+    },
+    // Veza stavke izvoda sa fakturom (auto-match naplate).
+    {
+      table: "bank_transactions",
+      column: "invoiceId",
+      ddl: "ALTER TABLE bank_transactions ADD COLUMN invoiceId INT UNSIGNED NULL",
+    },
+    // Veza stavke izvoda sa poslovnim partnerom (po žiro računu).
+    {
+      table: "bank_transactions",
+      column: "partnerId",
+      ddl: "ALTER TABLE bank_transactions ADD COLUMN partnerId INT UNSIGNED NULL",
+    },
+    // Veza isplate sa ulaznim računom koji je zatvorila (auto-knjiženje).
+    {
+      table: "bank_transactions",
+      column: "ulazniRacunId",
+      ddl: "ALTER TABLE bank_transactions ADD COLUMN ulazniRacunId INT UNSIGNED NULL",
+    },
+    // Šifra partnera (redni broj unutar organizacije).
+    {
+      table: "partners",
+      column: "code",
+      ddl: "ALTER TABLE partners ADD COLUMN code INT UNSIGNED NULL",
     },
     // Predračun: ciklus naplate + period pretplate.
     {

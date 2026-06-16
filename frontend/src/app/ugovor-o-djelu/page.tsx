@@ -5,22 +5,10 @@ import type { Metadata } from "next";
 const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-djelu";
 
 export const metadata: Metadata = {
-  title: "Ugovor o djelu — kalkulator poreza i doprinosa, predložak (Word/PDF) | Porezni Kalkulator BiH",
+  title: "Ugovor o djelu — kalkulator poreza i doprinosa, predložak (Word/PDF)",
   description:
     "Kako popuniti ugovor o djelu u FBiH? Online kalkulator poreza i doprinosa (NETO ↔ BRUTO), predložak ugovora u Word i PDF formatu te 6 uplatnica spremnih za banku — besplatno, bez registracije.",
-  keywords: [
-    "ugovor o djelu",
-    "ugovor o djelu kalkulator",
-    "ugovor o djelu FBiH",
-    "obračun ugovora o djelu",
-    "porez na ugovor o djelu",
-    "doprinosi ugovor o djelu",
-    "ugovor o djelu predložak",
-    "kako popuniti ugovor o djelu",
-    "uplatnice ugovor o djelu",
-    "neto bruto ugovor o djelu",
-  ],
-  alternates: { canonical: PAGE_URL },
+alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "article",
     locale: "bs_BA",
