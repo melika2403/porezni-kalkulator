@@ -499,6 +499,8 @@ function ProfilTab({
       taxRegime: org.taxRegime ?? "",
       taxCategory: org.taxCategory ?? "",
       defaultSalaryType: org.defaultSalaryType ?? "NETO_ISPLATA",
+      mealAllowancePerDay:
+        org.mealAllowancePerDay != null ? String(org.mealAllowancePerDay) : "",
     });
     updateOwnOrgMutation.reset();
   };
@@ -1253,6 +1255,7 @@ type OrgFormState = {
   taxRegime: "" | "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
   taxCategory: string;
   defaultSalaryType: SalaryType;
+  mealAllowancePerDay: string;
 };
 
 const emptyOrgForm: OrgFormState = {
@@ -1270,6 +1273,7 @@ const emptyOrgForm: OrgFormState = {
   taxRegime: "",
   taxCategory: "",
   defaultSalaryType: "NETO_ISPLATA",
+  mealAllowancePerDay: "",
 };
 
 function orgFormToPayload(
@@ -1295,6 +1299,9 @@ function orgFormToPayload(
         ? (f.taxCategory as OrgPayload["taxCategory"])
         : null,
     defaultSalaryType: f.defaultSalaryType,
+    mealAllowancePerDay: f.mealAllowancePerDay.trim()
+      ? Number(f.mealAllowancePerDay.replace(",", "."))
+      : null,
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
 }
@@ -1646,6 +1653,36 @@ function OrgFormFields({
           radnici ostaju onakvi kakvi su.
         </p>
       </div>
+
+      {/* Dnevna stopa toplog obroka: obračun je množi sa brojem radnih dana
+          iz šihterice i sam popuni topli obrok. Pojedinom radniku se može
+          postaviti druga stopa u njegovom profilu. */}
+      <div className={styles.field} style={{ marginTop: "1rem" }}>
+        <label className={styles.fieldLabel}>
+          Topli obrok po danu (KM)
+        </label>
+        <input
+          className={styles.input}
+          type="text"
+          inputMode="decimal"
+          placeholder="npr. 16"
+          value={value.mealAllowancePerDay}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              mealAllowancePerDay: e.target.value.replace(/[^\d.,]/g, ""),
+            })
+          }
+        />
+        <p
+          className={styles.fieldHint}
+          style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}
+        >
+          Obračun sam množi ovu stopu sa brojem radnih dana iz šihterice i
+          popuni topli obrok. Ostavite prazno da unosite ručno. Neoporezivo do
+          oko 17 KM/dan (2026).
+        </p>
+      </div>
     </>
   );
 }
@@ -1955,6 +1992,8 @@ function DjelatnostTab({
       taxRegime: org.taxRegime ?? "",
       taxCategory: org.taxCategory ?? "",
       defaultSalaryType: org.defaultSalaryType ?? "NETO_ISPLATA",
+      mealAllowancePerDay:
+        org.mealAllowancePerDay != null ? String(org.mealAllowancePerDay) : "",
     });
     const ow = org.owner;
     setEditHasOwner(!!ow);

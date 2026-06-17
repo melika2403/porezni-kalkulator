@@ -20,4 +20,12 @@ router.get(
   activityController.adminStats,
 );
 
+// Sklanjanje/vraćanje stavke iz pregleda (soft-hide).
+router.patch(
+  "/admin/:id/hidden",
+  requireAuth,
+  requireRole("ADMIN"),
+  activityController.setHidden,
+);
+
 module.exports = router;

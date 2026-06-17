@@ -195,6 +195,9 @@ export type Organization = {
   taxCategory: TaxCategory | null;
   // Default tip plate za nove radnike u ovoj org-i. Vidi SalaryType u Worker.
   defaultSalaryType: SalaryType;
+  // Dnevna stopa toplog obroka za firmu (KM/dan). Obračun je množi sa brojem
+  // radnih dana iz šihterice. NULL = bez auto-stope.
+  mealAllowancePerDay: number | null;
   owner: OrgOwner | null;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   // Plan tier of the org's OWNER. In-org features (workers, members,
@@ -219,6 +222,7 @@ export type OrgPayload = {
   taxRegime?: TaxRegime | null;
   taxCategory?: TaxCategory | null;
   defaultSalaryType?: SalaryType;
+  mealAllowancePerDay?: number | null;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -422,7 +426,14 @@ export type Worker = {
   holidayRate: number;
   defaultMealAllowance: number;
   defaultTravelExpense: number;
+  // Dnevna stopa toplog obroka za radnika (override firme). NULL = naslijedi
+  // od organizacije.
+  mealAllowancePerDay: number | null;
   contractedHours: number;
+  // Entitet prebivališta: 'FBIH' (default) ili 'RS'. RS radniku kantonalni dio
+  // zdravstva/nezaposlenosti ide na Budžet RS (vidi rs-opcine.ts).
+  prebivalisteEntitet: "FBIH" | "RS";
+  opcinaKod: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -472,6 +483,11 @@ export type WorkerPayload = {
   sundayRate?: number | string | null;
   holidayRate?: number | string | null;
   contractedHours?: number | string | null;
+  // Dnevna stopa toplog obroka za ovog radnika (override stope firme).
+  mealAllowancePerDay?: number | string | null;
+  // Entitet prebivališta (FBIH/RS) + šifra RS opštine.
+  prebivalisteEntitet?: "FBIH" | "RS";
+  opcinaKod?: string | null;
 };
 
 export function getWorkers(orgId: number) {
