@@ -414,6 +414,20 @@
   margin-top: 0.4rem;
 }
 
+.linkInline {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--sage, #3a5c42);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkInline:hover {
+  opacity: 0.8;
+}
+
 .warning {
   background: #fef3c7;
   border: 1px solid #fbbf24;

@@ -79,6 +79,9 @@ export type PredracunListItem = {
   id: number;
   fullNumber: string;
   plan: Plan;
+  billingCycle: BillingCycle;
+  periodStart: string | null;
+  periodEnd: string | null;
   netAmount: number;
   vatAmount: number;
   grossAmount: number;
@@ -166,6 +169,12 @@ export async function deletePredracun(
       error: e instanceof Error ? e.message : "NETWORK_ERROR",
     };
   }
+}
+
+// URL za PDF pojedinačnog predračuna (admin). Otvara se u novom tabu;
+// kolačić sesije ide automatski jer je isti origin/backend.
+export function predracunPdfUrl(id: number): string {
+  return `${BACKEND_URL}/api/predracun/${id}/pdf`;
 }
 
 export async function listPredracuni(params?: {

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import {
   listActivity,
   getActivityStats,
+  setActivityHidden,
   type ActivityListResponse,
   type ActivityStats,
 } from "src/api/activity";
@@ -69,11 +70,13 @@ export default function AdminAktivnost() {
   const [draftSearch, setDraftSearch] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [showHidden, setShowHidden] = useState(false);
   const [drillUser, setDrillUser] = useState<{
     id: number;
     name: string;
     email: string | null;
   } | null>(null);
+  const queryClient = useQueryClient();
 
   const statsQuery = useQuery<ActivityStats>({
     queryKey: ["activity-stats", days],
@@ -85,7 +88,7 @@ export default function AdminAktivnost() {
   });
 
   const listQuery = useQuery<ActivityListResponse>({
-    queryKey: ["activity-list", scope, action, search, page],
+    queryKey: ["activity-list", scope, action, search, page, showHidden],
     queryFn: async () => {
       const r = await listActivity({
         scope,
@@ -93,11 +96,21 @@ export default function AdminAktivnost() {
         q: search || undefined,
         page,
         limit: LIMIT,
+        includeHidden: showHidden,
       });
       if (!r.ok) throw new Error(r.error);
       return r.data;
     },
     placeholderData: (prev) => prev,
+  });
+
+  // Sklanjanje/vraćanje stavke iz pregleda (soft-hide).
+  const hideMutation = useMutation({
+    mutationFn: ({ id, hidden }: { id: number; hidden: boolean }) =>
+      setActivityHidden(id, hidden),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activity-list"] });
+    },
   });
 
   const stats = statsQuery.data;
@@ -235,6 +248,28 @@ export default function AdminAktivnost() {
               </button>
             )}
           </form>
+
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              color: "#6b7280",
+              cursor: "pointer",
+              marginLeft: "auto",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={showHidden}
+              onChange={(e) => {
+                setShowHidden(e.target.checked);
+                setPage(1);
+              }}
+            />
+            Prikaži sklonjene
+          </label>
         </div>
 
         {/* Tabela */}
@@ -251,11 +286,15 @@ export default function AdminAktivnost() {
                   <th>Korisnik</th>
                   <th>Dokument</th>
                   <th>Organizacija</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((it) => (
-                  <tr key={it.id}>
+                  <tr
+                    key={it.id}
+                    style={it.hidden ? { opacity: 0.5 } : undefined}
+                  >
                     <td className={styles.timeCell}>{formatDateTime(it.createdAt)}</td>
                     <td>
                       {it.user ? (
@@ -292,6 +331,26 @@ export default function AdminAktivnost() {
                       ) : (
                         <span className={styles.docSub}>—</span>
                       )}
+                    </td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        disabled={hideMutation.isPending}
+                        onClick={() =>
+                          hideMutation.mutate({
+                            id: it.id,
+                            hidden: !it.hidden,
+                          })
+                        }
+                        title={
+                          it.hidden
+                            ? "Vrati stavku u pregled"
+                            : "Skloni stavku iz pregleda (ne briše dokument)"
+                        }
+                      >
+                        {it.hidden ? "Vrati" : "Skloni"}
+                      </button>
                     </td>
                   </tr>
                 ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
 import {
@@ -202,7 +203,12 @@ function OrgRow({ org }: { org: AdminOrganization }) {
     <>
       <tr>
         <td className={styles.workerName}>
-          {org.name}
+          <Link
+            href={`/admin/organizacije/${org.id}`}
+            style={{ color: "#3a5c42", fontWeight: 600, textDecoration: "none" }}
+          >
+            {org.name}
+          </Link>
           {org.isClientOrg && (
             <span
               className={styles.orgBadge}

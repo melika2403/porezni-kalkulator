@@ -43,9 +43,14 @@ async function adminList(req, res) {
     const q = req.query.q ? String(req.query.q).trim() : null;
     const userId = Number(req.query.userId);
     const hasUserId = Number.isInteger(userId) && userId > 0;
+    // Skrivene stavke se ne prikazuju osim ako admin eksplicitno traži.
+    const includeHidden =
+      String(req.query.includeHidden || "") === "1" ||
+      String(req.query.includeHidden || "") === "true";
 
     const where = {};
     if (action) where.action = action;
+    if (!includeHidden) where.hiddenAt = null;
     if (hasUserId) {
       // Drill-down za jednog korisnika — ignoriše scope.
       where.userId = userId;
@@ -95,6 +100,7 @@ async function adminList(req, res) {
         action: plain.action,
         label: plain.label,
         createdAt: plain.createdAt,
+        hidden: plain.hiddenAt != null,
         organization: plain.organization
           ? { id: plain.organization.id, name: plain.organization.name }
           : null,
@@ -161,4 +167,26 @@ async function adminStats(req, res) {
   }
 }
 
-module.exports = { track, adminList, adminStats };
+// PATCH /api/activity/admin/:id/hidden  (ADMIN)
+// body: { hidden: boolean }, sklanja/vraća stavku u pregled (soft-hide).
+async function setHidden(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "Nevažeći ID." });
+    }
+    const row = await ActivityLog.findByPk(id);
+    if (!row) {
+      return res.status(404).json({ ok: false, error: "Stavka nije pronađena." });
+    }
+    const hidden = req.body?.hidden !== false; // default true (sakrij)
+    row.hiddenAt = hidden ? new Date() : null;
+    await row.save();
+    return res.json({ ok: true, data: { id, hidden } });
+  } catch (e) {
+    console.error("activity setHidden failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+module.exports = { track, adminList, adminStats, setHidden };

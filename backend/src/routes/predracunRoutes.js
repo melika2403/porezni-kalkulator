@@ -7,6 +7,14 @@ const router = express.Router();
 // Lista svih predračuna — samo admin.
 router.get("/", requireAuth, requireRole("ADMIN"), predracunController.list);
 
+// PDF pojedinačnog predračuna (regeneriše se iz snapshota), samo admin.
+router.get(
+  "/:id/pdf",
+  requireAuth,
+  requireRole("ADMIN"),
+  predracunController.pdf,
+);
+
 // Promjena statusa predračuna — samo admin.
 router.patch(
   "/:id/status",

@@ -17,7 +17,9 @@ import { getOsnovica } from "src/utils/obrtniciFbih";
 import {
   computeProRateFactor,
   computeWorkerGrossBase,
+  countSihtericaWorkDays,
   standardMinutesForMonth,
+  standardWorkDaysForMonth,
   sumSihtericaMinutes,
 } from "./ObracunPlata";
 
@@ -51,7 +53,7 @@ function isActiveForMonth(w: Worker, year: number, month: number): boolean {
 export async function obracunOrgPayrolls(input: {
   org: Pick<
     Organization,
-    "id" | "name" | "type" | "taxRegime" | "taxCategory"
+    "id" | "name" | "type" | "taxRegime" | "taxCategory" | "mealAllowancePerDay"
   >;
   year: number;
   month: number;
@@ -109,14 +111,18 @@ export async function obracunOrgPayrolls(input: {
     workersForSih.map((w) => getSihterica(w.id, year, month)),
   );
   const sihMinutesByWorker = new Map<number, number>();
+  const sihWorkDaysByWorker = new Map<number, number>();
   workersForSih.forEach((w, i) => {
     const r = sihResults[i];
     if (r.ok && r.data?.days) {
       const mins = sumSihtericaMinutes(r.data.days);
       if (mins > 0) sihMinutesByWorker.set(w.id, mins);
+      const wd = countSihtericaWorkDays(r.data.days);
+      if (wd > 0) sihWorkDaysByWorker.set(w.id, wd);
     }
   });
   const defaultMonthMinutes = standardMinutesForMonth(year, month);
+  const defaultWorkDays = standardWorkDaysForMonth(year, month);
   const paymentDateForCalc = new Date(year, month, 0).toISOString().slice(0, 10);
 
   // 4) Loop radnika i obračunaj.
@@ -148,9 +154,26 @@ export async function obracunOrgPayrolls(input: {
     // backend ih sam koristi kao fallback (vidi `pick` u calculate), pa
     // ne diramo. Šaljemo defaults samo kad pravimo NOVI payroll.
     const isNewPayroll = !existingPayroll;
-    const mealDefault = isNewPayroll
-      ? Number(prevPayroll?.mealAllowance ?? w.defaultMealAllowance ?? 0)
-      : null;
+    // Topli obrok: ako je postavljena dnevna stopa (radnik > firma), računa se
+    // stopa × broj radnih dana (iz šihterice, inače standardni radni dani).
+    // Inače se nasljeđuje iz prethodnog mjeseca / sticky default-a.
+    const mealRatePerDay =
+      w.mealAllowancePerDay != null
+        ? Number(w.mealAllowancePerDay)
+        : org.mealAllowancePerDay != null
+          ? Number(org.mealAllowancePerDay)
+          : null;
+    let mealDefault: number | null = null;
+    if (isNewPayroll) {
+      if (mealRatePerDay != null) {
+        const days = sihWorkDaysByWorker.get(w.id) ?? defaultWorkDays;
+        mealDefault = Math.round(mealRatePerDay * days * 100) / 100;
+      } else {
+        mealDefault = Number(
+          prevPayroll?.mealAllowance ?? w.defaultMealAllowance ?? 0,
+        );
+      }
+    }
     const vacationDefault = isNewPayroll
       ? Number(prevPayroll?.vacationBonus ?? 0)
       : null;

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./adminPretplate.module.css";
 import {
   listPredracuni,
   updatePredracunStatus,
   deletePredracun,
+  predracunPdfUrl,
   type PredracunListItem,
   type PredracunListResponse,
   type PredracunStatus,
@@ -41,6 +43,26 @@ function fmt(n: number) {
     .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+function DetailRow({
+  label,
+  value,
+  total,
+}: {
+  label: string;
+  value: string | null | undefined;
+  total?: boolean;
+}) {
+  const v = value && String(value).trim() ? String(value) : "–";
+  return (
+    <div
+      className={`${styles.detailRow} ${total ? styles.detailRowTotal : ""}`}
+    >
+      <span className={styles.detailLabel}>{label}</span>
+      <span className={styles.detailValue}>{v}</span>
+    </div>
+  );
+}
+
 export default function AdminPretplate() {
   const [draftQ, setDraftQ] = useState("");
   const [q, setQ] = useState("");
@@ -68,6 +90,13 @@ export default function AdminPretplate() {
       queryClient.invalidateQueries({ queryKey: ["admin-predracuni"] });
     },
   });
+
+  // ── Detalj predračuna (modal) ──────────────────────────────────────────
+  const [detail, setDetail] = useState<PredracunListItem | null>(null);
+  // Portal se renderuje tek nakon mounta (SSR-safe) i u document.body da
+  // izbjegne clipping od transformisanih/overflow roditelja.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // ── Brisanje predračuna (inline potvrda po redu) ───────────────────────
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -297,14 +326,24 @@ export default function AdminPretplate() {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          className={styles.deleteBtn}
-                          title="Obriši predračun"
-                          onClick={() => setConfirmDeleteId(it.id)}
-                        >
-                          Obriši
-                        </button>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            type="button"
+                            className={styles.detailBtn}
+                            title="Pregledaj sve podatke predračuna"
+                            onClick={() => setDetail(it)}
+                          >
+                            Detalji
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.deleteBtn}
+                            title="Obriši predračun"
+                            onClick={() => setConfirmDeleteId(it.id)}
+                          >
+                            Obriši
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -313,6 +352,142 @@ export default function AdminPretplate() {
             </table>
           </div>
         )}
+
+        {/* ── Detalj modal (portal u body da ne clippa) ──────────────── */}
+        {detail &&
+          mounted &&
+          createPortal(
+            <div
+              className={styles.modalOverlay}
+              onClick={() => setDetail(null)}
+              role="presentation"
+            >
+            <div
+              className={styles.modal}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className={styles.modalHead}>
+                <div>
+                  <div className={styles.modalTitle}>
+                    Predračun {detail.fullNumber}
+                  </div>
+                  <div className={styles.modalSub}>
+                    {detail.plan} ·{" "}
+                    {detail.billingCycle === "monthly"
+                      ? "mjesečno"
+                      : "godišnje"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span
+                    className={`${styles.statusSelect} ${
+                      styles[STATUS_CLASS[detail.status]]
+                    }`}
+                    style={{ pointerEvents: "none", padding: "3px 10px" }}
+                  >
+                    {STATUS_LABEL[detail.status]}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.modalClose}
+                    onClick={() => setDetail(null)}
+                    aria-label="Zatvori"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              <div className={styles.modalBody}>
+                <div className={styles.detailGroupTitle}>Kupac</div>
+                <DetailRow label="Naziv" value={detail.buyer.name} />
+                <DetailRow label="Adresa" value={detail.buyer.address} />
+                <DetailRow
+                  label="Grad"
+                  value={[detail.buyer.postalCode, detail.buyer.city]
+                    .filter(Boolean)
+                    .join(" ")}
+                />
+                <DetailRow label="Telefon" value={detail.buyer.phone} />
+                <DetailRow label="E-mail" value={detail.buyer.email} />
+                <DetailRow
+                  label="ID / JMBG"
+                  value={detail.buyer.idNumber}
+                />
+                <DetailRow label="PDV broj" value={detail.buyer.vatNumber} />
+
+                <div className={styles.detailGroupTitle}>Pretplata</div>
+                <DetailRow label="Plan" value={detail.plan} />
+                <DetailRow
+                  label="Ciklus"
+                  value={
+                    detail.billingCycle === "monthly" ? "Mjesečno" : "Godišnje"
+                  }
+                />
+                <DetailRow
+                  label="Period"
+                  value={
+                    detail.periodStart || detail.periodEnd
+                      ? `${formatDate(detail.periodStart)} - ${formatDate(detail.periodEnd)}`
+                      : "–"
+                  }
+                />
+
+                <div className={styles.detailGroupTitle}>Iznosi</div>
+                <DetailRow
+                  label="Osnovica (bez PDV-a)"
+                  value={`${fmt(detail.netAmount)} KM`}
+                />
+                <DetailRow label="PDV" value={`${fmt(detail.vatAmount)} KM`} />
+                <DetailRow
+                  label="Ukupno za uplatu"
+                  value={`${fmt(detail.grossAmount)} KM`}
+                  total
+                />
+
+                <div className={styles.detailGroupTitle}>Dokument</div>
+                <DetailRow
+                  label="Izdat"
+                  value={formatDate(detail.issueDate)}
+                />
+                <DetailRow
+                  label="Rok plaćanja"
+                  value={formatDate(detail.dueDate)}
+                />
+                <DetailRow
+                  label="Kreiran"
+                  value={formatDate(detail.createdAt)}
+                />
+                {detail.user && (
+                  <DetailRow
+                    label="Korisnik"
+                    value={`${detail.user.firstName} ${detail.user.lastName} (${detail.user.email ?? "–"})`}
+                  />
+                )}
+              </div>
+              <div className={styles.modalFoot}>
+                <a
+                  href={predracunPdfUrl(detail.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.btnPrimary}
+                  style={{ textDecoration: "none" }}
+                >
+                  Otvori PDF
+                </a>
+                <button
+                  type="button"
+                  className={styles.btnGhost}
+                  onClick={() => setDetail(null)}
+                >
+                  Zatvori
+                </button>
+              </div>
+            </div>
+          </div>,
+            document.body,
+          )}
 
         {/* ── Paginacija ─────────────────────────────────────────────── */}
         {totalPages > 1 && (
