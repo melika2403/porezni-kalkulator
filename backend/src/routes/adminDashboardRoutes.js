@@ -4,9 +4,20 @@ const renewals = require("../controllers/renewalsController");
 const invoices = require("../controllers/invoicesController");
 const forms = require("../controllers/formsController");
 const entities = require("../controllers/adminEntitiesController");
+const detail = require("../controllers/adminDetailController");
 const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
+
+// ── Admin "360" detalj organizacije i korisnika ──────────────────────────────
+const admin = [requireAuth, requireRole("ADMIN")];
+router.get("/organizations/:id/detail", ...admin, detail.organizationDetail);
+router.get("/organizations/:id/workers-full", ...admin, detail.organizationWorkers);
+router.get("/organizations/:id/payrolls", ...admin, detail.organizationPayrolls);
+router.get("/organizations/:id/documents", ...admin, detail.organizationDocuments);
+router.get("/users/:id/detail", ...admin, detail.userDetail);
+router.get("/payroll-documents/:docId/download", ...admin, detail.downloadPayrollDocument);
+router.get("/worker-documents/:docId/download", ...admin, detail.downloadWorkerDocument);
 
 router.get("/dashboard", requireAuth, requireRole("ADMIN"), ctrl.getDashboard);
 router.get("/engagement", requireAuth, requireRole("ADMIN"), ctrl.getEngagement);

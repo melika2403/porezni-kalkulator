@@ -31,6 +31,7 @@ export type ActivityItem = {
   action: string;
   label: string | null;
   createdAt: string;
+  hidden: boolean;
   organization: { id: number; name: string } | null;
   user: { id: number; name: string; email: string | null; role: string } | null;
 };
@@ -68,12 +69,14 @@ export function listActivity(params: {
   userId?: number;
   page?: number;
   limit?: number;
+  includeHidden?: boolean;
 }) {
   const sp = new URLSearchParams();
   if (params.action) sp.set("action", params.action);
   if (params.scope && params.scope !== "all") sp.set("scope", params.scope);
   if (params.q) sp.set("q", params.q);
   if (params.userId) sp.set("userId", String(params.userId));
+  if (params.includeHidden) sp.set("includeHidden", "1");
   sp.set("page", String(params.page ?? 1));
   sp.set("limit", String(params.limit ?? 50));
   return request<ActivityListResponse>(`/api/activity/admin?${sp.toString()}`);
@@ -81,4 +84,27 @@ export function listActivity(params: {
 
 export function getActivityStats(days = 30) {
   return request<ActivityStats>(`/api/activity/admin/stats?days=${days}`);
+}
+
+// Sklanjanje/vraćanje stavke iz pregleda (soft-hide, reverzibilno).
+export async function setActivityHidden(
+  id: number,
+  hidden: boolean,
+): Promise<ApiResponse<{ id: number; hidden: boolean }>> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/activity/admin/${id}/hidden`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hidden }),
+    });
+    const json = (await res.json().catch(() => null)) as ApiResponse<{
+      id: number;
+      hidden: boolean;
+    }> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
 }

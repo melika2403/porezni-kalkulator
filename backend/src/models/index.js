@@ -133,6 +133,10 @@ const Organization = sequelize.define(
       allowNull: false,
       defaultValue: "NETO_ISPLATA",
     },
+    // Dnevna stopa toplog obroka za firmu (npr. 16 KM/dan). Obračun je množi
+    // sa brojem radnih dana iz šihterice i popuni topli obrok. Pojedini radnik
+    // može imati svoju stopu (Worker.mealAllowancePerDay). NULL = bez auto-stope.
+    mealAllowancePerDay: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
   },
   { tableName: "organizations", timestamps: true },
 );
@@ -239,12 +243,27 @@ const Worker = sequelize.define(
     // Regres se NE pamti (resetuje na 0 svaki mjesec — godišnje ga ima samo jednom).
     defaultMealAllowance: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 },
     defaultTravelExpense: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 },
+    // Dnevna stopa toplog obroka za ovog radnika (override organizacijske
+    // stope). NULL = koristi se Organization.mealAllowancePerDay. Obračun
+    // množi stopu sa brojem radnih dana iz šihterice.
+    mealAllowancePerDay: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     // Ugovoreno radno vrijeme (dnevno) — bitno za minimalnu osnovicu doprinosa.
     // Po Zakonu o doprinosima FBiH (čl. 7, izmjene 33/25 od 01.07.2025):
     //  • 8h (puno) → puna min. bruto osnovica
     //  • 5–7h (nepuno > 4h) → puna min. bruto osnovica (NE smanjuje se srazmjerno)
     //  • 1–4h (nepuno ≤ 4h) → srazmjerno, ali ne manje od 50% pune min. osnovice
     contractedHours: { type: DataTypes.TINYINT.UNSIGNED, allowNull: false, defaultValue: 8 },
+    // Entitet prebivališta radnika. 'FBIH' (default) ili 'RS'. Za RS radnika
+    // kantonalni dio zdravstva (89,8%) i nezaposlenosti (70%) ide na Budžet RS
+    // umjesto na kanton, i generiše se Obrazac 2001-A umjesto 2001.
+    prebivalisteEntitet: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: "FBIH",
+    },
+    // Šifra opštine prebivališta (za RS radnika, iz šifarnika opština RS). Ulazi
+    // u poziv na broj RS uplatnica. Za FBiH radnika se opcina izvodi iz city.
+    opcinaKod: { type: DataTypes.STRING(10), allowNull: true },
   },
   { tableName: "workers", timestamps: true },
 );
@@ -1013,6 +1032,9 @@ const ActivityLog = sequelize.define(
     // Za koju organizaciju je akcija (in-app alati: plate, šihterica, JS3100,
     // ugovori). Javni alati (AMS/SPR/GPD…) nemaju org → NULL.
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // Admin može skloniti stavku iz pregleda (npr. test šum) bez brisanja
+    // zapisa. NULL = vidljivo; datum = sakriveno (reverzibilno).
+    hiddenAt: { type: DataTypes.DATE, allowNull: true },
   },
   {
     tableName: "activity_logs",

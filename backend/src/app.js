@@ -464,6 +464,35 @@ async function ensureColumns() {
       column: "organizationId",
       ddl: "ALTER TABLE activity_logs ADD COLUMN organizationId INT UNSIGNED NULL",
     },
+    // Dnevna stopa toplog obroka: na nivou firme + override po radniku.
+    // Obračun množi stopu sa brojem radnih dana iz šihterice.
+    {
+      table: "organizations",
+      column: "mealAllowancePerDay",
+      ddl: "ALTER TABLE organizations ADD COLUMN mealAllowancePerDay DECIMAL(10,2) NULL",
+    },
+    {
+      table: "workers",
+      column: "mealAllowancePerDay",
+      ddl: "ALTER TABLE workers ADD COLUMN mealAllowancePerDay DECIMAL(10,2) NULL",
+    },
+    // Entitet prebivališta radnika (FBIH/RS) + šifra opštine za RS uplatnice.
+    {
+      table: "workers",
+      column: "prebivalisteEntitet",
+      ddl: "ALTER TABLE workers ADD COLUMN prebivalisteEntitet VARCHAR(10) NOT NULL DEFAULT 'FBIH'",
+    },
+    {
+      table: "workers",
+      column: "opcinaKod",
+      ddl: "ALTER TABLE workers ADD COLUMN opcinaKod VARCHAR(10) NULL",
+    },
+    // Admin "sklanjanje" aktivnosti iz pregleda (soft-hide, reverzibilno).
+    {
+      table: "activity_logs",
+      column: "hiddenAt",
+      ddl: "ALTER TABLE activity_logs ADD COLUMN hiddenAt DATETIME NULL",
+    },
   ];
   for (const c of checks) {
     const [rows] = await sequelize.query(

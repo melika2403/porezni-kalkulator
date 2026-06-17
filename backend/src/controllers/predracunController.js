@@ -228,6 +228,9 @@ async function list(req, res) {
           id: r.id,
           fullNumber: r.fullNumber,
           plan: r.plan,
+          billingCycle: r.billingCycle,
+          periodStart: r.periodStart,
+          periodEnd: r.periodEnd,
           netAmount: Number(r.netAmount),
           vatAmount: Number(r.vatAmount),
           grossAmount: Number(r.grossAmount),
@@ -310,6 +313,52 @@ async function updateStatus(req, res) {
   }
 }
 
+// GET /api/predracun/:id/pdf, samo admin. Regeneriše PDF iz snimljenog
+// zapisa (predračun je snapshot, pa je PDF uvijek isti kao kad je izdat).
+async function pdf(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "Nevažeći ID." });
+    }
+    const r = await Predracun.findByPk(id);
+    if (!r) {
+      return res
+        .status(404)
+        .json({ ok: false, error: "Predračun nije pronađen." });
+    }
+    const pdfBuffer = await generatePredracunPdf({
+      plan: r.plan,
+      billingCycle: r.billingCycle,
+      periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
+      fullNumber: r.fullNumber,
+      issueDate: r.issueDate,
+      dueDate: r.dueDate,
+      buyer: {
+        code: r.buyerCode,
+        name: r.buyerName,
+        address: r.buyerAddress,
+        city: r.buyerCity,
+        postalCode: r.buyerPostalCode,
+        phone: r.buyerPhone,
+        idNumber: r.buyerIdNumber,
+        vatNumber: r.buyerVatNumber,
+        email: r.buyerEmail,
+      },
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="Predracun-${String(r.fullNumber).replace(/\//g, "-")}.pdf"`,
+    );
+    return res.status(200).end(pdfBuffer);
+  } catch (e) {
+    console.error("predracun pdf error:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
 // DELETE /api/predracun/:id — samo admin. Briše predračun zapis.
 async function remove(req, res) {
   try {
@@ -329,4 +378,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { create, list, updateStatus, remove };
+module.exports = { create, list, updateStatus, remove, pdf };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LuPencil, LuCheck, LuX, LuTrash2, LuMail } from "react-icons/lu";
 import styles from "./korisnici.module.css";
@@ -481,9 +482,12 @@ function UserRow({ user }: { user: Users }) {
             />
           </span>
         ) : (
-          <>
+          <Link
+            href={`/admin/korisnici/${user.id}`}
+            style={{ color: "#3a5c42", fontWeight: 600, textDecoration: "none" }}
+          >
             {user.firstName} {user.lastName}
-          </>
+          </Link>
         )}
       </td>
 
