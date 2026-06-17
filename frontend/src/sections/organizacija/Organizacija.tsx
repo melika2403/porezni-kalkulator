@@ -28,6 +28,7 @@ import { unwrap } from "src/api/auth";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
 import CitySelect from "src/components/CitySelect/CitySelect";
+import { RS_OPCINE } from "src/data/rs-opcine";
 import { useRole } from "src/hooks/useRole";
 import { parseDecimal } from "src/utils/parseDecimal";
 import {
@@ -77,6 +78,11 @@ type WorkerForm = {
   firstEmploymentDate: string;
   priorWorkYearsInt: string; // godine, npr. "5"
   priorWorkMonthsInt: string; // mjeseci 0-11, npr. "6"
+  // Dnevna stopa toplog obroka za radnika (override stope firme). "" = naslijedi.
+  mealAllowancePerDay: string;
+  // Entitet prebivališta (FBIH/RS) + šifra RS opštine.
+  prebivalisteEntitet: "FBIH" | "RS";
+  opcinaKod: string;
 };
 
 const emptyForm = (): WorkerForm => ({
@@ -110,6 +116,9 @@ const emptyForm = (): WorkerForm => ({
   firstEmploymentDate: "",
   priorWorkYearsInt: "",
   priorWorkMonthsInt: "",
+  mealAllowancePerDay: "",
+  prebivalisteEntitet: "FBIH",
+  opcinaKod: "",
 });
 
 function formToPayload(f: WorkerForm): WorkerPayload {
@@ -175,6 +184,12 @@ function formToPayload(f: WorkerForm): WorkerPayload {
       const total = y + m / 12;
       return total >= 0 ? Number(total.toFixed(4)) : null;
     })(),
+    mealAllowancePerDay: f.mealAllowancePerDay.trim()
+      ? parseDecimal(f.mealAllowancePerDay)
+      : null,
+    prebivalisteEntitet: f.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
+    opcinaKod:
+      f.prebivalisteEntitet === "RS" ? f.opcinaKod.trim() || null : null,
   };
 }
 
@@ -229,6 +244,10 @@ function workerToForm(w: Worker): WorkerForm {
       const months = Math.round((n - Math.floor(n)) * 12);
       return months > 0 ? String(months) : "";
     })(),
+    mealAllowancePerDay:
+      w.mealAllowancePerDay != null ? String(w.mealAllowancePerDay) : "",
+    prebivalisteEntitet: w.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
+    opcinaKod: w.opcinaKod ?? "",
   };
 }
 
@@ -513,13 +532,63 @@ function WorkerFormFields({
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Grad</label>
-          <CitySelect
-            value={value.city}
-            onChange={(v) => onChange({ ...value, city: v })}
+          <label className={styles.fieldLabel}>Prebivalište</label>
+          <select
             className={styles.input}
-          />
+            value={value.prebivalisteEntitet}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                prebivalisteEntitet: e.target.value === "RS" ? "RS" : "FBIH",
+                // promjenom entiteta očisti polja koja ne važe
+                opcinaKod: e.target.value === "RS" ? value.opcinaKod : "",
+              })
+            }
+            title="Radnik sa prebivalištem u RS ima drugačiju uplatu zdravstvenog i nezaposlenosti (Budžet RS, Obrazac 2001-A)."
+          >
+            <option value="FBIH">Federacija BiH</option>
+            <option value="RS">Republika Srpska</option>
+          </select>
         </div>
+        {value.prebivalisteEntitet === "RS" ? (
+          <>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Grad</label>
+              <input
+                className={styles.input}
+                value={value.city}
+                onChange={set("city")}
+                placeholder="npr. Banja Luka"
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Opština (RS)</label>
+              <select
+                className={styles.input}
+                value={value.opcinaKod}
+                onChange={(e) =>
+                  onChange({ ...value, opcinaKod: e.target.value })
+                }
+              >
+                <option value="">Izaberite opštinu...</option>
+                {RS_OPCINE.map((o) => (
+                  <option key={o.kod} value={o.kod}>
+                    {o.naziv} ({o.kod})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : (
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Grad</label>
+            <CitySelect
+              value={value.city}
+              onChange={(v) => onChange({ ...value, city: v })}
+              className={styles.input}
+            />
+          </div>
+        )}
         <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
           <label className={styles.fieldLabel}>Broj tekućeg računa</label>
           <input
@@ -735,6 +804,25 @@ function WorkerFormFields({
               <option value="2">2h — nepuno (srazmjerno, 50%)</option>
               <option value="1">1h — nepuno (srazmjerno, 50%)</option>
             </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              Topli obrok po danu (KM)
+            </label>
+            <input
+              className={styles.input}
+              type="text"
+              inputMode="decimal"
+              placeholder="stopa firme"
+              value={value.mealAllowancePerDay}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  mealAllowancePerDay: e.target.value.replace(/[^\d.,]/g, ""),
+                })
+              }
+              title="Override dnevne stope toplog obroka. Prazno = koristi se stopa postavljena na nivou firme."
+            />
           </div>
           {/* Tip plate — određuje šta iznos iz "Bruto"/"Neto" polja stvarno
               znači u obračunu. Vidi SALARY_TYPE_DESCRIPTIONS za detalje. */}

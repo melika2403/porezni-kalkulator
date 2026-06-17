@@ -70,6 +70,9 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
 
   // Worker-based bucketi (zdrKant, nezapKant, porez)
   const byLoc = new Map(); // key: "kanton:opcinaKod" → { kantonKey, opcinaKod, opcinaIme, zdrKant, nezapKant, porez }
+  // RS bucketi po opštini: kantonalni dio zdravstva/nezaposlenosti RS radnika
+  // ide na Budžet RS umjesto na kanton FBiH. key: RS opcinaKod.
+  const rsByOpcina = new Map(); // kod → { opcinaKod, opcinaIme, zdrRS, nezapRS }
   // Firm totals (federalni + kantonal firme)
   let pio = 0,
     zdrFed = 0,
@@ -80,12 +83,19 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
 
   for (const p of payrolls) {
     const w = workerMap.get(p.workerId);
+    const isRS = w?.prebivalisteEntitet === "RS";
     // Worker location — fallback na firmu ako nema worker.city ili je opcina nepoznata
+    // (npr. RS radnik: porez ide po opštini firme, ne po RS gradu).
     let wInfo = kantonForOpcina(w?.city || "");
+    const usedFirmFallback = !wInfo;
     if (!wInfo) wInfo = firmInfo;
     const kantonKey = wInfo?.kantonKey || firmKantonKey;
     const opcinaKod = wInfo?.opcinaKod || firmOpcinaKod;
-    const opcinaIme = w?.city || firmOpcinaIme;
+    // Naziv mora pratiti šifru: kad padne na firmu, koristi firmin naziv
+    // (inače bi porez uplatnica imala RS grad kao label uz firminu šifru).
+    const opcinaIme = usedFirmFallback
+      ? firmOpcinaIme
+      : w?.city || firmOpcinaIme;
     const locKey = `${kantonKey || ""}:${opcinaKod || ""}`;
 
     if (!byLoc.has(locKey)) {
@@ -103,12 +113,38 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
     const zdrTotal = (Number(p.empZdravstvo) || 0) + (Number(p.erpZdravstvo) || 0);
     const nezapTotal = (Number(p.empNezaposlenost) || 0) + (Number(p.erpNezaposlenost) || 0);
 
-    // Splitovi po radniku, pa sumiramo u bucket
-    bucket.zdrKant += zdrTotal * 0.898;
-    bucket.nezapKant += nezapTotal * 0.7;
-    bucket.porez += Number(p.incomeTax) || 0;
+    // Vlasnik obrta plaća samo svoje doprinose (po izabranoj stopi), NEMA porez
+    // na dohodak kroz obračun (porez ide godišnje na dobit). Ovo je zaštita: čak
+    // i da je u starom zapisu zaostao incomeTax, ne pravi se uplatnica za porez.
+    const isObrtOwner = firm.type === "BUSINESS" && w?.role === "VLASNIK";
 
-    // Firm totals
+    const zdrKantDio = zdrTotal * 0.898;
+    const nezapKantDio = nezapTotal * 0.7;
+
+    if (isRS) {
+      // RS radnik: kantonalni dio (89,8% zdr + 70% nezap) ide na Budžet RS,
+      // grupisano po RS opštini radnika. Federalni dio, PIO i porez idu u
+      // FBiH normalno (ispod), zajedno sa ostalim radnicima.
+      const rsKod = w?.opcinaKod || "";
+      if (!rsByOpcina.has(rsKod)) {
+        rsByOpcina.set(rsKod, {
+          opcinaKod: rsKod,
+          opcinaIme: RS_OPCINA_NAZIV.get(rsKod) || w?.city || "",
+          zdrRS: 0,
+          nezapRS: 0,
+        });
+      }
+      const rb = rsByOpcina.get(rsKod);
+      rb.zdrRS += zdrKantDio;
+      rb.nezapRS += nezapKantDio;
+    } else {
+      // FBiH radnik: kantonalni dio ide na kanton (po opštini)
+      bucket.zdrKant += zdrKantDio;
+      bucket.nezapKant += nezapKantDio;
+    }
+    if (!isObrtOwner) bucket.porez += Number(p.incomeTax) || 0;
+
+    // Firm totals: federalni dio i PIO idu za SVE radnike (uklj. RS) u FBiH
     pio += (Number(p.empPio) || 0) + (Number(p.erpPio) || 0);
     zdrFed += zdrTotal * 0.102;
     nezapFed += nezapTotal * 0.3;
@@ -191,6 +227,37 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
 
   if (invalidi > 0) entries.push({ vrsta: "fondInvalidi", amount: round(invalidi), ...firmLoc, source: "firm", group: groupTag });
 
+  // RS uplatnice: kantonalni dio zdravstva i nezaposlenosti RS radnika na
+  // Budžet RS, po RS opštini (u praksi jedna opština = 2 uplatnice za sve
+  // RS radnike). Ako nema RS radnika, rsByOpcina je prazna i nema RS dijela.
+  const rsLocs = Array.from(rsByOpcina.values()).sort((a, b) =>
+    String(a.opcinaKod).localeCompare(String(b.opcinaKod)),
+  );
+  for (const rs of rsLocs) {
+    if (rs.zdrRS > 0)
+      entries.push({
+        vrsta: "zdrRS",
+        amount: round(rs.zdrRS),
+        kantonKey: null,
+        opcinaKod: rs.opcinaKod,
+        opcinaIme: rs.opcinaIme,
+        source: "rs",
+        group: groupTag,
+      });
+  }
+  for (const rs of rsLocs) {
+    if (rs.nezapRS > 0)
+      entries.push({
+        vrsta: "nezapRS",
+        amount: round(rs.nezapRS),
+        kantonKey: null,
+        opcinaKod: rs.opcinaKod,
+        opcinaIme: rs.opcinaIme,
+        source: "rs",
+        group: groupTag,
+      });
+  }
+
   return entries;
 }
 
@@ -222,8 +289,36 @@ function buildAllUplatnice(payrolls, workerMap, firm, opts = {}) {
   return [...vlasnikEntries, ...radnikEntries];
 }
 
+// Budžet RS: za radnike sa prebivalištem u RS, kantonalni dio zdravstva (89,8%)
+// i nezaposlenosti (70%) ne ide na kanton FBiH nego na Budžet Republike Srpske.
+// Vrste prihoda i budžetska organizacija su fiksni (Poreska uprava RS).
+const RS_BUDGET_ACCOUNT = "5620990000055687";
+const RS_BUDGET_ORG = "9999999";
+const RS_PRIMALAC = ["Budžet Republike Srpske"];
+const RS_ACCOUNTS = {
+  zdrRS: {
+    account: RS_BUDGET_ACCOUNT,
+    vrstaPrihoda: "712149",
+    budgetOrg: RS_BUDGET_ORG,
+    primalac: RS_PRIMALAC,
+  },
+  nezapRS: {
+    account: RS_BUDGET_ACCOUNT,
+    vrstaPrihoda: "712113",
+    budgetOrg: RS_BUDGET_ORG,
+    primalac: RS_PRIMALAC,
+  },
+};
+
+// Mapa šifra opštine RS -> naziv (za labele uplatnica).
+const RS_OPCINA_NAZIV = new Map(
+  require("../data/rsOpcine.json").opcine.map((o) => [o.kod, o.naziv]),
+);
+
 // Helper: dohvati account/vrstaPrihoda/budgetOrg/primalac za datu vrsta + kanton
 function getAccountInfo(vrsta, kantonKey, payrollAccounts) {
+  // RS vrste imaju fiksan Budžet RS račun, ne zavise od kantona/override-a.
+  if (RS_ACCOUNTS[vrsta]) return RS_ACCOUNTS[vrsta];
   const { buildDefaults, mergePayrollAccounts } = require("../utils/payrollUplatnice");
   const defaults = buildDefaults(kantonKey);
   const merged = mergePayrollAccounts(defaults, payrollAccounts);
@@ -241,6 +336,8 @@ const VRSTA_LABEL_MAP = {
   vodna: "Opća vodna naknada",
   nesrece: "Zaštita od prirodnih nesreća",
   fondInvalidi: "Fond za rehabilitaciju OSI (0,5%)",
+  zdrRS: "Zdravstvo, Budžet RS (89,8%)",
+  nezapRS: "Nezaposlenost, Budžet RS (70%)",
 };
 const VRSTA_UPLATNICA_TYPE = {
   pio: "UPLATNICA_PIO",
@@ -252,6 +349,8 @@ const VRSTA_UPLATNICA_TYPE = {
   vodna: "UPLATNICA_VODNA",
   nesrece: "UPLATNICA_NESRECE",
   fondInvalidi: "UPLATNICA_INVALIDI",
+  zdrRS: "UPLATNICA_ZDR_RS",
+  nezapRS: "UPLATNICA_NEZAP_RS",
 };
 const VRSTA_SVRHA_MAP = {
   pio: "Doprinos za PIO/MIO",
@@ -263,6 +362,8 @@ const VRSTA_SVRHA_MAP = {
   vodna: "Opća vodna naknada",
   nesrece: "Naknada za zaštitu od prirodnih nesreća",
   fondInvalidi: "Naknada za rehabilitaciju i zapošljavanje OSI",
+  zdrRS: "Doprinos za zdravstvo (Budžet RS)",
+  nezapRS: "Doprinos za nezaposlenost (Budžet RS)",
 };
 const { addPayslipPage, embedFonts } = require("../utils/payslipPdf");
 const { PDFDocument } = require("pdf-lib");
@@ -1455,7 +1556,7 @@ async function monthlySummary(req, res) {
 
     // Map bucket entries u UI format (uplatnice array). Label uključuje općinu
     // za kantonalne vrste kada postoji više od jedne općine.
-    const kantonalVrste = new Set(["zdrKanton", "nezapKanton", "porez"]);
+    const kantonalVrste = new Set(["zdrKanton", "nezapKanton", "porez", "zdrRS", "nezapRS"]);
     const kantonalLocCount = new Map(); // vrsta → broj različitih (kanton,opcina)
     for (const e of bucketEntries) {
       if (kantonalVrste.has(e.vrsta)) {
@@ -1601,7 +1702,7 @@ async function generateMonthlyUplatnice(req, res) {
 
     // Da li imamo više različitih (kanton, opcina) lokacija za istu kantonalnu
     // vrstu? Ako da, dodajemo općinu u label radi razlikovanja.
-    const kantonalVrste = new Set(["zdrKanton", "nezapKanton", "porez"]);
+    const kantonalVrste = new Set(["zdrKanton", "nezapKanton", "porez", "zdrRS", "nezapRS"]);
     const kantonalLocCount = new Map();
     for (const e of bucketEntries) {
       if (kantonalVrste.has(e.vrsta)) {

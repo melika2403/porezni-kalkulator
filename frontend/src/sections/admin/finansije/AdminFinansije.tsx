@@ -289,7 +289,7 @@ export default function AdminFinansije() {
         )}
 
         {/* Troškovi (lijevo) i ostali prihodi (desno) + zbir/razlika */}
-        <LedgerSection year={year} />
+        <LedgerSection year={year} subscriptionsEarned={subscriptionsEarned} />
       </div>
     </RoleGuard>
   );
@@ -549,7 +549,13 @@ const INCOME_CFG: LedgerCfg = {
   remove: (id) => deleteOtherIncome(id),
 };
 
-function LedgerSection({ year }: { year: number }) {
+function LedgerSection({
+  year,
+  subscriptionsEarned,
+}: {
+  year: number;
+  subscriptionsEarned: number;
+}) {
   const expQ = useQuery({
     queryKey: [EXPENSE_CFG.key, year],
     queryFn: () => EXPENSE_CFG.fetch(year),
@@ -559,7 +565,10 @@ function LedgerSection({ year }: { year: number }) {
     queryFn: () => INCOME_CFG.fetch(year),
   });
   const totalInvested = expQ.data?.total ?? 0;
-  const totalIncome = incQ.data?.total ?? 0;
+  const totalCashIncome = incQ.data?.total ?? 0;
+  // Ukupni prihodi = naplaćene pretplate (gore označene) + gotovinski prihodi.
+  const totalIncome =
+    Math.round((subscriptionsEarned + totalCashIncome) * 100) / 100;
   const razlika = Math.round((totalIncome - totalInvested) * 100) / 100;
 
   return (
@@ -575,7 +584,7 @@ function LedgerSection({ year }: { year: number }) {
           <strong>{formatKM(totalInvested)}</strong>
         </div>
         <div className={styles.ledgerBottomItem}>
-          <span>Ukupno gotovinski prihodi</span>
+          <span>Ukupno prihodi (pretplate + gotovina)</span>
           <strong>{formatKM(totalIncome)}</strong>
         </div>
         <div className={styles.ledgerBottomItem}>

@@ -99,6 +99,19 @@ function validateOrgData(body, requireName = true) {
     }
   }
 
+  // Dnevna stopa toplog obroka za firmu (obračun je množi sa radnim danima).
+  if (body.mealAllowancePerDay !== undefined) {
+    if (body.mealAllowancePerDay === null || body.mealAllowancePerDay === "") {
+      data.mealAllowancePerDay = null;
+    } else {
+      const rate = Number(body.mealAllowancePerDay);
+      if (!Number.isFinite(rate) || rate < 0) {
+        return { ok: false, message: "Neispravna dnevna stopa toplog obroka" };
+      }
+      data.mealAllowancePerDay = rate;
+    }
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
   }

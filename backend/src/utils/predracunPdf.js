@@ -130,9 +130,12 @@ function formatNumber4(n) {
   return Number(n).toFixed(4).replace(".", ",");
 }
 function formatDate(d) {
-  const day = String(d.getDate()).padStart(2, "0");
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const yr = d.getFullYear();
+  // DATEONLY iz baze stiže kao string ("2026-06-16"), pri kreiranju kao Date.
+  const dt = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(dt.getTime())) return "";
+  const day = String(dt.getDate()).padStart(2, "0");
+  const mo = String(dt.getMonth() + 1).padStart(2, "0");
+  const yr = dt.getFullYear();
   return `${day}.${mo}.${yr}.`;
 }
 function formatBroj(seq, year) {

@@ -61,7 +61,10 @@ function toPublicWorker(w) {
     holidayRate: rest.holidayRate != null ? Number(rest.holidayRate) : 50.0,
     defaultMealAllowance: rest.defaultMealAllowance != null ? Number(rest.defaultMealAllowance) : 0,
     defaultTravelExpense: rest.defaultTravelExpense != null ? Number(rest.defaultTravelExpense) : 0,
+    mealAllowancePerDay: rest.mealAllowancePerDay != null ? Number(rest.mealAllowancePerDay) : null,
     contractedHours: rest.contractedHours != null ? Number(rest.contractedHours) : 8,
+    prebivalisteEntitet: rest.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
+    opcinaKod: rest.opcinaKod || null,
   };
 }
 
@@ -242,6 +245,36 @@ function pickEmploymentFields(body, target) {
       return `${label} mora biti broj između 0 i 200`;
     }
     target[key] = n;
+  }
+
+  // Dnevna stopa toplog obroka (override organizacijske). Prazno = naslijedi
+  // od firme.
+  const { mealAllowancePerDay } = body ?? {};
+  if (mealAllowancePerDay !== undefined) {
+    if (mealAllowancePerDay === null || mealAllowancePerDay === "") {
+      target.mealAllowancePerDay = null;
+    } else {
+      const n = Number(mealAllowancePerDay);
+      if (!Number.isFinite(n) || n < 0) {
+        return "Dnevna stopa toplog obroka mora biti pozitivan broj";
+      }
+      target.mealAllowancePerDay = n;
+    }
+  }
+
+  // Entitet prebivališta (FBIH/RS) + šifra opštine za RS radnika.
+  const { prebivalisteEntitet, opcinaKod } = body ?? {};
+  if (prebivalisteEntitet !== undefined) {
+    target.prebivalisteEntitet = prebivalisteEntitet === "RS" ? "RS" : "FBIH";
+    // FBiH radnik nema RS opštinu, počisti je da ne ostane zaostala
+    if (target.prebivalisteEntitet === "FBIH") target.opcinaKod = null;
+  }
+  if (opcinaKod !== undefined) {
+    const v = String(opcinaKod || "").trim();
+    // postavlja se samo ako je (ili ostaje) RS radnik
+    if (target.prebivalisteEntitet !== "FBIH") {
+      target.opcinaKod = v || null;
+    }
   }
   return null;
 }
