@@ -39,7 +39,7 @@ export default function OrgSelect({
   onChange,
   className,
   id,
-  placeholder = "— Odaberi —",
+  placeholder = "– Odaberi –",
   ownOrgs,
   clientOrgs,
   disabled = false,

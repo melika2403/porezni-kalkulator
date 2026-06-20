@@ -134,7 +134,7 @@ export default function AdminAktivnost() {
           <div>
             <h1 className={styles.title}>Aktivnost</h1>
             <div className={styles.meta}>
-              Generisani dokumenti — registrovani i neregistrovani korisnici.
+              Generisani dokumenti, registrovani i neregistrovani korisnici.
             </div>
           </div>
           <div className={styles.daysPicker}>
@@ -329,7 +329,7 @@ export default function AdminAktivnost() {
                       {it.organization ? (
                         it.organization.name
                       ) : (
-                        <span className={styles.docSub}>—</span>
+                        <span className={styles.docSub}>–</span>
                       )}
                     </td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>

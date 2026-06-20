@@ -3,9 +3,9 @@ import Link from "next/link";
 import styles from "../legal.module.css";
 
 export const metadata: Metadata = {
-  title: "O nama — Porezni Kalkulator BiH",
+  title: "O nama, Porezni Kalkulator BiH",
   description:
-    "Saznajte više o Porezni Kalkulator BiH — online platformi za poduzetnike, obrtnike i računovođe u Federaciji BiH. Porezni obrasci, ugovori, evidencije radnika, šifre djelatnosti i još mnogo toga.",
+    "Saznajte više o Porezni Kalkulator BiH, online platformi za poduzetnike, obrtnike i računovođe u Federaciji BiH. Porezni obrasci, ugovori, evidencije radnika, šifre djelatnosti i još mnogo toga.",
   alternates: { canonical: "https://poreznikalkulator.ba/o-nama" },
 };
 
@@ -19,7 +19,7 @@ export default function ONamaPage() {
         </h1>
         <p className={styles.lead}>
           Online platforma za poduzetnike, obrtnike, freelancere i računovođe u Federaciji Bosne i
-          Hercegovine — od prvog kalkulatora do kompletnog vođenja klijenata.
+          Hercegovine, od prvog kalkulatora do kompletnog vođenja klijenata.
         </p>
       </div>
 
@@ -28,14 +28,14 @@ export default function ONamaPage() {
         <p>
           Porezni Kalkulator BiH je online platforma namijenjena fizičkim i pravnim licima koja
           obavljaju privrednu djelatnost u Federaciji BiH. Nudi skup praktičnih alata koji
-          olakšavaju svakodnevne porezne, ugovorne i računovodstvene obaveze — bez instaliranja
+          olakšavaju svakodnevne porezne, ugovorne i računovodstvene obaveze, bez instaliranja
           softvera, sa automatskim popunjavanjem obrazaca iz vašeg profila i mogućnošću vođenja
           više klijenata istovremeno.
         </p>
 
         <h2>Naša misija</h2>
         <p>
-          Vjerujemo da pristup jasnim i tačnim poreznim alatima treba biti dostupan svima — od
+          Vjerujemo da pristup jasnim i tačnim poreznim alatima treba biti dostupan svima, od
           freelancera koji prvi put otvara obrt, do iskusnih računovodstvenih agencija s desetinama
           klijenata. Naša misija je da papirologiju u FBiH učinimo bržom, tačnijom i jeftinijom.
         </p>
@@ -45,59 +45,59 @@ export default function ONamaPage() {
         <h3>Besplatni alati</h3>
         <ul>
           <li>
-            <strong>Šifre djelatnosti FBiH</strong> — kompletna lista šifri prema KD BiH 2010 (NACE
+            <strong>Šifre djelatnosti FBiH</strong>, kompletna lista šifri prema KD BiH 2010 (NACE
             Rev. 2), sa detaljnim opisima i pretragom
           </li>
           <li>
-            <strong>PDV kalkulator</strong> — preračun cijene sa i bez PDV-a, prikaz u KM i EUR
+            <strong>PDV kalkulator</strong>, preračun cijene sa i bez PDV-a, prikaz u KM i EUR
           </li>
           <li>
-            <strong>Preračun neto ↔ bruto plate</strong> — obračun doprinosa, poreza na dohodak i
+            <strong>Preračun neto ↔ bruto plate</strong>, obračun doprinosa, poreza na dohodak i
             osnovnog ličnog odbitka po važećim stopama u FBiH
           </li>
           <li>
-            <strong>SPR-1053</strong> — specifikacija dohotka od samostalne djelatnosti
+            <strong>SPR-1053</strong>, specifikacija dohotka od samostalne djelatnosti
           </li>
           <li>
-            <strong>GPD-1051</strong> — godišnja porezna prijava
+            <strong>GPD-1051</strong>, godišnja porezna prijava
           </li>
           <li>
-            <strong>ZO3</strong> — prijava člana porodice na zdravstveno osiguranje
+            <strong>ZO3</strong>, prijava člana porodice na zdravstveno osiguranje
           </li>
           <li>
-            <strong>AMS-1035</strong> — akontacija poreza po odbitku
+            <strong>AMS-1035</strong>, akontacija poreza po odbitku
           </li>
           <li>
-            <strong>Ugovor o pozajmici</strong> — Word/PDF predložak
+            <strong>Ugovor o pozajmici</strong>, Word/PDF predložak
           </li>
           <li>
-            <strong>Stalna sredstva i amortizacija</strong> — vođenje OS i automatski godišnji
+            <strong>Stalna sredstva i amortizacija</strong>, vođenje OS i automatski godišnji
             obračun
           </li>
           <li>
-            <strong>Šihterica</strong> — mjesečna evidencija radnog vremena radnika
+            <strong>Šihterica</strong>, mjesečna evidencija radnog vremena radnika
           </li>
         </ul>
 
         <h3>Pro pretplata (30 dana besplatno)</h3>
         <p>
           Pro pretplata donosi <strong>automatsku popunu svih obrazaca i ugovora</strong> iz
-          podataka vašeg profila (firma/obrt, JIB, adresa, podaci o vlasniku i radnicima) — više ne
+          podataka vašeg profila (firma/obrt, JIB, adresa, podaci o vlasniku i radnicima), više ne
           morate ručno upisivati iste podatke svaki put. Pored toga, Pro otključava:
         </p>
         <ul>
           <li>
-            <strong>JS3100</strong> — prijava, odjava i promjena podataka radnika online
+            <strong>JS3100</strong>, prijava, odjava i promjena podataka radnika online
           </li>
           <li>
-            <strong>Ugovor o djelu</strong> — predložak + automatski obračun poreza i uplatnice
+            <strong>Ugovor o djelu</strong>, predložak + automatski obračun poreza i uplatnice
           </li>
           <li>
-            <strong>Fakture i predračuni</strong> — generator faktura s redoslijednim brojevima,
+            <strong>Fakture i predračuni</strong>, generator faktura s redoslijednim brojevima,
             čuvanjem za sljedeći put i izvozom u PDF
           </li>
           <li>
-            <strong>Generator članskih kartica</strong> — kartice s QR kodom, pojedinačno ili bulk
+            <strong>Generator članskih kartica</strong>, kartice s QR kodom, pojedinačno ili bulk
             import iz Excel-a
           </li>
         </ul>
@@ -108,18 +108,18 @@ export default function ONamaPage() {
         </p>
         <ul>
           <li>
-            <strong>Ugovor o radu i otkaz</strong> — predlošci u Word i PDF formatu, usklađeni sa
+            <strong>Ugovor o radu i otkaz</strong>, predlošci u Word i PDF formatu, usklađeni sa
             Zakonom o radu FBiH
           </li>
           <li>
-            <strong>Aktivni radnici</strong> — centralni pregled radnika sa statusom prijave,
+            <strong>Aktivni radnici</strong>, centralni pregled radnika sa statusom prijave,
             podataka za platu i ugovor
           </li>
           <li>
-            <strong>Vođenje klijenata</strong> — fizička i pravna lica iz jednog naloga, idealno za
+            <strong>Vođenje klijenata</strong>, fizička i pravna lica iz jednog naloga, idealno za
             računovodstvene agencije i knjigovođe
           </li>
-          <li>Brzo prebacivanje konteksta — radite za bilo kojeg klijenta jednim klikom</li>
+          <li>Brzo prebacivanje konteksta, radite za bilo kojeg klijenta jednim klikom</li>
         </ul>
 
         <h2>Pretplatnički paketi</h2>

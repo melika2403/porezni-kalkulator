@@ -13,7 +13,7 @@ export interface Js3100Data {
 
   // ── Prvi dio — Obveznik uplate doprinosa ──
   jib: string; // 13 cifara
-  sifraOpcine: string; // 3 cifre — comb field "undefined"
+  sifraOpcine: string; // 3 cifre, comb field "undefined"
   naziv: string;
   adresa: string;
   gradPoste: string; // npr. "71000 Sarajevo"
@@ -23,13 +23,13 @@ export interface Js3100Data {
   // ── Drugi dio — Podaci o osiguraniku ──
   jmbg: string; // 13 cifara
   prezimeIme: string;
-  djevojackoPrezime: string; // red 3 — fill_2
+  djevojackoPrezime: string; // red 3, fill_2
   datumRodjenjaDan: string; // 2 cifre
   datumRodjenjaMjesec: string;
   datumRodjenjaGodina: string; // 4 cifre
   spol: Js3100Spol;
   adresaPrebivalista: string;
-  sifraOpcineOsiguranika: string; // 3 cifre — comb_5
+  sifraOpcineOsiguranika: string; // 3 cifre, comb_5
   postanskiBroj: string;
   mjestoPrebivalista: string;
   postanskiMjestoCombined: string; // npr. "71300 Visoko"
@@ -44,27 +44,27 @@ export interface Js3100Data {
 
   // ── Treći dio — Podaci o osiguranju ──
   // Red 1: Dnevno radno vrijeme
-  sati: string; // 2 cifre — undefined_5
-  minuta: string; // 2 cifre — undefined_6
+  sati: string; // 2 cifre, undefined_5
+  minuta: string; // 2 cifre, undefined_6
   // Red 2: Osnov osiguranja
-  osnovOsiguranjaOpis: string; // Text2 — opis
-  osnovOsiguranjaSifra: string; // 2 cifre — undefined_7
+  osnovOsiguranjaOpis: string; // Text2, opis
+  osnovOsiguranjaSifra: string; // 2 cifre, undefined_7
   // Red 3: Zanimanje
   zanimanjeOpis: string; // Text3
-  zanimanjeSifra: string; // 7 cifara — undefined_8
+  zanimanjeSifra: string; // 7 cifara, undefined_8
   // Red 4: Stručna sprema koja se traži na radnom mjestu (Check Box2..11)
   strucnaSpremaTraziSeIdx: number | null;
   // Red 5: Datum prijave/odjave/promjene osiguranja
-  datumPromjeneDan: string; // 2 cifre — undefined_9
-  datumPromjeneMjesec: string; // 2 cifre — undefined_10
-  datumPromjeneGodina: string; // 4 cifre — undefined_11
-  napomenaPromjene: string; // fill_22 — slobodno polje desno
+  datumPromjeneDan: string; // 2 cifre, undefined_9
+  datumPromjeneMjesec: string; // 2 cifre, undefined_10
+  datumPromjeneGodina: string; // 4 cifre, undefined_11
+  napomenaPromjene: string; // fill_22, slobodno polje desno
   // Red 6: Osnov za uplatu doprinosa
   osnovUplateOpis: string; // Text1
-  osnovUplateSifra: string; // 2 cifre — undefined_12
+  osnovUplateSifra: string; // 2 cifre, undefined_12
   // Red 7: Staž sa uvećanim trajanjem
-  sifraRadnogMjesta: string; // 4 cifre — undefined_13
-  stepenUvecanja: string; // 2 cifre — undefined_14
+  sifraRadnogMjesta: string; // 4 cifre, undefined_13
+  stepenUvecanja: string; // 2 cifre, undefined_14
 }
 
 /* ── Pozicije kvačica za Stručnu spremu (Drugi dio, red 11) ──

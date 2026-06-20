@@ -5,18 +5,18 @@ const PAGE_URL = "https://poreznikalkulator.ba/zo3";
 
 export const metadata: Metadata = {
   title:
-    "ZO3 obrazac — prijava člana porodice na zdravstveno osiguranje | Porezni Kalkulator BiH",
+    "ZO3 obrazac, prijava člana porodice na zdravstveno osiguranje | Porezni Kalkulator BiH",
   description:
-    "Popunite ZO3 obrazac online i prijavite supružnika, dijete ili roditelja na zdravstveno osiguranje u FBiH. Auto-popuna, popunjen PDF spreman za predaju Zavodu — besplatno, bez registracije.",
+    "Popunite ZO3 obrazac online i prijavite supružnika, dijete ili roditelja na zdravstveno osiguranje u FBiH. Auto-popuna, popunjen PDF spreman za predaju Zavodu, besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "ZO3 obrazac online — prijava člana porodice na zdravstveno",
+    title: "ZO3 obrazac online, prijava člana porodice na zdravstveno",
     description:
-      "Online popunjavanje ZO3 obrasca za sve kantone u FBiH — supružnik, djeca, roditelji. PDF spreman za predaju.",
+      "Online popunjavanje ZO3 obrasca za sve kantone u FBiH, supružnik, djeca, roditelji. PDF spreman za predaju.",
   },
 };
 
@@ -37,7 +37,7 @@ const faqSchema = {
       name: "Ko može biti prijavljen kao član porodice na zdravstveno osiguranje?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Na zdravstveno osiguranje kao uzdržavani članovi porodice mogu se prijaviti: supružnik, djeca (maloljetna ili na redovnom školovanju), te roditelji osiguranika — ukoliko to pravo ne ostvaruju po drugom osnovu (npr. kroz vlastito zaposlenje ili penziju).",
+        text: "Na zdravstveno osiguranje kao uzdržavani članovi porodice mogu se prijaviti: supružnik, djeca (maloljetna ili na redovnom školovanju), te roditelji osiguranika, ukoliko to pravo ne ostvaruju po drugom osnovu (npr. kroz vlastito zaposlenje ili penziju).",
       },
     },
     {
@@ -53,7 +53,7 @@ const faqSchema = {
       name: "Koja dokumentacija je potrebna uz ZO3 obrazac?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Uz popunjeni i ovjereni ZO3 obrazac potrebno je priložiti dokumentaciju koja dokazuje srodstvo i uzdržavanje — npr. izvod iz matične knjige vjenčanih za supružnika, rodni list za djecu, te dokaz da član porodice nema zdravstveno osiguranje po drugom osnovu.",
+        text: "Uz popunjeni i ovjereni ZO3 obrazac potrebno je priložiti dokumentaciju koja dokazuje srodstvo i uzdržavanje, npr. izvod iz matične knjige vjenčanih za supružnika, rodni list za djecu, te dokaz da član porodice nema zdravstveno osiguranje po drugom osnovu.",
       },
     },
     {

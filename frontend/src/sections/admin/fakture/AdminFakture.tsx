@@ -33,9 +33,9 @@ function fmtKM(n: number, currency: string) {
 }
 
 function fmtDate(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
-  if (!y || !m || !d) return "—";
+  if (!y || !m || !d) return "–";
   return `${d}.${m}.${y}`;
 }
 
@@ -272,7 +272,7 @@ function InvoiceRow({ inv }: { inv: AdminInvoiceItem }) {
           <>
             <div className={styles.creatorName}>{inv.creator.name}</div>
             <div className={styles.creatorSub}>
-              {inv.organization?.name || inv.creator.email || "—"}
+              {inv.organization?.name || inv.creator.email || "–"}
             </div>
           </>
         ) : (

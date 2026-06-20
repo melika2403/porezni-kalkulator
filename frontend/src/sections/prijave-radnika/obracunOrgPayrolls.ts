@@ -53,7 +53,14 @@ function isActiveForMonth(w: Worker, year: number, month: number): boolean {
 export async function obracunOrgPayrolls(input: {
   org: Pick<
     Organization,
-    "id" | "name" | "type" | "taxRegime" | "taxCategory" | "mealAllowancePerDay"
+    | "id"
+    | "name"
+    | "type"
+    | "taxRegime"
+    | "taxCategory"
+    | "mealAllowancePerDay"
+    | "ownerIsDirector"
+    | "directorEngagement"
   >;
   year: number;
   month: number;
@@ -90,14 +97,20 @@ export async function obracunOrgPayrolls(input: {
   const prevPayrolls = prevPayrollsResp.ok ? prevPayrollsResp.data : [];
   const prevPayrollByWorker = new Map(prevPayrolls.map((p) => [p.workerId, p]));
 
-  // 2) Split: radnici (uključujući d.o.o. vlasnika) vs. vlasnici obrta.
-  // BUSINESS = obrt → vlasnik ide u 2002 (poseban režim). COMPANY = d.o.o.
-  // → vlasnik se tretira kao radnik (Obrazac 2001).
+  // 2) Split: radnici (uključujući d.o.o. vlasnika ako je prijavljen) vs.
+  // vlasnici obrta. BUSINESS = obrt → vlasnik ide u 2002 (poseban režim).
+  // COMPANY = d.o.o. → vlasnik se tretira kao radnik SAMO ako je prijavljen
+  // direktor (opcija 1). U opcijama 2/3/4 vlasnik nije uposlenik pa ne ulazi
+  // u obračun (Worker VLASNIK, ako postoji, se preskače).
   const isObrt = org.type === "BUSINESS";
+  const ownerEmployed =
+    (org.ownerIsDirector ?? true) &&
+    (org.directorEngagement ?? "ugovor_o_radu") === "ugovor_o_radu";
   const activeWorkers = allWorkers.filter((w) => isActiveForMonth(w, year, month));
-  const radnici = isObrt
-    ? activeWorkers.filter((w) => w.role === "RADNIK")
-    : activeWorkers; // d.o.o.: i vlasnik je u radnicima
+  const radnici =
+    isObrt || !ownerEmployed
+      ? activeWorkers.filter((w) => w.role === "RADNIK")
+      : activeWorkers; // d.o.o. opcija 1: i vlasnik je u radnicima
   const vlasniciObrt = isObrt
     ? activeWorkers.filter((w) => w.role === "VLASNIK")
     : [];
@@ -225,7 +238,7 @@ export async function obracunOrgPayrolls(input: {
   if (isObrt && vlasniciObrt.length > 0) {
     if (!org.taxRegime) {
       result.warnings.push(
-        `Vlasnici obrta nisu obračunati — nedostaje režim oporezivanja u profilu org-e`,
+        `Vlasnici obrta nisu obračunati, nedostaje režim oporezivanja u profilu org-e`,
       );
     } else {
       let baseOsnovica = 0;
@@ -260,7 +273,7 @@ export async function obracunOrgPayrolls(input: {
         }
       } else {
         result.warnings.push(
-          `Vlasnici obrta nisu obračunati — nije pronađena osnovica za režim ${org.taxRegime}`,
+          `Vlasnici obrta nisu obračunati, nije pronađena osnovica za režim ${org.taxRegime}`,
         );
       }
     }

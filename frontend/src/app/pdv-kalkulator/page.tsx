@@ -5,16 +5,16 @@ const PAGE_URL = "https://poreznikalkulator.ba/pdv-kalkulator";
 
 export const metadata: Metadata = {
   title:
-    "PDV kalkulator BiH — preračun PDV-a u oba smjera (stopa 17%) | Porezni Kalkulator BiH",
+    "PDV kalkulator BiH, preračun PDV-a u oba smjera (stopa 17%) | Porezni Kalkulator BiH",
   description:
-    "Online PDV kalkulator za Bosnu i Hercegovinu (stopa 17%). Preračunajte PDV iz cijene bez PDV-a ili iz maloprodajne cijene, podrška za KM i EUR — besplatno i bez registracije.",
+    "Online PDV kalkulator za Bosnu i Hercegovinu (stopa 17%). Preračunajte PDV iz cijene bez PDV-a ili iz maloprodajne cijene, podrška za KM i EUR, besplatno i bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "PDV kalkulator BiH — stopa 17% u oba smjera",
+    title: "PDV kalkulator BiH, stopa 17% u oba smjera",
     description:
       "Brz online PDV kalkulator za BiH. Iz neto u bruto cijenu i obrnuto, podrška KM i EUR.",
   },
@@ -29,7 +29,7 @@ const faqSchema = {
       name: "Kolika je stopa PDV-a u Bosni i Hercegovini?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "U Bosni i Hercegovini se primjenjuje jedinstvena stopa PDV-a od 17%. Ista stopa važi na cijeloj teritoriji države — u FBiH, Republici Srpskoj i Brčko Distriktu. PDV administrira Uprava za indirektno oporezivanje (UINO).",
+        text: "U Bosni i Hercegovini se primjenjuje jedinstvena stopa PDV-a od 17%. Ista stopa važi na cijeloj teritoriji države, u FBiH, Republici Srpskoj i Brčko Distriktu. PDV administrira Uprava za indirektno oporezivanje (UINO).",
       },
     },
     {

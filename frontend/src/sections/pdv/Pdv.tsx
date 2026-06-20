@@ -20,9 +20,9 @@ const parse = (v: string) => {
 };
 
 export default function PdvKalkulator() {
-  const [mode,     setMode]     = useState<Mode>("toBrutto");
+  const [mode, setMode]     = useState<Mode>("toBrutto");
   const [currency, setCurrency] = useState<Currency>("KM");
-  const [input,    setInput]    = useState("");
+  const [input, setInput]    = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,10 +78,10 @@ export default function PdvKalkulator() {
       <div className={styles.header}>
         <div className={styles.label}>PDV Kalkulator</div>
         <h1 className={styles.h1}>
-          PDV kalkulator BiH — preračun PDV-a <em>u oba smjera</em>
+          PDV kalkulator BiH, preračun PDV-a <em>u oba smjera</em>
         </h1>
         <p className={styles.subtitle}>
-          Online PDV kalkulator za Bosnu i Hercegovinu — stopa PDV-a iznosi{" "}
+          Online PDV kalkulator za Bosnu i Hercegovinu, stopa PDV-a iznosi{" "}
           <strong>17%</strong>. Izračunajte iznos PDV-a iz neto ili bruto cijene
           i dobijete rezultat odmah, besplatno i bez registracije.
         </p>
@@ -202,7 +202,7 @@ export default function PdvKalkulator() {
           <div className={styles.infoTitle}>Kurs KM / EUR</div>
           <div className={styles.infoFormula}>1 EUR = 1,95583 KM</div>
           <div className={styles.infoDesc}>
-            Fiksni kurs — Bosna i Hercegovina koristi currency board vezan za euro od 1997. godine.
+            Fiksni kurs, Bosna i Hercegovina koristi currency board vezan za euro od 1997. godine.
           </div>
         </div>
       </div>
@@ -218,21 +218,21 @@ export default function PdvKalkulator() {
           prometa. U Bosni i Hercegovini se primjenjuje{" "}
           <strong>jedinstvena stopa PDV-a od 17%</strong> i administrira ga{" "}
           <strong>Uprava za indirektno oporezivanje (UINO)</strong> na nivou
-          države, što znači da je ista stopa na cijeloj teritoriji — i u FBiH,
+          države, što znači da je ista stopa na cijeloj teritoriji, i u FBiH,
           i u Republici Srpskoj, i u Brčko Distriktu.
         </p>
         <p>
           PDV plaća krajnji potrošač kroz cijenu, ali ga obračunava i uplaćuje
           PDV obveznik (preduzeće ili obrtnik) registrovan u UINO. Razlika
           između izlaznog PDV-a (na prodaji) i ulaznog PDV-a (na nabavkama)
-          predstavlja obavezu za uplatu — ili pravo na povrat ako je ulazni PDV
+          predstavlja obavezu za uplatu, ili pravo na povrat ako je ulazni PDV
           veći.
         </p>
       </section>
 
       <section className={styles.eduSection}>
         <h2>
-          Kako se <em>obračunava</em> PDV — formule
+          Kako se <em>obračunava</em> PDV, formule
         </h2>
         <p>
           Postoje dva smjera preračuna PDV-a, ovisno o tome da li krećete od
@@ -267,7 +267,7 @@ export default function PdvKalkulator() {
         <p>
           Obavezna registracija u sistem PDV-a u BiH nastupa kada godišnji
           oporezivi promet pređe <strong>100.000,00 KM</strong>. Ispod tog
-          praga registracija je dobrovoljna — obrtnici i mala preduzeća mogu
+          praga registracija je dobrovoljna, obrtnici i mala preduzeća mogu
           izabrati da se ne registruju, što znači da ne obračunavaju PDV na
           svojim računima ali ni ne mogu odbijati ulazni PDV.
         </p>
@@ -301,15 +301,15 @@ export default function PdvKalkulator() {
         </h2>
         <ul>
           <li>
-            <a href="/fakture">Fakture i računi</a> — generišite račune sa
+            <a href="/fakture">Fakture i računi</a>, generišite račune sa
             ispravnim PDV obračunom.
           </li>
           <li>
-            <a href="/spr">SPR-1053 — specifikacija dohotka</a> — za obrtnike
+            <a href="/spr">SPR-1053, specifikacija dohotka</a>, za obrtnike
             koji su PDV obveznici.
           </li>
           <li>
-            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a> — UINO
+            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a>, UINO
             računi za uplatu PDV-a.
           </li>
         </ul>
@@ -319,9 +319,9 @@ export default function PdvKalkulator() {
         <ul>
           <li>
             <a href="/blog/pdv-obveznik-prag-100000-km">
-              PDV obveznik — prag 100.000 KM
-            </a>{" "}
-            — kada postajete obvezni za PDV i šta to znači.
+              PDV obveznik, prag 100.000 KM
+            </a>,{" "}
+            kada postajete obvezni za PDV i šta to znači.
           </li>
         </ul>
       </section>

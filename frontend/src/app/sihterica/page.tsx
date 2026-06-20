@@ -4,36 +4,15 @@ import Sihterica from "src/sections/sihterica/Sihterica";
 import SihtericaEdu from "src/sections/sihterica/SihtericaEdu";
 
 const PAGE_URL = "https://poreznikalkulator.ba/sihterica";
-const OG_TITLE = "Šihterica online — evidencija radnog vremena FBiH (PDF)";
+const OG_TITLE = "Šihterica online, evidencija radnog vremena FBiH (PDF)";
 const OG_DESCRIPTION =
-  "Popunite šihtericu online za sve radnike i preuzmite popunjeni PDF obrazac. Evidencija radnog vremena prema propisima FBiH — brzo, jednostavno, besplatno za probu.";
+  "Popunite šihtericu online za sve radnike i preuzmite popunjeni PDF obrazac. Evidencija radnog vremena prema propisima FBiH, brzo, jednostavno, besplatno za probu.";
 
 export const metadata: Metadata = {
   title:
-    "Šihterica online — evidencija radnog vremena radnika FBiH | PDF besplatno",
+    "Šihterica online, evidencija radnog vremena radnika FBiH | PDF besplatno",
   description: OG_DESCRIPTION,
-  keywords: [
-    "šihterica",
-    "šihterica online",
-    "šihterica besplatno",
-    "šihterica PDF",
-    "šihterica obrazac FBiH",
-    "evidencija radnog vremena",
-    "evidencija radnog vremena FBiH",
-    "evidencija radnog vremena radnika",
-    "evidencija radnog vremena PDF",
-    "evidencija radnog vremena online",
-    "kako popuniti šihtericu",
-    "šihterica obrazac",
-    "šihterica šifre odsustva",
-    "šifra 9.1 godišnji odmor",
-    "šifra 9.2 praznik",
-    "šifra 9.3 bolovanje",
-    "šifra 9.4 porodiljsko",
-    "obrazac evidencije radnog vremena BiH",
-    "obrazac evidencije radnog vremena FBiH",
-  ],
-  alternates: { canonical: PAGE_URL },
+alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "article",
     locale: "bs_BA",
@@ -46,7 +25,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Šihterica — evidencija radnog vremena FBiH",
+        alt: "Šihterica, evidencija radnog vremena FBiH",
       },
     ],
   },
@@ -83,7 +62,7 @@ const faqJsonLd = {
       name: "Šta znače šifre odsustva u šihterici (9.1, 9.2, 9.3 itd.)?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "9.1 — godišnji ili sedmični odmor; 9.2 — državni praznik; 9.3 — bolovanje; 9.4 — porodiljsko/roditeljsko odsustvo; 9.5 — plaćeno odsustvo; 9.6 — neplaćeno odsustvo; 9.7 — neprisutnost po zahtjevu radnika; 9.8 — neprisutnost krivicom radnika; 9.9 — štrajk; 9.10 — lockout (isključenje s rada).",
+        text: "9.1, godišnji ili sedmični odmor; 9.2, državni praznik; 9.3, bolovanje; 9.4, porodiljsko/roditeljsko odsustvo; 9.5, plaćeno odsustvo; 9.6, neplaćeno odsustvo; 9.7, neprisutnost po zahtjevu radnika; 9.8, neprisutnost krivicom radnika; 9.9, štrajk; 9.10, lockout (isključenje s rada).",
       },
     },
     {
@@ -91,7 +70,7 @@ const faqJsonLd = {
       name: "Kako popuniti šihtericu online i preuzeti PDF?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Registrujte se besplatno, dodajte djelatnost i radnika, izaberite mjesec i koristite auto-popunu (početak/kraj rada, slobodni dani, godišnji, praznici, bolovanje). Aplikacija automatski računa dnevne i mjesečne sate. PDF preuzimanje je dostupno uz Pro pretplatu — prvih 30 dana besplatno.",
+        text: "Registrujte se besplatno, dodajte djelatnost i radnika, izaberite mjesec i koristite auto-popunu (početak/kraj rada, slobodni dani, godišnji, praznici, bolovanje). Aplikacija automatski računa dnevne i mjesečne sate. PDF preuzimanje je dostupno uz Pro pretplatu, prvih 30 dana besplatno.",
       },
     },
     {
@@ -133,7 +112,7 @@ const howToJsonLd = {
     {
       "@type": "HowToStep",
       name: "Izaberite mjesec i koristite auto-popunu",
-      text: "Postavite početak i kraj rada, pauzu, slobodne dane u sedmici, godišnji odmor i bolovanje za odabrani mjesec — aplikacija će popuniti sve dane.",
+      text: "Postavite početak i kraj rada, pauzu, slobodne dane u sedmici, godišnji odmor i bolovanje za odabrani mjesec, aplikacija će popuniti sve dane.",
     },
     {
       "@type": "HowToStep",

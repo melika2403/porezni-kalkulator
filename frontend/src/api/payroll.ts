@@ -82,6 +82,9 @@ export type Payroll = {
 
   bankAccount: string | null;
   status: PayrollStatus;
+  // Uvezeni obračun (ranija plata iz drugog programa, samo za GIP). Pravi
+  // obračun ga resetuje na false.
+  imported: boolean;
   paymentDate: string | null;
   notes: string | null;
   createdAt: string;
@@ -178,6 +181,43 @@ export function savePayrollInputs(payload: SaveInputsPayload) {
   });
 }
 
+// ── Uvoz ranijih plata (za GIP) ─────────────────────────────────────────────
+// Jedan red po (radnik, mjesec). compute mod: bruto + koeficijent, motor
+// izračuna ostalo. manual mod: override literalnih iznosa.
+export type ImportPayrollRow = {
+  workerId: number;
+  month: number;
+  gross: number;
+  taxCoefficient?: number;
+  // Datum isplate (YYYY-MM-DD). Default zadnji dan mjeseca ako se ne pošalje.
+  paymentDate?: string;
+  mode?: "manual";
+  empPio?: number;
+  empZdravstvo?: number;
+  empNezaposlenost?: number;
+  deduction?: number;
+  taxBase?: number;
+  incomeTax?: number;
+  net?: number;
+};
+
+export type ImportPayrollResult = {
+  created: number;
+  updated: number;
+  skipped: Array<{ workerId: number | null; month: number | null; reason: string }>;
+};
+
+export function importPayrolls(payload: {
+  organizationId: number;
+  year: number;
+  rows: ImportPayrollRow[];
+}) {
+  return request<ImportPayrollResult>(`/api/payroll/import`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function patchPayroll(id: number, payload: PatchPayload) {
   return request<Payroll>(`/api/payroll/${id}`, {
     method: "PATCH",
@@ -195,6 +235,19 @@ export function markMonthPaid(payload: {
   month: number;
 }) {
   return request<{ updated: number }>(`/api/payroll/mark-month-paid`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Zabilježi da je MIP-1023 XML za (org, year, month) preuzet. XML se generiše
+// client-side pa backend sam ne vidi download; zove se nakon preuzimanja.
+export function markMipDownloaded(payload: {
+  organizationId: number;
+  year: number;
+  month: number;
+}) {
+  return request<{ updated: number }>(`/api/payroll/mark-mip-downloaded`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -290,6 +343,8 @@ export type MonthlySummary = {
   organizationId: number;
   year: number;
   month: number;
+  // Agencijska opcija: kantonalne uplatnice objedinjene po kantonu.
+  combineKantonal?: boolean;
   workerCount: number;
   totals: {
     gross: number;
@@ -314,6 +369,14 @@ export type MonthlySummary = {
   uplatnice: MonthlyUplatnicaSummary[];
   perWorker: MonthlyPerWorker[];
 };
+
+// Agencijska opcija: objedini kantonalne uplatnice po kantonu (sve org-e).
+export function setCombineKantonal(combineKantonal: boolean) {
+  return request<{ combineKantonal: boolean }>(
+    "/api/payroll/combine-kantonal",
+    { method: "PUT", body: JSON.stringify({ combineKantonal }) },
+  );
+}
 
 export function getMonthlySummary(organizationId: number, year: number, month: number) {
   const sp = new URLSearchParams({
@@ -388,6 +451,58 @@ export async function generateMonthlyPayslips(
     const filename = `platni-listici-${year}-${String(month).padStart(2, "0")}.pdf`;
     const pageCount = Number(res.headers.get("X-Page-Count") || 0);
     return { ok: true, blob, filename, pageCount };
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
+// ── Konta za nalog za knjiženje (agencijska konvencija) ─────────────────────
+export type PostingItem = { key: string; label: string };
+export type PostingAccount = { d: string; p: string };
+export type PostingAccountsData = {
+  items: PostingItem[];
+  defaults: Record<string, PostingAccount>;
+  overrides: Record<string, Partial<PostingAccount>>;
+  resolved: Record<string, PostingAccount>;
+};
+
+export function getPostingAccounts() {
+  return request<PostingAccountsData>("/api/payroll/posting-accounts");
+}
+
+export function savePostingAccounts(
+  postingAccounts: Record<string, Partial<PostingAccount>>,
+) {
+  return request<{ overrides: Record<string, Partial<PostingAccount>> }>(
+    "/api/payroll/posting-accounts",
+    { method: "PUT", body: JSON.stringify({ postingAccounts }) },
+  );
+}
+
+// Nalog za knjiženje plate (PDF). Doprinosi iz+na osnovicu zbirno po vrsti,
+// bez bruto reda. Vraća { ok, blob, filename }.
+export async function generatePostingOrder(
+  organizationId: number,
+  year: number,
+  month: number,
+  datumKnjizenja?: string,
+): Promise<
+  { ok: true; blob: Blob; filename: string } | { ok: false; error: string }
+> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/payroll/posting-order`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId, year, month, datumKnjizenja }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      return { ok: false, error: j?.error || `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    const filename = `Nalog_za_knjizenje_${String(month).padStart(2, "0")}_${year}.pdf`;
+    return { ok: true, blob, filename };
   } catch {
     return { ok: false, error: "NETWORK_ERROR" };
   }

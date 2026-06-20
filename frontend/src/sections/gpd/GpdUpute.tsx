@@ -26,7 +26,7 @@ export default function GpdUpute() {
 
       {/* Dio 1 */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Dio 1 — Podaci o poreznom obvezniku (redovi 1–7)</h2>
+        <h2 className={styles.sectionTitle}>Dio 1, Podaci o poreznom obvezniku (redovi 1–7)</h2>
         <p className={styles.text}>
           U ovom dijelu upisujete lične identifikacijske podatke i poreznu godinu za koju podnosite prijavu.
           Obavezno unesite JMB, ime i prezime, adresu stanovanja, te godinu na koju se prijava odnosi.
@@ -35,7 +35,7 @@ export default function GpdUpute() {
 
       {/* Dio 2 */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Dio 2 — Prijava dohotka (redovi 8–17)</h2>
+        <h2 className={styles.sectionTitle}>Dio 2, Prijava dohotka (redovi 8–17)</h2>
         <div className={styles.rowList}>
 
           <div className={styles.row}>
@@ -55,7 +55,7 @@ export default function GpdUpute() {
             <div>
               <div className={styles.rowTitle}>Dohodak od samostalne djelatnosti</div>
               <p className={styles.rowText}>
-                Podatak se preuzima iz SPR specifikacije, red 28 — naznačite da li se radi o dobiti ili
+                Podatak se preuzima iz SPR specifikacije, red 28, naznačite da li se radi o dobiti ili
                 gubitku.
               </p>
             </div>
@@ -131,7 +131,7 @@ export default function GpdUpute() {
 
       {/* Dio 3 */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Dio 3 — Lični odbitci (redovi 18–21)</h2>
+        <h2 className={styles.sectionTitle}>Dio 3, Lični odbitci (redovi 18–21)</h2>
         <div className={styles.rowList}>
 
           <div className={styles.row}>
@@ -175,7 +175,7 @@ export default function GpdUpute() {
 
       {/* Dio 4 */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Dio 4 — Obračun poreza (redovi 22–32)</h2>
+        <h2 className={styles.sectionTitle}>Dio 4, Obračun poreza (redovi 22–32)</h2>
         <div className={styles.rowList}>
 
           <div className={styles.row}>
@@ -233,7 +233,7 @@ export default function GpdUpute() {
           <div className={styles.row}>
             <span className={styles.rowNum}>Red 31</span>
             <div>
-              <div className={styles.rowTitle}>Razlika — za uplatu ili povrat</div>
+              <div className={styles.rowTitle}>Razlika, za uplatu ili povrat</div>
               <p className={styles.rowText}>
                 Konačni obračun koji pokazuje da li postoji razlika poreza za uplatu, pravo na povrat,
                 ili je saldo nula.

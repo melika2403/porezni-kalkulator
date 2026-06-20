@@ -8,7 +8,7 @@ export function useCities() {
   return useQuery<City[]>({
     queryKey: ["cities"],
     queryFn: () => unwrap(getCities()),
-    staleTime: 1000 * 60 * 60, // 1h — reference data, rarely changes
+    staleTime: 1000 * 60 * 60, // 1h, reference data, rarely changes
     retry: false,
   });
 }

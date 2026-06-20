@@ -19,7 +19,7 @@ import {
 export type MipBuildInput = {
   workers: Worker[]; // svi radnici org-e (filter na role=RADNIK radi se interno)
   payrolls: Payroll[]; // svi payroll-i za year/month
-  organization: Pick<Organization, "name" | "taxNumber" | "activityCode">;
+  organization: Pick<Organization, "name" | "taxNumber" | "activityCode" | "city">;
   year: number;
   month: number;
   paymentDate?: string; // YYYY-MM-DD; default zadnji dan mjeseca
@@ -85,8 +85,11 @@ export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuild
       ? Math.round((p.workedMinutes / 60) * 100) / 100
       : 168;
     const bolovanjeSati = (p.sickDays || 0) * 8;
-    const opcinaInfo = kantonForOpcina(w.city || "");
-    const opcinaKod = opcinaInfo?.opcinaKod || "";
+    // RS radnik nema FBiH prebivalište: šifra općine ide sjedište poslodavca.
+    const opcinaKod =
+      w.prebivalisteEntitet === "RS"
+        ? kantonForOpcina(organization.city || "")?.opcinaKod || ""
+        : kantonForOpcina(w.city || "")?.opcinaKod || "";
     return {
       vrstaIsplate: "1",
       jmb: w.jmbg || "",

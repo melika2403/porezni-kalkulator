@@ -6,8 +6,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLastOrg } from "src/hooks/useLastOrg";
 import { LuPencil, LuTrash2 } from "react-icons/lu";
 import styles from "./organizacija.module.css";
+import { formatMoneyBlur } from "src/lib/format";
 import {
   getOrganization,
+  updateOrganizationSettings,
   getWorkers,
   createWorker,
   updateWorker,
@@ -257,7 +259,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 function fmtDate(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}.${m}.${y}`;
 }
@@ -271,16 +273,16 @@ import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
 
 // Iste opcije kao u JS3100 (Drugi dio red 11), index = vrijednost koju treba slati
 const STRUCNA_SPREMA_OPCIJE = [
-  "DR — Doktor nauka",
-  "MR — Magistar",
-  "VSS — Visoka stručna sprema",
-  "VŠS — Viša stručna sprema",
-  "SSS — Srednja stručna sprema",
+  "DR, Doktor nauka",
+  "MR, Magistar",
+  "VSS, Visoka stručna sprema",
+  "VŠS, Viša stručna sprema",
+  "SSS, Srednja stručna sprema",
   "Niža",
-  "VKV — Visokokvalifikovani",
-  "KV — Kvalifikovani",
-  "PK — Polukvalifikovani",
-  "NK — Nekvalifikovani",
+  "VKV, Visokokvalifikovani",
+  "KV, Kvalifikovani",
+  "PK, Polukvalifikovani",
+  "NK, Nekvalifikovani",
 ];
 
 // ─── Worker row form (add or edit) ────────────────────────────────────────────
@@ -402,6 +404,11 @@ function WorkerFormFields({
     (k: keyof WorkerForm) =>
     (e: React.ChangeEvent<HTMLInputElement>) =>
       onChange({ ...value, [k]: formatMoneyLive(e.target.value) });
+  // Na blur dopuni iznos na puni oblik sa 2 decimale (npr. "1.000" -> "1.000,00").
+  const setMoneyBlur =
+    (k: keyof WorkerForm) =>
+    (e: React.FocusEvent<HTMLInputElement>) =>
+      onChange({ ...value, [k]: formatMoneyBlur(e.target.value) });
 
   const isVlasnik = value.role === "VLASNIK";
   // Obrt vlasnik ima poseban režim (Obrazac 2002, fiksna osnovica) — bruto/neto
@@ -498,7 +505,7 @@ function WorkerFormFields({
               onChange({ ...value, spol: e.target.value as WorkerForm["spol"] })
             }
           >
-            <option value="">— Odaberi —</option>
+            <option value="">– Odaberi –</option>
             <option value="M">Muški</option>
             <option value="Z">Ženski</option>
           </select>
@@ -510,7 +517,7 @@ function WorkerFormFields({
             value={value.strucnaSpremaIdx}
             onChange={set("strucnaSpremaIdx")}
           >
-            <option value="">— Odaberi —</option>
+            <option value="">– Odaberi –</option>
             {STRUCNA_SPREMA_OPCIJE.map((t, i) => (
               <option key={i} value={i}>
                 {t}
@@ -632,9 +639,9 @@ function WorkerFormFields({
       <FormSection title="JS3100 prijava / odjava" icon={ICON_CLIPBOARD}>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>
-            Datum prijave (JS3100){" "}
+            Datum prijave (JS3100),{" "}
             <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
-              — koristi se za period u obrascima 2001/2002
+              koristi se za period u obrascima 2001/2002
             </span>
           </label>
           <DateInput
@@ -696,7 +703,7 @@ function WorkerFormFields({
         )}
       </FormSection>
 
-      {/* ── 4. Ugovor o radu i plata — samo za radnike i d.o.o. vlasnika ── */}
+      {/* ── 4. Ugovor o radu i plata, samo za radnike i d.o.o. vlasnika ── */}
       {!isObrtVlasnik && (
         <FormSection title="Ugovor o radu i plata" icon={ICON_FILE_TEXT}>
           <div className={styles.field}>
@@ -720,7 +727,7 @@ function WorkerFormFields({
                 })
               }
             >
-              <option value="">— Odaberi —</option>
+              <option value="">– Odaberi –</option>
               <option value="NEODREDJENO">Neodređeno</option>
               <option value="ODREDJENO">Određeno</option>
             </select>
@@ -795,14 +802,14 @@ function WorkerFormFields({
               onChange={set("contractedHours")}
               title="Zakon o doprinosima FBiH (čl. 7, izmjene 33/25): za nepuno radno vrijeme > 4h primjenjuje se PUNA minimalna osnovica; za ≤ 4h srazmjerno (min. 50%)."
             >
-              <option value="8">8h — puno radno vrijeme</option>
-              <option value="7">7h — nepuno (puna min. osnovica)</option>
-              <option value="6">6h — nepuno (puna min. osnovica)</option>
-              <option value="5">5h — nepuno (puna min. osnovica)</option>
-              <option value="4">4h — nepuno (srazmjerno, 50%)</option>
-              <option value="3">3h — nepuno (srazmjerno, 50%)</option>
-              <option value="2">2h — nepuno (srazmjerno, 50%)</option>
-              <option value="1">1h — nepuno (srazmjerno, 50%)</option>
+              <option value="8">8h, puno radno vrijeme</option>
+              <option value="7">7h, nepuno (puna min. osnovica)</option>
+              <option value="6">6h, nepuno (puna min. osnovica)</option>
+              <option value="5">5h, nepuno (puna min. osnovica)</option>
+              <option value="4">4h, nepuno (srazmjerno, 50%)</option>
+              <option value="3">3h, nepuno (srazmjerno, 50%)</option>
+              <option value="2">2h, nepuno (srazmjerno, 50%)</option>
+              <option value="1">1h, nepuno (srazmjerno, 50%)</option>
             </select>
           </div>
           <div className={styles.field}>
@@ -824,7 +831,7 @@ function WorkerFormFields({
               title="Override dnevne stope toplog obroka. Prazno = koristi se stopa postavljena na nivou firme."
             />
           </div>
-          {/* Tip plate — određuje šta iznos iz "Bruto"/"Neto" polja stvarno
+          {/* Tip plate, određuje šta iznos iz "Bruto"/"Neto" polja stvarno
               znači u obračunu. Vidi SALARY_TYPE_DESCRIPTIONS za detalje. */}
           <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
             <label className={styles.fieldLabel}>Tip plate</label>
@@ -871,7 +878,7 @@ function WorkerFormFields({
             </div>
           </div>
           {/* Pokazujemo samo polje koje odgovara izabranom tipu. Ako user
-              prebaci tip, polja se zamijene — ne postoji konflikt. */}
+              prebaci tip, polja se zamijene, ne postoji konflikt. */}
           {value.salaryType === "BRUTO" ? (
             <div className={`${styles.field} ${styles.fieldHighlight}`}>
               <label className={`${styles.fieldLabel} ${styles.fieldLabelHighlight}`}>
@@ -881,6 +888,7 @@ function WorkerFormFields({
                 className={styles.input}
                 value={value.salaryBruto}
                 onChange={setMoney("salaryBruto")}
+                onBlur={setMoneyBlur("salaryBruto")}
                 placeholder="0,00"
                 inputMode="decimal"
               />
@@ -899,6 +907,7 @@ function WorkerFormFields({
                 className={styles.input}
                 value={value.salaryNeto}
                 onChange={setMoney("salaryNeto")}
+                onBlur={setMoneyBlur("salaryNeto")}
                 placeholder="0,00"
                 inputMode="decimal"
               />
@@ -916,7 +925,7 @@ function WorkerFormFields({
               value={value.probationMonths}
               onChange={set("probationMonths")}
             >
-              <option value="">— Nema —</option>
+              <option value="">– Nema –</option>
               {[1, 2, 3, 4, 5, 6].map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -949,9 +958,9 @@ function WorkerFormFields({
       <FormSection title="Porez i radni staž" icon={ICON_CALCULATOR}>
         <div className={`${styles.field} ${styles.fieldHighlight}`} style={{ gridColumn: "1 / -1" }}>
           <label className={`${styles.fieldLabel} ${styles.fieldLabelHighlight}`}>
-            Porezni koeficijent{" "}
+            Porezni koeficijent,{" "}
             <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
-              — 1.0 = 300 KM odbitka
+              1.0 = 300 KM odbitka
             </span>
           </label>
           <input
@@ -978,9 +987,9 @@ function WorkerFormFields({
             </div>
             <div className={styles.field}>
               <label className={styles.fieldLabel}>
-                Datum prvog zaposljenja{" "}
+                Datum prvog zaposljenja,{" "}
                 <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
-                  — bez prekida u radu
+                  bez prekida u radu
                 </span>
               </label>
               <DateInput
@@ -993,9 +1002,9 @@ function WorkerFormFields({
             </div>
             <div className={styles.field}>
               <label className={styles.fieldLabel}>
-                Staž prije naše firme{" "}
+                Staž prije naše firme,{" "}
                 <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
-                  — koristi ako ima prekida
+                  koristi ako ima prekida
                 </span>
               </label>
               <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -1125,6 +1134,29 @@ export default function Organizacija({ orgId }: { orgId: number }) {
     },
   });
 
+  // Postavljanje radnika kao direktora/potpisnika (opcije 2 i 4).
+  // Direktor je zakonski zastupnik, pa mu radno mjesto postaje "Direktor".
+  // Ako pozicija već spominje direktora (npr. "Izvršni direktor"), ne diramo je.
+  const directorMutation = useMutation({
+    mutationFn: async (workerId: number | null) => {
+      await unwrap(
+        updateOrganizationSettings(orgId, { directorWorkerId: workerId }),
+      );
+      if (workerId) {
+        const w = workers.find((x) => x.id === workerId);
+        const pos = (w?.position ?? "").trim();
+        if (!/direktor/i.test(pos)) {
+          await unwrap(updateWorker(orgId, workerId, { position: "Direktor" }));
+        }
+      }
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["workers", orgId] });
+    },
+  });
+
   const startEdit = (w: Worker) => {
     setEditId(w.id);
     setEditForm(workerToForm(w));
@@ -1191,11 +1223,77 @@ export default function Organizacija({ orgId }: { orgId: number }) {
             {org.taxNumber && <span>JIB: {org.taxNumber}</span>}
             {org.owner && (
               <span>
-                Vlasnik: {org.owner.firstName} {org.owner.lastName}
+                Vlasnik:{" "}
+                {org.owner.name ||
+                  `${org.owner.firstName ?? ""} ${org.owner.lastName ?? ""}`.trim() ||
+                  "–"}
               </span>
             )}
           </div>
         </div>
+
+        {/* ── Direktor / potpisnik (opcije 2 i 4: vlasnik nije direktor) ── */}
+        {org.type === "COMPANY" && org.ownerIsDirector === false && (
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <span className={styles.cardTitle}>Direktor i potpisnik</span>
+            </div>
+            <div style={{ padding: "0.8rem 1rem" }}>
+              <p style={{ fontSize: 13, color: "#666", margin: "0 0 0.5rem" }}>
+                Vlasnik nije direktor. Označite radnika koji zastupa firmu i
+                potpisuje dokumente (ugovor o radu i ostalo). Radno mjesto tog
+                radnika se postavlja na "Direktor" (možete ga prepraviti na
+                kartici radnika).
+              </p>
+              <select
+                className={styles.input}
+                style={{ maxWidth: 360 }}
+                value={org.directorWorkerId ?? ""}
+                disabled={!canEdit || directorMutation.isPending}
+                onChange={(e) =>
+                  directorMutation.mutate(
+                    e.target.value ? Number(e.target.value) : null,
+                  )
+                }
+              >
+                <option value="">Izaberi radnika</option>
+                {(() => {
+                  const candidates = workers.filter(
+                    (w) =>
+                      w.role === "RADNIK" &&
+                      w.employmentStatus !== "ODJAVLJEN",
+                  );
+                  // Ako je dodijeljeni direktor odjavljen, ipak ga prikaži da
+                  // se ne bi činilo da direktor nije postavljen.
+                  if (
+                    org.directorWorkerId &&
+                    !candidates.some((w) => w.id === org.directorWorkerId)
+                  ) {
+                    const assigned = workers.find(
+                      (w) => w.id === org.directorWorkerId,
+                    );
+                    if (assigned) candidates.push(assigned);
+                  }
+                  return candidates.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.firstName} {w.lastName}
+                      {w.employmentStatus === "ODJAVLJEN"
+                        ? " (odjavljen)"
+                        : ""}
+                    </option>
+                  ));
+                })()}
+              </select>
+              {org.directorWorkerId && org.signer?.name && (
+                <p
+                  style={{ fontSize: 12, color: "#3a5c42", margin: "0.5rem 0 0" }}
+                >
+                  Potpisnik: {org.signer.name}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Workers card ── */}
         <div className={styles.card}>
@@ -1445,8 +1543,8 @@ function MembersCard({ orgId }: { orgId: number }) {
                 value={role}
                 onChange={(e) => setRole(e.target.value as "ADMIN" | "MEMBER")}
               >
-                <option value="MEMBER">Član — može pregledati</option>
-                <option value="ADMIN">Admin — može uređivati</option>
+                <option value="MEMBER">Član, može pregledati</option>
+                <option value="ADMIN">Admin, može uređivati</option>
               </select>
             </div>
           </div>
@@ -1492,7 +1590,7 @@ function MembersCard({ orgId }: { orgId: number }) {
                 <td className={styles.workerName}>
                   {m.user.firstName} {m.user.lastName}
                 </td>
-                <td className={styles.workerJmbg}>{m.user.email ?? "—"}</td>
+                <td className={styles.workerJmbg}>{m.user.email ?? "–"}</td>
                 <td>
                   {m.role === "OWNER" ? (
                     <span className={styles.vlasnikBadge}>
@@ -1650,7 +1748,7 @@ function WorkerTable({
                   {ROLE_LABELS[w.role] ?? w.role}
                 </span>
               </td>
-              <td className={styles.workerJmbg}>{w.jmbg ?? "—"}</td>
+              <td className={styles.workerJmbg}>{w.jmbg ?? "–"}</td>
               <td className={styles.dateRange}>{fmtDate(w.prijavaDate)}</td>
               <td className={styles.dateRange}>{fmtDate(w.odjavaDate)}</td>
               <td>

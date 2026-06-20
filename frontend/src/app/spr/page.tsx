@@ -5,7 +5,7 @@ const PAGE_URL = "https://poreznikalkulator.ba/spr";
 
 export const metadata: Metadata = {
   title:
-    "SPR-1053 obrazac — specifikacija dohotka od samostalne djelatnosti | Porezni Kalkulator BiH",
+    "SPR-1053 obrazac, specifikacija dohotka od samostalne djelatnosti | Porezni Kalkulator BiH",
   description:
     "Kako popuniti SPR-1053 obrazac? Online popuna obrasca za specifikaciju dohotka od obrta, slobodnih zanimanja i poljoprivrede u FBiH. Predaje se uz GPD-1051 do 31. marta. Preuzmite popunjeni PDF besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "SPR-1053 obrazac online — specifikacija dohotka FBiH",
+    title: "SPR-1053 obrazac online, specifikacija dohotka FBiH",
     description:
       "Online popuna SPR-1053 obrasca za samostalne djelatnosti u FBiH. Automatski obračun normiranih ili stvarnih rashoda, popunjen PDF spreman za predaju uz GPD-1051.",
   },
@@ -46,7 +46,7 @@ const faqSchema = {
       name: "Razlika između SPR i GPD obrasca?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "SPR-1053 je specifikacija koja prikazuje kako je ostvaren dohodak od samostalne djelatnosti — prihodi minus rashodi. GPD-1051 je godišnja prijava poreza koja objedinjuje sve izvore dohotka (uključujući i SPR) i izračunava konačnu poreznu obavezu.",
+        text: "SPR-1053 je specifikacija koja prikazuje kako je ostvaren dohodak od samostalne djelatnosti, prihodi minus rashodi. GPD-1051 je godišnja prijava poreza koja objedinjuje sve izvore dohotka (uključujući i SPR) i izračunava konačnu poreznu obavezu.",
       },
     },
     {
@@ -73,7 +73,7 @@ const howToSchema = {
   "@type": "HowTo",
   name: "Kako popuniti SPR-1053 obrazac",
   description:
-    "Korak-po-korak vodič za popunjavanje SPR-1053 obrasca u FBiH — specifikacija dohotka od samostalne djelatnosti za godišnju poreznu prijavu.",
+    "Korak-po-korak vodič za popunjavanje SPR-1053 obrasca u FBiH, specifikacija dohotka od samostalne djelatnosti za godišnju poreznu prijavu.",
   inLanguage: "bs",
   totalTime: "PT15M",
   step: [
@@ -87,7 +87,7 @@ const howToSchema = {
       "@type": "HowToStep",
       position: 2,
       name: "Unesite prihode i rashode",
-      text: "Iz poslovnih knjiga za prethodnu godinu. Sistem automatski obračunava razliku — oporezivi dohodak od samostalne djelatnosti.",
+      text: "Iz poslovnih knjiga za prethodnu godinu. Sistem automatski obračunava razliku, oporezivi dohodak od samostalne djelatnosti.",
     },
     {
       "@type": "HowToStep",

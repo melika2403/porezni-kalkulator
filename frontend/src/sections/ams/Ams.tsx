@@ -293,10 +293,10 @@ export default function AmsForm() {
       <div className={styles.header}>
         <p className={styles.label}>Obrazac AMS-1035</p>
         <h1 className={styles.h1}>
-          AMS-1035 obrazac — akontacija poreza po odbitku na <em>druge samostalne djelatnosti</em>
+          AMS-1035 obrazac, akontacija poreza po odbitku na <em>druge samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
-          Kako popuniti AMS-1035 obrazac? Brz i jednostavan AMS-1035 generator —
+          Kako popuniti AMS-1035 obrazac? Brz i jednostavan AMS-1035 generator, 
           u par koraka popunite obrazac za akontaciju poreza po odbitku na druge
           samostalne djelatnosti i prihod iz inostranstva. Kad kreirate obrazac
           dobijete i automatski popunjene uplatnice spremne za banku ili
@@ -307,7 +307,7 @@ export default function AmsForm() {
       {/* Dio 1 */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 1 — Podaci o <em>primaocu</em>
+          Dio 1, Podaci o <em>primaocu</em>
         </h2>
         <PersonFillSelect onFill={fillPersonal} />
         <div className={styles.fieldGrid}>
@@ -359,13 +359,13 @@ export default function AmsForm() {
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>5) Period — Mjesec</label>
+            <label className={styles.fieldLabel}>5) Period, Mjesec</label>
             <select
               className={styles.fieldInput}
               value={periodMjesec}
               onChange={(e) => setPeriodMjesec(e.target.value)}
             >
-              <option value="">— Odaberite mjesec —</option>
+              <option value="">– Odaberite mjesec –</option>
               <option value="01">Januar</option>
               <option value="02">Februar</option>
               <option value="03">Mart</option>
@@ -381,7 +381,7 @@ export default function AmsForm() {
             </select>
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>5) Period — Godina</label>
+            <label className={styles.fieldLabel}>5) Period, Godina</label>
             <input
               className={styles.fieldInput}
               inputMode="numeric"
@@ -399,7 +399,7 @@ export default function AmsForm() {
       {/* Dio 2 */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 2 — Podaci o <em>isplatiocu</em>
+          Dio 2, Podaci o <em>isplatiocu</em>
         </h2>
         <OrgFillSelect onFill={fillIsplatilac} />
         <div className={styles.fieldGrid}>
@@ -444,7 +444,7 @@ export default function AmsForm() {
       {/* Dio 3 */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 3 — Podaci o <em>prihodima, porezu i doprinosima</em>
+          Dio 3, Podaci o <em>prihodima, porezu i doprinosima</em>
         </h2>
 
         <div className={styles.sredstvaGrid}>
@@ -624,7 +624,7 @@ export default function AmsForm() {
       {/* Dio 4 */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 4 — <em>Izjava</em>
+          Dio 4, <em>Izjava</em>
         </h2>
         <p className={styles.izjavaText}>
           Upoznat sam sa sankcijama propisanim Zakonom o Poreznoj upravi i
@@ -671,10 +671,10 @@ export default function AmsForm() {
         </button>
       </div>
 
-      {/* Dio 5 — Uplatnice */}
+      {/* Dio 5, Uplatnice */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 5 — <em>Uplatnice</em>
+          Dio 5, <em>Uplatnice</em>
         </h2>
         <p className={styles.izjavaText}>
           Odaberite kanton i općinu te preuzmite tri popunjene uplatnice:
@@ -693,7 +693,7 @@ export default function AmsForm() {
                 setOpcina("");
               }}
             >
-              <option value="">— Odaberite kanton —</option>
+              <option value="">– Odaberite kanton –</option>
               {KANTON_KEYS.map((k) => (
                 <option key={k} value={k}>
                   {KANTONI[k].ime}
@@ -709,7 +709,7 @@ export default function AmsForm() {
               onChange={(e) => setOpcina(e.target.value)}
               disabled={!kanton}
             >
-              <option value="">— Odaberite općinu —</option>
+              <option value="">– Odaberite općinu –</option>
               {kantonData?.opcine.map((o) => (
                 <option key={o.kod} value={o.kod}>
                   {o.ime}
@@ -738,7 +738,7 @@ export default function AmsForm() {
             <span className={styles.uplCardNum}>1</span>
             <div>
               <div className={styles.uplCardTitle}>
-                Zdravstveno osiguranje — kanton
+                Zdravstveno osiguranje, kanton
               </div>
               <div className={styles.uplCardSub}>
                 {kantonData
@@ -756,7 +756,7 @@ export default function AmsForm() {
             <span className={styles.uplCardNum}>2</span>
             <div>
               <div className={styles.uplCardTitle}>
-                Zdravstveno osiguranje — FBiH
+                Zdravstveno osiguranje, FBiH
               </div>
               <div className={styles.uplCardSub}>
                 102-050-00000640-18 · ZZO FBiH
@@ -772,7 +772,7 @@ export default function AmsForm() {
             <span className={styles.uplCardNum}>3</span>
             <div>
               <div className={styles.uplCardTitle}>
-                Porez na dohodak — kantonalni budžet
+                Porez na dohodak, kantonalni budžet
               </div>
               <div className={styles.uplCardSub}>
                 {kantonData
@@ -822,15 +822,15 @@ export default function AmsForm() {
         </h2>
         <p>
           <strong>AMS-1035</strong> je obrazac kojim se prijavljuje{" "}
-          <em>akontacija poreza po odbitku na druge samostalne djelatnosti</em>{" "}
-          — porez koji se obračunava i uplaćuje na prihode fizičkih lica iz
+          <em>akontacija poreza po odbitku na druge samostalne djelatnosti</em>,{" "}
+          porez koji se obračunava i uplaćuje na prihode fizičkih lica iz
           inostranstva. Riječ je o prihodima od freelance rada, honorara,
           konsultantskih usluga, autorskih naknada i sličnih primanja gdje
           isplatilac nije na teritoriji Bosne i Hercegovine.
         </p>
         <p style={{ marginTop: "0.85rem" }}>
           Obavezni su ga podnijeti svi rezidenti FBiH koji primaju prihode iz
-          inostranstva — bilo da su freelanceri, konsultanti, predavači, autori
+          inostranstva, bilo da su freelanceri, konsultanti, predavači, autori
           ili drugi izvođači koji rade za naručioce van BiH (Upwork, Fiverr,
           direktni klijenti, evropski poslodavci, itd.).
         </p>
@@ -850,20 +850,20 @@ export default function AmsForm() {
         </p>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.8 }}>
           <li>
-            <strong>Normirani rashodi — 20%</strong> od bruto prihoda (30% za
+            <strong>Normirani rashodi, 20%</strong> od bruto prihoda (30% za
             autorske naknade); umanjuju poreznu osnovicu.
           </li>
           <li>
-            <strong>Doprinos za zdravstveno osiguranje — 4%</strong> na osnovicu
+            <strong>Doprinos za zdravstveno osiguranje, 4%</strong> na osnovicu
             (drugi samostalni prihod), bez obzira na to da li ste već zdravstveno
             osigurani po osnovu radnog odnosa.
           </li>
           <li>
-            <strong>Porez na dohodak — 10%</strong> na osnovicu nakon
+            <strong>Porez na dohodak, 10%</strong> na osnovicu nakon
             umanjenja za normirane rashode i doprinose.
           </li>
           <li>
-            <strong>Porezni kredit</strong> — porez već plaćen u inostranstvu na
+            <strong>Porezni kredit</strong>, porez već plaćen u inostranstvu na
             isti prihod odbija se od obaveze u FBiH (sporazumi o izbjegavanju
             dvostrukog oporezivanja).
           </li>
@@ -881,12 +881,12 @@ export default function AmsForm() {
         </h2>
         <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Unesite lične podatke i podatke o isplati</strong> — ime,
+            <strong>Unesite lične podatke i podatke o isplati</strong>, ime,
             prezime, JMB, adresa, datum primitka i bruto iznos sa konverzijom u
             KM po važećem kursu CBBiH na dan primitka.
           </li>
           <li>
-            <strong>Sistem obračunava poreznu osnovicu i obavezu</strong> —
+            <strong>Sistem obračunava poreznu osnovicu i obavezu</strong>, 
             normirani rashodi 20% (ili 30% za autorske naknade), zdravstveno
             osiguranje 4%, porez na dohodak 10%. Ako ste već platili porez u
             inostranstvu, unesite ga u polje poreznog kredita.
@@ -911,7 +911,7 @@ export default function AmsForm() {
         <p style={{ marginTop: "0.85rem" }}>
           Predaja se može izvršiti <strong>elektronski</strong> putem ePortala
           PU FBiH (ako posjedujete kvalifikovani digitalni certifikat) ili{" "}
-          <strong>fizički</strong> — obrazac u 2 primjerka uz pripadajuće
+          <strong>fizički</strong>, obrazac u 2 primjerka uz pripadajuće
           uplatnice se nosi u poreznu ispostavu, gdje šalter potvrđuje prijem
           i daje pečat.
         </p>
@@ -931,13 +931,13 @@ export default function AmsForm() {
             muzička, filmska, likovna ostvarenja) stopa je <strong>30%</strong>.
           </li>
           <li>
-            <strong>Doprinos za zdravstveno osiguranje 4%</strong> — plaća se
+            <strong>Doprinos za zdravstveno osiguranje 4%</strong>, plaća se
             na svaki dohodak od samostalne djelatnosti, bez obzira na to da li
             ste već zdravstveno osigurani po osnovu radnog odnosa. Split: 89,8%
             kantonalni / 10,2% federalni.
           </li>
           <li>
-            <strong>Porez na dohodak 10%</strong> — obračunava se na poreznu
+            <strong>Porez na dohodak 10%</strong>, obračunava se na poreznu
             osnovicu (bruto − normirani rashodi − doprinos zdravstvenog).
           </li>
         </ul>
@@ -956,21 +956,21 @@ export default function AmsForm() {
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
             <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              GPD-1051 — godišnja prijava poreza na dohodak
-            </a>{" "}
-            — svi prihodi prijavljeni kroz AMS-1035 ulaze u godišnju prijavu.
+              GPD-1051, godišnja prijava poreza na dohodak
+            </a>,{" "}
+            svi prihodi prijavljeni kroz AMS-1035 ulaze u godišnju prijavu.
           </li>
           <li>
             <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Preračun neto/bruto plate
-            </a>{" "}
-            — provjera obračunatih poreza i doprinosa za radnike.
+            </a>,{" "}
+            provjera obračunatih poreza i doprinosa za radnike.
           </li>
           <li>
             <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Uplatni računi javnih prihoda
-            </a>{" "}
-            — svi računi i šifre za uplate poreza i doprinosa.
+            </a>,{" "}
+            svi računi i šifre za uplate poreza i doprinosa.
           </li>
         </ul>
       </section>
@@ -981,19 +981,19 @@ export default function AmsForm() {
           {[
             {
               q: "Ko je obavezan podnositi AMS-1035 obrazac?",
-              a: "AMS-1035 obrazac obavezno podnosi svaka fizička osoba rezident FBiH koja prima prihode od obavljanja djelatnosti iz inostranstva — npr. freelance rad, honorari, konsultantske usluge i slično — a isplatilac nije na teritoriji Bosne i Hercegovine.",
+              a: "AMS-1035 obrazac obavezno podnosi svaka fizička osoba rezident FBiH koja prima prihode od obavljanja djelatnosti iz inostranstva, npr. freelance rad, honorari, konsultantske usluge i slično, a isplatilac nije na teritoriji Bosne i Hercegovine.",
             },
             {
               q: "Koji je rok za predaju AMS-1035 obrasca?",
               a: "Obrazac se predaje u roku od 5 (pet) dana od dana primitka dohotka. Dakle, ako ste novac primili 10. u mjesecu, obrazac ste dužni predati do 15. istog mjeseca u nadležnu ispostavu Porezne uprave FBiH prema mjestu prebivališta fizičkog lica.",
             },
             {
-              q: "Kolika je stopa rashoda — 20% ili 30%?",
+              q: "Kolika je stopa rashoda, 20% ili 30%?",
               a: "Standardna stopa normiranih rashoda iznosi 20% od bruto iznosa. Stopa od 30% primjenjuje se isključivo na autorske naknade (npr. književna, muzička, filmska ili likovna ostvarenja). Ukoliko niste sigurni, konzultirajte nadležnog poreznog savjetnika.",
             },
             {
               q: "Šta je porezni kredit i kada ga koristim?",
-              a: "Porezni kredit je iznos poreza koji ste već platili u inostranstvu na isti prihod. Na osnovu međunarodnih sporazuma o izbjegavanju dvostrukog oporezivanja, taj iznos možete odbititi od obaveze u FBiH. Unesite tačan iznos u polje 13 — razlika za uplatu u BiH biće smanjena.",
+              a: "Porezni kredit je iznos poreza koji ste već platili u inostranstvu na isti prihod. Na osnovu međunarodnih sporazuma o izbjegavanju dvostrukog oporezivanja, taj iznos možete odbititi od obaveze u FBiH. Unesite tačan iznos u polje 13, razlika za uplatu u BiH biće smanjena.",
             },
             {
               q: "Da li moram platiti zdravstveno osiguranje čak i kad već imam zaposlenje?",

@@ -302,7 +302,7 @@ export default function OtvaranjeObrtaFbih() {
         >
           Obrtnička komora TK
         </a>
-        , Zakon o obrtu FBiH, Zakon o porezu na dohodak FBiH (čl. 12, 19, 31),
+        – Zakon o obrtu FBiH, Zakon o porezu na dohodak FBiH (čl. 12, 19, 31),
         Zakon o doprinosima FBiH (čl. 6 i 9). Iznosi taksi su za Kanton
         Sarajevo i variraju po općinama.
       </p>

@@ -920,8 +920,8 @@ export default function InvoiceForm() {
                 {templates.length}{" "}
                 {templates.length === 1
                   ? "snimljen šablon"
-                  : "snimljenih šablona"}{" "}
-                — klikni 📋 na stavci
+                  : "snimljenih šablona"},{" "}
+                klikni 📋 na stavci
               </span>
             )}
           </div>
@@ -1217,7 +1217,7 @@ export default function InvoiceForm() {
         </div>
       </form>
 
-      {/* Portal-ovan template picker — izbjegava clipping unutar tabele */}
+      {/* Portal-ovan template picker, izbjegava clipping unutar tabele */}
       {tplPickerForRow !== null &&
         tplPickerCoords &&
         typeof document !== "undefined" &&

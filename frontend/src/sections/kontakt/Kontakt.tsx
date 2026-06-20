@@ -26,7 +26,7 @@ export default function Kontakt() {
           Javite nam <em>se</em>
         </h1>
         <p className={styles.lead}>
-          Imate pitanje, prijedlog ili ste pronašli grešku? Pišite nam —
+          Imate pitanje, prijedlog ili ste pronašli grešku? Pišite nam, 
           odgovaramo u roku od 24 sata.
         </p>
       </div>

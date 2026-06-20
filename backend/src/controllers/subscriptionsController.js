@@ -1,6 +1,15 @@
 const jwt = require("jsonwebtoken");
+const { Op } = require("sequelize");
 const subscriptionRepository = require("../repositories/subscriptionRepository");
 const userRepository = require("../repositories/userRepository");
+const {
+  Subscription,
+  Invoice,
+  OrganizationMember,
+  Organization,
+  Predracun,
+} = require("../models/index");
+const { PLANS, getPlan, planFromRole } = require("../config/plans");
 
 function setAuthCookieWithRole(res, userId, role) {
   const secret = process.env.JWT_SECRET;
@@ -166,4 +175,206 @@ async function remove(req, res) {
   res.status(200).json({ ok: true });
 }
 
-module.exports = { upsert, remove, startTrial };
+// ─── /api/subscription (current user) ──────────────────────────────────────
+
+async function computeUsage(userId) {
+  const ownedOrgs = await OrganizationMember.count({
+    where: { userId, role: "OWNER" },
+    include: [{ model: Organization, as: "organization", where: { isClientOrg: false }, attributes: ["id"] }],
+  });
+
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const transactionsThisMonth = await Invoice.count({
+    where: { userId, createdAt: { [Op.gte]: monthStart } },
+  });
+
+  return {
+    organizations: ownedOrgs,
+    transactionsThisMonth,
+    users: 1,
+  };
+}
+
+async function ensureSubscription(userId, role) {
+  let sub = await Subscription.findOne({ where: { userId } });
+  const planKey = planFromRole(role);
+
+  if (!sub) {
+    const start = new Date();
+    const end = new Date(start);
+    end.setFullYear(end.getFullYear() + 100); // free = "forever"
+    sub = await Subscription.create({
+      userId,
+      startDate: start,
+      endDate: end,
+      isActive: planKey !== "free" ? true : true,
+      plan: planKey,
+      status: "active",
+    });
+    return sub;
+  }
+
+  // Sinhroniziraj plan iz role-a ako se razlikuje
+  if (sub.plan !== planKey) {
+    sub.plan = planKey;
+    await sub.save();
+  }
+  return sub;
+}
+
+function buildSubscriptionResponse(sub, plan, usage) {
+  return {
+    id: sub.id,
+    plan: sub.plan,
+    status: sub.status,
+    billingCycle: sub.billingCycle,
+    isActive: sub.isActive,
+    currentPeriodStart: sub.startDate,
+    currentPeriodEnd: sub.endDate,
+    cancelAtPeriodEnd: !!sub.cancelAtPeriodEnd,
+    cancelledAt: sub.cancelledAt,
+    limits: plan.limits,
+    usage,
+  };
+}
+
+async function getCurrent(req, res) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+
+  const user = await userRepository.getUserById(userId);
+  if (!user) return res.status(404).json({ ok: false, error: "User not found" });
+
+  const sub = await ensureSubscription(userId, user.role);
+  const plan = getPlan(sub.plan);
+  const usage = await computeUsage(userId);
+
+  return res.json({ ok: true, data: buildSubscriptionResponse(sub, plan, usage) });
+}
+
+async function listPlans(_req, res) {
+  return res.json({ ok: true, data: Object.values(PLANS) });
+}
+
+async function listInvoices(req, res) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
+
+  const { count, rows } = await Predracun.findAndCountAll({
+    where: { userId },
+    order: [["createdAt", "DESC"]],
+    limit,
+    offset,
+  });
+
+  const data = rows.map((p) => ({
+    id: p.id,
+    invoiceNumber: p.fullNumber,
+    amount: p.grossAmount,
+    currency: "BAM",
+    status: p.status === "PAID" ? "paid" : p.status === "CANCELLED" ? "refunded" : "pending",
+    invoiceDate: p.issueDate,
+    dueDate: p.dueDate,
+    plan: p.plan,
+    pdfUrl: null,
+  }));
+
+  return res.json({
+    ok: true,
+    data: { items: data, total: count, page, limit },
+  });
+}
+
+async function changePlan(req, res) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+
+  const { plan, billing_cycle, billingCycle } = req.body ?? {};
+  const cycle = billingCycle || billing_cycle;
+
+  if (!["free", "pro", "business"].includes(plan)) {
+    return res.status(400).json({ ok: false, error: "INVALID_PLAN" });
+  }
+  if (cycle && !["monthly", "yearly"].includes(cycle)) {
+    return res.status(400).json({ ok: false, error: "INVALID_BILLING_CYCLE" });
+  }
+
+  const user = await userRepository.getUserById(userId);
+  if (!user) return res.status(404).json({ ok: false, error: "User not found" });
+
+  const newRole = plan === "pro" ? "PRO" : plan === "business" ? "BUSINESS" : "USER";
+  await userRepository.updateUserById(userId, { role: newRole });
+
+  const sub = await ensureSubscription(userId, newRole);
+  sub.plan = plan;
+  sub.status = "active";
+  sub.cancelAtPeriodEnd = false;
+  sub.cancelledAt = null;
+  if (cycle) sub.billingCycle = cycle;
+  sub.isActive = true;
+  await sub.save();
+
+  // Reissue JWT s novom rolom
+  setAuthCookieWithRole(res, userId, newRole);
+
+  const planConfig = getPlan(plan);
+  const usage = await computeUsage(userId);
+  return res.json({ ok: true, data: buildSubscriptionResponse(sub, planConfig, usage) });
+}
+
+async function cancelCurrent(req, res) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+
+  const sub = await Subscription.findOne({ where: { userId } });
+  if (!sub) return res.status(404).json({ ok: false, error: "NO_SUBSCRIPTION" });
+  if (sub.plan === "free") {
+    return res.status(400).json({ ok: false, error: "CANNOT_CANCEL_FREE" });
+  }
+
+  sub.cancelAtPeriodEnd = true;
+  sub.cancelledAt = new Date();
+  await sub.save();
+
+  const user = await userRepository.getUserById(userId);
+  const plan = getPlan(sub.plan);
+  const usage = await computeUsage(userId);
+  return res.json({ ok: true, data: buildSubscriptionResponse(sub, plan, usage) });
+}
+
+async function reactivateCurrent(req, res) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+
+  const sub = await Subscription.findOne({ where: { userId } });
+  if (!sub) return res.status(404).json({ ok: false, error: "NO_SUBSCRIPTION" });
+
+  sub.cancelAtPeriodEnd = false;
+  sub.cancelledAt = null;
+  sub.status = "active";
+  sub.isActive = true;
+  await sub.save();
+
+  const plan = getPlan(sub.plan);
+  const usage = await computeUsage(userId);
+  return res.json({ ok: true, data: buildSubscriptionResponse(sub, plan, usage) });
+}
+
+module.exports = {
+  upsert,
+  remove,
+  startTrial,
+  getCurrent,
+  listPlans,
+  listInvoices,
+  changePlan,
+  cancelCurrent,
+  reactivateCurrent,
+};

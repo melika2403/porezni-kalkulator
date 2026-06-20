@@ -6,16 +6,16 @@ const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-pozajmici";
 
 export const metadata: Metadata = {
   title:
-    "Ugovor o pozajmici novca — predložak i online popuna | Porezni Kalkulator BiH",
+    "Ugovor o pozajmici novca, predložak i online popuna | Porezni Kalkulator BiH",
   description:
-    "Kreirajte pravno validan ugovor o pozajmici novca između fizičkih ili pravnih lica u BiH — iznos, kamata, rok, uslovi. Preuzmite gotov ugovor u PDF ili Word formatu, besplatno.",
+    "Kreirajte pravno validan ugovor o pozajmici novca između fizičkih ili pravnih lica u BiH, iznos, kamata, rok, uslovi. Preuzmite gotov ugovor u PDF ili Word formatu, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Ugovor o pozajmici novca — online predložak BiH",
+    title: "Ugovor o pozajmici novca, online predložak BiH",
     description:
       "Online generator ugovora o pozajmici novca. PDF i Word formati, sa svim obaveznim klauzulama.",
   },
@@ -46,7 +46,7 @@ const faqSchema = {
       name: "Da li kamata mora biti ugovorena?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Ne, kamata nije obavezna — stranke mogu dogovoriti beskamatnu pozajmicu. Ukoliko se radi o pozajmici između pravnih osoba ili između pravne i fizičke osobe, Porezna uprava može primijeniti tržišnu kamatnu stopu radi izbjegavanja prikrivenih distribucija dobiti.",
+        text: "Ne, kamata nije obavezna, stranke mogu dogovoriti beskamatnu pozajmicu. Ukoliko se radi o pozajmici između pravnih osoba ili između pravne i fizičke osobe, Porezna uprava može primijeniti tržišnu kamatnu stopu radi izbjegavanja prikrivenih distribucija dobiti.",
       },
     },
     {

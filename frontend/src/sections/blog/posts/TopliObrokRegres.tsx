@@ -340,8 +340,8 @@ export default function TopliObrokRegres() {
           rel="noopener noreferrer"
         >
           Unija ETL: Neoporezive naknade u FBiH
-        </a>
-        , Zakon o radu FBiH (čl. 67, 71), Pravilnik o primjeni Zakona o
+        </a>,
+        Zakon o radu FBiH (čl. 67, 71), Pravilnik o primjeni Zakona o
         porezu na dohodak FBiH. Iznosi propisani prema posljednjim podacima
         Federalnog zavoda za statistiku.
       </p>

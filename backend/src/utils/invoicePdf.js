@@ -378,7 +378,7 @@ async function generateInvoicePdf(invoice, opts = {}) {
     drawRight(fmt3(it.quantity), COL_KOL, y, { size: 9 });
     drawRight(fmt4(it.unitPrice), COL_CIJ, y, { size: 9 });
     drawRight(fmt2(it.discountPct), COL_RAB, y, { size: 9 });
-    drawRight(invoice.applyVat ? fmt2(it.vatPct) : "—", COL_PDV, y, { size: 9 });
+    drawRight(invoice.applyVat ? fmt2(it.vatPct) : "–", COL_PDV, y, { size: 9 });
     drawRight(fmt2(computed.netLine), COL_BRUTO, y, { size: 9 });
 
     y -= rowH;
@@ -433,7 +433,7 @@ async function generateInvoicePdf(invoice, opts = {}) {
     yS -= 11;
     drawText("(Sl. glasnik BiH, broj 9/05 i 35/05)", ML, yS, { size: 8, color: grey });
   } else {
-    drawText("Obveznik nije u sistemu PDV-a — PDV nije obračunat.", ML, yS, { size: 8, color: grey });
+    drawText("Obveznik nije u sistemu PDV-a, PDV nije obračunat.", ML, yS, { size: 8, color: grey });
   }
 
   // ── Notes ──────────────────────────────────────────────────────────────

@@ -117,7 +117,7 @@ export default function GeneratePaywall({
       <div className={styles.icon}>🔒</div>
       <div className={styles.text}>
         <strong>{what}</strong> dostupno je uz <strong>Pro</strong> ili{" "}
-        <strong>Business</strong> pretplatu. Vaši uneseni podaci se čuvaju —
+        <strong>Business</strong> pretplatu. Vaši uneseni podaci se čuvaju, 
         kada aktivirate pretplatu, samo kliknite preuzmi.
       </div>
       <Link href="/pretplate" className={styles.btn}>

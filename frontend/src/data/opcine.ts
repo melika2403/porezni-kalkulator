@@ -145,7 +145,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
       { name: "Trnovo (FBiH)", kod: "093", postalCode: "71223", banka: "Union banka d.d.", racuni: ["102-839-0000014-396"] },
       { name: "Novi Grad Sarajevo", kod: "108", postalCode: "71000", banka: "UniCredit Bank d.d.", racuni: ["338-000-2210032-552"] },
       { name: "Stari Grad Sarajevo", kod: "109", postalCode: "71000", banka: "Privredna banka Sarajevo d.d.", racuni: ["101-000-0071133-630"] },
-      { name: "Grad Sarajevo", kod: "—", postalCode: "71000", banka: "Raiffeisen Bank d.d. BiH", racuni: ["161-000-0017920-082"] },
+      { name: "Grad Sarajevo", kod: "–", postalCode: "71000", banka: "Raiffeisen Bank d.d. BiH", racuni: ["161-000-0017920-082"] },
     ],
   },
   {

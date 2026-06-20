@@ -34,6 +34,10 @@ export interface UodUplatniceData {
   datum: string;          // ISO yyyy-mm-dd
   periodMjesec: string;   // "01"–"12"
   periodGodina: string;   // "2026"
+
+  // Nerezident: samo 3 uplatnice (porez 716116 + voda 722582 + nepogode 722582);
+  // bez zdravstva i PIO. `zastita` se tada koristi kao naknada za nepogode.
+  nerezident?: boolean;
 }
 
 export async function fillUodUplatnice(data: UodUplatniceData): Promise<Uint8Array> {
@@ -57,7 +61,31 @@ export async function fillUodUplatnice(data: UodUplatniceData): Promise<Uint8Arr
     racunPrim: string;
     iznos: number;
     vrstaProhoda: string;
-  }> = [
+  }> = data.nerezident
+    ? [
+        {
+          svrha: "Porez na dohodak (nerezident)",
+          primatelj: ["Budžet " + kanton.genitiv],
+          racunPrim: kanton.budzet,
+          iznos: data.porez,
+          vrstaProhoda: "716116",
+        },
+        {
+          svrha: "Opšta vodna naknada",
+          primatelj: ["Budžet " + kanton.genitiv],
+          racunPrim: kanton.budzet,
+          iznos: data.voda,
+          vrstaProhoda: "722582",
+        },
+        {
+          svrha: "Posebna naknada za zaštitu od prirodnih i drugih nesreća",
+          primatelj: ["Budžet " + kanton.genitiv],
+          racunPrim: kanton.budzet,
+          iznos: data.zastita,
+          vrstaProhoda: "722582",
+        },
+      ]
+    : [
     {
       svrha: "Doprinos za zdravstveno osiguranje po ugovoru o djelu",
       primatelj: ["Zavod zdravstvenog osiguranja", kanton.genitiv],

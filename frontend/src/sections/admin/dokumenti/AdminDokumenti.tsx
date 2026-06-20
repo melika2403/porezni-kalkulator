@@ -94,7 +94,7 @@ export default function AdminDokumenti() {
           </div>
         </div>
 
-        {/* Sažetak po tipu — klik filtrira */}
+        {/* Sažetak po tipu, klik filtrira */}
         {(data?.byType?.length ?? 0) > 0 && (
           <div className={styles.chips}>
             {data!.byType.map((t) => (
@@ -232,11 +232,11 @@ function FormRow({ form: f }: { form: AdminFormItem }) {
           <>
             <div className={styles.creatorName}>{f.creator.name}</div>
             <div className={styles.creatorSub}>
-              {f.organization?.name || f.creator.email || "—"}
+              {f.organization?.name || f.creator.email || "–"}
             </div>
           </>
         ) : (
-          <span className={styles.creatorSub}>—</span>
+          <span className={styles.creatorSub}>–</span>
         )}
       </td>
       <td className={styles.dateCell}>

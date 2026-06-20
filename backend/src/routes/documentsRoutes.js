@@ -11,7 +11,7 @@ const router = express.Router();
 // JS3100 forms for that org). Without orgId, we fall back to the caller's role.
 const RESTRICTED_TYPES = {
   JS3100: ["PRO", "BUSINESS", "ADMIN"],
-  UOD: ["BUSINESS", "ADMIN"], // Ugovor o djelu — BUSINESS-only (Faza 3)
+  UOD: ["BUSINESS", "ADMIN"], // Ugovor o djelu, BUSINESS-only (Faza 3)
 };
 
 async function guardRestrictedType(req, res, next) {

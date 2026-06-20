@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import InvoiceForm from "src/sections/fakture/InvoiceForm";
 import FaktureEdu from "src/sections/fakture/FaktureEdu";
 
-const TITLE = "Nova faktura ili predračun — kreiraj online | Porezni Kalkulator BiH";
+const TITLE = "Nova faktura ili predračun, kreiraj online | Porezni Kalkulator BiH";
 const DESC =
   "Napravi fakturu, predračun, profakturu ili račun u par klikova: stavke, rabat, PDV (17%), podaci prodavca i kupca, automatska numeracija i izvoz u PDF.";
 

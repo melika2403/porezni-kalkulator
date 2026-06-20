@@ -118,8 +118,8 @@ export default function UgovorDjeluVsRadu() {
         djelatnosti. Detalji su u našem članku{" "}
         <Link href="/blog/kako-se-racuna-neto-plata-fbih">
           Kako se računa neto plata u FBiH
-        </Link>
-        , ali ukratko:
+        </Link>,
+        ali ukratko:
       </p>
       <ul>
         <li>

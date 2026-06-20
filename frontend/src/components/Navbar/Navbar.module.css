@@ -11,6 +11,23 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Desktop: centriraj srednju nav grupu u stvarni centar viewporta, neovisno o
+   širini logo (lijevo) i actions (desno) grupa. Troslojni grid (1fr auto 1fr)
+   drži .links centriran čak i kad actions naraste (npr. dugme "PK Office").
+   Mobilni (<=640px) ostaje na baznom flex-u gdje se .links sakriva. */
+@media (min-width: 641px) {
+  .nav {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+  }
+  .logo {
+    justify-self: start;
+  }
+  .actions {
+    justify-self: end;
+  }
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -461,6 +478,50 @@
   color: var(--sage);
 }
 
+/* Dugme (Odjavi se) u drawer listi, izgleda kao .mobileItem ali je <button>. */
+.mobileItemButton {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.btnApp {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px 8px 12px;
+  border-radius: var(--radius);
+  background: var(--sage);
+  color: #fff !important;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid var(--sage);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.btnApp:hover {
+  background: var(--sage-light);
+}
+
+.btnApp svg {
+  flex-shrink: 0;
+}
+
+.btnAppArrow {
+  transition: transform 0.18s ease;
+}
+
+.btnApp:hover .btnAppArrow {
+  transform: translateX(2px);
+}
+
 @media (max-width: 640px) {
   .nav {
     padding: 0 1rem;
@@ -468,48 +529,38 @@
   .links {
     display: none;
   }
+  /* Account akcije (Organizacije, profil, odjava, dodaj djelatnost) prelaze u
+     hamburger drawer (sekcija "Tvoj nalog"), pa gornja traka ostaje
+     rasterećena. PK Office dugme ostaje vidljivo kao primarna akcija. */
+  .hideOnMobile {
+    display: none !important;
+  }
+  /* Raspored trake: logo lijevo, pa PK Office dugme + hamburger grupisani
+     desno (logo margin-right:auto gura ostatak udesno; order stavlja
+     hamburger skroz desno, iza PK Office dugmeta). */
+  .logo {
+    margin-right: auto;
+  }
+  .actions {
+    order: 1;
+    gap: 0.4rem;
+    margin-right: 0.5rem;
+  }
   .hamburger {
     display: inline-flex;
+    order: 2;
   }
-  /* Skupi actions područje: smanji gap-ove i ukloni tekst iz pill-a/chip-a
-     da bi "Odjavi se" dugme stalo na ekran. Ikonice i avatar ostaju vidljivi
-     pa user ne gubi navigaciju. */
-  .actions {
-    gap: 0.4rem;
+  /* PK Office dugme: kompaktnije, bez trailing strelice. */
+  .btnApp {
+    padding: 7px 11px;
   }
-  /* Organizacije link — samo ikonica, bez teksta. */
-  .orgsLink {
-    padding: 6px 9px;
-    font-size: 0;
-    gap: 0;
-  }
-  .orgsLink svg {
-    width: 16px;
-    height: 16px;
-  }
-  /* User chip — sakrij ime, ostavi avatar. */
-  .userName {
+  .btnAppArrow {
     display: none;
   }
-  .userChip {
-    padding: 4px;
-  }
-  /* Odjavi se i sl. — manje paddinga. */
+  /* Prijavi se / Registruj se (odjavljeni korisnik) ostaju u traci. */
   .btnGhost,
   .btnPrimary {
     padding: 7px 11px;
-    font-size: 13px;
-  }
-  /* "Dodaj djelatnost" CTA — sakrij tekst, ostavi + ikonicu da ne tjera
-     ostale dugmiće sa ekrana. */
-  .addOrgHint {
-    padding: 6px 10px;
-    font-size: 0;
-    gap: 0;
-  }
-  .addOrgHint .addOrgIcon {
-    width: 16px;
-    height: 16px;
     font-size: 13px;
   }
 }

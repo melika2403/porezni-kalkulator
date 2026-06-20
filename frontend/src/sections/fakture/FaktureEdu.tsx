@@ -81,25 +81,25 @@ export default function FaktureEdu() {
         </h2>
         <ul>
           <li>
-            <strong>Faktura (račun)</strong> — porezni dokument, evidentira
+            <strong>Faktura (račun)</strong>, porezni dokument, evidentira
             se u KIF/KUF, izaziva PDV obavezu.
           </li>
           <li>
-            <strong>Predračun</strong> — ponuda za uplatu unaprijed, nije
+            <strong>Predračun</strong>, ponuda za uplatu unaprijed, nije
             porezni dokument, ne ulazi u PDV evidenciju. Najčešće se izdaje
             kada kupac plaća prije isporuke.
           </li>
           <li>
-            <strong>Profaktura</strong> — sinonim za predračun. Često se
+            <strong>Profaktura</strong>, sinonim za predračun. Često se
             koristi u međunarodnoj trgovini.
           </li>
           <li>
-            <strong>Predujam (avansni račun)</strong> — porezni dokument za
+            <strong>Predujam (avansni račun)</strong>, porezni dokument za
             uplaćenu akontaciju. Izdaje se po prijemu uplate, sa pripadajućim
             PDV-om koji ulazi u tekuću prijavu.
           </li>
           <li>
-            <strong>Storno fakture</strong> — dokument kojim se anulira
+            <strong>Storno fakture</strong>, dokument kojim se anulira
             ranije izdana faktura (npr. zbog povrata robe). Mora imati
             referencu na originalnu fakturu.
           </li>
@@ -116,7 +116,7 @@ export default function FaktureEdu() {
             Profaktura.
           </li>
           <li>
-            <strong>Odaberite svoju djelatnost</strong> kao prodavca —
+            <strong>Odaberite svoju djelatnost</strong> kao prodavca, 
             podaci (naziv, adresa, ID, PDV broj, žiro račun) auto-popunjavaju
             se iz profila.
           </li>
@@ -130,12 +130,12 @@ export default function FaktureEdu() {
             PDV (17%) i ukupan iznos.
           </li>
           <li>
-            <strong>Provjerite numeraciju</strong> — automatski je uzlazna po
+            <strong>Provjerite numeraciju</strong>, automatski je uzlazna po
             godini i tipu dokumenta. Možete ručno postaviti broj ako
             započinjete iz neke postojeće serije.
           </li>
           <li>
-            <strong>Snimite i preuzmite PDF</strong> — uz Pro pretplatu PDF
+            <strong>Snimite i preuzmite PDF</strong>, uz Pro pretplatu PDF
             se generiše i čuva u arhivi, spreman za slanje klijentu
             mailom ili štampu.
           </li>
@@ -172,7 +172,7 @@ export default function FaktureEdu() {
         <p>
           Ne. Ako niste registrovani kao PDV obveznik kod UINO, ne smijete
           obračunavati ni iskazivati PDV na fakturi. Na profilu označite da
-          niste PDV obveznik — aplikacija će izdati faktu bez PDV-a sa
+          niste PDV obveznik, aplikacija će izdati faktu bez PDV-a sa
           napomenom &quot;Nije iskazan PDV po članu 44. Zakona o PDV-u&quot;.
         </p>
 
@@ -190,7 +190,7 @@ export default function FaktureEdu() {
         </p>
         <p>
           Numeracija se resetuje 1. januara i prati format koji odaberete
-          (npr. <code>2026-001</code>, <code>F-001/2026</code>,{" "}
+          (npr. <code>2026-001</code>–<code>F-001/2026</code>,{" "}
           <code>001-2026</code>). Aplikacija automatski uzima sljedeći
           slobodni broj po vašoj djelatnosti i tipu dokumenta.
         </p>
@@ -200,7 +200,7 @@ export default function FaktureEdu() {
         </p>
         <p>
           Da. Nakon kreiranja fakture možete je poslati emailom klijentu
-          direktno iz arhive — PDF se prikači kao attachment, sa standardnim
+          direktno iz arhive, PDF se prikači kao attachment, sa standardnim
           tekstom koji možete editovati.
         </p>
 
@@ -208,7 +208,7 @@ export default function FaktureEdu() {
           <strong>Šta sa storno fakturama i ispravkama?</strong>
         </p>
         <p>
-          Možete kreirati storno fakturu koja referencira originalnu —
+          Možete kreirati storno fakturu koja referencira originalnu, 
           aplikacija povezuje dva dokumenta i prikazuje u arhivi pored
           originalne fakture. Za ispravke izdajte novu fakturu s referencom
           na originalnu.

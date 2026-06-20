@@ -70,31 +70,43 @@ function downloadPdf(bytes: Uint8Array, filename: string) {
 
 /* ── Stručna sprema opcije — Drugi dio red 11 i Treći dio red 4 ── */
 const STRUCNA_SPREMA = [
-  "DR — Doktor nauka",
-  "MR — Magistar",
-  "VSS — Visoka stručna sprema",
-  "VŠS — Viša stručna sprema",
-  "SSS — Srednja stručna sprema",
+  "DR, Doktor nauka",
+  "MR, Magistar",
+  "VSS, Visoka stručna sprema",
+  "VŠS, Viša stručna sprema",
+  "SSS, Srednja stručna sprema",
   "Niža",
-  "VKV — Visokokvalifikovani",
-  "KV — Kvalifikovani",
-  "PK — Polukvalifikovani",
-  "NK — Nekvalifikovani",
+  "VKV, Visokokvalifikovani",
+  "KV, Kvalifikovani",
+  "PK, Polukvalifikovani",
+  "NK, Nekvalifikovani",
 ];
 
 /* ── Osnov osiguranja opcije (Check Box2..11) ── */
 const OSNOV_OSIGURANJA = [
-  "Zaposleni — puno radno vrijeme",
-  "Zaposleni — nepuno radno vrijeme",
+  "Zaposleni, puno radno vrijeme",
+  "Zaposleni, nepuno radno vrijeme",
   "Direktor / član uprave",
   "Vlasnik obrta",
   "Stručno osposobljavanje",
   "Sezonski radnik",
-  "Penzioner — povratak na rad",
-  "Stranac — radna dozvola",
+  "Penzioner, povratak na rad",
+  "Stranac, radna dozvola",
   "Ostalo 1",
   "Ostalo 2",
 ];
+
+// Stariji radnici mogu imati spremljen opis sa starim em dash razdvajanjem
+// ("Zaposleni [em dash] puno..."); normalizuj na trenutni zarez oblik da se
+// poklopi sa OSNOV_OSIGURANJA opcijom, inače bi select ostao prazan.
+const EM_DASH = String.fromCharCode(0x2014);
+const normalizeOsnovOpis = (s: string) =>
+  s.includes(EM_DASH)
+    ? s
+        .split(EM_DASH)
+        .map((x) => x.trim())
+        .join(", ")
+    : s;
 
 /* ── Component ── */
 //
@@ -314,10 +326,11 @@ function Js3100App() {
       // Osnov osiguranja i zanimanje — prvo iz spremljenih worker polja (prijava
       // ih je zapamtila), pa fallback na default/poziciju. Tako odjava povuče
       // iste podatke kao prijava bez ručnog ponovnog unosa.
-      osnovOsiguranjaOpis:
+      osnovOsiguranjaOpis: normalizeOsnovOpis(
         w.osnovOsiguranjaOpis ||
-        p.osnovOsiguranjaOpis ||
-        "Zaposleni — puno radno vrijeme",
+          p.osnovOsiguranjaOpis ||
+          "Zaposleni, puno radno vrijeme",
+      ),
       osnovOsiguranjaSifra: w.osnovOsiguranjaSifra || p.osnovOsiguranjaSifra || "01",
       zanimanjeOpis: w.zanimanjeOpis ?? w.position ?? p.zanimanjeOpis,
       zanimanjeSifra: w.zanimanjeSifra ?? p.zanimanjeSifra,
@@ -574,7 +587,7 @@ function Js3100App() {
               Prijava / Odjava <em>radnika</em>
             </h1>
             <p className={styles.subtitle}>
-              Jedinstveni sistem registracije, kontrole i naplate doprinosa —
+              Jedinstveni sistem registracije, kontrole i naplate doprinosa, 
               JS3100. Odaberite radnika u sidebar-u za auto-popunu.
             </p>
           </div>
@@ -642,10 +655,10 @@ function Js3100App() {
               </div>
             </section>
 
-            {/* ── Prvi dio — Obveznik ── */}
+            {/* ── Prvi dio, Obveznik ── */}
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>
-                Prvi dio — Podaci o <em>obvezniku uplate doprinosa</em>
+                Prvi dio, Podaci o <em>obvezniku uplate doprinosa</em>
               </h2>
               <OrgFillSelect onFill={fillEmployer} />
               <div className={styles.fieldGrid}>
@@ -721,10 +734,10 @@ function Js3100App() {
               </div>
             </section>
 
-            {/* ── Drugi dio — Osiguranik ── */}
+            {/* ── Drugi dio, Osiguranik ── */}
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>
-                Drugi dio — Podaci o <em>osiguraniku</em>
+                Drugi dio, Podaci o <em>osiguraniku</em>
               </h2>
               <PersonFillSelect onFill={fillWorker} />
               <div className={styles.fieldGrid}>
@@ -839,13 +852,13 @@ function Js3100App() {
                     className={styles.fieldLabel}
                     style={{ marginTop: "0.5rem", marginBottom: "-0.25rem" }}
                   >
-                    Kontakt adresa — popuniti samo ako se razlikuje od adrese
+                    Kontakt adresa, popuniti samo ako se razlikuje od adrese
                     prebivališta
                   </p>
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Kontakt adresa — ulica i broj
+                    Kontakt adresa, ulica i broj
                   </label>
                   <input
                     className={styles.fieldInput}
@@ -861,7 +874,7 @@ function Js3100App() {
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Kontakt — Mjesto / Grad
+                    Kontakt, Mjesto / Grad
                   </label>
                   <CitySelect
                     value={worker.kontaktGrad}
@@ -900,7 +913,7 @@ function Js3100App() {
                       }))
                     }
                   >
-                    <option value="">— Odaberite —</option>
+                    <option value="">– Odaberite –</option>
                     {STRUCNA_SPREMA.map((t, i) => (
                       <option key={i} value={i}>
                         {t}
@@ -911,16 +924,16 @@ function Js3100App() {
               </div>
             </section>
 
-            {/* ── Treći dio — Podaci o osiguranju ── */}
+            {/* ── Treći dio, Podaci o osiguranju ── */}
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>
-                Treći dio — Podaci o <em>osiguranju</em>
+                Treći dio, Podaci o <em>osiguranju</em>
               </h2>
               <div className={styles.fieldGrid}>
                 {/* Red 1: Dnevno radno vrijeme */}
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Dnevno radno vrijeme — Sati
+                    Dnevno radno vrijeme, Sati
                   </label>
                   <input
                     className={styles.fieldInput}
@@ -938,7 +951,7 @@ function Js3100App() {
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Dnevno radno vrijeme — Minuta
+                    Dnevno radno vrijeme, Minuta
                   </label>
                   <input
                     className={styles.fieldInput}
@@ -958,7 +971,7 @@ function Js3100App() {
                 {/* Red 2: Osnov osiguranja */}
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Osnov osiguranja — Opis
+                    Osnov osiguranja, Opis
                   </label>
                   <select
                     className={styles.fieldInput}
@@ -970,7 +983,7 @@ function Js3100App() {
                       }))
                     }
                   >
-                    <option value="">— Odaberite —</option>
+                    <option value="">– Odaberite –</option>
                     {OSNOV_OSIGURANJA.map((t) => (
                       <option key={t} value={t}>
                         {t}
@@ -980,7 +993,7 @@ function Js3100App() {
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Osnov osiguranja — Šifra (2 cifre)
+                    Osnov osiguranja, Šifra (2 cifre)
                   </label>
                   <input
                     className={styles.fieldInput}
@@ -1000,7 +1013,7 @@ function Js3100App() {
 
                 {/* Red 3: Zanimanje */}
                 <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>Zanimanje — Opis</label>
+                  <label className={styles.fieldLabel}>Zanimanje, Opis</label>
                   <input
                     className={styles.fieldInput}
                     value={treci.zanimanjeOpis}
@@ -1011,7 +1024,7 @@ function Js3100App() {
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Zanimanje — Šifra (7 cifara)
+                    Zanimanje, Šifra (7 cifara)
                   </label>
                   <input
                     className={styles.fieldInput}
@@ -1047,7 +1060,7 @@ function Js3100App() {
                       }))
                     }
                   >
-                    <option value="">— Odaberite —</option>
+                    <option value="">– Odaberite –</option>
                     {STRUCNA_SPREMA.map((t, i) => (
                       <option key={i} value={i}>
                         {t}
@@ -1088,7 +1101,7 @@ function Js3100App() {
                 {/* Red 6: Osnov za uplatu doprinosa */}
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Osnov za uplatu doprinosa — Opis
+                    Osnov za uplatu doprinosa, Opis
                   </label>
                   <input
                     className={styles.fieldInput}
@@ -1103,7 +1116,7 @@ function Js3100App() {
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Osnov za uplatu doprinosa — Šifra (2 cifre)
+                    Osnov za uplatu doprinosa, Šifra (2 cifre)
                   </label>
                   <input
                     className={styles.fieldInput}

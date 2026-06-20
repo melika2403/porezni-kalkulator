@@ -20,7 +20,7 @@ export default function BlogTeaser() {
             Vodiči i <em>savjeti</em>
           </h2>
           <p className={styles.lead}>
-            Praktični članci o porezima, plati i obrascima u FBiH — sa
+            Praktični članci o porezima, plati i obrascima u FBiH, sa
             primjerima, brojevima i zakonskom referencom.
           </p>
         </div>

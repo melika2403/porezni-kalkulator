@@ -1,6 +1,12 @@
 const organizationRepository = require("../repositories/organizationRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
-const { Organization, Worker, Payroll } = require("../models/index");
+const {
+  Organization,
+  OrganizationMember,
+  UserPreference,
+  Worker,
+  Payroll,
+} = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
 function isNonEmptyString(v) {
@@ -99,6 +105,23 @@ function validateOrgData(body, requireName = true) {
     }
   }
 
+  if (body.jurisdiction !== undefined) {
+    if (body.jurisdiction === null || body.jurisdiction === "") {
+      data.jurisdiction = null;
+    } else if (["FBIH", "RS", "BD"].includes(body.jurisdiction)) {
+      data.jurisdiction = body.jurisdiction;
+    } else {
+      return {
+        ok: false,
+        message: "jurisdiction mora biti FBIH, RS ili BD",
+      };
+    }
+  }
+
+  if (body.isPdvObveznik !== undefined) {
+    data.isPdvObveznik = Boolean(body.isPdvObveznik);
+  }
+
   // Dnevna stopa toplog obroka za firmu (obračun je množi sa radnim danima).
   if (body.mealAllowancePerDay !== undefined) {
     if (body.mealAllowancePerDay === null || body.mealAllowancePerDay === "") {
@@ -112,6 +135,45 @@ function validateOrgData(body, requireName = true) {
     }
   }
 
+  // ── Model vlasništva / direktora (d.o.o.) ──────────────────────────────
+  // Ova polja idu na Organization. Za obrt (BUSINESS) se ignorišu u logici
+  // (vlasnik je uvijek obrtnik), ali ih svejedno prihvatamo.
+  if (body.ownerType !== undefined) {
+    const allowed = [
+      "fizicko_domace",
+      "fizicko_strano",
+      "pravno_lice",
+      "vise_lica",
+    ];
+    if (body.ownerType === null || body.ownerType === "") {
+      data.ownerType = "fizicko_domace";
+    } else if (!allowed.includes(body.ownerType)) {
+      return { ok: false, message: "Nepoznat tip vlasnika" };
+    } else {
+      data.ownerType = body.ownerType;
+    }
+  }
+  if (body.ownerIsDirector !== undefined) {
+    data.ownerIsDirector = Boolean(body.ownerIsDirector);
+  }
+  if (body.directorEngagement !== undefined) {
+    if (body.directorEngagement === null || body.directorEngagement === "") {
+      data.directorEngagement = "ugovor_o_radu";
+    } else if (
+      !["ugovor_o_radu", "menadzerski"].includes(body.directorEngagement)
+    ) {
+      return { ok: false, message: "Nepoznat osnov direktora" };
+    } else {
+      data.directorEngagement = body.directorEngagement;
+    }
+  }
+  if (body.directorWorkerId !== undefined) {
+    data.directorWorkerId =
+      body.directorWorkerId === null || body.directorWorkerId === ""
+        ? null
+        : Number(body.directorWorkerId);
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
   }
@@ -119,26 +181,80 @@ function validateOrgData(body, requireName = true) {
   return { ok: true, value: data };
 }
 
-function validateOwnerData(owner, requireJmbg = true) {
-  if (!isNonEmptyString(owner?.firstName)) {
-    return { ok: false, message: "Ime vlasnika je obavezno" };
-  }
-  if (!isNonEmptyString(owner?.lastName)) {
-    return { ok: false, message: "Prezime vlasnika je obavezno" };
-  }
+// Validira identitet vlasnika. Oblik zavisi od ownerType:
+//   fizicko_domace / fizicko_strano → ime + prezime (JMBG/strani ID)
+//   pravno_lice                     → naziv firme + JIB
+//   vise_lica                       → naziv ili lista lica
+// requireJmbg traži JMBG samo za domaće fizičko lice na kreiranju.
+function validateOwnerData(owner, opts = {}) {
+  const { requireJmbg = true, ownerType = "fizicko_domace" } = opts;
+  const isPerson =
+    ownerType === "fizicko_domace" || ownerType === "fizicko_strano";
+  const isLegal = ownerType === "pravno_lice";
+  const isMulti = ownerType === "vise_lica";
 
-  const data = {
-    firstName: owner.firstName.trim(),
-    lastName: owner.lastName.trim(),
-  };
+  const data = {};
 
-  if (owner.jmbg && String(owner.jmbg).trim()) {
-    if (!/^\d{13}$/.test(String(owner.jmbg).trim())) {
-      return { ok: false, message: "JMBG vlasnika mora imati tačno 13 cifara" };
+  if (isPerson) {
+    if (!isNonEmptyString(owner?.firstName)) {
+      return { ok: false, message: "Ime vlasnika je obavezno" };
     }
-    data.jmbg = encryptJmbg(String(owner.jmbg).trim());
-  } else if (requireJmbg) {
-    return { ok: false, message: "JMBG vlasnika je obavezan" };
+    if (!isNonEmptyString(owner?.lastName)) {
+      return { ok: false, message: "Prezime vlasnika je obavezno" };
+    }
+    data.firstName = owner.firstName.trim();
+    data.lastName = owner.lastName.trim();
+
+    if (owner.jmbg && String(owner.jmbg).trim()) {
+      if (!/^\d{13}$/.test(String(owner.jmbg).trim())) {
+        return {
+          ok: false,
+          message: "JMBG vlasnika mora imati tačno 13 cifara",
+        };
+      }
+      data.jmbg = encryptJmbg(String(owner.jmbg).trim());
+    } else if (requireJmbg) {
+      return { ok: false, message: "JMBG vlasnika je obavezan" };
+    }
+    // Strani ID / broj pasoša (za fizicko_strano umjesto JMBG-a).
+    if (owner.idDoc) data.idDoc = String(owner.idDoc).trim();
+  } else if (isLegal) {
+    if (!isNonEmptyString(owner?.name)) {
+      return { ok: false, message: "Naziv vlasnika (firme) je obavezan" };
+    }
+    data.name = owner.name.trim();
+    if (owner.jib && String(owner.jib).trim()) {
+      const jib = String(owner.jib).trim();
+      if (!/^\d{13}$/.test(jib)) {
+        return { ok: false, message: "JIB vlasnika mora imati tačno 13 cifara" };
+      }
+      data.jib = jib;
+    }
+  } else if (isMulti) {
+    const hasName = isNonEmptyString(owner?.name);
+    const persons = Array.isArray(owner?.persons)
+      ? owner.persons.filter(
+          (p) => p && (isNonEmptyString(p.firstName) || isNonEmptyString(p.lastName)),
+        )
+      : [];
+    if (!hasName && persons.length === 0) {
+      return {
+        ok: false,
+        message: "Unesite naziv ili bar jedno lice vlasnika",
+      };
+    }
+    if (hasName) data.name = owner.name.trim();
+    if (persons.length > 0) {
+      data.persons = persons.map((p) => ({
+        firstName: String(p.firstName || "").trim(),
+        lastName: String(p.lastName || "").trim(),
+        jmbg:
+          p.jmbg && /^\d{13}$/.test(String(p.jmbg).trim())
+            ? encryptJmbg(String(p.jmbg).trim())
+            : null,
+        idDoc: p.idDoc ? String(p.idDoc).trim() : null,
+      }));
+    }
   }
 
   if (owner.email) data.email = String(owner.email).trim();
@@ -254,13 +370,14 @@ async function listWithPayrollStatus(req, res) {
   const payrollsByOrg = new Map();
   const payrolls = await Payroll.findAll({
     where: { organizationId: orgIds, year, month },
-    attributes: ["organizationId", "status"],
+    attributes: ["organizationId", "status", "mipDownloadedAt"],
   });
   for (const p of payrolls) {
     const cur = payrollsByOrg.get(p.organizationId) || {
       total: 0,
       obracunato: 0,
       isplaceno: 0,
+      mipDownloadedAt: null,
     };
     cur.total += 1;
     if (p.status === "OBRACUNATO" || p.status === "ISPLACENO") {
@@ -268,6 +385,13 @@ async function listWithPayrollStatus(req, res) {
     }
     if (p.status === "ISPLACENO") {
       cur.isplaceno += 1;
+    }
+    // Batch update drži isti timestamp na svim payrollima mjeseca; uzmi najnoviji.
+    if (
+      p.mipDownloadedAt &&
+      (!cur.mipDownloadedAt || p.mipDownloadedAt > cur.mipDownloadedAt)
+    ) {
+      cur.mipDownloadedAt = p.mipDownloadedAt;
     }
     payrollsByOrg.set(p.organizationId, cur);
   }
@@ -279,6 +403,7 @@ async function listWithPayrollStatus(req, res) {
         total: 0,
         obracunato: 0,
         isplaceno: 0,
+        mipDownloadedAt: null,
       };
       // payrollStatus:
       //   "no_workers"   — org nema aktivnih radnika
@@ -299,6 +424,7 @@ async function listWithPayrollStatus(req, res) {
         payrollObracunato: stats.obracunato,
         payrollIsplaceno: stats.isplaceno,
         payrollStatus,
+        mipDownloadedAt: stats.mipDownloadedAt,
       };
     });
 
@@ -341,7 +467,12 @@ async function create(req, res) {
 
   let validatedOwner = null;
   if (ownerData) {
-    const ownerValidation = validateOwnerData(ownerData);
+    const ownerType = orgBody.ownerType || "fizicko_domace";
+    // JMBG obavezan samo za domaće fizičko lice (stranci/firme nemaju JMBG).
+    const ownerValidation = validateOwnerData(ownerData, {
+      requireJmbg: ownerType === "fizicko_domace",
+      ownerType,
+    });
     if (!ownerValidation.ok) {
       return res
         .status(400)
@@ -361,7 +492,7 @@ async function create(req, res) {
     if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         ok: false,
-        error: "Porezni broj ili JMBG vlasnika već postoji",
+        error: "Porezni broj već postoji",
       });
     }
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -383,7 +514,11 @@ async function update(req, res) {
 
   let validatedOwner = null;
   if (ownerData) {
-    const ownerValidation = validateOwnerData(ownerData, false); // jmbg optional on update
+    // JMBG nikad obavezan na update (može se dopuniti kasnije).
+    const ownerValidation = validateOwnerData(ownerData, {
+      requireJmbg: false,
+      ownerType: orgBody.ownerType || "fizicko_domace",
+    });
     if (!ownerValidation.ok) {
       return res
         .status(400)
@@ -409,7 +544,7 @@ async function update(req, res) {
     if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         ok: false,
-        error: "Porezni broj ili JMBG vlasnika već postoji",
+        error: "Porezni broj već postoji",
       });
     }
     res.status(500).json({ ok: false, error: String(error?.message ?? error) });
@@ -530,6 +665,45 @@ async function removeLogo(req, res) {
   res.status(200).json({ ok: true, data: { id, logoUrl: null } });
 }
 
+// Postavlja aktivnu organizaciju za PK Office (sidebar org switcher).
+// Provjerava da user ima membership prije aktivacije.
+async function activate(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  }
+
+  const membership = await OrganizationMember.findOne({
+    where: { userId: req.user.id, organizationId: id },
+  });
+  if (!membership) {
+    return res
+      .status(403)
+      .json({ ok: false, error: "FORBIDDEN_ORGANIZATION" });
+  }
+
+  // PK Office radi samo sa obrtima — COMPANY se ne može aktivirati.
+  const org = await Organization.findByPk(id, { attributes: ["id", "type"] });
+  if (!org || org.type !== "BUSINESS") {
+    return res
+      .status(400)
+      .json({ ok: false, error: "ORGANIZATION_NOT_BUSINESS" });
+  }
+
+  const [pref] = await UserPreference.findOrCreate({
+    where: { userId: req.user.id },
+    defaults: { userId: req.user.id, activeOrganizationId: id },
+  });
+  if (pref.activeOrganizationId !== id) {
+    pref.activeOrganizationId = id;
+    await pref.save();
+  }
+
+  res
+    .status(200)
+    .json({ ok: true, data: { activeOrganizationId: id } });
+}
+
 module.exports = {
   list,
   listClients,
@@ -541,4 +715,5 @@ module.exports = {
   adminListAll,
   uploadLogo,
   removeLogo,
+  activate,
 };

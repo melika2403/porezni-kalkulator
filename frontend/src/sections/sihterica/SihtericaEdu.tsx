@@ -63,7 +63,7 @@ export default function SihtericaEdu() {
         </ul>
         <p>
           Kroz panel <strong>Auto-popuna</strong> možete birati da li se 9.1,
-          9.2 i 9.3 računaju kao puni dan ili kao 0 sati — postavka se pamti
+          9.2 i 9.3 računaju kao puni dan ili kao 0 sati, postavka se pamti
           po korisniku.
         </p>
       </section>
@@ -77,35 +77,35 @@ export default function SihtericaEdu() {
         </p>
         <ul>
           <li>
-            <strong>9.1</strong> — godišnji ili sedmični odmor
+            <strong>9.1</strong>, godišnji ili sedmični odmor
           </li>
           <li>
-            <strong>9.2</strong> — državni praznik
+            <strong>9.2</strong>, državni praznik
           </li>
           <li>
-            <strong>9.3</strong> — bolovanje
+            <strong>9.3</strong>, bolovanje
           </li>
           <li>
-            <strong>9.4</strong> — porodiljsko / roditeljsko odsustvo
+            <strong>9.4</strong>, porodiljsko / roditeljsko odsustvo
           </li>
           <li>
-            <strong>9.5</strong> — plaćeno odsustvo (smrt u porodici, vjenčanje,
+            <strong>9.5</strong>, plaćeno odsustvo (smrt u porodici, vjenčanje,
             krv)
           </li>
           <li>
-            <strong>9.6</strong> — neplaćeno odsustvo
+            <strong>9.6</strong>, neplaćeno odsustvo
           </li>
           <li>
-            <strong>9.7</strong> — neprisutnost po zahtjevu radnika
+            <strong>9.7</strong>, neprisutnost po zahtjevu radnika
           </li>
           <li>
-            <strong>9.8</strong> — neprisutnost krivicom radnika
+            <strong>9.8</strong>, neprisutnost krivicom radnika
           </li>
           <li>
-            <strong>9.9</strong> — štrajk
+            <strong>9.9</strong>, štrajk
           </li>
           <li>
-            <strong>9.10</strong> — lockout (isključenje s rada)
+            <strong>9.10</strong>, lockout (isključenje s rada)
           </li>
         </ul>
       </section>
@@ -200,7 +200,7 @@ export default function SihtericaEdu() {
         </p>
         <p>
           Auto-popuna pokriva standardno radno vrijeme. Za rad u smjenama
-          ručno korigujte početak i kraj svakog dana — ručno upisana vremena
+          ručno korigujte početak i kraj svakog dana, ručno upisana vremena
           uvijek pobjeđuju nad auto-popunom.
         </p>
       </section>

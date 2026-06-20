@@ -8,7 +8,13 @@ const {
   sendVerificationEmail,
   sendWelcomeEmail,
 } = require("../utils/mailer");
-const { User, Subscription } = require("../models/index");
+const {
+  User,
+  Subscription,
+  Organization,
+  OrganizationMember,
+  UserPreference,
+} = require("../models/index");
 const googleAuth = require("../auth/googleAuth");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
@@ -32,19 +38,27 @@ function getJwtExpiresIn() {
   return process.env.JWT_EXPIRES_IN || "24h";
 }
 
+function getCookieDomain() {
+  const domain = process.env.COOKIE_DOMAIN;
+  return domain && domain.trim() ? domain.trim() : undefined;
+}
+
 function setAuthCookie(res, token, rememberMe = false) {
   const isProd = process.env.NODE_ENV === "production";
+  const domain = getCookieDomain();
   res.cookie("access_token", token, {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? "none" : "lax",
     path: "/",
+    ...(domain ? { domain } : {}),
     maxAge: rememberMe ? REMEMBER_ME_DURATION_MS : DEFAULT_COOKIE_MAX_AGE,
   });
 }
 
 function clearAuthCookie(res) {
-  res.clearCookie("access_token", { path: "/" });
+  const domain = getCookieDomain();
+  res.clearCookie("access_token", { path: "/", ...(domain ? { domain } : {}) });
 }
 
 const userAttributes = [
@@ -254,7 +268,51 @@ async function me(req, res) {
     }
   }
 
-  return res.status(200).json({ ok: true, data: toPublicUser(user) });
+  // PK Office: organizations sa role-om + active org + preferences.
+  // Polja se vraćaju kao dodatna unutar `data` — postojeći marketing client
+  // ih ignoriše, app dio ih konzumira.
+  const memberships = await OrganizationMember.findAll({
+    where: { userId },
+    include: [{ model: Organization, as: "organization" }],
+  });
+  // PK Office radi samo sa obrtima (BUSINESS) — d.o.o. (COMPANY) se ne nudi
+  // u switcheru ni kao aktivna organizacija.
+  const organizations = memberships
+    .filter((m) => m.organization && m.organization.type === "BUSINESS")
+    .map((m) => ({
+      id: m.organization.id,
+      name: m.organization.name,
+      taxNumber: m.organization.taxNumber,
+      type: m.organization.type,
+      taxRegime: m.organization.taxRegime,
+      logoUrl: m.organization.logoUrl,
+      isClientOrg: !!m.organization.isClientOrg,
+      role: m.role,
+    }));
+
+  const preferences = await UserPreference.findOne({ where: { userId } });
+  let activeOrganization = null;
+  if (preferences?.activeOrganizationId) {
+    activeOrganization =
+      organizations.find((o) => o.id === preferences.activeOrganizationId) ||
+      null;
+  }
+
+  return res.status(200).json({
+    ok: true,
+    data: {
+      ...toPublicUser(user),
+      organizations,
+      activeOrganization,
+      preferences: preferences
+        ? {
+            activeOrganizationId: preferences.activeOrganizationId,
+            theme: preferences.theme,
+            commandPaletteEnabled: !!preferences.commandPaletteEnabled,
+          }
+        : null,
+    },
+  });
 }
 
 async function forgotPassword(req, res) {
@@ -440,11 +498,13 @@ async function googleStart(_req, res) {
   try {
     const state = googleAuth.createStateToken();
     const isProd = process.env.NODE_ENV === "production";
+    const domain = getCookieDomain();
     res.cookie(GOOGLE_STATE_COOKIE, state, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
       path: "/",
+      ...(domain ? { domain } : {}),
       maxAge: 10 * 60 * 1000,
     });
     return res.redirect(googleAuth.buildAuthUrl(state));

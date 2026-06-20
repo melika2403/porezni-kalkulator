@@ -38,6 +38,13 @@ router.delete("/:id", requireAuth, organizationsController.remove);
 // Single organization detail
 router.get("/:id", requireAuth, organizationsController.getById);
 
+// PK Office: postavi aktivnu organizaciju u user_preferences
+router.post("/:id/activate", requireAuth, organizationsController.activate);
+
+// Aliases za PK Office (settings stranica) — koriste isti getById/update controller
+router.get("/:id/settings", requireAuth, organizationsController.getById);
+router.patch("/:id/settings", requireAuth, organizationsController.update);
+
 // Logo upload — owner of org must be PRO or BUSINESS, and caller must be OWNER/ADMIN
 router.post(
   "/:id/logo",
@@ -71,28 +78,28 @@ router.get(
   "/:id/members",
   requireAuth,
   requireOrgRole("OWNER"),
-  requireOwnerTier("BUSINESS"),
+  requireOwnerTier("PRO", "BUSINESS"),
   membersController.list,
 );
 router.post(
   "/:id/members",
   requireAuth,
   requireOrgRole("OWNER"),
-  requireOwnerTier("BUSINESS"),
+  requireOwnerTier("PRO", "BUSINESS"),
   membersController.add,
 );
 router.put(
   "/:id/members/:userId",
   requireAuth,
   requireOrgRole("OWNER"),
-  requireOwnerTier("BUSINESS"),
+  requireOwnerTier("PRO", "BUSINESS"),
   membersController.updateRole,
 );
 router.delete(
   "/:id/members/:userId",
   requireAuth,
   requireOrgRole("OWNER"),
-  requireOwnerTier("BUSINESS"),
+  requireOwnerTier("PRO", "BUSINESS"),
   membersController.remove,
 );
 
@@ -120,6 +127,26 @@ router.delete(
   requireAuth,
   requireOrgRole("OWNER", "ADMIN"),
   workersController.remove,
+);
+
+// Matična evidencija o radniku (Pravilnik Sl. nov. FBiH 92/16).
+router.get(
+  "/:orgId/workers/:workerId/evidencija",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  workersController.getEvidencija,
+);
+router.patch(
+  "/:orgId/workers/:workerId/evidencija",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  workersController.saveEvidencija,
+);
+router.get(
+  "/:orgId/workers/:workerId/evidencija-pdf",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  workersController.generateEvidencija,
 );
 
 // Contract counter (UoR) — peek & take next number per organization+year.

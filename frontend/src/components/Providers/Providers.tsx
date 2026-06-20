@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { NoticeProvider } from "src/components/Notice/Notice";
 import { captureUtm } from "src/utils/utm";
 
@@ -22,7 +23,16 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <NoticeProvider>{children}</NoticeProvider>
+      <NoticeProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          storageKey="pk-office-theme"
+        >
+          {children}
+        </ThemeProvider>
+      </NoticeProvider>
     </QueryClientProvider>
   );
 }

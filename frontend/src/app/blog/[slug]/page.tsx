@@ -21,7 +21,8 @@ export async function generateMetadata({
   if (!post) return {};
   const url = `${SITE_URL}/blog/${post.slug}`;
   return {
-    title: `${post.title} | Porezni Kalkulator BiH`,
+    // bez ručnog suffixa: template iz root layouta dodaje "| Porezni Kalkulator BiH"
+    title: post.title,
     description: post.excerpt,
     alternates: { canonical: url },
     openGraph: {
@@ -51,12 +52,15 @@ export default async function BlogPostRoute({
   const post = getPostBySlug(slug);
   if (!post) notFound();
 
+  const postUrl = `${SITE_URL}/blog/${post.slug}`;
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post.title,
     description: post.excerpt,
-    url: `${SITE_URL}/blog/${post.slug}`,
+    url: postUrl,
+    mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
+    image: `${SITE_URL}/og-image.png`,
     datePublished: post.date,
     dateModified: post.date,
     inLanguage: "bs-BA",
@@ -76,11 +80,25 @@ export default async function BlogPostRoute({
     },
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Početna", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Blog", item: `${SITE_URL}/blog` },
+      { "@type": "ListItem", position: 3, name: post.title, item: postUrl },
+    ],
+  };
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <BlogPostPage slug={slug} />
     </>

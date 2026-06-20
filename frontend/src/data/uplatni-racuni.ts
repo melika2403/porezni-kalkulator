@@ -204,7 +204,7 @@ export const FBIH_BUDZET_RACUN = "102-050-00001066-98";   // Budžet FBiH (PIO/M
 export const FBIH_ZO_RACUN = "102-050-00000640-18";       // Zavod zdravstvenog osiguranja FBiH (10,2%)
 export const FBIH_NEZAP_RACUN = "161-000-00285700-03";    // Federalni zavod za zapošljavanje (30%)
 export const FOND_INVALIDI_RACUN = "338-690-22963585-21"; // Fond za prof. rehabilitaciju i zapošljavanje OSI
-export const JRT_TREZOR_BIH_RACUN = "338-000-22100183-90"; // JRT Trezor BiH — administrativne takse (UniCredit Banka d.d. Mostar)
+export const JRT_TREZOR_BIH_RACUN = "338-000-22100183-90"; // JRT Trezor BiH, administrativne takse (UniCredit Banka d.d. Mostar)
 
 // ── Helper: kanton → opcina mapping ────────────────────────────────────────
 const normalizeOpcina = (s: string) =>
@@ -279,7 +279,7 @@ const BANK_PREFIXES: Record<string, string> = {
 };
 
 export function bankFromAccount(acc: string): string {
-  return BANK_PREFIXES[acc.slice(0, 3)] || "—";
+  return BANK_PREFIXES[acc.slice(0, 3)] || "–";
 }
 
 // Federalni / fondovski računi za JavniPrihodi page
@@ -309,7 +309,7 @@ export const FEDERALNI_RACUNI: Racun[] = [
     napomena: "0,5% bruto plata svih radnika",
   },
   {
-    naziv: "JRT Trezor BiH — depozitni račun",
+    naziv: "JRT Trezor BiH, depozitni račun",
     banka: "UniCredit Banka d.d. Mostar",
     racun: JRT_TREZOR_BIH_RACUN,
     napomena: "Administrativne takse (federalne)",
@@ -326,7 +326,7 @@ export const KANTONALNI_BUDZETI: Racun[] = (Object.keys(KANTONI) as KantonKey[])
 
 // Kantonalni ZZO za JavniPrihodi page
 export const KANTONALNI_ZZO: Racun[] = (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
-  naziv: `Zavod zdravstvenog osiguranja — ${KANTONI[k].genitiv}`,
+  naziv: `Zavod zdravstvenog osiguranja, ${KANTONI[k].genitiv}`,
   banka: bankFromAccount(KANTONI[k].zoRacun),
   racun: KANTONI[k].zoRacun,
   napomena: "Kantonalni dio zdravstvenog osiguranja (89,8%)",
@@ -334,7 +334,7 @@ export const KANTONALNI_ZZO: Racun[] = (Object.keys(KANTONI) as KantonKey[]).map
 
 // Kantonalne službe za zapošljavanje za JavniPrihodi page
 export const KANTONALNE_SLUZBE_ZAPOSLJAVANJE: Racun[] = (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
-  naziv: `Kantonalna služba za zapošljavanje — ${KANTONI[k].genitiv}`,
+  naziv: `Kantonalna služba za zapošljavanje, ${KANTONI[k].genitiv}`,
   banka: bankFromAccount(KANTONI[k].nezapRacun),
   racun: KANTONI[k].nezapRacun,
   napomena: "Kantonalni dio doprinosa za nezaposlenost (70%)",

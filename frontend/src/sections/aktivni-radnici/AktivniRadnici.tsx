@@ -34,18 +34,69 @@ const STATUS_CLASS: Record<string, string> = {
 };
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}.${m}.${y}.`;
 }
 
 function fmtPlata(n: number | null): string {
-  if (n == null) return "—";
+  if (n == null) return "–";
   return (
     n.toLocaleString("de-DE", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }) + " KM"
+  );
+}
+
+// Prikaz plate u listi: neto se prepisuje kako jeste; ako je radniku osnovica
+// bruto, prikaže se bruto sa malom oznakom. Vlasnik obrta nema platu (doprinosi
+// po režimu, Obrazac 2002) pa ide poseban marker.
+function PlataCell({ w, isObrt }: { w: Worker; isObrt: boolean }) {
+  if (w.role === "VLASNIK" && isObrt) {
+    return (
+      <span
+        className={styles.muted}
+        style={{ fontSize: 12 }}
+        title="Vlasnik obrta nema platu, plaća doprinose po režimu oporezivanja (Obrazac 2002)"
+      >
+        Obrtnik · doprinosi
+      </span>
+    );
+  }
+  let amount: number | null = null;
+  let isBruto = false;
+  if (w.salaryType === "BRUTO") {
+    amount = w.salaryBruto;
+    isBruto = true;
+  } else if (w.salaryNeto != null) {
+    amount = w.salaryNeto;
+  } else if (w.salaryBruto != null) {
+    amount = w.salaryBruto;
+    isBruto = true;
+  }
+  if (amount == null) return <>–</>;
+  return (
+    <span>
+      {fmtPlata(amount)}
+      {isBruto && (
+        <span
+          style={{
+            marginLeft: 6,
+            padding: "1px 6px",
+            background: "rgba(58, 92, 66, 0.12)",
+            color: "var(--sage)",
+            borderRadius: 999,
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+          }}
+        >
+          bruto
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -123,6 +174,11 @@ export default function AktivniRadnici() {
   });
 
   const allWorkers = workersQuery.data ?? [];
+  const selectedOrg =
+    [...(orgsQuery.data ?? []), ...(clientOrgsQuery.data ?? [])].find(
+      (o) => o.id === orgId,
+    ) ?? null;
+  const isObrt = selectedOrg?.type === "BUSINESS";
   // Uključi i RADNIK i VLASNIK (vlasnici se prepoznaju po roli i imaju badge).
   // Sort:
   //   1) Odjavljeni uvijek na dno (bez obzira kad su prijavljeni)
@@ -190,7 +246,7 @@ export default function AktivniRadnici() {
             value={orgId ?? ""}
             onChange={(e) => setOrgId(e.target.value ? Number(e.target.value) : null)}
           >
-            <option value="">— Odaberi —</option>
+            <option value="">– Odaberi –</option>
             {(orgsQuery.data?.length ?? 0) > 0 && (
               <optgroup label="Moje organizacije">
                 {orgsQuery.data!.map((o) => (
@@ -265,7 +321,7 @@ export default function AktivniRadnici() {
                   <th>Ime i prezime</th>
                   <th>JMBG</th>
                   <th>Pozicija</th>
-                  <th>Bruto plata</th>
+                  <th>Plata</th>
                   <th>Datum prijave</th>
                   <th>Akcije</th>
                 </tr>
@@ -306,16 +362,18 @@ export default function AktivniRadnici() {
                         </span>
                       )}
                     </td>
-                    <td className={styles.muted} data-label="JMBG">{w.jmbg ?? "—"}</td>
-                    <td data-label="Pozicija">{w.position ?? "—"}</td>
-                    <td className={styles.num} data-label="Bruto plata">{fmtPlata(w.salaryBruto)}</td>
+                    <td className={styles.muted} data-label="JMBG">{w.jmbg ?? "–"}</td>
+                    <td data-label="Pozicija">{w.position ?? "–"}</td>
+                    <td className={styles.num} data-label="Plata">
+                      <PlataCell w={w} isObrt={isObrt} />
+                    </td>
                     <td className={styles.muted} data-label="Datum prijave">{fmtDate(w.prijavaDate)}</td>
                     <td data-label="Akcije">
                       <div className={styles.actions}>
                         <Link
                           href={`/ugovor-o-radu?org=${orgId}&worker=${w.id}&tab=ugovor`}
                           className={styles.actionLink}
-                          title="Generiši ugovor o radu — auto-popuna podataka"
+                          title="Generiši ugovor o radu, auto-popuna podataka"
                         >
                           <svg
                             viewBox="0 0 24 24"
@@ -337,7 +395,7 @@ export default function AktivniRadnici() {
                           <Link
                             href={`/ugovor-o-radu?org=${orgId}&worker=${w.id}&tab=otkaz`}
                             className={styles.actionLink}
-                            title="Generiši otkaz — auto-popuna podataka"
+                            title="Generiši otkaz, auto-popuna podataka"
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -361,7 +419,7 @@ export default function AktivniRadnici() {
                             w.employmentStatus === "PRIJAVLJEN" ? "ODJAVA" : "PRIJAVA"
                           }`}
                           className={styles.actionLink}
-                          title="JS3100 prijava/odjava — auto-popuna"
+                          title="JS3100 prijava/odjava, auto-popuna"
                         >
                           <svg
                             viewBox="0 0 24 24"

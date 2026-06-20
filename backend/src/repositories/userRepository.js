@@ -7,7 +7,21 @@ const { decryptJmbg } = require("../utils/encryptJmbg");
 const cascade = require("../services/adminCascade");
 
 const userInclude = [
-  { model: Subscription, as: "subscription", attributes: ["id", "startDate", "endDate", "isActive"] },
+  {
+    model: Subscription,
+    as: "subscription",
+    attributes: [
+      "id",
+      "startDate",
+      "endDate",
+      "isActive",
+      "plan",
+      "status",
+      "billingCycle",
+      "cancelAtPeriodEnd",
+      "cancelledAt",
+    ],
+  },
 ];
 
 const userAttributes = [

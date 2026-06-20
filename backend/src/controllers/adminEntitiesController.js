@@ -24,7 +24,7 @@ async function listOrgWorkers(req, res) {
     });
     const items = rows.map((w) => ({
       id: w.id,
-      name: `${w.firstName ?? ""} ${w.lastName ?? ""}`.trim() || "—",
+      name: `${w.firstName ?? ""} ${w.lastName ?? ""}`.trim() || "–",
       position: w.position,
       role: w.role,
       employmentStatus: w.employmentStatus,

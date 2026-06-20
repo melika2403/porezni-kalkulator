@@ -20,7 +20,7 @@ const fmtKM = (n) =>
   }) + " KM";
 
 const fmtHours = (mins) => {
-  if (mins == null) return "—";
+  if (mins == null) return "–";
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
@@ -32,9 +32,9 @@ const MONTHS = [
 ];
 
 function fmtDateDDMMYYYY(d) {
-  if (!d) return "—";
+  if (!d) return "–";
   const date = d instanceof Date ? d : new Date(d);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "–";
   const dd = String(date.getDate()).padStart(2, "0");
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const yyyy = date.getFullYear();
@@ -43,15 +43,15 @@ function fmtDateDDMMYYYY(d) {
 
 // Radni staž: razlika između startDate i paymentDate u godinama/mjesecima
 function workTenure(startDateStr, paymentDateStr) {
-  if (!startDateStr) return "—";
+  if (!startDateStr) return "–";
   const start = new Date(startDateStr);
   const end = paymentDateStr ? new Date(paymentDateStr) : new Date();
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "—";
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "–";
   let years = end.getFullYear() - start.getFullYear();
   let months = end.getMonth() - start.getMonth();
   if (end.getDate() < start.getDate()) months -= 1;
   if (months < 0) { years -= 1; months += 12; }
-  if (years < 0) return "—";
+  if (years < 0) return "–";
   if (years === 0 && months === 0) return "< 1 mjesec";
   const parts = [];
   if (years > 0) parts.push(`${years} god.`);
@@ -89,14 +89,14 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
     const size = opts.size ?? 9;
     const font = opts.bold ? fonts.bold : fonts.reg;
     const color = opts.color ?? ink;
-    page.drawText(String(txt ?? "—"), { x, y, size, font, color });
+    page.drawText(String(txt ?? "–"), { x, y, size, font, color });
   };
 
   const drawRightText = (txt, xRight, y, opts = {}) => {
     const size = opts.size ?? 9;
     const font = opts.bold ? fonts.bold : fonts.reg;
     const color = opts.color ?? ink;
-    const str = String(txt ?? "—");
+    const str = String(txt ?? "–");
     const w = font.widthOfTextAtSize(str, size);
     page.drawText(str, { x: xRight - w, y, size, font, color });
   };
@@ -118,7 +118,7 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   let cursorY = PAGE_H - MARGIN;
 
   // ── HEADER: firma ─────────────────────────────────────────────────────────
-  drawText(organization.name || "—", MARGIN, cursorY, { size: 13, bold: true });
+  drawText(organization.name || "–", MARGIN, cursorY, { size: 13, bold: true });
   cursorY -= 16;
 
   const orgParts = [];
@@ -173,21 +173,21 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
 
   const drawField = (label, value, x, y) => {
     drawText(label.toUpperCase(), x, y, { size: labelSize, color: labelColor });
-    drawText(value || "—", x, y - 12, { size: valueSize, bold: false });
+    drawText(value || "–", x, y - 12, { size: valueSize, bold: false });
   };
 
   const workerName = `${worker.firstName || ""} ${worker.lastName || ""}`.trim();
 
   drawField("Radnik", workerName, colLeftX, cursorY);
-  drawField("JMBG", worker.jmbg || "—", colRightX, cursorY);
+  drawField("JMBG", worker.jmbg || "–", colRightX, cursorY);
   cursorY -= 24;
 
-  drawField("Radno mjesto", worker.position || "—", colLeftX, cursorY);
+  drawField("Radno mjesto", worker.position || "–", colLeftX, cursorY);
   drawField("Datum prijave", fmtDateDDMMYYYY(worker.startDate), colRightX, cursorY);
   cursorY -= 24;
 
   drawField("Ukupan radni staž", workTenure(worker.startDate, paymentDateIso), colLeftX, cursorY);
-  drawField("Adresa", worker.address || "—", colRightX, cursorY);
+  drawField("Adresa", worker.address || "–", colRightX, cursorY);
   cursorY -= 22;
 
   // Linija razdvajanja

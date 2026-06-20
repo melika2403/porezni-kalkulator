@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import Profil from "src/sections/profil/Profil";
 
 export const metadata: Metadata = {
-  title: "Moj profil — Porezni Kalkulator",
+  title: "Moj profil, Porezni Kalkulator",
   description: "Uredite svoje podatke, upravljajte djelatnošću i pregledajte historiju obrazaca.",
 };
 

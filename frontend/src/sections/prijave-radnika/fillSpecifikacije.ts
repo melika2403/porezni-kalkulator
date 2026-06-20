@@ -275,7 +275,7 @@ function drawWorkerRow(
     maxWidth: COLS.ime - 8,
   });
   x += COLS.ime;
-  drawCellText(page, account || "—", x + 4, yTop - 11, reg, 9, {
+  drawCellText(page, account || "–", x + 4, yTop - 11, reg, 9, {
     maxWidth: COLS.acc - 8,
   });
   x += COLS.acc;
@@ -419,7 +419,7 @@ export async function fillSpecifikacije(
       page = doc.addPage([PAGE_W, PAGE_H]);
       y = PAGE_H - MARGIN;
     }
-    y = drawSubtotal(page, y, sum, `Zbir — ${sec.title}:`, bold);
+    y = drawSubtotal(page, y, sum, `Zbir, ${sec.title}:`, bold);
     y -= 12;
     grandTotal += sum;
     anyDrawn = true;

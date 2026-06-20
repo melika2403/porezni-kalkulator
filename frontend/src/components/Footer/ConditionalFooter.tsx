@@ -10,5 +10,6 @@ export default function ConditionalFooter() {
   if (pathname?.startsWith("/admin")) return null;
   if (pathname === "/profil" || pathname?.startsWith("/profil/")) return null;
   if (pathname?.startsWith("/organizacije")) return null;
+  if (pathname === "/app" || pathname?.startsWith("/app/")) return null;
   return <Footer />;
 }

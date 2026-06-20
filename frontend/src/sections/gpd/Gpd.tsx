@@ -480,12 +480,12 @@ export default function GpdForm() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac GPD-1051</div>
         <h1 className={styles.h1}>
-          GPD-1051 obrazac — godišnja prijava <em>poreza na dohodak</em>
+          GPD-1051 obrazac, godišnja prijava <em>poreza na dohodak</em>
         </h1>
         <p className={styles.subtitle}>
           Kako popuniti GPD-1051 obrazac? Godišnja prijava poreza na dohodak za
           fizičke osobe u FBiH. Unesite prihode od plaće, obrta, najma ili
-          kapitala — automatski obračun i preuzimanje popunjenog PDF-a,
+          kapitala, automatski obračun i preuzimanje popunjenog PDF-a,
           besplatno i bez registracije.
         </p>
       </div>
@@ -493,7 +493,7 @@ export default function GpdForm() {
       {/* ── Dio 1 ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 1 — Podaci o <em>poreznom obvezniku</em>
+          Dio 1, Podaci o <em>poreznom obvezniku</em>
           <Link
             href="/gpd/upute"
             className={styles.helpLink}
@@ -681,7 +681,7 @@ export default function GpdForm() {
       {/* ── Dio 2 ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 2 — Prijava <em>prihoda</em> ostvarenih tokom poreznog perioda
+          Dio 2, Prijava <em>prihoda</em> ostvarenih tokom poreznog perioda
         </h2>
         <div style={{ overflowX: "auto" }}>
           <table className={styles.incomeTable}>
@@ -712,7 +712,7 @@ export default function GpdForm() {
                       />
                     ) : (
                       <span style={{ color: "var(--mid)", fontSize: "0.8rem" }}>
-                        —
+                        –
                       </span>
                     )}
                   </td>
@@ -730,14 +730,14 @@ export default function GpdForm() {
                       />
                     ) : (
                       <span style={{ color: "var(--mid)", fontSize: "0.8rem" }}>
-                        —
+                        –
                       </span>
                     )}
                   </td>
                 </tr>
               ))}
 
-              {/* Row 15 — Totals */}
+              {/* Row 15, Totals */}
               <tr className={styles.totalRow}>
                 <td>15</td>
                 <td>Ukupno</td>
@@ -757,7 +757,7 @@ export default function GpdForm() {
                 </td>
               </tr>
 
-              {/* Row 16 — Net loss */}
+              {/* Row 16, Net loss */}
               <tr className={styles.summaryRow}>
                 <td>16</td>
                 <td>Ukupni gubitak (kolona c &gt; d)</td>
@@ -770,7 +770,7 @@ export default function GpdForm() {
                 </td>
               </tr>
 
-              {/* Row 17 — Net profit */}
+              {/* Row 17, Net profit */}
               <tr className={styles.summaryRow}>
                 <td>17</td>
                 <td>Ukupna dobit (kolona d &gt; c)</td>
@@ -790,7 +790,7 @@ export default function GpdForm() {
       {/* ── Dio 3 ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 3 — Lični <em>odbici</em>
+          Dio 3, Lični <em>odbici</em>
         </h2>
         <table className={styles.deductionTable}>
           <thead>
@@ -880,7 +880,7 @@ export default function GpdForm() {
       {/* ── Dio 4 ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 4 — Obračun <em>porezne obaveze</em>
+          Dio 4, Obračun <em>porezne obaveze</em>
         </h2>
         <table className={styles.calcTable}>
           <thead>
@@ -1045,7 +1045,7 @@ export default function GpdForm() {
           </tbody>
         </table>
 
-        {/* Row 32 — Options */}
+        {/* Row 32, Options */}
         <div style={{ marginTop: "1rem", paddingLeft: "0.5rem" }}>
           <div className={styles.fieldLabel} style={{ marginBottom: "0.5rem" }}>
             32) Označite odgovarajuću opciju *
@@ -1130,7 +1130,7 @@ export default function GpdForm() {
       {/* ── Dio 5 ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 5 — Izjava <em>poreznog obveznika</em>
+          Dio 5, Izjava <em>poreznog obveznika</em>
         </h2>
         <p className={styles.izjavaText}>
           Upoznat/a sam sa sankcijama propisanim Zakonom o Poreznoj upravi FBiH
@@ -1182,7 +1182,7 @@ export default function GpdForm() {
       {/* ── Uplatnica ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Uplatnica — <em>porez na dohodak</em>
+          Uplatnica, <em>porez na dohodak</em>
         </h2>
         {computed.difference <= 0 ? (
           <p className={styles.izjavaText}>
@@ -1205,7 +1205,7 @@ export default function GpdForm() {
                     setOpcinaGpd("");
                   }}
                 >
-                  <option value="">— Odaberite kanton —</option>
+                  <option value="">– Odaberite kanton –</option>
                   {KANTON_KEYS.map((k) => (
                     <option key={k} value={k}>
                       {KANTONI[k].ime}
@@ -1221,7 +1221,7 @@ export default function GpdForm() {
                   onChange={(e) => setOpcinaGpd(e.target.value)}
                   disabled={!kantonGpd}
                 >
-                  <option value="">— Odaberite općinu —</option>
+                  <option value="">– Odaberite općinu –</option>
                   {kantonGpdData?.opcine.map((o) => (
                     <option key={o.kod} value={o.kod}>
                       {o.ime}
@@ -1254,7 +1254,7 @@ export default function GpdForm() {
                 <span className={styles.uplCardNum}>1</span>
                 <div>
                   <div className={styles.uplCardTitle}>
-                    Porez na dohodak — kantonalni budžet
+                    Porez na dohodak, kantonalni budžet
                   </div>
                   <div className={styles.uplCardSub}>
                     {kantonGpdData
@@ -1304,8 +1304,8 @@ export default function GpdForm() {
         <p>
           <strong>GPD-1051</strong> je godišnja prijava poreza na dohodak fizičkih
           lica u Federaciji BiH. Objedinjuje sve izvore dohotka koje je porezni
-          obveznik ostvario tokom kalendarske godine — od plate, samostalne
-          djelatnosti, imovine, kapitala i ostalih izvora — i izračunava konačnu
+          obveznik ostvario tokom kalendarske godine, od plate, samostalne
+          djelatnosti, imovine, kapitala i ostalih izvora, i izračunava konačnu
           poreznu obavezu po stopi od 10%.
         </p>
         <p style={{ marginTop: "0.85rem" }}>GPD-1051 obavezno podnose:</p>
@@ -1324,18 +1324,18 @@ export default function GpdForm() {
         </h2>
         <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Unesite lične podatke</strong> — ime, prezime, JMB, adresa
+            <strong>Unesite lične podatke</strong>, ime, prezime, JMB, adresa
             prebivališta i nadležna porezna ispostava. Registrovani korisnici
             imaju automatsku popunu iz profila.
           </li>
           <li>
-            <strong>Unesite sve izvore dohotka</strong> — plate (iz radnog
+            <strong>Unesite sve izvore dohotka</strong>, plate (iz radnog
             odnosa), dohodak iz samostalne djelatnosti (iz SPR-1053), dohodak
             od imovine, kapitala i ostali dohodci. Dodajte i akontacije poreza
             koje su već plaćene tokom godine.
           </li>
           <li>
-            <strong>Iskoristite lične odbitke</strong> — osnovni odbitak (300 KM
+            <strong>Iskoristite lične odbitke</strong>, osnovni odbitak (300 KM
             mjesečno × 12 = 3.600 KM godišnje), odbici za uzdržavane članove
             porodice, plaćeni doprinos za zdravstveno i kamate na stambene
             kredite.
@@ -1395,28 +1395,28 @@ export default function GpdForm() {
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
             <a href="/spr" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              SPR-1053 — specifikacija dohotka samostalne djelatnosti
-            </a>{" "}
-            — obavezan prilog uz GPD-1051 za obrtnike i slobodna zanimanja.
+              SPR-1053, specifikacija dohotka samostalne djelatnosti
+            </a>,{" "}
+            obavezan prilog uz GPD-1051 za obrtnike i slobodna zanimanja.
           </li>
           <li>
             <a href="/zo3" style={{ color: "var(--sage)", fontWeight: 600 }}>
               ZO3 obrazac
-            </a>{" "}
-            — prijava člana porodice na zdravstveno osiguranje (za odbitak za
+            </a>,{" "}
+            prijava člana porodice na zdravstveno osiguranje (za odbitak za
             uzdržavane).
           </li>
           <li>
             <a href="/ams" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              AMS-1035 — akontacija po odbitku
-            </a>{" "}
-            — za prihode iz inostranstva tokom godine, ulaze u GPD.
+              AMS-1035, akontacija po odbitku
+            </a>,{" "}
+            za prihode iz inostranstva tokom godine, ulaze u GPD.
           </li>
           <li>
             <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Preračun neto/bruto plate
-            </a>{" "}
-            — provjera obračunatih poreza i doprinosa.
+            </a>,{" "}
+            provjera obračunatih poreza i doprinosa.
           </li>
         </ul>
         <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
@@ -1426,20 +1426,20 @@ export default function GpdForm() {
           <li>
             <a href="/blog/gpd-1051-korak-po-korak" style={{ color: "var(--sage)", fontWeight: 600 }}>
               GPD-1051 korak po korak
-            </a>{" "}
-            — detaljan vodič kroz godišnju prijavu poreza na dohodak.
+            </a>,{" "}
+            detaljan vodič kroz godišnju prijavu poreza na dohodak.
           </li>
           <li>
             <a href="/blog/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Obrt vs d.o.o. 2026
-            </a>{" "}
-            — koja forma se više isplati i kako se oporezuje.
+            </a>,{" "}
+            koja forma se više isplati i kako se oporezuje.
           </li>
           <li>
             <a href="/blog/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Priznati rashodi obrta
-            </a>{" "}
-            — šta smanjuje poreznu osnovicu.
+            </a>,{" "}
+            šta smanjuje poreznu osnovicu.
           </li>
         </ul>
       </section>
@@ -1448,7 +1448,7 @@ export default function GpdForm() {
         items={[
           {
             q: "Ko je obavezan podnijeti GPD-1051 obrazac?",
-            a: "Godišnju prijavu poreza na dohodak obavezno podnosi svaka fizička osoba — rezident FBiH — koja je tokom godine ostvarila dohodak koji podliježe oporezivanju, uključujući dohotke od nesamostalne djelatnosti, samostalne djelatnosti, imovine i imovinskih prava, kapitala i ostale dohotke.",
+            a: "Godišnju prijavu poreza na dohodak obavezno podnosi svaka fizička osoba, rezident FBiH, koja je tokom godine ostvarila dohodak koji podliježe oporezivanju, uključujući dohotke od nesamostalne djelatnosti, samostalne djelatnosti, imovine i imovinskih prava, kapitala i ostale dohotke.",
           },
           {
             q: "Koji je rok za predaju GPD obrasca?",

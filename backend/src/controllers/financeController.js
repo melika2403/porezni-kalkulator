@@ -437,6 +437,32 @@ async function getSummary(req, res) {
     const totalOtherIncome = Math.round(Number(otherRow?.total || 0) * 100) / 100;
     const totalEarned = Math.round((subscriptionsEarned + totalOtherIncome) * 100) / 100;
     const totalInvested = Math.round(Number(investedRow?.total || 0) * 100) / 100;
+
+    // Kumulativni profit: zbir (zarađeno - uloženo) svih godina <= izabrane.
+    // Profit se prenosi iz godine u godinu (samo unaprijed), dok zarađeno i
+    // uloženo ostaju po godini.
+    const cumEarnedRow = await ClientPayment.findOne({
+      where: { year: { [Op.lte]: year } },
+      attributes: [[fn("COALESCE", fn("SUM", col("amount")), 0), "total"]],
+      raw: true,
+    });
+    const cumOtherRow = await OtherIncome.findOne({
+      where: { date: { [Op.lte]: `${year}-12-31` } },
+      attributes: [[fn("COALESCE", fn("SUM", col("amount")), 0), "total"]],
+      raw: true,
+    });
+    const cumInvestedRow = await CompanyExpense.findOne({
+      where: { date: { [Op.lte]: `${year}-12-31` } },
+      attributes: [[fn("COALESCE", fn("SUM", col("amount")), 0), "total"]],
+      raw: true,
+    });
+    const cumEarned =
+      Math.round(
+        (Number(cumEarnedRow?.total || 0) + Number(cumOtherRow?.total || 0)) * 100,
+      ) / 100;
+    const cumInvested = Math.round(Number(cumInvestedRow?.total || 0) * 100) / 100;
+    const cumulativeProfit = Math.round((cumEarned - cumInvested) * 100) / 100;
+
     return res.status(200).json({
       ok: true,
       data: {
@@ -446,6 +472,7 @@ async function getSummary(req, res) {
         totalOtherIncome,
         totalInvested,
         profit: Math.round((totalEarned - totalInvested) * 100) / 100,
+        cumulativeProfit,
       },
     });
   } catch (error) {

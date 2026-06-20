@@ -183,6 +183,28 @@ export async function fillObrazac2001ATemplate(
   const page = doc.getPage(0);
   const C = TextAlignment.Center;
 
+  // SAMO JIB i Period (datum) kućice sjede prenisko u templejtu. Povećavamo im
+  // visinu prema gore (dno ostaje isto, nema rezanja donjeg ruba cifre), pa
+  // pdf-lib cifru pozicionira više. Iznose i broj zaposlenih NE diramo.
+  const EXTEND = 4;
+  type RectWidget = {
+    getRectangle: () => { x: number; y: number; width: number; height: number };
+    setRectangle: (r: { x: number; y: number; width: number; height: number }) => void;
+  };
+  [...JIB_FIELDS, ...PERIOD_OD_FIELDS, ...PERIOD_DO_FIELDS].forEach((name) => {
+    let f;
+    try {
+      f = form.getTextField(name);
+    } catch {
+      return;
+    }
+    const acro = f.acroField as { getWidgets?: () => RectWidget[] };
+    for (const w of acro.getWidgets ? acro.getWidgets() : []) {
+      const r = w.getRectangle();
+      w.setRectangle({ x: r.x, y: r.y, width: r.width, height: r.height + EXTEND });
+    }
+  });
+
   // Dio 1
   setText(form, "1 Naziv", data.naziv, bold, 10);
   setDigits(form, JIB_FIELDS, data.jib, bold);

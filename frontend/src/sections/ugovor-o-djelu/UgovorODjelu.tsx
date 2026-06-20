@@ -5,11 +5,14 @@ import styles from "./uod.module.css";
 import {
   calcFromBruto,
   calcFromNeto,
+  calcNerezidentFromBruto,
+  calcNerezidentFromNeto,
   VRSTA_OPTIONS,
   nettoBrutoMultiplier,
   type VrstaNaknade,
 } from "./uodCalc";
 import { fillUodUplatnice } from "./fillUodUplatnice";
+import { fillPdn1033 } from "./fillPdn1033";
 import { KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
 import { iznosUSlova } from "./iznosSlovima";
@@ -137,6 +140,11 @@ function UgovorODjeluApp() {
   const canGenerate = hasAccessToTier("BUSINESS");
   const { findByName: findCity } = useCityLookup();
   const { notify } = useNotice();
+  // Porezni obveznik: rezident (FBiH) ili nerezident (RS / BD / inostranstvo).
+  const [obveznikTip, setObveznikTip] = useState<"rezident" | "nerezident">(
+    "rezident",
+  );
+  const isNerezident = obveznikTip === "nerezident";
   const [mode, setMode] = useState<Mode>("neto");
   const [vrsta, setVrsta] = useState<VrstaNaknade>("standard");
   const [iznosStr, setIznosStr] = useState("1.000,00");
@@ -152,6 +160,8 @@ function UgovorODjeluApp() {
   const [izvrIme, setIzvrIme] = useState("");
   const [izvrAdresa, setIzvrAdresa] = useState("");
   const [izvrJmbg, setIzvrJmbg] = useState("");
+  // Država / entitet prebivališta izvršioca (informativno, za nerezidenta).
+  const [izvrDrzava, setIzvrDrzava] = useState("");
 
   // Ostalo
   const [predmet, setPredmet] = useState("");
@@ -215,13 +225,19 @@ function UgovorODjeluApp() {
     naruciAdresa,
     naruciId,
     izvrIme,
-    izvrAdresa,
+    // Za nerezidenta državu prebivališta dodajemo u adresu izvršioca, pa se
+    // pojavljuje i u PDF-u i u DOCX-u (kroz postojeći {izvrAdresa}). Rezidentski
+    // ugovor ostaje nepromijenjen.
+    izvrAdresa:
+      isNerezident && izvrDrzava.trim()
+        ? [izvrAdresa, izvrDrzava.trim()].filter(Boolean).join(", ")
+        : izvrAdresa,
     izvrJmbg,
     izvrZiro,
     predmet,
     rok,
-    netoFmt: fmtKm(calc.neto).replace(" KM", ""),
-    iznosSlovima: iznosUSlova(calc.neto),
+    netoFmt: fmtKm(netoDisplay).replace(" KM", ""),
+    iznosSlovima: iznosUSlova(netoDisplay),
     nadlezniSud,
   });
 
@@ -318,6 +334,49 @@ function UgovorODjeluApp() {
     }
   };
 
+  const handleDownloadPdn = async () => {
+    if (!canGenerate) return;
+    if (!naruciIme || !naruciId) {
+      notify("Unesite naziv i JIB naručioca.", "error");
+      return;
+    }
+    if (!izvrIme || !izvrJmbg) {
+      notify("Unesite ime i JMBG/ID izvršioca.", "error");
+      return;
+    }
+    setGeneratingAug(true);
+    try {
+      const bytes = await fillPdn1033({
+        naruciNaziv: naruciIme,
+        naruciAdresa,
+        naruciId,
+        izvrIme,
+        izvrJmbg,
+        datum,
+        periodMjesec,
+        periodGodina,
+        bruto: calcNez.bruto,
+        porez: calcNez.porez,
+      });
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: "application/pdf",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PDN-1033${brojUgovora ? "_" + brojUgovora.replace(/\//g, "-") : ""}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      notify(
+        "Greška pri generisanju PDN-1033: " + (e as Error).message,
+        "error",
+      );
+    } finally {
+      setGeneratingAug(false);
+    }
+  };
+
   const handleDownloadUplatnice = async () => {
     if (!canGenerate) return;
     if (!naruciIme) {
@@ -346,12 +405,13 @@ function UgovorODjeluApp() {
         kantonKey: kantonKey as KantonKey,
         opcinaKod,
         opcinaIme,
-        zdravstvenoKanton: calc.zdravstvenoKanton,
-        zdravstvenoFbih: calc.zdravstvenoFbih,
-        porez: calc.porez,
-        pio: calc.pio,
-        zastita: calc.zastita,
-        voda: calc.voda,
+        nerezident: isNerezident,
+        zdravstvenoKanton: isNerezident ? 0 : calc.zdravstvenoKanton,
+        zdravstvenoFbih: isNerezident ? 0 : calc.zdravstvenoFbih,
+        porez: isNerezident ? calcNez.porez : calc.porez,
+        pio: isNerezident ? 0 : calc.pio,
+        zastita: isNerezident ? calcNez.nepogode : calc.zastita,
+        voda: isNerezident ? calcNez.voda : calc.voda,
         datum,
         periodMjesec,
         periodGodina,
@@ -400,18 +460,30 @@ function UgovorODjeluApp() {
     return c;
   }, [mode, iznos, troskoviPct]);
 
+  // Nerezident obračun (bez rashoda/doprinosa; porez 10%, voda i nepogode 0,5%).
+  const calcNez = useMemo(
+    () =>
+      mode === "neto"
+        ? calcNerezidentFromNeto(iznos)
+        : calcNerezidentFromBruto(iznos),
+    [mode, iznos],
+  );
+
+  // Neto za prikaz (iznos slovima, isplata) bez obzira na tip obveznika.
+  const netoDisplay = isNerezident ? calcNez.neto : calc.neto;
+
   return (
     <main className={styles.page}>
       <div className={styles.header}>
         <p className={styles.label}>Ugovori</p>
         <h1 className={styles.h1}>
-          Ugovor o djelu (FBiH) — kalkulator poreza i <em>predložak</em>
+          Ugovor o djelu (FBiH), kalkulator poreza i <em>predložak</em>
         </h1>
         <p className={styles.subtitle}>
           Kako popuniti ugovor o djelu u FBiH? Online kalkulator poreza i
           doprinosa (NETO ↔ BRUTO), automatski obračun PIO, zdravstva i zaštite,
           predložak ugovora u Word i PDF formatu te 6 uplatnica spremnih za
-          banku — besplatno i bez registracije.
+          banku, besplatno i bez registracije.
         </p>
       </div>
 
@@ -420,22 +492,49 @@ function UgovorODjeluApp() {
         <h2 className={styles.sectionTitle}>
           Iznos <em>naknade</em>
         </h2>
-        <div className={styles.fieldGrid} style={{ marginBottom: "1rem" }}>
-          <label className={`${styles.field} ${styles.fieldFull}`}>
-            <span className={styles.fieldLabel}>Vrsta naknade</span>
-            <select
-              className={styles.input}
-              value={vrsta}
-              onChange={(e) => setVrsta(e.target.value as VrstaNaknade)}
-            >
-              {(Object.keys(VRSTA_OPTIONS) as VrstaNaknade[]).map((k) => (
-                <option key={k} value={k}>
-                  {VRSTA_OPTIONS[k].label}
-                </option>
-              ))}
-            </select>
-          </label>
+        {/* Tip poreznog obveznika */}
+        <div className={styles.modeChips} style={{ marginBottom: "1rem" }}>
+          <button
+            type="button"
+            className={`${styles.modeChip} ${!isNerezident ? styles.modeChipActive : ""}`}
+            onClick={() => setObveznikTip("rezident")}
+          >
+            FBiH (rezident)
+          </button>
+          <button
+            type="button"
+            className={`${styles.modeChip} ${isNerezident ? styles.modeChipActive : ""}`}
+            onClick={() => setObveznikTip("nerezident")}
+          >
+            Nerezident
+          </button>
         </div>
+        {isNerezident && (
+          <p className={styles.hint} style={{ marginBottom: "1rem" }}>
+            Nerezident je lice sa prebivalištem u RS, Brčko Distriktu ili
+            inostranstvu, angažovano od naručioca sa sjedištem u FBiH. Nema
+            normiranih rashoda ni doprinosa; porez na dohodak je 10% na bruto, a
+            prijava ide na obrascu PDN-1033.
+          </p>
+        )}
+        {!isNerezident && (
+          <div className={styles.fieldGrid} style={{ marginBottom: "1rem" }}>
+            <label className={`${styles.field} ${styles.fieldFull}`}>
+              <span className={styles.fieldLabel}>Vrsta naknade</span>
+              <select
+                className={styles.input}
+                value={vrsta}
+                onChange={(e) => setVrsta(e.target.value as VrstaNaknade)}
+              >
+                {(Object.keys(VRSTA_OPTIONS) as VrstaNaknade[]).map((k) => (
+                  <option key={k} value={k}>
+                    {VRSTA_OPTIONS[k].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
         <div className={styles.modeRow}>
           <div className={styles.modeChips}>
             <button
@@ -478,6 +577,48 @@ function UgovorODjeluApp() {
         <div className={styles.calcGrid}>
           <table className={styles.calcTable}>
             <tbody>
+              {isNerezident ? (
+                <>
+                  <tr>
+                    <td>1</td>
+                    <td>Iznos neto naknade</td>
+                    <td className={styles.calcVal}>{fmtKm(calcNez.neto)}</td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td>Bruto iznos (osnovica za PDN-1033)</td>
+                    <td className={styles.calcVal}>{fmtKm(calcNez.bruto)}</td>
+                  </tr>
+                  <tr>
+                    <td>3</td>
+                    <td>Porez na dohodak 10%</td>
+                    <td className={styles.calcVal}>{fmtKm(calcNez.porez)}</td>
+                  </tr>
+                  <tr className={styles.calcHighlight}>
+                    <td>4</td>
+                    <td>Neto naknada</td>
+                    <td className={styles.calcVal}>{fmtKm(calcNez.neto)}</td>
+                  </tr>
+                  <tr className={styles.calcDeduction}>
+                    <td>5</td>
+                    <td>Naknada za vode 0,5% (na teret naručioca)</td>
+                    <td className={styles.calcVal}>{fmtKm(calcNez.voda)}</td>
+                  </tr>
+                  <tr className={styles.calcDeduction}>
+                    <td>6</td>
+                    <td>Naknada za nepogode 0,5% (na teret naručioca)</td>
+                    <td className={styles.calcVal}>{fmtKm(calcNez.nepogode)}</td>
+                  </tr>
+                  <tr className={styles.calcTotal}>
+                    <td>7</td>
+                    <td>Ukupni trošak naručioca</td>
+                    <td className={styles.calcVal}>
+                      {fmtKm(calcNez.ukupniTroskovi)}
+                    </td>
+                  </tr>
+                </>
+              ) : (
+                <>
               <tr>
                 <td>1</td>
                 <td>Neto iznos naknade</td>
@@ -581,6 +722,8 @@ function UgovorODjeluApp() {
                   {calc.porezDoprinosNaNetoPct.toFixed(2).replace(".", ",")}%
                 </td>
               </tr>
+                </>
+              )}
             </tbody>
           </table>
         </div>
@@ -619,6 +762,7 @@ function UgovorODjeluApp() {
                 className={styles.input}
                 value={naruciIme}
                 onChange={(e) => setNaruciIme(e.target.value)}
+                placeholder="Npr. Firma d.o.o. ili Ime i prezime"
               />
             </label>
             <label className={styles.field}>
@@ -627,6 +771,7 @@ function UgovorODjeluApp() {
                 className={styles.input}
                 value={naruciAdresa}
                 onChange={(e) => setNaruciAdresa(e.target.value)}
+                placeholder="Npr. Ferhadija 1, Sarajevo"
               />
             </label>
             <label className={styles.field}>
@@ -637,12 +782,31 @@ function UgovorODjeluApp() {
                 onChange={(e) => setNaruciId(formatJib(e.target.value))}
                 inputMode="numeric"
                 maxLength={13}
+                placeholder="XXXXXXXXXXXXX"
               />
             </label>
           </div>
 
           <div className={styles.party}>
-            <h3 className={styles.partyTitle}>Izvršilac (radnik)</h3>
+            <h3 className={styles.partyTitle}>
+              Izvršilac (radnik)
+              {isNerezident && (
+                <span
+                  style={{
+                    marginLeft: 8,
+                    padding: "2px 8px",
+                    background: "var(--accent, #c8622a)",
+                    color: "#fff",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    verticalAlign: "middle",
+                  }}
+                >
+                  Nerezident
+                </span>
+              )}
+            </h3>
             <div className={styles.field}>
               <span className={styles.fieldLabel}>Popuni izvršioca</span>
               <UgovorFillSelect
@@ -662,6 +826,7 @@ function UgovorODjeluApp() {
                 className={styles.input}
                 value={izvrIme}
                 onChange={(e) => setIzvrIme(e.target.value)}
+                placeholder="Npr. Ime i prezime"
               />
             </label>
             <label className={styles.field}>
@@ -670,6 +835,7 @@ function UgovorODjeluApp() {
                 className={styles.input}
                 value={izvrAdresa}
                 onChange={(e) => setIzvrAdresa(e.target.value)}
+                placeholder="Npr. Ulica i broj, Grad"
               />
             </label>
             <label className={styles.field}>
@@ -680,6 +846,7 @@ function UgovorODjeluApp() {
                 onChange={(e) => setIzvrJmbg(formatJib(e.target.value))}
                 inputMode="numeric"
                 maxLength={13}
+                placeholder="0000000000000"
               />
             </label>
             <label className={styles.field}>
@@ -694,6 +861,19 @@ function UgovorODjeluApp() {
                 placeholder="XXX-XXX-XXXXXXXX-XX"
               />
             </label>
+            {isNerezident && (
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>
+                  Država / entitet prebivališta
+                </span>
+                <input
+                  className={styles.input}
+                  value={izvrDrzava}
+                  onChange={(e) => setIzvrDrzava(e.target.value)}
+                  placeholder="Npr. Republika Srpska, Brčko Distrikt, Srbija"
+                />
+              </label>
+            )}
           </div>
         </div>
       </section>
@@ -717,7 +897,7 @@ function UgovorODjeluApp() {
             />
             <p className={styles.hint}>
               Tekst se direktno nadovezuje na &ldquo;Izvršilac posla
-              prihvata...&rdquo; — započnite glagolom (&ldquo;izvrši&rdquo;,
+              prihvata...&rdquo; započnite glagolom (&ldquo;izvrši&rdquo;,
               &ldquo;izradi&rdquo;, &ldquo;obavi&rdquo;).
             </p>
           </label>
@@ -769,7 +949,7 @@ function UgovorODjeluApp() {
             <span className={styles.fieldLabel}>Iznos slovima (auto)</span>
             <input
               className={styles.input}
-              value={iznosUSlova(calc.neto)}
+              value={iznosUSlova(netoDisplay)}
               readOnly
               tabIndex={-1}
             />
@@ -800,6 +980,8 @@ function UgovorODjeluApp() {
           title={`Ugovor o djelu · ${naruciIme || "Naručilac"} → ${izvrIme || "Izvršilac"}${brojUgovora ? ` · ${brojUgovora}` : ""}`}
           buildData={() => ({
             // Snapshot cijele forme kao JSON — može se kasnije re-renderovati
+            obveznikTip,
+            izvrDrzava,
             mode,
             vrsta,
             iznosStr,
@@ -846,18 +1028,22 @@ function UgovorODjeluApp() {
           <button
             type="button"
             className={styles.btnOutline}
-            onClick={handleDownloadAug}
+            onClick={isNerezident ? handleDownloadPdn : handleDownloadAug}
             disabled={generatingAug || !canGenerate}
             title={canGenerate ? undefined : "Dostupno uz Business pretplatu"}
           >
             {IconReceipt}{" "}
-            {generatingAug ? "Generišem…" : "Preuzmi AUG-1031 (PDF)"}
+            {generatingAug
+              ? "Generišem…"
+              : isNerezident
+                ? "Preuzmi PDN-1033 (PDF)"
+                : "Preuzmi AUG-1031 (PDF)"}
           </button>
           <button
             type="button"
             className={styles.augInfoBtn}
             onClick={() => setShowAugInfo((v) => !v)}
-            aria-label="Šta je AUG-1031?"
+            aria-label={isNerezident ? "Šta je PDN-1033?" : "Šta je AUG-1031?"}
             aria-expanded={showAugInfo}
           >
             ?
@@ -872,24 +1058,51 @@ function UgovorODjeluApp() {
               >
                 ×
               </button>
-              <strong>Šta je AUG-1031?</strong>
-              <p>
-                AUG-1031 je obrazac &ldquo;Akontacija poreza po odbitku za
-                povremene samostalne djelatnosti&rdquo; koji naručilac
-                (isplatilac) popunjava i{" "}
-                <strong>obavezno uručuje izvršiocu</strong> uz isplatu naknade
-                po ugovoru o djelu.
-              </p>
-              <p>
-                Obrazac sadrži sve podatke o isplaćenom prihodu, priznatim
-                rashodima, doprinosu za zdravstveno, porezu na dohodak i PIO
-                doprinosu.
-              </p>
-              <p>
-                Izvršilac ga koristi pri podnošenju{" "}
-                <strong>godišnje prijave dohotka (GPD-1051)</strong> na kraju
-                godine kao dokaz o uplaćenoj akontaciji poreza.
-              </p>
+              {isNerezident ? (
+                <>
+                  <strong>Šta je PDN-1033?</strong>
+                  <p>
+                    PDN-1033 je obrazac &ldquo;Prijava poreza na dohodak za
+                    nerezidente na prihode od povremenog obavljanja samostalne
+                    djelatnosti&rdquo; koji naručilac (isplatilac) sa sjedištem
+                    u FBiH popunjava kada angažuje izvršioca koji{" "}
+                    <strong>nije rezident FBiH</strong> (prebivalište u RS,
+                    Brčko distriktu ili inostranstvu).
+                  </p>
+                  <p>
+                    Za nerezidente nema priznatih (normiranih) rashoda ni
+                    doprinosa: porez na dohodak iznosi{" "}
+                    <strong>10% na puni bruto iznos</strong> naknade. Vodne
+                    naknade i naknada za zaštitu od prirodnih nesreća (po 0,5%)
+                    idu na teret naručioca.
+                  </p>
+                  <p>
+                    Naručilac podnosi PDN-1033 nadležnoj poreznoj ispostavi i
+                    uplaćuje porez prilikom isplate naknade.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong>Šta je AUG-1031?</strong>
+                  <p>
+                    AUG-1031 je obrazac &ldquo;Akontacija poreza po odbitku za
+                    povremene samostalne djelatnosti&rdquo; koji naručilac
+                    (isplatilac) popunjava i{" "}
+                    <strong>obavezno uručuje izvršiocu</strong> uz isplatu
+                    naknade po ugovoru o djelu.
+                  </p>
+                  <p>
+                    Obrazac sadrži sve podatke o isplaćenom prihodu, priznatim
+                    rashodima, doprinosu za zdravstveno, porezu na dohodak i PIO
+                    doprinosu.
+                  </p>
+                  <p>
+                    Izvršilac ga koristi pri podnošenju{" "}
+                    <strong>godišnje prijave dohotka (GPD-1051)</strong> na
+                    kraju godine kao dokaz o uplaćenoj akontaciji poreza.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -910,7 +1123,7 @@ function UgovorODjeluApp() {
                 handleKantonChange(e.target.value as KantonKey | "")
               }
             >
-              <option value="">— Odaberite kanton —</option>
+              <option value="">– Odaberite kanton –</option>
               {(Object.keys(KANTONI) as KantonKey[]).map((k) => (
                 <option key={k} value={k}>
                   {KANTONI[k].ime}
@@ -926,7 +1139,7 @@ function UgovorODjeluApp() {
               onChange={(e) => setOpcinaKod(e.target.value)}
               disabled={!kantonKey}
             >
-              <option value="">— Odaberite općinu —</option>
+              <option value="">– Odaberite općinu –</option>
               {opcine.map((o) => (
                 <option key={o.kod} value={o.kod}>
                   {o.ime}
@@ -956,23 +1169,48 @@ function UgovorODjeluApp() {
             const k = kantonKey ? KANTONI[kantonKey] : null;
             const placeholderRacun = "Odaberite kanton";
             const placeholderPrimalac = k ? "" : "Odaberite kanton";
+            if (isNerezident) {
+              return [
+                {
+                  title: "Porez na dohodak (nerezident)",
+                  racun: k?.budzet ?? placeholderRacun,
+                  primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac,
+                  vrsta: "716116",
+                  iznos: calcNez.porez,
+                },
+                {
+                  title: "Opšta vodna naknada",
+                  racun: k?.budzet ?? placeholderRacun,
+                  primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac,
+                  vrsta: "722582",
+                  iznos: calcNez.voda,
+                },
+                {
+                  title: "Zaštita od prirodnih nepogoda",
+                  racun: k?.budzet ?? placeholderRacun,
+                  primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac,
+                  vrsta: "722582",
+                  iznos: calcNez.nepogode,
+                },
+              ];
+            }
             return [
               {
-                title: "Zdravstveno osiguranje — kanton",
+                title: "Zdravstveno osiguranje, kanton",
                 racun: k?.zoRacun ?? placeholderRacun,
                 primalac: k ? `ZZO ${k.genitiv}` : placeholderPrimalac,
                 vrsta: "712116",
                 iznos: calc.zdravstvenoKanton,
               },
               {
-                title: "Zdravstveno osiguranje — FBiH",
+                title: "Zdravstveno osiguranje, FBiH",
                 racun: "102-050-00000640-18",
                 primalac: "ZZO FBiH",
                 vrsta: "712116",
                 iznos: calc.zdravstvenoFbih,
               },
               {
-                title: "Porez na dohodak — kantonalni budžet",
+                title: "Porez na dohodak, kantonalni budžet",
                 racun: k?.budzet ?? placeholderRacun,
                 primalac: k ? `Budžet ${k.genitiv}` : placeholderPrimalac,
                 vrsta: "716116",
@@ -1050,16 +1288,16 @@ function UgovorODjeluApp() {
         </h2>
         <p>
           <strong>Ugovor o djelu</strong> je vrsta autorskog ugovora kojim se
-          izvršilac obavezuje da naručiocu obavi određeni posao — izradi
+          izvršilac obavezuje da naručiocu obavi određeni posao, izradi
           projekta, sastavljanje teksta, pružanje konsultantskih usluga,
-          autorska djela, ekspertize, predavanja i sl. — a naručilac da mu za to
+          autorska djela, ekspertize, predavanja i sl. a naručilac da mu za to
           plati ugovorenu naknadu. Regulisan je{" "}
           <em>Zakonom o obligacionim odnosima</em>, a porezni tretman propisan
           je Zakonom o porezu na dohodak FBiH.
         </p>
         <p style={{ marginTop: "0.85rem" }}>
           Razlikuje se od ugovora o radu po tome što{" "}
-          <strong>ne zasniva radni odnos</strong> — nema pune zaštite radnika
+          <strong>ne zasniva radni odnos</strong>, nema pune zaštite radnika
           (godišnji odmor, otkazni rok, povreda na radu), ali ima poreznu
           fleksibilnost i pogodan je za jednokratne ili projektne angažmane.
         </p>
@@ -1080,15 +1318,15 @@ function UgovorODjeluApp() {
           }}
         >
           <li>
-            <strong>20%</strong> — standardni ugovor o djelu (usluge, projekti,
+            <strong>20%</strong>, standardni ugovor o djelu (usluge, projekti,
             konsultacije).
           </li>
           <li>
-            <strong>30%</strong> — autorska djela (književna, muzička, filmska,
+            <strong>30%</strong>, autorska djela (književna, muzička, filmska,
             likovna ostvarenja, naučna djela).
           </li>
           <li>
-            <strong>0%</strong> — naknade članovima komisija, nadzornih odbora i
+            <strong>0%</strong>, naknade članovima komisija, nadzornih odbora i
             sličnih tijela.
           </li>
         </ul>
@@ -1102,7 +1340,7 @@ function UgovorODjeluApp() {
         >
           <li>
             <strong>4% doprinos za zdravstveno osiguranje</strong> (iz primitaka
-            od druge samostalne djelatnosti — šifra 712116),
+            od druge samostalne djelatnosti, šifra 712116),
           </li>
           <li>
             <strong>10% porez na dohodak</strong> od druge samostalne
@@ -1111,7 +1349,7 @@ function UgovorODjeluApp() {
         </ul>
         <p style={{ marginTop: "0.85rem" }}>
           Naručilac dodatno plaća <strong>6% PIO doprinos</strong> te 0,5% opšta
-          vodna naknada i 0,5% naknada za zaštitu od prirodnih nesreća —
+          vodna naknada i 0,5% naknada za zaštitu od prirodnih nesreća, 
           obračunato na neto iznos.
         </p>
       </section>
@@ -1128,22 +1366,22 @@ function UgovorODjeluApp() {
           }}
         >
           <li>
-            <strong>Unesite iznos naknade</strong> — odaberite vrstu (standardna
+            <strong>Unesite iznos naknade</strong>, odaberite vrstu (standardna
             20%, autorsko djelo 30%, komisija 0%) i unesite NETO ili BRUTO
             iznos. Kalkulator automatski računa porez, doprinose, PIO, zaštitu i
             vodnu naknadu.
           </li>
           <li>
-            <strong>Popunite ugovorne strane</strong> — podaci naručioca
+            <strong>Popunite ugovorne strane</strong>, podaci naručioca
             (firma/obrt) i izvršioca (radnik). Ako imate sačuvane podatke u
             profilu, dropdown "Popuni" radi auto-popunu jednim klikom.
           </li>
           <li>
-            <strong>Detalji ugovora</strong> — predmet posla, datum zaključenja,
+            <strong>Detalji ugovora</strong>, predmet posla, datum zaključenja,
             rok izvršenja, mjesto i nadležni sud u slučaju spora.
           </li>
           <li>
-            <strong>Preuzmite ugovor i uplatnice</strong> — Word (DOCX) ili PDF
+            <strong>Preuzmite ugovor i uplatnice</strong>, Word (DOCX) ili PDF
             ugovor + 6 popunjenih uplatnica spremnih za banku ili elektronsko
             plaćanje.
           </li>
@@ -1162,12 +1400,12 @@ function UgovorODjeluApp() {
           }}
         >
           <li>
-            <strong>Ugovor o djelu</strong> — jednokratna ili projektna
+            <strong>Ugovor o djelu</strong>, jednokratna ili projektna
             angažovanost, izvršilac sam organizuje rad, nema fiksnog radnog
             vremena ni godišnjeg odmora. Manji porezni teret, ali manja zaštita.
           </li>
           <li>
-            <strong>Ugovor o radu</strong> — stalni radni odnos, fiksno radno
+            <strong>Ugovor o radu</strong>, stalni radni odnos, fiksno radno
             vrijeme, godišnji odmor, otkazni rokovi, zaštita od povrede na radu.
             Veći porezni teret (puni doprinosi za PIO, zdravstveno,
             nezaposlenost).
@@ -1187,7 +1425,7 @@ function UgovorODjeluApp() {
         </h2>
         <p>
           Porezi i doprinosi po ugovoru o djelu uplaćuju se{" "}
-          <strong>istovremeno sa isplatom naknade</strong> izvršiocu —
+          <strong>istovremeno sa isplatom naknade</strong> izvršiocu, 
           najkasnije isti dan kada se neto iznos isplaćuje na njegov račun.
           Naručilac je odgovoran za pravovremenu uplatu i podnošenje obrazaca
           nadležnoj poreznoj ispostavi (AUG-1031 obrazac).
@@ -1211,8 +1449,8 @@ function UgovorODjeluApp() {
               style={{ color: "var(--sage)", fontWeight: 600 }}
             >
               Ugovor o radu i otkaz
-            </a>{" "}
-            — za stalno radno angažovanje (alternativa UoD-u).
+            </a>,{" "}
+            za stalno radno angažovanje (alternativa UoD-u).
           </li>
           <li>
             <a
@@ -1220,14 +1458,14 @@ function UgovorODjeluApp() {
               style={{ color: "var(--sage)", fontWeight: 600 }}
             >
               Ugovor o pozajmici
-            </a>{" "}
-            — za pozajmicu novca između strana.
+            </a>,{" "}
+            za pozajmicu novca između strana.
           </li>
           <li>
             <a href="/ams" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              AMS-1035 — prihodi iz inostranstva
-            </a>{" "}
-            — slična porezna logika za prihode iz inostranstva.
+              AMS-1035, prihodi iz inostranstva
+            </a>,{" "}
+            slična porezna logika za prihode iz inostranstva.
           </li>
           <li>
             <a
@@ -1235,8 +1473,8 @@ function UgovorODjeluApp() {
               style={{ color: "var(--sage)", fontWeight: 600 }}
             >
               Preračun neto/bruto plate
-            </a>{" "}
-            — provjera obračuna za radnike u radnom odnosu.
+            </a>,{" "}
+            provjera obračuna za radnike u radnom odnosu.
           </li>
         </ul>
         <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
@@ -1255,8 +1493,8 @@ function UgovorODjeluApp() {
               style={{ color: "var(--sage)", fontWeight: 600 }}
             >
               Ugovor o djelu vs ugovor o radu
-            </a>{" "}
-            — kad koristiti koji i kako se razlikuje oporezivanje.
+            </a>,{" "}
+            kad koristiti koji i kako se razlikuje oporezivanje.
           </li>
         </ul>
       </section>

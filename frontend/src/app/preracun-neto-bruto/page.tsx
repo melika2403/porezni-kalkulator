@@ -5,16 +5,16 @@ const PAGE_URL = "https://poreznikalkulator.ba/preracun-neto-bruto";
 
 export const metadata: Metadata = {
   title:
-    "Kalkulator plate FBiH — preračun neto u bruto i bruto u neto | Porezni Kalkulator BiH",
+    "Kalkulator plate FBiH, preračun neto u bruto i bruto u neto | Porezni Kalkulator BiH",
   description:
-    "Online kalkulator plate za Federaciju BiH — preračun neto u bruto i bruto u neto po važećim stopama. Pregled doprinosa radnika i poslodavca, poreza na dohodak i ukupnog troška poslodavca, besplatno.",
+    "Online kalkulator plate za Federaciju BiH, preračun neto u bruto i bruto u neto po važećim stopama. Pregled doprinosa radnika i poslodavca, poreza na dohodak i ukupnog troška poslodavca, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Kalkulator plate FBiH — neto/bruto preračun",
+    title: "Kalkulator plate FBiH, neto/bruto preračun",
     description:
       "Brz preračun plate u FBiH sa svim doprinosima i porezima. Doprinosi iz/na, porez na dohodak, ukupni trošak poslodavca.",
   },
@@ -61,7 +61,7 @@ const faqSchema = {
       name: "Kolika je stopa poreza na dohodak u FBiH?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "U Federaciji BiH se primjenjuje jedinstvena stopa poreza na dohodak od 10%. Porez se obračunava na poreznu osnovicu — bruto platu umanjenu za doprinose iz plate i lični odbitak.",
+        text: "U Federaciji BiH se primjenjuje jedinstvena stopa poreza na dohodak od 10%. Porez se obračunava na poreznu osnovicu, bruto platu umanjenu za doprinose iz plate i lični odbitak.",
       },
     },
     {
@@ -69,7 +69,7 @@ const faqSchema = {
       name: "Šta je lični odbitak i kako se uvećava?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Osnovni lični odbitak je 300 KM mjesečno (3.600 KM godišnje). Uvećava se preko poreznog koeficijenta za uzdržavane članove porodice — supružnika, djecu, roditelje. Da bi se koristio, radnik mora poslodavcu dostaviti Poreznu karticu (Obrazac PK-1) sa odobrenim koeficijentom.",
+        text: "Osnovni lični odbitak je 300 KM mjesečno (3.600 KM godišnje). Uvećava se preko poreznog koeficijenta za uzdržavane članove porodice, supružnika, djecu, roditelje. Da bi se koristio, radnik mora poslodavcu dostaviti Poreznu karticu (Obrazac PK-1) sa odobrenim koeficijentom.",
       },
     },
   ],
