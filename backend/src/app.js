@@ -227,6 +227,11 @@ async function ensureColumns() {
     },
     {
       table: "payrolls",
+      column: "imported",
+      ddl: "ALTER TABLE payrolls ADD COLUMN imported TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "payrolls",
       column: "vacationDays",
       ddl: "ALTER TABLE payrolls ADD COLUMN vacationDays INT NULL DEFAULT 0",
     },
@@ -493,6 +498,52 @@ async function ensureColumns() {
       column: "hiddenAt",
       ddl: "ALTER TABLE activity_logs ADD COLUMN hiddenAt DATETIME NULL",
     },
+    // Model vlasništva/direktora (d.o.o.). DEFAULT-ovi automatski stavljaju
+    // SVE postojeće organizacije na "opciju 1" (vlasnik = prijavljen direktor),
+    // što je tačno tekuće ponašanje — bez backfill UPDATE-a, ništa se ne dira.
+    {
+      table: "organizations",
+      column: "ownerType",
+      ddl: "ALTER TABLE organizations ADD COLUMN ownerType VARCHAR(20) NOT NULL DEFAULT 'fizicko_domace'",
+    },
+    {
+      table: "organizations",
+      column: "ownerIsDirector",
+      ddl: "ALTER TABLE organizations ADD COLUMN ownerIsDirector TINYINT(1) NOT NULL DEFAULT 1",
+    },
+    {
+      table: "organizations",
+      column: "directorEngagement",
+      ddl: "ALTER TABLE organizations ADD COLUMN directorEngagement VARCHAR(20) NOT NULL DEFAULT 'ugovor_o_radu'",
+    },
+    {
+      table: "organizations",
+      column: "directorWorkerId",
+      ddl: "ALTER TABLE organizations ADD COLUMN directorWorkerId INT UNSIGNED NULL",
+    },
+    {
+      table: "organizations",
+      column: "ownerInfo",
+      ddl: "ALTER TABLE organizations ADD COLUMN ownerInfo JSON NULL",
+    },
+    // Izmjene konta za nalog za knjiženje (na nivou korisnika/agencije).
+    {
+      table: "users",
+      column: "postingAccounts",
+      ddl: "ALTER TABLE users ADD COLUMN postingAccounts JSON NULL",
+    },
+    // Agencijska opcija: objedini kantonalne uplatnice po kantonu (op. = sjedište).
+    {
+      table: "users",
+      column: "combineKantonalUplatnice",
+      ddl: "ALTER TABLE users ADD COLUMN combineKantonalUplatnice TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    // Dodatni podaci matične evidencije o radniku (JSON, uređuje se u evidenciji).
+    {
+      table: "workers",
+      column: "evidencijaPodaci",
+      ddl: "ALTER TABLE workers ADD COLUMN evidencijaPodaci JSON NULL",
+    },
   ];
   for (const c of checks) {
     const [rows] = await sequelize.query(
@@ -649,7 +700,7 @@ async function ensureInvoiceCounterTypeColumn() {
   );
   if (Number(colRows?.[0]?.cnt || 0)) return;
 
-  console.log("Razdvajam numeraciju faktura/predračuna — brišem postojeće zapise (testni podaci).");
+  console.log("Razdvajam numeraciju faktura/predračuna, brišem postojeće zapise (testni podaci).");
   await sequelize.query("DELETE FROM invoice_items");
   await sequelize.query("DELETE FROM invoices");
   await sequelize.query("DELETE FROM invoice_counters");

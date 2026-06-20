@@ -27,7 +27,7 @@ import styles from "./Sidebar.module.css";
 const MARKETING_URL =
   process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
 
-type NavItem = {
+export type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{
@@ -38,9 +38,9 @@ type NavItem = {
   badge?: string;
 };
 
-type NavGroup = { label?: string; items: NavItem[] };
+export type NavGroup = { label?: string; items: NavItem[] };
 
-const NAV_GROUPS: NavGroup[] = [
+export const NAV_GROUPS: NavGroup[] = [
   {
     items: [
       { href: "/app/dashboard", label: "Početna", icon: IconLayoutDashboard },

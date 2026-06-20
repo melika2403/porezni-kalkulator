@@ -129,6 +129,26 @@ router.delete(
   workersController.remove,
 );
 
+// Matična evidencija o radniku (Pravilnik Sl. nov. FBiH 92/16).
+router.get(
+  "/:orgId/workers/:workerId/evidencija",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  workersController.getEvidencija,
+);
+router.patch(
+  "/:orgId/workers/:workerId/evidencija",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  workersController.saveEvidencija,
+);
+router.get(
+  "/:orgId/workers/:workerId/evidencija-pdf",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  workersController.generateEvidencija,
+);
+
 // Contract counter (UoR) — peek & take next number per organization+year.
 // BUSINESS feature: tier check via owner; OWNER/ADMIN of org may use it.
 router.get(

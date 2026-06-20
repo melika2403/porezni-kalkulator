@@ -111,7 +111,7 @@ export default function WorkersSidebar({
         <div className={styles.hint}>
           <p className={styles.hintText}>
             Prijavite se da pristupite sačuvanim organizacijama i radnicima.
-            Forma desno funkcioniše i bez prijave — možete unijeti podatke
+            Forma desno funkcioniše i bez prijave, možete unijeti podatke
             ručno i koristiti kalkulator.
           </p>
           <Link href="/registracija" className={styles.hintBtnPrimary}>
@@ -135,7 +135,7 @@ export default function WorkersSidebar({
             onWorkerSelect(null, null);
           }}
         >
-          <option value="">— Odaberi —</option>
+          <option value="">– Odaberi –</option>
           {(orgsQuery.data?.length ?? 0) > 0 && (
             <optgroup label="Moje organizacije">
               {orgsQuery.data!.map((org) => (

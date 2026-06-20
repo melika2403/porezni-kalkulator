@@ -309,7 +309,7 @@ export const KD_BIH_DETAILED: KdBihArea[] = [
           {
             "code": "03.1",
             "name": "Ribolov",
-            "description": "Ova grana uključuje ribolov, tj. djelatnosti ulova i sakupljanja, usmjerenih na vađenje ili sakupljanje živih\nvodenih organizama (ponajprije riba, mekušaca i ljuskara), kao i okeanskog bilja, bilja obalnih i unutrašnjih voda\nza ljudsku prehranu ili u druge svrhe, a mogu se sakupljati ručno ili pomoću ribarske opreme, kao što su mreža,\nparangal i vrše. Takve djelatnosti mogu se zasnivati na obalnom sakupljanju školjki, kao što su dagnje i\nkamenice, u razdoblju između plime i oseke ili na obalnom ulovu mrežom ili pomoću čamaca domaće izrade ili,\nšto je mnogo češće, pomoću komercijalnih brodova u obalnim, priobalnim ili u otvorenim vodama. Spomenute\ndjelatnosti ,također, uključuju ribolov u poribljenim vodenim površinama.",
+            "description": "Ova grana uključuje ribolov, tj. djelatnosti ulova i sakupljanja, usmjerenih na vađenje ili sakupljanje živih\nvodenih organizama (ponajprije riba, mekušaca i ljuskara), kao i okeanskog bilja, bilja obalnih i unutrašnjih voda\nza ljudsku prehranu ili u druge svrhe, a mogu se sakupljati ručno ili pomoću ribarske opreme, kao što su mreža,\nparangal i vrše. Takve djelatnosti mogu se zasnivati na obalnom sakupljanju školjki, kao što su dagnje i\nkamenice, u razdoblju između plime i oseke ili na obalnom ulovu mrežom ili pomoću čamaca domaće izrade ili,\nšto je mnogo češće, pomoću komercijalnih brodova u obalnim, priobalnim ili u otvorenim vodama. Spomenute\ndjelatnosti,također, uključuju ribolov u poribljenim vodenim površinama.",
             "razredi": [
               {
                 "code": "03.11",
@@ -3781,7 +3781,7 @@ export const KD_BIH_DETAILED: KdBihArea[] = [
       {
         "code": "53",
         "name": "Poštanske i kurirske djelatnosti",
-        "description": "Ova oblast uključuje poštanske i kurirske djelatnosti, kao što su prijem, prijevoz te uručenje pošte i paketa u\nskladu s različitim ugovorima.\nDistribucija i usluge kurira su , također, uključene.",
+        "description": "Ova oblast uključuje poštanske i kurirske djelatnosti, kao što su prijem, prijevoz te uručenje pošte i paketa u\nskladu s različitim ugovorima.\nDistribucija i usluge kurira su, također, uključene.",
         "grane": [
           {
             "code": "53.1",
@@ -5532,7 +5532,7 @@ export const KD_BIH_DETAILED: KdBihArea[] = [
       {
         "code": "94",
         "name": "Djelatnosti članskih organizacija",
-        "description": "Ova oblast uključuje djelatnosti organizacija koje zastupaju interese posebnih grupa ili promoviraju ideje\njavnosti. Te organizacije u pravilu imaju članove, a u njihove se djelatnosti mogu uključivati , odnosno imati\nkoristi, i osobe koje nisu članovi. Osnovna podjela ove oblasti određena je prema svrsi tih organizacija, tj.\ninteresu poslodavaca, samozaposlenih pojedinaca i naučne zajednice (grana 94.1), interesu zaposlenika (grana\n94.2) ili propagiranje vjere, politike, kulture, obrazovanja ili rekreacijskih ideja i djelatnosti (grana 94.9).",
+        "description": "Ova oblast uključuje djelatnosti organizacija koje zastupaju interese posebnih grupa ili promoviraju ideje\njavnosti. Te organizacije u pravilu imaju članove, a u njihove se djelatnosti mogu uključivati, odnosno imati\nkoristi, i osobe koje nisu članovi. Osnovna podjela ove oblasti određena je prema svrsi tih organizacija, tj.\ninteresu poslodavaca, samozaposlenih pojedinaca i naučne zajednice (grana 94.1), interesu zaposlenika (grana\n94.2) ili propagiranje vjere, politike, kulture, obrazovanja ili rekreacijskih ideja i djelatnosti (grana 94.9).",
         "grane": [
           {
             "code": "94.1",

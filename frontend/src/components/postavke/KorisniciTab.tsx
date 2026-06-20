@@ -243,8 +243,8 @@ function InviteModal({
                 onChange={(e) => setRole(e.target.value as "ADMIN" | "MEMBER")}
                 className="w-full px-3 py-2 text-[13px] bg-cream-100 border border-cream-300 rounded-lg text-text-primary focus:outline-none focus:border-brand-600"
               >
-                <option value="MEMBER">Član — pristup samo svojim alatima</option>
-                <option value="ADMIN">Admin — može mijenjati postavke obrta</option>
+                <option value="MEMBER">Član, pristup samo svojim alatima</option>
+                <option value="ADMIN">Admin, može mijenjati postavke obrta</option>
               </select>
             </label>
             {error && (

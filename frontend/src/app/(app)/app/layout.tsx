@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { AppShell } from "src/components/app-shell/AppShell";
+import { PkOfficeTeaser } from "src/sections/dashboard/PkOfficeTeaser";
 import "src/styles/pk-office.css";
 
 export const metadata = {
@@ -13,6 +14,19 @@ export default async function PkOfficeLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
+
+  // PK Office je u izradi. Dok PK_OFFICE_PUBLIC nije "true", samo posjetioci sa
+  // preview pristupom (cookie pk_preview == PK_OFFICE_PREVIEW_KEY) vide pravi
+  // app; svi ostali (i neulogovani) vide teaser. Preview se dobija otvaranjem
+  // /app/preview?key=<kljuc> (vidi preview/route.ts). Launch: PK_OFFICE_PUBLIC=true.
+  if (process.env.PK_OFFICE_PUBLIC !== "true") {
+    const key = process.env.PK_OFFICE_PREVIEW_KEY;
+    const preview = cookieStore.get("pk_preview")?.value;
+    if (!key || preview !== key) {
+      return <PkOfficeTeaser />;
+    }
+  }
+
   const token = cookieStore.get("access_token");
 
   if (!token) {

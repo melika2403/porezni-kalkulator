@@ -3,9 +3,9 @@ import Link from "next/link";
 import styles from "../legal.module.css";
 
 export const metadata: Metadata = {
-  title: "Uvjeti korištenja — Porezni Kalkulator BiH",
+  title: "Uvjeti korištenja, Porezni Kalkulator BiH",
   description:
-    "Uvjeti korištenja platforme Porezni Kalkulator BiH — pravila o registraciji, pretplatama, naplati, trial periodu i otkazu računa.",
+    "Uvjeti korištenja platforme Porezni Kalkulator BiH, pravila o registraciji, pretplatama, naplati, trial periodu i otkazu računa.",
   alternates: { canonical: "https://poreznikalkulator.ba/uvjeti" },
 };
 
@@ -55,15 +55,15 @@ export default function UvjetiPage() {
         <p>Platforma uključuje:</p>
         <ul>
           <li>
-            <strong>Besplatne alate</strong> — PDV kalkulator, neto/bruto preračun, šifre djelatnosti,
+            <strong>Besplatne alate</strong>, PDV kalkulator, neto/bruto preračun, šifre djelatnosti,
             preview svih dokumenata bez generisanja
           </li>
           <li>
-            <strong>Pro pretplatu</strong> — generisanje poreznih obrazaca (SPR, GPD, ZO3, AMS,
+            <strong>Pro pretplatu</strong>, generisanje poreznih obrazaca (SPR, GPD, ZO3, AMS,
             JS3100), ugovora o djelu, faktura, članskih kartica, šihterica i stalnih sredstava
           </li>
           <li>
-            <strong>Business pretplatu</strong> — sve iz Pro paketa + vođenje klijenata, ugovor o
+            <strong>Business pretplatu</strong>, sve iz Pro paketa + vođenje klijenata, ugovor o
             radu i otkaz, evidenciju aktivnih radnika
           </li>
         </ul>
@@ -106,7 +106,7 @@ export default function UvjetiPage() {
         <p>
           Period pretplate (mjesečno, godišnje ili po drugom modelu naveden na stranici Pretplate)
           počinje teći od dana aktivacije pretplate nakon evidentiranja uplate. Po isteku perioda,
-          pretplata se <strong>ne obnavlja automatski</strong> — Korisnik prima podsjetnik i sam
+          pretplata se <strong>ne obnavlja automatski</strong>, Korisnik prima podsjetnik i sam
           odlučuje hoće li produžiti uplatu novog predračuna.
         </p>
 
@@ -120,7 +120,7 @@ export default function UvjetiPage() {
           <li>Trial se može iskoristiti jednom po Korisniku (po email adresi)</li>
           <li>
             Nakon isteka 30 dana trial se <strong>automatski gasi</strong> i račun se vraća na Free
-            paket — bez automatske naplate i bez aktiviranja Pro pretplate
+            paket, bez automatske naplate i bez aktiviranja Pro pretplate
           </li>
           <li>
             Sve dokumente koje je Korisnik generisao tokom trial perioda zadržava i nakon prelaska
@@ -152,8 +152,8 @@ export default function UvjetiPage() {
 
         <h2>9. Informativni karakter sadržaja</h2>
         <p>
-          Sav sadržaj na Platformi — uključujući kalkulacije, obrasce, ugovore, šifre djelatnosti i
-          tekstove — pruža se isključivo u informativne svrhe i ne predstavlja pravni, porezni ni
+          Sav sadržaj na Platformi, uključujući kalkulacije, obrasce, ugovore, šifre djelatnosti i
+          tekstove, pruža se isključivo u informativne svrhe i ne predstavlja pravni, porezni ni
           računovodstveni savjet. Korisnik je odgovoran za provjeru tačnosti generisanih dokumenata
           prije njihove zvanične upotrebe.
         </p>
@@ -171,7 +171,7 @@ export default function UvjetiPage() {
           <li>pokušavati neovlašteno pristupiti Platformi, njenim serverima ili nalozima drugih korisnika</li>
           <li>distribuirati zlonamjerni softver, slati spam ili ometati rad Platforme</li>
           <li>
-            unositi tuđe lične podatke (klijente, radnike) bez odgovarajuće pravne osnove —
+            unositi tuđe lične podatke (klijente, radnike) bez odgovarajuće pravne osnove, 
             Korisnik je <strong>rukovalac</strong> takvih podataka u smislu propisa o zaštiti
             ličnih podataka
           </li>
@@ -189,7 +189,7 @@ export default function UvjetiPage() {
             <strong>Korisnik</strong> je rukovalac (controller) ličnih podataka klijenata i radnika
           </li>
           <li>
-            <strong>Davalac usluge</strong> je obrađivač (processor) — podatke obrađuje isključivo
+            <strong>Davalac usluge</strong> je obrađivač (processor), podatke obrađuje isključivo
             po nalogu Korisnika, radi pružanja usluge
           </li>
           <li>
@@ -200,7 +200,7 @@ export default function UvjetiPage() {
 
         <h2>12. Intelektualno vlasništvo</h2>
         <p>
-          Sav sadržaj Platforme — tekst, grafika, logotipi, ikone, izvorni kod i softver — vlasništvo
+          Sav sadržaj Platforme, tekst, grafika, logotipi, ikone, izvorni kod i softver, vlasništvo
           je Davaoca usluge ili njegovih davalaca licence i zaštićen je primjenjivim zakonima o
           autorskim pravima. Obrasci (SPR, GPD, ZO3, AMS, JS3100) i predlošci ugovora generisani od
           strane Korisnika ostaju u vlasništvu Korisnika.

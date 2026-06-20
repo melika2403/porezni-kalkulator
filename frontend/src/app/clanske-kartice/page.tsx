@@ -43,7 +43,7 @@ const faqSchema = {
       name: "Kako se generišu članske kartice za više članova odjednom?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Putem bulk uvoza iz Excel ili CSV fajla. Sistem podržava upsert po paru organizacija + kod, tako da ponovni uvoz istog fajla ne pravi duplikate — samo ažurira postojeće.",
+        text: "Putem bulk uvoza iz Excel ili CSV fajla. Sistem podržava upsert po paru organizacija + kod, tako da ponovni uvoz istog fajla ne pravi duplikate, samo ažurira postojeće.",
       },
     },
     {

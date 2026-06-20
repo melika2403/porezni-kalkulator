@@ -12,6 +12,7 @@ import {
 import { markMonthPaid } from "src/api/payroll";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useNotice } from "src/components/Notice/Notice";
+import EvidencijaModal from "./EvidencijaModal";
 import RowActionsMenu, {
   type RowPrimaryAction,
   type RowMenuItem,
@@ -364,7 +365,8 @@ export default function Organizacije() {
       section: "Moja" | "Klijent",
     ) => {
       const vlasnik = o.owner
-        ? `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim()
+        ? o.owner.name ||
+          `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim()
         : "";
       rows.push(
         [
@@ -1124,11 +1126,21 @@ function OrgsTable({
                       }
                     />
                   )}
-                  <Link href={`/organizacija/${o.id}`}>{o.name}</Link>
+                  <Link
+                    href={`/organizacija/${o.id}`}
+                    style={{
+                      color: "#3a5c42",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    {o.name}
+                  </Link>
                 </td>
                 <td className={styles.muted} data-label="Vlasnik">
                   {o.owner
-                    ? `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim() ||
+                    ? o.owner.name ||
+                      `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim() ||
                       "–"
                     : "–"}
                 </td>
@@ -1203,6 +1215,7 @@ function OrgRowActions({
   editTab: string;
 }) {
   const [busy, setBusy] = useState<"mip" | "gip" | null>(null);
+  const [evidencijaOpen, setEvidencijaOpen] = useState(false);
   const { notify } = useNotice();
 
   const triggerDownload = (xml: string, filename: string) => {
@@ -1287,6 +1300,29 @@ function OrgRowActions({
   };
 
   const primaryActions: RowPrimaryAction[] = [
+    {
+      key: "evidencija",
+      label: "Evidencija",
+      onClick: () => setEvidencijaOpen(true),
+      title: "Matična evidencija o radnicima",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          width="14"
+          height="14"
+          aria-hidden="true"
+        >
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          <line x1="9" y1="7" x2="15" y2="7" />
+        </svg>
+      ),
+    },
     {
       key: "plate",
       label: "Plate",
@@ -1386,10 +1422,24 @@ function OrgRowActions({
   ];
 
   return (
-    <RowActionsMenu
-      primaryActions={primaryActions}
-      menuItems={menuItems}
-      busy={busy !== null}
-    />
+    <>
+      <RowActionsMenu
+        primaryActions={primaryActions}
+        menuItems={menuItems}
+        busy={busy !== null}
+      />
+      {evidencijaOpen && (
+        <EvidencijaModal
+          orgId={org.id}
+          orgName={org.name}
+          orgType={org.type}
+          ownerEmployed={
+            (org.ownerIsDirector ?? true) &&
+            (org.directorEngagement ?? "ugovor_o_radu") === "ugovor_o_radu"
+          }
+          onClose={() => setEvidencijaOpen(false)}
+        />
+      )}
+    </>
   );
 }

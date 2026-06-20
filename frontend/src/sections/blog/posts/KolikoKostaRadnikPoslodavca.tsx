@@ -164,8 +164,8 @@ export default function KolikoKostaRadnikPoslodavca() {
           Za povremene poslove razmotrite{" "}
           <Link href="/blog/ugovor-o-djelu-vs-ugovor-o-radu">
             ugovor o djelu umjesto ugovora o radu
-          </Link>
-          , kad je to pravno primjereno.
+          </Link>,
+          kad je to pravno primjereno.
         </li>
       </ul>
 

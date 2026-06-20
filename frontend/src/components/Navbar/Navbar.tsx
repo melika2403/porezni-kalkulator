@@ -243,7 +243,7 @@ export default function Navbar() {
             {needsOrg && (
               <Link
                 href="/profil?novaOrg=1"
-                className={styles.addOrgHint}
+                className={`${styles.addOrgHint} ${styles.hideOnMobile}`}
                 title="Dodajte svoju djelatnost da otključate sve funkcije"
               >
                 <span className={styles.addOrgIcon}>+</span>
@@ -253,7 +253,7 @@ export default function Navbar() {
             {hasAnyOrg && (
               <Link
                 href="/organizacije"
-                className={styles.orgsLink}
+                className={`${styles.orgsLink} ${styles.hideOnMobile}`}
                 title="Pregled svih organizacija i klijenata"
               >
                 <svg
@@ -300,7 +300,7 @@ export default function Navbar() {
                   <rect x="3" y="14" width="7" height="7" rx="1" />
                   <rect x="14" y="14" width="7" height="7" rx="1" />
                 </svg>
-                Otvori App
+                PK Office
                 <svg
                   className={styles.btnAppArrow}
                   width="14"
@@ -316,11 +316,11 @@ export default function Navbar() {
                 </svg>
               </a>
             )}
-            <Link href="/profil" className={styles.userChip} title="Moj profil">
+            <Link href="/profil" className={`${styles.userChip} ${styles.hideOnMobile}`} title="Moj profil">
               <span className={styles.userAvatar}>{user.firstName[0].toUpperCase()}</span>
               <span className={styles.userName}>{user.firstName}</span>
             </Link>
-            <button className={styles.btnGhost} onClick={handleLogout}>Odjavi se</button>
+            <button className={`${styles.btnGhost} ${styles.hideOnMobile}`} onClick={handleLogout}>Odjavi se</button>
           </>
         ) : (
           <>
@@ -333,6 +333,56 @@ export default function Navbar() {
       {mobileOpen && (
         <div className={styles.mobileBackdrop} onClick={() => setMobileOpen(false)}>
           <div className={styles.mobileDrawer} onClick={(e) => e.stopPropagation()}>
+            {user && (
+              <div className={styles.mobileGroup}>
+                <div className={styles.mobileGroupTitle}>Tvoj nalog</div>
+                <ul className={styles.mobileList}>
+                  {needsOrg && (
+                    <li>
+                      <Link
+                        href="/profil?novaOrg=1"
+                        className={styles.mobileItem}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        Dodaj djelatnost
+                      </Link>
+                    </li>
+                  )}
+                  {hasAnyOrg && (
+                    <li>
+                      <Link
+                        href="/organizacije"
+                        className={styles.mobileItem}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        Organizacije
+                      </Link>
+                    </li>
+                  )}
+                  <li>
+                    <Link
+                      href="/profil"
+                      className={styles.mobileItem}
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      Moj profil
+                    </Link>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className={`${styles.mobileItem} ${styles.mobileItemButton}`}
+                      onClick={() => {
+                        setMobileOpen(false);
+                        handleLogout();
+                      }}
+                    >
+                      Odjavi se
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            )}
             {FUNCTION_GROUPS.map((group) => (
               <div key={group.title} className={styles.mobileGroup}>
                 <div className={styles.mobileGroupTitle}>{group.title}</div>

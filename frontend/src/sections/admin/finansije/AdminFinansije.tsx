@@ -18,6 +18,7 @@ import {
   createOtherIncome,
   updateOtherIncome,
   deleteOtherIncome,
+  getSummary,
   EXPENSE_CATEGORIES,
   EXPENSE_CATEGORY_LABELS,
   type PaymentsResponse,
@@ -58,7 +59,7 @@ function formatKM(n: number | string) {
 
 function clientName(row: FinancePaymentRow) {
   const { firstName, lastName } = row.user;
-  return `${firstName ?? ""} ${lastName ?? ""}`.trim() || "—";
+  return `${firstName ?? ""} ${lastName ?? ""}`.trim() || "–";
 }
 
 const PAKET_LABELS: Record<FinanceClient["role"], string> = {
@@ -80,9 +81,9 @@ function todayInputDate() {
 }
 
 function formatDate(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
-  if (!y || !m || !d) return "—";
+  if (!y || !m || !d) return "–";
   return `${d}.${m}.${y}`;
 }
 
@@ -130,6 +131,13 @@ export default function AdminFinansije() {
     },
   });
 
+  // Kumulativni profit (zbir profita svih godina do izabrane). Zarađeno i
+  // uloženo ostaju po godini, samo se profit prenosi naprijed.
+  const summaryQuery = useQuery({
+    queryKey: ["finance-summary", year],
+    queryFn: () => unwrap(getSummary(year)),
+  });
+
   const data = paymentsQuery.data;
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -145,6 +153,9 @@ export default function AdminFinansije() {
     Math.round((subscriptionsEarned + totalOtherIncome) * 100) / 100;
   const totalInvested = expensesQuery.data?.total ?? 0;
   const profit = Math.round((totalEarned - totalInvested) * 100) / 100;
+  // Profit koji se prikazuje je kumulativan (prenosi se iz prethodnih godina).
+  // Dok summary stigne, fallback je profit tekuće godine.
+  const cumulativeProfit = summaryQuery.data?.cumulativeProfit ?? profit;
 
   const applySearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,9 +212,9 @@ export default function AdminFinansije() {
             variant="spend"
           />
           <SummaryCard
-            label="Profit"
-            value={formatKM(profit)}
-            variant={profit >= 0 ? "profit" : "loss"}
+            label="Profit (kumulativno)"
+            value={formatKM(cumulativeProfit)}
+            variant={cumulativeProfit >= 0 ? "profit" : "loss"}
           />
         </div>
 
@@ -289,7 +300,11 @@ export default function AdminFinansije() {
         )}
 
         {/* Troškovi (lijevo) i ostali prihodi (desno) + zbir/razlika */}
-        <LedgerSection year={year} subscriptionsEarned={subscriptionsEarned} />
+        <LedgerSection
+          year={year}
+          subscriptionsEarned={subscriptionsEarned}
+          cumulativeProfit={cumulativeProfit}
+        />
       </div>
     </RoleGuard>
   );
@@ -330,7 +345,7 @@ function ClientRow({ row, year }: { row: FinancePaymentRow; year: number }) {
     <tr>
       <td className={styles.stickyCol}>
         <div className={styles.clientName}>{clientName(row)}</div>
-        <div className={styles.clientEmail}>{row.user.email || "—"}</div>
+        <div className={styles.clientEmail}>{row.user.email || "–"}</div>
         <div className={styles.clientSub}>
           <span
             className={`${styles.paketBadge} ${
@@ -408,6 +423,7 @@ function MonthCell({
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["finance-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["finance-summary"] });
       setEditing(false);
     },
   });
@@ -478,7 +494,7 @@ function MonthCell({
       ) : annualActive ? (
         <span className={styles.cellPaid}>✓</span>
       ) : (
-        <span className={styles.cellEmpty}>—</span>
+        <span className={styles.cellEmpty}>–</span>
       )}
     </td>
   );
@@ -535,7 +551,7 @@ const EXPENSE_CFG: LedgerCfg = {
 
 const INCOME_CFG: LedgerCfg = {
   key: "finance-other-income",
-  title: (y) => `Ostali prihodi — gotovina (${y})`,
+  title: (y) => `Ostali prihodi, gotovina (${y})`,
   placeholder: "npr. Gotovinska naplata usluge",
   totalLabel: "Ukupno prihoda",
   emptyText: (y) => `Nema unesenih prihoda za ${y}.`,
@@ -552,9 +568,11 @@ const INCOME_CFG: LedgerCfg = {
 function LedgerSection({
   year,
   subscriptionsEarned,
+  cumulativeProfit,
 }: {
   year: number;
   subscriptionsEarned: number;
+  cumulativeProfit: number;
 }) {
   const expQ = useQuery({
     queryKey: [EXPENSE_CFG.key, year],
@@ -569,7 +587,6 @@ function LedgerSection({
   // Ukupni prihodi = naplaćene pretplate (gore označene) + gotovinski prihodi.
   const totalIncome =
     Math.round((subscriptionsEarned + totalCashIncome) * 100) / 100;
-  const razlika = Math.round((totalIncome - totalInvested) * 100) / 100;
 
   return (
     <section className={styles.ledgerSection}>
@@ -588,9 +605,11 @@ function LedgerSection({
           <strong>{formatKM(totalIncome)}</strong>
         </div>
         <div className={styles.ledgerBottomItem}>
-          <span>Razlika (prihodi − troškovi)</span>
-          <strong className={razlika >= 0 ? styles.posValue : styles.negValue}>
-            {formatKM(razlika)}
+          <span>Profit (kumulativno)</span>
+          <strong
+            className={cumulativeProfit >= 0 ? styles.posValue : styles.negValue}
+          >
+            {formatKM(cumulativeProfit)}
           </strong>
         </div>
       </div>
@@ -623,6 +642,7 @@ function LedgerColumn({ year, cfg }: { year: number; cfg: LedgerCfg }) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [cfg.key] });
+      queryClient.invalidateQueries({ queryKey: ["finance-summary"] });
       setDescription("");
       setAmount("");
       setCategory("OSTALO");
@@ -755,13 +775,17 @@ function LedgerRow({ item, cfg }: { item: LedgerItem; cfg: LedgerCfg }) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [cfg.key] });
+      queryClient.invalidateQueries({ queryKey: ["finance-summary"] });
       setEditing(false);
     },
   });
 
   const remove = useMutation({
     mutationFn: () => unwrap(cfg.remove(item.id) as ReturnType<typeof deleteExpense>),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [cfg.key] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [cfg.key] });
+      queryClient.invalidateQueries({ queryKey: ["finance-summary"] });
+    },
   });
 
   if (editing) {

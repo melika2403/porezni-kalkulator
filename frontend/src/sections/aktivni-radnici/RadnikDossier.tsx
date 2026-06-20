@@ -23,7 +23,7 @@ const DOC_TYPE_LABEL: Record<WorkerDocumentType, string> = {
 };
 
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}.${m}.${y}.`;
 }
@@ -34,7 +34,7 @@ function fmtDateTime(iso: string): string {
 }
 
 function fmtKm(n: number | null): string {
-  if (n == null) return "—";
+  if (n == null) return "–";
   return (
     n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
     " KM"
@@ -42,7 +42,7 @@ function fmtKm(n: number | null): string {
 }
 
 function fmtSize(b: number | null): string {
-  if (b == null) return "—";
+  if (b == null) return "–";
   if (b < 1024) return `${b} B`;
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
   return `${(b / 1024 / 1024).toFixed(2)} MB`;
@@ -171,22 +171,22 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
       {/* Info grid */}
       <div className={styles.infoGrid}>
         <InfoBlock title="Lični podaci">
-          <Row label="JMBG" value={worker.jmbg ?? "—"} />
+          <Row label="JMBG" value={worker.jmbg ?? "–"} />
           <Row label="Datum rođenja" value={fmtDate(jmbgInfo?.birthDateIso ?? null)} />
-          <Row label="Spol" value={worker.spol === "M" ? "Muški" : worker.spol === "Z" ? "Ženski" : "—"} />
-          <Row label="Adresa" value={worker.address ?? "—"} />
-          <Row label="Grad" value={worker.city ?? "—"} />
-          <Row label="Email" value={worker.email ?? "—"} />
-          <Row label="Žiro" value={worker.bankAccount ?? "—"} />
+          <Row label="Spol" value={worker.spol === "M" ? "Muški" : worker.spol === "Z" ? "Ženski" : "–"} />
+          <Row label="Adresa" value={worker.address ?? "–"} />
+          <Row label="Grad" value={worker.city ?? "–"} />
+          <Row label="Email" value={worker.email ?? "–"} />
+          <Row label="Žiro" value={worker.bankAccount ?? "–"} />
         </InfoBlock>
 
         <InfoBlock title="Ugovor o radu">
-          <Row label="Broj ugovora" value={worker.contractNumber ?? "—"} />
-          <Row label="Pozicija" value={worker.position ?? "—"} />
+          <Row label="Broj ugovora" value={worker.contractNumber ?? "–"} />
+          <Row label="Pozicija" value={worker.position ?? "–"} />
           <Row label="Bruto plata" value={fmtKm(worker.salaryBruto)} />
           <Row label="Neto plata" value={fmtKm(worker.salaryNeto)} />
-          <Row label="Probni rad" value={worker.probationMonths ? `${worker.probationMonths} mj.` : "—"} />
-          <Row label="Otkazni rok" value={worker.noticePeriod ?? "—"} />
+          <Row label="Probni rad" value={worker.probationMonths ? `${worker.probationMonths} mj.` : "–"} />
+          <Row label="Otkazni rok" value={worker.noticePeriod ?? "–"} />
         </InfoBlock>
 
         <InfoBlock title="Radni odnos">
@@ -222,7 +222,7 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
               {docs.map((d: WorkerDocument) => (
                 <tr key={d.id}>
                   <td className={styles.nameCell}>{DOC_TYPE_LABEL[d.type]}</td>
-                  <td className={styles.muted}>{d.number ?? "—"}</td>
+                  <td className={styles.muted}>{d.number ?? "–"}</td>
                   <td>{d.format}</td>
                   <td className={styles.muted}>{fmtSize(d.sizeBytes)}</td>
                   <td className={styles.muted}>{fmtDateTime(d.createdAt)}</td>

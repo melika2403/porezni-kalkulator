@@ -309,7 +309,7 @@ export default function SprForm() {
       <div className={styles.header}>
         <div className={styles.label}>Obrazac SPR-1053</div>
         <h1 className={styles.h1}>
-          SPR-1053 obrazac — specifikacija dohotka od{" "}
+          SPR-1053 obrazac, specifikacija dohotka od{" "}
           <em>samostalne djelatnosti</em>
         </h1>
         <p className={styles.subtitle}>
@@ -320,10 +320,10 @@ export default function SprForm() {
         </p>
       </div>
 
-      {/* ── Dio 1 — Podaci o poreznom obvezniku ── */}
+      {/* ── Dio 1, Podaci o poreznom obvezniku ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 1 — Podaci o <em>poreznom obvezniku</em>
+          Dio 1, Podaci o <em>poreznom obvezniku</em>
         </h2>
         <PersonFillSelect onFill={fillPersonal} />
         <div className={styles.fieldGrid}>
@@ -399,10 +399,10 @@ export default function SprForm() {
         </div>
       </section>
 
-      {/* ── Dio 2 — Podaci o djelatnosti ── */}
+      {/* ── Dio 2, Podaci o djelatnosti ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 2 — Podaci o <em>djelatnosti</em>
+          Dio 2, Podaci o <em>djelatnosti</em>
         </h2>
         <OrgFillSelect onFill={fillBusiness} />
         <div className={styles.fieldGrid}>
@@ -445,7 +445,7 @@ export default function SprForm() {
                 }));
               }}
             >
-              <option value="">— Odaberi godinu —</option>
+              <option value="">– Odaberi godinu –</option>
               {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i).map((yr) => (
                 <option key={yr} value={String(yr)}>{yr}.</option>
               ))}
@@ -519,7 +519,7 @@ export default function SprForm() {
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>
-              10) Vrsta djelatnosti — šifra i naziv
+              10) Vrsta djelatnosti, šifra i naziv
             </label>
             <ShifraCombobox
               code={business.activityCode}
@@ -553,10 +553,10 @@ export default function SprForm() {
         </div>
       </section>
 
-      {/* ── Dio 3 — Prihodi ── */}
+      {/* ── Dio 3, Prihodi ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 3 — <em>Prihodi</em>
+          Dio 3, <em>Prihodi</em>
         </h2>
         <table className={styles.calcTable}>
           <thead>
@@ -677,10 +677,10 @@ export default function SprForm() {
         </table>
       </section>
 
-      {/* ── Dio 4 — Rashodi ── */}
+      {/* ── Dio 4, Rashodi ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 4 — <em>Rashodi</em>
+          Dio 4, <em>Rashodi</em>
         </h2>
         <table className={styles.calcTable}>
           <thead>
@@ -844,10 +844,10 @@ export default function SprForm() {
         </table>
       </section>
 
-      {/* ── Dio 5 — Utvrđivanje dohotka ── */}
+      {/* ── Dio 5, Utvrđivanje dohotka ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Dio 5 — Utvrđivanje <em>dohotka iz djelatnosti</em>
+          Dio 5, Utvrđivanje <em>dohotka iz djelatnosti</em>
         </h2>
         <table className={styles.calcTable}>
           <thead>
@@ -1009,14 +1009,14 @@ export default function SprForm() {
         </h2>
         <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Unesite osnovne podatke o obvezniku</strong> — ime i prezime,
+            <strong>Unesite osnovne podatke o obvezniku</strong>, ime i prezime,
             JMB, adresa, naziv djelatnosti, JIB obrta i nadležna porezna ispostava.
             Ako ste registrovani korisnik, podaci se automatski popunjavaju iz vašeg
             profila.
           </li>
           <li>
             <strong>Unesite prihode i rashode</strong> iz poslovnih knjiga za
-            prethodnu godinu. Sistem automatski obračunava razliku — oporezivi
+            prethodnu godinu. Sistem automatski obračunava razliku, oporezivi
             dohodak od samostalne djelatnosti.
           </li>
           <li>
@@ -1034,7 +1034,7 @@ export default function SprForm() {
         </h2>
         <p>
           SPR-1053 obrazac se predaje <strong>do 31. marta tekuće godine</strong>{" "}
-          za prethodnu kalendarsku godinu — npr. obrazac za 2025. godinu predaje
+          za prethodnu kalendarsku godinu, npr. obrazac za 2025. godinu predaje
           se najkasnije do <strong>31.03.2026.</strong> Predaja se vrši zajedno
           sa godišnjom prijavom poreza na dohodak (GPD-1051) u nadležnoj ispostavi
           Porezne uprave FBiH prema mjestu prebivališta poreznog obveznika.
@@ -1053,28 +1053,28 @@ export default function SprForm() {
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
             <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              GPD-1051 — godišnja prijava poreza na dohodak
-            </a>{" "}
-            — SPR-1053 se predaje kao prilog uz GPD-1051.
+              GPD-1051, godišnja prijava poreza na dohodak
+            </a>,{" "}
+            SPR-1053 se predaje kao prilog uz GPD-1051.
           </li>
           <li>
             <a href="/amortizacija" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Stalna sredstva i amortizacija
-            </a>{" "}
-            — vođenje evidencije osnovnih sredstava i godišnji obračun amortizacije
+            </a>,{" "}
+            vođenje evidencije osnovnih sredstava i godišnji obračun amortizacije
             kao rashoda.
           </li>
           <li>
             <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Preračun neto/bruto plate
-            </a>{" "}
-            — ako vodite radnike, plate ulaze u rashode poslovanja.
+            </a>,{" "}
+            ako vodite radnike, plate ulaze u rashode poslovanja.
           </li>
           <li>
             <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Uplatni računi javnih prihoda
-            </a>{" "}
-            — šifre vrsta prihoda i računi za uplatu poreza i doprinosa.
+            </a>,{" "}
+            šifre vrsta prihoda i računi za uplatu poreza i doprinosa.
           </li>
         </ul>
         <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
@@ -1084,14 +1084,14 @@ export default function SprForm() {
           <li>
             <a href="/blog/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Obrt vs d.o.o. 2026
-            </a>{" "}
-            — poređenje oporezivanja i kad se koja forma isplati.
+            </a>,{" "}
+            poređenje oporezivanja i kad se koja forma isplati.
           </li>
           <li>
             <a href="/blog/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Priznati rashodi obrta
-            </a>{" "}
-            — koji troškovi smanjuju poreznu osnovicu u SPR-u.
+            </a>,{" "}
+            koji troškovi smanjuju poreznu osnovicu u SPR-u.
           </li>
         </ul>
       </section>
@@ -1108,7 +1108,7 @@ export default function SprForm() {
           },
           {
             q: "Razlika između SPR i GPD obrasca?",
-            a: "SPR-1053 je specifikacija koja prikazuje kako je ostvaren dohodak od samostalne djelatnosti — prihodi minus rashodi. GPD-1051 je godišnja prijava poreza koja objedinjuje sve izvore dohotka (uključujući i SPR) i izračunava konačnu poreznu obavezu.",
+            a: "SPR-1053 je specifikacija koja prikazuje kako je ostvaren dohodak od samostalne djelatnosti, prihodi minus rashodi. GPD-1051 je godišnja prijava poreza koja objedinjuje sve izvore dohotka (uključujući i SPR) i izračunava konačnu poreznu obavezu.",
           },
           {
             q: "Moram li voditi poslovne knjige da bih podnio SPR?",

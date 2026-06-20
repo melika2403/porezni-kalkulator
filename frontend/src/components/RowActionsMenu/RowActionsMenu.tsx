@@ -46,9 +46,12 @@ export default function RowActionsMenu({
   menuLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(
-    null,
-  );
+  const [menuPos, setMenuPos] = useState<{
+    top?: number;
+    bottom?: number;
+    right: number;
+    maxHeight: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -58,7 +61,22 @@ export default function RowActionsMenu({
       const btn = buttonRef.current;
       if (!btn) return;
       const rect = btn.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+      const right = window.innerWidth - rect.right;
+      const margin = 8;
+      const spaceBelow = window.innerHeight - rect.bottom - margin;
+      const spaceAbove = rect.top - margin;
+      // Preferiraj otvaranje nadole; ako ispod nema dovoljno mjesta a iznad ga
+      // ima više, otvori nagore. U oba slučaja ograniči visinu i daj scroll
+      // da meni nikad ne isklipa ispod/iznad ekrana.
+      if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+        setMenuPos({
+          bottom: window.innerHeight - rect.top + 4,
+          right,
+          maxHeight: spaceAbove,
+        });
+      } else {
+        setMenuPos({ top: rect.bottom + 4, right, maxHeight: spaceBelow });
+      }
     };
     recompute();
     window.addEventListener("scroll", recompute, true);
@@ -154,7 +172,13 @@ export default function RowActionsMenu({
               role="menu"
               data-row-menu
               className={styles.menu}
-              style={{ top: menuPos.top, right: menuPos.right }}
+              style={{
+                ...(menuPos.top != null ? { top: menuPos.top } : {}),
+                ...(menuPos.bottom != null ? { bottom: menuPos.bottom } : {}),
+                right: menuPos.right,
+                maxHeight: menuPos.maxHeight,
+                overflowY: "auto",
+              }}
             >
               {menuItems.map((it) =>
                 it.kind === "group" ? (

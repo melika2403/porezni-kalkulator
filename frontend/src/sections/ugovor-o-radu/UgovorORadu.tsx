@@ -246,9 +246,16 @@ function UgovorORaduApp() {
     setAdresaPoslodavca(org.address ?? "");
     setGrad(org.city ?? "");
     setJibPoslodavca(org.taxNumber ?? "");
-    if (org.owner) {
-      setImePoslodavca(`${org.owner.firstName} ${org.owner.lastName}`.trim());
-    }
+    // Potpisnik poslodavca: vlasnik (opcije 1/3) ili radnik-direktor (2/4).
+    // org.signer ga razrješava na backendu; fallback na vlasnika.
+    const signerName =
+      org.signer?.name ||
+      (org.owner
+        ? `${org.owner.firstName ?? ""} ${org.owner.lastName ?? ""}`.trim() ||
+          org.owner.name ||
+          ""
+        : "");
+    if (signerName) setImePoslodavca(signerName);
   }, [orgQuery.data]);
 
   // ── Auto-popuna: radnik u sidebar → radnik polja + employment podaci ──
@@ -687,7 +694,7 @@ function UgovorORaduApp() {
           <div className={styles.header}>
             <p className={styles.label}>Ugovori</p>
             <h1 className={styles.h1}>
-              Ugovor o radu i <em>otkaz</em> (FBiH) — predložak
+              Ugovor o radu i <em>otkaz</em> (FBiH), predložak
             </h1>
             <p className={styles.subtitle}>
               Generator ugovora o radu i odluke o prestanku radnog odnosa prema
@@ -722,7 +729,7 @@ function UgovorORaduApp() {
         </button>
       </div>
 
-      {/* Ugovorne strane — uvijek vidljivo */}
+      {/* Ugovorne strane, uvijek vidljivo */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           Ugovorne <em>strane</em>
@@ -749,6 +756,7 @@ function UgovorORaduApp() {
                 className={styles.input}
                 value={nazivFirme}
                 onChange={(e) => setNazivFirme(e.target.value)}
+                placeholder="Npr. Firma d.o.o. / Obrt"
               />
             </label>
             <label className={styles.field}>
@@ -813,6 +821,7 @@ function UgovorORaduApp() {
                 className={styles.input}
                 value={imeRadnika}
                 onChange={(e) => setImeRadnika(e.target.value)}
+                placeholder="Npr. Ime i prezime"
               />
             </label>
             <label className={styles.field}>
@@ -821,6 +830,7 @@ function UgovorORaduApp() {
                 className={styles.input}
                 value={adresaRadnika}
                 onChange={(e) => setAdresaRadnika(e.target.value)}
+                placeholder="Npr. Ulica i broj"
               />
             </label>
             <label className={styles.field}>
@@ -1107,7 +1117,7 @@ function UgovorORaduApp() {
                   placeholder="0,00"
                 />
                 <p className={styles.hint}>
-                  Možete unijeti bruto, neto, ili oba iznosa — obrazac će se ispisati
+                  Možete unijeti bruto, neto, ili oba iznosa, obrazac će se ispisati
                   tačno prema onome što upišete.
                 </p>
               </label>
@@ -1159,7 +1169,7 @@ function UgovorORaduApp() {
               className={styles.btnOutline}
               onClick={() => handleGoToJs3100("PRIJAVA")}
               disabled={gen !== null || !canGenerate}
-              title={canGenerate ? "Snima radnika i otvara JS3100 prijavu sa svim podacima — tamo dopuniš osnov osiguranja, zanimanje itd." : "Dostupno uz Business pretplatu"}
+              title={canGenerate ? "Snima radnika i otvara JS3100 prijavu sa svim podacima, tamo dopuniš osnov osiguranja, zanimanje itd." : "Dostupno uz Business pretplatu"}
             >
               {IconForm} Nastavi na JS3100 prijavu
             </button>
@@ -1274,7 +1284,7 @@ function UgovorORaduApp() {
                   {RAZLOZI_OTKAZA.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.label}
-                      {r.clan ? ` — ${r.clan}` : ""}
+                      {r.clan ? `, ${r.clan}` : ""}
                     </option>
                   ))}
                 </select>
@@ -1441,7 +1451,7 @@ function UgovorORaduApp() {
         </p>
         <p style={{ marginTop: "0.85rem" }}>
           Usmeni dogovor o radu se po zakonu smatra ugovorom na neodređeno
-          vrijeme — pisana forma štiti i radnika (jasna prava) i poslodavca
+          vrijeme, pisana forma štiti i radnika (jasna prava) i poslodavca
           (definisani uslovi i mogućnost otkaza). Ugovor se obavezno prijavljuje
           PIO/MIO i Zavodu zdravstvenog osiguranja kroz JS3100 obrazac.
         </p>
@@ -1453,14 +1463,14 @@ function UgovorORaduApp() {
         </h2>
         <p>Prema članu 21. Zakona o radu FBiH, ugovor o radu obavezno sadrži:</p>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
-          <li><strong>Ugovorne strane</strong> — naziv poslodavca i ime radnika sa identifikacionim podacima.</li>
+          <li><strong>Ugovorne strane</strong>, naziv poslodavca i ime radnika sa identifikacionim podacima.</li>
           <li><strong>Datum početka rada</strong> i mjesto rada.</li>
           <li><strong>Naziv radnog mjesta</strong> i opis poslova koje radnik obavlja.</li>
-          <li><strong>Trajanje ugovora</strong> — neodređeno ili određeno (sa rokom).</li>
-          <li><strong>Trajanje radnog vremena</strong> — puno (40h sedmično) ili nepuno.</li>
-          <li><strong>Iznos osnovne plate</strong> — bruto i/ili neto, te uslovi povećanja.</li>
-          <li><strong>Trajanje godišnjeg odmora</strong> — minimum 20 radnih dana godišnje.</li>
-          <li><strong>Otkazni rok</strong> — minimum 7 dana, tipično 30 dana.</li>
+          <li><strong>Trajanje ugovora</strong>, neodređeno ili određeno (sa rokom).</li>
+          <li><strong>Trajanje radnog vremena</strong>, puno (40h sedmično) ili nepuno.</li>
+          <li><strong>Iznos osnovne plate</strong>, bruto i/ili neto, te uslovi povećanja.</li>
+          <li><strong>Trajanje godišnjeg odmora</strong>, minimum 20 radnih dana godišnje.</li>
+          <li><strong>Otkazni rok</strong>, minimum 7 dana, tipično 30 dana.</li>
         </ul>
         <p style={{ marginTop: "0.85rem" }}>
           Nedostatak obaveznih elemenata ne čini ugovor ništavnim, ali se nedostajući
@@ -1470,22 +1480,22 @@ function UgovorORaduApp() {
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          Vrste ugovora o radu — <em>neodređeno, određeno, probni rad</em>
+          Vrste ugovora o radu, <em>neodređeno, određeno, probni rad</em>
         </h2>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Na neodređeno vrijeme</strong> — standardni oblik zaposlenja
+            <strong>Na neodređeno vrijeme</strong>, standardni oblik zaposlenja
             bez unaprijed određenog roka prestanka. Pruža maksimalnu zaštitu
             radniku.
           </li>
           <li>
-            <strong>Na određeno vrijeme</strong> — zaključuje se uz konkretan
+            <strong>Na određeno vrijeme</strong>, zaključuje se uz konkretan
             razlog (sezonski rad, zamjena odsutnog radnika, projekat).{" "}
             <strong>Maksimalno 3 godine uzastopno</strong>; nakon toga se ugovor
             automatski transformiše u ugovor na neodređeno.
           </li>
           <li>
-            <strong>Probni rad</strong> — može trajati <strong>najduže 6
+            <strong>Probni rad</strong>, može trajati <strong>najduže 6
             mjeseci</strong>, tipično 3 mjeseca. Ako nije izričito ugovoren,
             smatra se da je radnik primljen bez probnog rada. Tokom probnog rada
             otkazni rok je 7 dana.
@@ -1500,19 +1510,19 @@ function UgovorORaduApp() {
         <p>Ugovor o radu prestaje:</p>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Sporazumno</strong> — pisanim sporazumom obje strane (bez
+            <strong>Sporazumno</strong>, pisanim sporazumom obje strane (bez
             otkaznog roka).
           </li>
           <li>
-            <strong>Istekom roka</strong> — kod ugovora na određeno, automatski
+            <strong>Istekom roka</strong>, kod ugovora na određeno, automatski
             kad istekne rok.
           </li>
           <li>
-            <strong>Otkazom radnika</strong> — radnik podnosi pisanu obavijest
+            <strong>Otkazom radnika</strong>, radnik podnosi pisanu obavijest
             o otkazu uz poštivanje otkaznog roka.
           </li>
           <li>
-            <strong>Otkazom poslodavca</strong> — sa zakonom propisanim razlogom
+            <strong>Otkazom poslodavca</strong>, sa zakonom propisanim razlogom
             (poslovni razlozi, povreda radne discipline, nesposobnost).
             Poslodavac je dužan da obrazloži otkaz i poštuje otkazni rok.
           </li>
@@ -1534,16 +1544,16 @@ function UgovorORaduApp() {
         </h2>
         <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Odaberite radnika i poslodavca</strong> iz sidebar-a — podaci
+            <strong>Odaberite radnika i poslodavca</strong> iz sidebar-a, podaci
             poslodavca, radnika i plate auto-popunjavaju se iz profila. Ako
             radnik nije u sistemu, dodajte ga preko "+ Novi radnik".
           </li>
           <li>
-            <strong>Vrsta ugovora</strong> — neodređeno, određeno (sa rokom)
+            <strong>Vrsta ugovora</strong>, neodređeno, određeno (sa rokom)
             ili probni rad. Naslov i tekst Člana 1 automatski se prilagođavaju.
           </li>
           <li>
-            <strong>Plata i otkazni rok</strong> — upišite osnovnu bruto/neto
+            <strong>Plata i otkazni rok</strong>, upišite osnovnu bruto/neto
             platu, otkazni rok (default 30 dana) i ostale obavezne elemente.
           </li>
           <li>
@@ -1561,34 +1571,34 @@ function UgovorORaduApp() {
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
             <a href="/prijave-radnika" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              JS3100 — prijava/odjava radnika
-            </a>{" "}
-            — obavezna prijava u PIO/MIO i Zavod zdravstvenog dan prije početka
+              JS3100, prijava/odjava radnika
+            </a>,{" "}
+            obavezna prijava u PIO/MIO i Zavod zdravstvenog dan prije početka
             rada.
           </li>
           <li>
             <a href="/aktivni-radnici" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Aktivni radnici
-            </a>{" "}
-            — centralni pregled radnika sa ugovorima i statusom.
+            </a>,{" "}
+            centralni pregled radnika sa ugovorima i statusom.
           </li>
           <li>
             <a href="/prijave-radnika?tab=obracun" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Obračun plata
-            </a>{" "}
-            — mjesečni obračun plata, doprinosa i poreza za radnike.
+            </a>,{" "}
+            mjesečni obračun plata, doprinosa i poreza za radnike.
           </li>
           <li>
             <a href="/ugovor-o-djelu" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Ugovor o djelu
-            </a>{" "}
-            — alternativa ugovoru o radu za jednokratne ili projektne angažmane.
+            </a>,{" "}
+            alternativa ugovoru o radu za jednokratne ili projektne angažmane.
           </li>
           <li>
             <a href="/preracun-neto-bruto" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Preračun neto/bruto plate
-            </a>{" "}
-            — provjera obračuna prije ugovaranja iznosa plate.
+            </a>,{" "}
+            provjera obračuna prije ugovaranja iznosa plate.
           </li>
         </ul>
         <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
@@ -1598,14 +1608,14 @@ function UgovorORaduApp() {
           <li>
             <a href="/blog/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Otkaz radnika u FBiH
-            </a>{" "}
-            — razlozi, otkazni rokovi i postupak po Zakonu o radu.
+            </a>,{" "}
+            razlozi, otkazni rokovi i postupak po Zakonu o radu.
           </li>
           <li>
             <a href="/blog/ugovor-o-djelu-vs-ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Ugovor o djelu vs ugovor o radu
-            </a>{" "}
-            — koja vrsta angažmana odgovara kojoj situaciji.
+            </a>,{" "}
+            koja vrsta angažmana odgovara kojoj situaciji.
           </li>
         </ul>
       </section>
@@ -1626,7 +1636,7 @@ function UgovorORaduApp() {
           },
           {
             q: "Kada se ugovor zaključuje na određeno vrijeme?",
-            a: "Ugovor na određeno se zaključuje kada postoji konkretan razlog (sezonski rad, zamjena odsutnog radnika, projekat). Maksimalno trajanje uzastopnih ugovora na određeno je 3 godine — nakon toga se ugovor automatski transformiše u ugovor na neodređeno.",
+            a: "Ugovor na određeno se zaključuje kada postoji konkretan razlog (sezonski rad, zamjena odsutnog radnika, projekat). Maksimalno trajanje uzastopnih ugovora na određeno je 3 godine, nakon toga se ugovor automatski transformiše u ugovor na neodređeno.",
           },
           {
             q: "Šta moram navesti u odluci o prestanku radnog odnosa?",
@@ -1634,7 +1644,7 @@ function UgovorORaduApp() {
           },
           {
             q: "Koliki je otkazni rok u FBiH?",
-            a: "Otkazni rok zavisi od dužine staža kod poslodavca — minimalno 14 dana, a maksimalno 3 mjeseca (kod staža preko 20 godina). Ako se otkaz daje sporazumno ili iz krivice radnika, otkazni rok se može skratiti ili u potpunosti izostaviti.",
+            a: "Otkazni rok zavisi od dužine staža kod poslodavca, minimalno 14 dana, a maksimalno 3 mjeseca (kod staža preko 20 godina). Ako se otkaz daje sporazumno ili iz krivice radnika, otkazni rok se može skratiti ili u potpunosti izostaviti.",
           },
         ]}
       />

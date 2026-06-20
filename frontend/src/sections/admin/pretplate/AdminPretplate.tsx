@@ -30,9 +30,9 @@ const STATUS_CLASS: Record<PredracunListItem["status"], string> = {
 };
 
 function formatDate(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const d = String(iso).slice(0, 10).split("-");
-  if (d.length !== 3) return "—";
+  if (d.length !== 3) return "–";
   return `${d[2]}.${d[1]}.${d[0]}.`;
 }
 
@@ -263,7 +263,7 @@ export default function AdminPretplate() {
                           </span>
                         </>
                       ) : (
-                        <span className={styles.metaCell}>—</span>
+                        <span className={styles.metaCell}>–</span>
                       )}
                     </td>
                     <td>

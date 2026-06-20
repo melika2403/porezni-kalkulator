@@ -94,7 +94,7 @@ const RELATED_TOOLS = [
   { href: "/ams", label: "AMS-1035", desc: "Akontacija poreza po odbitku na druge samostalne djelatnosti" },
   { href: "/zo3", label: "ZO3", desc: "Prijava člana porodice na zdravstveno" },
   { href: "/amortizacija", label: "Stalna sredstva", desc: "Vođenje OS i amortizacija" },
-  { href: "/sifre-djelatnosti", label: "Šifre djelatnosti FBiH", desc: "KD BiH 2010 — sve šifre" },
+  { href: "/sifre-djelatnosti", label: "Šifre djelatnosti FBiH", desc: "KD BiH 2010, sve šifre" },
   { href: "/ugovor-o-radu", label: "Ugovor o radu", desc: "Predložak ugovora i otkaza FBiH" },
   { href: "/ugovor-o-djelu", label: "Ugovor o djelu", desc: "Predložak + obračun poreza" },
   { href: "/fakture", label: "Fakture i predračuni", desc: "Generator faktura" },
@@ -185,8 +185,8 @@ export default function JavniPrihodi() {
           Uplatni računi javnih prihoda <em>FBiH</em>
         </h1>
         <p className={styles.subtitle}>
-          Kompletna lista <strong>uplatnih računa</strong>, <strong>šifri vrsta prihoda</strong> i{" "}
-          <strong>budžetskih organizacija</strong> za uplate javnih prihoda u Federaciji BiH —
+          Kompletna lista <strong>uplatnih računa</strong>–<strong>šifri vrsta prihoda</strong> i{" "}
+          <strong>budžetskih organizacija</strong> za uplate javnih prihoda u Federaciji BiH, 
           prema prečišćenom tekstu Pravilnika Porezne uprave FBiH.
         </p>
       </header>
@@ -266,7 +266,7 @@ export default function JavniPrihodi() {
           </div>
           {results.length === 0 ? (
             <div className={styles.emptyResults}>
-              Pokušaj drugim ključem — šifrom prihoda (npr. 712112) ili nazivom (npr. „doprinos“, „kazna“).
+              Pokušaj drugim ključem, šifrom prihoda (npr. 712112) ili nazivom (npr. „doprinos“, „kazna“).
             </div>
           ) : (
             results.map((h, i) => {
@@ -285,7 +285,7 @@ export default function JavniPrihodi() {
                     <span className={styles.resultKind}>Vrsta prihoda</span>
                     <span className={styles.resultCode}>{h.item.code}</span>
                     <span className={styles.resultName}>
-                      {highlight(h.item.name || "—", debounced)}
+                      {highlight(h.item.name || "–", debounced)}
                     </span>
                   </div>
                 );
@@ -327,7 +327,7 @@ export default function JavniPrihodi() {
               Uplatni <em>računi</em>
             </h2>
             <p className={styles.sectionSub}>
-              Brojevi depozitnih računa za uplatu javnih prihoda — federalni, kantonalni i fondovski.
+              Brojevi depozitnih računa za uplatu javnih prihoda, federalni, kantonalni i fondovski.
               Za uplate doprinosa, poreza, naknada i drugih javnih obaveza.
             </p>
 
@@ -383,8 +383,8 @@ export default function JavniPrihodi() {
               po kantonima.
               <br />
               <span style={{ fontSize: 12, color: "var(--mid)" }}>
-                Izvor: Pravilnik PUFBiH (sekcija 12.1.3 — Računi budžeta jedinica lokalne
-                samouprave). Mogu biti zastarjeli ako PUFBiH objavi noviju verziju —{" "}
+                Izvor: Pravilnik PUFBiH (sekcija 12.1.3, Računi budžeta jedinica lokalne
+                samouprave). Mogu biti zastarjeli ako PUFBiH objavi noviju verziju, {" "}
                 <a
                   href="https://www.pufbih.ba/v1/public/upload/zakoni/2f01a-precisceni-pravilnik-o-nacinu-uplate-pripadnosti-i-raspodjele-javnih-prihoda-u-fbih-precisceni-novi.pdf"
                   target="_blank"
@@ -422,19 +422,19 @@ export default function JavniPrihodi() {
                         <tr key={o.kod + o.name} id={`opcina-${o.kod}`}>
                           <td className={styles.opcName}>{o.name}</td>
                           <td className={styles.opcKod}>
-                            {o.kod && o.kod !== "—" ? (
+                            {o.kod && o.kod !== "–" ? (
                               <>
                                 {o.kod}
                                 <CopyBtn text={o.kod} label={`šifru ${o.kod}`} />
                               </>
                             ) : (
-                              <span style={{ color: "var(--mid)" }}>—</span>
+                              <span style={{ color: "var(--mid)" }}>–</span>
                             )}
                           </td>
                           <td className={styles.accBank}>{o.banka}</td>
                           <td className={styles.opcRacuni}>
                             {o.racuni.length === 0 ? (
-                              <span style={{ color: "var(--mid)" }}>—</span>
+                              <span style={{ color: "var(--mid)" }}>–</span>
                             ) : (
                               <div className={styles.racuniList}>
                                 {o.racuni.map((r) => (
@@ -461,7 +461,7 @@ export default function JavniPrihodi() {
               Vrste <em>prihoda</em>
             </h2>
             <p className={styles.sectionSub}>
-              Šestocifrene šifre vrsta prihoda po ekonomskoj klasifikaciji — upisuju se u polje{" "}
+              Šestocifrene šifre vrsta prihoda po ekonomskoj klasifikaciji, upisuju se u polje{" "}
               <strong>11. Vrsta prihoda</strong> platnog naloga. Grupisano po ekonomskoj grupi
               (prve tri cifre).
             </p>
@@ -487,7 +487,7 @@ export default function JavniPrihodi() {
                             <CopyBtn text={it.code} label={`šifru ${it.code}`} />
                           </td>
                           <td className={styles.priName}>
-                            {it.name || <span style={{ color: "var(--mid)" }}>—</span>}
+                            {it.name || <span style={{ color: "var(--mid)" }}>–</span>}
                             {it.section && <span className={styles.priSect}>{it.section}</span>}
                           </td>
                         </tr>
@@ -505,7 +505,7 @@ export default function JavniPrihodi() {
               Budžetske <em>organizacije</em>
             </h2>
             <p className={styles.sectionSub}>
-              Sedmocifrene šifre organizacione klasifikacije — upisuju se u polje{" "}
+              Sedmocifrene šifre organizacione klasifikacije, upisuju se u polje{" "}
               <strong>15. Budžetska organizacija</strong> platnog naloga, kada se prihod prati po
               budžetskom korisniku.
             </p>
@@ -539,8 +539,8 @@ export default function JavniPrihodi() {
                 rel="noopener noreferrer"
               >
                 pufbih.ba/servisi-za-obveznike/uplatni-racuni
-              </a>{" "}
-              — uvijek aktuelni podaci sa zvanične PUFBiH stranice.
+              </a>,{" "}
+              uvijek aktuelni podaci sa zvanične PUFBiH stranice.
             </p>
             <p style={{ margin: 0 }}>
               <strong>Općinski računi:</strong> Pravilnik o načinu uplate, pripadnosti i
@@ -627,7 +627,7 @@ export default function JavniPrihodi() {
             Federalni i kantonalni računi (Budžet FBiH, ZZO, Federalni zavod za zapošljavanje,
             Fond invalida, kantonalni budžeti) sinhronizirani su sa{" "}
             <strong>live PUFBiH stranicom</strong> i uvijek su aktuelni. Općinski računi su iz
-            najnovijeg pravilnika PUFBiH (sekcija 12.1.3) — za 100% aktuelne podatke provjerite{" "}
+            najnovijeg pravilnika PUFBiH (sekcija 12.1.3), za 100% aktuelne podatke provjerite{" "}
             <a href="https://www.pufbih.ba/servisi-za-obveznike/uplatni-racuni" target="_blank" rel="noopener noreferrer">
               pufbih.ba
             </a>
@@ -639,7 +639,7 @@ export default function JavniPrihodi() {
           <p>
             Ne. Svaka vrsta prihoda (šifra) zahtijeva poseban platni nalog jer se različite šifre
             usmjeravaju na različite depozitne račune. Naša aplikacija u Obračunu plata automatski
-            generiše posebne uplatnice za svaku vrstu prihoda — PIO, zdravstvo, nezaposlenost,
+            generiše posebne uplatnice za svaku vrstu prihoda, PIO, zdravstvo, nezaposlenost,
             porez i ostalo.
           </p>
         </details>
@@ -699,7 +699,7 @@ function AccountGroup({
             {items.map((it, i) => (
               <tr key={i}>
                 <td className={styles.accName}>{it.naziv}</td>
-                <td className={styles.accBank}>{it.banka || "—"}</td>
+                <td className={styles.accBank}>{it.banka || "–"}</td>
                 <td className={styles.accNum}>
                   {it.racun}
                   <CopyBtn text={it.racun} label={`račun ${it.racun}`} />

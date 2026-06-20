@@ -189,7 +189,7 @@ export function ProfilTab() {
               disabled={!canEdit}
               className={selectCls}
             >
-              <option value="">— odaberite —</option>
+              <option value="">– odaberite –</option>
               {JURISDICTIONS.map((j) => (
                 <option key={j.value} value={j.value}>{j.label}</option>
               ))}
@@ -204,7 +204,7 @@ export function ProfilTab() {
               disabled={!canEdit}
               className={selectCls}
             >
-              <option value="">— odaberite —</option>
+              <option value="">– odaberite –</option>
               {TAX_REGIMES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}

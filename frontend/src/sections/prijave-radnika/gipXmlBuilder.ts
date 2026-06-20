@@ -61,7 +61,8 @@ export async function buildGip1022Xml(
   }
   for (const arr of byWorker.values()) arr.sort((a, b) => a.month - b.month);
 
-  // Fallback datum uplate: posljednji dan mjeseca (Payroll ne čuva stvarni).
+  // Datum uplate: koristi stvarni paymentDate iz payroll-a (ono što user unese
+  // u "Datum isplate"), a fallback je posljednji dan mjeseca ako nije postavljen.
   const lastDayIso = (y: number, m: number) => {
     const last = new Date(y, m, 0).getDate();
     return `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
@@ -109,7 +110,9 @@ export async function buildGip1022Xml(
           osnovicaPoreza,
           iznosPoreza,
           neto,
-          datumUplate: lastDayIso(year, p.month),
+          datumUplate:
+            (p.paymentDate ? String(p.paymentDate).slice(0, 10) : "") ||
+            lastDayIso(year, p.month),
         };
       });
 

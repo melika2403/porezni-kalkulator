@@ -292,8 +292,8 @@ export default function PdvObveznik100000() {
           rel="noopener noreferrer"
         >
           UINO: Prag za ulazak u sistem PDV-a povećan na 100.000 KM
-        </a>
-        , Zakon o porezu na dodanu vrijednost BiH (Sl. glasnik BiH br. 9/05
+        </a>,
+        Zakon o porezu na dodanu vrijednost BiH (Sl. glasnik BiH br. 9/05
         sa izmjenama, izmjene od 24.11.2023.), Pravilnik o registraciji i
         upisu u Jedinstveni registar obveznika indirektnih poreza (Sl.
         glasnik BiH br. 51/12).

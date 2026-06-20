@@ -606,7 +606,7 @@ export default function SifreDjelatnosti() {
           <p>
             Pretražite po ključnoj riječi (npr. „programiranje", „frizer", „prevoz") ili po šifri
             ako je već znate. Otvorite područje i oblast, pa pročitajte šta razred uključuje, a šta
-            izuzima — često postoji slična djelatnost u drugoj oblasti. Ako ste i dalje u dilemi,
+            izuzima, često postoji slična djelatnost u drugoj oblasti. Ako ste i dalje u dilemi,
             konsultujte ovlaštenog knjigovođu ili nadležnu poreznu ispostavu.
           </p>
         </details>
@@ -630,7 +630,7 @@ export default function SifreDjelatnosti() {
         <details className={styles.faqItem}>
           <summary>Da li se šifre djelatnosti razlikuju u FBiH i RS?</summary>
           <p>
-            Ne — KD BiH je jedinstvena na nivou cijele BiH i identična u oba entiteta, jer je
+            Ne, KD BiH je jedinstvena na nivou cijele BiH i identična u oba entiteta, jer je
             preuzeta iz Zakona o KD BiH ("Službeni glasnik BiH"). Razlikuje se samo nadležni organ
             za registraciju (FBiH: kantonalna porezna uprava; RS: Poreska uprava RS).
           </p>
@@ -647,7 +647,7 @@ export default function SifreDjelatnosti() {
 
       <footer className={styles.footnote}>
         <p>
-          Izvor: Klasifikacija djelatnosti Bosne i Hercegovine 2010 (KD BiH 2010) — Agencija za
+          Izvor: Klasifikacija djelatnosti Bosne i Hercegovine 2010 (KD BiH 2010), Agencija za
           statistiku BiH i Federalni zavod za statistiku, na osnovu Zakona o KD BiH (Sl. glasnik BiH
           br. 76/06) i evropske klasifikacije NACE Rev. 2.
         </p>

@@ -25,7 +25,7 @@ async function sendPasswordResetEmail(to, resetUrl) {
   await transporter.sendMail({
     from,
     to,
-    subject: "Reset lozinke — Porezni Kalkulator",
+    subject: "Reset lozinke, Porezni Kalkulator",
     text: `Primili ste zahtjev za resetovanje lozinke.\n\nKliknite na sljedeći link da resetujete lozinku (link važi 1 sat):\n${resetUrl}\n\nAko niste tražili reset lozinke, ignorišite ovaj email.`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
@@ -40,7 +40,7 @@ async function sendPasswordResetEmail(to, resetUrl) {
           Resetuj lozinku
         </a>
         <p style="color: #999; font-size: 13px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-          Ako niste tražili reset lozinke, ignorišite ovaj email — vaš nalog ostaje siguran.<br/>
+          Ako niste tražili reset lozinke, ignorišite ovaj email, vaš nalog ostaje siguran.<br/>
           Link za reset: <a href="${resetUrl}" style="color: #3a5c42;">${resetUrl}</a>
         </p>
       </div>
@@ -56,7 +56,7 @@ async function sendVerificationEmail(to, firstName, verifyUrl) {
   await transporter.sendMail({
     from,
     to,
-    subject: "Potvrdite vašu email adresu — Porezni Kalkulator",
+    subject: "Potvrdite vašu email adresu, Porezni Kalkulator",
     text: `Zdravo ${firstName},\n\nHvala što ste se registrovali na Porezni Kalkulator.\n\nKliknite na sljedeći link da potvrdite vašu email adresu (link važi 24 sata):\n${verifyUrl}\n\nAko se niste registrovali, ignorišite ovaj email.`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
@@ -93,7 +93,7 @@ async function sendContactEmail({ ime, email, poruka }) {
     from,
     to,
     replyTo: email,
-    subject: `Kontakt forma — poruka od ${ime}`,
+    subject: `Kontakt forma, poruka od ${ime}`,
     text: `Ime: ${ime}\nEmail: ${email}\n\nPoruka:\n${poruka}`,
   });
 }
@@ -107,7 +107,7 @@ async function sendPredracunEmail({ to, buyerName, fullNumber, plan, gross, pdfB
   await transporter.sendMail({
     from,
     to,
-    subject: `Predračun br. ${fullNumber} — Porezni Kalkulator`,
+    subject: `Predračun br. ${fullNumber}, Porezni Kalkulator`,
     text:
 `Poštovani${buyerName ? ` ${buyerName}` : ""},
 
@@ -118,7 +118,7 @@ Iznos za naplatu: ${grossStr} KM (sa PDV-om).
 Nakon evidentiranja uplate, vaš nalog će biti aktiviran.
 
 Hvala vam na povjerenju!
-— Porezni Kalkulator`,
+, Porezni Kalkulator`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
         <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Predračun br. ${fullNumber}</h2>
@@ -136,7 +136,7 @@ Hvala vam na povjerenju!
           Nakon evidentiranja uplate, vaš nalog će biti aktiviran.
         </p>
         <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
-          Hvala vam na povjerenju!<br/>— Porezni Kalkulator
+          Hvala vam na povjerenju!<br/>, Porezni Kalkulator
         </p>
       </div>
     `,
@@ -186,7 +186,7 @@ async function sendInvoiceEmail({ to, replyTo, isProforma, fullNumber, sellerNam
     from,
     to,
     replyTo: replyTo || undefined,
-    subject: `${docTitle} br. ${fullNumber}${sellerName ? ` — ${sellerName}` : ""}`,
+    subject: `${docTitle} br. ${fullNumber}${sellerName ? `, ${sellerName}` : ""}`,
     text:
 `Poštovani${buyerName ? ` ${buyerName}` : ""},
 
@@ -194,9 +194,9 @@ ${intro}
 
 Iznos za naplatu: ${grossStr} ${cur}${dueStr ? `\nDatum dospijeća: ${dueStr}` : ""}
 
-${replyTo ? `Za sva pitanja odgovorite na ovaj email — odlazi direktno na ${replyTo}.` : ""}
+${replyTo ? `Za sva pitanja odgovorite na ovaj email, odlazi direktno na ${replyTo}.` : ""}
 
-— ${displayName}`,
+, ${displayName}`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
         <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${docTitle} br. ${fullNumber}</h2>
@@ -209,9 +209,9 @@ ${replyTo ? `Za sva pitanja odgovorite na ovaj email — odlazi direktno na ${re
           <div style="font-size:28px; font-weight:600; color:#3a5c42; margin-top:4px;">${grossStr} ${cur}</div>
           ${dueStr ? `<div style="font-size:12px; color:#7a8a7d; margin-top:6px;">Dospijeće: <strong>${dueStr}</strong></div>` : ""}
         </div>
-        ${replyTo ? `<p style="color:#666; font-size:14px; line-height:1.6;">Za sva pitanja odgovorite na ovaj email — odlazi direktno na <strong>${replyTo}</strong>.</p>` : ""}
+        ${replyTo ? `<p style="color:#666; font-size:14px; line-height:1.6;">Za sva pitanja odgovorite na ovaj email, odlazi direktno na <strong>${replyTo}</strong>.</p>` : ""}
         <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
-          — ${displayName}<br/>
+          , ${displayName}<br/>
           <span style="color:#bbb;">Poslano preko poreznikalkulator.ba</span>
         </p>
       </div>
@@ -232,7 +232,7 @@ async function sendWelcomeEmail(to, firstName, trialUrl) {
   const from = `"${displayName}" <${process.env.SMTP_USER}>`;
 
   const proFeatures = [
-    "Šihterica — evidencija radnog vremena za sve radnike + PDF",
+    "Šihterica, evidencija radnog vremena za sve radnike + PDF",
     "Generator članskih kartica",
     "Fakture/računi i predračuni za vaše klijente",
     "Dodavanje do 20 klijenata i fizičkih lica",
@@ -253,12 +253,12 @@ async function sendWelcomeEmail(to, firstName, trialUrl) {
   await transporter.sendMail({
     from,
     to,
-    subject: "30 dana PRO besplatno — počnite sa šihtericom",
+    subject: "30 dana PRO besplatno, počnite sa šihtericom",
     text: `Zdravo ${firstName},
 
 Hvala što ste potvrdili email adresu na Porezni Kalkulator.
 
-Aktivirajte 30 dana PRO pretplate BESPLATNO i odmah probajte našu šihtericu — vodite mjesečnu evidenciju radnog vremena za sve radnike i preuzmite popunjeni PDF obrazac prema propisima FBiH.
+Aktivirajte 30 dana PRO pretplate BESPLATNO i odmah probajte našu šihtericu, vodite mjesečnu evidenciju radnog vremena za sve radnike i preuzmite popunjeni PDF obrazac prema propisima FBiH.
 
 Aktivirajte ovdje: ${trialUrl}
 
@@ -267,7 +267,7 @@ ${featuresText}
 
 Bez kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate na besplatan plan.
 
-— Porezni Kalkulator`,
+, Porezni Kalkulator`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
         <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #7a8a7d; margin-bottom: 8px;">
@@ -285,7 +285,7 @@ Bez kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate na bes
             ⭐ NAŠA NAJNOVIJA FUNKCIJA
           </div>
           <div style="font-size: 18px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px;">
-            Šihterica — evidencija radnog vremena
+            Šihterica, evidencija radnog vremena
           </div>
           <p style="color: #555; font-size: 14px; line-height: 1.55; margin: 0;">
             Vodite mjesečnu evidenciju radnog vremena za sve radnike prema propisima FBiH
@@ -349,7 +349,7 @@ async function sendTrialInviteEmail(to, firstName, { trialUrl }) {
   await transporter.sendMail({
     from,
     to,
-    subject: "Vaš besplatni mjesec vas i dalje čeka — Porezni Kalkulator",
+    subject: "Vaš besplatni mjesec vas i dalje čeka, Porezni Kalkulator",
     text: `Zdravo ${firstName},
 
 Primijetili smo da još niste aktivirali svoj besplatni mjesec (30 dana PRO) na Porezni Kalkulator. Dobra vijest: i dalje vas čeka.
@@ -362,7 +362,7 @@ ${trialUrl}
 
 Ako imate bilo kakvo pitanje, slobodno odgovorite na ovaj email, rado pomažemo.
 
-— Porezni Kalkulator`,
+, Porezni Kalkulator`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
         <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #7a8a7d; margin-bottom: 8px;">
@@ -430,7 +430,7 @@ async function sendSubscriptionReminderEmail(
   let heading;
   let lead;
   if (expired) {
-    subject = `${thingShort} je istek${isTrial ? "ao" : "la"} — Porezni Kalkulator`;
+    subject = `${thingShort} je istek${isTrial ? "ao" : "la"}, Porezni Kalkulator`;
     heading = `${thingShort} je istek${isTrial ? "ao" : "la"}`;
     lead = `${thing} na Porezni Kalkulator ${isTrial ? "je istekao" : "je istekla"} ${endDateStr}. ${
       isTrial
@@ -438,11 +438,11 @@ async function sendSubscriptionReminderEmail(
         : "Obnovite je da ponovo otključate sve funkcije."
     }`;
   } else if (today) {
-    subject = `${thingShort} ističe danas — Porezni Kalkulator`;
+    subject = `${thingShort} ističe danas, Porezni Kalkulator`;
     heading = `${thingShort} ističe danas`;
     lead = `${thing} na Porezni Kalkulator ističe danas (${endDateStr}). ${act}`;
   } else {
-    subject = `${thingShort} ističe ${dStr} — Porezni Kalkulator`;
+    subject = `${thingShort} ističe ${dStr}, Porezni Kalkulator`;
     heading = `${thingShort} ističe ${dStr}`;
     lead = `${thing} na Porezni Kalkulator ističe ${dStr} (${endDateStr}). ${act}`;
   }
@@ -458,7 +458,7 @@ ${lead}
 ${renewLine}
 ${renewUrl}
 
-— Porezni Kalkulator`,
+, Porezni Kalkulator`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
         <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${heading}</h2>
@@ -506,7 +506,7 @@ async function sendPayslipEmail({
   await transporter.sendMail({
     from,
     to,
-    subject: `Platni listić — ${periodHr} — ${workerName}`,
+    subject: `Platni listić, ${periodHr}, ${workerName}`,
     text:
 `Poštovani${workerName ? ` ${workerName}` : ""},
 
@@ -514,7 +514,7 @@ U prilogu se nalazi platni listić za ${periodHr}${organizationName ? ` od ${org
 
 Neto za isplatu: ${netoStr} KM
 
-— ${displayName}`,
+, ${displayName}`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
         <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Platni listić</h2>
@@ -527,7 +527,7 @@ Neto za isplatu: ${netoStr} KM
           <div style="font-size:28px; font-weight:600; color:#3a5c42; margin-top:4px;">${netoStr} KM</div>
         </div>
         <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
-          — ${displayName}<br/>
+          , ${displayName}<br/>
           <span style="color:#bbb;">Poslano preko poreznikalkulator.ba</span>
         </p>
       </div>

@@ -37,10 +37,10 @@ export interface SprData {
   row24TotalExpenses: number; // UKUPNO rashodi (computed)
 
   // Dio 5 — Utvrđivanje dohotka (rows 25-29)
-  row25Income: number; // Prihodi (red 16) — computed
-  row26Expenses: number; // Rashodi (red 24) — computed
+  row25Income: number; // Prihodi (red 16), computed
+  row26Expenses: number; // Rashodi (red 24), computed
   row27Adjustments: number; // Porezne korekcije (+/-)
-  row28NetIncome: number; // Dohodak iz djelatnosti (25 - 26 +/- 27) — computed
+  row28NetIncome: number; // Dohodak iz djelatnosti (25 - 26 +/- 27), computed
   row29PersonalDeduction: number; // Miesečni iznos akontacije
   row29Months: number; // Broj mieseci za akontaciju
   signAdjustment: "+" | "-" | ""; // da li je korekcija + ili -

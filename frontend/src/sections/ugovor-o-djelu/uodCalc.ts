@@ -129,3 +129,62 @@ export function calcFromNeto(neto: number, troskoviPct: number = 0.20): UodCalc 
   const bruto = round2(neto / nettoBrutoDivisor(troskoviPct));
   return calcFromBruto(bruto, troskoviPct);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   NEREZIDENT (lice sa prebivalištem u RS, Brčko Distriktu ili inostranstvu,
+   angažovano od naručioca sa sjedištem u FBiH).
+   Izvori: Zakon o porezu na dohodak FBiH čl. 57, Pravilnik o primjeni, PDN-1033.
+
+   - Nema normiranih rashoda (osnovica poreza = puni bruto).
+   - Nema doprinosa (ni zdravstveno 4% ni PIO/MIO 6%).
+   - Porez na dohodak po odbitku 10% na bruto.
+   - Opšta vodna naknada 0,5% i naknada za zaštitu od nepogoda 0,5% (osnovica =
+     neto), na teret naručioca.
+   ──────────────────────────────────────────────────────────────────────────── */
+export const NEREZIDENT_RATES = {
+  porezPct: 0.1,
+  vodaPct: 0.005,
+  nepogodePct: 0.005,
+} as const;
+
+export interface UodCalcNerezident {
+  neto: number;
+  bruto: number; // osnovica za PDN-1033
+  porez: number; // 10% na bruto
+  voda: number; // 0,5% na neto, teret naručioca
+  nepogode: number; // 0,5% na neto, teret naručioca
+  netoIsplata: number; // = neto
+  ukupniTroskovi: number; // bruto + voda + nepogode
+  porezDoprinosNaNetoPct: number; // (ukupniTroskovi - neto) / neto × 100
+}
+
+function calcNerezident(bruto: number, neto: number): UodCalcNerezident {
+  const porez = round2(bruto - neto);
+  const voda = round2(neto * NEREZIDENT_RATES.vodaPct);
+  const nepogode = round2(neto * NEREZIDENT_RATES.nepogodePct);
+  const ukupniTroskovi = round2(bruto + voda + nepogode);
+  const porezDoprinosNaNetoPct =
+    neto > 0 ? round2(((ukupniTroskovi - neto) / neto) * 100) : 0;
+  return {
+    neto: round2(neto),
+    bruto: round2(bruto),
+    porez,
+    voda,
+    nepogode,
+    netoIsplata: round2(neto),
+    ukupniTroskovi,
+    porezDoprinosNaNetoPct,
+  };
+}
+
+// Bruto se računa kao neto / 0,90 direktno (izbjegava drift faktora 1,1111).
+export function calcNerezidentFromNeto(neto: number): UodCalcNerezident {
+  const bruto = round2(neto / 0.9);
+  return calcNerezident(bruto, neto);
+}
+
+export function calcNerezidentFromBruto(bruto: number): UodCalcNerezident {
+  const porez = round2(bruto * NEREZIDENT_RATES.porezPct);
+  const neto = round2(bruto - porez);
+  return calcNerezident(bruto, neto);
+}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
+import { formatMoneyLive, formatMoneyBlur } from "src/lib/format";
 import { KD_BIH, type KdBihEntry } from "src/data/kd-bih";
 import {
   me,
@@ -55,6 +56,8 @@ import {
   type Organization,
   type OrgPayload,
   type OrgOwnerPayload,
+  type OwnerType,
+  type DirectorEngagement,
   type FormRecord,
   type FormType,
   type PersonClient,
@@ -263,14 +266,16 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
         },
       });
     } else {
-      if (!selected.owner) return;
+      // Plata vlasnika postoji samo kad je vlasnik Worker (opcija 1 / obrt).
+      if (!selected.owner?.id) return;
+      const ownerWorkerId = selected.owner.id;
       const b = parseMoney(bruto);
       const n = parseMoney(neto);
       const salaryType =
         n != null ? "NETO_ISPLATA" : b != null ? "BRUTO" : undefined;
       salaryMutation.mutate({
         orgId: selected.id,
-        workerId: selected.owner.id,
+        workerId: ownerWorkerId,
         payload: {
           salaryBruto: b,
           salaryNeto: n,
@@ -325,7 +330,7 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
                   setCategory("");
                 }}
               >
-                <option value="">— Odaberi —</option>
+                <option value="">– Odaberi –</option>
                 <option value="STVARNI_DOHODAK">
                   Stvarni dohodak (poslovne knjige, čl. 19)
                 </option>
@@ -343,7 +348,7 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  <option value="">— Odaberi —</option>
+                  <option value="">– Odaberi –</option>
                   {regime === "STVARNI_DOHODAK" && (
                     <>
                       <option value="SLOBODNA_ZANIMANJA">
@@ -383,7 +388,7 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
           </div>
         )}
 
-        {selected && !isObrt && (
+        {selected && !isObrt && selected.owner?.id && (
           <>
             <div className={styles.row}>
               <div className={styles.field}>
@@ -391,7 +396,8 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
                 <input
                   className={styles.input}
                   value={bruto}
-                  onChange={(e) => setBruto(e.target.value)}
+                  onChange={(e) => setBruto(formatMoneyLive(e.target.value))}
+                  onBlur={(e) => setBruto(formatMoneyBlur(e.target.value))}
                   placeholder="0,00"
                   inputMode="decimal"
                 />
@@ -401,7 +407,8 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
                 <input
                   className={styles.input}
                   value={neto}
-                  onChange={(e) => setNeto(e.target.value)}
+                  onChange={(e) => setNeto(formatMoneyLive(e.target.value))}
+                  onBlur={(e) => setNeto(formatMoneyBlur(e.target.value))}
                   placeholder="0,00"
                   inputMode="decimal"
                 />
@@ -417,13 +424,24 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
           </>
         )}
 
+        {selected && !isObrt && !selected.owner?.id && (
+          <p
+            className={styles.fieldHint}
+            style={{ fontSize: 13, color: "#666" }}
+          >
+            Vlasnik nije zaposlen u ovoj firmi (nije direktor po ugovoru o radu),
+            pa nema plate ni mjesečnog obračuna. Model vlasništva se mijenja u
+            postavkama firme.
+          </p>
+        )}
+
         {error && <div className={styles.errorMsg}>{error.message}</div>}
         {saved && <div className={styles.successMsg}>Sačuvano.</div>}
         <div className={styles.formActions}>
           <button
             type="submit"
             className={styles.btnPrimary}
-            disabled={pending || !selected}
+            disabled={pending || !selected || (!isObrt && !selected.owner?.id)}
           >
             {pending ? "Snimanje..." : "Sačuvaj"}
           </button>
@@ -732,7 +750,7 @@ function ProfilTab({
               <label className={styles.fieldLabel}>Email</label>
               <input
                 className={`${styles.input} ${styles.inputReadonly}`}
-                value={user.email ?? "—"}
+                value={user.email ?? "–"}
                 readOnly
                 tabIndex={-1}
               />
@@ -940,7 +958,7 @@ function ProfilTab({
           </div>
         ))}
 
-        {/* add button — ACCOUNTANT always, USER only if no owned orgs yet */}
+        {/* add button, ACCOUNTANT always, USER only if no owned orgs yet */}
         {!showAddOrg &&
           editOwnId === null &&
           (isSubscriber || ownOrgs.length <= 2) && (
@@ -985,10 +1003,35 @@ function ProfilTab({
 
 // ─── Owner fields sub-form ────────────────────────────────────────────────────
 
-type OwnerFormState = {
+// Opcija vlasništva (vidi 4-opcijski radio). Za obrt je uvijek "1".
+type OwnerOption = "1" | "2" | "3" | "4";
+
+// Stabilan klijentski kljuc za React liste (persons nemaju id); sprjecava
+// pomjeranje fokusa/inputa kad se ukloni red iz sredine. Ne salje se na backend
+// (payload se gradi eksplicitnim mapiranjem polja).
+let _personUidSeq = 0;
+const newPersonUid = () => `person-${_personUidSeq++}`;
+
+type OwnerPersonFormState = {
+  _uid: string;
   firstName: string;
   lastName: string;
   jmbg: string;
+  idDoc: string;
+};
+
+type OwnerFormState = {
+  // Model vlasništva (d.o.o.):
+  ownerOption: OwnerOption;
+  // Pod-tip za opciju 2 (firma/više lica/fizičko) i opciju 3 (domaće/strano).
+  ownerType: OwnerType;
+  firstName: string;
+  lastName: string;
+  jmbg: string;
+  idDoc: string; // strani ID / pasoš (fizicko_strano)
+  name: string; // naziv firme (pravno_lice) ili zbirni naziv (vise_lica)
+  jib: string; // JIB (pravno_lice)
+  persons: OwnerPersonFormState[];
   email: string;
   phone: string;
   address: string;
@@ -1001,9 +1044,15 @@ type OwnerFormState = {
 };
 
 const emptyOwner: OwnerFormState = {
+  ownerOption: "1",
+  ownerType: "fizicko_domace",
   firstName: "",
   lastName: "",
   jmbg: "",
+  idDoc: "",
+  name: "",
+  jib: "",
+  persons: [],
   email: "",
   phone: "",
   address: "",
@@ -1018,31 +1067,131 @@ const emptyOwner: OwnerFormState = {
 const parseMoney = (s: string): number | null =>
   s.trim() ? Number(s.replace(/\./g, "").replace(",", ".")) : null;
 
+// Iz opcije izvodi org-polja modela vlasništva.
+function ownerModelFields(o: OwnerFormState): {
+  ownerType: OwnerType;
+  ownerIsDirector: boolean;
+  directorEngagement: DirectorEngagement;
+} {
+  switch (o.ownerOption) {
+    case "2":
+      return {
+        ownerType: o.ownerType,
+        ownerIsDirector: false,
+        directorEngagement: "ugovor_o_radu",
+      };
+    case "3":
+      return {
+        ownerType:
+          o.ownerType === "fizicko_strano"
+            ? "fizicko_strano"
+            : "fizicko_domace",
+        ownerIsDirector: true,
+        directorEngagement: "menadzerski",
+      };
+    case "4":
+      return {
+        ownerType: "fizicko_strano",
+        ownerIsDirector: false,
+        directorEngagement: "ugovor_o_radu",
+      };
+    case "1":
+    default:
+      return {
+        ownerType: "fizicko_domace",
+        ownerIsDirector: true,
+        directorEngagement: "ugovor_o_radu",
+      };
+  }
+}
+
+// Iz org-a izvodi koju opciju radio treba prikazati.
+function deriveOwnerOption(org: Organization): OwnerOption {
+  const isDir = org.ownerIsDirector ?? true;
+  const eng = org.directorEngagement ?? "ugovor_o_radu";
+  const t = org.ownerType ?? "fizicko_domace";
+  if (isDir && eng === "menadzerski") return "3";
+  if (!isDir) return t === "fizicko_strano" ? "4" : "2";
+  return "1";
+}
+
 function ownerToPayload(o: OwnerFormState): OrgOwnerPayload {
+  const { ownerType } = ownerModelFields(o);
+  const isPerson =
+    ownerType === "fizicko_domace" || ownerType === "fizicko_strano";
+  const isLegal = ownerType === "pravno_lice";
+  const isMulti = ownerType === "vise_lica";
+  // Plata/prijava su relevantni samo za opciju 1 (vlasnik = prijavljen radnik).
+  const isEmployed = o.ownerOption === "1";
+
   const bruto = parseMoney(o.salaryBruto);
   const neto = parseMoney(o.salaryNeto);
-  // Neto je ciljni take-home i vodi obračun (NETO_ISPLATA). Ako je upisan samo
-  // bruto, on je osnovica (BRUTO). Ako nije ništa upisano, ostavi tip neodređen
-  // da backend ne dira postojeću vrijednost.
   const salaryType =
     neto != null ? "NETO_ISPLATA" : bruto != null ? "BRUTO" : undefined;
   const coef = Number(o.taxCoefficient.replace(",", "."));
-  return {
-    firstName: o.firstName.trim(),
-    lastName: o.lastName.trim(),
-    jmbg: o.jmbg.trim(),
+
+  const payload: OrgOwnerPayload = {
     ...(o.email.trim() && { email: o.email.trim() }),
     ...(o.phone.trim() && { phone: o.phone.trim() }),
     ...(o.address.trim() && { address: o.address.trim() }),
     ...(o.city.trim() && { city: o.city.trim() }),
-    ...(o.idCardNumber.trim() && { idCardNumber: o.idCardNumber.trim() }),
-    prijavaDate: o.prijavaDate || null,
-    salaryBruto: bruto,
-    salaryNeto: neto,
-    ...(salaryType && { salaryType }),
-    taxCoefficient: Number.isFinite(coef) && coef >= 0 ? coef : 1.0,
   };
+
+  if (isPerson) {
+    payload.firstName = o.firstName.trim();
+    payload.lastName = o.lastName.trim();
+    if (o.jmbg.trim()) payload.jmbg = o.jmbg.trim();
+    if (o.idDoc.trim()) payload.idDoc = o.idDoc.trim();
+    if (o.idCardNumber.trim()) payload.idCardNumber = o.idCardNumber.trim();
+  } else if (isLegal) {
+    payload.name = o.name.trim();
+    if (o.jib.trim()) payload.jib = o.jib.trim();
+  } else if (isMulti) {
+    if (o.name.trim()) payload.name = o.name.trim();
+    const persons = o.persons
+      .filter((p) => p.firstName.trim() || p.lastName.trim())
+      .map((p) => ({
+        firstName: p.firstName.trim(),
+        lastName: p.lastName.trim(),
+        ...(p.jmbg.trim() && { jmbg: p.jmbg.trim() }),
+        ...(p.idDoc.trim() && { idDoc: p.idDoc.trim() }),
+      }));
+    if (persons.length) payload.persons = persons;
+  }
+
+  if (isEmployed) {
+    payload.prijavaDate = o.prijavaDate || null;
+    payload.salaryBruto = bruto;
+    payload.salaryNeto = neto;
+    if (salaryType) payload.salaryType = salaryType;
+    payload.taxCoefficient = Number.isFinite(coef) && coef >= 0 ? coef : 1.0;
+  }
+
+  return payload;
 }
+
+const OWNER_OPTIONS: { value: OwnerOption; title: string; desc: string }[] = [
+  {
+    value: "1",
+    title: "Vlasnik je direktor i prijavljen (ugovor o radu)",
+    desc: "Vlasnik je ujedno uposlenik i potpisnik. Ulazi u obračun plata.",
+  },
+  {
+    value: "2",
+    title: "Vlasnik nije prijavljen, samo evidencija",
+    desc: "Vlasnik može biti druga firma ili više lica. Direktora i potpisnika označavate na jednom radniku.",
+  },
+  {
+    value: "3",
+    title: "Vlasnik je direktor po menadžerskom ugovoru",
+    desc: "Vlasnik zastupa firmu kao direktor i potpisnik, ali nije prijavljen (bez plate i doprinosa).",
+  },
+  {
+    value: "4",
+    title: "Vlasnik je strano lice, nije prijavljen",
+    desc: "Direktora i potpisnika označavate na jednom radniku.",
+  },
+];
 
 function OwnerFields({
   value,
@@ -1053,8 +1202,8 @@ function OwnerFields({
   value: OwnerFormState;
   onChange: (v: OwnerFormState) => void;
   requireJmbg?: boolean;
-  // Obrt (BUSINESS): vlasnik nema platu — doprinosi po režimu oporezivanja.
-  // d.o.o. (COMPANY): vlasnik se tretira kao radnik → ima platu.
+  // Obrt (BUSINESS): vlasnik je obrtnik (uvijek "opcija 1", bez radia).
+  // d.o.o. (COMPANY): 4 opcije vlasništva (vidi OWNER_OPTIONS).
   orgType?: "COMPANY" | "BUSINESS";
 }) {
   const isObrt = orgType === "BUSINESS";
@@ -1062,59 +1211,315 @@ function OwnerFields({
     (field: keyof OwnerFormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
       onChange({ ...value, [field]: e.target.value });
 
+  const option: OwnerOption = isObrt ? "1" : value.ownerOption;
+  const ownerType: OwnerType = isObrt ? "fizicko_domace" : value.ownerType;
+  const isPerson =
+    ownerType === "fizicko_domace" || ownerType === "fizicko_strano";
+  const isLegal = ownerType === "pravno_lice";
+  const isMulti = ownerType === "vise_lica";
+  const isEmployed = option === "1"; // vlasnik = prijavljen radnik
+  const jmbgRequired =
+    isEmployed && requireJmbg && ownerType === "fizicko_domace";
+
+  const setOption = (opt: OwnerOption) => {
+    let ot = value.ownerType;
+    if (opt === "1") ot = "fizicko_domace";
+    else if (opt === "4") ot = "fizicko_strano";
+    else if (
+      opt === "2" &&
+      !["pravno_lice", "vise_lica", "fizicko_domace"].includes(ot)
+    )
+      ot = "pravno_lice";
+    else if (opt === "3" && !["fizicko_domace", "fizicko_strano"].includes(ot))
+      ot = "fizicko_domace";
+    onChange({ ...value, ownerOption: opt, ownerType: ot });
+  };
+
+  const addPerson = () =>
+    onChange({
+      ...value,
+      persons: [
+        ...value.persons,
+        { _uid: newPersonUid(), firstName: "", lastName: "", jmbg: "", idDoc: "" },
+      ],
+    });
+  const updatePerson = (i: number, patch: Partial<OwnerPersonFormState>) =>
+    onChange({
+      ...value,
+      persons: value.persons.map((p, idx) =>
+        idx === i ? { ...p, ...patch } : p,
+      ),
+    });
+  const removePerson = (i: number) =>
+    onChange({
+      ...value,
+      persons: value.persons.filter((_, idx) => idx !== i),
+    });
+
   return (
     <div className={styles.ownerSection}>
       <p className={styles.ownerSectionTitle}>Podaci vlasnika</p>
-      <div className={styles.row}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>Ime vlasnika *</label>
-          <input
-            className={styles.input}
-            value={value.firstName}
-            onChange={set("firstName")}
-            placeholder="Ime"
-            required
-          />
+
+      {/* 4-opcijski izbor modela vlasništva (samo d.o.o.) */}
+      {!isObrt && (
+        <div style={{ display: "grid", gap: "0.4rem", marginBottom: "0.9rem" }}>
+          {OWNER_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              style={{
+                display: "flex",
+                gap: "0.6rem",
+                alignItems: "flex-start",
+                padding: "0.6rem 0.7rem",
+                border:
+                  option === opt.value
+                    ? "1.5px solid var(--sage, #3a5c42)"
+                    : "1px solid #d4cfc4",
+                borderRadius: 10,
+                cursor: "pointer",
+                background: option === opt.value ? "#f3f7f3" : "transparent",
+              }}
+            >
+              <input
+                type="radio"
+                name="ownerOption"
+                checked={option === opt.value}
+                onChange={() => setOption(opt.value)}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <strong style={{ fontSize: 13 }}>{opt.title}</strong>
+                <br />
+                <span style={{ fontSize: 12, color: "#666" }}>{opt.desc}</span>
+              </span>
+            </label>
+          ))}
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>Prezime vlasnika *</label>
-          <input
-            className={styles.input}
-            value={value.lastName}
-            onChange={set("lastName")}
-            placeholder="Prezime"
-            required
-          />
+      )}
+
+      {/* Pod-tip vlasnika za opciju 2 */}
+      {!isObrt && option === "2" && (
+        <div className={styles.row}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Tip vlasnika</label>
+            <select
+              className={styles.input}
+              value={value.ownerType}
+              onChange={(e) =>
+                onChange({ ...value, ownerType: e.target.value as OwnerType })
+              }
+            >
+              <option value="pravno_lice">Pravno lice (firma)</option>
+              <option value="vise_lica">Više lica</option>
+              <option value="fizicko_domace">Fizičko lice (domaće)</option>
+            </select>
+          </div>
+          <div className={styles.field} />
         </div>
-      </div>
-      <div className={styles.row}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>
-            JMBG vlasnika {requireJmbg ? "*" : "(opciono)"}
-          </label>
-          <input
-            className={styles.input}
-            value={value.jmbg}
-            onChange={set("jmbg")}
-            placeholder="1234567890123"
-            maxLength={13}
-            required={requireJmbg}
-          />
-          <span className={styles.secureHint}>
-            🔒 JMBG se kriptira i nikad nije vidljiv drugima
-          </span>
+      )}
+      {/* Pod-tip vlasnika za opciju 3 (domaće/strano) */}
+      {!isObrt && option === "3" && (
+        <div className={styles.row}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Tip vlasnika</label>
+            <select
+              className={styles.input}
+              value={value.ownerType}
+              onChange={(e) =>
+                onChange({ ...value, ownerType: e.target.value as OwnerType })
+              }
+            >
+              <option value="fizicko_domace">Domaće fizičko lice</option>
+              <option value="fizicko_strano">Strano fizičko lice</option>
+            </select>
+          </div>
+          <div className={styles.field} />
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>Email vlasnika</label>
-          <input
-            className={styles.input}
-            type="email"
-            value={value.email}
-            onChange={set("email")}
-            placeholder="vlasnik@email.ba"
-          />
+      )}
+
+      {/* IDENTITET - fizičko lice */}
+      {isPerson && (
+        <>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Ime vlasnika *</label>
+              <input
+                className={styles.input}
+                value={value.firstName}
+                onChange={set("firstName")}
+                placeholder="Ime"
+                required
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Prezime vlasnika *</label>
+              <input
+                className={styles.input}
+                value={value.lastName}
+                onChange={set("lastName")}
+                placeholder="Prezime"
+                required
+              />
+            </div>
+          </div>
+          <div className={styles.row}>
+            {ownerType === "fizicko_domace" ? (
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  JMBG vlasnika {jmbgRequired ? "*" : "(opciono)"}
+                </label>
+                <input
+                  className={styles.input}
+                  value={value.jmbg}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      jmbg: e.target.value.replace(/\D/g, "").slice(0, 13),
+                    })
+                  }
+                  placeholder="1234567890123"
+                  inputMode="numeric"
+                  maxLength={13}
+                  required={jmbgRequired}
+                />
+                <span className={styles.secureHint}>
+                  🔒 JMBG se kriptira i nikad nije vidljiv drugima
+                </span>
+              </div>
+            ) : (
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  Broj pasoša / strani ID (opciono)
+                </label>
+                <input
+                  className={styles.input}
+                  value={value.idDoc}
+                  onChange={set("idDoc")}
+                  placeholder="Npr. broj pasoša"
+                />
+              </div>
+            )}
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Email vlasnika</label>
+              <input
+                className={styles.input}
+                type="email"
+                value={value.email}
+                onChange={set("email")}
+                placeholder="vlasnik@email.ba"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* IDENTITET - pravno lice (firma) */}
+      {isLegal && (
+        <div className={styles.row}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Naziv vlasnika (firme) *</label>
+            <input
+              className={styles.input}
+              value={value.name}
+              onChange={set("name")}
+              placeholder="Naziv firme"
+              required
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>JIB vlasnika (opciono)</label>
+            <input
+              className={styles.input}
+              value={value.jib}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  jib: e.target.value.replace(/\D/g, "").slice(0, 13),
+                })
+              }
+              placeholder="13 cifara"
+              inputMode="numeric"
+              maxLength={13}
+            />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* IDENTITET - više lica */}
+      {isMulti && (
+        <>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Naziv (opciono)</label>
+              <input
+                className={styles.input}
+                value={value.name}
+                onChange={set("name")}
+                placeholder="Npr. Suvlasnici ABC"
+              />
+            </div>
+            <div className={styles.field} />
+          </div>
+          {value.persons.map((p, i) => (
+            <div className={styles.row} key={p._uid}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Ime lica {i + 1}</label>
+                <input
+                  className={styles.input}
+                  value={p.firstName}
+                  onChange={(e) =>
+                    updatePerson(i, { firstName: e.target.value })
+                  }
+                  placeholder="Ime"
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  Prezime lica {i + 1}
+                  <button
+                    type="button"
+                    onClick={() => removePerson(i)}
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 11,
+                      color: "#b3261e",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ukloni
+                  </button>
+                </label>
+                <input
+                  className={styles.input}
+                  value={p.lastName}
+                  onChange={(e) => updatePerson(i, { lastName: e.target.value })}
+                  placeholder="Prezime"
+                />
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addPerson}
+            style={{
+              fontSize: 12,
+              color: "var(--sage, #3a5c42)",
+              background: "none",
+              border: "1px dashed #b9c4ba",
+              borderRadius: 8,
+              padding: "0.4rem 0.7rem",
+              cursor: "pointer",
+              marginBottom: "0.6rem",
+            }}
+          >
+            + Dodaj lice
+          </button>
+        </>
+      )}
+
+      {/* KONTAKT - telefon + lična karta (lk samo za fizičko lice) */}
       <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Telefon vlasnika</label>
@@ -1125,18 +1530,31 @@ function OwnerFields({
             placeholder="+387 61 000 000"
           />
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>
-            Broj lične karte (opciono)
-          </label>
-          <input
-            className={styles.input}
-            value={value.idCardNumber}
-            onChange={set("idCardNumber")}
-            placeholder="AB123456"
-            maxLength={9}
-          />
-        </div>
+        {isPerson ? (
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              Broj lične karte (opciono)
+            </label>
+            <input
+              className={styles.input}
+              value={value.idCardNumber}
+              onChange={set("idCardNumber")}
+              placeholder="AB123456"
+              maxLength={9}
+            />
+          </div>
+        ) : (
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Email vlasnika</label>
+            <input
+              className={styles.input}
+              type="email"
+              value={value.email}
+              onChange={set("email")}
+              placeholder="vlasnik@email.ba"
+            />
+          </div>
+        )}
       </div>
       <div className={styles.row}>
         <div className={styles.field}>
@@ -1149,7 +1567,7 @@ function OwnerFields({
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Grad vlasnika</label>
+          <label className={styles.fieldLabel}>Grad / sjedište vlasnika</label>
           <CitySelect
             value={value.city}
             onChange={(v) => onChange({ ...value, city: v })}
@@ -1157,83 +1575,132 @@ function OwnerFields({
           />
         </div>
       </div>
-      <div className={styles.row}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>
-            Datum prijave (opciono){" "}
-            <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
-              — ako se unese, vlasnik se odmah računa kao prijavljen
-            </span>
-          </label>
-          <DateInput
-            className={styles.input}
-            value={value.prijavaDate}
-            onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
-          />
-        </div>
-        {!isObrt && (
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Bruto plata vlasnika (KM)</label>
-            <input
-              className={styles.input}
-              value={value.salaryBruto}
-              onChange={set("salaryBruto")}
-              placeholder="0,00"
-              inputMode="decimal"
-            />
-          </div>
-        )}
-      </div>
-      {!isObrt && (
-        <div className={styles.row}>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Neto plata vlasnika (KM)</label>
-            <input
-              className={styles.input}
-              value={value.salaryNeto}
-              onChange={set("salaryNeto")}
-              placeholder="0,00"
-              inputMode="decimal"
-            />
-            <span
-              className={styles.fieldHint}
-              style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}
-            >
-              Upiši bruto ili neto (ili oba). Neto je ciljni iznos na ruke i
-              vodi obračun.
-            </span>
-          </div>
-          <div className={styles.field} />
-        </div>
-      )}
-      {isObrt && (
+
+      {/* Napomena: direktor/potpisnik se bira na radniku (opcije 2 i 4) */}
+      {!isObrt && (option === "2" || option === "4") && (
         <p
           className={styles.fieldHint}
-          style={{ marginTop: "-0.2rem", fontSize: 12, color: "#666" }}
+          style={{ fontSize: 12, color: "#666", marginTop: "0.2rem" }}
         >
-          Vlasnik obrta nema platu, doprinosi se računaju po režimu oporezivanja
-          odabranom iznad.
+          Direktora i potpisnika označite na kartici jednog radnika (stranica
+          organizacije, uredi radnika). On potpisuje dokumente firme.
         </p>
       )}
-      <div className={styles.row}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>
-            Porezni koeficijent{" "}
-            <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
-              — 1.0 = 300 KM mjesečnog odbitka. Za obrt vlasnika koristi se
-              samo u godišnjem GPD-1051 obračunu.
-            </span>
-          </label>
-          <input
-            className={styles.input}
-            value={value.taxCoefficient}
-            onChange={set("taxCoefficient")}
-            inputMode="decimal"
-            placeholder="1.0"
-          />
-        </div>
-        <div className={styles.field} />
-      </div>
+
+      {/* ZAPOSLENJE - samo opcija 1 (vlasnik = prijavljen) i obrt */}
+      {isEmployed && (
+        <>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>
+                Datum prijave (opciono),{" "}
+                <span
+                  style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}
+                >
+                  ako se unese, vlasnik se odmah računa kao prijavljen
+                </span>
+              </label>
+              <DateInput
+                className={styles.input}
+                value={value.prijavaDate}
+                onValueChange={(iso) =>
+                  onChange({ ...value, prijavaDate: iso })
+                }
+              />
+            </div>
+            {!isObrt && (
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  Bruto plata vlasnika (KM)
+                </label>
+                <input
+                  className={styles.input}
+                  value={value.salaryBruto}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      salaryBruto: formatMoneyLive(e.target.value),
+                    })
+                  }
+                  onBlur={(e) =>
+                    onChange({
+                      ...value,
+                      salaryBruto: formatMoneyBlur(e.target.value),
+                    })
+                  }
+                  placeholder="0,00"
+                  inputMode="decimal"
+                />
+              </div>
+            )}
+          </div>
+          {!isObrt && (
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>
+                  Neto plata vlasnika (KM)
+                </label>
+                <input
+                  className={styles.input}
+                  value={value.salaryNeto}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      salaryNeto: formatMoneyLive(e.target.value),
+                    })
+                  }
+                  onBlur={(e) =>
+                    onChange({
+                      ...value,
+                      salaryNeto: formatMoneyBlur(e.target.value),
+                    })
+                  }
+                  placeholder="0,00"
+                  inputMode="decimal"
+                />
+                <span
+                  className={styles.fieldHint}
+                  style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}
+                >
+                  Upiši bruto ili neto (ili oba). Neto je ciljni iznos na ruke i
+                  vodi obračun.
+                </span>
+              </div>
+              <div className={styles.field} />
+            </div>
+          )}
+          {isObrt && (
+            <p
+              className={styles.fieldHint}
+              style={{ marginTop: "-0.2rem", fontSize: 12, color: "#666" }}
+            >
+              Vlasnik obrta nema platu, doprinosi se računaju po režimu
+              oporezivanja odabranom iznad.
+            </p>
+          )}
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>
+                Porezni koeficijent,{" "}
+                <span
+                  style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}
+                >
+                  1.0 = 300 KM mjesečnog odbitka. Za obrt vlasnika koristi se
+                  samo u godišnjem GPD-1051 obračunu.
+                </span>
+              </label>
+              <input
+                className={styles.input}
+                value={value.taxCoefficient}
+                onChange={set("taxCoefficient")}
+                inputMode="decimal"
+                placeholder="1.0"
+              />
+            </div>
+            <div className={styles.field} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1302,6 +1769,12 @@ function orgFormToPayload(
     mealAllowancePerDay: f.mealAllowancePerDay.trim()
       ? Number(f.mealAllowancePerDay.replace(",", "."))
       : null,
+    // Model vlasništva ide na nivo organizacije. Za obrt je uvijek "opcija 1"
+    // (vlasnik = obrtnik); backend ga svejedno tretira kao Worker VLASNIK.
+    ...(owner &&
+      f.type === "COMPANY" && {
+        ...ownerModelFields(owner),
+      }),
     ...(owner && { ownerData: ownerToPayload(owner) }),
   };
 }
@@ -1564,7 +2037,7 @@ function OrgFormFields({
                 })
               }
             >
-              <option value="">— Odaberi —</option>
+              <option value="">– Odaberi –</option>
               <option value="STVARNI_DOHODAK">
                 Stvarni dohodak (poslovne knjige, čl. 19)
               </option>
@@ -1580,7 +2053,7 @@ function OrgFormFields({
                 value={value.taxCategory}
                 onChange={set("taxCategory")}
               >
-                <option value="">— Odaberi —</option>
+                <option value="">– Odaberi –</option>
                 {value.taxRegime === "STVARNI_DOHODAK" && (
                   <>
                     <option value="SLOBODNA_ZANIMANJA">
@@ -2000,9 +2473,21 @@ function DjelatnostTab({
     setEditOwner(
       ow
         ? {
-            firstName: ow.firstName,
-            lastName: ow.lastName,
+            ownerOption: deriveOwnerOption(org),
+            ownerType: ow.type ?? org.ownerType ?? "fizicko_domace",
+            firstName: ow.firstName ?? "",
+            lastName: ow.lastName ?? "",
             jmbg: ow.jmbg ?? "",
+            idDoc: ow.idDoc ?? "",
+            name: ow.name ?? "",
+            jib: ow.jib ?? "",
+            persons: (ow.persons ?? []).map((p) => ({
+              _uid: newPersonUid(),
+              firstName: p.firstName ?? "",
+              lastName: p.lastName ?? "",
+              jmbg: p.jmbg ?? "",
+              idDoc: p.idDoc ?? "",
+            })),
             email: ow.email ?? "",
             phone: ow.phone ?? "",
             address: ow.address ?? "",
@@ -3218,7 +3703,7 @@ function SigurnostTab({ user }: { user: AuthUser }) {
                 flexWrap: "wrap",
               }}
             >
-              {user.email ?? "—"}
+              {user.email ?? "–"}
               {user.isEmailVerified ? (
                 <span className={styles.verifiedBadge}>✓ Verificiran</span>
               ) : (
@@ -3283,8 +3768,8 @@ function SigurnostTab({ user }: { user: AuthUser }) {
               />
             </svg>
             <p className={styles.googleInfoText}>
-              Vaš nalog je vezan za Google. Prijava se vrši putem Google dugmeta
-              — lokalna lozinka nije potrebna.
+              Vaš nalog je vezan za Google. Prijava se vrši putem Google dugmeta,
+              lokalna lozinka nije potrebna.
             </p>
           </div>
         </div>
@@ -3410,7 +3895,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   ],
   PRO: [
     "Sve iz besplatnog plana",
-    "Šihterica — Evidencija radnog vremena",
+    "Šihterica, Evidencija radnog vremena",
     "Generator članskih kartica",
     "Fakture/računi i predračuni/ponude za vaše djelatnosti ili vaše klijente",
     "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
@@ -3433,7 +3918,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
 };
 
 function fmtDate(iso: string) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   const dd = String(d.getDate()).padStart(2, "0");
@@ -3535,8 +4020,8 @@ function SubscriptionRenewal({
         Generišite novi predračun za obnovu. Nova pretplata:{" "}
         <strong>
           {planLabel}, {cycleLabel}
-        </strong>{" "}
-        — period {fmtDate(periodStart)} do {fmtDate(periodEnd)}{" "}
+        </strong>,{" "}
+        period {fmtDate(periodStart)} do {fmtDate(periodEnd)}{" "}
         {expired
           ? "(počinje danas)."
           : "(počinje dan nakon isteka tekuće, bez prekida)."}
@@ -3628,7 +4113,7 @@ function PretplataTab({ user }: { user: AuthUser }) {
           </div>
           <p className={styles.planDesc}>
             {isAdmin
-              ? "Puni administratorski pristup — uvijek aktivan."
+              ? "Puni administratorski pristup, uvijek aktivan."
               : isPaid && isActive
                 ? "Imate aktivan plaćeni plan."
                 : isPaid && isExpired
@@ -3912,7 +4397,7 @@ export default function Profil() {
               {label}
             </button>
           ))}
-          {/* Pregled svih organizacija — vodi na /organizacije, uvijek vidljiv. */}
+          {/* Pregled svih organizacija, vodi na /organizacije, uvijek vidljiv. */}
           <button
             className={styles.navItem}
             onClick={() => router.push("/organizacije")}
@@ -3923,7 +4408,7 @@ export default function Profil() {
             </span>
             Pregled organizacija
           </button>
-          {/* Admin — vidljiv samo ADMIN korisnicima. */}
+          {/* Admin, vidljiv samo ADMIN korisnicima. */}
           <RoleGuard roles={["ADMIN"]} mode="hide">
             <button
               className={styles.navItem}
@@ -4342,7 +4827,7 @@ function StatCard({
         {label}
       </span>
       <span className={styles.statValue}>
-        {value ?? "—"}
+        {value ?? "–"}
         {typeof delta === "number" && delta > 0 && (
           <span className={styles.statDelta}> +{delta}</span>
         )}
@@ -4377,7 +4862,7 @@ function ProfileDetailRow({
             Dodaj
           </button>
         ) : (
-          <span className={styles.infoEmpty}>—</span>
+          <span className={styles.infoEmpty}>–</span>
         )}
       </span>
     </div>

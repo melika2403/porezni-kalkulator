@@ -9,6 +9,7 @@ import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
 import { parseDecimal } from "src/utils/parseDecimal";
+import { formatMoneyBlur } from "src/lib/format";
 import DateInput from "src/components/DateInput/DateInput";
 import styles from "./QuickAddWorkerModal.module.css";
 
@@ -57,12 +58,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
 
   if (!canCreateWorker) {
     const content = (
-      <div
-        className={styles.backdrop}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
-      >
+      <div className={styles.backdrop}>
         <div className={styles.modal}>
           <div className={styles.header}>
             <h2 className={styles.title}>Novi radnik</h2>
@@ -156,12 +152,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
   };
 
   const content = (
-    <div
-      className={styles.backdrop}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className={styles.backdrop}>
       <form className={styles.modal} onSubmit={handleSubmit}>
         <div className={styles.header}>
           <h2 className={styles.title}>Novi radnik</h2>
@@ -170,7 +161,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
           </button>
         </div>
         <p className={styles.hint}>
-          Brzi unos — dodatne detalje (otkazni rok, vrsta ugovora, stručna sprema)
+          Brzi unos, dodatne detalje (otkazni rok, vrsta ugovora, stručna sprema)
           možeš popuniti kasnije na stranici organizacije ili pri generisanju ugovora.
         </p>
 
@@ -226,7 +217,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               value={spol}
               onChange={(e) => setSpol(e.target.value as "M" | "Z" | "")}
             >
-              <option value="">— Odaberi —</option>
+              <option value="">– Odaberi –</option>
               <option value="M">Muški</option>
               <option value="Z">Ženski</option>
             </select>
@@ -250,9 +241,9 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
           </div>
           <div className={styles.field}>
             <span className={styles.label}>
-              Datum prijave (JS3100){" "}
+              Datum prijave (JS3100),{" "}
               <span style={{ color: "var(--mid)", fontSize: 11, fontWeight: 400 }}>
-                — ako se unese, radnik je odmah prijavljen
+                ako se unese, radnik je odmah prijavljen
               </span>
             </span>
             <DateInput
@@ -282,7 +273,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               }}
             />
             <span style={{ fontSize: 13, color: "var(--mid)" }}>
-              Nije još prijavljen — prijavit ću kasnije (JS3100 ili ručno)
+              Nije još prijavljen, prijavit ću kasnije (JS3100 ili ručno)
             </span>
           </label>
           <label className={styles.field}>
@@ -291,6 +282,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               className={styles.input}
               value={salaryBruto}
               onChange={(e) => setSalaryBruto(formatAmount(e.target.value))}
+              onBlur={(e) => setSalaryBruto(formatMoneyBlur(e.target.value))}
               inputMode="decimal"
               placeholder="0,00"
             />
@@ -301,6 +293,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               className={styles.input}
               value={salaryNeto}
               onChange={(e) => setSalaryNeto(formatAmount(e.target.value))}
+              onBlur={(e) => setSalaryNeto(formatMoneyBlur(e.target.value))}
               inputMode="decimal"
               placeholder="0,00"
             />
@@ -317,9 +310,9 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
           </label>
           <label className={styles.field}>
             <span className={styles.label}>
-              Porezni koeficijent{" "}
+              Porezni koeficijent,{" "}
               <span style={{ color: "var(--mid)", fontSize: 11, fontWeight: 400 }}>
-                — 1.0 = 300 KM odbitka
+                1.0 = 300 KM odbitka
               </span>
             </span>
             <input

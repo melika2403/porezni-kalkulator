@@ -25,7 +25,7 @@ const totalOpcina = OPCINE_GROUPS.reduce((a, g) => a + g.opcine.length, 0);
 
 export const metadata: Metadata = {
   title:
-    "Uplatni računi javnih prihoda FBiH — 315 šifri vrsta prihoda + općinski računi | Porezni Kalkulator BiH",
+    "Uplatni računi javnih prihoda FBiH, 315 šifri vrsta prihoda + općinski računi | Porezni Kalkulator BiH",
   description:
     `Kompletna referenca: ${totalRacuni} federalna i kantonalna uplatna računa, ${totalVrste} šifri vrsta prihoda i ${totalOpcina} općinskih računa za uplate javnih prihoda u FBiH. Pretraga po šifri ili nazivu, copy-paste direktno u platni nalog. Federalni računi uvijek aktuelni sa PUFBiH stranice.`,
 alternates: { canonical: PAGE_URL },
@@ -46,7 +46,7 @@ alternates: { canonical: PAGE_URL },
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
     title:
-      "Uplatni računi javnih prihoda FBiH — 315 šifri vrsta prihoda + općinski računi",
+      "Uplatni računi javnih prihoda FBiH, 315 šifri vrsta prihoda + općinski računi",
     description:
       "Brojevi računa, šifre vrsta prihoda, općinski računi i budžetske organizacije za sve uplate javnih prihoda u FBiH. Federalni računi uvijek aktuelni sa PUFBiH stranice.",
     images: [
@@ -60,7 +60,7 @@ alternates: { canonical: PAGE_URL },
   },
   twitter: {
     card: "summary_large_image",
-    title: "Uplatni računi javnih prihoda FBiH — kompletna referenca",
+    title: "Uplatni računi javnih prihoda FBiH, kompletna referenca",
     description:
       "315 šifri vrsta prihoda, federalni i kantonalni računi, općinski računi i budžetske organizacije.",
     images: ["/og-image.png"],
@@ -178,7 +178,7 @@ const faqSchema = {
       name: "Da li su uplatni računi sa ove stranice aktuelni?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Federalni i kantonalni računi (Budžet FBiH, ZZO, Federalni zavod za zapošljavanje, Fond invalida, kantonalni budžeti) sinhronizirani su sa live PUFBiH API-jem i uvijek su aktuelni. Općinski računi su iz najnovijeg pravilnika PUFBiH (sekcija 12.1.3) — za 100% aktuelne podatke provjeriti na pufbih.ba.",
+        text: "Federalni i kantonalni računi (Budžet FBiH, ZZO, Federalni zavod za zapošljavanje, Fond invalida, kantonalni budžeti) sinhronizirani su sa live PUFBiH API-jem i uvijek su aktuelni. Općinski računi su iz najnovijeg pravilnika PUFBiH (sekcija 12.1.3), za 100% aktuelne podatke provjeriti na pufbih.ba.",
       },
     },
   ],

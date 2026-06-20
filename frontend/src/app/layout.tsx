@@ -15,12 +15,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: "Porezni Kalkulator BiH — SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
+    default: "Porezni Kalkulator BiH, SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
     template: "%s | Porezni Kalkulator BiH",
   },
 
   description:
-    "SPR-1053 · GPD-1051 · ZO3 obrazac · AMS-1035 · PDV kalkulator · Obračun neto/bruto plate · Stalna sredstva i amortizacija · Šihterica · Ugovori o djelu i pozajmici — besplatni porezni alati za poduzetnike u BiH. Bez excela, bez gužve.",
+    "SPR-1053 · GPD-1051 · ZO3 obrazac · AMS-1035 · PDV kalkulator · Obračun neto/bruto plate · Stalna sredstva i amortizacija · Šihterica · Ugovori o djelu i pozajmici, besplatni porezni alati za poduzetnike u BiH. Bez excela, bez gužve.",
 authors: [{ name: "Porezni Kalkulator BiH" }],
   creator: "Porezni Kalkulator BiH",
 
@@ -42,9 +42,9 @@ authors: [{ name: "Porezni Kalkulator BiH" }],
     locale: "bs_BA",
     url: SITE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Porezni Kalkulator BiH — SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
+    title: "Porezni Kalkulator BiH, SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
     description:
-      "SPR-1053 · GPD-1051 · ZO3 · AMS-1035 · PDV kalkulator · Obračun plate · Stalna sredstva · Šihterica · Ugovori — besplatni porezni alati za poduzetnike u BiH.",
+      "SPR-1053 · GPD-1051 · ZO3 · AMS-1035 · PDV kalkulator · Obračun plate · Stalna sredstva · Šihterica · Ugovori, besplatni porezni alati za poduzetnike u BiH.",
     images: [
       {
         url: "/og-image.png",
@@ -90,7 +90,7 @@ const organizationSchema = {
   url: SITE_URL,
   logo: `${SITE_URL}/og-image.png`,
   description:
-    "Besplatni porezni alati za poduzetnike u Bosni i Hercegovini — obrasci, kalkulatori, obračun plata i reference za FBiH.",
+    "Besplatni porezni alati za poduzetnike u Bosni i Hercegovini, obrasci, kalkulatori, obračun plata i reference za FBiH.",
   email: "info@poreznikalkulator.ba",
   address: {
     "@type": "PostalAddress",

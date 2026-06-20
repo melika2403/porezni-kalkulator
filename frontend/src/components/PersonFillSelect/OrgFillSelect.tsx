@@ -91,7 +91,7 @@ export default function OrgFillSelect({ onFill }: Props) {
             className={styles.fillBtn}
             onClick={() => setOpen((v) => !v)}
           >
-            — Popuni djelatnost —
+            – Popuni djelatnost –
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 4l4 4 4-4" />
             </svg>
@@ -140,7 +140,15 @@ export default function OrgFillSelect({ onFill }: Props) {
       address: org.address,
       city: org.city,
       sourceOrgId: org.id,
-      owner: org.owner ?? fallbackOwner,
+      owner: org.owner
+        ? {
+            jmbg: org.owner.jmbg,
+            firstName: org.owner.firstName ?? "",
+            lastName: org.owner.lastName ?? "",
+            address: org.owner.address,
+            city: org.owner.city,
+          }
+        : fallbackOwner,
     });
     setOpen(false);
     setFilter("");
@@ -154,7 +162,7 @@ export default function OrgFillSelect({ onFill }: Props) {
           className={styles.fillBtn}
           onClick={() => setOpen((v) => !v)}
         >
-          — Popuni djelatnost —
+          – Popuni djelatnost –
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 4l4 4 4-4" />
           </svg>

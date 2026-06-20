@@ -48,7 +48,7 @@ export function NotifikacijeTab() {
   return (
     <div className="space-y-4">
       <div className="text-[12px] text-text-tertiary bg-info-bg/40 border border-info-bg px-3 py-2 rounded-lg">
-        Backend integracija stiže uskoro — sad samo demo.
+        Backend integracija stiže uskoro, sad samo demo.
       </div>
       <div className="bg-cream-100 border border-cream-300 rounded-lg divide-y divide-cream-300">
         {ITEMS.map((item) => (

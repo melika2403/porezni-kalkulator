@@ -114,7 +114,7 @@ async function fillPage(
   setField("6 Adresa", safe(data.adresaDjelatnosti));
   setField(
     "7 Vrsta djelatnosti šifra naziv",
-    [data.vrstaSifra, data.vrstaNaziv].filter(Boolean).join(" — "),
+    [data.vrstaSifra, data.vrstaNaziv].filter(Boolean).join(", "),
   );
 
   // ── Rows (max 8 per page) ──

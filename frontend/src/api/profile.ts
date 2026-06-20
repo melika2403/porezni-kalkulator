@@ -134,11 +134,36 @@ export function deleteSubscription(userId: number) {
 
 // ─── Organizations ────────────────────────────────────────────────────────────
 
-export type OrgOwner = {
-  id: number;
+// Tip vlasnika (d.o.o.). Za obrt se ne koristi (vlasnik je obrtnik).
+export type OwnerType =
+  | "fizicko_domace"
+  | "fizicko_strano"
+  | "pravno_lice"
+  | "vise_lica";
+
+export type DirectorEngagement = "ugovor_o_radu" | "menadzerski";
+
+// Jedno lice u "više lica" vlasništvu.
+export type OwnerPerson = {
   firstName: string;
   lastName: string;
+  jmbg?: string | null;
+  idDoc?: string | null;
+};
+
+export type OrgOwner = {
+  // id postoji samo kad je vlasnik Worker VLASNIK (opcija 1 / obrt).
+  id?: number;
+  type?: OwnerType;
+  firstName: string | null;
+  lastName: string | null;
+  // Naziv firme (pravno_lice) ili zbirni naziv (vise_lica).
+  name?: string | null;
   jmbg: string | null;
+  // Broj pasoša / strani ID (fizicko_strano).
+  idDoc?: string | null;
+  // JIB (pravno_lice).
+  jib?: string | null;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -147,15 +172,30 @@ export type OrgOwner = {
   prijavaDate: string | null;
   salaryBruto: number | null;
   salaryNeto: number | null;
-  salaryType: SalaryType;
-  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
-  taxCoefficient: number;
+  salaryType?: SalaryType;
+  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN" | null;
+  taxCoefficient?: number;
+  persons?: OwnerPerson[] | null;
 };
 
+// Razriješeni potpisnik poslodavca za dokumente (vlasnik ili radnik-direktor).
+export type OrgSigner = {
+  firstName: string | null;
+  lastName: string | null;
+  name: string;
+  jmbg: string | null;
+  idCardNumber: string | null;
+  address: string | null;
+  city: string | null;
+} | null;
+
 export type OrgOwnerPayload = {
-  firstName: string;
-  lastName: string;
-  jmbg: string;
+  firstName?: string;
+  lastName?: string;
+  jmbg?: string;
+  name?: string;
+  jib?: string;
+  idDoc?: string;
   email?: string;
   phone?: string;
   address?: string;
@@ -166,6 +206,7 @@ export type OrgOwnerPayload = {
   salaryNeto?: number | null;
   salaryType?: SalaryType;
   taxCoefficient?: number;
+  persons?: OwnerPerson[];
 };
 
 export type TaxRegime = "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
@@ -202,7 +243,14 @@ export type Organization = {
   // Dnevna stopa toplog obroka za firmu (KM/dan). Obračun je množi sa brojem
   // radnih dana iz šihterice. NULL = bez auto-stope.
   mealAllowancePerDay: number | null;
+  // Model vlasništva/direktora (d.o.o.). Za obrt se ignoriše.
+  ownerType?: OwnerType;
+  ownerIsDirector?: boolean;
+  directorEngagement?: DirectorEngagement;
+  directorWorkerId?: number | null;
   owner: OrgOwner | null;
+  // Razriješeni potpisnik poslodavca (vlasnik ili radnik-direktor).
+  signer?: OrgSigner;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   // Plan tier of the org's OWNER. In-org features (workers, members,
   // logo, JS3100, …) are gated by this rather than the viewer's own role.
@@ -229,6 +277,10 @@ export type OrgPayload = {
   taxCategory?: TaxCategory | null;
   defaultSalaryType?: SalaryType;
   mealAllowancePerDay?: number | null;
+  ownerType?: OwnerType;
+  ownerIsDirector?: boolean;
+  directorEngagement?: DirectorEngagement;
+  directorWorkerId?: number | null;
   ownerData?: OrgOwnerPayload;
 };
 
@@ -577,6 +629,64 @@ export type WorkerPayload = {
 
 export function getWorkers(orgId: number) {
   return request<Worker[]>(`/api/organizations/${orgId}/workers`);
+}
+
+// ── Matična evidencija o radniku ────────────────────────────────────────────
+export type EvidencijaItem = { n: number; label: string; value: string };
+export type EvidencijaEditable = {
+  key: string;
+  label: string;
+  type: string;
+  value: string;
+  placeholder: string;
+};
+export type EvidencijaData = {
+  workerId: number;
+  workerName: string;
+  items: EvidencijaItem[];
+  editable: EvidencijaEditable[];
+  zadnjaIzmjena: string | null;
+};
+
+export function getEvidencija(orgId: number, workerId: number) {
+  return request<EvidencijaData>(
+    `/api/organizations/${orgId}/workers/${workerId}/evidencija`,
+  );
+}
+
+export function saveEvidencija(
+  orgId: number,
+  workerId: number,
+  evidencijaPodaci: Record<string, string>,
+) {
+  return request<{ evidencijaPodaci: Record<string, string> }>(
+    `/api/organizations/${orgId}/workers/${workerId}/evidencija`,
+    { method: "PATCH", body: JSON.stringify({ evidencijaPodaci }) },
+  );
+}
+
+export async function downloadEvidencijaPdf(
+  orgId: number,
+  workerId: number,
+  workerName: string,
+): Promise<
+  { ok: true; blob: Blob; filename: string } | { ok: false; error: string }
+> {
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/organizations/${orgId}/workers/${workerId}/evidencija-pdf`,
+      { credentials: "include" },
+    );
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      return { ok: false, error: j?.error || `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    const safe = workerName.trim().replace(/\s+/g, "_") || String(workerId);
+    return { ok: true, blob, filename: `Maticna_evidencija_${safe}.pdf` };
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
 }
 
 export type WorkerWithOrg = Worker & {

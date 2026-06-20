@@ -245,7 +245,7 @@ function NapomenaSection() {
   return (
     <section className={styles.napomenaSection}>
       <h2 className={styles.napomenaTitle}>
-        Kako popuniti šihtericu — vodič i šifre odsustva (FBiH)
+        Kako popuniti šihtericu, vodič i šifre odsustva (FBiH)
       </h2>
 
       <div className={styles.napomenaBlock}>
@@ -254,11 +254,11 @@ function NapomenaSection() {
         </p>
         <ul className={styles.napomenaList}>
           <li>
-            <strong>Radni dan</strong> — ukupni sati = (Kraj − Početak) − Pauza.
+            <strong>Radni dan</strong>, ukupni sati = (Kraj − Početak) − Pauza.
           </li>
           <li>
             <strong>Ručno upisana vremena uvijek pobjeđuju.</strong> Ako upišete
-            Početak i Kraj, dan se računa po vremenima — bez obzira da li je
+            Početak i Kraj, dan se računa po vremenima, bez obzira da li je
             upisan i kod odsustva.
           </li>
           <li>
@@ -1054,7 +1054,7 @@ function SihtericaApp() {
         <div className={styles.sidebarHint}>
           <p className={styles.sidebarHintText}>
             Prijavite se da pristupite sačuvanim organizacijama i radnicima.
-            Šihterica radi i bez prijave — možete unijeti podatke ručno.
+            Šihterica radi i bez prijave, možete unijeti podatke ručno.
           </p>
           <Link href="/registracija" className={styles.sidebarHintBtnPrimary}>
             Registruj se besplatno →
@@ -1148,11 +1148,11 @@ function SihtericaApp() {
       <div className={styles.header}>
         <div className={styles.label}>Evidencija radnog vremena</div>
         <h1 className={styles.h1}>
-          Šihterica online — <em>evidencija radnog vremena</em> (FBiH)
+          Šihterica online, <em>evidencija radnog vremena</em> (FBiH)
         </h1>
         <p className={styles.subtitle}>
           Kako popuniti šihtericu? Vodite mjesečnu evidenciju radnog vremena
-          radnika prema propisima FBiH — popunite šihtericu online i preuzmite
+          radnika prema propisima FBiH, popunite šihtericu online i preuzmite
           popunjeni PDF obrazac za sve radnike.
         </p>
       </div>
@@ -1176,7 +1176,7 @@ function SihtericaApp() {
                 <div className={styles.guestBanner}>
                   <span className={styles.guestBannerIcon}>🧪</span>
                   <div className={styles.guestBannerText}>
-                    <strong>Preview šihterice</strong> — možete popunjavati
+                    <strong>Preview šihterice</strong>, možete popunjavati
                     dane i vidjeti zbirove. Promjene se ne čuvaju automatski
                     i PDF preuzimanje zahtjeva pretplatu.{" "}
                     <Link href="/registracija" className={styles.guestBannerLink}>
@@ -1308,7 +1308,7 @@ function SihtericaApp() {
                 <h2 className={styles.workerName}>
                   {workerName}
                   <span className={styles.workerPeriod}>
-                    {" — "}
+                    {", "}
                     {MONTHS[month - 1]} {year}
                   </span>
                 </h2>
@@ -1407,7 +1407,7 @@ function SihtericaApp() {
                   </div>
                   <label className={styles.autoFillField} style={{ flex: 1 }}>
                     <span className={styles.autoFillLabel}>
-                      Praznici u mjesecu (9.2) — dani
+                      Praznici u mjesecu (9.2), dani
                     </span>
                     <input
                       type="text"
@@ -1787,7 +1787,7 @@ function SihtericaApp() {
             </>
           )}
 
-          {/* Napomena (uvijek vidljiva, dijeljeni komponent — vidi i guest) */}
+          {/* Napomena (uvijek vidljiva, dijeljeni komponent, vidi i guest) */}
           <NapomenaSection />
         </div>
       </div>

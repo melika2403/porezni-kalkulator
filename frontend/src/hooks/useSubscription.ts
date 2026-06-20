@@ -24,7 +24,7 @@ export function useSubscriptionPlans() {
   return useQuery({
     queryKey: ["subscription", "plans"],
     queryFn: () => unwrap(getPlans()),
-    staleTime: 1000 * 60 * 60, // 1h — planovi se ne mijenjaju često
+    staleTime: 1000 * 60 * 60, // 1h, planovi se ne mijenjaju često
   });
 }
 

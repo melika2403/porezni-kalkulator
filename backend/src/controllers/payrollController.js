@@ -15,7 +15,15 @@ const {
   Worker,
   Organization,
   OrganizationMember,
+  User,
 } = require("../models/index");
+const {
+  buildPostingOrder,
+  resolveAccounts,
+  DEFAULT_POSTING_ACCOUNTS,
+  POSTING_ITEMS,
+} = require("../utils/postingOrder");
+const { generatePostingOrderPdf } = require("../utils/postingOrderPdf");
 const {
   deductionFromCoefficient,
   TAX_RATE,
@@ -61,6 +69,12 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
   // groupTag označava entry-je kao "vlasnik" ili "radnici" — koristi se kad
   // se za obrt razdvajaju uplatnice vlasnika od uplatnica radnika.
   const groupTag = opts.groupTag || null;
+  // Agencijska opcija: kantonalne stavke (zdravstvo, nezaposlenost, porez)
+  // objediniti po KANTONU u jedan nalog, sa šifrom opštine = sjedište firme.
+  // Račun i dalje prati kanton radnika (npr. radnik iz ZDK → ZDK računi), ali
+  // je šifra opštine sjedište. Federalne i firma-kantonalne stavke su ionako
+  // već jedan nalog.
+  const combineKantonal = !!opts.combineKantonal;
 
   // Firm kanton/opcina
   const firmInfo = kantonForOpcina(firm.city || "");
@@ -96,13 +110,17 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
     const opcinaIme = usedFirmFallback
       ? firmOpcinaIme
       : w?.city || firmOpcinaIme;
-    const locKey = `${kantonKey || ""}:${opcinaKod || ""}`;
+    // Objedinjeno: grupiši po KANTONU (jedan nalog), šifra opštine = sjedište.
+    // Inače: po (kanton, opština) radnika.
+    const locKey = combineKantonal
+      ? kantonKey || ""
+      : `${kantonKey || ""}:${opcinaKod || ""}`;
 
     if (!byLoc.has(locKey)) {
       byLoc.set(locKey, {
         kantonKey,
-        opcinaKod,
-        opcinaIme,
+        opcinaKod: combineKantonal ? firmOpcinaKod : opcinaKod,
+        opcinaIme: combineKantonal ? firmOpcinaIme : opcinaIme,
         zdrKant: 0,
         nezapKant: 0,
         porez: 0,
@@ -328,10 +346,10 @@ function getAccountInfo(vrsta, kantonKey, payrollAccounts) {
 // Stabilan redoslijed labela u Pregledu mjeseca / Zbirne uplatnice
 const VRSTA_LABEL_MAP = {
   pio: "PIO/MIO doprinos",
-  zdrKanton: "Zdravstvo — kantonalni (89,8%)",
-  zdrFed: "Zdravstvo — federalni (10,2%)",
-  nezapKanton: "Nezaposlenost — kantonalni (70%)",
-  nezapFed: "Nezaposlenost — federalni (30%)",
+  zdrKanton: "Zdravstvo, kantonalni (89,8%)",
+  zdrFed: "Zdravstvo, federalni (10,2%)",
+  nezapKanton: "Nezaposlenost, kantonalni (70%)",
+  nezapFed: "Nezaposlenost, federalni (30%)",
   porez: "Porez na dohodak",
   vodna: "Opća vodna naknada",
   nesrece: "Zaštita od prirodnih nesreća",
@@ -484,6 +502,14 @@ async function assertOrgAccess(orgId, userId) {
     where: { organizationId: orgId, userId, role: { [Op.in]: ["OWNER", "ADMIN"] } },
   });
   return mem ? org : null;
+}
+
+// Agencijska opcija: objedini kantonalne uplatnice po kantonu (vidi User model).
+async function getCombineKantonal(userId) {
+  const u = await User.findByPk(userId, {
+    attributes: ["combineKantonalUplatnice"],
+  });
+  return !!u?.combineKantonalUplatnice;
 }
 
 function toPublicPayroll(p) {
@@ -949,7 +975,7 @@ async function calculate(req, res) {
     }
   }
   if (!effectivePaymentDate) {
-    effectivePaymentDate = new Date(year, month, 0).toISOString().slice(0, 10);
+    effectivePaymentDate = lastDayOfMonthIso(year, month);
   }
   const minuliYears = totalYearsOfService(worker, effectivePaymentDate);
 
@@ -1076,6 +1102,9 @@ async function calculate(req, res) {
     // Status: ako gross > 0 → OBRACUNATO (puni obračun), inače DRAFT (samo
     // sačuvani dodaci/sati prije konačnog obračuna).
     status: snapshot.gross > 0 ? "OBRACUNATO" : "DRAFT",
+    // Pravi obračun preuzima mjesec: ako je red bio uvezeni placeholder, skida
+    // imported flag (od sada se tretira kao stvarni obračun aplikacije).
+    imported: false,
     notes:
       typeof notes === "string"
         ? notes
@@ -1263,6 +1292,171 @@ async function saveInputs(req, res) {
   } catch (e) {
     console.error("saveInputs failed:", e);
     return res.status(500).json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
+  }
+}
+
+// ── POST /api/payroll/import ────────────────────────────────────────────────
+// Uvoz ranijih obračuna plata (klijent prešao na nas u toku godine) samo da bi
+// GIP-1022 bio kompletan. Pravi Payroll zapise označene imported=true. Po redu:
+//   compute (default): iz bruto + taxCoefficient motor izračuna doprinose/porez/
+//     neto BEZ minulog rada, BEZ sati/dodataka, pa je grossInput === uneseni
+//     bruto (korisnik unosi gotov bruto iz starog programa).
+//   manual: compute kao baza, pa override literalnim iznosima (kad se stari
+//     program razlikovao u feningu). erp doprinosi nisu u GIP-u.
+// Ne gazi postojeći NE-uvezeni (stvarni) obračun, vraća ga u skipped.
+// Zadnji dan mjeseca kao "YYYY-MM-DD" bez timezone pomaka. NE koristiti
+// toISOString (na serveru ispred UTC pomjeri dan unazad, npr. 31.01 -> 30.01).
+function lastDayOfMonthIso(year, month) {
+  const last = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+}
+
+async function importPayrolls(req, res) {
+  try {
+    const { organizationId: rawOrgId, year: rawYear, rows } = req.body ?? {};
+    const organizationId = parseId(rawOrgId);
+    const year = parseId(rawYear);
+    if (!organizationId || !year || !Array.isArray(rows)) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing organizationId/year/rows" });
+    }
+
+    const org = await assertOrgAccess(organizationId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+    const workers = await Worker.findAll({ where: { organizationId } });
+    const workerById = new Map(workers.map((w) => [w.id, w]));
+
+    const result = { created: 0, updated: 0, skipped: [] };
+
+    for (const row of rows) {
+      const workerId = parseId(row?.workerId);
+      const month = parseId(row?.month);
+      if (!workerId || !month || month < 1 || month > 12) {
+        result.skipped.push({
+          workerId: row?.workerId ?? null,
+          month: row?.month ?? null,
+          reason: "INVALID_ROW",
+        });
+        continue;
+      }
+      const worker = workerById.get(workerId);
+      if (!worker) {
+        result.skipped.push({ workerId, month, reason: "WORKER_NOT_FOUND" });
+        continue;
+      }
+      // Vlasnik obrta ide u 2002, ne u GIP, pa ga ne uvozimo.
+      if (worker.role === "VLASNIK" && org.type === "BUSINESS") {
+        result.skipped.push({ workerId, month, reason: "OWNER_SKIPPED" });
+        continue;
+      }
+
+      const gross = Number(row?.gross);
+      if (!Number.isFinite(gross) || gross <= 0) {
+        result.skipped.push({ workerId, month, reason: "INVALID_GROSS" });
+        continue;
+      }
+      const taxCoefficient =
+        row?.taxCoefficient != null && row.taxCoefficient !== ""
+          ? Number(row.taxCoefficient)
+          : Number(worker.taxCoefficient ?? 1);
+
+      const existing = await Payroll.findOne({ where: { workerId, year, month } });
+      // Ne gazi stvarni obračun aplikacije.
+      if (existing && !existing.imported) {
+        result.skipped.push({ workerId, month, reason: "REAL_PAYROLL_EXISTS" });
+        continue;
+      }
+
+      // Motor BEZ minulog rada i sati: grossInput === uneseni bruto.
+      const base = computePayrollSnapshot({
+        grossBase: gross,
+        minuliRadRate: 0,
+        minuliRadYears: 0,
+        proRateFactor: 1,
+        overtimeHours: 0,
+        nightHours: 0,
+        sundayHours: 0,
+        holidayHours: 0,
+        taxCoefficient,
+        contractedHours: worker.contractedHours ?? 8,
+        mealAllowance: 0,
+        vacationBonus: 0,
+        travelExpense: 0,
+      });
+
+      let snapshot = base;
+      if (row?.mode === "manual") {
+        const ov = {};
+        for (const k of [
+          "empPio",
+          "empZdravstvo",
+          "empNezaposlenost",
+          "deduction",
+          "taxBase",
+          "incomeTax",
+          "net",
+        ]) {
+          if (row[k] != null && row[k] !== "") ov[k] = Number(row[k]);
+        }
+        // Ako je promijenjena bilo koja komponenta doprinosa, preračunaj zbir.
+        if (
+          ov.empPio != null ||
+          ov.empZdravstvo != null ||
+          ov.empNezaposlenost != null
+        ) {
+          const ep = ov.empPio != null ? ov.empPio : base.empPio;
+          const ez = ov.empZdravstvo != null ? ov.empZdravstvo : base.empZdravstvo;
+          const en =
+            ov.empNezaposlenost != null ? ov.empNezaposlenost : base.empNezaposlenost;
+          ov.empTotal = +(Number(ep) + Number(ez) + Number(en)).toFixed(2);
+        }
+        snapshot = { ...base, ...ov };
+      }
+
+      // Datum isplate: iz reda ako je validan YYYY-MM-DD, inače zadnji dan mjeseca.
+      const paymentDate =
+        typeof row?.paymentDate === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(row.paymentDate)
+          ? row.paymentDate
+          : lastDayOfMonthIso(year, month);
+      const payload = {
+        organizationId,
+        workerId,
+        year,
+        month,
+        workedMinutes: null,
+        standardMinutes: STANDARD_MONTHLY_MINUTES,
+        sickDays: 0,
+        vacationDays: 0,
+        overtimeHours: 0,
+        nightHours: 0,
+        sundayHours: 0,
+        holidayHours: 0,
+        bankAccount: worker.bankAccount || null,
+        paymentDate,
+        status: "OBRACUNATO",
+        imported: true,
+        notes: existing ? existing.notes : null,
+        ...snapshot,
+      };
+
+      if (existing) {
+        await existing.update(payload);
+        result.updated += 1;
+      } else {
+        await Payroll.create(payload);
+        result.created += 1;
+      }
+    }
+
+    return res.json({ ok: true, data: result });
+  } catch (e) {
+    console.error("importPayrolls failed:", e);
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.message || "INTERNAL_ERROR" });
   }
 }
 
@@ -1497,6 +1691,22 @@ async function monthlySummary(req, res) {
     });
     const payrolls = rawPayrolls.filter((p) => validWorkerIds.has(p.workerId));
 
+    // Učitaj radnike (role + city) PRIJE agregacije: treba za isključivanje
+    // vlasnika obrta iz zbirova plata i za bucketing uplatnica po općini.
+    const workerIdsAll = payrolls.map((p) => p.workerId);
+    const workersAll = await Worker.findAll({
+      where: { id: workerIdsAll, organizationId },
+    });
+    const workerMapAll = new Map(workersAll.map((w) => [w.id, w]));
+
+    // Vlasnik obrta (BUSINESS) je odvojen od radnika: ima samo doprinose (ide u
+    // Obrazac 2002). Njegov trošak doprinosa ulazi SAMO u ukupan trošak
+    // poslodavca, a NE u bruto, neto, porez ni broj obračunatih radnika.
+    const isObrtOwner = (p) => {
+      const w = workerMapAll.get(p.workerId);
+      return org.type === "BUSINESS" && w?.role === "VLASNIK";
+    };
+
     // Agregati po vrsti doprinosa
     let net = 0,
       gross = 0,
@@ -1515,15 +1725,18 @@ async function monthlySummary(req, res) {
       totalCost = 0;
 
     for (const p of payrolls) {
-      net += Number(p.net) || 0;
-      gross += Number(p.gross) || 0;
+      // Vlasnik obrta: bruto/neto/porez se NE broje u zbirove plata (nema platu).
+      if (!isObrtOwner(p)) {
+        net += Number(p.net) || 0;
+        gross += Number(p.gross) || 0;
+        porez += Number(p.incomeTax) || 0;
+      }
       empPio += Number(p.empPio) || 0;
       erpPio += Number(p.erpPio) || 0;
       empZdr += Number(p.empZdravstvo) || 0;
       erpZdr += Number(p.erpZdravstvo) || 0;
       empNezap += Number(p.empNezaposlenost) || 0;
       erpNezap += Number(p.erpNezaposlenost) || 0;
-      porez += Number(p.incomeTax) || 0;
       vodna += Number(p.vodnaNaknada) || 0;
       nesrece += Number(p.naknadaNesrece) || 0;
       meal += Number(p.mealAllowance) || 0;
@@ -1539,19 +1752,14 @@ async function monthlySummary(req, res) {
     const invalidi =
       org.type === "BUSINESS" ? 0 : round(gross * FOND_INVALIDI_RATE);
 
-    // Učitaj radnike (sa city poljem) za bucketing po opcini
-    const workerIdsAll = payrolls.map((p) => p.workerId);
-    const workersAll = await Worker.findAll({
-      where: { id: workerIdsAll, organizationId },
-    });
-    const workerMapAll = new Map(workersAll.map((w) => [w.id, w]));
-
     // Agregacija po (kanton, opcina) radnika — vraća listu entry-ja za svaku
     // (vrsta, kanton, opcina) kombinaciju. Federalni i firma-kantonalni idu
     // u 1 entry sa opcinom firme.
     const orgPlain = org.toJSON();
+    const combineKantonal = await getCombineKantonal(req.user.id);
     const bucketEntries = buildAllUplatnice(payrolls, workerMapAll, orgPlain, {
       fondInvalidiRate: FOND_INVALIDI_RATE,
+      combineKantonal,
     });
 
     // Map bucket entries u UI format (uplatnice array). Label uključuje općinu
@@ -1568,11 +1776,11 @@ async function monthlySummary(req, res) {
       let label = VRSTA_LABEL_MAP[e.vrsta] || e.vrsta;
       // Ako postoji više opcina za istu kantonalnu vrstu, dodaj općinu u label
       if (kantonalVrste.has(e.vrsta) && (kantonalLocCount.get(e.vrsta) || 0) > 1) {
-        label += ` — ${e.opcinaIme}`;
+        label += `, ${e.opcinaIme}`;
       }
       // Group prefix: za obrt sa vlasnikom + radnicima razdvajamo
-      if (e.group === "vlasnik") label = `Vlasnik — ${label}`;
-      else if (e.group === "radnici") label = `Radnici — ${label}`;
+      if (e.group === "vlasnik") label = `Vlasnik, ${label}`;
+      else if (e.group === "radnici") label = `Radnici, ${label}`;
       return {
         type: VRSTA_UPLATNICA_TYPE[e.vrsta],
         label,
@@ -1587,9 +1795,13 @@ async function monthlySummary(req, res) {
       };
     }).filter((u) => u.amount > 0);
 
-    // Per-worker: neto plata + neoporezivi dodaci (idu pojedinačno radnicima)
-    const perWorker = payrolls.map((p) => {
-      const w = workerMapAll.get(p.workerId);
+    // Per-worker: neto plata + neoporezivi dodaci (idu pojedinačno radnicima).
+    // Vlasnik obrta se isključuje, nema platu, ne ide na platne liste, lista
+    // naloga za plate ni specifikacije po radniku.
+    const perWorker = payrolls
+      .filter((p) => !isObrtOwner(p))
+      .map((p) => {
+        const w = workerMapAll.get(p.workerId);
       return {
         workerId: p.workerId,
         payrollId: p.id,
@@ -1609,7 +1821,8 @@ async function monthlySummary(req, res) {
         organizationId,
         year,
         month,
-        workerCount: payrolls.length,
+        combineKantonal,
+        workerCount: payrolls.filter((p) => !isObrtOwner(p)).length,
         totals: {
           gross: round(gross),
           net: round(net),
@@ -1696,8 +1909,10 @@ async function generateMonthlyUplatnice(req, res) {
 
     // Agregacija po (kanton, opcina) radnika. Za obrt sa vlasnikom + radnicima
     // se uplatnice razdvajaju u dvije grupe.
+    const combineKantonal = await getCombineKantonal(req.user.id);
     const bucketEntries = buildAllUplatnice(payrolls, workerMap, orgPlain, {
       fondInvalidiRate: FOND_INVALIDI_RATE,
+      combineKantonal,
     });
 
     // Da li imamo više različitih (kanton, opcina) lokacija za istu kantonalnu
@@ -1736,14 +1951,14 @@ async function generateMonthlyUplatnice(req, res) {
       if (!acc) continue;
       let label = VRSTA_LABEL_MAP[e.vrsta] || e.vrsta;
       if (kantonalVrste.has(e.vrsta) && (kantonalLocCount.get(e.vrsta) || 0) > 1) {
-        label += ` — ${e.opcinaIme}`;
+        label += `, ${e.opcinaIme}`;
       }
       // Group prefix za obrt sa vlasnikom + radnicima
       const groupLabel =
         e.group === "vlasnik"
-          ? "Vlasnik — "
+          ? "Vlasnik, "
           : e.group === "radnici"
-            ? "Radnici — "
+            ? "Radnici, "
             : "";
       pageLabels.push(`${groupLabel}${label}`);
       optsList.push({
@@ -1776,10 +1991,10 @@ async function generateMonthlyUplatnice(req, res) {
       ];
       for (const [label, amount, svrha] of personalItems) {
         if (amount <= 0) continue;
-        pageLabels.push(`${label} — ${workerName}`);
+        pageLabels.push(`${label}, ${workerName}`);
         optsList.push({
           ...baseShared,
-          svrha: `${svrha} za ${monthYear} — ${workerName}`,
+          svrha: `${svrha} za ${monthYear}, ${workerName}`,
           primatelj: workerRecipient,
           racunPrimDigits: w.bankAccount ? w.bankAccount.replace(/-/g, "") : "",
           kmIznos: amount,
@@ -1928,7 +2143,7 @@ async function generateWorkerPayslip(req, res) {
       return res.status(400).json({
         ok: false,
         error: "VLASNIK_OBRT_NO_PAYSLIP",
-        message: "Vlasnik obrta nema platni listić — koristi Obrazac 2002.",
+        message: "Vlasnik obrta nema platni listić, koristi Obrazac 2002.",
       });
     }
 
@@ -2011,7 +2226,7 @@ async function emailWorkerPayslip(req, res) {
       return res.status(400).json({
         ok: false,
         error: "VLASNIK_OBRT_NO_PAYSLIP",
-        message: "Vlasnik obrta nema platni listić — koristi Obrazac 2002.",
+        message: "Vlasnik obrta nema platni listić, koristi Obrazac 2002.",
       });
     }
     const { pdfBytes, worker } = built;
@@ -2242,10 +2457,225 @@ async function markMipDownloaded(req, res) {
   }
 }
 
+// ── GET /api/payroll/posting-accounts ───────────────────────────────────────
+// Vraća default konta + korisnikove izmjene (agencijska konvencija).
+async function getPostingAccounts(req, res) {
+  const user = await User.findByPk(req.user.id, {
+    attributes: ["id", "postingAccounts"],
+  });
+  let overrides = user?.postingAccounts || {};
+  if (typeof overrides === "string") {
+    // MariaDB JSON kolona zna vratiti string; parsiraj.
+    try {
+      overrides = JSON.parse(overrides);
+    } catch {
+      overrides = {};
+    }
+  }
+  return res.json({
+    ok: true,
+    data: {
+      items: POSTING_ITEMS,
+      defaults: DEFAULT_POSTING_ACCOUNTS,
+      overrides,
+      resolved: resolveAccounts(overrides),
+    },
+  });
+}
+
+// ── PUT /api/payroll/posting-accounts ───────────────────────────────────────
+// Snima samo izmjene konta (po stavci, strane d/p). Default ostaje u kodu.
+async function savePostingAccounts(req, res) {
+  const incoming = req.body?.postingAccounts;
+  if (incoming == null || typeof incoming !== "object") {
+    return res.status(400).json({ ok: false, error: "INVALID_PAYLOAD" });
+  }
+  const validKeys = new Set(POSTING_ITEMS.map((i) => i.key));
+  const isKonto = (s) => /^\d{3}-\d{4}$/.test(String(s).trim());
+  const clean = {};
+  for (const [key, val] of Object.entries(incoming)) {
+    if (!validKeys.has(key) || !val || typeof val !== "object") continue;
+    const entry = {};
+    if (val.d && isKonto(val.d)) entry.d = String(val.d).trim();
+    if (val.p && isKonto(val.p)) entry.p = String(val.p).trim();
+    if (Object.keys(entry).length) clean[key] = entry;
+  }
+  // Isto konto ne smije biti i na trošku (duguje) i na obavezi (potražuje).
+  const resolved = resolveAccounts(clean);
+  const dSet = new Set();
+  const pSet = new Set();
+  for (const k of Object.keys(resolved)) {
+    dSet.add(resolved[k].d);
+    pSet.add(resolved[k].p);
+  }
+  const conflict = [...dSet].filter((k) => pSet.has(k));
+  if (conflict.length) {
+    return res.status(400).json({
+      ok: false,
+      error: "KONTO_NA_OBJE_STRANE",
+      konta: conflict,
+    });
+  }
+  await User.update(
+    { postingAccounts: clean },
+    { where: { id: req.user.id } },
+  );
+  return res.json({ ok: true, data: { overrides: clean } });
+}
+
+// ── PUT /api/payroll/combine-kantonal ───────────────────────────────────────
+// Agencijska opcija: objedini kantonalne uplatnice po kantonu (sve org-e).
+async function setCombineKantonal(req, res) {
+  const v = !!req.body?.combineKantonal;
+  await User.update(
+    { combineKantonalUplatnice: v },
+    { where: { id: req.user.id } },
+  );
+  return res.json({ ok: true, data: { combineKantonal: v } });
+}
+
+// ── POST /api/payroll/posting-order ─────────────────────────────────────────
+// Generiše PDF nalog za knjiženje plate za (organizacija, mjesec). Doprinosi
+// iz+na osnovicu se sabiraju po vrsti; bruto se ne knjiži kao zaseban red.
+async function generatePostingOrder(req, res) {
+  try {
+    const organizationId = parseId(req.body.organizationId);
+    const year = parseId(req.body.year);
+    const month = parseId(req.body.month);
+    if (!organizationId || !year || !month) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Missing organizationId/year/month" });
+    }
+    if (year < 2000 || year > 2100 || month < 1 || month > 12) {
+      return res.status(400).json({ ok: false, error: "INVALID_PERIOD" });
+    }
+
+    const org = await assertOrgAccess(organizationId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+    const existingWorkers = await Worker.findAll({
+      where: { organizationId },
+      attributes: ["id"],
+    });
+    const validWorkerIds = new Set(existingWorkers.map((w) => w.id));
+    const rawPayrolls = await Payroll.findAll({
+      where: { organizationId, year, month },
+    });
+    const payrolls = rawPayrolls.filter((p) => validWorkerIds.has(p.workerId));
+    if (payrolls.length === 0) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "NEMA_OBRACUNA_ZA_MJESEC" });
+    }
+
+    const workersAll = await Worker.findAll({
+      where: { id: payrolls.map((p) => p.workerId), organizationId },
+    });
+    const workerMapAll = new Map(workersAll.map((w) => [w.id, w]));
+    // Vlasnik OBRTA (BUSINESS) nema platu radnika, njegovi doprinosi se knjiže
+    // odvojeno (2002), pa se izuzima iz naloga za plate. d.o.o. vlasnik koji
+    // ima obračun (bio prijavljen tog mjeseca) ulazi normalno, kao i ostali
+    // radnici, jer se dokument pravi iz obračuna, ne iz trenutnog modela.
+    const isObrtOwner = (p) => {
+      const w = workerMapAll.get(p.workerId);
+      return org.type === "BUSINESS" && w?.role === "VLASNIK";
+    };
+
+    const t = {
+      net: 0,
+      gross: 0,
+      empPio: 0,
+      erpPio: 0,
+      empZdr: 0,
+      erpZdr: 0,
+      empNezap: 0,
+      erpNezap: 0,
+      porez: 0,
+      vodna: 0,
+      nesrece: 0,
+      meal: 0,
+      regres: 0,
+      travel: 0,
+    };
+    for (const p of payrolls) {
+      // Nalog za knjiženje PLATE je samo za radnike. Vlasnik obrta (obrtnik)
+      // ima svoje doprinose (Obrazac 2002) koji se knjiže odvojeno, pa se
+      // ovdje potpuno izuzima (ni doprinosi mu ne ulaze u nalog).
+      if (isObrtOwner(p)) continue;
+      t.net += Number(p.net) || 0;
+      t.gross += Number(p.gross) || 0;
+      t.porez += Number(p.incomeTax) || 0;
+      t.empPio += Number(p.empPio) || 0;
+      t.erpPio += Number(p.erpPio) || 0;
+      t.empZdr += Number(p.empZdravstvo) || 0;
+      t.erpZdr += Number(p.erpZdravstvo) || 0;
+      t.empNezap += Number(p.empNezaposlenost) || 0;
+      t.erpNezap += Number(p.erpNezaposlenost) || 0;
+      t.vodna += Number(p.vodnaNaknada) || 0;
+      t.nesrece += Number(p.naknadaNesrece) || 0;
+      t.meal += Number(p.mealAllowance) || 0;
+      t.regres += Number(p.vacationBonus) || 0;
+      t.travel += Number(p.travelExpense) || 0;
+    }
+    // Fond invalida (0,5% bruto) — samo privredna društva (COMPANY).
+    t.invalidi = org.type === "BUSINESS" ? 0 : t.gross * FOND_INVALIDI_RATE;
+
+    const user = await User.findByPk(req.user.id, {
+      attributes: ["postingAccounts"],
+    });
+    let overrides = user?.postingAccounts || {};
+    if (typeof overrides === "string") {
+      try {
+        overrides = JSON.parse(overrides);
+      } catch {
+        overrides = {};
+      }
+    }
+
+    const order = buildPostingOrder(t, overrides);
+    // Nema plata radnika za knjiženje (npr. obrt sa samo vlasnikom).
+    if (order.rows.length === 0) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "NEMA_PLATA_RADNIKA" });
+    }
+    const datumKnjizenja =
+      typeof req.body.datumKnjizenja === "string" && req.body.datumKnjizenja
+        ? req.body.datumKnjizenja.slice(0, 10)
+        : lastDayOfMonthIso(year, month);
+
+    const pdf = await generatePostingOrderPdf(order, {
+      orgName: org.name,
+      year,
+      month,
+      datumKnjizenja,
+    });
+
+    const fileName = `Nalog_za_knjizenje_${String(month).padStart(2, "0")}_${year}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+    );
+    return res.send(pdf);
+  } catch (e) {
+    console.error("posting order generation failed:", e);
+    return res
+      .status(500)
+      .json({ ok: false, error: e?.message || "POSTING_ORDER_FAILED" });
+  }
+}
+
 module.exports = {
   list,
   calculate,
   saveInputs,
+  getPostingAccounts,
+  savePostingAccounts,
+  generatePostingOrder,
+  setCombineKantonal,
+  importPayrolls,
   patch,
   remove,
   generateUplatniceForPayroll,

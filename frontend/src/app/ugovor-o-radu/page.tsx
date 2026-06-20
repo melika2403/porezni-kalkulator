@@ -6,25 +6,25 @@ import type { Metadata } from "next";
 const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-radu";
 
 export const metadata: Metadata = {
-  title: "Ugovor o radu i otkaz — predložak (Word/PDF) FBiH",
+  title: "Ugovor o radu i otkaz, predložak (Word/PDF) FBiH",
   description:
-    "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Popunite podatke jednom i preuzmite oba dokumenta u Word i PDF formatu — sa probnim radom, određenim/neodređenim trajanjem i automatskim popunjavanjem podataka iz profila.",
+    "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Popunite podatke jednom i preuzmite oba dokumenta u Word i PDF formatu, sa probnim radom, određenim/neodređenim trajanjem i automatskim popunjavanjem podataka iz profila.",
 alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "article",
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Ugovor o radu i otkaz — predložak (FBiH)",
+    title: "Ugovor o radu i otkaz, predložak (FBiH)",
     description:
       "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH, u Word i PDF formatu.",
     images: [
-      { url: "/og-image.png", width: 1200, height: 630, alt: "Ugovor o radu — Porezni Kalkulator BiH" },
+      { url: "/og-image.png", width: 1200, height: 630, alt: "Ugovor o radu, Porezni Kalkulator BiH" },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ugovor o radu i otkaz — predložak (FBiH)",
+    title: "Ugovor o radu i otkaz, predložak (FBiH)",
     description:
       "Predložak ugovora o radu i odluke o prestanku radnog odnosa, u Word i PDF formatu.",
     images: ["/og-image.png"],
@@ -64,7 +64,7 @@ const faqSchema = {
       name: "Kada se ugovor zaključuje na određeno vrijeme?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Ugovor na određeno se zaključuje kada postoji konkretan razlog (sezonski rad, zamjena odsutnog radnika, projekat). Maksimalno trajanje uzastopnih ugovora na određeno je 3 godine — nakon toga se ugovor automatski transformiše u ugovor na neodređeno.",
+        text: "Ugovor na određeno se zaključuje kada postoji konkretan razlog (sezonski rad, zamjena odsutnog radnika, projekat). Maksimalno trajanje uzastopnih ugovora na određeno je 3 godine, nakon toga se ugovor automatski transformiše u ugovor na neodređeno.",
       },
     },
   ],
@@ -82,7 +82,7 @@ const howToSchema = {
       "@type": "HowToStep",
       position: 1,
       name: "Odaberite radnika i poslodavca",
-      text: "Izaberite organizaciju i radnika iz sidebar-a — podaci poslodavca, radnika i plate se automatski popunjavaju iz profila. Ako radnik nije u sistemu, dodajte ga preko '+ Novi radnik'.",
+      text: "Izaberite organizaciju i radnika iz sidebar-a, podaci poslodavca, radnika i plate se automatski popunjavaju iz profila. Ako radnik nije u sistemu, dodajte ga preko '+ Novi radnik'.",
     },
     {
       "@type": "HowToStep",
@@ -106,7 +106,7 @@ const howToSchema = {
       "@type": "HowToStep",
       position: 5,
       name: "Otkaz (po potrebi)",
-      text: "Kasnije iz iste forme možete generisati Odluku o prestanku radnog odnosa — otkaz od strane poslodavca/radnika ili sporazumni raskid — sa popunjenim podacima iz originalnog ugovora.",
+      text: "Kasnije iz iste forme možete generisati Odluku o prestanku radnog odnosa, otkaz od strane poslodavca/radnika ili sporazumni raskid, sa popunjenim podacima iz originalnog ugovora.",
     },
   ],
 };

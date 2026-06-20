@@ -45,6 +45,18 @@ const User = sequelize.define(
     // UTM atribucija — odakle korisnik dolazi (capture pri registraciji).
     utmSource: { type: DataTypes.STRING(80), allowNull: true },
     utmCampaign: { type: DataTypes.STRING(120), allowNull: true },
+    // Izmjene konta za nalog za knjiženje (agencijska konvencija). Čuva se SAMO
+    // ono što korisnik prepravi u odnosu na default; vrijedi za sve njegove
+    // organizacije. Oblik: { <stavka>: { d: "XXX-XXXX", p: "XXX-XXXX" }, ... }.
+    postingAccounts: { type: DataTypes.JSON, allowNull: true },
+    // Agencijska opcija: kantonalne stavke (zdravstvo, nezaposlenost, porez na
+    // dohodak) objediniti u jedan nalog po KANTONU (šifra opštine = sjedište
+    // poslodavca), umjesto po opštini radnika. Vrijedi za sve org-e korisnika.
+    combineKantonalUplatnice: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
   },
   { tableName: "users", timestamps: true },
 );
@@ -137,6 +149,41 @@ const Organization = sequelize.define(
     // sa brojem radnih dana iz šihterice i popuni topli obrok. Pojedini radnik
     // može imati svoju stopu (Worker.mealAllowancePerDay). NULL = bez auto-stope.
     mealAllowancePerDay: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    // ── Model vlasništva / direktora (relevantno za d.o.o./COMPANY) ──────────
+    // Razdvaja VLASNIŠTVO od ZAPOSLENJA. Za obrt (BUSINESS) se ignoriše:
+    // vlasnik je uvijek obrtnik (Worker VLASNIK, Obrazac 2002).
+    // 4 opcije sa forme se mapiraju ovako:
+    //   1) vlasnik = prijavljen direktor → ownerIsDirector=true, ugovor_o_radu
+    //      (jedina opcija u kojoj vlasnik ima Worker VLASNIK i ide u payroll)
+    //   2) vlasnik samo evidencija (firma/više lica) → ownerIsDirector=false,
+    //      directorWorkerId = izabrani radnik
+    //   3) vlasnik direktor po menadžerskom ugovoru, NIJE prijavljen →
+    //      ownerIsDirector=true, menadzerski (bez plate/doprinosa)
+    //   4) vlasnik strano lice, NIJE prijavljen → ownerIsDirector=false,
+    //      directorWorkerId = izabrani radnik
+    ownerType: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "fizicko_domace", // fizicko_domace|fizicko_strano|pravno_lice|vise_lica
+    },
+    ownerIsDirector: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+    directorEngagement: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "ugovor_o_radu", // ugovor_o_radu|menadzerski
+    },
+    // Radnik koji je direktor/potpisnik kad vlasnik nije (opcije 2 i 4).
+    // NULL kad je vlasnik direktor (opcije 1 i 3).
+    directorWorkerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // Evidencija vlasnika kad NIJE radnik (opcije 2/3/4). Za opciju 1 i za
+    // obrt je vlasnik Worker VLASNIK pa je ovo NULL. Oblik:
+    //   { firstName, lastName, name, jmbg(enc), idDoc, jib, email, phone,
+    //     address, city, persons: [{firstName,lastName,jmbg(enc)/idDoc}] }
+    ownerInfo: { type: DataTypes.JSON, allowNull: true },
   },
   { tableName: "organizations", timestamps: true },
 );
@@ -264,6 +311,12 @@ const Worker = sequelize.define(
     // Šifra opštine prebivališta (za RS radnika, iz šifarnika opština RS). Ulazi
     // u poziv na broj RS uplatnica. Za FBiH radnika se opcina izvodi iz city.
     opcinaKod: { type: DataTypes.STRING(10), allowNull: true },
+    // Dodatni podaci za matičnu evidenciju o radniku (Pravilnik Sl. nov. FBiH
+    // 92/16, čl. 3) koji se NE unose kroz edit radnika nego u samom pregledu
+    // evidencije: mjesto/država rođenja, državljanstvo, dozvola za rad, stručni
+    // ispit, datum ugovora, pripravnički/beneficirani staž, radna sposobnost,
+    // razdoblja mirovanja, razlog prestanka, mjesto rada, sedmično radno vrijeme.
+    evidencijaPodaci: { type: DataTypes.JSON, allowNull: true },
   },
   { tableName: "workers", timestamps: true },
 );
@@ -357,6 +410,12 @@ const Payroll = sequelize.define(
       allowNull: false,
       defaultValue: "DRAFT",
     },
+
+    // Uvezeni obračun: plata iz ranijeg programa, unesena ručno samo da bi GIP
+    // bio kompletan (klijent prešao na nas u toku godine). Ne nudi se za
+    // ponovno generisanje 2001/MIP/uplatnica. Pravi obračun (calculate) ga
+    // resetuje na false i preuzima mjesec.
+    imported: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 
     // Datum stvarne isplate plate. Postavlja ga user u "Mjesečni dokumenti"
     // tabu; svi payroll-i u istom (org, year, month) drže isti datum (sinhroni
@@ -550,7 +609,7 @@ const Form = sequelize.define(
         "SPR",
         "ZO3",
         "UGOVOR", // ugovor o pozajmici (legacy use)
-        "UOD",    // ugovor o djelu (Faza 3)
+        "UOD", // ugovor o djelu (Faza 3)
         "PLDI",
         "AMS",
         "SIH",
