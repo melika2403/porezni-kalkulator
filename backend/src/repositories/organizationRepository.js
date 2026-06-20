@@ -2,9 +2,155 @@ const { Op } = require("sequelize");
 const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "taxRegime", "taxCategory", "mealAllowancePerDay", "createdAt", "updatedAt"];
+const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "mealAllowancePerDay", "ownerType", "ownerIsDirector", "directorEngagement", "directorWorkerId", "ownerInfo", "createdAt", "updatedAt"];
 
-function toPublicOrg(org, memberRole, ownerWorker, effectiveTier) {
+// Vlasnik je Worker VLASNIK (i ima payroll) samo u "opciji 1" ili kod obrta.
+// Za d.o.o. opcije 2/3/4 vlasnik je evidencija (org.ownerInfo), nije radnik.
+function ownerIsWorker(type, ownerIsDirector, directorEngagement) {
+  if (type === "BUSINESS") return true; // obrt: vlasnik = obrtnik (Worker VLASNIK)
+  return Boolean(ownerIsDirector) && directorEngagement === "ugovor_o_radu";
+}
+
+// Gradi org.ownerInfo (evidencija vlasnika) iz validiranog ownerData.
+// JMBG je već kriptiran u kontroleru.
+function buildOwnerInfo(o, ownerType) {
+  return {
+    type: ownerType || "fizicko_domace",
+    firstName: o.firstName ?? null,
+    lastName: o.lastName ?? null,
+    name: o.name ?? null,
+    jmbg: o.jmbg ?? null,
+    idDoc: o.idDoc ?? null,
+    jib: o.jib ?? null,
+    email: o.email ?? null,
+    phone: o.phone ?? null,
+    address: o.address ?? null,
+    city: o.city ?? null,
+    persons: Array.isArray(o.persons) ? o.persons : null,
+  };
+}
+
+// Owner objekat za frontend iz org.ownerInfo (kad vlasnik nije radnik).
+// MariaDB vraća JSON kolonu kao string (Sequelize je ne parsira), pa parsiramo.
+function ownerFromInfo(rawInfo) {
+  if (!rawInfo) return null;
+  let info = rawInfo;
+  if (typeof info === "string") {
+    try {
+      info = JSON.parse(info);
+    } catch {
+      return null;
+    }
+  }
+  if (!info || typeof info !== "object") return null;
+  return {
+    type: info.type ?? "fizicko_domace",
+    firstName: info.firstName ?? null,
+    lastName: info.lastName ?? null,
+    name: info.name ?? null,
+    jmbg: info.jmbg ? decryptJmbg(info.jmbg) : null,
+    idDoc: info.idDoc ?? null,
+    jib: info.jib ?? null,
+    email: info.email ?? null,
+    phone: info.phone ?? null,
+    address: info.address ?? null,
+    city: info.city ?? null,
+    persons: Array.isArray(info.persons)
+      ? info.persons.map((p) => ({
+          ...p,
+          jmbg: p.jmbg ? decryptJmbg(p.jmbg) : null,
+        }))
+      : null,
+    // Nije radnik → nema payroll polja.
+    employmentStatus: null,
+    prijavaDate: null,
+    salaryBruto: null,
+    salaryNeto: null,
+    idCardNumber: info.idDoc ?? null,
+  };
+}
+
+// Razrješava potpisnika poslodavca za dokumente (ugovor o radu/djelu, payslip,
+// predračun, faktura). ownerIsDirector (opcije 1/3) → potpisnik = vlasnik;
+// inače (opcije 2/4) → potpisnik = radnik označen kao direktor.
+function resolveSigner(owner, directorWorker, ownerIsDirector) {
+  if (ownerIsDirector) {
+    if (!owner) return null;
+    const personName = `${owner.firstName ?? ""} ${owner.lastName ?? ""}`.trim();
+    return {
+      firstName: owner.firstName ?? null,
+      lastName: owner.lastName ?? null,
+      name: personName || owner.name || "",
+      jmbg: owner.jmbg ?? null,
+      idCardNumber: owner.idCardNumber ?? null,
+      address: owner.address ?? null,
+      city: owner.city ?? null,
+    };
+  }
+  if (!directorWorker) return null;
+  const dw = directorWorker.toJSON ? directorWorker.toJSON() : directorWorker;
+  return {
+    firstName: dw.firstName ?? null,
+    lastName: dw.lastName ?? null,
+    name: `${dw.firstName ?? ""} ${dw.lastName ?? ""}`.trim(),
+    jmbg: dw.jmbg ? decryptJmbg(dw.jmbg) : null,
+    idCardNumber: dw.idCardNumber ?? null,
+    address: dw.address ?? null,
+    city: dw.city ?? null,
+  };
+}
+
+async function fetchWorkersByIds(ids) {
+  const uniq = [...new Set(ids.filter(Boolean))];
+  if (uniq.length === 0) return new Map();
+  const workers = await Worker.findAll({
+    where: { id: { [Op.in]: uniq } },
+    attributes: [
+      "id",
+      "organizationId",
+      "firstName",
+      "lastName",
+      "jmbg",
+      "idCardNumber",
+      "address",
+      "city",
+    ],
+  });
+  const byId = new Map();
+  for (const w of workers) byId.set(w.id, w);
+  return byId;
+}
+
+// Owner objekat za frontend iz Worker VLASNIK reda (opcija 1 ili obrt).
+function ownerFromWorker(ownerPlain) {
+  const prijavaDate = ownerPlain.prijavaDate
+    ? String(ownerPlain.prijavaDate).slice(0, 10)
+    : null;
+  // Status se derivira iz datuma (isto kao u toPublicWorker).
+  const derivedStatus = prijavaDate ? "PRIJAVLJEN" : "DRAFT";
+  return {
+    type: "fizicko_domace",
+    name: null,
+    idDoc: null,
+    jib: null,
+    persons: null,
+    ...ownerPlain,
+    employmentStatus: derivedStatus,
+    jmbg: ownerPlain.jmbg ? decryptJmbg(ownerPlain.jmbg) : null,
+    prijavaDate,
+    salaryBruto:
+      ownerPlain.salaryBruto != null ? Number(ownerPlain.salaryBruto) : null,
+    salaryNeto:
+      ownerPlain.salaryNeto != null ? Number(ownerPlain.salaryNeto) : null,
+    salaryType: ownerPlain.salaryType ?? "NETO_ISPLATA",
+    taxCoefficient:
+      ownerPlain.taxCoefficient != null
+        ? Number(ownerPlain.taxCoefficient)
+        : 1.0,
+  };
+}
+
+function toPublicOrg(org, memberRole, ownerWorker, effectiveTier, directorWorker) {
   if (!org) return null;
   const plain = org.toJSON ? org.toJSON() : org;
   const ownerPlain = ownerWorker
@@ -12,33 +158,34 @@ function toPublicOrg(org, memberRole, ownerWorker, effectiveTier) {
       ? ownerWorker.toJSON()
       : ownerWorker
     : null;
+
+  // Izvor vlasnika ovisi o opciji: opcija 1 / obrt → Worker VLASNIK;
+  // opcije 2/3/4 → org.ownerInfo (čak i ako je stari Worker VLASNIK ostao).
+  const asWorker = ownerIsWorker(
+    plain.type,
+    plain.ownerIsDirector,
+    plain.directorEngagement,
+  );
   let owner = null;
-  if (ownerPlain) {
-    const prijavaDate = ownerPlain.prijavaDate
-      ? String(ownerPlain.prijavaDate).slice(0, 10)
-      : null;
-    // Status se derivira iz datuma (isto kao u toPublicWorker).
-    const derivedStatus = prijavaDate ? "PRIJAVLJEN" : "DRAFT";
-    owner = {
-      ...ownerPlain,
-      employmentStatus: derivedStatus,
-      jmbg: ownerPlain.jmbg ? decryptJmbg(ownerPlain.jmbg) : null,
-      prijavaDate,
-      salaryBruto:
-        ownerPlain.salaryBruto != null ? Number(ownerPlain.salaryBruto) : null,
-      salaryNeto:
-        ownerPlain.salaryNeto != null ? Number(ownerPlain.salaryNeto) : null,
-      salaryType: ownerPlain.salaryType ?? "NETO_ISPLATA",
-      taxCoefficient:
-        ownerPlain.taxCoefficient != null
-          ? Number(ownerPlain.taxCoefficient)
-          : 1.0,
-    };
+  if (asWorker && ownerPlain) {
+    owner = ownerFromWorker(ownerPlain);
+  } else if (plain.ownerInfo) {
+    owner = ownerFromInfo(plain.ownerInfo);
+  } else if (ownerPlain) {
+    owner = ownerFromWorker(ownerPlain); // fallback (legacy bez ownerInfo)
   }
-  const { workers: _w, ...rest } = plain;
+
+  const ownerIsDirector =
+    plain.ownerIsDirector != null ? Boolean(plain.ownerIsDirector) : true;
+  const signer = resolveSigner(owner, directorWorker, ownerIsDirector);
+
+  // ownerInfo je interni (kriptiran JMBG) — ne curi u API odgovor.
+  const { workers: _w, ownerInfo: _oi, ...rest } = plain;
   return {
     ...rest,
+    ownerIsDirector,
     owner,
+    signer,
     memberRole: memberRole || plain.memberRole || null,
     effectiveTier: effectiveTier ?? null,
   };
@@ -106,9 +253,11 @@ async function getUserOrganizations(userId) {
     order: [[{ model: Organization, as: "organization" }, "name", "ASC"]],
   });
   const orgIds = memberships.map((m) => m.organization?.id).filter(Boolean);
-  const [ownerByOrgId, tierByOrgId] = await Promise.all([
+  const directorIds = memberships.map((m) => m.organization?.directorWorkerId);
+  const [ownerByOrgId, tierByOrgId, directorById] = await Promise.all([
     fetchOwnerWorkers(orgIds),
     fetchOwnerTiers(orgIds),
+    fetchWorkersByIds(directorIds),
   ]);
   return memberships.map((m) =>
     toPublicOrg(
@@ -116,6 +265,7 @@ async function getUserOrganizations(userId) {
       m.role,
       ownerByOrgId.get(m.organization?.id) ?? null,
       tierByOrgId.get(m.organization?.id) ?? null,
+      directorById.get(m.organization?.directorWorkerId) ?? null,
     ),
   );
 }
@@ -134,9 +284,11 @@ async function getClientOrganizations(userId) {
     order: [[{ model: Organization, as: "organization" }, "name", "ASC"]],
   });
   const orgIds = memberships.map((m) => m.organization?.id).filter(Boolean);
-  const [ownerByOrgId, tierByOrgId] = await Promise.all([
+  const directorIds = memberships.map((m) => m.organization?.directorWorkerId);
+  const [ownerByOrgId, tierByOrgId, directorById] = await Promise.all([
     fetchOwnerWorkers(orgIds),
     fetchOwnerTiers(orgIds),
+    fetchWorkersByIds(directorIds),
   ]);
   return memberships.map((m) =>
     toPublicOrg(
@@ -144,6 +296,7 @@ async function getClientOrganizations(userId) {
       m.role,
       ownerByOrgId.get(m.organization?.id) ?? null,
       tierByOrgId.get(m.organization?.id) ?? null,
+      directorById.get(m.organization?.directorWorkerId) ?? null,
     ),
   );
 }
@@ -160,27 +313,42 @@ async function getOrganizationForUser(id, userId) {
     ],
   });
   if (!membership) return null;
-  const [ownerByOrgId, tierByOrgId] = await Promise.all([
+  const directorWorkerId = membership.organization?.directorWorkerId;
+  const [ownerByOrgId, tierByOrgId, directorById] = await Promise.all([
     fetchOwnerWorkers([id]),
     fetchOwnerTiers([id]),
+    fetchWorkersByIds([directorWorkerId]),
   ]);
   return toPublicOrg(
     membership.organization,
     membership.role,
     ownerByOrgId.get(id) ?? null,
     tierByOrgId.get(id) ?? null,
+    directorById.get(directorWorkerId) ?? null,
   );
 }
 
 async function createOrganization(data, ownerData, userId) {
   return sequelize.transaction(async (t) => {
-    const org = await Organization.create({ ...data, createdById: userId, isClientOrg: !!ownerData }, { transaction: t });
+    const asWorker = ownerIsWorker(
+      data.type,
+      data.ownerIsDirector,
+      data.directorEngagement,
+    );
+    // Za opcije 2/3/4 vlasnik se NE pravi kao Worker — ide u org.ownerInfo.
+    const ownerInfo =
+      ownerData && !asWorker ? buildOwnerInfo(ownerData, data.ownerType) : null;
+
+    const org = await Organization.create(
+      { ...data, ownerInfo, createdById: userId, isClientOrg: !!ownerData },
+      { transaction: t },
+    );
 
     await OrganizationMember.create({ organizationId: org.id, userId, role: "OWNER" }, { transaction: t });
 
-    if (ownerData) {
+    if (ownerData && asWorker) {
       await Worker.create({ organizationId: org.id, role: "VLASNIK", ...ownerData }, { transaction: t });
-    } else {
+    } else if (!ownerData) {
       const user = await User.findOne({ where: { id: userId }, attributes: ["firstName", "lastName", "jmbg", "email", "phone", "address", "city"], transaction: t });
       await Worker.create({
         organizationId: org.id,
@@ -213,17 +381,81 @@ async function updateOrganization(id, orgData, ownerData, userId) {
   if (!membership) return null;
 
   return sequelize.transaction(async (t) => {
+    const existingOrg = await Organization.findByPk(id, { transaction: t });
+    if (!existingOrg) return null;
+
+    // Efektivna opcija = dolazne vrijednosti ILI postojeće (parcijalni update).
+    const effType = orgData.type ?? existingOrg.type;
+    const effIsDir =
+      orgData.ownerIsDirector ?? existingOrg.ownerIsDirector;
+    const effEng =
+      orgData.directorEngagement ?? existingOrg.directorEngagement;
+    const effOwnerType =
+      orgData.ownerType ?? existingOrg.ownerType ?? "fizicko_domace";
+    const asWorker = ownerIsWorker(effType, effIsDir, effEng);
+
+    const orgUpdate = { ...orgData };
+
     if (ownerData) {
-      const existing = await Worker.findOne({ where: { organizationId: id, role: "VLASNIK" }, transaction: t });
-      if (existing) {
-        await Worker.update(ownerData, { where: { id: existing.id }, transaction: t });
+      if (asWorker) {
+        // Opcija 1 / obrt: vlasnik je Worker VLASNIK (kao i do sada).
+        const existing = await Worker.findOne({ where: { organizationId: id, role: "VLASNIK" }, transaction: t });
+        if (existing) {
+          await Worker.update(ownerData, { where: { id: existing.id }, transaction: t });
+        } else {
+          await Worker.create({ organizationId: id, role: "VLASNIK", ...ownerData }, { transaction: t });
+        }
+        orgUpdate.ownerInfo = null; // vlasnik je radnik → evidencija se gasi
       } else {
-        await Worker.create({ organizationId: id, role: "VLASNIK", ...ownerData }, { transaction: t });
+        // Opcije 2/3/4: vlasnik je evidencija na Organizaciji (org.ownerInfo).
+        orgUpdate.ownerInfo = buildOwnerInfo(ownerData, effOwnerType);
       }
     }
 
-    if (Object.keys(orgData).length > 0) {
-      await Organization.update(orgData, { where: { id }, transaction: t });
+    // Kad d.o.o. vlasnik nije zaposlen (opcije 2/3/4), zaostali VLASNIK Worker
+    // sa platom bi i dalje ulazio u obračun: payroll ne filtrira COMPANY
+    // VLASNIka po ownerType, tretira ga kao običnog radnika. Forward-only:
+    // ugasimo ga (ODJAVLJEN) i očistimo platu/prijavu. Postojeći sačuvani
+    // Payroll obračuni se NE diraju (data safety). Pokriva i prebacivanje bez
+    // ownerData (npr. samo ownerIsDirector=false).
+    if (effType === "COMPANY" && !asWorker) {
+      const stale = await Worker.findOne({
+        where: { organizationId: id, role: "VLASNIK" },
+        transaction: t,
+      });
+      if (
+        stale &&
+        (stale.salaryBruto != null ||
+          stale.salaryNeto != null ||
+          stale.prijavaDate != null ||
+          stale.employmentStatus !== "ODJAVLJEN")
+      ) {
+        await Worker.update(
+          {
+            salaryBruto: null,
+            salaryNeto: null,
+            prijavaDate: null,
+            employmentStatus: "ODJAVLJEN",
+          },
+          { where: { id: stale.id }, transaction: t },
+        );
+      }
+    }
+
+    // directorWorkerId mora pripadati OVOJ organizaciji (spriječi cross-tenant
+    // referencu koja bi kao potpisnika izvukla radnika druge firme). Ako ne
+    // pripada, ignoriši ga (postavi null).
+    if (orgUpdate.directorWorkerId != null) {
+      const dw = await Worker.findOne({
+        where: { id: orgUpdate.directorWorkerId, organizationId: id },
+        attributes: ["id"],
+        transaction: t,
+      });
+      if (!dw) orgUpdate.directorWorkerId = null;
+    }
+
+    if (Object.keys(orgUpdate).length > 0) {
+      await Organization.update(orgUpdate, { where: { id }, transaction: t });
     }
 
     const updated = await Organization.findOne({ where: { id }, attributes: orgAttributes, transaction: t });
@@ -232,12 +464,25 @@ async function updateOrganization(id, orgData, ownerData, userId) {
       attributes: ownerWorkerAttributes,
       transaction: t,
     });
+    // Org-scoped fetch (defense-in-depth) — potpisnik mora biti iz ove org.
+    const directorWorker = updated?.directorWorkerId
+      ? await Worker.findOne({
+          where: { id: updated.directorWorkerId, organizationId: id },
+          transaction: t,
+        })
+      : null;
     const ownerMembership = await OrganizationMember.findOne({
       where: { organizationId: id, role: "OWNER" },
       include: [{ model: User, as: "user", attributes: ["role"] }],
       transaction: t,
     });
-    return toPublicOrg(updated, membership.role, ownerWorker, ownerMembership?.user?.role ?? null);
+    return toPublicOrg(
+      updated,
+      membership.role,
+      ownerWorker,
+      ownerMembership?.user?.role ?? null,
+      directorWorker,
+    );
   });
 }
 

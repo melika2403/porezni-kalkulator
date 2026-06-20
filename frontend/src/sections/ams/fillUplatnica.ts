@@ -192,7 +192,7 @@ export interface FillPageOpts {
   customDoMjesec?: string;   // default = periodMjesec
   customDoGodina?: string;   // default = periodGodina
   customPoziv?: string;      // 10 cifara (default = pozivBroj(periodMjesec))
-  skipJavniPrihodi?: boolean; // za "uplatu radniku" — bez desnog dijela
+  skipJavniPrihodi?: boolean; // za "uplatu radniku", bez desnog dijela
 }
 
 /* ── Interna fillForm — popunjava jednu stranicu (template AcroForm uklonjen) ── */

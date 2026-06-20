@@ -1,0 +1,455 @@
+.page {
+  padding: 2rem 1.75rem 3.5rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+@media (min-width: 1280px) {
+  .page {
+    padding: 2.5rem 2rem 4rem;
+  }
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.header {
+  margin-bottom: 2.5rem;
+}
+
+.periodBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.85rem;
+  background: var(--sage-pale);
+  color: var(--sage);
+  border: 1px solid color-mix(in srgb, var(--sage) 20%, transparent);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  margin-bottom: 1.25rem;
+}
+
+.periodBadge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sage);
+}
+
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 2.6vw, 1.75rem);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  margin: 0 0 0.75rem;
+  color: var(--sage);
+}
+
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+
+/* Meta red ispod pozdrava: datum · org + badge + status plata */
+.headerMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  font-size: 15px;
+  color: var(--mid);
+}
+
+.metaDot {
+  color: var(--border);
+}
+
+.metaOrg {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.orgBadge,
+.orgBadgeClient {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.orgBadge {
+  background: var(--sage-pale);
+  color: var(--sage);
+}
+
+.orgBadgeClient {
+  background: var(--color-info-bg, #d8e6f1);
+  color: var(--color-info, #1f5a8c);
+}
+
+.payrollChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.payrollChip:hover {
+  opacity: 0.8;
+}
+
+.payrollChipWarn {
+  background: var(--color-warning-bg, #f2dec0);
+  color: var(--color-warning, #8a4f10);
+}
+
+.payrollChipOk {
+  background: var(--color-success-bg, #d8ebe1);
+  color: var(--color-success, #2d6e54);
+}
+
+/* ── Plate/MIP kartica ────────────────────────────────────────── */
+.payrollRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.payrollRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.payrollRowLabel {
+  font-size: 13.5px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.payrollCardLink {
+  margin-top: 0.5rem;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--sage);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--sage);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.payrollCardLink:hover {
+  background: var(--sage);
+  color: var(--white);
+}
+
+.payrollCardLink svg {
+  transition: transform 0.15s;
+}
+
+.payrollCardLink:hover svg {
+  transform: translateX(2px);
+}
+
+/* ── Gornji red: stanje računa + plate/MIP kartica ───────────── */
+.topGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .topGrid {
+    grid-template-columns: 1.6fr 1fr;
+  }
+}
+
+.balanceCard {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem 1.6rem 1.5rem;
+}
+
+.balanceLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin: 0 0 0.65rem;
+}
+
+.balanceValue {
+  font-family: "DM Serif Display", serif;
+  font-size: 27px;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.balanceValueNeg {
+  color: var(--danger, #9b2e2e);
+}
+
+.balanceMeta {
+  font-size: 12px;
+  color: var(--mid);
+  margin: 0.6rem 0 0;
+}
+
+/* ── Metric grid ──────────────────────────────────────────────── */
+.metricGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 640px) {
+  .metricGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1440px) {
+  .metricGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.metric {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.4rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
+  .metric {
+    padding: 1.5rem 1.5rem 1.75rem;
+  }
+}
+
+.metric:hover {
+  border-color: color-mix(in srgb, var(--sage) 30%, var(--border));
+}
+
+.metricIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.metricIconSuccess { background: #d8ebe1; color: #2d6e54; }
+.metricIconNeutral { background: var(--paper); color: var(--mid); }
+.metricIconInfo    { background: #d8e6f1; color: #1f5a8c; }
+.metricIconWarning { background: #f2dec0; color: #8a4f10; }
+
+.metricLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin: 0 0 0.6rem;
+}
+
+.metricValue {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.4rem, 1.8vw, 1.75rem);
+  line-height: 1.05;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 0.55rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metricDelta {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  margin: 0;
+}
+
+.metricDeltaUp   { color: #2d6e54; }
+.metricDeltaWarn { color: #8a4f10; }
+
+/* ── Two-column section grid ──────────────────────────────────── */
+.sectionGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1100px) {
+  .sectionGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.section {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionTitleWrap {
+  min-width: 0;
+}
+
+.sectionTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  margin: 0;
+}
+
+.sectionSubtitle {
+  font-size: 12.5px;
+  color: var(--mid);
+  margin: 0.35rem 0 0;
+}
+
+.sectionLink {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--sage);
+  text-decoration: none;
+  white-space: nowrap;
+  align-self: center;
+  transition: opacity 0.15s;
+}
+
+.sectionLink:hover {
+  opacity: 0.7;
+}
+
+.sectionBody {
+  padding: 0.75rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* ── Row ──────────────────────────────────────────────────────── */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  transition: background 0.15s;
+}
+
+.row:hover {
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.rowIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rowIconIn      { background: #d8ebe1; color: #2d6e54; }
+.rowIconOut     { background: var(--paper); color: var(--mid); }
+.rowIconPending { background: #f2dec0; color: #8a4f10; }
+.rowIconDone    { background: #d8ebe1; color: #2d6e54; }
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  font-size: 11.5px;
+  color: var(--mid);
+  margin: 0.2rem 0 0;
+}
+
+.rowAmount {
+  font-family: "DM Serif Display", serif;
+  font-size: 15px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rowAmountIn { color: #2d6e54; }
+
+.rowStatus {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.rowStatusPending { background: #f2dec0; color: #8a4f10; }
+.rowStatusDone    { background: #d8ebe1; color: #2d6e54; }

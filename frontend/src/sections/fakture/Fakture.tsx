@@ -36,7 +36,7 @@ function fmtMoney(v: string | number) {
   return int.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + dec;
 }
 function fmtDate(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
   if (!y || !m || !d) return iso;
   return `${d}.${m}.${y}.`;
@@ -374,7 +374,7 @@ export default function Fakture() {
         }
         message={
           emailFor?.emailSentAt
-            ? `⚠ Ova faktura je već poslana ${fmtDate(emailFor.emailSentAt)} na ${emailFor.emailSentTo || "—"}. Slanjem opet kupac će dobiti drugi email sa istom fakturom.`
+            ? `⚠ Ova faktura je već poslana ${fmtDate(emailFor.emailSentAt)} na ${emailFor.emailSentTo || "–"}. Slanjem opet kupac će dobiti drugi email sa istom fakturom.`
             : "PDF se šalje kao prilog. Odgovori kupca idu direktno na email prodavca (Reply-To)."
         }
         inputType="email"

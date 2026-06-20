@@ -2,6 +2,12 @@ const { Op } = require("sequelize");
 const { Worker, Organization, OrganizationMember, ContractCounter, sequelize } = require("../models/index");
 const { encryptJmbg, decryptJmbg } = require("../utils/encryptJmbg");
 const { getOrgOwnerRole } = require("../services/tierService");
+const {
+  resolveEvidencija,
+  editableList,
+  EDITABLE_FIELDS,
+} = require("../utils/evidencija");
+const { generateEvidencijaPdf } = require("../utils/evidencijaPdf");
 
 const PRO_WORKERS_LIMIT = 5;
 const USER_WORKERS_LIMIT = 1;
@@ -65,7 +71,19 @@ function toPublicWorker(w) {
     contractedHours: rest.contractedHours != null ? Number(rest.contractedHours) : 8,
     prebivalisteEntitet: rest.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod: rest.opcinaKod || null,
+    evidencijaPodaci: parseEvidencija(rest.evidencijaPodaci),
   };
+}
+
+// MariaDB vraća JSON kolonu kao string; parsiraj u objekat.
+function parseEvidencija(v) {
+  if (!v) return null;
+  if (typeof v === "object") return v;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
 }
 
 const VALID_CONTRACT_TYPES = ["NEODREDJENO", "ODREDJENO"];
@@ -553,6 +571,125 @@ async function takeContractNumber(req, res) {
   }
 }
 
+// ── GET /:orgId/workers/:workerId/evidencija ────────────────────────────────
+// Matična evidencija: 24 stavke (resolved) + editabilna polja (sa defaultima).
+async function getEvidencija(req, res) {
+  const orgId = parseOrgId(req);
+  const workerId = parseWorkerId(req);
+  if (!orgId || !workerId)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  const membership = await assertMembership(orgId, req.user.id, [
+    "OWNER",
+    "ADMIN",
+    "MEMBER",
+  ]);
+  if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+  const existing = await Worker.findOne({
+    where: { id: workerId, organizationId: orgId },
+  });
+  if (!existing)
+    return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
+  const org = await Organization.findByPk(orgId);
+  const w = toPublicWorker(existing);
+
+  return res.json({
+    ok: true,
+    data: {
+      workerId,
+      workerName: `${w.firstName || ""} ${w.lastName || ""}`.trim(),
+      items: resolveEvidencija(w, org),
+      editable: editableList(w, org),
+      zadnjaIzmjena: existing.updatedAt
+        ? new Date(existing.updatedAt).toISOString().slice(0, 10)
+        : null,
+    },
+  });
+}
+
+// ── PATCH /:orgId/workers/:workerId/evidencija ──────────────────────────────
+// Snima dodatne podatke evidencije (worker.evidencijaPodaci). Ne dira ostala
+// polja radnika.
+async function saveEvidencija(req, res) {
+  const orgId = parseOrgId(req);
+  const workerId = parseWorkerId(req);
+  if (!orgId || !workerId)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  const membership = await assertMembership(orgId, req.user.id, [
+    "OWNER",
+    "ADMIN",
+  ]);
+  if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+  const existing = await Worker.findOne({
+    where: { id: workerId, organizationId: orgId },
+  });
+  if (!existing)
+    return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
+
+  const incoming = req.body?.evidencijaPodaci;
+  if (incoming == null || typeof incoming !== "object")
+    return res.status(400).json({ ok: false, error: "INVALID_PAYLOAD" });
+
+  const validKeys = new Set(EDITABLE_FIELDS.map((f) => f.key));
+  const clean = {};
+  for (const [k, v] of Object.entries(incoming)) {
+    if (!validKeys.has(k)) continue;
+    const s = v == null ? "" : String(v).trim();
+    if (s) clean[k] = s;
+  }
+  await Worker.update(
+    { evidencijaPodaci: clean },
+    { where: { id: workerId, organizationId: orgId } },
+  );
+  return res.json({ ok: true, data: { evidencijaPodaci: clean } });
+}
+
+// ── GET /:orgId/workers/:workerId/evidencija-pdf ────────────────────────────
+async function generateEvidencija(req, res) {
+  const orgId = parseOrgId(req);
+  const workerId = parseWorkerId(req);
+  if (!orgId || !workerId)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  const membership = await assertMembership(orgId, req.user.id, [
+    "OWNER",
+    "ADMIN",
+    "MEMBER",
+  ]);
+  if (!membership) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+
+  const existing = await Worker.findOne({
+    where: { id: workerId, organizationId: orgId },
+  });
+  if (!existing)
+    return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
+  const org = await Organization.findByPk(orgId);
+  const w = toPublicWorker(existing);
+  const items = resolveEvidencija(w, org);
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const pdf = await generateEvidencijaPdf(items, {
+    orgName: org?.name || "",
+    orgAddress: [org?.address, org?.city].filter(Boolean).join(", "),
+    orgTaxNumber: org?.taxNumber || "",
+    datumIzrade: todayIso,
+    zadnjaIzmjena: existing.updatedAt
+      ? new Date(existing.updatedAt).toISOString().slice(0, 10)
+      : null,
+  });
+
+  const safeName = `${w.firstName || ""}_${w.lastName || ""}`
+    .trim()
+    .replace(/\s+/g, "_");
+  const fileName = `Maticna_evidencija_${safeName || workerId}.pdf`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+  );
+  return res.send(pdf);
+}
+
 module.exports = {
   list,
   listAllForUser,
@@ -561,4 +698,7 @@ module.exports = {
   remove,
   peekContractNumber,
   takeContractNumber,
+  getEvidencija,
+  saveEvidencija,
+  generateEvidencija,
 };

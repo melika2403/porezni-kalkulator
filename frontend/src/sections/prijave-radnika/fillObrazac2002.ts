@@ -21,7 +21,7 @@ export type DohodakNa2002 = "POSLOVNIH_KNJIGA" | "PAUSALNO";
 export interface Obrazac2002Data {
   // Dio 1 — Podaci o registrovanoj djelatnosti
   naziv: string; // 1
-  jib: string; // 2 — 13 cifara (comb)
+  jib: string; // 2, 13 cifara (comb)
   operacija: Operacija2002; // 3
   // 4) Period od/do — DD MM YYYY (8 cifara svaki)
   periodOdDan: string;
@@ -46,7 +46,7 @@ export interface Obrazac2002Data {
 
   // Dio 2 — Podaci o poduzetniku
   prezimeIme: string; // 15
-  jmb: string; // 16 — 13 cifara (comb)
+  jmb: string; // 16, 13 cifara (comb)
   adresaPoduzetnika: string; // 17
   opcinaPoduzetnika: string; // 18
 

@@ -307,7 +307,7 @@ async function generatePredracunPdf({
         console.warn(
           `predracunPdf: ${p} nije validan JPEG/PNG (prvi bajtovi: ${bytes
             .slice(0, 4)
-            .toString("hex")}) — preskačem.`,
+            .toString("hex")}), preskačem.`,
         );
         continue;
       }
@@ -325,7 +325,7 @@ async function generatePredracunPdf({
   }
   if (!logo) {
     console.warn(
-      `predracunPdf: logo nije pronađen — provjerio: ${LOGO_CANDIDATES.join(
+      `predracunPdf: logo nije pronađen, provjerio: ${LOGO_CANDIDATES.join(
         ", ",
       )}`,
     );

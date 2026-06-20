@@ -1,0 +1,23 @@
+/* Datum isplate u zaglavlju mjeseca (grid uvoza prethodnih plata). */
+.dateField {
+  width: 100%;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: 8px;
+  background: var(--card-bg, #faf8f3);
+  color: var(--ink, #0f1a12);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.dateField:hover {
+  border-color: color-mix(in srgb, var(--sage, #3a5c42) 45%, transparent);
+}
+
+.dateField:focus {
+  outline: none;
+  border-color: var(--sage, #3a5c42);
+  background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sage, #3a5c42) 12%, transparent);
+}

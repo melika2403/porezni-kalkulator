@@ -11,8 +11,10 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/api/",
           "/admin/",
+          "/app/", // PK Office (privatna aplikacija za obrte)
           "/profil",
           "/organizacija/",
+          "/organizacije",
           "/aktivni-radnici",
           "/pretplate",
           "/prijava",

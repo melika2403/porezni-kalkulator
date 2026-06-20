@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import Register from "src/sections/auth/Register";
 
 export const metadata: Metadata = {
-  title: "Registracija — Porezni Kalkulator BiH",
+  title: "Registracija, Porezni Kalkulator BiH",
   description: "Napravite besplatan račun na Porezni Kalkulator BiH.",
   alternates: { canonical: "https://poreznikalkulator.ba/registracija" },
   robots: { index: false, follow: false },

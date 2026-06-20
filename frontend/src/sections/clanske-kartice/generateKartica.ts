@@ -32,7 +32,7 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 }
 
 function fmtDate(iso: string): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
   if (!y || !m || !d) return iso;
   return `${d}.${m}.${y}.`;
@@ -146,7 +146,7 @@ export async function generateKartica(data: KarticaData): Promise<Uint8Array> {
   const clubSize = 18;
   const textTopY = qrY - 14;
 
-  const memberText = data.memberName || "—";
+  const memberText = data.memberName || "–";
   // Auto-shrink so long names fit on one line within the right column
   let nameSize = maxNameSize;
   while (

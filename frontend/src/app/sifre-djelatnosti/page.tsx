@@ -6,26 +6,10 @@ import { KD_BIH_DETAILED } from "src/data/kd-bih-detailed";
 const PAGE_URL = "https://poreznikalkulator.ba/sifre-djelatnosti";
 
 export const metadata: Metadata = {
-  title: "Šifre djelatnosti FBiH (KD BiH 2010) — kompletna lista sa opisima | Porezni Kalkulator BiH",
+  title: "Šifre djelatnosti FBiH (KD BiH 2010), kompletna lista sa opisima",
   description:
-    "Kompletna lista šifri djelatnosti za Federaciju BiH prema KD BiH 2010 (NACE Rev. 2). Pretražite po nazivu ili šifri, pročitajte detaljne opise i šta razred uključuje/izuzima — sve potrebno za otvaranje obrta ili registraciju djelatnosti u FBiH.",
-  keywords: [
-    "šifre djelatnosti FBiH",
-    "šifre djelatnosti BiH",
-    "KD BiH 2010",
-    "klasifikacija djelatnosti",
-    "NACE Rev. 2",
-    "šifra djelatnosti za obrt",
-    "registracija obrta FBiH",
-    "klasifikacija djelatnosti BiH",
-    "šifre djelatnosti lista",
-    "šifre djelatnosti Federacija",
-    "pretežna djelatnost obrta",
-    "šifre djelatnosti pretraga",
-    "Federalni zavod za statistiku",
-    "Agencija za statistiku BiH",
-  ],
-  alternates: { canonical: PAGE_URL },
+    "Kompletna lista šifri djelatnosti za Federaciju BiH prema KD BiH 2010 (NACE Rev. 2). Pretražite po nazivu ili šifri, pročitajte detaljne opise i šta razred uključuje/izuzima, sve potrebno za otvaranje obrta ili registraciju djelatnosti u FBiH.",
+alternates: { canonical: PAGE_URL },
   robots: {
     index: true,
     follow: true,
@@ -42,7 +26,7 @@ export const metadata: Metadata = {
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Šifre djelatnosti FBiH (KD BiH 2010) — kompletna lista sa opisima",
+    title: "Šifre djelatnosti FBiH (KD BiH 2010), kompletna lista sa opisima",
     description:
       "Pronađite šifru djelatnosti za vaš obrt u FBiH. Sve šifre KD BiH 2010 (NACE Rev. 2) sa detaljnim opisima, primjerima i izuzecima.",
     images: [
@@ -50,7 +34,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Šifre djelatnosti FBiH (KD BiH 2010) — Porezni Kalkulator BiH",
+        alt: "Šifre djelatnosti FBiH (KD BiH 2010), Porezni Kalkulator BiH",
       },
     ],
   },
@@ -58,7 +42,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Šifre djelatnosti FBiH (KD BiH 2010)",
     description:
-      "Kompletna lista šifri djelatnosti za FBiH sa detaljnim opisima — KD BiH 2010 (NACE Rev. 2).",
+      "Kompletna lista šifri djelatnosti za FBiH sa detaljnim opisima, KD BiH 2010 (NACE Rev. 2).",
     images: ["/og-image.png"],
   },
 };
@@ -72,13 +56,7 @@ const datasetSchema = {
   description:
     "Kompletna lista šifri djelatnosti u Bosni i Hercegovini prema KD BiH 2010, zasnovanoj na evropskoj klasifikaciji NACE Rev. 2.",
   url: PAGE_URL,
-  keywords: [
-    "šifre djelatnosti FBiH",
-    "KD BiH 2010",
-    "NACE Rev. 2",
-    "klasifikacija djelatnosti",
-  ],
-  inLanguage: ["bs", "hr", "sr"],
+inLanguage: ["bs", "hr", "sr"],
   dateModified: reviewedFor("/sifre-djelatnosti"),
   creator: {
     "@type": "Organization",
@@ -109,7 +87,7 @@ const faqSchema = {
       name: "Kako da pronađem pravu šifru djelatnosti za moj obrt?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Pretražite po ključnoj riječi (npr. 'programiranje', 'frizer', 'prevoz') ili po šifri ako je već znate. Otvorite područje i oblast, pa pročitajte šta razred uključuje, a šta izuzima — često postoji slična djelatnost u drugoj oblasti.",
+        text: "Pretražite po ključnoj riječi (npr. 'programiranje', 'frizer', 'prevoz') ili po šifri ako je već znate. Otvorite područje i oblast, pa pročitajte šta razred uključuje, a šta izuzima, često postoji slična djelatnost u drugoj oblasti.",
       },
     },
     {
@@ -133,7 +111,7 @@ const faqSchema = {
       name: "Da li se šifre djelatnosti razlikuju u FBiH i RS?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Ne — KD BiH je jedinstvena na nivou cijele BiH i identična u oba entiteta, jer je preuzeta iz Zakona o KD BiH. Razlikuje se samo nadležni organ za registraciju.",
+        text: "Ne, KD BiH je jedinstvena na nivou cijele BiH i identična u oba entiteta, jer je preuzeta iz Zakona o KD BiH. Razlikuje se samo nadležni organ za registraciju.",
       },
     },
     {
@@ -141,7 +119,7 @@ const faqSchema = {
       name: "Šta znači NACE Rev. 2?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "NACE Rev. 2 je statistička klasifikacija ekonomskih djelatnosti Evropske unije (verzija 2008). KD BiH 2010 je nacionalna verzija usaglašena s NACE Rev. 2 — prve četiri cifre svake šifre odgovaraju evropskoj klasifikaciji.",
+        text: "NACE Rev. 2 je statistička klasifikacija ekonomskih djelatnosti Evropske unije (verzija 2008). KD BiH 2010 je nacionalna verzija usaglašena s NACE Rev. 2, prve četiri cifre svake šifre odgovaraju evropskoj klasifikaciji.",
       },
     },
   ],

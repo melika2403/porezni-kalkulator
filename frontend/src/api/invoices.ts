@@ -133,11 +133,18 @@ export type CreateInvoicePayload = {
   }>;
 };
 
-export function listInvoices(params?: { type?: InvoiceType; status?: InvoiceStatus; year?: number }) {
+export function listInvoices(params?: {
+  type?: InvoiceType;
+  status?: InvoiceStatus;
+  year?: number;
+  /** PK Office: samo fakture jedne (aktivne) organizacije */
+  organizationId?: number;
+}) {
   const q = new URLSearchParams();
   if (params?.type) q.set("type", params.type);
   if (params?.status) q.set("status", params.status);
   if (params?.year) q.set("year", String(params.year));
+  if (params?.organizationId) q.set("organizationId", String(params.organizationId));
   const suffix = q.toString() ? `?${q.toString()}` : "";
   return request<Invoice[]>(`/api/invoices${suffix}`);
 }

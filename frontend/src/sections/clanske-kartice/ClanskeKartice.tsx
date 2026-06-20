@@ -27,7 +27,7 @@ import { generateKartica } from "./generateKartica";
 import QRCode from "qrcode";
 
 function fmtDatePreview(iso: string): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const [y, m, d] = iso.slice(0, 10).split("-");
   if (!y || !m || !d) return iso;
   return `${d}.${m}.${y}.`;
@@ -574,7 +574,7 @@ function ClanskeKarticeApp() {
   // ── Auto-shrink font sizes for preview (mirrors PDF logic) ───────────────
   // Card is 242pt wide; right column for name/club is 131pt.
   const memberFontPt = useMemo(
-    () => fitFontSize(memberName || "—", 16, 10, 131),
+    () => fitFontSize(memberName || "–", 16, 10, 131),
     [memberName],
   );
   const clubFontPt = useMemo(
@@ -666,7 +666,7 @@ function ClanskeKarticeApp() {
     const missing = bulkRows.filter((r) => !r.name || !r.code).length;
     if (missing > 0) {
       const ok = await confirmDialog(
-        `${missing} redova nema popunjeno ime ili kod — biti će preskočeni. Nastaviti?`,
+        `${missing} redova nema popunjeno ime ili kod, biti će preskočeni. Nastaviti?`,
       );
       if (!ok) return;
     }
@@ -787,7 +787,7 @@ function ClanskeKarticeApp() {
         </h1>
         <p className={styles.subtitle}>
           Kreirajte profesionalne članske kartice sa QR kodom za svoju
-          organizaciju ili klijente. Kartica je veličine kreditne kartice —
+          organizaciju ili klijente. Kartica je veličine kreditne kartice, 
           spremna za štampanje ili pokazivanje na mobitelu.
         </p>
       </div>
@@ -813,10 +813,10 @@ function ClanskeKarticeApp() {
               <option value="default">Redoslijed dodavanja (zadano)</option>
               <option value="name-asc">Ime A–Ž</option>
               <option value="name-desc">Ime Ž–A</option>
-              <option value="valid-asc">Vrijedi do — najbliže</option>
-              <option value="valid-desc">Vrijedi do — najdalje</option>
-              <option value="created-desc">Učlanjeni — najnoviji</option>
-              <option value="created-asc">Učlanjeni — najstariji</option>
+              <option value="valid-asc">Vrijedi do, najbliže</option>
+              <option value="valid-desc">Vrijedi do, najdalje</option>
+              <option value="created-desc">Učlanjeni, najnoviji</option>
+              <option value="created-asc">Učlanjeni, najstariji</option>
             </select>
           </div>
           <div className={styles.sidebarList}>
@@ -951,7 +951,7 @@ function ClanskeKarticeApp() {
                     setOrgId(id);
                   }}
                 >
-                  <option value="">— Odaberite organizaciju —</option>
+                  <option value="">– Odaberite organizaciju –</option>
                   {(ownOrgsQuery.data?.length ?? 0) > 0 && (
                     <optgroup label="Moje organizacije">
                       {ownOrgsQuery.data!.map((o) => (
@@ -1167,7 +1167,7 @@ function ClanskeKarticeApp() {
                       className={styles.cardMember}
                       style={{ fontSize: memberFontCqw }}
                     >
-                      {memberName || "—"}
+                      {memberName || "–"}
                     </div>
                     <div
                       className={styles.cardClub}
@@ -1183,7 +1183,7 @@ function ClanskeKarticeApp() {
               </div>
               <p className={styles.previewNote}>
                 PDF je veličine kreditne kartice (85×55 mm). Pogledaj direktno
-                na mobitelu — popunjava cijeli ekran bez bijelog prostora okolo.
+                na mobitelu, popunjava cijeli ekran bez bijelog prostora okolo.
               </p>
             </aside>
           </div>
@@ -1197,7 +1197,7 @@ function ClanskeKarticeApp() {
               <p>
                 Uvezi listu članova iz <strong>.xlsx</strong>,{" "}
                 <strong>.xls</strong> ili <strong>.csv</strong> fajla. Klub,
-                logo i boja se uzimaju iz forme iznad — sve kartice se pakuju u
+                logo i boja se uzimaju iz forme iznad, sve kartice se pakuju u
                 jedan ZIP.
               </p>
               <p>
@@ -1206,20 +1206,20 @@ function ClanskeKarticeApp() {
               </p>
               <ul className={styles.bulkList}>
                 <li>
-                  <strong>Ime</strong> (obavezno) — naslov počinje sa:{" "}
-                  <code>ime</code>, <code>naziv</code>, <code>prezime</code>,{" "}
-                  <code>član</code>/<code>clan</code>, <code>name</code>
+                  <strong>Ime</strong> (obavezno), naslov počinje sa:{" "}
+                  <code>ime</code>–<code>naziv</code>–<code>prezime</code>,{" "}
+                  <code>član</code>/<code>clan</code>–<code>name</code>
                 </li>
                 <li>
-                  <strong>Kod</strong> (obavezno) — naslov počinje sa:{" "}
-                  <code>kod</code>, <code>broj</code>, <code>jmbg</code>,{" "}
-                  <code>šifra</code>/<code>sifra</code>, <code>id</code>,{" "}
+                  <strong>Kod</strong> (obavezno), naslov počinje sa:{" "}
+                  <code>kod</code>–<code>broj</code>–<code>jmbg</code>,{" "}
+                  <code>šifra</code>/<code>sifra</code>–<code>id</code>,{" "}
                   <code>code</code>
                 </li>
                 <li>
-                  <strong>Vrijedi do</strong> (opciono) — naslov sadrži:{" "}
-                  <code>vrijedi</code>, <code>važi</code>/<code>vazi</code>,{" "}
-                  <code>datum</code>, <code>do</code>, <code>valid</code>,{" "}
+                  <strong>Vrijedi do</strong> (opciono), naslov sadrži:{" "}
+                  <code>vrijedi</code>–<code>važi</code>/<code>vazi</code>,{" "}
+                  <code>datum</code>–<code>do</code>–<code>valid</code>,{" "}
                   <code>expiry</code>. Formati: <code>31.12.2027</code>,{" "}
                   <code>2027-12-31</code> ili Excel datum. Ako član ima vlastiti
                   datum, on se koristi; inače "Vrijedi do" iz forme.
@@ -1291,14 +1291,14 @@ function ClanskeKarticeApp() {
                           }
                         >
                           <td>{i + 1}</td>
-                          <td>{r.name || <em>—</em>}</td>
-                          <td>{r.code || <em>—</em>}</td>
+                          <td>{r.name || <em>–</em>}</td>
+                          <td>{r.code || <em>–</em>}</td>
                           <td>
                             {r.validUntil ? (
                               fmtDatePreview(r.validUntil)
                             ) : (
                               <span className={styles.bulkFallback}>
-                                {validUntil ? fmtDatePreview(validUntil) : "—"}
+                                {validUntil ? fmtDatePreview(validUntil) : "–"}
                               </span>
                             )}
                           </td>
@@ -1351,7 +1351,7 @@ function ClanskeKarticeApp() {
               štampana kartica veličine kreditne kartice (85,6 × 54 mm) koja
               sadrži ime člana, kod, datum važenja i QR kod za brzu
               identifikaciju. Skeniranjem QR koda kasir ili kontrolor odmah
-              dobija podatke o članu — bez ručnog traženja u sistemu.
+              dobija podatke o članu, bez ručnog traženja u sistemu.
             </p>
             <p
               style={{
@@ -1394,19 +1394,19 @@ function ClanskeKarticeApp() {
               }}
             >
               <li>
-                <strong>Unesite podatke o organizaciji</strong> — naziv
+                <strong>Unesite podatke o organizaciji</strong>, naziv
                 kluba/firme, logo, boja naslova, kontakt podaci. Ti podaci
                 pojavljuju se na svim karticama.
               </li>
               <li>
                 <strong>
                   Dodajte članove pojedinačno ili putem bulk uvoza
-                </strong>{" "}
-                — iz Excel-a ili CSV fajla. Svaki član ima ime, jedinstveni kod
+                </strong>,{" "}
+                iz Excel-a ili CSV fajla. Svaki član ima ime, jedinstveni kod
                 i datum važenja članstva.
               </li>
               <li>
-                <strong>Preuzmite PDF kartica ili ZIP arhivu</strong> —
+                <strong>Preuzmite PDF kartica ili ZIP arhivu</strong>, 
                 pojedinačno ili sve odjednom za štampanje. Štampajte na PVC
                 kartice ili obični papir.
               </li>
@@ -1421,7 +1421,7 @@ function ClanskeKarticeApp() {
               QR kod i <em>verifikacija članstva</em>
             </h2>
             <p style={{ fontSize: "14.5px", lineHeight: 1.65 }}>
-              QR kod na kartici sadrži jedinstveni identifikator člana — kod ili
+              QR kod na kartici sadrži jedinstveni identifikator člana, kod ili
               URL koji vodi na profil člana. Mobilni telefon ili poseban skener
               očita podatke u sekundi.
             </p>
@@ -1474,8 +1474,8 @@ function ClanskeKarticeApp() {
                   }}
                 >
                   Fakture i računi
-                </a>{" "}
-                — fakturišite članarine i ostale usluge organizacije.
+                </a>,{" "}
+                fakturišite članarine i ostale usluge organizacije.
               </li>
               <li>
                 <a
@@ -1487,8 +1487,8 @@ function ClanskeKarticeApp() {
                   }}
                 >
                   Obračun plata
-                </a>{" "}
-                — ako vaša organizacija ima radnike.
+                </a>,{" "}
+                ako vaša organizacija ima radnike.
               </li>
               <li>
                 <a
@@ -1500,8 +1500,8 @@ function ClanskeKarticeApp() {
                   }}
                 >
                   Pretplata
-                </a>{" "}
-                — generator članskih kartica dostupan je uz Pro pretplatu.
+                </a>,{" "}
+                generator članskih kartica dostupan je uz Pro pretplatu.
               </li>
             </ul>
           </section>
@@ -1515,16 +1515,16 @@ function ClanskeKarticeApp() {
             <details className={styles.faqItem}>
               <summary>U kojem formatu treba biti fajl za uvoz?</summary>
               <p>
-                Excel (<code>.xlsx</code>, <code>.xls</code>) ili CSV (
+                Excel (<code>.xlsx</code>–<code>.xls</code>) ili CSV (
                 <code>.csv</code>). CSV može koristiti zarez <code>,</code> ili
-                tačku-zarez <code>;</code> kao razdvojnik — auto-detektuje se.
+                tačku-zarez <code>;</code> kao razdvojnik, auto-detektuje se.
               </p>
             </details>
 
             <details className={styles.faqItem}>
               <summary>Koliko kartica mogu generisati odjednom?</summary>
               <p>
-                Praktično nema limita — testirano sa 200+ članova. Što je veća
+                Praktično nema limita, testirano sa 200+ članova. Što je veća
                 lista, generisanje traje duže (orijentaciono ~50 kartica/sec,
                 ovisi o uređaju). Tokom generisanja vidiš progres (npr.{" "}
                 <em>Generišem… 47/200</em>).
@@ -1536,7 +1536,7 @@ function ClanskeKarticeApp() {
               <p>
                 Dodaj kolonu <em>vrijedi do</em> u Excel/CSV. Za članove kojima
                 je ćelija prazna, koristi se "Vrijedi do" iz forme iznad. Za one
-                kojima je popunjeno — koristi se njihov vlastiti datum.
+                kojima je popunjeno, koristi se njihov vlastiti datum.
               </p>
             </details>
 
@@ -1545,19 +1545,19 @@ function ClanskeKarticeApp() {
                 Mogu li koristiti ćirilicu ili dijakritičke znakove?
               </summary>
               <p>
-                U podacima na kartici (ime, klub) — da, podržano je. U nazivima
-                fajlova u ZIP-u — dijakritika se transliterira (Š → S, ć → c)
+                U podacima na kartici (ime, klub), da, podržano je. U nazivima
+                fajlova u ZIP-u, dijakritika se transliterira (Š → S, ć → c)
                 zbog kompatibilnosti sa svim sistemima.
               </p>
             </details>
 
             <details className={styles.faqItem}>
-              <summary>QR kod ne radi pri skeniranju — šta provjeriti?</summary>
+              <summary>QR kod ne radi pri skeniranju, šta provjeriti?</summary>
               <p>
-                Provjeri da je kod (broj članstva) unesen — prazan kod znači
+                Provjeri da je kod (broj članstva) unesen, prazan kod znači
                 placeholder. Pri štampi koristi minimum 300 DPI; pri prikazu na
                 mobitelu osvjetli ekran. Za jako duge kodove (preko 100 znakova)
-                QR postaje gust — koristi kraći identifikator.
+                QR postaje gust, koristi kraći identifikator.
               </p>
             </details>
 
@@ -1566,7 +1566,7 @@ function ClanskeKarticeApp() {
                 Kako da kartica ima isti izgled kao u preview-u?
               </summary>
               <p>
-                Već ima — pregled je tačno isti raspored kao i finalni PDF (ista
+                Već ima, pregled je tačno isti raspored kao i finalni PDF (ista
                 veličina kreditne kartice 85×55 mm, iste pozicije logoa, QR-a,
                 imena i datuma).
               </p>
@@ -1575,7 +1575,7 @@ function ClanskeKarticeApp() {
             <details className={styles.faqItem}>
               <summary>Mogu li promijeniti boju klub naslova?</summary>
               <p>
-                Da — u formi izaberi "Boja kluba (akcent)". Ta boja se
+                Da, u formi izaberi "Boja kluba (akcent)". Ta boja se
                 primjenjuje i na pojedinačnu i na bulk generaciju (svi članovi
                 dobiju isti akcent).
               </p>
@@ -1586,7 +1586,7 @@ function ClanskeKarticeApp() {
               <p>
                 Provjeri da je prvi red naslov i da koristi neku od prepoznatih
                 riječi (vidi listu iznad). Alternativa: skini header i stavi ime
-                u 1. kolonu, kod u 2., datum u 3. — automatski će se uzeti tim
+                u 1. kolonu, kod u 2., datum u 3. automatski će se uzeti tim
                 redoslijedom.
               </p>
             </details>
@@ -1594,11 +1594,11 @@ function ClanskeKarticeApp() {
             <details className={styles.faqItem}>
               <summary>Da li se podaci o članovima čuvaju negdje?</summary>
               <p>
-                Lista članova (ime, kod, datum istjeka) se sprema na tvoj nalog
-                — automatski pri svakom generisanju kartice ili ZIP-a. Možeš ih
+                Lista članova (ime, kod, datum istjeka) se sprema na tvoj nalog,
+                automatski pri svakom generisanju kartice ili ZIP-a. Možeš ih
                 kasnije pristupiti sa bilo kojeg uređaja iz iste sekcije. Sama
                 obrada PDF-a (parsiranje fajla, generisanje, ZIP-anje) dešava se
-                u browseru — fajl ne napušta tvoj uređaj.
+                u browseru, fajl ne napušta tvoj uređaj.
               </p>
             </details>
 
@@ -1607,7 +1607,7 @@ function ClanskeKarticeApp() {
               <p>
                 U lijevoj bočnoj traci klikni ikonicu kante (<em>🗑</em>) pored
                 imena, pa potvrdi (✓). Brisanjem člana ne briše se PDF kartice
-                koju si već preuzeo — samo unos sa liste.
+                koju si već preuzeo, samo unos sa liste.
               </p>
             </details>
 
@@ -1615,7 +1615,7 @@ function ClanskeKarticeApp() {
               <summary>Šta ako uvezem isti CSV/Excel dva puta?</summary>
               <p>
                 Ne dolazi do duplikata. Bulk uvoz radi <em>upsert</em> po paru
-                organizacija + kod — članovi sa istim kodom se ažuriraju (novo
+                organizacija + kod, članovi sa istim kodom se ažuriraju (novo
                 ime, novi datum), a novi se dodaju.
               </p>
             </details>

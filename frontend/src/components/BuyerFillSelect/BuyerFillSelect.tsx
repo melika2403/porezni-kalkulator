@@ -23,7 +23,7 @@ export type BuyerFillData = {
   phone: string | null;
   email: string | null;
   idNumber: string | null; // ID broj (jmbg za fizičko, taxNumber za organizaciju)
-  vatNumber?: string | null; // PDV broj — derivira se iz taxNumber-a
+  vatNumber?: string | null; // PDV broj, derivira se iz taxNumber-a
   // Dodatna polja korisna kada se popunjava prodavac na fakturi:
   bankAccount?: string | null;
   logoUrl?: string | null;
@@ -40,7 +40,7 @@ function personLabel(c: PersonClient): string {
 
 function workerLabel(w: WorkerWithOrg): string {
   const name = [w.firstName, w.lastName].filter(Boolean).join(" ").trim();
-  return `${name || `#${w.id}`} — ${w.organizationName}`;
+  return `${name || `#${w.id}`}, ${w.organizationName}`;
 }
 
 export default function BuyerFillSelect({ onFill }: Props) {
@@ -112,7 +112,7 @@ export default function BuyerFillSelect({ onFill }: Props) {
             className={styles.fillBtn}
             onClick={() => setOpen((v) => !v)}
           >
-            — Popuni iz profila —
+            – Popuni iz profila –
             <svg
               width="12"
               height="12"
@@ -273,7 +273,7 @@ export default function BuyerFillSelect({ onFill }: Props) {
           className={styles.fillBtn}
           onClick={() => setOpen((v) => !v)}
         >
-          — Popuni iz profila —
+          – Popuni iz profila –
           <svg
             width="12"
             height="12"

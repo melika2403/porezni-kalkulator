@@ -38,7 +38,7 @@ function personLabel(c: PersonClient) {
 
 function workerLabel(w: WorkerWithOrg) {
   const name = [w.lastName, w.firstName].filter(Boolean).join(" ").trim();
-  return `${name || `#${w.id}`} — ${w.organizationName}`;
+  return `${name || `#${w.id}`}, ${w.organizationName}`;
 }
 
 const CHEVRON = (
@@ -113,7 +113,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
       <div className={styles.fillWrap}>
         <div className={styles.dropdownWrap} ref={wrapRef}>
           <button type="button" className={styles.fillBtn} onClick={() => setOpen((v) => !v)}>
-            — Popuni podatke — {CHEVRON}
+            – Popuni podatke – {CHEVRON}
           </button>
           {open && (
             <div className={styles.guestPanel}>
@@ -160,7 +160,7 @@ export default function UgovorFillSelect({ onFill }: Props) {
     <div className={styles.fillWrap}>
       <div className={styles.dropdownWrap} ref={wrapRef}>
         <button type="button" className={styles.fillBtn} onClick={() => setOpen((v) => !v)}>
-          — Popuni podatke — {CHEVRON}
+          – Popuni podatke – {CHEVRON}
         </button>
 
         {open && (

@@ -100,7 +100,7 @@ function bsFmt(n: number): string {
 }
 
 function fmtKm(n: number | null): string {
-  if (n === null) return "—";
+  if (n === null) return "–";
   return bsFmt(n);
 }
 
@@ -1086,7 +1086,7 @@ function AmortizacijaApp() {
             cursor: "pointer",
           }}
         >
-          <option value="">— Odaberi —</option>
+          <option value="">– Odaberi –</option>
           {ownOrgs.length > 0 && (
             <optgroup label="Moje organizacije">
               {ownOrgs.map((o) => {
@@ -1156,7 +1156,7 @@ function AmortizacijaApp() {
             textDecoration: "underline",
           }}
         >
-          Limit od {PRO_CLIENT_LIMIT} klijenata dostignut — nadogradi na Business
+          Limit od {PRO_CLIENT_LIMIT} klijenata dostignut, nadogradi na Business
         </a>
       )}
     </div>
@@ -1165,11 +1165,11 @@ function AmortizacijaApp() {
   return (
     <div className={styles.pageOuter}>
       <SaveToast status={saveStatus} />
-      {/* Header — full width, above sidebar layout */}
+      {/* Header, full width, above sidebar layout */}
       <div className={styles.header}>
         <p className={styles.label}>Obrazac PLDI-1043</p>
         <h1 className={styles.h1}>
-          PLDI-1043 obrazac — popisna lista <em>dugotrajne imovine i amortizacija</em>
+          PLDI-1043 obrazac, popisna lista <em>dugotrajne imovine i amortizacija</em>
         </h1>
         <p className={styles.subtitle}>
           Kako popuniti PLDI-1043 obrazac? Evidencija dugotrajne imovine i
@@ -1179,7 +1179,7 @@ function AmortizacijaApp() {
         </p>
       </div>
 
-      {/* Year switcher — full width, above sidebar/content row */}
+      {/* Year switcher, full width, above sidebar/content row */}
       <div className={styles.yearBar}>
         {allYears.map((yr) => (
           <button
@@ -1231,7 +1231,7 @@ function AmortizacijaApp() {
     <div className={styles.page}>
       {orgPicker}
 
-      {/* Dio 1 — Podaci */}
+      {/* Dio 1, Podaci */}
       <section className={styles.section}>
         <div className={styles.sectionTitleRow}>
           <h2 className={styles.sectionTitle}>
@@ -1282,23 +1282,23 @@ function AmortizacijaApp() {
           <div className={styles.guideBox}>
             <ol className={styles.guideList}>
               <li>
-                <strong>Dodajte svoju djelatnost</strong> — Ako još nemate dodanu organizaciju, idite na{" "}
+                <strong>Dodajte svoju djelatnost</strong>, Ako još nemate dodanu organizaciju, idite na{" "}
                 <a href="/profil" className={styles.guideLink}>Profil → Moje organizacije</a>{" "}
                 i dodajte je. Ako popunjavate za klijenta, idite na{" "}
                 <a href="/profil" className={styles.guideLink}>Profil → Klijenti</a>{" "}
                 i tamo dodajte klijenta sa njegovim podacima.
               </li>
               <li>
-                <strong>Odaberite ili dodajte klijenta u sidebaru</strong> — Kliknite <em>+ Dodaj klijenta</em> u lijevoj bočnoj traci da otvorite novi prazan obrazac. Ako popunjavate za sebe, možete raditi i bez klijenta.
+                <strong>Odaberite ili dodajte klijenta u sidebaru</strong>, Kliknite <em>+ Dodaj klijenta</em> u lijevoj bočnoj traci da otvorite novi prazan obrazac. Ako popunjavate za sebe, možete raditi i bez klijenta.
               </li>
               <li>
-                <strong>Popunite djelatnost</strong> — Kliknite dugme <em>Popuni djelatnost</em> i odaberite organizaciju sa liste. Podaci o djelatnosti i vlasniku bit će automatski upisani u obrazac.
+                <strong>Popunite djelatnost</strong>, Kliknite dugme <em>Popuni djelatnost</em> i odaberite organizaciju sa liste. Podaci o djelatnosti i vlasniku bit će automatski upisani u obrazac.
               </li>
               <li>
-                <strong>Unesite osnovna sredstva</strong> — U tabeli ispod dodajte svako stalno sredstvo: naziv, datum nabavke, broj dokumenta, nabavnu vrijednost, početnu knjigovodstvenu vrijednost i vijek trajanja. Iznos amortizacije se računa automatski.
+                <strong>Unesite osnovna sredstva</strong>, U tabeli ispod dodajte svako stalno sredstvo: naziv, datum nabavke, broj dokumenta, nabavnu vrijednost, početnu knjigovodstvenu vrijednost i vijek trajanja. Iznos amortizacije se računa automatski.
               </li>
               <li>
-                <strong>Sačuvajte i preuzmite obrazac</strong> — Kliknite <em>Sačuvaj na profil</em> da pohranite podatke na vaš nalog gdje im možete pristupiti u svakom trenutku. Kliknite <em>Preuzmi obrazac</em> da preuzmete popunjeni PLDI-1043 PDF — obrazac se automatski sačuva na profilu i klijent se kreira ako već nije upisan. Kada prenesete podatke u narednu godinu klikom na <em>Prenesi u godinu</em>, obrazac tekuće i naredne godine se automatski sačuva.
+                <strong>Sačuvajte i preuzmite obrazac</strong>, Kliknite <em>Sačuvaj na profil</em> da pohranite podatke na vaš nalog gdje im možete pristupiti u svakom trenutku. Kliknite <em>Preuzmi obrazac</em> da preuzmete popunjeni PLDI-1043 PDF, obrazac se automatski sačuva na profilu i klijent se kreira ako već nije upisan. Kada prenesete podatke u narednu godinu klikom na <em>Prenesi u godinu</em>, obrazac tekuće i naredne godine se automatski sačuva.
               </li>
             </ol>
           </div>
@@ -1350,7 +1350,7 @@ function AmortizacijaApp() {
           <div className={styles.colGroup}>
             <div className={styles.colLabelRow}>
               <p className={styles.colLabel}>Registrovana djelatnost</p>
-              {/* OrgFillSelect uklonjen — djelatnost se sada auto-popunjava iz
+              {/* OrgFillSelect uklonjen, djelatnost se sada auto-popunjava iz
                   odabrane Organization (handleSelectOrg). Ako user želi ručno
                   prepravljati, polja ispod su editabilna. */}
             </div>
@@ -1456,7 +1456,7 @@ function AmortizacijaApp() {
                     className={styles.fieldInput}
                   />
                 </div>
-                <div className={styles.periodSep}>—</div>
+                <div className={styles.periodSep}>–</div>
                 <div className={styles.fieldGroup} style={{ width: 160 }}>
                   <label className={styles.fieldLabel}>do</label>
                   <DateInput
@@ -1494,7 +1494,7 @@ function AmortizacijaApp() {
         </div>
       </section>
 
-      {/* Dio 2 — Tabela */}
+      {/* Dio 2, Tabela */}
       <section className={styles.section}>
         <h2
           className={styles.sectionTitle}
@@ -1623,7 +1623,7 @@ function AmortizacijaApp() {
                         className={`${styles.tdInput} ${styles.tdCenter}`}
                         value={row.brojDokumenta}
                         onChange={setRow(row.id, "brojDokumenta")}
-                        placeholder="—"
+                        placeholder="–"
                       />
                     </td>
                     <td>
@@ -1665,7 +1665,7 @@ function AmortizacijaApp() {
                         placeholder={
                           VIJEK_STOPA[row.vijekTrajanja]
                             ? String(VIJEK_STOPA[row.vijekTrajanja])
-                            : "—"
+                            : "–"
                         }
                         inputMode="decimal"
                         title="Stopa amortizacije (%)"
@@ -1696,7 +1696,7 @@ function AmortizacijaApp() {
                           className={`${styles.tdInput} ${!row.datumProdaje ? styles.tdDatumProdajeHighlight : ""}`}
                         />
                       ) : (
-                        <span className={styles.tdEmpty}>—</span>
+                        <span className={styles.tdEmpty}>–</span>
                       )}
                     </td>
                     <td className={styles.tdCenter}>
@@ -1724,7 +1724,7 @@ function AmortizacijaApp() {
             <tfoot>
               <tr className={styles.totalRow}>
                 <td colSpan={4} className={styles.totalLabel}>
-                  Ukupno za sve stranice — prijenos
+                  Ukupno za sve stranice, prijenos
                 </td>
                 <td className={styles.totalKm}>{fmtKm(totals.nabavna)}</td>
                 <td className={styles.totalKm}>{fmtKm(totals.kv)}</td>
@@ -1922,15 +1922,15 @@ function AmortizacijaApp() {
           <strong>Stalna sredstva</strong> (dugotrajna imovina) su materijalna
           i nematerijalna dobra koja se koriste u poslovanju duže od jedne
           godine i čija nabavna vrijednost prelazi propisani prag. U FBiH se
-          evidentiraju na obrascu <strong>PLDI-1043</strong> — Popisnoj listi
+          evidentiraju na obrascu <strong>PLDI-1043</strong>, Popisnoj listi
           dugotrajne imovine, koja se predaje kao prilog uz GPD-1051 i SPR-1053.
         </p>
         <p style={{ marginTop: "0.85rem" }}>
           <strong>Amortizacija</strong> je postupak postupnog prenošenja
           nabavne vrijednosti sredstva na rashode poslovanja kroz njegov vijek
           trajanja. Umjesto da cjelokupna nabavna vrijednost optereti rashode
-          u godini nabavke, ona se ravnomjerno raspoređuje na godine korištenja
-          — što daje stvarniju sliku poslovnog rezultata i smanjuje oporezivu
+          u godini nabavke, ona se ravnomjerno raspoređuje na godine korištenja,
+          što daje stvarniju sliku poslovnog rezultata i smanjuje oporezivu
           osnovicu kroz više godina.
         </p>
       </section>
@@ -1946,26 +1946,26 @@ function AmortizacijaApp() {
         </p>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Računari i softver</strong> — vijek 3 godine, stopa <strong>33,33%</strong>
+            <strong>Računari i softver</strong>, vijek 3 godine, stopa <strong>33,33%</strong>
           </li>
           <li>
-            <strong>Putnička vozila</strong> — vijek 5 godina, stopa <strong>20%</strong>
+            <strong>Putnička vozila</strong>, vijek 5 godina, stopa <strong>20%</strong>
           </li>
           <li>
-            <strong>Oprema i mašine</strong> — vijek 7 godina, stopa <strong>14,29%</strong>
+            <strong>Oprema i mašine</strong>, vijek 7 godina, stopa <strong>14,29%</strong>
           </li>
           <li>
-            <strong>Namještaj</strong> — vijek 10 godina, stopa <strong>10%</strong>
+            <strong>Namještaj</strong>, vijek 10 godina, stopa <strong>10%</strong>
           </li>
           <li>
-            <strong>Poslovni objekti</strong> — vijek 25–40 godina, stopa <strong>2,5%–4%</strong>
+            <strong>Poslovni objekti</strong>, vijek 25–40 godina, stopa <strong>2,5%–4%</strong>
           </li>
           <li>
-            <strong>Nematerijalna imovina</strong> (patenti, licence) — prema ugovornom roku
+            <strong>Nematerijalna imovina</strong> (patenti, licence), prema ugovornom roku
           </li>
         </ul>
         <p style={{ marginTop: "0.85rem" }}>
-          U FBiH se primjenjuje <strong>linearna metoda amortizacije</strong> —
+          U FBiH se primjenjuje <strong>linearna metoda amortizacije</strong>, 
           ravnomjerno tokom cijelog vijeka trajanja sredstva. Stopa za isto
           sredstvo ne mijenja se iz godine u godinu.
         </p>
@@ -1977,22 +1977,22 @@ function AmortizacijaApp() {
         </h2>
         <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
           <li>
-            <strong>Dodajte stalna sredstva</strong> — unesite naziv, datum
+            <strong>Dodajte stalna sredstva</strong>, unesite naziv, datum
             nabavke, nabavnu vrijednost, vijek trajanja i stopu amortizacije.
             Za prijavljene korisnike sredstva se čuvaju u profilu.
           </li>
           <li>
-            <strong>Automatski obračun</strong> — sistem računa godišnju
+            <strong>Automatski obračun</strong>, sistem računa godišnju
             amortizaciju, akumuliranu amortizaciju i preostalu knjigovodstvenu
             vrijednost za odabranu godinu.
           </li>
           <li>
-            <strong>Prenos u sljedeću godinu</strong> — knjigovodstvena
+            <strong>Prenos u sljedeću godinu</strong>, knjigovodstvena
             vrijednost se automatski prenosi u narednu godinu kao početno stanje
             (kolona 13 → kolona 4 sljedeće godine).
           </li>
           <li>
-            <strong>Označavanje prodaje/otpisa</strong> — kad prodate ili
+            <strong>Označavanje prodaje/otpisa</strong>, kad prodate ili
             otpišete sredstvo, označite to u obrascu. Sredstvo se neće prenijeti
             u narednu godinu.
           </li>
@@ -2009,7 +2009,7 @@ function AmortizacijaApp() {
         </h2>
         <p>
           Kada se sredstvo proda ili otpiše prije isteka vijeka trajanja,
-          amortizacija se obračunava samo za period korištenja u toj godini —
+          amortizacija se obračunava samo za period korištenja u toj godini, 
           do datuma prodaje ili otpisa. Preostala knjigovodstvena vrijednost
           se <strong>ne prenosi u sljedeću godinu</strong>, a u koloni 17
           PLDI obrasca upisuje se napomena o prodaji.
@@ -2029,21 +2029,21 @@ function AmortizacijaApp() {
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
             <a href="/spr" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              SPR-1053 — specifikacija dohotka samostalne djelatnosti
-            </a>{" "}
-            — amortizacija ulazi kao rashod u SPR.
+              SPR-1053, specifikacija dohotka samostalne djelatnosti
+            </a>,{" "}
+            amortizacija ulazi kao rashod u SPR.
           </li>
           <li>
             <a href="/gpd" style={{ color: "var(--sage)", fontWeight: 600 }}>
-              GPD-1051 — godišnja prijava poreza
-            </a>{" "}
-            — PLDI je prilog uz GPD-1051.
+              GPD-1051, godišnja prijava poreza
+            </a>,{" "}
+            PLDI je prilog uz GPD-1051.
           </li>
           <li>
             <a href="/javni-prihodi" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Uplatni računi javnih prihoda
-            </a>{" "}
-            — računi za uplatu poreza i doprinosa nakon obračuna SPR-a.
+            </a>,{" "}
+            računi za uplatu poreza i doprinosa nakon obračuna SPR-a.
           </li>
         </ul>
       </section>
@@ -2060,7 +2060,7 @@ function AmortizacijaApp() {
           },
           {
             q: "Koje stope amortizacije se primjenjuju u FBiH?",
-            a: "Stope amortizacije ovise o vijeku trajanja sredstva. Primjeri: računari i softver (3 god. — 33,33%), vozila (5 god. — 20%), oprema (7 god. — 14,29%), poslovni objekti (25–40 god. — 2,5–4%). Porezno priznate stope propisane su Pravilnikom o primjeni Zakona o porezu na dohodak FBiH.",
+            a: "Stope amortizacije ovise o vijeku trajanja sredstva. Primjeri: računari i softver (3 god. 33,33%), vozila (5 god. 20%), oprema (7 god. 14,29%), poslovni objekti (25–40 god. 2,5–4%). Porezno priznate stope propisane su Pravilnikom o primjeni Zakona o porezu na dohodak FBiH.",
           },
           {
             q: "Šta se dešava kad je sredstvo prodano ili otpisano?",

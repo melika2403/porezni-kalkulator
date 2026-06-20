@@ -13,18 +13,18 @@ export type VrstaIsplate2001 = "DOPRINOSA_I_POREZA" | "SAMO_DOPRINOSA" | "SAMO_P
 export interface Obrazac2001Data {
   // Dio 1 — Podaci o poslodavcu/isplatiocu i plaćama
   naziv: string; // 1
-  jib: string; // 2 — 13 cifara
+  jib: string; // 2, 13 cifara
   adresa: string; // 3
   opcina: string; // 4
-  periodOdDan: string; // 5 — 2 cifre
+  periodOdDan: string; // 5, 2 cifre
   periodOdMjesec: string;
   periodOdGodina: string; // 4 cifre
   periodDoDan: string;
   periodDoMjesec: string;
   periodDoGodina: string;
-  vrstaDjelatnosti: string; // 6 — šifra + naziv
+  vrstaDjelatnosti: string; // 6, šifra + naziv
   brojZaposlenih: string; // 7
-  placeUNovcu: string; // 8 — formatiran iznos (npr. "1.234,56")
+  placeUNovcu: string; // 8, formatiran iznos (npr. "1.234,56")
   placeUStvarima: string; // 9
   ukupnePlace: string; // 10
   nerezident: boolean; // 11

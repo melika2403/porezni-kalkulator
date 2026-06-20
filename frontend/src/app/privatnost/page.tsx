@@ -3,9 +3,9 @@ import Link from "next/link";
 import styles from "../legal.module.css";
 
 export const metadata: Metadata = {
-  title: "Politika privatnosti — Porezni Kalkulator BiH",
+  title: "Politika privatnosti, Porezni Kalkulator BiH",
   description:
-    "Politika privatnosti platforme Porezni Kalkulator BiH — kako prikupljamo, koristimo i štitimo vaše podatke, podatke o klijentima i radnicima.",
+    "Politika privatnosti platforme Porezni Kalkulator BiH, kako prikupljamo, koristimo i štitimo vaše podatke, podatke o klijentima i radnicima.",
   alternates: { canonical: "https://poreznikalkulator.ba/privatnost" },
 };
 
@@ -40,9 +40,9 @@ export default function PrivatnostPage() {
         <h3>2.1 Podaci o vašem računu</h3>
         <p>Kada se registrujete na Platformu prikupljamo sljedeće podatke:</p>
         <ul>
-          <li>Email adresu (obavezno) — za prijavu i komunikaciju u vezi s nalogom</li>
+          <li>Email adresu (obavezno), za prijavu i komunikaciju u vezi s nalogom</li>
           <li>Ime i prezime (obavezno)</li>
-          <li>Lozinku — koja se čuva u kriptovanom (hashed) obliku, ne u plaintext-u</li>
+          <li>Lozinku, koja se čuva u kriptovanom (hashed) obliku, ne u plaintext-u</li>
           <li>
             Datum registracije, datum aktiviranja trial-a i istorija pretplata (Free/Pro/Business)
           </li>
@@ -56,7 +56,7 @@ export default function PrivatnostPage() {
         <ul>
           <li>Naziv firme/obrta, JIB, šifra djelatnosti, adresa, telefon</li>
           <li>Podaci o transakcijskom računu (za fakture i predračune)</li>
-          <li>Podaci o vlasniku (za obrte) — JMB, adresa, kontakt</li>
+          <li>Podaci o vlasniku (za obrte), JMB, adresa, kontakt</li>
         </ul>
 
         <h3>2.3 Podaci o klijentima i radnicima (samo Business pretplata)</h3>
@@ -64,7 +64,7 @@ export default function PrivatnostPage() {
           Korisnici sa Business pretplatom mogu unositi podatke o svojim klijentima (fizička i
           pravna lica) i radnicima radi generisanja dokumenata. Ovi podaci uključuju ime, prezime,
           JMB, adresu, broj radne knjižice, pozicije, plate i slično. Više o ovom odnosu možete
-          pročitati u sekciji <strong>5. Klijenti i radnici — vaši podaci pod vašom kontrolom</strong>{" "}
+          pročitati u sekciji <strong>5. Klijenti i radnici, vaši podaci pod vašom kontrolom</strong>{" "}
           ispod.
         </p>
 
@@ -78,21 +78,21 @@ export default function PrivatnostPage() {
         </p>
         <ul>
           <li>
-            <strong>Šifriranje (enkripcija)</strong> — JMB se čuva u kriptovanom obliku u bazi
+            <strong>Šifriranje (enkripcija)</strong>, JMB se čuva u kriptovanom obliku u bazi
             podataka, ne u plaintextu. Ni administratori sistema ne mogu pročitati JMB iz baze.
           </li>
           <li>
-            <strong>Strogo ograničen pristup</strong> — JMB vidi isključivo korisnik koji ga je
+            <strong>Strogo ograničen pristup</strong>, JMB vidi isključivo korisnik koji ga je
             unio, prilikom prijavljenog pristupa svom nalogu. Ne prikazujemo JMB u logovima, email
             obavještenjima ni internim alatima.
           </li>
           <li>
-            <strong>Korištenje po potrebi</strong> — JMB se dešifruje samo u trenutku kada ga je
+            <strong>Korištenje po potrebi</strong>, JMB se dešifruje samo u trenutku kada ga je
             potrebno upisati u generisani dokument (obrazac, ugovor), a zatim odbacuje iz memorije.
           </li>
         </ul>
         <p>
-          Ista pravila važe i za JMB klijenata i radnika koje unosite u Business nalogu — vidi ih
+          Ista pravila važe i za JMB klijenata i radnika koje unosite u Business nalogu, vidi ih
           samo vaš nalog, šifrirano se čuvaju i pristupaju samo prilikom generisanja dokumenata.
         </p>
 
@@ -106,17 +106,17 @@ export default function PrivatnostPage() {
         <h3>2.6 Podaci o korištenju i tehnički podaci</h3>
         <ul>
           <li>
-            <strong>Google Analytics</strong> — anonimne metrike posjete (broj posjetitelja,
+            <strong>Google Analytics</strong>, anonimne metrike posjete (broj posjetitelja,
             stranice, trajanje sesije, izvor posjete). Podaci se agregiraju i ne identifikuju
             korisnika lično.
           </li>
           <li>
-            <strong>Tehnički podaci</strong> — IP adresa, tip preglednika i operativni sistem, koje
+            <strong>Tehnički podaci</strong>, IP adresa, tip preglednika i operativni sistem, koje
             automatski bilježe naši serveri radi sigurnosti i dijagnostike. IP adresa se čuva
             ograničeni period.
           </li>
           <li>
-            <strong>Pristupni logovi</strong> — vrijeme i tip akcija u nalogu (login, generisanje
+            <strong>Pristupni logovi</strong>, vrijeme i tip akcija u nalogu (login, generisanje
             dokumenata) radi sigurnosti i otklanjanja problema.
           </li>
         </ul>
@@ -125,20 +125,20 @@ export default function PrivatnostPage() {
         <p>Vaše podatke obrađujemo na temelju sljedećih osnova:</p>
         <ul>
           <li>
-            <strong>Izvršenje ugovora</strong> — obrada podataka o nalogu, profilu i generisanim
+            <strong>Izvršenje ugovora</strong>, obrada podataka o nalogu, profilu i generisanim
             dokumentima neophodna je za pružanje usluge koju ste zatražili registracijom i
             pretplatom
           </li>
           <li>
-            <strong>Zakonska obaveza</strong> — čuvanje podataka o uplatama, predračunima i fakturama
+            <strong>Zakonska obaveza</strong>, čuvanje podataka o uplatama, predračunima i fakturama
             u skladu s poreznim i računovodstvenim propisima
           </li>
           <li>
-            <strong>Legitimni interes</strong> — sigurnost Platforme, sprečavanje zloupotrebe,
+            <strong>Legitimni interes</strong>, sigurnost Platforme, sprečavanje zloupotrebe,
             analitika korištenja, komunikacija o važnim izmjenama
           </li>
           <li>
-            <strong>Privola</strong> — Google Analytics i marketinška komunikacija (ako je
+            <strong>Privola</strong>, Google Analytics i marketinška komunikacija (ako je
             primjenjivo). Privolu možete u bilo koje vrijeme povući.
           </li>
         </ul>
@@ -147,15 +147,15 @@ export default function PrivatnostPage() {
         <p>Platforma koristi sljedeće kolačiće:</p>
         <ul>
           <li>
-            <strong>Esencijalni kolačići</strong> — neophodni za rad Platforme (autentikacija /
+            <strong>Esencijalni kolačići</strong>, neophodni za rad Platforme (autentikacija /
             login session, sigurnosni tokeni). Ne mogu se isključiti.
           </li>
           <li>
-            <strong>Funkcionalni kolačići</strong> — pamćenje vaših postavki (npr. odabrana
+            <strong>Funkcionalni kolačići</strong>, pamćenje vaših postavki (npr. odabrana
             organizacija/klijent).
           </li>
           <li>
-            <strong>Analitički kolačići</strong> — Google Analytics kolačići koji nam pomažu razumjeti
+            <strong>Analitički kolačići</strong>, Google Analytics kolačići koji nam pomažu razumjeti
             kako korisnici koriste Platformu. Podaci su anonimni i agregirani.
           </li>
         </ul>
@@ -164,7 +164,7 @@ export default function PrivatnostPage() {
           kolačića onemogućava korištenje Platforme (login).
         </p>
 
-        <h2>5. Klijenti i radnici — vaši podaci pod vašom kontrolom</h2>
+        <h2>5. Klijenti i radnici, vaši podaci pod vašom kontrolom</h2>
         <p>
           Kada Business pretplatnik unosi podatke o svojim klijentima i radnicima u Platformu,
           uloge se dijele kako slijedi:
@@ -176,7 +176,7 @@ export default function PrivatnostPage() {
             poslovni odnos, zakonska obaveza) i odgovorni ste za informisanje subjekata podataka.
           </li>
           <li>
-            <strong>Mi (Davalac usluge)</strong> smo <strong>obrađivač</strong> (processor) — te
+            <strong>Mi (Davalac usluge)</strong> smo <strong>obrađivač</strong> (processor), te
             podatke obrađujemo isključivo po vašem nalogu, u svrhu pružanja usluge (generisanje
             ugovora, faktura, evidencija). Ne koristimo ih za vlastite svrhe, ne prodajemo ih i ne
             dijelimo s trećim stranama (osim u slučajevima iz tačke 7).
@@ -203,19 +203,19 @@ export default function PrivatnostPage() {
         </p>
         <ul>
           <li>
-            <strong>Pružaocima hosting i infrastrukturnih usluga</strong> — radi tehničkog
+            <strong>Pružaocima hosting i infrastrukturnih usluga</strong>, radi tehničkog
             funkcionisanja Platforme (cloud hosting, baza podataka, sigurnosne kopije)
           </li>
           <li>
-            <strong>Pružaocima usluga slanja emaila</strong> — za transakcijske emailove
+            <strong>Pružaocima usluga slanja emaila</strong>, za transakcijske emailove
             (verifikacija registracije, reset lozinke, podsjetnik za uplatu pretplate)
           </li>
           <li>
-            <strong>Google-om</strong> — kroz Google Analytics, samo anonimni i agregirani podaci o
+            <strong>Google-om</strong>, kroz Google Analytics, samo anonimni i agregirani podaci o
             posjeti
           </li>
           <li>
-            <strong>Nadležnim organima</strong> — kada to zahtijeva zakon, sudski nalog ili drugi
+            <strong>Nadležnim organima</strong>, kada to zahtijeva zakon, sudski nalog ili drugi
             obavezujući akt nadležnog organa
           </li>
         </ul>
@@ -228,22 +228,22 @@ export default function PrivatnostPage() {
         <h2>8. Čuvanje podataka</h2>
         <ul>
           <li>
-            <strong>Aktivni nalozi</strong> — podaci se čuvaju dokle god je nalog aktivan
+            <strong>Aktivni nalozi</strong>, podaci se čuvaju dokle god je nalog aktivan
           </li>
           <li>
-            <strong>Neaktivni nalozi</strong> — ako se ne prijavite na nalog duže od 24 mjeseca,
+            <strong>Neaktivni nalozi</strong>, ako se ne prijavite na nalog duže od 24 mjeseca,
             možemo vas kontaktirati radi potvrde i nakon toga obrisati nalog ako ne odgovorite
           </li>
           <li>
-            <strong>Računovodstvena dokumentacija</strong> (predračuni, fakture) — čuva se u
+            <strong>Računovodstvena dokumentacija</strong> (predračuni, fakture), čuva se u
             zakonskim rokovima (do 11 godina)
           </li>
           <li>
-            <strong>Anonimni analitički podaci</strong> — mogu se čuvati neograničeno u agregatnom
+            <strong>Anonimni analitički podaci</strong>, mogu se čuvati neograničeno u agregatnom
             obliku
           </li>
           <li>
-            <strong>Pristupni logovi</strong> — uobičajeno 90 dana
+            <strong>Pristupni logovi</strong>, uobičajeno 90 dana
           </li>
         </ul>
 
@@ -251,23 +251,23 @@ export default function PrivatnostPage() {
         <p>U skladu s važećim propisima o zaštiti ličnih podataka, imate pravo na:</p>
         <ul>
           <li>
-            <strong>Pristup</strong> — saznati koje vaše podatke obrađujemo
+            <strong>Pristup</strong>, saznati koje vaše podatke obrađujemo
           </li>
           <li>
-            <strong>Ispravak</strong> — tražiti ispravak netačnih ili nepotpunih podataka
+            <strong>Ispravak</strong>, tražiti ispravak netačnih ili nepotpunih podataka
           </li>
           <li>
-            <strong>Brisanje („pravo na zaborav")</strong> — tražiti brisanje vaših podataka, osim
+            <strong>Brisanje („pravo na zaborav")</strong>, tražiti brisanje vaših podataka, osim
             kada zakon zahtijeva duže čuvanje
           </li>
           <li>
-            <strong>Ograničenje obrade</strong> — privremeno zaustaviti obradu pod određenim uvjetima
+            <strong>Ograničenje obrade</strong>, privremeno zaustaviti obradu pod određenim uvjetima
           </li>
           <li>
             <strong>Prigovor</strong> na obradu zasnovanu na legitimnom interesu
           </li>
           <li>
-            <strong>Prenosivost podataka</strong> — primiti svoje podatke u strukturisanom,
+            <strong>Prenosivost podataka</strong>, primiti svoje podatke u strukturisanom,
             mašinski čitljivom formatu
           </li>
           <li>

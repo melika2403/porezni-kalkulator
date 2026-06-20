@@ -104,7 +104,7 @@ export default function ClientFillSelect({ onFill }: Props) {
     return (
       <div className={styles.fillWrap}>
         <button type="button" className={styles.fillBtn} disabled title="Nema sačuvanih klijenata">
-          — Iz liste klijenata —
+          – Iz liste klijenata –
         </button>
       </div>
     );
@@ -118,7 +118,7 @@ export default function ClientFillSelect({ onFill }: Props) {
           className={styles.fillBtn}
           onClick={() => setOpen((v) => !v)}
         >
-          — Iz liste klijenata —
+          – Iz liste klijenata –
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 4l4 4 4-4" />
           </svg>

@@ -11,7 +11,7 @@ export default function PrijaveRadnikaEdu() {
         </h2>
         <p>
           Na stranici <strong>Obračun plata + JS3100</strong> objedinjene su sve
-          mjesečne obaveze prema radnicima u Federaciji BiH — od prijave novog
+          mjesečne obaveze prema radnicima u Federaciji BiH, od prijave novog
           radnika u Jedinstveni sistem registracije (JS3100), preko obračuna
           bruto/neto plate sa svim doprinosima i porezima, do generisanja
           uplatnica za banku, Obrazaca 2001 i 2002, te platnih listića za
@@ -26,7 +26,7 @@ export default function PrijaveRadnikaEdu() {
 
       <section className={styles.section}>
         <h2>
-          JS3100 — <em>prijava i odjava</em> radnika
+          JS3100, <em>prijava i odjava</em> radnika
         </h2>
         <p>
           <strong>JS3100</strong> je obrazac za prijavu, odjavu ili promjenu
@@ -69,9 +69,9 @@ export default function PrijaveRadnikaEdu() {
         </p>
         <p>
           Aplikacija automatski generiše sve zbirne uplatnice po vrstama
-          prihoda — PIO, zdravstveno (kantonalno + federalno), nezaposlenost
+          prihoda, PIO, zdravstveno (kantonalno + federalno), nezaposlenost
           (kantonalno + federalno), porez na dohodak po opcinama, vodna i
-          naknada za nesreće — sve sa ispravnim brojevima žiro računa,
+          naknada za nesreće, sve sa ispravnim brojevima žiro računa,
           šiframa vrste prihoda i opcinama prema sjedištu obrta i prebivalištu
           radnika.
         </p>
@@ -88,7 +88,7 @@ export default function PrijaveRadnikaEdu() {
         </p>
         <ul>
           <li>
-            <strong>Lista naloga za plaćanje</strong> — pregled svih naloga koje
+            <strong>Lista naloga za plaćanje</strong>, pregled svih naloga koje
             banka treba izvršiti za taj mjesec: doprinosi razdvojeni po vrstama
             (PIO, zdravstveno kantonalno/federalno, nezaposlenost
             kantonalna/federalna, porez na dohodak, fond invalida, vodna,
@@ -97,7 +97,7 @@ export default function PrijaveRadnikaEdu() {
             doprinosi razdvajaju na poseban set za vlasnika i za radnike.
           </li>
           <li>
-            <strong>Specifikacije po radniku</strong> — detaljan popis ko prima
+            <strong>Specifikacije po radniku</strong>, detaljan popis ko prima
             koliko i na koji žiro račun, razdvojeno po vrstama isplata: neto
             plate, topli obrok, putni trošak i regres. Svaka sekcija ima
             međuzbir, a na kraju je ukupan zbir svega. Banke ovo često traže
@@ -108,7 +108,7 @@ export default function PrijaveRadnikaEdu() {
 
       <section className={styles.section}>
         <h2>
-          Obrazac 2001 i Obrazac 2002 — <em>razlika</em>
+          Obrazac 2001 i Obrazac 2002, <em>razlika</em>
         </h2>
         <p>
           <strong>Obrazac 2001</strong> je mjesečna specifikacija isplata plata,
@@ -126,7 +126,7 @@ export default function PrijaveRadnikaEdu() {
 
       <section className={styles.section}>
         <h2>
-          MIP-1023 — <em>mjesečni izvještaj</em> o isplaćenim plaćama
+          MIP-1023, <em>mjesečni izvještaj</em> o isplaćenim plaćama
         </h2>
         <p>
           <strong>MIP-1023</strong> je mjesečni izvještaj o isplaćenim plaćama,
@@ -153,7 +153,7 @@ export default function PrijaveRadnikaEdu() {
 
       <section className={styles.section}>
         <h2>
-          GIP-1022 — <em>godišnji izvještaj</em> o ukupno isplaćenim plaćama
+          GIP-1022, <em>godišnji izvještaj</em> o ukupno isplaćenim plaćama
         </h2>
         <p>
           <strong>GIP-1022</strong> je godišnji izvještaj o ukupno isplaćenim
@@ -170,10 +170,10 @@ export default function PrijaveRadnikaEdu() {
         </p>
         <p>
           Aplikacija generiše GIP-1022 u tri varijante:{" "}
-          <strong>PDF (sve u jednom)</strong> — svi radnici u jednom kombinovanom
+          <strong>PDF (sve u jednom)</strong>, svi radnici u jednom kombinovanom
           PDF-u za lakšu štampu;{" "}
-          <strong>ZIP</strong> — zaseban PDF po radniku za individualnu predaju;
-          i <strong>XML</strong> — paketni format sa svim radnicima u jednom
+          <strong>ZIP</strong>, zaseban PDF po radniku za individualnu predaju;
+          i <strong>XML</strong>, paketni format sa svim radnicima u jednom
           fajlu, spreman za uvoz u nPIS. Vlasnici obrta su izuzeti iz GIP-a (oni
           se prijavljuju kroz Obrazac 2002 i godišnju poreznu prijavu obrtnika).
         </p>
@@ -197,7 +197,7 @@ export default function PrijaveRadnikaEdu() {
 
       <section className={styles.section}>
         <h2>
-          Kako koristiti — <em>brzi vodič</em>
+          Kako koristiti, <em>brzi vodič</em>
         </h2>
         <p>
           Mjesečni obračun plata u aplikaciji od prijave radnika do podnošenja
@@ -205,19 +205,19 @@ export default function PrijaveRadnikaEdu() {
         </p>
         <ol>
           <li>
-            <strong>Postaviti radnika</strong> — u{" "}
+            <strong>Postaviti radnika</strong>, u{" "}
             <a href="/aktivni-radnici">Aktivni radnici</a> ili kroz Profil →
             Radnici dodaj radnika (ime, JMB, adresa, bruto plata, datum
             prijave, ugovorene sate). Generiši <strong>JS3100</strong> obrazac
             za prijavu u Poreznu upravu (tab JS3100 prijava/odjava).
           </li>
           <li>
-            <strong>Otvoriti mjesečni obračun</strong> — pređi na tab{" "}
+            <strong>Otvoriti mjesečni obračun</strong>, pređi na tab{" "}
             <em>Obračun plata</em>, odaberi organizaciju, godinu i mjesec.
             Aplikacija prikazuje listu aktivnih radnika za taj mjesec.
           </li>
           <li>
-            <strong>Unijeti satnicu i dodatke</strong> — klikom na radnika
+            <strong>Unijeti satnicu i dodatke</strong>, klikom na radnika
             otvara se detalj sa poljima: bruto osnovica (iz ugovora), neto
             (preračunava se automatski), broj radnih sati, bolovanje,
             prekovremeni rad, noćni rad, nedjelje i praznici. U sekciji{" "}
@@ -226,18 +226,18 @@ export default function PrijaveRadnikaEdu() {
             porez. Šihterica se automatski preuzima ako postoji za taj mjesec.
           </li>
           <li>
-            <strong>Obračunaj sve</strong> — kad svi radnici imaju popunjene
+            <strong>Obračunaj sve</strong>, kad svi radnici imaju popunjene
             podatke, jedan klik na <em>Obračunaj sve</em> obračuna sve radnike
             odjednom. Sumirani prikaz pokazuje ukupan bruto, neto, doprinose,
             porez i trošak poslodavca.
           </li>
           <li>
-            <strong>Postaviti datum isplate</strong> — odaberi datum kada
+            <strong>Postaviti datum isplate</strong>, odaberi datum kada
             će plate biti isplaćene (default je posljednji dan mjeseca). Datum
             ide u uplatnice, platne listiće i Obrazac 2001.
           </li>
           <li>
-            <strong>Preuzeti dokumente za banku</strong> — grupa{" "}
+            <strong>Preuzeti dokumente za banku</strong>, grupa{" "}
             <em>Za isplatu plata (banka)</em>: <strong>Platni listići</strong>{" "}
             (jedan PDF, stranica po radniku za potpis),{" "}
             <strong>Uplatnice</strong> (PDF sa svim virmanima za doprinose i
@@ -246,26 +246,26 @@ export default function PrijaveRadnikaEdu() {
             koliko po vrsti isplate).
           </li>
           <li>
-            <strong>Preuzeti obrasce za Poreznu upravu</strong> — grupa{" "}
+            <strong>Preuzeti obrasce za Poreznu upravu</strong>, grupa{" "}
             <em>Za poreznu upravu (PUFBiH)</em>: <strong>Obrazac 2001</strong>{" "}
             (mjesečna specifikacija isplata), <strong>MIP-1023</strong> (PDF
             za štampu ili XML za nPIS paketni uvoz). Predaja je do 10. u
             mjesecu za prethodni mjesec.
           </li>
           <li>
-            <strong>Označiti kao isplaćeno</strong> — nakon što se izvrše
+            <strong>Označiti kao isplaćeno</strong>, nakon što se izvrše
             uplate u banci, klik na <em>Označi sve obračune kao isplaćene</em>{" "}
             mijenja status obračuna iz <em>Obračunato</em> u{" "}
             <em>Isplaćeno</em>.
           </li>
           <li>
-            <strong>Krajem godine — GIP-1022</strong> — godišnji izvještaj
+            <strong>Krajem godine, GIP-1022</strong>, godišnji izvještaj
             po radniku za PUFBiH (rok 28. februar naredne godine). Generiši{" "}
             <strong>GIP-1022</strong> u tri varijante: kombinovani PDF za
             štampu, ZIP sa zasebnim fajlom po radniku, ili XML za nPIS.
           </li>
           <li>
-            <strong>Odjava radnika</strong> — kada radnik napušta firmu,
+            <strong>Odjava radnika</strong>, kada radnik napušta firmu,
             kroz JS3100 tab generiši obrazac odjave u roku od 7 dana od
             prestanka radnog odnosa.
           </li>
@@ -282,23 +282,23 @@ export default function PrijaveRadnikaEdu() {
         </h2>
         <ul>
           <li>
-            <a href="/aktivni-radnici">Aktivni radnici</a> — centralni pregled
+            <a href="/aktivni-radnici">Aktivni radnici</a>, centralni pregled
             svih radnika sa statusom prijave, ugovorima i brzim akcijama.
           </li>
           <li>
-            <a href="/ugovor-o-radu">Ugovor o radu i otkaz</a> — generator
+            <a href="/ugovor-o-radu">Ugovor o radu i otkaz</a>, generator
             ugovora sa auto-popunom iz profila (Business pretplata).
           </li>
           <li>
-            <a href="/sihterica">Šihterica</a> — evidencija radnog vremena za
+            <a href="/sihterica">Šihterica</a>, evidencija radnog vremena za
             tačan obračun sati i prekovremenog rada.
           </li>
           <li>
-            <a href="/preracun-neto-bruto">Preračun neto/bruto plate</a> — brza
+            <a href="/preracun-neto-bruto">Preračun neto/bruto plate</a>, brza
             provjera obračuna za jedan iznos.
           </li>
           <li>
-            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a> — sve
+            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a>, sve
             šifre i žiro računi za uplatu doprinosa i poreza.
           </li>
         </ul>
@@ -312,17 +312,17 @@ export default function PrijaveRadnikaEdu() {
           <li>
             <a href="/blog/minimalna-plata-fbih-2026">
               Minimalna plata u FBiH 2026
-            </a>{" "}
-            — iznos, doprinosi i ukupan trošak poslodavca.
+            </a>,{" "}
+            iznos, doprinosi i ukupan trošak poslodavca.
           </li>
           <li>
             <a href="/blog/topli-obrok-regres-fbih-2026">
               Topli obrok i regres
-            </a>{" "}
-            — neoporezivi iznosi i kako ulaze u obračun.
+            </a>,{" "}
+            neoporezivi iznosi i kako ulaze u obračun.
           </li>
           <li>
-            <a href="/blog/otkaz-radnika-fbih">Otkaz radnika u FBiH</a> — postupak,
+            <a href="/blog/otkaz-radnika-fbih">Otkaz radnika u FBiH</a>, postupak,
             rokovi i odjava preko JS3100.
           </li>
         </ul>

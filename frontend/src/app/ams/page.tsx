@@ -5,16 +5,16 @@ const PAGE_URL = "https://poreznikalkulator.ba/ams";
 
 export const metadata: Metadata = {
   title:
-    "AMS generator — AMS-1035 obrazac i uplatnice (FBiH) | Porezni Kalkulator",
+    "AMS generator, AMS-1035 obrazac i uplatnice (FBiH) | Porezni Kalkulator",
   description:
-    "Kako popuniti AMS-1035 obrazac? Online generator AMS-1035 obrasca za akontaciju poreza po odbitku na druge samostalne djelatnosti i prihod iz inostranstva u FBiH. Automatski obračun, popunjene uplatnice spremne za banku — besplatno, bez registracije.",
+    "Kako popuniti AMS-1035 obrazac? Online generator AMS-1035 obrasca za akontaciju poreza po odbitku na druge samostalne djelatnosti i prihod iz inostranstva u FBiH. Automatski obračun, popunjene uplatnice spremne za banku, besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "AMS-1035 obrazac online — prihod iz inostranstva FBiH",
+    title: "AMS-1035 obrazac online, prihod iz inostranstva FBiH",
     description:
       "Brz online generator AMS-1035 obrasca i uplatnica za prihode iz inostranstva. Predaje se u roku od 5 dana od primitka.",
   },
@@ -37,7 +37,7 @@ const faqSchema = {
       name: "Ko je obavezan podnositi AMS-1035 obrazac?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "AMS-1035 obrazac obavezno podnosi svaka fizička osoba rezident FBiH koja prima prihode od obavljanja djelatnosti iz inostranstva — npr. freelance rad, honorari, konsultantske usluge i slično — a isplatilac nije na teritoriji Bosne i Hercegovine.",
+        text: "AMS-1035 obrazac obavezno podnosi svaka fizička osoba rezident FBiH koja prima prihode od obavljanja djelatnosti iz inostranstva, npr. freelance rad, honorari, konsultantske usluge i slično, a isplatilac nije na teritoriji Bosne i Hercegovine.",
       },
     },
     {
@@ -50,7 +50,7 @@ const faqSchema = {
     },
     {
       "@type": "Question",
-      name: "Kolika je stopa rashoda — 20% ili 30%?",
+      name: "Kolika je stopa rashoda, 20% ili 30%?",
       acceptedAnswer: {
         "@type": "Answer",
         text: "Standardna stopa normiranih rashoda iznosi 20% od bruto iznosa. Stopa od 30% primjenjuje se isključivo na autorske naknade (npr. književna, muzička, filmska ili likovna ostvarenja).",

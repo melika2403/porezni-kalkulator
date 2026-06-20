@@ -187,7 +187,7 @@ function RenewalRow({
       <td>
         <div className={styles.userName}>{item.name}</div>
         <div className={styles.userContact}>
-          {item.email || "—"}
+          {item.email || "–"}
           {item.phone ? ` · ${item.phone}` : ""}
         </div>
       </td>

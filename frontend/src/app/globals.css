@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
+/* Fontovi su self-hostani (vidi src/app/fonts.css i public/fonts/),
+   bez render-blocking @import lanca ka Google Fonts. */
 
 :root {
   --ink: #0f1a12;
@@ -15,10 +16,16 @@
   --radius-lg: 12px;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* Reset u @layer base: layered stilovi i dalje gaze browser defaulte,
+   ali ne gaze Tailwind utility klase (@layer utilities) na /app rutama.
+   Unlayered * reset bi po cascade pravilima pobijedio SVE layered
+   utility-je (margin/padding) bez obzira na specifičnost. */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html {

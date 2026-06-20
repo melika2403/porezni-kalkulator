@@ -243,7 +243,7 @@ export default function Navbar() {
             {needsOrg && (
               <Link
                 href="/profil?novaOrg=1"
-                className={styles.addOrgHint}
+                className={`${styles.addOrgHint} ${styles.hideOnMobile}`}
                 title="Dodajte svoju djelatnost da otključate sve funkcije"
               >
                 <span className={styles.addOrgIcon}>+</span>
@@ -253,7 +253,7 @@ export default function Navbar() {
             {hasAnyOrg && (
               <Link
                 href="/organizacije"
-                className={styles.orgsLink}
+                className={`${styles.orgsLink} ${styles.hideOnMobile}`}
                 title="Pregled svih organizacija i klijenata"
               >
                 <svg
@@ -274,11 +274,53 @@ export default function Navbar() {
                 Organizacije
               </Link>
             )}
-            <Link href="/profil" className={styles.userChip} title="Moj profil">
+            {!needsOrg && orgsQuery.data && orgsQuery.data.length > 0 && (
+              <a
+                href={
+                  process.env.NEXT_PUBLIC_APP_URL ??
+                  (process.env.NODE_ENV === "production"
+                    ? "https://app.poreznikalkulator.ba"
+                    : "/app")
+                }
+                className={styles.btnApp}
+                title="Otvori PK Office"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                PK Office
+                <svg
+                  className={styles.btnAppArrow}
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </svg>
+              </a>
+            )}
+            <Link href="/profil" className={`${styles.userChip} ${styles.hideOnMobile}`} title="Moj profil">
               <span className={styles.userAvatar}>{user.firstName[0].toUpperCase()}</span>
               <span className={styles.userName}>{user.firstName}</span>
             </Link>
-            <button className={styles.btnGhost} onClick={handleLogout}>Odjavi se</button>
+            <button className={`${styles.btnGhost} ${styles.hideOnMobile}`} onClick={handleLogout}>Odjavi se</button>
           </>
         ) : (
           <>
@@ -291,6 +333,56 @@ export default function Navbar() {
       {mobileOpen && (
         <div className={styles.mobileBackdrop} onClick={() => setMobileOpen(false)}>
           <div className={styles.mobileDrawer} onClick={(e) => e.stopPropagation()}>
+            {user && (
+              <div className={styles.mobileGroup}>
+                <div className={styles.mobileGroupTitle}>Tvoj nalog</div>
+                <ul className={styles.mobileList}>
+                  {needsOrg && (
+                    <li>
+                      <Link
+                        href="/profil?novaOrg=1"
+                        className={styles.mobileItem}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        Dodaj djelatnost
+                      </Link>
+                    </li>
+                  )}
+                  {hasAnyOrg && (
+                    <li>
+                      <Link
+                        href="/organizacije"
+                        className={styles.mobileItem}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        Organizacije
+                      </Link>
+                    </li>
+                  )}
+                  <li>
+                    <Link
+                      href="/profil"
+                      className={styles.mobileItem}
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      Moj profil
+                    </Link>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className={`${styles.mobileItem} ${styles.mobileItemButton}`}
+                      onClick={() => {
+                        setMobileOpen(false);
+                        handleLogout();
+                      }}
+                    >
+                      Odjavi se
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            )}
             {FUNCTION_GROUPS.map((group) => (
               <div key={group.title} className={styles.mobileGroup}>
                 <div className={styles.mobileGroupTitle}>{group.title}</div>

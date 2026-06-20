@@ -6,7 +6,7 @@ const PAGE_URL = "https://poreznikalkulator.ba/amortizacija";
 
 export const metadata: Metadata = {
   title:
-    "PLDI-1043 obrazac — popisna lista dugotrajne imovine i obračun amortizacije | Porezni Kalkulator BiH",
+    "PLDI-1043 obrazac, popisna lista dugotrajne imovine i obračun amortizacije | Porezni Kalkulator BiH",
   description:
     "Online popis dugotrajne imovine i automatski obračun amortizacije stalnih sredstava u FBiH. Automatski prenos podataka iz godine u godinu. Preuzmite PLDI-1043 PDF besplatno.",
   alternates: { canonical: PAGE_URL },
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "PLDI-1043 — stalna sredstva i amortizacija FBiH",
+    title: "PLDI-1043, stalna sredstva i amortizacija FBiH",
     description:
       "Vodite popis dugotrajne imovine i obračunavajte amortizaciju online. Automatski prenos iz godine u godinu, PDF spreman za GPD-1051 prilog.",
   },
@@ -46,7 +46,7 @@ const faqSchema = {
       name: "Koje stope amortizacije se primjenjuju u FBiH?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Stope amortizacije ovise o vijeku trajanja sredstva. Primjeri: računari i softver (3 god. — 33,33%), vozila (5 god. — 20%), oprema (7 god. — 14,29%), poslovni objekti (25–40 god. — 2,5–4%). Porezno priznate stope propisane su Pravilnikom o primjeni Zakona o porezu na dohodak FBiH.",
+        text: "Stope amortizacije ovise o vijeku trajanja sredstva. Primjeri: računari i softver (3 god. 33,33%), vozila (5 god. 20%), oprema (7 god. 14,29%), poslovni objekti (25–40 god. 2,5–4%). Porezno priznate stope propisane su Pravilnikom o primjeni Zakona o porezu na dohodak FBiH.",
       },
     },
     {

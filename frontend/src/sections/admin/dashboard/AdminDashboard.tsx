@@ -234,11 +234,11 @@ export default function AdminDashboard() {
           <Funnel funnel={d?.funnel} />
         </section>
 
-        {/* Akvizicija — CAC + registracije po izvoru */}
+        {/* Akvizicija, CAC + registracije po izvoru */}
         <div className={styles.grid} style={{ marginTop: "1rem" }}>
           <Panel title="Akvizicija (CAC)">
             <Headline
-              value={d?.acquisition.cac != null ? km(d.acquisition.cac) : "—"}
+              value={d?.acquisition.cac != null ? km(d.acquisition.cac) : "–"}
               label="Trošak po plaćenom korisniku"
             />
             <MetricList>
@@ -271,7 +271,7 @@ export default function AdminDashboard() {
           </Panel>
         </div>
 
-        {/* Engagement — ko aktivno koristi, ko spava */}
+        {/* Engagement, ko aktivno koristi, ko spava */}
         <div className={styles.grid} style={{ marginTop: "1rem" }}>
           <Panel title="Najaktivniji korisnici (90 dana)">
             {(eng.data?.topActive?.length ?? 0) > 0 ? (
@@ -282,7 +282,7 @@ export default function AdminDashboard() {
                     <div className={styles.engWho}>
                       <div className={styles.engName}>{u.name}</div>
                       <div className={styles.engSub}>
-                        {u.role ?? "—"} · {u.documents} dok · {u.invoices} fakt
+                        {u.role ?? "–"} · {u.documents} dok · {u.invoices} fakt
                       </div>
                     </div>
                     <span className={styles.engCount}>{u.events}</span>
@@ -328,7 +328,7 @@ export default function AdminDashboard() {
 
 function fmtShortDate(iso: string) {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "–";
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
@@ -365,7 +365,7 @@ function Funnel({ funnel }: { funnel?: AdminDashboard["funnel"] }) {
               </div>
             </div>
             <div className={styles.funnelConv}>
-              {conv != null ? `${conv}%` : "—"}
+              {conv != null ? `${conv}%` : "–"}
             </div>
           </div>
         );

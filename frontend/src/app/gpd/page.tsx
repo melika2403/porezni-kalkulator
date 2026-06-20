@@ -5,7 +5,7 @@ const PAGE_URL = "https://poreznikalkulator.ba/gpd";
 
 export const metadata: Metadata = {
   title:
-    "GPD-1051 obrazac — godišnja prijava poreza na dohodak FBiH | Porezni Kalkulator BiH",
+    "GPD-1051 obrazac, godišnja prijava poreza na dohodak FBiH | Porezni Kalkulator BiH",
   description:
     "Popunite GPD-1051 obrazac online za godišnju prijavu poreza na dohodak fizičkih lica u FBiH. Predaje se do 31. marta. Preuzmite popunjeni PDF besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
@@ -14,9 +14,9 @@ export const metadata: Metadata = {
     locale: "bs_BA",
     url: PAGE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "GPD-1051 obrazac online — godišnja prijava poreza FBiH",
+    title: "GPD-1051 obrazac online, godišnja prijava poreza FBiH",
     description:
-      "Online popuna GPD-1051 obrasca za sve izvore dohotka u FBiH — plate, samostalna djelatnost, imovina, kapital. Automatski obračun, lični odbici i povrat poreza.",
+      "Online popuna GPD-1051 obrasca za sve izvore dohotka u FBiH, plate, samostalna djelatnost, imovina, kapital. Automatski obračun, lični odbici i povrat poreza.",
   },
 };
 
@@ -29,7 +29,7 @@ const faqSchema = {
       name: "Ko je obavezan podnijeti GPD-1051 obrazac?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Godišnju prijavu poreza na dohodak obavezno podnosi svaka fizička osoba — rezident FBiH — koja je tokom godine ostvarila dohodak koji podliježe oporezivanju, uključujući dohotke od nesamostalne djelatnosti, samostalne djelatnosti, imovine i imovinskih prava, kapitala i ostale dohotke.",
+        text: "Godišnju prijavu poreza na dohodak obavezno podnosi svaka fizička osoba, rezident FBiH, koja je tokom godine ostvarila dohodak koji podliježe oporezivanju, uključujući dohotke od nesamostalne djelatnosti, samostalne djelatnosti, imovine i imovinskih prava, kapitala i ostale dohotke.",
       },
     },
     {
@@ -80,7 +80,7 @@ const howToSchema = {
   "@type": "HowTo",
   name: "Kako popuniti GPD-1051 obrazac",
   description:
-    "Korak-po-korak vodič za godišnju prijavu poreza na dohodak u FBiH — sve izvore dohotka, lične odbitke i povrat poreza.",
+    "Korak-po-korak vodič za godišnju prijavu poreza na dohodak u FBiH, sve izvore dohotka, lične odbitke i povrat poreza.",
   inLanguage: "bs",
   totalTime: "PT20M",
   step: [

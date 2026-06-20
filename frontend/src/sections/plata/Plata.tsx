@@ -18,7 +18,7 @@ const parse = (v: string) => {
 type Mode = "grossToNet" | "netToGross";
 
 export default function PreracunPlate() {
-  const [mode,  setMode]  = useState<Mode>("grossToNet");
+  const [mode, setMode]  = useState<Mode>("grossToNet");
   const [input, setInput] = useState("");
   const [coeff, setCoeff] = useState("1");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,12 +52,12 @@ export default function PreracunPlate() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div className={styles.label}>Kalkulator plate — FBiH</div>
+        <div className={styles.label}>Kalkulator plate, FBiH</div>
         <h1 className={styles.h1}>
-          Kalkulator plate FBiH — preračun <em>neto i bruto</em>
+          Kalkulator plate FBiH, preračun <em>neto i bruto</em>
         </h1>
         <p className={styles.subtitle}>
-          Online kalkulator plate za Federaciju BiH — preračunajte neto u bruto
+          Online kalkulator plate za Federaciju BiH, preračunajte neto u bruto
           i bruto u neto po važećim stopama poreza i doprinosa. Unesite iznos i
           dobijete kompletan pregled obustava, besplatno i bez registracije.
         </p>
@@ -263,19 +263,19 @@ export default function PreracunPlate() {
           platu</strong> (10,5% ukupno):
         </p>
         <ul>
-          <li><strong>PIO/MIO 6%</strong> — Federalni zavod PIO/MIO,</li>
-          <li><strong>Zdravstveno 4%</strong> — kantonalni i federalni zavod,</li>
-          <li><strong>Nezaposlenost 0,5%</strong> — Služba zapošljavanja.</li>
+          <li><strong>PIO/MIO 6%</strong>, Federalni zavod PIO/MIO,</li>
+          <li><strong>Zdravstveno 4%</strong>, kantonalni i federalni zavod,</li>
+          <li><strong>Nezaposlenost 0,5%</strong>, Služba zapošljavanja.</li>
         </ul>
         <p>
           Dodatne obaveze poslodavca koje ne ulaze u doprinose ali su porez na
           platu:
         </p>
         <ul>
-          <li><strong>Opća vodna naknada 0,5%</strong> — uplata u FBiH budžet,</li>
-          <li><strong>Naknada za zaštitu od nesreća 0,5%</strong> — uplata u FBiH budžet,</li>
+          <li><strong>Opća vodna naknada 0,5%</strong>, uplata u FBiH budžet,</li>
+          <li><strong>Naknada za zaštitu od nesreća 0,5%</strong>, uplata u FBiH budžet,</li>
           <li>
-            <strong>Fond za rehabilitaciju OSI 0,5%</strong> — samo za privredna
+            <strong>Fond za rehabilitaciju OSI 0,5%</strong>, samo za privredna
             društva. Obrti su izuzeti.
           </li>
         </ul>
@@ -295,7 +295,7 @@ export default function PreracunPlate() {
           (3.600 KM godišnje). Pripada svakom radniku koji je rezident FBiH.
         </p>
         <p>
-          Iznos se uvećava za uzdržavane članove porodice — supružnika, djecu,
+          Iznos se uvećava za uzdržavane članove porodice, supružnika, djecu,
           roditelje, drugu rodbinu koju radnik izdržava. Faktor uvećanja zavisi
           od broja i vrste uzdržavanih članova; obračunava se preko poreznog
           koeficijenta (npr. 1,3 za jedno dijete, 1,5 za supružnika + dijete,
@@ -310,30 +310,30 @@ export default function PreracunPlate() {
 
       <section className={styles.eduSection}>
         <h2>
-          Stope i <em>uplatni računi</em> — pregled
+          Stope i <em>uplatni računi</em>, pregled
         </h2>
         <ul>
           <li>
-            <strong>PIO/MIO 17% (iz) + 6% (na)</strong> — vrsta prihoda 712112,
+            <strong>PIO/MIO 17% (iz) + 6% (na)</strong>, vrsta prihoda 712112,
             Federalni zavod PIO/MIO.
           </li>
           <li>
-            <strong>Zdravstveno 12,5% (iz) + 4% (na)</strong> — vrsta prihoda 712111,
+            <strong>Zdravstveno 12,5% (iz) + 4% (na)</strong>, vrsta prihoda 712111,
             split 89,8% kantonalni / 10,2% federalni.
           </li>
           <li>
-            <strong>Nezaposlenost 1,5% (iz) + 0,5% (na)</strong> — vrsta prihoda 712113,
+            <strong>Nezaposlenost 1,5% (iz) + 0,5% (na)</strong>, vrsta prihoda 712113,
             split 70% kantonalni / 30% federalni.
           </li>
           <li>
-            <strong>Porez na dohodak 10%</strong> — vrsta prihoda 716111, kantonalni
+            <strong>Porez na dohodak 10%</strong>, vrsta prihoda 716111, kantonalni
             budžet po prebivalištu radnika.
           </li>
           <li>
-            <strong>Opća vodna naknada 0,5%</strong> — vrsta prihoda 722529.
+            <strong>Opća vodna naknada 0,5%</strong>, vrsta prihoda 722529.
           </li>
           <li>
-            <strong>Naknada za nesreće 0,5%</strong> — vrsta prihoda 722581.
+            <strong>Naknada za nesreće 0,5%</strong>, vrsta prihoda 722581.
           </li>
         </ul>
       </section>
@@ -344,19 +344,19 @@ export default function PreracunPlate() {
         </h2>
         <ul>
           <li>
-            <a href="/prijave-radnika?tab=obracun">Obračun plata</a> — mjesečni
+            <a href="/prijave-radnika?tab=obracun">Obračun plata</a>, mjesečni
             obračun za sve radnike sa generisanjem platnih listića i uplatnica.
           </li>
           <li>
-            <a href="/prijave-radnika">JS3100 — prijava/odjava radnika</a> —
+            <a href="/prijave-radnika">JS3100, prijava/odjava radnika</a>, 
             registracija osiguranika u sistem PIO/MIO i zdravstvenog.
           </li>
           <li>
-            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a> — svi
+            <a href="/javni-prihodi">Uplatni računi javnih prihoda</a>, svi
             računi i šifre za uplatu doprinosa i poreza.
           </li>
           <li>
-            <a href="/sifre-djelatnosti">Šifre djelatnosti (KD BiH 2010)</a> —
+            <a href="/sifre-djelatnosti">Šifre djelatnosti (KD BiH 2010)</a>, 
             za registraciju radnika prema vrsti djelatnosti.
           </li>
         </ul>
@@ -367,14 +367,14 @@ export default function PreracunPlate() {
           <li>
             <a href="/blog/kako-se-racuna-neto-plata-fbih">
               Kako se računa neto plata u FBiH
-            </a>{" "}
-            — korak po korak kroz doprinose, lični odbitak i porez.
+            </a>,{" "}
+            korak po korak kroz doprinose, lični odbitak i porez.
           </li>
           <li>
             <a href="/blog/minimalna-plata-fbih-2026">
               Minimalna plata u FBiH 2026
-            </a>{" "}
-            — iznos, doprinosi i trošak poslodavca.
+            </a>,{" "}
+            iznos, doprinosi i trošak poslodavca.
           </li>
         </ul>
       </section>
@@ -387,9 +387,9 @@ export default function PreracunPlate() {
           <strong>Koja je razlika između bruto i neto plate?</strong>
         </p>
         <p>
-          Bruto plata je iznos prije svih odbitaka — iz nje se odbijaju
+          Bruto plata je iznos prije svih odbitaka, iz nje se odbijaju
           doprinosi radnika (PIO/MIO 17%, zdravstveno 12,5%, nezaposlenost
-          1,5% — ukupno 31%) i porez na dohodak (10% nakon ličnog odbitka).
+          1,5%, ukupno 31%) i porez na dohodak (10% nakon ličnog odbitka).
           Neto plata je iznos koji radnik prima na račun.
         </p>
 

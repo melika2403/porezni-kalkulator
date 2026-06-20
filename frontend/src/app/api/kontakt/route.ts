@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       from: "Kontakt forma <noreply@poreznikalkulator.ba>",
       to: ["info@poreznikalkulator.ba"],
       reply_to: email,
-      subject: `Kontakt forma — poruka od ${ime}`,
+      subject: `Kontakt forma, poruka od ${ime}`,
       text: `Ime: ${ime}\nEmail: ${email}\n\nPoruka:\n${poruka}`,
     }),
   });

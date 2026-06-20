@@ -1,6 +1,20 @@
 const { Subscription } = require("../models/index");
 
-const subscriptionAttributes = ["id", "userId", "startDate", "endDate", "isActive", "createdAt", "updatedAt"];
+const subscriptionAttributes = [
+  "id",
+  "userId",
+  "startDate",
+  "endDate",
+  "isActive",
+  "plan",
+  "status",
+  "billingCycle",
+  "cancelAtPeriodEnd",
+  "cancelledAt",
+  "externalSubscriptionId",
+  "createdAt",
+  "updatedAt",
+];
 
 async function getByUserId(userId) {
   return Subscription.findOne({ where: { userId }, attributes: subscriptionAttributes });

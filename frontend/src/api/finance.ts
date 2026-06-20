@@ -212,8 +212,12 @@ export function deleteOtherIncome(id: number) {
 export type FinanceSummary = {
   year: number;
   totalEarned: number;
+  subscriptionsEarned?: number;
+  totalOtherIncome?: number;
   totalInvested: number;
   profit: number;
+  // Kumulativni profit (zbir profita svih godina do izabrane, prenosi se naprijed).
+  cumulativeProfit: number;
 };
 
 export function getSummary(year: number) {

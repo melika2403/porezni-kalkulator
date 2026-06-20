@@ -3,7 +3,7 @@
 // i ne prepisuje (da kasniji interni klikovi ne pregaze originalni izvor).
 
 const KEY = "pk-utm";
-const MAX_AGE_MS = 30 * 86400000; // 30 dana — atribucija zastari nakon mjesec dana
+const MAX_AGE_MS = 30 * 86400000; // 30 dana, atribucija zastari nakon mjesec dana
 
 type StoredUtm = { source: string; campaign: string; ts: number };
 

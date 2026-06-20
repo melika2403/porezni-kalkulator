@@ -24,9 +24,9 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 function formatDate(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const dt = new Date(iso);
-  if (isNaN(dt.getTime())) return "—";
+  if (isNaN(dt.getTime())) return "–";
   return `${String(dt.getDate()).padStart(2, "0")}.${String(dt.getMonth() + 1).padStart(2, "0")}.${dt.getFullYear()}`;
 }
 
@@ -170,10 +170,10 @@ function OrgRow({ org }: { org: AdminOrganization }) {
 
   const ownerName = org.owner
     ? `${org.owner.firstName} ${org.owner.lastName}`
-    : "—";
+    : "–";
   const creatorName = org.createdBy
     ? `${org.createdBy.firstName} ${org.createdBy.lastName}`
-    : "—";
+    : "–";
   const creatorEmail = org.createdBy?.email ?? null;
 
   const workersQuery = useQuery({
@@ -223,7 +223,7 @@ function OrgRow({ org }: { org: AdminOrganization }) {
             {TYPE_LABELS[org.type] ?? org.type}
           </span>
         </td>
-        <td>{org.taxNumber || "—"}</td>
+        <td>{org.taxNumber || "–"}</td>
         <td>{ownerName}</td>
         <td style={{ textAlign: "center" }}>
           <button
@@ -338,7 +338,7 @@ function WorkerLine({ worker, orgId }: { worker: AdminOrgWorker; orgId: number }
         <span className={styles.workerName}>{worker.name}</span>
         <span className={styles.workerJmbg}>
           {" "}
-          · {worker.position || "—"}
+          · {worker.position || "–"}
           {worker.employmentStatus
             ? ` · ${WORKER_STATUS_LABELS[worker.employmentStatus] ?? worker.employmentStatus}`
             : ""}

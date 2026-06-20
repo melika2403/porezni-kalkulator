@@ -13,9 +13,9 @@ import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import styles from "../../admin/korisnici/korisnici.module.css";
 
 function formatDate(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const dt = new Date(iso);
-  if (isNaN(dt.getTime())) return "—";
+  if (isNaN(dt.getTime())) return "–";
   return `${String(dt.getDate()).padStart(2, "0")}.${String(dt.getMonth() + 1).padStart(2, "0")}.${dt.getFullYear()}`;
 }
 
@@ -151,10 +151,10 @@ function ClientRow({ client }: { client: AdminPersonClient }) {
   const [error, setError] = useState<string | null>(null);
 
   const fullName =
-    [client.firstName, client.lastName].filter(Boolean).join(" ") || "—";
+    [client.firstName, client.lastName].filter(Boolean).join(" ") || "–";
   const creatorName = client.createdBy
     ? `${client.createdBy.firstName} ${client.createdBy.lastName}`
-    : "—";
+    : "–";
   const creatorEmail = client.createdBy?.email ?? null;
 
   const del = useMutation({
@@ -177,12 +177,12 @@ function ClientRow({ client }: { client: AdminPersonClient }) {
         {client.jmbg ? (
           <span className={styles.workerJmbg}>{client.jmbg}</span>
         ) : (
-          "—"
+          ", "
         )}
       </td>
-      <td>{client.email || "—"}</td>
-      <td>{client.phone || "—"}</td>
-      <td>{client.city || "—"}</td>
+      <td>{client.email || "–"}</td>
+      <td>{client.phone || "–"}</td>
+      <td>{client.city || "–"}</td>
       <td>
         <span className={styles.workerName}>{creatorName}</span>
         {creatorEmail && (

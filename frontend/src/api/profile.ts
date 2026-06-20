@@ -134,11 +134,36 @@ export function deleteSubscription(userId: number) {
 
 // ─── Organizations ────────────────────────────────────────────────────────────
 
-export type OrgOwner = {
-  id: number;
+// Tip vlasnika (d.o.o.). Za obrt se ne koristi (vlasnik je obrtnik).
+export type OwnerType =
+  | "fizicko_domace"
+  | "fizicko_strano"
+  | "pravno_lice"
+  | "vise_lica";
+
+export type DirectorEngagement = "ugovor_o_radu" | "menadzerski";
+
+// Jedno lice u "više lica" vlasništvu.
+export type OwnerPerson = {
   firstName: string;
   lastName: string;
+  jmbg?: string | null;
+  idDoc?: string | null;
+};
+
+export type OrgOwner = {
+  // id postoji samo kad je vlasnik Worker VLASNIK (opcija 1 / obrt).
+  id?: number;
+  type?: OwnerType;
+  firstName: string | null;
+  lastName: string | null;
+  // Naziv firme (pravno_lice) ili zbirni naziv (vise_lica).
+  name?: string | null;
   jmbg: string | null;
+  // Broj pasoša / strani ID (fizicko_strano).
+  idDoc?: string | null;
+  // JIB (pravno_lice).
+  jib?: string | null;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -147,15 +172,30 @@ export type OrgOwner = {
   prijavaDate: string | null;
   salaryBruto: number | null;
   salaryNeto: number | null;
-  salaryType: SalaryType;
-  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN";
-  taxCoefficient: number;
+  salaryType?: SalaryType;
+  employmentStatus: "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN" | null;
+  taxCoefficient?: number;
+  persons?: OwnerPerson[] | null;
 };
 
+// Razriješeni potpisnik poslodavca za dokumente (vlasnik ili radnik-direktor).
+export type OrgSigner = {
+  firstName: string | null;
+  lastName: string | null;
+  name: string;
+  jmbg: string | null;
+  idCardNumber: string | null;
+  address: string | null;
+  city: string | null;
+} | null;
+
 export type OrgOwnerPayload = {
-  firstName: string;
-  lastName: string;
-  jmbg: string;
+  firstName?: string;
+  lastName?: string;
+  jmbg?: string;
+  name?: string;
+  jib?: string;
+  idDoc?: string;
   email?: string;
   phone?: string;
   address?: string;
@@ -166,6 +206,7 @@ export type OrgOwnerPayload = {
   salaryNeto?: number | null;
   salaryType?: SalaryType;
   taxCoefficient?: number;
+  persons?: OwnerPerson[];
 };
 
 export type TaxRegime = "STVARNI_DOHODAK" | "PAUSALNI" | "OSTALI";
@@ -177,12 +218,17 @@ export type TaxCategory =
   | "ESNAFSKI_ZANATI"
   | "TAXI";
 
+export type Jurisdiction = "FBIH" | "RS" | "BD";
+
 export type Organization = {
   id: number;
   name: string;
   type: "COMPANY" | "BUSINESS";
   taxNumber: string | null;
   pdvNumber: string | null;
+  isPdvObveznik: boolean;
+  jurisdiction: Jurisdiction | null;
+  taxRegime: TaxRegime | null;
   activityCode: string | null;
   activityName: string | null;
   email: string | null;
@@ -191,14 +237,20 @@ export type Organization = {
   city: string | null;
   bankAccount: string | null;
   logoUrl: string | null;
-  taxRegime: TaxRegime | null;
   taxCategory: TaxCategory | null;
   // Default tip plate za nove radnike u ovoj org-i. Vidi SalaryType u Worker.
   defaultSalaryType: SalaryType;
   // Dnevna stopa toplog obroka za firmu (KM/dan). Obračun je množi sa brojem
   // radnih dana iz šihterice. NULL = bez auto-stope.
   mealAllowancePerDay: number | null;
+  // Model vlasništva/direktora (d.o.o.). Za obrt se ignoriše.
+  ownerType?: OwnerType;
+  ownerIsDirector?: boolean;
+  directorEngagement?: DirectorEngagement;
+  directorWorkerId?: number | null;
   owner: OrgOwner | null;
+  // Razriješeni potpisnik poslodavca (vlasnik ili radnik-direktor).
+  signer?: OrgSigner;
   memberRole: "OWNER" | "ADMIN" | "MEMBER";
   // Plan tier of the org's OWNER. In-org features (workers, members,
   // logo, JS3100, …) are gated by this rather than the viewer's own role.
@@ -212,6 +264,9 @@ export type OrgPayload = {
   type: "COMPANY" | "BUSINESS";
   taxNumber?: string;
   pdvNumber?: string;
+  isPdvObveznik?: boolean;
+  jurisdiction?: Jurisdiction | null;
+  taxRegime?: TaxRegime | null;
   activityCode?: string;
   activityName?: string;
   email?: string;
@@ -219,12 +274,94 @@ export type OrgPayload = {
   address?: string;
   city?: string;
   bankAccount?: string;
-  taxRegime?: TaxRegime | null;
   taxCategory?: TaxCategory | null;
   defaultSalaryType?: SalaryType;
   mealAllowancePerDay?: number | null;
+  ownerType?: OwnerType;
+  ownerIsDirector?: boolean;
+  directorEngagement?: DirectorEngagement;
+  directorWorkerId?: number | null;
   ownerData?: OrgOwnerPayload;
 };
+
+export type OrgSettingsPayload = Partial<Omit<OrgPayload, "ownerData">>;
+
+export function getOrganizationSettings(id: number) {
+  return request<Organization>(`/api/organizations/${id}/settings`);
+}
+
+export function updateOrganizationSettings(
+  id: number,
+  payload: OrgSettingsPayload,
+) {
+  return request<Organization>(`/api/organizations/${id}/settings`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── PK Office: /api/profile (current user) ─────────────────────────────────
+
+export type ProfilePreferences = {
+  activeOrganizationId: number | null;
+  theme: "light" | "dark" | "system";
+  commandPaletteEnabled: boolean;
+};
+
+export type Profile = {
+  id: number;
+  email: string | null;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  role: string;
+  isEmailVerified: boolean;
+  createdAt: string;
+  preferences: ProfilePreferences;
+};
+
+export type ProfilePatchPayload = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+};
+
+export type PreferencesPatchPayload = {
+  theme?: "light" | "dark" | "system";
+  commandPaletteEnabled?: boolean;
+};
+
+export function getMyProfile() {
+  return request<Profile>("/api/profile");
+}
+
+export function patchMyProfile(payload: ProfilePatchPayload) {
+  return request<Profile>("/api/profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function changeProfilePassword(
+  currentPassword: string,
+  newPassword: string,
+) {
+  return request<null>("/api/profile/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function patchPreferences(payload: PreferencesPatchPayload) {
+  return request<ProfilePreferences>("/api/profile/preferences", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
 
 export type MyStats = {
   djelatnosti: number;
@@ -492,6 +629,64 @@ export type WorkerPayload = {
 
 export function getWorkers(orgId: number) {
   return request<Worker[]>(`/api/organizations/${orgId}/workers`);
+}
+
+// ── Matična evidencija o radniku ────────────────────────────────────────────
+export type EvidencijaItem = { n: number; label: string; value: string };
+export type EvidencijaEditable = {
+  key: string;
+  label: string;
+  type: string;
+  value: string;
+  placeholder: string;
+};
+export type EvidencijaData = {
+  workerId: number;
+  workerName: string;
+  items: EvidencijaItem[];
+  editable: EvidencijaEditable[];
+  zadnjaIzmjena: string | null;
+};
+
+export function getEvidencija(orgId: number, workerId: number) {
+  return request<EvidencijaData>(
+    `/api/organizations/${orgId}/workers/${workerId}/evidencija`,
+  );
+}
+
+export function saveEvidencija(
+  orgId: number,
+  workerId: number,
+  evidencijaPodaci: Record<string, string>,
+) {
+  return request<{ evidencijaPodaci: Record<string, string> }>(
+    `/api/organizations/${orgId}/workers/${workerId}/evidencija`,
+    { method: "PATCH", body: JSON.stringify({ evidencijaPodaci }) },
+  );
+}
+
+export async function downloadEvidencijaPdf(
+  orgId: number,
+  workerId: number,
+  workerName: string,
+): Promise<
+  { ok: true; blob: Blob; filename: string } | { ok: false; error: string }
+> {
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/organizations/${orgId}/workers/${workerId}/evidencija-pdf`,
+      { credentials: "include" },
+    );
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      return { ok: false, error: j?.error || `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    const safe = workerName.trim().replace(/\s+/g, "_") || String(workerId);
+    return { ok: true, blob, filename: `Maticna_evidencija_${safe}.pdf` };
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
 }
 
 export type WorkerWithOrg = Worker & {

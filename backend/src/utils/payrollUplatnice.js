@@ -200,7 +200,7 @@ async function generateAllUplatnice(payroll, organization, worker) {
   if (net > 0) {
     const bytes = await generateUplatnica({
       uplatio: [organization.name || "", [organization.address, organization.city].filter(Boolean).join(", ")],
-      svrha: `Isplata neto plate za ${monthYear} — ${workerName}`,
+      svrha: `Isplata neto plate za ${monthYear}, ${workerName}`,
       primatelj: [workerName, workerAddress],
       racunPosilDigits: organization.bankAccount ? organization.bankAccount.replace(/-/g, "") : undefined,
       racunPrimDigits: worker.bankAccount ? worker.bankAccount.replace(/-/g, "") : "",
@@ -231,56 +231,56 @@ async function generateAllUplatnice(payroll, organization, worker) {
   if (pioTotal > 0) {
     push("UPLATNICA_PIO", "pio",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, pioTotal,
-        accounts.pio, `Doprinos za PIO/MIO za ${monthYear} — ${workerName}`, datum));
+        accounts.pio, `Doprinos za PIO/MIO za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 3. Zdravstvo — kantonalni dio (89,8%) ─────────────────────────────────
   if (zdrKanton > 0) {
     push("UPLATNICA_ZDR", "zdr-kant",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, zdrKanton,
-        accounts.zdrKanton, `Doprinos za zdravstvo (kantonalni) za ${monthYear} — ${workerName}`, datum));
+        accounts.zdrKanton, `Doprinos za zdravstvo (kantonalni) za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 4. Zdravstvo — federalni dio (10,2%) ──────────────────────────────────
   if (zdrFed > 0) {
     push("UPLATNICA_ZDR_FED", "zdr-fed",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, zdrFed,
-        accounts.zdrFed, `Doprinos za zdravstvo (federalni) za ${monthYear} — ${workerName}`, datum));
+        accounts.zdrFed, `Doprinos za zdravstvo (federalni) za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 5. Nezaposlenost — federalni dio (30%) ────────────────────────────────
   if (nezapFed > 0) {
     push("UPLATNICA_NEZAP", "nezap-fed",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, nezapFed,
-        accounts.nezapFed, `Doprinos za nezaposlenost (federalni) za ${monthYear} — ${workerName}`, datum));
+        accounts.nezapFed, `Doprinos za nezaposlenost (federalni) za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 6. Nezaposlenost — kantonalni dio (70%) ───────────────────────────────
   if (nezapKanton > 0) {
     push("UPLATNICA_NEZAP_KANT", "nezap-kant",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, nezapKanton,
-        accounts.nezapKanton, `Doprinos za nezaposlenost (kantonalni) za ${monthYear} — ${workerName}`, datum));
+        accounts.nezapKanton, `Doprinos za nezaposlenost (kantonalni) za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 7. Porez na dohodak ───────────────────────────────────────────────────
   if (porez > 0) {
     push("UPLATNICA_POREZ", "porez",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, porez,
-        accounts.porez, `Porez na dohodak iz plate za ${monthYear} — ${workerName}`, datum));
+        accounts.porez, `Porez na dohodak iz plate za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 8. Opća vodna naknada ─────────────────────────────────────────────────
   if (vodna > 0) {
     push("UPLATNICA_VODNA", "vodna",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, vodna,
-        accounts.vodna, `Opća vodna naknada za ${monthYear} — ${workerName}`, datum));
+        accounts.vodna, `Opća vodna naknada za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 9. Zaštita od prirodnih nesreća ──────────────────────────────────────
   if (nesrece > 0) {
     push("UPLATNICA_NESRECE", "nesrece",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, nesrece,
-        accounts.nesrece, `Naknada za zaštitu od prirodnih nesreća za ${monthYear} — ${workerName}`, datum));
+        accounts.nesrece, `Naknada za zaštitu od prirodnih nesreća za ${monthYear}, ${workerName}`, datum));
   }
 
   // ── 10. Fond za rehabilitaciju OSI (0,5% × bruto) ─────────────────────────
@@ -288,7 +288,7 @@ async function generateAllUplatnice(payroll, organization, worker) {
     push("UPLATNICA_INVALIDI", "invalidi",
       await makeDoprinosUplatnica(payroll, organization, opcinaIme, opcinaKod, invalidiIznos,
         accounts.fondInvalidi,
-        `Naknada za rehabilitaciju i zapošljavanje OSI za ${monthYear} — ${workerName}`, datum));
+        `Naknada za rehabilitaciju i zapošljavanje OSI za ${monthYear}, ${workerName}`, datum));
   }
 
   return results;

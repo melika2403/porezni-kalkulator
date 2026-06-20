@@ -297,7 +297,7 @@
 }
 
 .features li::before {
-  content: "—";
+  content: "–";
   opacity: 0.55;
   flex-shrink: 0;
   margin-top: 1px;
