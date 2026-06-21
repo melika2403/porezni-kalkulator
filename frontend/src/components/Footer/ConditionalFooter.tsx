@@ -4,7 +4,9 @@ import { usePathname } from "next/navigation";
 import Footer from "src/components/Footer/Footer";
 
 // Footer se ne prikazuje na admin, profil i pregledu organizacija (imaju
-// vlastiti app-like layout, marketing footer tu ne pripada).
+// vlastiti app-like layout). Na app subdomeni (proxy rewrite na /app, pathname
+// ostaje "/") marketing chrome sakriva CSS iz (app)/app/layout.tsx, pa je ovdje
+// dovoljna provjera po putanji za lokalni dev.
 export default function ConditionalFooter() {
   const pathname = usePathname();
   if (pathname?.startsWith("/admin")) return null;

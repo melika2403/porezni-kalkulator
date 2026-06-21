@@ -140,7 +140,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className={styles.nav}>
+    <nav className={styles.nav} data-marketing-chrome="navbar">
       <Link href="/" className={styles.logo}>
         <div className={styles.logoMark}>
           <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8">
@@ -275,6 +275,7 @@ export default function Navbar() {
               </Link>
             )}
             {!needsOrg && orgsQuery.data && orgsQuery.data.length > 0 && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <a
                 href={
                   process.env.NEXT_PUBLIC_APP_URL ??
@@ -286,19 +287,20 @@ export default function Navbar() {
                 title="Otvori PK Office"
               >
                 <svg
-                  width="15"
-                  height="15"
+                  width="16"
+                  height="16"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="1.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                  {/* Briefcase, isti logo kao u PK Office sidebaru */}
+                  <path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" />
+                  <path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M12 12l0 .01" />
+                  <path d="M3 13a20 20 0 0 0 18 0" />
                 </svg>
                 PK Office
                 <svg
@@ -315,6 +317,29 @@ export default function Navbar() {
                   <path d="M5 12h14M13 5l7 7-7 7" />
                 </svg>
               </a>
+              <Link
+                href="/pk-office"
+                title="Šta je PK Office?"
+                aria-label="Šta je PK Office?"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  border: "1px solid #d4cfc4",
+                  color: "#7a8a7d",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  flexShrink: 0,
+                }}
+              >
+                ?
+              </Link>
+              </span>
             )}
             <Link href="/profil" className={`${styles.userChip} ${styles.hideOnMobile}`} title="Moj profil">
               <span className={styles.userAvatar}>{user.firstName[0].toUpperCase()}</span>
@@ -324,6 +349,38 @@ export default function Navbar() {
           </>
         ) : (
           <>
+            <Link href="/pk-office" className={styles.btnApp} title="PK Office">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {/* Briefcase, isti logo kao u PK Office sidebaru */}
+                <path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" />
+                <path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" />
+                <path d="M12 12l0 .01" />
+                <path d="M3 13a20 20 0 0 0 18 0" />
+              </svg>
+              PK Office
+              <svg
+                className={styles.btnAppArrow}
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </Link>
             <Link href="/prijava" className={styles.btnGhost}>Prijavi se</Link>
             <Link href="/registracija" className={styles.btnPrimary}>Registruj se</Link>
           </>
