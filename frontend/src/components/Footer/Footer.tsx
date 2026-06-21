@@ -3,7 +3,7 @@ import styles from './Footer.module.css';
 
 export default function Footer() {
   return (
-    <footer className={styles.footer}>
+    <footer className={styles.footer} data-marketing-chrome="footer">
       <div className={styles.top}>
         <div className={styles.brand}>
           <div className={styles.logo}>Porezni Kalkulator</div>
