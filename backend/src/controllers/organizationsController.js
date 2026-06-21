@@ -1,4 +1,5 @@
 const organizationRepository = require("../repositories/organizationRepository");
+const { getPlan, planFromRole } = require("../config/plans");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 const {
   Organization,
@@ -442,6 +443,8 @@ async function listWithPayrollStatus(req, res) {
 async function create(req, res) {
   const { ownerData, ...orgBody } = req.body ?? {};
   const userRole = req.user.role;
+  // Limiti po planu (USER=free, PRO=pro, BUSINESS/ADMIN=business). -1 = neograničeno.
+  const planLimits = getPlan(planFromRole(userRole)).limits;
 
   // Only elevated roles can create client orgs (with separate ownerData)
   const CLIENT_ORG_ROLES = ["PRO", "BUSINESS", "ADMIN"];
@@ -449,14 +452,30 @@ async function create(req, res) {
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
   }
 
-  if (!ownerData) {
-    const ownedCount = await organizationRepository.countOwnedOrganizations(
-      req.user.id,
-    );
-    if (ownedCount >= 2) {
-      return res
-        .status(409)
-        .json({ ok: false, error: "ALREADY_HAS_OWN_ORG_LIMIT" });
+  if (ownerData) {
+    // Klijentska organizacija: limit po planu (PRO=20, BUSINESS/ADMIN=neograničeno).
+    const limit = planLimits.clientOrganizations;
+    if (limit !== -1) {
+      const clientCount =
+        await organizationRepository.countClientOrganizations(req.user.id);
+      if (clientCount >= limit) {
+        return res
+          .status(409)
+          .json({ ok: false, error: "CLIENT_ORG_LIMIT_REACHED" });
+      }
+    }
+  } else {
+    // Vlastita organizacija: limit po planu (USER=1, PRO=2, BUSINESS/ADMIN=neograničeno).
+    const limit = planLimits.ownOrganizations;
+    if (limit !== -1) {
+      const ownedCount = await organizationRepository.countOwnedOrganizations(
+        req.user.id,
+      );
+      if (ownedCount >= limit) {
+        return res
+          .status(409)
+          .json({ ok: false, error: "ALREADY_HAS_OWN_ORG_LIMIT" });
+      }
     }
   }
 

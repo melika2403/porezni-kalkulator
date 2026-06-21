@@ -195,7 +195,12 @@ type Tab =
 // ovisno o tipu, postavljamo režim oporezivanja (obrt) ili svoju platu (d.o.o.).
 function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
   const queryClient = useQueryClient();
-  const [selId, setSelId] = useState<number | null>(ownOrgs[0]?.id ?? null);
+  // Stvarno mjesto prijave = org gdje je vlasnik PRIJAVLJEN (može biti samo jedno).
+  const employedOrg =
+    ownOrgs.find((o) => o.owner?.employmentStatus === "PRIJAVLJEN") ?? null;
+  const [selId, setSelId] = useState<number | null>(
+    employedOrg?.id ?? ownOrgs[0]?.id ?? null,
+  );
   const selected = ownOrgs.find((o) => o.id === selId) ?? null;
   const isObrt = selected?.type === "BUSINESS";
 
@@ -229,21 +234,73 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
     setTimeout(() => setSaved(false), 3000);
   };
 
-  const regimeMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: OrgPayload }) =>
-      unwrap(updateOrganization(id, payload)),
-    onSuccess: flash,
-  });
-  const salaryMutation = useMutation({
-    mutationFn: ({
-      orgId,
-      workerId,
-      payload,
-    }: {
-      orgId: number;
-      workerId: number;
-      payload: Parameters<typeof updateWorker>[2];
-    }) => unwrap(updateWorker(orgId, workerId, payload)),
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+
+  // Prijava je isključiva: u svojim organizacijama si zaposlen samo na jednom
+  // mjestu. Kad sačuvaš izabranu, u ostalim svojim d.o.o. vlasnik se odjavi
+  // (ODJAVLJEN, bez plate/prijave) pa ga ta firma ne vodi u obračunu/JS3100.
+  // Forward-only: postojeći obračuni se NE diraju. Direktorski status (potpisnik)
+  // ostaje, mijenja se samo radni odnos.
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!selected) return;
+      if (isObrt) {
+        await unwrap(
+          updateOrganization(selected.id, {
+            name: selected.name,
+            type: selected.type,
+            taxRegime: (regime || null) as OrgPayload["taxRegime"],
+            taxCategory:
+              regime && regime !== "OSTALI"
+                ? ((category || null) as OrgPayload["taxCategory"])
+                : null,
+          }),
+        );
+        // Obrt-vlasnik (obrtnik) se vodi kao prijavljen radnik u ovoj org, pa
+        // se prikazuje u radnicima samo ovdje.
+        if (selected.owner?.id) {
+          await unwrap(
+            updateWorker(selected.id, selected.owner.id, {
+              employmentStatus: "PRIJAVLJEN",
+              ...(selected.owner.prijavaDate ? {} : { prijavaDate: todayIso() }),
+            }),
+          );
+        }
+      } else if (selected.owner?.id) {
+        const b = parseMoney(bruto);
+        const n = parseMoney(neto);
+        const salaryType =
+          n != null ? "NETO_ISPLATA" : b != null ? "BRUTO" : undefined;
+        await unwrap(
+          updateWorker(selected.id, selected.owner.id, {
+            salaryBruto: b,
+            salaryNeto: n,
+            ...(salaryType && { salaryType }),
+            // Ako je vlasnik ranije bio odjavljen (jer je prijava bila u drugoj
+            // org-i), ponovo ga prijavljujemo ovdje.
+            employmentStatus: "PRIJAVLJEN",
+            ...(selected.owner.prijavaDate ? {} : { prijavaDate: todayIso() }),
+          }),
+        );
+      }
+      // Isključivost: odjavi vlasnika u SVIM ostalim svojim org (obrt i d.o.o.),
+      // pa se prikazuješ kao radnik/vlasnik samo tamo gdje si prijavljen.
+      const others = ownOrgs.filter(
+        (o) => o.id !== selected.id && o.owner?.id,
+      );
+      for (const o of others) {
+        const wid = o.owner?.id;
+        if (!wid) continue;
+        await unwrap(
+          updateWorker(o.id, wid, {
+            salaryBruto: null,
+            salaryNeto: null,
+            prijavaDate: null,
+            employmentStatus: "ODJAVLJEN",
+          }),
+        );
+      }
+    },
     onSuccess: flash,
   });
 
@@ -251,42 +308,11 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selected) return;
-    if (isObrt) {
-      regimeMutation.mutate({
-        id: selected.id,
-        payload: {
-          name: selected.name,
-          type: selected.type,
-          taxRegime: (regime || null) as OrgPayload["taxRegime"],
-          taxCategory:
-            regime && regime !== "OSTALI"
-              ? ((category || null) as OrgPayload["taxCategory"])
-              : null,
-        },
-      });
-    } else {
-      // Plata vlasnika postoji samo kad je vlasnik Worker (opcija 1 / obrt).
-      if (!selected.owner?.id) return;
-      const ownerWorkerId = selected.owner.id;
-      const b = parseMoney(bruto);
-      const n = parseMoney(neto);
-      const salaryType =
-        n != null ? "NETO_ISPLATA" : b != null ? "BRUTO" : undefined;
-      salaryMutation.mutate({
-        orgId: selected.id,
-        workerId: ownerWorkerId,
-        payload: {
-          salaryBruto: b,
-          salaryNeto: n,
-          ...(salaryType && { salaryType }),
-        },
-      });
-    }
+    saveMut.mutate();
   };
 
-  const pending = regimeMutation.isPending || salaryMutation.isPending;
-  const error = regimeMutation.error || salaryMutation.error;
+  const pending = saveMut.isPending;
+  const error = saveMut.error;
 
   return (
     <div className={styles.card} style={{ marginTop: "1.5rem" }}>
@@ -300,6 +326,24 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
           oporezivanja, za d.o.o. upisuješ svoju platu, na osnovu toga se računa
           tvoj mjesečni obračun.
         </span>
+      </div>
+
+      <div
+        style={{
+          fontSize: 13,
+          margin: "0.5rem 0 0.2rem",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ color: "#7a8a7d" }}>Trenutno prijavljen:</span>
+        <strong style={{ color: "#3a5c42" }}>
+          {employedOrg
+            ? `${employedOrg.name} (${ORG_TYPE_LABELS[employedOrg.type] ?? employedOrg.type})`
+            : "nigdje, izaberi i sačuvaj"}
+        </strong>
       </div>
 
       <form className={styles.form} onSubmit={handleSave}>
@@ -316,6 +360,14 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
               </option>
             ))}
           </select>
+          <p
+            className={styles.fieldHint}
+            style={{ fontSize: 12, color: "#666", marginTop: "0.3rem" }}
+          >
+            Prijava je isključiva: kad sačuvaš, u ostalim svojim firmama (obrt i
+            d.o.o.) se NE vodiš kao radnik/vlasnik (odjavljen, bez plate i
+            doprinosa), prikazuješ se samo ovdje. Postojeći obračuni se ne mijenjaju.
+          </p>
         </div>
 
         {selected && isObrt && (
@@ -451,6 +503,81 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
   );
 }
 
+// Mali search u zaglavlju liste: input + X za reset. Filtrira već učitanu listu
+// (client-side), bez novih poziva.
+function HeaderSearch({
+  value,
+  onChange,
+  placeholder = "Pretraži...",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div style={{ position: "relative", width: 210, maxWidth: "55%" }}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "0.45rem 1.9rem 0.45rem 0.7rem",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          fontSize: 13,
+          fontFamily: "inherit",
+          background: "var(--white)",
+          color: "var(--ink)",
+          outline: "none",
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Očisti pretragu"
+          title="Očisti"
+          style={{
+            position: "absolute",
+            right: 4,
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: 22,
+            height: 22,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "none",
+            background: "none",
+            color: "var(--mid)",
+            cursor: "pointer",
+            fontSize: 18,
+            lineHeight: 1,
+            borderRadius: "50%",
+          }}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Filter org liste po nazivu / JIB-u (client-side).
+function filterOrgs<T extends { name?: string | null; taxNumber?: string | null }>(
+  list: T[],
+  q: string,
+): T[] {
+  const s = q.trim().toLowerCase();
+  if (!s) return list;
+  return list.filter((o) =>
+    `${o.name ?? ""} ${o.taxNumber ?? ""}`.toLowerCase().includes(s),
+  );
+}
+
 // ─── Profile tab ──────────────────────────────────────────────────────────────
 
 function ProfilTab({
@@ -474,8 +601,17 @@ function ProfilTab({
   });
   const ownOrgs = orgs.filter((o) => o.memberRole === "OWNER");
   const isSubscriber = user.role === "PRO" || user.role === "BUSINESS";
+  // Limit vlastitih djelatnosti po planu: USER=1, PRO=2, BUSINESS/ADMIN=neograničeno.
+  const ownOrgLimit =
+    user.role === "BUSINESS" || user.role === "ADMIN"
+      ? Infinity
+      : user.role === "PRO"
+        ? 2
+        : 1;
+  const canAddOwnOrg = ownOrgs.length < ownOrgLimit;
 
   const [editOwnId, setEditOwnId] = useState<number | null>(null);
+  const [ownFilter, setOwnFilter] = useState("");
   const [editOwnOrg, setEditOwnOrg] = useState<OrgFormState>(emptyOrgForm);
   // Dodavanje nove djelatnosti ide kroz QuickCreateOrgModal (brzi wizard).
   const [showAddOrg, setShowAddOrg] = useState(false);
@@ -853,9 +989,26 @@ function ProfilTab({
       <div className={styles.card} style={section === "all" ? { marginTop: "1.5rem" } : undefined}>
         <div className={styles.cardHeader}>
           <p className={styles.cardTitle}>Moja djelatnost</p>
+          {ownOrgs.length > 1 && (
+            <HeaderSearch
+              value={ownFilter}
+              onChange={(v) => {
+                setOwnFilter(v);
+                // zatvori eventualni otvoreni edit da ne ispadne iz filtera
+                setEditOwnId(null);
+              }}
+              placeholder="Pretraži djelatnost..."
+            />
+          )}
         </div>
 
-        {ownOrgs.map((org) => (
+        {ownFilter.trim() && filterOrgs(ownOrgs, ownFilter).length === 0 && (
+          <div className={styles.empty} style={{ padding: "1rem 0" }}>
+            <div className={styles.emptyText}>Nema rezultata za pretragu.</div>
+          </div>
+        )}
+
+        {filterOrgs(ownOrgs, ownFilter).map((org) => (
           <div key={org.id} className={styles.ownOrgItem}>
             {editOwnId === org.id ? (
               <form
@@ -958,32 +1111,41 @@ function ProfilTab({
           </div>
         ))}
 
-        {/* add button, ACCOUNTANT always, USER only if no owned orgs yet */}
-        {!showAddOrg &&
-          editOwnId === null &&
-          (isSubscriber || ownOrgs.length <= 2) && (
-            <button
-              className={styles.addOrgToggle}
-              onClick={() => setShowAddOrg(true)}
-            >
-              <span>+</span> Dodaj{" "}
-              {ownOrgs.length > 0
-                ? "još jednu djelatnost"
-                : "svoju firmu ili obrt"}
-            </button>
-          )}
+        {/* Dugme se vidi dok korisnik nije dosegao limit vlastitih djelatnosti
+            za svoj plan (USER=1, PRO=2, BUSINESS/ADMIN=neograničeno). */}
+        {!showAddOrg && editOwnId === null && canAddOwnOrg && (
+          <button
+            className={styles.addOrgToggle}
+            onClick={() => setShowAddOrg(true)}
+          >
+            <span>+</span> Dodaj{" "}
+            {ownOrgs.length > 0
+              ? "još jednu djelatnost"
+              : "svoju firmu ili obrt"}
+          </button>
+        )}
 
-        {/* Upsell poruka samo za FREE (USER) plan. PRO/BUSINESS/ADMIN je ne
-            vide; limit poruka se prikaže u wizardu tek ako dosegnu limit. */}
+        {/* Upsell kad je korisnik na limitu (USER ili PRO). BUSINESS/ADMIN nemaju
+            limit pa ne vide ovo. */}
         {!showAddOrg &&
           editOwnId === null &&
-          user.role === "USER" &&
-          ownOrgs.length > 0 && (
+          !canAddOwnOrg &&
+          user.role !== "BUSINESS" &&
+          user.role !== "ADMIN" && (
             <div className={styles.lockedFeature}>
               <span>🔒</span>
               <span>
-                Više djelatnosti dostupno uz pretplatu na{" "}
-                <strong>PRO i BUSINESS plan</strong>.
+                {user.role === "USER" ? (
+                  <>
+                    Više djelatnosti dostupno uz pretplatu na{" "}
+                    <strong>PRO ili BUSINESS plan</strong>.
+                  </>
+                ) : (
+                  <>
+                    Neograničen broj djelatnosti dostupan uz{" "}
+                    <strong>BUSINESS plan</strong>.
+                  </>
+                )}
               </span>
             </div>
           )}
@@ -2343,6 +2505,7 @@ function DjelatnostTab({
     queryKey: ["clientOrganizations"],
     queryFn: () => unwrap(getClientOrganizations()),
   });
+  const [clientFilter, setClientFilter] = useState("");
 
   const { data: persons = [], isLoading: personsLoading } = useQuery<
     PersonClient[]
@@ -2562,6 +2725,17 @@ function DjelatnostTab({
       <div className={styles.card} style={{ marginBottom: "1.5rem" }}>
         <div className={styles.cardHeader}>
           <p className={styles.cardTitle}>Klijentske organizacije</p>
+          {clientOrgs.length > 1 && (
+            <HeaderSearch
+              value={clientFilter}
+              onChange={(v) => {
+                setClientFilter(v);
+                // zatvori eventualni otvoreni edit da ne ispadne iz filtera
+                setEditId(null);
+              }}
+              placeholder="Pretraži klijenta..."
+            />
+          )}
         </div>
 
         {clientOrgs.length === 0 && (
@@ -2575,9 +2749,17 @@ function DjelatnostTab({
           </div>
         )}
 
+        {clientOrgs.length > 0 &&
+          clientFilter.trim() &&
+          filterOrgs(clientOrgs, clientFilter).length === 0 && (
+            <div className={styles.empty} style={{ padding: "1rem 0" }}>
+              <div className={styles.emptyText}>Nema rezultata za pretragu.</div>
+            </div>
+          )}
+
         {clientOrgs.length > 0 && (
           <div className={styles.orgList}>
-            {clientOrgs.map((org) =>
+            {filterOrgs(clientOrgs, clientFilter).map((org) =>
               editId === org.id ? (
                 <form
                   key={org.id}
@@ -2967,7 +3149,10 @@ function DjelatnostTab({
                       : createOrgMutation.error.message ===
                           "ACCOUNTANT_CANNOT_OWN_ORG"
                         ? "Računovođe ne mogu imati vlastitu organizaciju."
-                        : createOrgMutation.error.message}
+                        : createOrgMutation.error.message ===
+                            "CLIENT_ORG_LIMIT_REACHED"
+                          ? "Dosegli ste limit klijentskih organizacija za vaš plan (PRO: 20). Nadogradite na Business za neograničeno."
+                          : createOrgMutation.error.message}
                   </div>
                 )}
                 <div className={styles.formActions}>

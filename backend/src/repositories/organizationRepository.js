@@ -494,6 +494,14 @@ async function countOwnedOrganizations(userId) {
   return memberships.length;
 }
 
+async function countClientOrganizations(userId) {
+  const memberships = await OrganizationMember.findAll({
+    where: { userId, role: "OWNER" },
+    include: [{ model: Organization, as: "organization", where: { isClientOrg: true }, attributes: ["id"] }],
+  });
+  return memberships.length;
+}
+
 async function deleteOrganization(id, userId) {
   const membership = await OrganizationMember.findOne({
     where: { organizationId: id, userId, role: "OWNER" },
@@ -536,7 +544,7 @@ async function getAllOrganizationsForAdmin({ search, page = 1, limit = 20 } = {}
         {
           model: Worker,
           as: "workers",
-          attributes: ["id", "role"],
+          attributes: ["id", "role", "prijavaDate", "odjavaDate"],
           required: false,
         },
       ],
@@ -552,7 +560,19 @@ async function getAllOrganizationsForAdmin({ search, page = 1, limit = 20 } = {}
 
   const items = orgs.map((org) => {
     const plain = org.toJSON();
-    const workerCount = (plain.workers || []).filter((w) => w.role === "RADNIK").length;
+    // RADNIK uvijek; d.o.o. (COMPANY) k tome i prijavljeni vlasnik-direktor
+    // (zaposlenik). Obrt (BUSINESS) vlasnik nije radnik pa se ne broji.
+    // "Prijavljen" se derivira iz datuma (prijavaDate postavljen, nije odjavljen)
+    // jer su datumi master, NE stored employmentStatus (vidi ownerFromWorker).
+    const isCompany = plain.type === "COMPANY";
+    const workerCount = (plain.workers || []).filter(
+      (w) =>
+        w.role === "RADNIK" ||
+        (isCompany &&
+          w.role === "VLASNIK" &&
+          w.prijavaDate != null &&
+          w.odjavaDate == null),
+    ).length;
     const owner = ownerByOrgId.get(org.id) || null;
     const { workers: _w, ...rest } = plain;
     return {
@@ -574,6 +594,7 @@ module.exports = {
   createOrganization,
   updateOrganization,
   countOwnedOrganizations,
+  countClientOrganizations,
   deleteOrganization,
   getAllOrganizationsForAdmin,
 };

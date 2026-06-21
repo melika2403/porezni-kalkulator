@@ -11,11 +11,12 @@ import { IconArrowRight } from "@tabler/icons-react";
 import { me, unwrap } from "src/api/auth";
 import styles from "./pkOffice.module.css";
 
-const APP_URL =
+const APP_URL = `${
   process.env.NEXT_PUBLIC_APP_URL ??
   (process.env.NODE_ENV === "production"
     ? "https://app.poreznikalkulator.ba"
-    : "/app");
+    : "/app")
+}/dashboard`;
 
 export function LandingCta({ withSecondary = false }: { withSecondary?: boolean }) {
   const { data: user } = useQuery({

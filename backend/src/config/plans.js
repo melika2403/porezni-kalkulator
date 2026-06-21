@@ -8,6 +8,9 @@ const PLANS = {
     priceYearly: 0,
     limits: {
       organizations: 1,
+      // Vlastite (svoje) i klijentske organizacije imaju odvojene limite (-1 = neograničeno).
+      ownOrganizations: 1,
+      clientOrganizations: 0,
       transactionsPerMonth: 50,
       usersPerOrganization: 1,
       pdfImportsPerMonth: 0,
@@ -20,7 +23,9 @@ const PLANS = {
     priceMonthly: 29,
     priceYearly: 290,
     limits: {
-      organizations: 1,
+      organizations: 2,
+      ownOrganizations: 2,
+      clientOrganizations: 20,
       transactionsPerMonth: 1000,
       usersPerOrganization: 3,
       pdfImportsPerMonth: 50,
@@ -40,6 +45,8 @@ const PLANS = {
     priceYearly: 790,
     limits: {
       organizations: -1,
+      ownOrganizations: -1,
+      clientOrganizations: -1,
       transactionsPerMonth: -1,
       usersPerOrganization: -1,
       pdfImportsPerMonth: -1,
