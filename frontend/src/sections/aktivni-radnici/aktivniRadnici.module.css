@@ -203,6 +203,17 @@
   color: var(--ink);
 }
 
+/* Ime radnika je link na dossier, zeleno da se vidi da je klikabilno (kao u
+   admin panelu i organizacijama). */
+.nameLink {
+  color: var(--sage);
+  font-weight: 600;
+  text-decoration: none;
+}
+.nameLink:hover {
+  text-decoration: underline;
+}
+
 .muted {
   color: var(--mid);
   font-variant-numeric: tabular-nums;
@@ -297,13 +308,23 @@
 }
 
 .backLink {
-  display: inline-block;
-  font-size: 13px;
-  color: var(--mid);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sage);
+  background: var(--sage-pale);
+  border: 1px solid color-mix(in srgb, var(--sage) 20%, transparent);
+  padding: 0.55rem 1.05rem;
+  border-radius: 999px;
   text-decoration: none;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
 }
 .backLink:hover {
+  background: color-mix(in srgb, var(--sage) 14%, transparent);
+  border-color: color-mix(in srgb, var(--sage) 35%, transparent);
   color: var(--sage);
 }
 

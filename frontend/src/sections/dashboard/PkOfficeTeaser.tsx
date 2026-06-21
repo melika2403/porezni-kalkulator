@@ -6,9 +6,11 @@
    genericki "uskoro". Prikazuje se svima bez preview pristupa (vidi
    (app)/app/layout.tsx). Launch: PK_OFFICE_PUBLIC=true. */
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  IconMenu2,
   IconArrowDownLeft,
   IconArrowUpRight,
   IconFileInvoice,
@@ -35,6 +37,7 @@ import styles from "./dashboard.module.css";
 
 export function PkOfficeTeaser() {
   const pathname = usePathname() || "/app";
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const goMarketing = () => {
     if (typeof window === "undefined") return;
@@ -61,6 +64,14 @@ export function PkOfficeTeaser() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Otvori meni"
+            className="min-[900px]:hidden -ml-1 p-2 rounded-lg text-text-secondary hover:bg-cream-200 hover:text-text-primary transition-colors"
+          >
+            <IconMenu2 size={20} />
+          </button>
           <span
             style={{
               width: 26,
@@ -96,9 +107,18 @@ export function PkOfficeTeaser() {
       </header>
 
       <div className="flex flex-1 min-h-0 min-[900px]:h-[calc(100vh-54px)]">
+        {/* Mobilni overlay iza drawera */}
+        {drawerOpen && (
+          <div
+            className={sbStyles.overlay}
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden
+          />
+        )}
+
         {/* Statički Sidebar (replika, bez zivih podataka); linkovi navigiraju
-            izmedju preview ekrana. */}
-        <aside className={sbStyles.sidebar}>
+            izmedju preview ekrana. Ispod 900px je drawer (hamburger u TopBar-u). */}
+        <aside className={`${sbStyles.sidebar} ${drawerOpen ? sbStyles.open : ""}`}>
           <div className={sbStyles.header}>
             <div className={sbStyles.brand}>
               <span className={sbStyles.brandIcon} aria-hidden>
@@ -139,6 +159,7 @@ export function PkOfficeTeaser() {
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={() => setDrawerOpen(false)}
                         aria-current={active ? "page" : undefined}
                         className={`${sbStyles.navLink} ${active ? sbStyles.navLinkActive : ""}`}
                       >

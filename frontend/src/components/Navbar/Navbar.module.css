@@ -15,7 +15,7 @@
    širini logo (lijevo) i actions (desno) grupa. Troslojni grid (1fr auto 1fr)
    drži .links centriran čak i kad actions naraste (npr. dugme "PK Office").
    Mobilni (<=640px) ostaje na baznom flex-u gdje se .links sakriva. */
-@media (min-width: 641px) {
+@media (min-width: 1281px) {
   .nav {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -81,7 +81,7 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 15px;
 }
 
 /* ── Back to home pill (visible on every non-home page) ── */
@@ -522,9 +522,52 @@
   transform: translateX(2px);
 }
 
+/* Dugmad u traci se nikad ne lome u dva reda (tekst ostaje u jednom redu). */
+.btnApp,
+.btnGhost,
+.btnPrimary,
+.userChip {
+  white-space: nowrap;
+}
+
+/* Laptop / standardni desktop (1281px-1850px): sklonimo sporedne linkove
+   "Kako radi" i "FAQ" (dostupni su u Funkcije/footeru). Centralna grupa linkova
+   je tako uža pa centrirani grid ne gura linkove uz desne akcije. Svih 7 linkova
+   tek na širokim ekranima (>1850px) gdje akcije i linkovi imaju udoban razmak. */
+@media (min-width: 1281px) and (max-width: 1850px) {
+  .linkSecondary {
+    display: none;
+  }
+}
+
+/* Tablet / laptop (641px-1280px): centralni linkovi i "← Početna" te
+   sekundarne akcije (Organizacije, profil, Odjavi se) idu u hamburger
+   drawer (koji ih već sadrži). U traci ostaje logo + PK Office + hamburger,
+   da se ne nagomila. Puni horizontalni nav tek od 1281px. */
+@media (min-width: 641px) and (max-width: 1280px) {
+  .links {
+    display: none;
+  }
+  .hideOnMobile {
+    display: none !important;
+  }
+  .logo {
+    margin-right: auto;
+  }
+  .actions {
+    order: 1;
+    gap: 0.6rem;
+    margin-right: 0.6rem;
+  }
+  .hamburger {
+    display: inline-flex;
+    order: 2;
+  }
+}
+
 @media (max-width: 640px) {
   .nav {
-    padding: 0 1rem;
+    padding: 0 0.75rem;
   }
   .links {
     display: none;

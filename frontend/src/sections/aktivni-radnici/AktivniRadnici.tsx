@@ -17,6 +17,7 @@ import { useLastOrg } from "src/hooks/useLastOrg";
 import QuickAddWorkerModal from "src/components/WorkersSidebar/QuickAddWorkerModal";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import styles from "./aktivniRadnici.module.css";
 
 type Filter = "svi" | "prijavljeni" | "draft" | "odjavljeni";
@@ -179,12 +180,21 @@ export default function AktivniRadnici() {
       (o) => o.id === orgId,
     ) ?? null;
   const isObrt = selectedOrg?.type === "BUSINESS";
+  const isOwnOrg = (orgsQuery.data ?? []).some((o) => o.id === orgId);
+  // U vlastitim organizacijama vlasnik se prikazuje kao radnik samo tamo gdje je
+  // prijavljen (zaposlenje je na jednom mjestu). Skriva DRAFT/odjavljene
+  // vlasnike-"ghostove" iz org gdje korisnik nije prijavljen.
+  const visibleWorkers = isOwnOrg
+    ? allWorkers.filter(
+        (w) => !(w.role === "VLASNIK" && w.employmentStatus !== "PRIJAVLJEN"),
+      )
+    : allWorkers;
   // Uključi i RADNIK i VLASNIK (vlasnici se prepoznaju po roli i imaju badge).
   // Sort:
   //   1) Odjavljeni uvijek na dno (bez obzira kad su prijavljeni)
   //   2) Po datumu prijave ASC (najstariji prijavljen radnik gore)
   //   3) Po datumu kreiranja ASC (tiebreak)
-  const radnici = [...allWorkers].sort((a, b) => {
+  const radnici = [...visibleWorkers].sort((a, b) => {
     const aOff = a.employmentStatus === "ODJAVLJEN" ? 1 : 0;
     const bOff = b.employmentStatus === "ODJAVLJEN" ? 1 : 0;
     if (aOff !== bOff) return aOff - bOff;
@@ -241,31 +251,11 @@ export default function AktivniRadnici() {
       <div className={styles.controlsBar}>
         <label className={styles.orgPicker}>
           <span>Organizacija</span>
-          <select
-            className={styles.input}
-            value={orgId ?? ""}
-            onChange={(e) => setOrgId(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">– Odaberi –</option>
-            {(orgsQuery.data?.length ?? 0) > 0 && (
-              <optgroup label="Moje organizacije">
-                {orgsQuery.data!.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {canSeeClients && (clientOrgsQuery.data?.length ?? 0) > 0 && (
-              <optgroup label="Klijentske organizacije">
-                {clientOrgsQuery.data!.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
+          <OrgSelect
+            value={orgId}
+            onChange={(v) => setOrgId(v)}
+            style={{ fontSize: "1rem", padding: "0.7rem 0.95rem" }}
+          />
         </label>
         {orgId && canCreateWorker && (
           <button
@@ -339,7 +329,7 @@ export default function AktivniRadnici() {
                     <td className={styles.nameCell} data-label="Ime i prezime">
                       <Link
                         href={`/aktivni-radnici/${w.id}`}
-                        style={{ color: "inherit", textDecoration: "none" }}
+                        className={styles.nameLink}
                       >
                         {w.firstName} {w.lastName}
                       </Link>

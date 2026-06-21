@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 import { useLastOrg } from "src/hooks/useLastOrg";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import {
   getClientOrganizations,
   getOrganizations,
@@ -576,8 +578,16 @@ function ObracunPlataApp() {
   // osnovica), pa stoji u zasebnoj sekciji. U d.o.o. (COMPANY) vlasnik se
   // obračunava kao standardni radnik (Obrazac 2001, bruto/neto/doprinosi).
   const isObrt = currentOrg?.type === "BUSINESS";
+  // d.o.o.: vlasnik ulazi u obračun samo ako ima unesen DATUM PRIJAVE u ovoj
+  // org (isti princip kao forma vlasnika: "ako se unese datum prijave, vlasnik
+  // se računa kao prijavljen"). Bez datuma prijave (npr. vlasnik koji je prijavu
+  // prebacio u drugu svoju org) se ne obračunava. Obični radnici (RADNIK)
+  // zadržavaju logiku po datumima prijave/odjave.
   const radnici = useMemo(
-    () => (isObrt ? radniciRaw : [...radniciRaw, ...vlasniciRaw]),
+    () =>
+      isObrt
+        ? radniciRaw
+        : [...radniciRaw, ...vlasniciRaw.filter((w) => !!w.prijavaDate)],
     [isObrt, radniciRaw, vlasniciRaw],
   );
   const vlasnici = useMemo(
@@ -823,7 +833,7 @@ function ObracunPlataApp() {
           <p style={{ margin: "0.6rem 0 0", fontSize: 12.5, color: "#78350f" }}>
             Bruto plata radnika upišite proporcionalno (npr. {`mjesečna_bruto × dani_aktivnosti / ukupni_dani`}).
             Obrazac 2001 period će se automatski prilagoditi datumima.
-            {isObrt && " Vlasnik 2002 doprinosi se automatski pro-rate-uju po radnim danima."}
+            {isObrt && " Vlasniku obrta se osnovica i doprinosi (2002) automatski obračunavaju proporcionalno (pro-rate) za aktivni period."}
           </p>
         </div>
       )}
@@ -836,34 +846,7 @@ function ObracunPlataApp() {
             <label className={js3Styles.fieldLabel} htmlFor="org">
               Organizacija
             </label>
-            <select
-              id="org"
-              className={js3Styles.fieldSelect}
-              value={orgId ?? ""}
-              onChange={(e) =>
-                setOrgId(e.target.value ? Number(e.target.value) : null)
-              }
-            >
-              <option value="">– Odaberi –</option>
-              {(orgsQuery.data?.length ?? 0) > 0 && (
-                <optgroup label="Moje organizacije">
-                  {orgsQuery.data!.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {canSeeClients && (clientOrgsQuery.data?.length ?? 0) > 0 && (
-                <optgroup label="Klijentske organizacije">
-                  {clientOrgsQuery.data!.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
+            <OrgSelect id="org" value={orgId} onChange={(v) => setOrgId(v)} />
           </div>
 
           <div className={js3Styles.fieldGroup}>
@@ -871,32 +854,32 @@ function ObracunPlataApp() {
               Period (mjesec / godina)
             </label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <select
+              <StyledSelect
                 id="period"
-                className={js3Styles.fieldSelect}
-                style={{ flex: 2 }}
+                ariaLabel="Mjesec"
+                wrapStyle={{ flex: 2 }}
                 value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-              >
-                {MONTHS.map((m, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={js3Styles.fieldSelect}
-                style={{ flex: 1 }}
+                onChange={(v) => setMonth(Number(v))}
+                groups={[
+                  {
+                    options: MONTHS.map((m, i) => ({ value: i + 1, label: m })),
+                  },
+                ]}
+              />
+              <StyledSelect
+                ariaLabel="Godina"
+                wrapStyle={{ flex: 1 }}
                 value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                aria-label="Godina"
-              >
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setYear(Number(v))}
+                groups={[
+                  {
+                    options: yearOptions.map((y) => ({
+                      value: y,
+                      label: String(y),
+                    })),
+                  },
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -1506,7 +1489,9 @@ function VlasniciSection({
           organization.taxRegime === "STVARNI_DOHODAK"
             ? "POSLOVNIH_KNJIGA"
             : "PAUSALNO",
-        osnovica: fmt2(Number(p.grossBase ?? p.gross) || 0),
+        // Skalirana osnovica (gross) za skraćeni period, pa osnovica × stopa =
+        // doprinos štima na formi. grossBase (puna mjesečna) ostaje samo fallback.
+        osnovica: fmt2(Number(p.gross ?? p.grossBase) || 0),
         brojRadnihSati: String(standardSati),
         brojRadnihSatiBolovanje: "0",
         datumUplateDan: String(lastDay).padStart(2, "0"),
@@ -1568,6 +1553,21 @@ function VlasniciSection({
   const nezap = o * 0.02;
   const total = pio + zdr + nezap;
 
+  // Kad je vlasnik obračunat, osnovica i doprinosi su već pro-rate-ovani (mid-month
+  // prijava/odjava), pa prikazujemo STVARNE iznose iz obračuna (skalirane), a ne
+  // pune nominalne. Nominalne (o/total) ostaju kao preview dok nije obračunato.
+  const obracunatiVlasnici = vlasnici
+    .map((v) => payrollByWorker.get(v.id))
+    .filter((p): p is Payroll => !!p);
+  const hasObracun = obracunatiVlasnici.length > 0;
+  const sumP = (sel: (p: Payroll) => number | string | null | undefined) =>
+    obracunatiVlasnici.reduce((a, p) => a + (Number(sel(p)) || 0), 0);
+  const dispOsnovica = hasObracun ? sumP((p) => p.gross) : o;
+  const dispPio = hasObracun ? sumP((p) => p.empPio) : pio;
+  const dispZdr = hasObracun ? sumP((p) => p.empZdravstvo) : zdr;
+  const dispNezap = hasObracun ? sumP((p) => p.empNezaposlenost) : nezap;
+  const dispTotal = hasObracun ? sumP((p) => p.empTotal) : total;
+
   if (!organization.taxRegime) {
     return (
       <div className={styles.warning} style={{ marginBottom: "1rem" }}>
@@ -1615,24 +1615,24 @@ function VlasniciSection({
       <div className={styles.summary} style={{ marginBottom: "1rem" }}>
         <div className={styles.summaryItem}>
           <span className={styles.summaryLabel}>Osnovica</span>
-          <span className={styles.summaryValue}>{fmtKM(o)} KM</span>
+          <span className={styles.summaryValue}>{fmtKM(dispOsnovica)} KM</span>
         </div>
         <div className={styles.summaryItem}>
           <span className={styles.summaryLabel}>PIO/MIO (19,5%)</span>
-          <span className={styles.summaryValue}>{fmtKM(pio)} KM</span>
+          <span className={styles.summaryValue}>{fmtKM(dispPio)} KM</span>
         </div>
         <div className={styles.summaryItem}>
           <span className={styles.summaryLabel}>Zdravstveno (14,5%)</span>
-          <span className={styles.summaryValue}>{fmtKM(zdr)} KM</span>
+          <span className={styles.summaryValue}>{fmtKM(dispZdr)} KM</span>
         </div>
         <div className={styles.summaryItem}>
           <span className={styles.summaryLabel}>Nezaposlenost (2%)</span>
-          <span className={styles.summaryValue}>{fmtKM(nezap)} KM</span>
+          <span className={styles.summaryValue}>{fmtKM(dispNezap)} KM</span>
         </div>
         <div className={styles.summaryItem}>
           <span className={styles.summaryLabel}>Ukupno doprinosa (36%)</span>
           <span className={styles.summaryValue} style={{ color: "#b91c1c" }}>
-            {fmtKM(total)} KM
+            {fmtKM(dispTotal)} KM
           </span>
         </div>
       </div>
@@ -1673,8 +1673,12 @@ function VlasniciSection({
                       </div>
                     )}
                   </td>
-                  <td className={styles.num}>{fmtKM(o)}</td>
-                  <td className={styles.num}>{fmtKM(total)}</td>
+                  <td className={styles.num}>
+                    {fmtKM(p ? Number(p.gross) || 0 : o)}
+                  </td>
+                  <td className={styles.num}>
+                    {fmtKM(p ? Number(p.empTotal) || 0 : total)}
+                  </td>
                   <td style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                     <button
                       type="button"

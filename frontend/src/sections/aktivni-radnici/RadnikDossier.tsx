@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import EvidencijaModal from "src/sections/organizacije/EvidencijaModal";
 import {
   deleteWorkerDocument,
   getAllMyWorkers,
@@ -63,6 +65,7 @@ const STATUS_CLASS: Record<string, string> = {
 export default function RadnikDossier({ workerId }: { workerId: number }) {
   const queryClient = useQueryClient();
   const { confirm: confirmDialog } = useNotice();
+  const [evidencijaOpen, setEvidencijaOpen] = useState(false);
 
   const workersQuery = useQuery({
     queryKey: ["allMyWorkers"],
@@ -162,11 +165,30 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
           >
             📋 JS3100
           </Link>
+          <button
+            type="button"
+            className={styles.actionLink}
+            style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
+            onClick={() => setEvidencijaOpen(true)}
+            title="Matična evidencija o radniku (Sl. nov. FBiH 92/16)"
+          >
+            📒 Evidencija
+          </button>
           <Link href={`/organizacija/${worker.organizationId}`} className={styles.actionLink}>
             ✏️ Uredi
           </Link>
         </div>
       </div>
+
+      {evidencijaOpen && (
+        <EvidencijaModal
+          orgId={worker.organizationId}
+          orgName={worker.organizationName}
+          initialWorkerId={worker.id}
+          lockWorkerName={`${worker.firstName} ${worker.lastName}`}
+          onClose={() => setEvidencijaOpen(false)}
+        />
+      )}
 
       {/* Info grid */}
       <div className={styles.infoGrid}>

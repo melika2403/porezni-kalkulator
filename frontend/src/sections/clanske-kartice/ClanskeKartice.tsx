@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./clanske-kartice.module.css";
 import { useRole } from "src/hooks/useRole";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import {
   getOrganizations,
@@ -943,34 +944,13 @@ function ClanskeKarticeApp() {
 
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Organizacija</span>
-                <select
-                  className={styles.input}
-                  value={orgId ?? ""}
-                  onChange={(e) => {
-                    const id = e.target.value ? Number(e.target.value) : null;
-                    setOrgId(id);
-                  }}
-                >
-                  <option value="">– Odaberite organizaciju –</option>
-                  {(ownOrgsQuery.data?.length ?? 0) > 0 && (
-                    <optgroup label="Moje organizacije">
-                      {ownOrgsQuery.data!.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {isBusiness && (clientOrgsQuery.data?.length ?? 0) > 0 && (
-                    <optgroup label="Klijentske organizacije">
-                      {clientOrgsQuery.data!.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                <OrgSelect
+                  placeholder="– Odaberite organizaciju –"
+                  value={orgId}
+                  onChange={(v) => setOrgId(v)}
+                  ownOrgs={ownOrgsQuery.data ?? []}
+                  clientOrgs={isBusiness ? (clientOrgsQuery.data ?? []) : []}
+                />
               </label>
 
               <label className={styles.field}>

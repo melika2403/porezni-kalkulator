@@ -58,12 +58,30 @@ async function organizationDetail(req, res) {
     attributes: ["id", "firstName", "lastName", "jmbg"],
   });
 
-  const [workerCount, payrollCount, formCount, invoiceCount] = await Promise.all([
-    Worker.count({ where: { organizationId: id, role: "RADNIK" } }),
-    Payroll.count({ where: { organizationId: id } }),
-    Form.count({ where: { organizationId: id } }),
-    Invoice.count({ where: { organizationId: id } }),
-  ]);
+  // Broj radnika: RADNIK uvijek; d.o.o. (COMPANY) k tome i prijavljeni
+  // vlasnik-direktor (opcija 1) jer je on zaposlenik. Obrt (BUSINESS) vlasnik se
+  // NE broji, on je vlasnik/obrtnik, ne radnik. "Prijavljen" se derivira iz
+  // datuma (prijavaDate postavljen, nije odjavljen) , datumi su master, NE
+  // stored employmentStatus (vidi ownerFromWorker/toPublicWorker).
+  const isCompany = org.type === "COMPANY";
+  const [radnikCount, directorCount, payrollCount, formCount, invoiceCount] =
+    await Promise.all([
+      Worker.count({ where: { organizationId: id, role: "RADNIK" } }),
+      isCompany
+        ? Worker.count({
+            where: {
+              organizationId: id,
+              role: "VLASNIK",
+              prijavaDate: { [Op.ne]: null },
+              odjavaDate: null,
+            },
+          })
+        : Promise.resolve(0),
+      Payroll.count({ where: { organizationId: id } }),
+      Form.count({ where: { organizationId: id } }),
+      Invoice.count({ where: { organizationId: id } }),
+    ]);
+  const workerCount = radnikCount + directorCount;
 
   return res.json({
     ok: true,
