@@ -157,8 +157,13 @@ export default function Navbar() {
 
       <div className={styles.links}>
         {!isHome && (
-          <Link href="/" className={styles.backHomeLink} title="Nazad na početnu">
-            ← Početna
+          <Link
+            href="/"
+            className={styles.backHomeLink}
+            title="Nazad na početnu"
+            aria-label="Nazad na početnu"
+          >
+            ←
           </Link>
         )}
 
@@ -215,8 +220,8 @@ export default function Navbar() {
         <Link href="/javni-prihodi">Javni prihodi</Link>
         <Link href="/blog">Blog</Link>
         <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
-        <Link href={sectionHref('kako')}>Kako radi</Link>
-        <Link href={sectionHref('faq')}>FAQ</Link>
+        <Link href={sectionHref('kako')} className={styles.linkSecondary}>Kako radi</Link>
+        <Link href={sectionHref('faq')} className={styles.linkSecondary}>FAQ</Link>
       </div>
 
       <button
@@ -277,12 +282,12 @@ export default function Navbar() {
             {!needsOrg && orgsQuery.data && orgsQuery.data.length > 0 && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <a
-                href={
+                href={`${
                   process.env.NEXT_PUBLIC_APP_URL ??
                   (process.env.NODE_ENV === "production"
                     ? "https://app.poreznikalkulator.ba"
                     : "/app")
-                }
+                }/dashboard`}
                 className={styles.btnApp}
                 title="Otvori PK Office"
               >
@@ -321,6 +326,7 @@ export default function Navbar() {
                 href="/pk-office"
                 title="Šta je PK Office?"
                 aria-label="Šta je PK Office?"
+                className={styles.hideOnMobile}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",

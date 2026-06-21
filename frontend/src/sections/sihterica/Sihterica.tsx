@@ -1038,7 +1038,6 @@ function SihtericaApp() {
       <div className={styles.sidebarHeader}>Organizacija</div>
       <div className={styles.sidebarOrgWrap}>
         <OrgSelect
-          className={styles.sidebarOrgSelect}
           value={orgId}
           onChange={(v) => {
             setOrgId(v);

@@ -1336,6 +1336,10 @@
     padding: 5rem 1rem 4rem;
     flex-direction: column;
     gap: 1.5rem;
+    /* U koloni sadržaj mora na punu širinu; bez ovoga (zbog flex-start sa
+       desktopa) kolona se skuplja na širinu najdužeg reda bez prelamanja
+       (npr. dugačak naziv djelatnosti) i sve se širi desno. */
+    align-items: stretch;
   }
   .sidebar {
     width: 100%;

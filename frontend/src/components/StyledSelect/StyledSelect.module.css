@@ -1,0 +1,145 @@
+/* Generički stilizovani select/combobox. Okidač (.trigger) je SAM-stilizovan
+   (svoj box + jedna strelica) pa se ne oslanja na className stranice (koji može
+   imati svoju background strelicu, što bi dalo duplu strelicu). Panel se
+   renderuje portalom na body sa position:fixed (vidi komponentu) pa ga
+   overflow:hidden roditelji ne odsijecaju. */
+
+.wrap {
+  display: block;
+  width: 100%;
+}
+
+.trigger {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.6rem 0.8rem;
+  background: var(--white, #fff);
+  color: var(--ink, #0f1a12);
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: var(--radius, 8px);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.trigger:hover:not(:disabled) {
+  border-color: var(--sage, #3a5c42);
+}
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--sage, #3a5c42);
+  box-shadow: 0 0 0 3px var(--sage-pale, #eef3ef);
+}
+.trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Tekst okidača. Scope-ano pod .trigger (veća specifičnost) + reset, da
+   ancestor pravila stranice (npr. ".orgPicker span { text-transform:uppercase;
+   color:--mid }") ne procure i ne posive/ne smanje naziv. */
+.trigger .triggerText,
+.trigger .triggerPlaceholder {
+  font-size: inherit;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* Odabrana vrijednost: puna crna boja i malo deblje; placeholder sivo. */
+.trigger .triggerText {
+  color: var(--ink, #0f1a12);
+  font-weight: 500;
+}
+.trigger .triggerPlaceholder {
+  color: var(--mid, #7a8a7d);
+}
+
+.chevron {
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: transform 0.15s;
+}
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Panel (portal, position:fixed iz komponente) ── */
+.panel {
+  background: var(--white, #fff);
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 26, 18, 0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.search {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0.6rem 0.8rem;
+  border: none;
+  border-bottom: 1px solid var(--border, #d4cfc4);
+  outline: none;
+  background: var(--paper, #faf8f3);
+  color: var(--ink, #0f1a12);
+}
+.search::placeholder {
+  color: var(--mid, #7a8a7d);
+}
+
+.list {
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.group {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid, #7a8a7d);
+  padding: 0.5rem 0.55rem 0.2rem;
+}
+
+.item {
+  width: 100%;
+  display: block;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink, #0f1a12);
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 0.5rem 0.55rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.itemActive {
+  background: var(--sage-pale, #eef3ef);
+}
+.itemSelected {
+  color: var(--sage, #3a5c42);
+  font-weight: 600;
+}
+
+.empty {
+  padding: 0.9rem 0.6rem;
+  text-align: center;
+  color: var(--mid, #7a8a7d);
+  font-size: 13px;
+}

@@ -26,22 +26,31 @@ function triggerDownload(blob: Blob, filename: string) {
 export default function EvidencijaModal({
   orgId,
   orgName,
-  orgType,
-  ownerEmployed,
+  orgType = "COMPANY",
+  ownerEmployed = true,
+  initialWorkerId,
+  lockWorkerName,
   onClose,
 }: {
   orgId: number;
   orgName: string;
-  orgType: "COMPANY" | "BUSINESS";
+  orgType?: "COMPANY" | "BUSINESS";
   // d.o.o. vlasnik je u radnom odnosu samo kao prijavljeni direktor (opcija 1).
-  ownerEmployed: boolean;
+  ownerEmployed?: boolean;
+  // Kad se otvori za konkretnog radnika (npr. iz njegovog dossiera): pretodabran
+  // radnik i sakriven padajući izbornik (prikazuje se ime kao oznaka).
+  initialWorkerId?: number;
+  lockWorkerName?: string;
   onClose: () => void;
 }) {
   const workersQ = useQuery({
     queryKey: ["workers", orgId],
     queryFn: () => unwrap(getWorkers(orgId)),
   });
-  const [workerId, setWorkerId] = useState<number | null>(null);
+  const locked = initialWorkerId != null;
+  const [workerId, setWorkerId] = useState<number | null>(
+    initialWorkerId ?? null,
+  );
 
   const evidQ = useQuery({
     queryKey: ["evidencija", orgId, workerId],
@@ -189,23 +198,40 @@ export default function EvidencijaModal({
 
         <div style={{ margin: "0.9rem 0" }}>
           <label style={label}>Radnik</label>
-          <select
-            className={styles.input}
-            style={{ marginTop: 4, width: "100%" }}
-            value={workerId ?? ""}
-            onChange={(e) =>
-              setWorkerId(e.target.value ? Number(e.target.value) : null)
-            }
-          >
-            <option value="">Izaberi radnika</option>
-            {workers.map((w: Worker) => (
-              <option key={w.id} value={w.id}>
-                {w.firstName} {w.lastName}
-                {w.role === "VLASNIK" ? " (vlasnik/direktor)" : ""}
-                {w.employmentStatus === "ODJAVLJEN" ? " (odjavljen)" : ""}
-              </option>
-            ))}
-          </select>
+          {locked ? (
+            <div
+              style={{
+                marginTop: 4,
+                padding: "0.55rem 0.75rem",
+                background: "#f3efe6",
+                border: "1px solid #ede8db",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 500,
+                color: "#0f1a12",
+              }}
+            >
+              {lockWorkerName || evidQ.data?.workerName || "Radnik"}
+            </div>
+          ) : (
+            <select
+              className={styles.input}
+              style={{ marginTop: 4, width: "100%" }}
+              value={workerId ?? ""}
+              onChange={(e) =>
+                setWorkerId(e.target.value ? Number(e.target.value) : null)
+              }
+            >
+              <option value="">Izaberi radnika</option>
+              {workers.map((w: Worker) => (
+                <option key={w.id} value={w.id}>
+                  {w.firstName} {w.lastName}
+                  {w.role === "VLASNIK" ? " (vlasnik/direktor)" : ""}
+                  {w.employmentStatus === "ODJAVLJEN" ? " (odjavljen)" : ""}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {workerId == null ? (

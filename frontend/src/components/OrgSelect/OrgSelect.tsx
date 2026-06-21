@@ -1,5 +1,6 @@
 "use client";
 
+import { type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getClientOrganizations,
@@ -7,47 +8,45 @@ import {
   type Organization,
 } from "src/api/profile";
 import { useRole } from "src/hooks/useRole";
+import StyledSelect, {
+  type SelectGroup,
+} from "src/components/StyledSelect/StyledSelect";
 
-// Zajednički organizacijski dropdown koji svuda po aplikaciji izgleda isto:
-//
-//   ╭───────────────────────────╮
-//   │ — Odaberi —               │
-//   │ Moje organizacije         │  ← optgroup label
-//   │   Test obrt               │
-//   │   Test Organizacija d.o.o.│
-//   │ Klijentske organizacije   │  ← optgroup (samo za PRO/BUSINESS/ADMIN)
-//   │   Test Obrta — Klijent    │
-//   ╰───────────────────────────╯
-//
-// Korišten u svim funkcijama (JS3100, Obračun plata, Šihterica, Aktivni radnici,
-// fakture, ugovori). Pamti odabir kroz useLastOrg ne ovdje — caller donosi
-// orgId/setOrgId, ova komponenta samo renderira dropdown.
+// Organizacijski izbornik (Moje / Klijentske) sa pretragom. Tanak wrapper oko
+// StyledSelect-a: gradi grupe iz org lista. API (value/onChange/...) ostaje isti
+// pa je drop-in zamjena za stari <select>.
 export interface OrgSelectProps {
   value: number | null;
   onChange: (id: number | null) => void;
   className?: string;
+  style?: CSSProperties;
+  wrapStyle?: CSSProperties;
   id?: string;
   placeholder?: string;
-  /** Ako želiš custom queries (npr. samo BUSINESS), proslijedi listu — inače učitava sve. */
+  /** Custom liste (npr. već filtrirane), inače komponenta sama učita. */
   ownOrgs?: Organization[];
   clientOrgs?: Organization[];
   disabled?: boolean;
+  /** Custom prikaz imena org (npr. Amortizacija "•" marker, WorkersSidebar tip). */
+  getLabel?: (org: Organization) => string;
 }
 
 export default function OrgSelect({
   value,
   onChange,
   className,
+  style,
+  wrapStyle,
   id,
   placeholder = "– Odaberi –",
   ownOrgs,
   clientOrgs,
   disabled = false,
+  getLabel,
 }: OrgSelectProps) {
   const { hasRole } = useRole();
   const canSeeClients = hasRole("PRO", "BUSINESS", "ADMIN");
 
-  // Učitavanje vlastitih org (ako nisu eksplicitno proslijeđene)
   const ownOrgsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
@@ -68,35 +67,40 @@ export default function OrgSelect({
   });
 
   const ownList = ownOrgs ?? ownOrgsQuery.data ?? [];
-  const clientList = clientOrgs ?? clientOrgsQuery.data ?? [];
+  const clientList = canSeeClients
+    ? (clientOrgs ?? clientOrgsQuery.data ?? [])
+    : [];
+
+  const labelOf = (o: Organization) =>
+    getLabel ? getLabel(o) : o.name || `Organizacija #${o.id}`;
+
+  const groups: SelectGroup[] = [];
+  if (ownList.length > 0) {
+    groups.push({
+      label: "Moje organizacije",
+      options: ownList.map((o) => ({ value: o.id, label: labelOf(o) })),
+    });
+  }
+  if (canSeeClients && clientList.length > 0) {
+    groups.push({
+      label: "Klijentske organizacije",
+      options: clientList.map((o) => ({ value: o.id, label: labelOf(o) })),
+    });
+  }
 
   return (
-    <select
-      id={id}
+    <StyledSelect
+      value={value}
+      onChange={(v) => onChange(v == null ? null : Number(v))}
+      groups={groups}
+      searchable
+      searchPlaceholder="Pretraži organizaciju..."
+      placeholder={placeholder}
       className={className}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      style={style}
+      wrapStyle={wrapStyle}
+      id={id}
       disabled={disabled}
-    >
-      <option value="">{placeholder}</option>
-      {ownList.length > 0 && (
-        <optgroup label="Moje organizacije">
-          {ownList.map((o) => (
-            <option key={`own-${o.id}`} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-      {canSeeClients && clientList.length > 0 && (
-        <optgroup label="Klijentske organizacije">
-          {clientList.map((o) => (
-            <option key={`cli-${o.id}`} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-    </select>
+    />
   );
 }

@@ -110,7 +110,12 @@ export async function obracunOrgPayrolls(input: {
   const radnici =
     isObrt || !ownerEmployed
       ? activeWorkers.filter((w) => w.role === "RADNIK")
-      : activeWorkers; // d.o.o. opcija 1: i vlasnik je u radnicima
+      : // d.o.o. opcija 1: vlasnik je u radnicima SAMO ako ima unesen datum
+        // prijave u ovoj org (isti princip kao forma vlasnika). Bez datuma
+        // prijave (prebacio prijavu u drugu svoju org) se preskače.
+        activeWorkers.filter(
+          (w) => w.role === "RADNIK" || !!w.prijavaDate,
+        );
   const vlasniciObrt = isObrt
     ? activeWorkers.filter((w) => w.role === "VLASNIK")
     : [];

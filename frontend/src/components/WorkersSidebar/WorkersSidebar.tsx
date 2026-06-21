@@ -12,6 +12,7 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import styles from "./WorkersSidebar.module.css";
 import QuickAddWorkerModal from "./QuickAddWorkerModal";
 
@@ -126,35 +127,16 @@ export default function WorkersSidebar({
     <aside className={styles.sidebar}>
       <div className={styles.sidebarHeader}>Organizacija</div>
       <div className={styles.orgWrap}>
-        <select
-          className={styles.orgSelect}
-          value={selectedOrgId ?? ""}
-          onChange={(e) => {
-            const v = e.target.value ? Number(e.target.value) : null;
+        <OrgSelect
+          value={selectedOrgId}
+          onChange={(v) => {
             onOrgChange(v);
             onWorkerSelect(null, null);
           }}
-        >
-          <option value="">– Odaberi –</option>
-          {(orgsQuery.data?.length ?? 0) > 0 && (
-            <optgroup label="Moje organizacije">
-              {orgsQuery.data!.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {orgLabel(org)}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {canSeeClients && (clientOrgsQuery.data?.length ?? 0) > 0 && (
-            <optgroup label="Klijentske organizacije">
-              {clientOrgsQuery.data!.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {orgLabel(org)}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+          ownOrgs={orgsQuery.data ?? []}
+          clientOrgs={canSeeClients ? (clientOrgsQuery.data ?? []) : []}
+          getLabel={orgLabel}
+        />
       </div>
 
       {!orgsQuery.isLoading &&

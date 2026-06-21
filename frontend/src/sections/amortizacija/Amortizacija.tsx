@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useRole } from "src/hooks/useRole";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
+import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import { useLastOrg } from "src/hooks/useLastOrg";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
@@ -1071,47 +1072,16 @@ function AmortizacijaApp() {
         <span style={{ color: "#666", textTransform: "uppercase", fontSize: "0.72rem", letterSpacing: "0.04em" }}>
           Organizacija
         </span>
-        <select
-          value={selectedOrgId ?? ""}
-          onChange={(e) =>
-            handleSelectOrg(e.target.value ? Number(e.target.value) : null)
+        <OrgSelect
+          value={selectedOrgId}
+          onChange={(v) => handleSelectOrg(v)}
+          ownOrgs={ownOrgs}
+          clientOrgs={clientOrgs}
+          getLabel={(o) =>
+            `${o.name}${orgYearsQuery.data?.[String(o.id)]?.length ? " •" : ""}`
           }
-          style={{
-            flex: 1,
-            padding: "0.5rem 0.7rem",
-            border: "1px solid #d4cfc4",
-            borderRadius: 6,
-            fontSize: "0.9rem",
-            background: "white",
-            cursor: "pointer",
-          }}
-        >
-          <option value="">– Odaberi –</option>
-          {ownOrgs.length > 0 && (
-            <optgroup label="Moje organizacije">
-              {ownOrgs.map((o) => {
-                const hasData = !!orgYearsQuery.data?.[String(o.id)]?.length;
-                return (
-                  <option key={o.id} value={o.id}>
-                    {o.name}{hasData ? " •" : ""}
-                  </option>
-                );
-              })}
-            </optgroup>
-          )}
-          {canSeeClients && clientOrgs.length > 0 && (
-            <optgroup label="Klijentske organizacije">
-              {clientOrgs.map((o) => {
-                const hasData = !!orgYearsQuery.data?.[String(o.id)]?.length;
-                return (
-                  <option key={o.id} value={o.id}>
-                    {o.name}{hasData ? " •" : ""}
-                  </option>
-                );
-              })}
-            </optgroup>
-          )}
-        </select>
+          wrapStyle={{ flex: 1 }}
+        />
       </label>
 
       {/* Slučaj: user nema nijednu org-u → link na profil za dodavanje. */}
