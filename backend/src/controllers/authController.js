@@ -57,8 +57,17 @@ function setAuthCookie(res, token, rememberMe = false) {
 }
 
 function clearAuthCookie(res) {
+  const isProd = process.env.NODE_ENV === "production";
   const domain = getCookieDomain();
-  res.clearCookie("access_token", { path: "/", ...(domain ? { domain } : {}) });
+  // Atributi se MORAJU poklapati sa setAuthCookie (secure + sameSite + domain),
+  // inače browser ne obriše cross-subdomain Secure; SameSite=None cookie.
+  res.clearCookie("access_token", {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    path: "/",
+    ...(domain ? { domain } : {}),
+  });
 }
 
 const userAttributes = [
