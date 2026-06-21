@@ -46,6 +46,18 @@ function getCookieDomain() {
 function setAuthCookie(res, token, rememberMe = false) {
   const isProd = process.env.NODE_ENV === "production";
   const domain = getCookieDomain();
+  // Kad koristimo domain cookie (.poreznikalkulator.ba), prvo obrišemo eventualni
+  // stari host-only access_token (postavljen bez domaina, prije konfiguracije).
+  // Bez ovoga browser zadrži oba i šalje ih oba na api subdomenu, pa server
+  // pročita stari (nevažeći) token. Clear bez domaina cilja host-only varijantu.
+  if (domain) {
+    res.clearCookie("access_token", {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+      path: "/",
+    });
+  }
   res.cookie("access_token", token, {
     httpOnly: true,
     secure: isProd,
