@@ -69,9 +69,12 @@ export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuild
   }
 
   const xmlWorkers: Mip1023XmlWorker[] = radniciPayrolls.map(({ w, p }) => {
-    const bruto = Number(p.gross) || 0;
-    const koristi = 0;
-    const ukupanPrihod = bruto + koristi;
+    // p.gross je UKUPNA osnovica (plata + korist u naravi). Za MIP se bruto
+    // (plata u novcu) i korist prikazuju odvojeno: BrutoPlaca = plata, Koristi =
+    // bruto korist, UkupanPrihod = zbir (= p.gross).
+    const koristi = Number(p.koristBruto) || 0;
+    const bruto = +((Number(p.gross) || 0) - koristi).toFixed(2);
+    const ukupanPrihod = +(bruto + koristi).toFixed(2);
     const empPio = Number(p.empPio) || 0;
     const empZdr = Number(p.empZdravstvo) || 0;
     const empNezap = Number(p.empNezaposlenost) || 0;

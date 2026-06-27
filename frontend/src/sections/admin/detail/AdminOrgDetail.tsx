@@ -11,6 +11,7 @@ import {
   adminDownloadUrl,
 } from "src/api/admin/adminDetail";
 import { unwrap } from "src/api/auth";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import styles from "./detail.module.css";
 
 const MJESECI = [
@@ -234,20 +235,20 @@ export default function AdminOrgDetail({ orgId }: { orgId: number }) {
       <div className={styles.section}>
         <div className={styles.sectionHead}>
           <div className={styles.sectionTitle}>Obračuni plata</div>
-          <select
-            className={styles.select}
+          <StyledSelect
             value={year}
-            onChange={(e) => {
-              setYear(Number(e.target.value));
+            onChange={(v) => {
+              setYear(Number(v));
               setMonth(null);
             }}
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}.
-              </option>
-            ))}
-          </select>
+            ariaLabel="Godina"
+            wrapStyle={{ minWidth: 140 }}
+            groups={[
+              {
+                options: years.map((y) => ({ value: y, label: `${y}.` })),
+              },
+            ]}
+          />
         </div>
 
         <div className={styles.monthGrid} style={{ marginBottom: "0.9rem" }}>

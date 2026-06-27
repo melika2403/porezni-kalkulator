@@ -153,6 +153,11 @@ function Js3100App() {
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(
     initialWorkerId,
   );
+  // Trenutni (DB) status odabranog radnika, da znamo je li već prijavljen/odjavljen.
+  // employmentStatus serviran iz API-ja je već izveden iz datuma (datumi su master).
+  const [selectedStatus, setSelectedStatus] = useState<
+    "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN" | null
+  >(null);
 
   // Perzistira odabranu organizaciju u localStorage da Obračun plata / Aktivni
   // radnici otvore istu organizaciju bez ponovnog odabira.
@@ -274,6 +279,7 @@ function Js3100App() {
   /* ── Sidebar auto-popuna: radnik ── */
   const handleWorkerPick = (workerId: number | null, w: Worker | null) => {
     setSidebarWorkerId(workerId);
+    setSelectedStatus(w?.employmentStatus ?? null);
     if (!w) return;
 
     // Default vrsta: ako je worker DRAFT/ODJAVLJEN → PRIJAVA, ako je PRIJAVLJEN → ODJAVA
@@ -449,7 +455,10 @@ function Js3100App() {
 
   const queryClient = useQueryClient();
   const [statusOnly, setStatusOnly] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{
+    text: string;
+    tone: "success" | "info" | "error";
+  } | null>(null);
 
   // Sinhronizuje employmentStatus + datume radnika u bazi (PRIJAVLJEN/ODJAVLJEN)
   // koristeći datume IZ FORME. Auto-kreira radnika ako nije odabran. Vraća true
@@ -514,6 +523,8 @@ function Js3100App() {
         setSidebarWorkerId(created.id);
       }
       await unwrap(updateWorker(sidebarOrgId, targetWorkerId, payload));
+      // Lokalno odrazi novi status da naredni klik zna da je već prijavljen/odjavljen.
+      setSelectedStatus(vrsta === "PRIJAVA" ? "PRIJAVLJEN" : "ODJAVLJEN");
       queryClient.invalidateQueries({ queryKey: ["workers", sidebarOrgId] });
       queryClient.invalidateQueries({ queryKey: ["allMyWorkers"] });
       return true;
@@ -540,8 +551,23 @@ function Js3100App() {
       downloadPdf(bytes, `JS3100_${suffix}_${last}.pdf`);
       trackEvent("JS3100_GENERATE", `JS3100 (${suffix})`, sidebarOrgId);
 
-      // Status update je best-effort — download ne smije pasti zbog njega.
-      await syncWorkerStatus(false);
+      // Ako je radnik već u ciljanom statusu, ne diramo bazu (da ne pregazimo
+      // postojeće datume), samo javimo da je preuzet PDF.
+      const alreadyPrijavljen =
+        vrsta === "PRIJAVA" && selectedStatus === "PRIJAVLJEN";
+      const alreadyOdjavljen =
+        vrsta === "ODJAVA" && selectedStatus === "ODJAVLJEN";
+      if (alreadyPrijavljen || alreadyOdjavljen) {
+        setStatusMsg({
+          tone: "info",
+          text: alreadyPrijavljen
+            ? "Radnik je već prijavljen, preuzeli ste samo PDF prijave."
+            : "Radnik je već odjavljen, preuzeli ste samo PDF odjave.",
+        });
+      } else {
+        // Status update je best-effort, download ne smije pasti zbog njega.
+        await syncWorkerStatus(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -551,19 +577,30 @@ function Js3100App() {
   // (npr. JS3100 već predan elektronski preko ePortala).
   const handleStatusOnly = async () => {
     if (!canGenerate || vrsta === "PROMJENA") return;
+    // Već u ciljanom statusu, nema šta mijenjati.
+    if (vrsta === "PRIJAVA" && selectedStatus === "PRIJAVLJEN") {
+      setStatusMsg({ tone: "info", text: "Radnik je već prijavljen." });
+      return;
+    }
+    if (vrsta === "ODJAVA" && selectedStatus === "ODJAVLJEN") {
+      setStatusMsg({ tone: "info", text: "Radnik je već odjavljen." });
+      return;
+    }
     setStatusOnly(true);
     setStatusMsg(null);
     try {
       const ok = await syncWorkerStatus(true);
       if (ok) {
-        setStatusMsg(
-          vrsta === "PRIJAVA"
-            ? "Radnik je označen kao Prijavljen."
-            : "Radnik je označen kao Odjavljen.",
-        );
+        setStatusMsg({
+          tone: "success",
+          text:
+            vrsta === "PRIJAVA"
+              ? "Radnik je označen kao Prijavljen."
+              : "Radnik je označen kao Odjavljen.",
+        });
       }
     } catch (e) {
-      setStatusMsg("Greška: " + (e as Error).message);
+      setStatusMsg({ tone: "error", text: "Greška: " + (e as Error).message });
     } finally {
       setStatusOnly(false);
     }
@@ -1302,7 +1339,46 @@ function Js3100App() {
                 )}
               </p>
             )}
-            {statusMsg && <p className={styles.statusDone}>{statusMsg}</p>}
+            {statusMsg && (
+              <p
+                className={`${styles.statusBanner} ${
+                  statusMsg.tone === "success"
+                    ? styles.statusSuccess
+                    : statusMsg.tone === "error"
+                      ? styles.statusError
+                      : styles.statusInfo
+                }`}
+                role="status"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  {statusMsg.tone === "success" ? (
+                    <path d="M9 12l2 2 4-4" />
+                  ) : statusMsg.tone === "error" ? (
+                    <>
+                      <path d="M15 9l-6 6" />
+                      <path d="M9 9l6 6" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="M12 8h.01" />
+                      <path d="M11 12h1v4h1" />
+                    </>
+                  )}
+                </svg>
+                <span>{statusMsg.text}</span>
+              </p>
+            )}
           </form>
         </div>
       </div>

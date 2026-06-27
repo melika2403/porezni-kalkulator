@@ -29,10 +29,11 @@ import {
 import { unwrap } from "src/api/auth";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
-import CitySelect from "src/components/CitySelect/CitySelect";
+import CitySelect, { CityNote } from "src/components/CitySelect/CitySelect";
 import { RS_OPCINE } from "src/data/rs-opcine";
+import { useCityLookup } from "src/hooks/useCities";
 import { useRole } from "src/hooks/useRole";
-import { parseDecimal } from "src/utils/parseDecimal";
+import { parseDecimal, sanitizeDecimalInput } from "src/utils/parseDecimal";
 import {
   computeContractEndIso,
   maxTrajanjeBroj,
@@ -193,6 +194,16 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     opcinaKod:
       f.prebivalisteEntitet === "RS" ? f.opcinaKod.trim() || null : null,
   };
+}
+
+// Grad/opština radnika moraju biti sa liste (FBiH grad iz liste, RS opština
+// izabrana), jer se iz njih izvodi kanton/općina za obračun plate.
+function workerLocationValid(
+  f: Pick<WorkerForm, "prebivalisteEntitet" | "city" | "opcinaKod">,
+  cityInList: (name: string) => boolean,
+): boolean {
+  if (f.prebivalisteEntitet === "RS") return !!f.opcinaKod;
+  return cityInList((f.city || "").trim());
 }
 
 function workerToForm(w: Worker): WorkerForm {
@@ -576,6 +587,8 @@ function WorkerFormFields({
                 onChange={(e) =>
                   onChange({ ...value, opcinaKod: e.target.value })
                 }
+                aria-invalid={!value.opcinaKod || undefined}
+                style={!value.opcinaKod ? { borderColor: "#b3261e" } : undefined}
               >
                 <option value="">Izaberite opštinu...</option>
                 {RS_OPCINE.map((o) => (
@@ -584,6 +597,10 @@ function WorkerFormFields({
                   </option>
                 ))}
               </select>
+              <CityNote>
+                Opštinu obavezno odaberite sa liste, potrebna je za obračun plate
+                i uplatnice (Budžet RS).
+              </CityNote>
             </div>
           </>
         ) : (
@@ -593,7 +610,12 @@ function WorkerFormFields({
               value={value.city}
               onChange={(v) => onChange({ ...value, city: v })}
               className={styles.input}
+              strict
             />
+            <CityNote>
+              Grad odaberite sa liste, iz njega se određuje kanton i općina za
+              obračun plate i uplatnice.
+            </CityNote>
           </div>
         )}
         <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
@@ -637,11 +659,30 @@ function WorkerFormFields({
 
       {/* ── 3. JS3100 prijava / odjava ── */}
       <FormSection title="JS3100 prijava / odjava" icon={ICON_CLIPBOARD}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>
+        <div
+          className={styles.field}
+          style={
+            value.employmentStatus === "PRIJAVLJEN" && value.prijavaDate
+              ? {
+                  background: "#f1f8f3",
+                  border: "1px solid #b7dcc4",
+                  borderRadius: 8,
+                  padding: "0.6rem 0.7rem",
+                }
+              : undefined
+          }
+        >
+          <label
+            className={styles.fieldLabel}
+            style={
+              value.employmentStatus === "PRIJAVLJEN" && value.prijavaDate
+                ? { color: "#1f5e44", fontWeight: 700 }
+                : undefined
+            }
+          >
             Datum prijave (JS3100),{" "}
             <span style={{ color: "var(--mid)", fontWeight: 400, fontSize: 11 }}>
-              koristi se za period u obrascima 2001/2002
+              koristi se za obračun plata
             </span>
           </label>
           <DateInput
@@ -649,20 +690,63 @@ function WorkerFormFields({
             value={value.prijavaDate}
             onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
           />
+          {value.employmentStatus === "PRIJAVLJEN" && value.prijavaDate && (
+            <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#1f5e44" }}>
+              Stavljen je današnji datum, izmijenite ako prijava nije danas.
+            </span>
+          )}
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel}>Datum odjave (JS3100)</label>
+        <div
+          className={styles.field}
+          style={
+            value.employmentStatus === "ODJAVLJEN" && value.odjavaDate
+              ? {
+                  background: "#fdeceb",
+                  border: "1px solid #f3c4c4",
+                  borderRadius: 8,
+                  padding: "0.6rem 0.7rem",
+                }
+              : undefined
+          }
+        >
+          <label
+            className={styles.fieldLabel}
+            style={
+              value.employmentStatus === "ODJAVLJEN" && value.odjavaDate
+                ? { color: "#a3322f", fontWeight: 700 }
+                : undefined
+            }
+          >
+            Datum odjave (JS3100)
+          </label>
           <DateInput
             className={styles.input}
             value={value.odjavaDate}
             onValueChange={(iso) => onChange({ ...value, odjavaDate: iso })}
           />
+          {value.employmentStatus === "ODJAVLJEN" && value.odjavaDate && (
+            <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#a3322f" }}>
+              Stavljen je današnji datum, izmijenite ako odjava nije danas.
+            </span>
+          )}
         </div>
         {!isObrtVlasnik && (
           <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
-            <label className={styles.fieldLabel}>Status</label>
+            <label
+              className={styles.fieldLabel}
+              style={{ color: "#9a6a00", fontWeight: 700 }}
+            >
+              Status , bitno označiti
+            </label>
             <select
               className={styles.input}
+              style={
+                value.employmentStatus === "PRIJAVLJEN"
+                  ? { borderColor: "#2e7d32", background: "#f1f8f3" }
+                  : value.employmentStatus === "ODJAVLJEN"
+                    ? { borderColor: "#b3261e", background: "#fdeceb" }
+                    : { borderColor: "#e0a93b", background: "#fffaf0" }
+              }
               value={value.employmentStatus}
               onChange={(e) => {
                 // Status je master: mijenjanje dropdowna reconciluje datume tako
@@ -699,6 +783,23 @@ function WorkerFormFields({
               <option value="PRIJAVLJEN">Prijavljen kod PIO/ZZO</option>
               <option value="ODJAVLJEN">Odjavljen</option>
             </select>
+            <span
+              style={{
+                display: "block",
+                marginTop: 6,
+                fontSize: 12.5,
+                color: "#8a5a00",
+                background: "#fdf6e3",
+                border: "1px solid #f0d9a6",
+                borderRadius: 8,
+                padding: "0.5rem 0.65rem",
+                lineHeight: 1.45,
+              }}
+            >
+              Bitno: plata se obračunava samo radnicima sa statusom{" "}
+              <strong>Prijavljen</strong>. Ako ostane Draft, radnik se ne uzima u
+              obračun plate.
+            </span>
           </div>
         )}
       </FormSection>
@@ -966,7 +1067,9 @@ function WorkerFormFields({
           <input
             className={styles.input}
             value={value.taxCoefficient}
-            onChange={set("taxCoefficient")}
+            onChange={(e) =>
+              onChange({ ...value, taxCoefficient: sanitizeDecimalInput(e.target.value) })
+            }
             placeholder="1.0"
             inputMode="decimal"
           />
@@ -1077,6 +1180,16 @@ export default function Organizacija({ orgId }: { orgId: number }) {
 
   const queryClient = useQueryClient();
   const { role: userRole } = useRole();
+  const { findByName } = useCityLookup();
+  const cityInList = (n: string) => !!findByName(n);
+  const [addWorkerError, setAddWorkerError] = useState<string | null>(null);
+  // Poruka o nedostajućoj lokaciji radnika (grad sa liste / RS opština).
+  const workerLocMsg = (f: WorkerForm): string | null => {
+    if (workerLocationValid(f, cityInList)) return null;
+    return f.prebivalisteEntitet === "RS"
+      ? "Odaberite opštinu (RS) sa liste, potrebna je za obračun plate."
+      : "Odaberite grad sa liste, potreban je za obračun plate.";
+  };
 
   const { data: org, isLoading: orgLoading } = useQuery<Organization>({
     queryKey: ["organization", orgId],
@@ -1357,10 +1470,19 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               className={styles.formCard}
               onSubmit={(e) => {
                 e.preventDefault();
+                const msg = workerLocMsg(addForm);
+                if (msg) {
+                  setAddWorkerError(msg);
+                  return;
+                }
+                setAddWorkerError(null);
                 createMutation.mutate(formToPayload(addForm));
               }}
             >
               <WorkerFormFields value={addForm} onChange={setAddForm} orgType={org?.type} />
+              {addWorkerError && (
+                <div className={styles.errorMsg}>{addWorkerError}</div>
+              )}
               {createMutation.error && (
                 <div className={styles.errorMsg}>
                   {createMutation.error.message === "WORKERS_LIMIT_REACHED"
@@ -1425,6 +1547,7 @@ export default function Organizacija({ orgId }: { orgId: number }) {
               updateError={updateMutation.error?.message ?? null}
               updatePending={updateMutation.isPending}
               deletePending={deleteMutation.isPending}
+              editLocationValid={workerLocationValid(editForm, cityInList)}
             />
           )}
         </div>
@@ -1668,6 +1791,7 @@ function WorkerTable({
   updateError,
   updatePending,
   deletePending,
+  editLocationValid,
 }: {
   workers: Worker[];
   orgType?: "COMPANY" | "BUSINESS" | null;
@@ -1684,7 +1808,9 @@ function WorkerTable({
   updateError: string | null;
   updatePending: boolean;
   deletePending: boolean;
+  editLocationValid: boolean;
 }) {
+  const [editLocError, setEditLocError] = useState(false);
   return (
     <table className={styles.table}>
       <thead>
@@ -1706,10 +1832,22 @@ function WorkerTable({
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    if (!editLocationValid) {
+                      setEditLocError(true);
+                      return;
+                    }
+                    setEditLocError(false);
                     onSaveEdit(w);
                   }}
                 >
                   <WorkerFormFields value={editForm} onChange={setEditForm} orgType={orgType} />
+                  {editLocError && !editLocationValid && (
+                    <div className={styles.errorMsg}>
+                      {editForm.prebivalisteEntitet === "RS"
+                        ? "Odaberite opštinu (RS) sa liste, potrebna je za obračun plate."
+                        : "Odaberite grad sa liste, potreban je za obračun plate."}
+                    </div>
+                  )}
                   {updateError && (
                     <div className={styles.errorMsg}>{updateError}</div>
                   )}

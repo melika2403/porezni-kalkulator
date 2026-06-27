@@ -10,6 +10,7 @@ import {
   type KantonKey,
 } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
@@ -1197,37 +1198,43 @@ export default function GpdForm() {
             <div className={styles.fieldGrid}>
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Kanton</label>
-                <select
-                  className={styles.fieldInput}
-                  value={kantonGpd}
-                  onChange={(e) => {
-                    setKantonGpd(e.target.value as KantonKey | "");
+                <StyledSelect
+                  ariaLabel="Kanton"
+                  placeholder="– Odaberite kanton –"
+                  value={kantonGpd || null}
+                  onChange={(v) => {
+                    setKantonGpd(String(v) as KantonKey);
                     setOpcinaGpd("");
                   }}
-                >
-                  <option value="">– Odaberite kanton –</option>
-                  {KANTON_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      {KANTONI[k].ime}
-                    </option>
-                  ))}
-                </select>
+                  groups={[
+                    {
+                      options: KANTON_KEYS.map((k) => ({
+                        value: k,
+                        label: KANTONI[k].ime,
+                      })),
+                    },
+                  ]}
+                />
               </div>
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Općina</label>
-                <select
-                  className={styles.fieldInput}
-                  value={opcinaGpd}
-                  onChange={(e) => setOpcinaGpd(e.target.value)}
+                <StyledSelect
+                  ariaLabel="Općina"
+                  placeholder="– Odaberite općinu –"
+                  searchable
+                  searchPlaceholder="Pretraži općinu..."
                   disabled={!kantonGpd}
-                >
-                  <option value="">– Odaberite općinu –</option>
-                  {kantonGpdData?.opcine.map((o) => (
-                    <option key={o.kod} value={o.kod}>
-                      {o.ime}
-                    </option>
-                  ))}
-                </select>
+                  value={opcinaGpd || null}
+                  onChange={(v) => setOpcinaGpd(String(v))}
+                  groups={[
+                    {
+                      options: (kantonGpdData?.opcine ?? []).map((o) => ({
+                        value: o.kod,
+                        label: o.ime,
+                      })),
+                    },
+                  ]}
+                />
               </div>
               <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
                 <label className={styles.fieldLabel}>

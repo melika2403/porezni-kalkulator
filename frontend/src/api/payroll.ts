@@ -50,6 +50,7 @@ export type Payroll = {
 
   gross: number;
   grossBase: number | null;
+  proRateFactor: number | null;
   minuliRadRate: number | null;
   minuliRadYears: number | null;
   minuliRadAmount: number | null;
@@ -73,6 +74,11 @@ export type Payroll = {
 
   vodnaNaknada: number;
   naknadaNesrece: number;
+
+  // Korist u naravi (službeno vozilo). koristNetValue = V (neto sa porezom),
+  // koristBruto = grossovana korist (dio osnovice). gross uključuje koristBruto.
+  koristNetValue: number;
+  koristBruto: number;
 
   mealAllowance: number;
   vacationBonus: number;
@@ -124,6 +130,13 @@ export type CalculatePayload = {
   // bruto osnovicu da finalni neto padne tačno na ovaj iznos.
   targetNet?: number;
   notes?: string | null;
+  // Korist u naravi (službeno vozilo). Per-radnik konfiguracija; backend računa
+  // vrijednost koristi i grossuje je u osnovicu (povećava doprinose i porez, ne neto).
+  koristVoziloAktivna?: boolean;
+  koristVoziloMetoda?: string;
+  koristVoziloVrijednost?: number;
+  koristVoziloSaPdv?: boolean;
+  koristVoziloOpis?: string | null;
 };
 
 export type PatchPayload = Partial<
@@ -172,6 +185,11 @@ export type SaveInputsPayload = {
   travelExpense?: number;
   taxCoefficient?: number;
   minuliRadRate?: number;
+  koristVoziloAktivna?: boolean;
+  koristVoziloMetoda?: string;
+  koristVoziloVrijednost?: number;
+  koristVoziloSaPdv?: boolean;
+  koristVoziloOpis?: string | null;
 };
 
 export function savePayrollInputs(payload: SaveInputsPayload) {
@@ -458,12 +476,14 @@ export async function generateMonthlyPayslips(
 
 // ── Konta za nalog za knjiženje (agencijska konvencija) ─────────────────────
 export type PostingItem = { key: string; label: string };
-export type PostingAccount = { d: string; p: string };
+export type PostingAccount = { d: string; p: string | null };
 export type PostingAccountsData = {
   items: PostingItem[];
+  burdenItems: PostingItem[];
   defaults: Record<string, PostingAccount>;
   overrides: Record<string, Partial<PostingAccount>>;
   resolved: Record<string, PostingAccount>;
+  splitByContribution: boolean;
 };
 
 export function getPostingAccounts() {
@@ -472,11 +492,15 @@ export function getPostingAccounts() {
 
 export function savePostingAccounts(
   postingAccounts: Record<string, Partial<PostingAccount>>,
+  splitByContribution: boolean,
 ) {
-  return request<{ overrides: Record<string, Partial<PostingAccount>> }>(
-    "/api/payroll/posting-accounts",
-    { method: "PUT", body: JSON.stringify({ postingAccounts }) },
-  );
+  return request<{
+    overrides: Record<string, Partial<PostingAccount>>;
+    splitByContribution: boolean;
+  }>("/api/payroll/posting-accounts", {
+    method: "PUT",
+    body: JSON.stringify({ postingAccounts, splitByContribution }),
+  });
 }
 
 // Nalog za knjiženje plate (PDF). Doprinosi iz+na osnovicu zbirno po vrsti,

@@ -161,7 +161,10 @@ export default function Pricing() {
                   <div className={styles.popularTag}>{plan.tag}</div>
                 )}
                 <div className={styles.tier}>{plan.tier}</div>
-                <div className={styles.price}>{displayPrice(plan)}</div>
+                <div className={styles.price}>
+                  {displayPrice(plan)}
+                  {plan.planId && <span className={styles.vatSuffix}>+ PDV</span>}
+                </div>
                 <div className={styles.period}>{displayPeriod(plan)}</div>
                 <div
                   className={styles.trialBadge}

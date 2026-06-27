@@ -317,6 +317,19 @@ const Worker = sequelize.define(
     // ispit, datum ugovora, pripravnički/beneficirani staž, radna sposobnost,
     // razdoblja mirovanja, razlog prestanka, mjesto rada, sedmično radno vrijeme.
     evidencijaPodaci: { type: DataTypes.JSON, allowNull: true },
+    // ── Korist u naravi: korištenje službenog vozila u privatne svrhe ──
+    // Vezano za konkretno vozilo i osobu iz Odluke poslodavca. Većina radnika
+    // nema. Povećava osnovicu za doprinose i porez (ne i neto), čl. 10 Zakona o
+    // porezu na dohodak + čl. 17/22 Pravilnika.
+    koristVoziloAktivna: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // 'nabavna_1posto' | 'lizing_20posto' | 'stvarni_km'
+    koristVoziloMetoda: { type: DataTypes.STRING(20), allowNull: true },
+    // Ulazna vrijednost (značenje zavisi od metode: nabavna vrijednost / rata / km).
+    koristVoziloVrijednost: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    // Da li je ulazna vrijednost već sa PDV-om (metode 1 i 2 traže sa PDV-om).
+    koristVoziloSaPdv: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    // Opis vozila (model + tablice) za Odluku i evidenciju.
+    koristVoziloOpis: { type: DataTypes.STRING(255), allowNull: true },
   },
   { tableName: "workers", timestamps: true },
 );
@@ -363,6 +376,9 @@ const Payroll = sequelize.define(
     gross: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     // grossBase = bruto osnovica (ono što user upiše, prije dodavanja minulog rada)
     grossBase: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    // Pro-rate faktor za mid-month prijavu/odjavu (0..1). Pamti korisnikov izbor
+    // razmjernog obračuna za taj mjesec (1 = pun obračun, isključen razmjer).
+    proRateFactor: { type: DataTypes.DECIMAL(5, 4), allowNull: true },
     // Minuli rad (% × godine × osnovica)
     minuliRadRate: { type: DataTypes.DECIMAL(5, 2), allowNull: true, defaultValue: 0 },
     minuliRadYears: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
@@ -393,6 +409,14 @@ const Payroll = sequelize.define(
     // Dodatne naknade
     vodnaNaknada: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     naknadaNesrece: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+
+    // ── Korist u naravi (službeno vozilo) — snapshot za ovaj mjesec ──
+    // koristNetValue = vrijednost koristi V (neto sa sadržanim porezom, npr. 1%
+    // nabavne). koristBruto = V grossovan koeficijentom (osnovica za doprinose).
+    // gross uključuje koristBruto; emp*/erp*/incomeTax su zbir plate i koristi;
+    // net (keš radniku) je SAMO iz plate. Default 0 = nema koristi (svi stari redovi).
+    koristNetValue: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    koristBruto: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
 
     // Neoporezivi dodaci (toggle ON/OFF preko iznosa > 0)
     mealAllowance: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
@@ -495,8 +519,32 @@ const WorkerDocument = sequelize.define(
     workerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     type: {
-      // UGOVOR=ugovor o radu, OTKAZ=odluka o prestanku, JS3100_PRIJAVA, JS3100_ODJAVA
-      type: DataTypes.ENUM("UGOVOR", "OTKAZ", "JS3100_PRIJAVA", "JS3100_ODJAVA"),
+      // UGOVOR=ugovor o radu, OTKAZ=odluka o prestanku, JS3100_PRIJAVA, JS3100_ODJAVA,
+      // RJESENJE_GO=godišnji odmor (puni), RJESENJE_GO_SRAZMJERNI=srazmjerni dio,
+      // ODLUKA_REGRES, ODLUKA_PRIGODNA_NAGRADA=poklon povodom praznika,
+      // RJESENJE_PLACENO_ODSUSTVO, RJESENJE_NEPLACENO_ODSUSTVO
+      type: DataTypes.ENUM(
+        "UGOVOR",
+        "OTKAZ",
+        "JS3100_PRIJAVA",
+        "JS3100_ODJAVA",
+        "RJESENJE_GO",
+        "RJESENJE_GO_SRAZMJERNI",
+        "ODLUKA_REGRES",
+        "ODLUKA_PRIGODNA_NAGRADA",
+        "RJESENJE_PLACENO_ODSUSTVO",
+        "RJESENJE_NEPLACENO_ODSUSTVO",
+        "POTVRDA_ZAPOSLENJE",
+        "POTVRDA_PLATA",
+        "POTVRDA_STAZ",
+        "ODLUKA_VOZILO",
+        "ANEKS_UGOVORA",
+        "ODLUKA_PROMJENA_PLATE",
+        "UPOZORENJE_OTKAZ",
+        "RJESENJE_PORODILJSKO",
+        "ODLUKA_OTPREMNINA",
+        "ODLUKA_TOPLI_OBROK",
+      ),
       allowNull: false,
     },
     format: {

@@ -25,18 +25,18 @@ const FONT_BOLD = path.join(FONTS_DIR, "arialbd.ttf");
 const LOGO_CANDIDATES = [path.join(__dirname, "..", "assets", "logo.jpg")];
 
 // ── CIJENE ───────────────────────────────────────────────────────────────────
-// Pricing model: BRUTO iznosi (cijena sa PDV-om) — ono što kupac plaća.
-// Neto i PDV se automatski back-kalkulišu iz bruta po stopi VAT_RATE.
+// Pricing model: NETO iznosi (cijena bez PDV-a) — osnovica na koju se PDV dodaje.
+// PDV i bruto (za naplatu) se računaju odozgo po stopi VAT_RATE.
 // Brojevi dolaze iz config/pricing.js (jedan izvor istine); ovdje dodajemo labele.
 const { PLAN_PRICES: PRICE_NUMBERS } = require("../config/pricing");
 const PLAN_PRICES = {
   PRO: {
-    yearly: { gross: PRICE_NUMBERS.PRO.yearly, label: "Godišnja pretplata PRO na poreznikalkulator.ba" },
-    monthly: { gross: PRICE_NUMBERS.PRO.monthly, label: "Mjesečna pretplata PRO na poreznikalkulator.ba" },
+    yearly: { net: PRICE_NUMBERS.PRO.yearly, label: "Godišnja pretplata PRO na poreznikalkulator.ba" },
+    monthly: { net: PRICE_NUMBERS.PRO.monthly, label: "Mjesečna pretplata PRO na poreznikalkulator.ba" },
   },
   BUSINESS: {
-    yearly: { gross: PRICE_NUMBERS.BUSINESS.yearly, label: "Godišnja pretplata BUSINESS na poreznikalkulator.ba" },
-    monthly: { gross: PRICE_NUMBERS.BUSINESS.monthly, label: "Mjesečna pretplata BUSINESS na poreznikalkulator.ba" },
+    yearly: { net: PRICE_NUMBERS.BUSINESS.yearly, label: "Godišnja pretplata BUSINESS na poreznikalkulator.ba" },
+    monthly: { net: PRICE_NUMBERS.BUSINESS.monthly, label: "Mjesečna pretplata BUSINESS na poreznikalkulator.ba" },
   },
 };
 const VAT_RATE = 0.17;
@@ -142,18 +142,17 @@ function formatBroj(seq, year) {
   const padded = String(seq).padStart(6, "0");
   return `001-09-${padded}/${year}`;
 }
-// Back-kalkulacija iz bruta (cijena sa PDV-om):
-//   PDV  = round(gross * VAT_RATE / (1 + VAT_RATE), 2)
-//   neto = gross - PDV
-// Garantujemo da je neto + PDV = gross (centa-ravno).
+// Kalkulacija iz neto osnovice (cijena bez PDV-a):
+//   PDV   = round(net * VAT_RATE, 2)
+//   bruto = net + PDV   (za naplatu)
 function calcAmounts(plan, cycle) {
   const planCfg = PLAN_PRICES[plan];
   if (!planCfg) throw new Error(`Unknown plan: ${plan}`);
   const cfg = planCfg[normalizeCycle(cycle)];
   if (!cfg) throw new Error(`Unknown billing cycle: ${cycle}`);
-  const gross = +Number(cfg.gross).toFixed(2);
-  const vat = +(gross * (VAT_RATE / (1 + VAT_RATE))).toFixed(2);
-  const net = +(gross - vat).toFixed(2);
+  const net = +Number(cfg.net).toFixed(2);
+  const vat = +(net * VAT_RATE).toFixed(2);
+  const gross = +(net + vat).toFixed(2);
   return { net, vat, gross, label: cfg.label };
 }
 

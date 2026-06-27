@@ -22,6 +22,8 @@ const {
   resolveAccounts,
   DEFAULT_POSTING_ACCOUNTS,
   POSTING_ITEMS,
+  BURDEN_DEBIT_ITEMS,
+  PO_NOSIOCU_DEBIT_ORDER,
 } = require("../utils/postingOrder");
 const { generatePostingOrderPdf } = require("../utils/postingOrderPdf");
 const {
@@ -33,6 +35,8 @@ const {
   VODNA_NAKNADA,
   NAKNADA_NESRECE,
   computeMinContribBase,
+  computeKorist,
+  koristNetValueFromConfig,
 } = require("../utils/payrollFbih");
 const {
   generateAllUplatnice,
@@ -49,8 +53,13 @@ const {
 // ──────────────────────────────────────────────────────────────────────────────
 //  Helper: agregacija uplatnica po (kanton, opcina) radnika
 //
-//  KANTONALNE vrste (zdrKant 89,8%, nezapKant 70%, porez) idu na račun
-//  kantona i opcinu radnika → grupišu se po (workerKanton, workerOpcina).
+//  KANTONALNE vrste (zdrKant 89,8%, nezapKant 70%) idu na račun kantona i
+//  opcinu radnika → grupišu se po (workerKanton, workerOpcina). Uz agencijsku
+//  opciju objedinjavanja grupišu se po kantonu (jedan nalog, opcina = sjedište).
+//
+//  POREZ na dohodak ide UVIJEK po (workerKanton, workerOpcina), i kad je
+//  objedinjavanje uključeno: porez se raspoređuje općini prema prebivalištu
+//  radnika, pa se ne smije svesti na opcinu sjedišta firme.
 //
 //  FEDERALNE vrste (PIO, zdrFed 10,2%, nezapFed 30%, invalidi) idu na
 //  federalne račune sa opcinom FIRME → 1 stavka.
@@ -82,8 +91,14 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
   const firmOpcinaKod = firmInfo?.opcinaKod || "";
   const firmOpcinaIme = firm.city || "";
 
-  // Worker-based bucketi (zdrKant, nezapKant, porez)
-  const byLoc = new Map(); // key: "kanton:opcinaKod" → { kantonKey, opcinaKod, opcinaIme, zdrKant, nezapKant, porez }
+  // Worker-based bucketi (zdrKant, nezapKant). Kad je objedinjavanje uključeno
+  // grupišu se po kantonu, inače po (kanton, opština).
+  const byLoc = new Map(); // key: "kanton:opcinaKod" → { kantonKey, opcinaKod, opcinaIme, zdrKant, nezapKant }
+  // Porez na dohodak je UVIJEK po (kanton, opština radnika), nezavisno od
+  // objedinjavanja. Razlog: porez se raspoređuje općini prema prebivalištu
+  // radnika, pa šifra opštine na uplatnici određuje koji općinski budžet dobija
+  // novac. Objedinjavanje (sjedište firme) bi pripisalo porez pogrešnoj općini.
+  const porezByLoc = new Map(); // key: "kanton:opcinaKod" → { kantonKey, opcinaKod, opcinaIme, porez }
   // RS bucketi po opštini: kantonalni dio zdravstva/nezaposlenosti RS radnika
   // ide na Budžet RS umjesto na kanton FBiH. key: RS opcinaKod.
   const rsByOpcina = new Map(); // kod → { opcinaKod, opcinaIme, zdrRS, nezapRS }
@@ -110,8 +125,8 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
     const opcinaIme = usedFirmFallback
       ? firmOpcinaIme
       : w?.city || firmOpcinaIme;
-    // Objedinjeno: grupiši po KANTONU (jedan nalog), šifra opštine = sjedište.
-    // Inače: po (kanton, opština) radnika.
+    // Doprinosi: objedinjeno → grupiši po KANTONU (jedan nalog), šifra opštine =
+    // sjedište. Inače po (kanton, opština) radnika.
     const locKey = combineKantonal
       ? kantonKey || ""
       : `${kantonKey || ""}:${opcinaKod || ""}`;
@@ -123,10 +138,21 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
         opcinaIme: combineKantonal ? firmOpcinaIme : opcinaIme,
         zdrKant: 0,
         nezapKant: 0,
-        porez: 0,
       });
     }
     const bucket = byLoc.get(locKey);
+
+    // Porez: uvijek po (kanton, opština radnika), bez objedinjavanja.
+    const porezKey = `${kantonKey || ""}:${opcinaKod || ""}`;
+    if (!porezByLoc.has(porezKey)) {
+      porezByLoc.set(porezKey, {
+        kantonKey,
+        opcinaKod,
+        opcinaIme,
+        porez: 0,
+      });
+    }
+    const porezBucket = porezByLoc.get(porezKey);
 
     const zdrTotal = (Number(p.empZdravstvo) || 0) + (Number(p.erpZdravstvo) || 0);
     const nezapTotal = (Number(p.empNezaposlenost) || 0) + (Number(p.erpNezaposlenost) || 0);
@@ -160,7 +186,7 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
       bucket.zdrKant += zdrKantDio;
       bucket.nezapKant += nezapKantDio;
     }
-    if (!isObrtOwner) bucket.porez += Number(p.incomeTax) || 0;
+    if (!isObrtOwner) porezBucket.porez += Number(p.incomeTax) || 0;
 
     // Firm totals: federalni dio i PIO idu za SVE radnike (uklj. RS) u FBiH
     pio += (Number(p.empPio) || 0) + (Number(p.erpPio) || 0);
@@ -230,7 +256,13 @@ function buildUplatniceBuckets(payrolls, workerMap, firm, opts = {}) {
   if (nesrece > 0) entries.push({ vrsta: "nesrece", amount: round(nesrece), ...firmLoc, source: "firm", group: groupTag });
   if (vodna > 0) entries.push({ vrsta: "vodna", amount: round(vodna), ...firmLoc, source: "firm", group: groupTag });
 
-  for (const loc of sortedLocs) {
+  // Porez na dohodak: uvijek po (kanton, opština radnika), i kad je objedinjavanje
+  // uključeno. Jedna uplatnica po općini radnika.
+  const sortedPorezLocs = Array.from(porezByLoc.values()).sort((a, b) => {
+    if (a.kantonKey !== b.kantonKey) return String(a.kantonKey).localeCompare(String(b.kantonKey));
+    return String(a.opcinaIme).localeCompare(String(b.opcinaIme), "bs");
+  });
+  for (const loc of sortedPorezLocs) {
     if (loc.porez > 0)
       entries.push({
         vrsta: "porez",
@@ -532,6 +564,8 @@ function toPublicPayroll(p) {
     "erpTotal",
     "vodnaNaknada",
     "naknadaNesrece",
+    "koristNetValue",
+    "koristBruto",
     "mealAllowance",
     "vacationBonus",
     "travelExpense",
@@ -682,24 +716,58 @@ function computePayrollSnapshot(input) {
   const empNezaposlenost = +(grossInput * 0.015).toFixed(2);
   const empTotal = +(empPio + empZdravstvo + empNezaposlenost).toFixed(2);
 
-  const taxBase = +Math.max(grossInput - empTotal - deduction, 0).toFixed(2);
-  const incomeTax = +(taxBase * TAX_RATE).toFixed(2);
-  const net = +(grossInput - empTotal - incomeTax).toFixed(2);
+  const taxBaseSal = +Math.max(grossInput - empTotal - deduction, 0).toFixed(2);
+  const incomeTaxSal = +(taxBaseSal * TAX_RATE).toFixed(2);
+  // Neto (keš radniku) se računa SAMO iz plate — korist se ne isplaćuje, ne
+  // mijenja take-home. Vodna/nesreće su na neto, pa korist ni njih ne dira.
+  const net = +(grossInput - empTotal - incomeTaxSal).toFixed(2);
 
-  const erpPio = +(grossInput * ERP_PIO).toFixed(2);
-  const erpZdravstvo = +(grossInput * ERP_ZDRAVSTVO).toFixed(2);
-  const erpNezaposlenost = +(grossInput * ERP_NEZAPOSLENOST).toFixed(2);
-  const erpTotal = +(erpPio + erpZdravstvo + erpNezaposlenost).toFixed(2);
+  const erpPioSal = +(grossInput * ERP_PIO).toFixed(2);
+  const erpZdravstvoSal = +(grossInput * ERP_ZDRAVSTVO).toFixed(2);
+  const erpNezaposlenostSal = +(grossInput * ERP_NEZAPOSLENOST).toFixed(2);
 
   const vodnaNaknada = +(net * VODNA_NAKNADA).toFixed(2);
   const naknadaNesrece = +(net * NAKNADA_NESRECE).toFixed(2);
+
+  // ── Korist u naravi (službeno vozilo) — aditivni sloj ─────────────────────
+  // Korist povećava OSNOVICU za doprinose i porez, ali NE i neto radnika.
+  // gross (osnovica) = bruto plata + bruto korist; sve doprinose/porez vrijednosti
+  // (emp*/erp*/taxBase/incomeTax) su zbir plate i koristi; net ostaje plata-only.
+  const korist = computeKorist(input.koristNetValue);
+  const koristBruto = korist ? korist.koristBruto : 0;
+  const koristNetValue = korist ? korist.koristNetValue : 0;
+
+  const empPioAll = +(empPio + (korist ? korist.empPio : 0)).toFixed(2);
+  const empZdravstvoAll = +(empZdravstvo + (korist ? korist.empZdravstvo : 0)).toFixed(2);
+  const empNezaposlenostAll = +(empNezaposlenost + (korist ? korist.empNezaposlenost : 0)).toFixed(2);
+  const empTotalAll = +(empPioAll + empZdravstvoAll + empNezaposlenostAll).toFixed(2);
+  const taxBase = +(taxBaseSal + (korist ? korist.taxBase : 0)).toFixed(2);
+  const incomeTax = +(incomeTaxSal + (korist ? korist.porez : 0)).toFixed(2);
+
+  const erpPio = +(erpPioSal + (korist ? korist.erpPio : 0)).toFixed(2);
+  const erpZdravstvo = +(erpZdravstvoSal + (korist ? korist.erpZdravstvo : 0)).toFixed(2);
+  const erpNezaposlenost = +(erpNezaposlenostSal + (korist ? korist.erpNezaposlenost : 0)).toFixed(2);
+  const erpTotal = +(erpPio + erpZdravstvo + erpNezaposlenost).toFixed(2);
+
+  // gross = ukupna osnovica (plata + korist). Doprinosi/invalidi se vežu na nju.
+  const grossAll = +(grossInput + koristBruto).toFixed(2);
+  // Stvarne emp* vrijednosti za snapshot su zbirne (plata + korist).
+  const empPioOut = empPioAll;
+  const empZdravstvoOut = empZdravstvoAll;
+  const empNezaposlenostOut = empNezaposlenostAll;
+  const empTotalOut = empTotalAll;
 
   const mealAllowance = Number(input.mealAllowance) || 0;
   const vacationBonus = Number(input.vacationBonus) || 0;
   const travelExpense = Number(input.travelExpense) || 0;
 
+  // totalCost = stvarni trošak poslodavca. Neto-bazirana formula da bude tačna
+  // i kad ima koristi (nenovčani neto dio koristi se NE plaća u kešu, pa ne ide
+  // u trošak). Bez koristi je identična staroj (grossInput = net + empTotal + tax).
   const totalCost = +(
-    grossInput +
+    net +
+    empTotalOut +
+    incomeTax +
     erpTotal +
     vodnaNaknada +
     naknadaNesrece +
@@ -740,6 +808,8 @@ function computePayrollSnapshot(input) {
       erpTotal: 0,
       vodnaNaknada: 0,
       naknadaNesrece: 0,
+      koristNetValue: 0,
+      koristBruto: 0,
       mealAllowance,
       vacationBonus,
       travelExpense,
@@ -748,7 +818,7 @@ function computePayrollSnapshot(input) {
   }
 
   return {
-    gross: grossInput,
+    gross: grossAll,
     grossBase,
     minuliRadRate,
     minuliRadYears,
@@ -764,10 +834,10 @@ function computePayrollSnapshot(input) {
     taxCoefficient: coeff,
     deduction,
     minBaseApplied,
-    empPio,
-    empZdravstvo,
-    empNezaposlenost,
-    empTotal,
+    empPio: empPioOut,
+    empZdravstvo: empZdravstvoOut,
+    empNezaposlenost: empNezaposlenostOut,
+    empTotal: empTotalOut,
     taxBase,
     incomeTax,
     net,
@@ -777,6 +847,8 @@ function computePayrollSnapshot(input) {
     erpTotal,
     vodnaNaknada,
     naknadaNesrece,
+    koristNetValue,
+    koristBruto,
     mealAllowance,
     vacationBonus,
     travelExpense,
@@ -850,6 +922,11 @@ async function calculate(req, res) {
     proRateFactor,
     targetNet,
     notes,
+    koristVoziloAktivna,
+    koristVoziloMetoda,
+    koristVoziloVrijednost,
+    koristVoziloSaPdv,
+    koristVoziloOpis,
   } = req.body ?? {};
 
   const organizationId = parseId(rawOrgId);
@@ -1008,6 +1085,32 @@ async function calculate(req, res) {
       : 1;
   const effTaxCoefficient =
     taxCoefficient ?? (existing ? existing.taxCoefficient : worker.taxCoefficient) ?? 1.0;
+
+  // Korist u naravi (službeno vozilo): body > spremljena konfiguracija radnika.
+  // Računa se samo za zaposlene (ne za vlasnika obrta, koji ima svoju granu iznad).
+  const effKoristAktivna =
+    koristVoziloAktivna !== undefined && koristVoziloAktivna !== null
+      ? !!koristVoziloAktivna
+      : !!worker.koristVoziloAktivna;
+  const effKoristMetoda =
+    koristVoziloMetoda || worker.koristVoziloMetoda || "nabavna_1posto";
+  const effKoristVrijednost =
+    koristVoziloVrijednost !== undefined &&
+    koristVoziloVrijednost !== null &&
+    koristVoziloVrijednost !== ""
+      ? Number(koristVoziloVrijednost)
+      : Number(worker.koristVoziloVrijednost || 0);
+  const effKoristSaPdv =
+    koristVoziloSaPdv !== undefined && koristVoziloSaPdv !== null
+      ? !!koristVoziloSaPdv
+      : worker.koristVoziloSaPdv == null
+        ? true
+        : !!worker.koristVoziloSaPdv;
+  const effKoristNetValue =
+    effKoristAktivna && effKoristVrijednost > 0
+      ? koristNetValueFromConfig(effKoristMetoda, effKoristVrijednost, effKoristSaPdv)
+      : 0;
+
   const snapshotInput = {
     grossBase: effectiveGrossBase,
     minuliRadRate: effectiveMinuliRate,
@@ -1026,6 +1129,7 @@ async function calculate(req, res) {
     mealAllowance: effectiveMeal,
     vacationBonus: effectiveVacation,
     travelExpense: effectiveTravel,
+    koristNetValue: effKoristNetValue,
   };
 
   // Fening-search za "cilj neto za isplatu" (NETO_ISPLATA): zbog PUFBiH
@@ -1097,6 +1201,8 @@ async function calculate(req, res) {
     nightHours: effNightHours,
     sundayHours: effSundayHours,
     holidayHours: effHolidayHours,
+    // Pamti razmjerni faktor (1 = pun obračun, korisnik isključio razmjer).
+    proRateFactor: effectiveProRateFactor,
     bankAccount: worker.bankAccount || null,
     paymentDate: effectivePaymentDate,
     // Status: ako gross > 0 → OBRACUNATO (puni obračun), inače DRAFT (samo
@@ -1139,6 +1245,16 @@ async function calculate(req, res) {
     holidayRate: effHolidayRate,
     defaultMealAllowance: Number(effectiveMeal) || 0,
     defaultTravelExpense: Number(effectiveTravel) || 0,
+    // Korist u naravi je per-radnik konfiguracija (vezana za konkretno vozilo iz
+    // Odluke poslodavca), pa je pamtimo na workeru kao master.
+    koristVoziloAktivna: effKoristAktivna,
+    koristVoziloMetoda: effKoristMetoda,
+    koristVoziloVrijednost: Number(effKoristVrijednost) || 0,
+    koristVoziloSaPdv: effKoristSaPdv,
+    koristVoziloOpis:
+      koristVoziloOpis !== undefined && koristVoziloOpis !== null
+        ? String(koristVoziloOpis).slice(0, 255)
+        : worker.koristVoziloOpis || null,
   });
 
   return res.json({ ok: true, data: toPublicPayroll(saved) });
@@ -1172,6 +1288,11 @@ async function saveInputs(req, res) {
       travelExpense,
       taxCoefficient,
       minuliRadRate,
+      koristVoziloAktivna,
+      koristVoziloMetoda,
+      koristVoziloVrijednost,
+      koristVoziloSaPdv,
+      koristVoziloOpis,
     } = req.body ?? {};
 
     const organizationId = parseId(rawOrgId);
@@ -1220,8 +1341,14 @@ async function saveInputs(req, res) {
       mealAllowance: Number(pick(mealAllowance, "mealAllowance", 0)) || 0,
       vacationBonus: Number(pick(vacationBonus, "vacationBonus", 0)) || 0,
       travelExpense: Number(pick(travelExpense, "travelExpense", 0)) || 0,
-      taxCoefficient:
-        Number(pick(taxCoefficient, "taxCoefficient", worker.taxCoefficient ?? 1.0)) || 1.0,
+      // Koeficijent 0 je validan (lični odbitak 0), pa NE smije `|| 1.0` koji
+      // bi falsy-nulu vratio na 1. Fallback na 1.0 samo ako nije validan broj.
+      taxCoefficient: (() => {
+        const v = Number(
+          pick(taxCoefficient, "taxCoefficient", worker.taxCoefficient ?? 1.0),
+        );
+        return Number.isFinite(v) && v >= 0 ? v : 1.0;
+      })(),
       minuliRadRate: Number(
         pick(minuliRadRate, "minuliRadRate", worker.minuliRadRate ?? 0.4),
       ),
@@ -1239,6 +1366,28 @@ async function saveInputs(req, res) {
       ),
     };
 
+    // Korist u naravi (per-radnik master konfiguracija): pamti se i pri "save
+    // inputs" (zatvaranje modala bez punog obračuna) da se ne izgubi, isto kao
+    // ostale sticky vrijednosti. Primjenjuje se na osnovicu tek pri calculate.
+    const skAktivna =
+      koristVoziloAktivna !== undefined && koristVoziloAktivna !== null
+        ? !!koristVoziloAktivna
+        : !!worker.koristVoziloAktivna;
+    const skMetoda =
+      koristVoziloMetoda || worker.koristVoziloMetoda || "nabavna_1posto";
+    const skVrijednost =
+      koristVoziloVrijednost !== undefined &&
+      koristVoziloVrijednost !== null &&
+      koristVoziloVrijednost !== ""
+        ? Number(koristVoziloVrijednost)
+        : Number(worker.koristVoziloVrijednost || 0);
+    const skSaPdv =
+      koristVoziloSaPdv !== undefined && koristVoziloSaPdv !== null
+        ? !!koristVoziloSaPdv
+        : worker.koristVoziloSaPdv == null
+          ? true
+          : !!worker.koristVoziloSaPdv;
+
     // Sticky defaults: stope i naknade se pamte na worker-u za sljedeći mjesec.
     // Regres se NE pamti. taxCoefficient se NE upisuje natrag — worker profil
     // je master, vidi calculate() iznad.
@@ -1250,6 +1399,14 @@ async function saveInputs(req, res) {
       holidayRate: update.holidayRate,
       defaultMealAllowance: Number(update.mealAllowance) || 0,
       defaultTravelExpense: Number(update.travelExpense) || 0,
+      koristVoziloAktivna: skAktivna,
+      koristVoziloMetoda: skMetoda,
+      koristVoziloVrijednost: Number(skVrijednost) || 0,
+      koristVoziloSaPdv: skSaPdv,
+      koristVoziloOpis:
+        koristVoziloOpis !== undefined && koristVoziloOpis !== null
+          ? String(koristVoziloOpis).slice(0, 255)
+          : worker.koristVoziloOpis || null,
     });
 
     if (existing) {
@@ -2472,13 +2629,19 @@ async function getPostingAccounts(req, res) {
       overrides = {};
     }
   }
+  // __split je zastavica moda dugovne strane (ne konto), izdvoji je.
+  const splitByContribution = overrides && overrides.__split === true;
+  const accountOverrides = { ...overrides };
+  delete accountOverrides.__split;
   return res.json({
     ok: true,
     data: {
       items: POSTING_ITEMS,
+      burdenItems: BURDEN_DEBIT_ITEMS,
       defaults: DEFAULT_POSTING_ACCOUNTS,
-      overrides,
-      resolved: resolveAccounts(overrides),
+      overrides: accountOverrides,
+      resolved: resolveAccounts(accountOverrides),
+      splitByContribution: !!splitByContribution,
     },
   });
 }
@@ -2490,7 +2653,11 @@ async function savePostingAccounts(req, res) {
   if (incoming == null || typeof incoming !== "object") {
     return res.status(400).json({ ok: false, error: "INVALID_PAYLOAD" });
   }
-  const validKeys = new Set(POSTING_ITEMS.map((i) => i.key));
+  const splitByContribution = req.body?.splitByContribution === true;
+  const validKeys = new Set([
+    ...POSTING_ITEMS.map((i) => i.key),
+    ...BURDEN_DEBIT_ITEMS.map((i) => i.key),
+  ]);
   const isKonto = (s) => /^\d{3}-\d{4}$/.test(String(s).trim());
   const clean = {};
   for (const [key, val] of Object.entries(incoming)) {
@@ -2501,13 +2668,17 @@ async function savePostingAccounts(req, res) {
     if (Object.keys(entry).length) clean[key] = entry;
   }
   // Isto konto ne smije biti i na trošku (duguje) i na obavezi (potražuje).
+  // Gledamo SAMO konta koja se stvarno knjiže u odabranom modu: potražna su
+  // uvijek po fondu (POSTING_ITEMS.p), a dugovna zavise od splitByContribution
+  // (po fondu = POSTING_ITEMS.d, po nosiocu = PO_NOSIOCU_DEBIT_ORDER).
   const resolved = resolveAccounts(clean);
-  const dSet = new Set();
-  const pSet = new Set();
-  for (const k of Object.keys(resolved)) {
-    dSet.add(resolved[k].d);
-    pSet.add(resolved[k].p);
-  }
+  const debitKeys = splitByContribution
+    ? POSTING_ITEMS.map((i) => i.key)
+    : PO_NOSIOCU_DEBIT_ORDER;
+  const dSet = new Set(debitKeys.map((k) => resolved[k]?.d).filter(Boolean));
+  const pSet = new Set(
+    POSTING_ITEMS.map((i) => resolved[i.key]?.p).filter(Boolean),
+  );
   const conflict = [...dSet].filter((k) => pSet.has(k));
   if (conflict.length) {
     return res.status(400).json({
@@ -2516,11 +2687,14 @@ async function savePostingAccounts(req, res) {
       konta: conflict,
     });
   }
+  // Mod dugovne strane: pamtimo zastavicu samo kad odstupa od defaulta
+  // (default = po nosiocu, splitByContribution=false).
+  if (splitByContribution) clean.__split = true;
   await User.update(
     { postingAccounts: clean },
     { where: { id: req.user.id } },
   );
-  return res.json({ ok: true, data: { overrides: clean } });
+  return res.json({ ok: true, data: { overrides: clean, splitByContribution } });
 }
 
 // ── PUT /api/payroll/combine-kantonal ───────────────────────────────────────
@@ -2597,6 +2771,11 @@ async function generatePostingOrder(req, res) {
       meal: 0,
       regres: 0,
       travel: 0,
+      // Korist u naravi: nenovčani "neto" dio (vrijednost koristi umanjena za
+      // pripadajuće doprinose iz i porez). Doprinosi i porez koristi su već u
+      // empTotal/incomeTax (pa rastu normalni redovi); ovdje ide samo preostali
+      // nenovčani dio kao zaseban trošak + protustavka, da nalog bude potpun.
+      koristNonCash: 0,
     };
     for (const p of payrolls) {
       // Nalog za knjiženje PLATE je samo za radnike. Vlasnik obrta (obrtnik)
@@ -2617,7 +2796,10 @@ async function generatePostingOrder(req, res) {
       t.meal += Number(p.mealAllowance) || 0;
       t.regres += Number(p.vacationBonus) || 0;
       t.travel += Number(p.travelExpense) || 0;
+      const k = computeKorist(p.koristNetValue);
+      if (k) t.koristNonCash += k.netoNonCash;
     }
+    t.koristNonCash = +t.koristNonCash.toFixed(2);
     // Fond invalida (0,5% bruto) — samo privredna društva (COMPANY).
     t.invalidi = org.type === "BUSINESS" ? 0 : t.gross * FOND_INVALIDI_RATE;
 
@@ -2632,8 +2814,11 @@ async function generatePostingOrder(req, res) {
         overrides = {};
       }
     }
+    const splitByContribution = overrides && overrides.__split === true;
+    const accountOverrides = { ...overrides };
+    delete accountOverrides.__split;
 
-    const order = buildPostingOrder(t, overrides);
+    const order = buildPostingOrder(t, accountOverrides, !!splitByContribution);
     // Nema plata radnika za knjiženje (npr. obrt sa samo vlasnikom).
     if (order.rows.length === 0) {
       return res

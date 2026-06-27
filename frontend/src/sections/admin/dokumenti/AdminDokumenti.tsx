@@ -9,6 +9,7 @@ import {
   type AdminFormsResponse,
   type AdminFormItem,
 } from "src/api/adminForms";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import styles from "./dokumenti.module.css";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -116,35 +117,43 @@ export default function AdminDokumenti() {
 
         {/* Filteri */}
         <div className={styles.filters}>
-          <select
-            className={styles.select}
+          <StyledSelect
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
+            onChange={(v) => {
+              setStatus(String(v ?? ""));
               setPage(1);
             }}
-          >
-            <option value="">Svi statusi</option>
-            <option value="DRAFT">Nacrt</option>
-            <option value="GENERATED">Generisan</option>
-            <option value="SUBMITTED">Predan</option>
-            <option value="ARCHIVED">Arhiviran</option>
-          </select>
-          <select
-            className={styles.select}
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Svi statusi" },
+                  { value: "DRAFT", label: "Nacrt" },
+                  { value: "GENERATED", label: "Generisan" },
+                  { value: "SUBMITTED", label: "Predan" },
+                  { value: "ARCHIVED", label: "Arhiviran" },
+                ],
+              },
+            ]}
+            ariaLabel="Status dokumenta"
+            wrapStyle={{ minWidth: 180 }}
+          />
+          <StyledSelect
             value={year}
-            onChange={(e) => {
-              setYear(e.target.value ? Number(e.target.value) : "");
+            onChange={(v) => {
+              setYear(v ? Number(v) : "");
               setPage(1);
             }}
-          >
-            <option value="">Sve godine</option>
-            {yearOptions().map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Sve godine" },
+                  ...yearOptions().map((y) => ({ value: y, label: String(y) })),
+                ],
+              },
+            ]}
+            ariaLabel="Godina"
+            wrapStyle={{ minWidth: 160 }}
+          />
         </div>
 
         {/* Tabela */}

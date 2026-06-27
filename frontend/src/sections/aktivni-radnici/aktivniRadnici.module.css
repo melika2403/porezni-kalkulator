@@ -79,6 +79,10 @@
 }
 
 .btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   padding: 0.65rem 1.2rem;
   background: var(--sage);
   color: #fff;
@@ -90,6 +94,10 @@
   cursor: pointer;
   text-decoration: none;
   transition: opacity 0.15s;
+}
+
+.btnPrimary svg {
+  flex-shrink: 0;
 }
 
 .btnPrimary:hover {

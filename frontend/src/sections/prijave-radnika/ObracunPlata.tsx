@@ -39,13 +39,22 @@ import {
 } from "src/api/payroll";
 import { getSihterica } from "src/api/sihterica";
 import { trackEvent } from "src/api/activity";
+import { parseMoneyInput, formatMoneyBlur } from "src/lib/format";
 import {
   fromGross,
   fromNet,
   deductionFromCoefficient,
   computeMinContribBase,
+  computeKorist,
+  koristNetValueFromConfig,
+  EMP_PIO,
+  EMP_ZDRAVSTVO,
+  EMP_NEZAPOSLENOST,
+  ERP_PIO,
+  ERP_ZDRAVSTVO,
+  ERP_NEZAPOSLENOST,
 } from "src/utils/payrollFbih";
-import { parseDecimal } from "src/utils/parseDecimal";
+import { parseDecimal, sanitizeDecimalInput } from "src/utils/parseDecimal";
 import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
@@ -389,8 +398,16 @@ function workDaysInMonth(year: number, month: number): number {
   return n;
 }
 
-export function standardMinutesForMonth(year: number, month: number): number {
-  return workDaysInMonth(year, month) * 8 * 60;
+// Standardni mjesečni fond sati. Za nepuno radno vrijeme (contractedHours < 8)
+// se skalira srazmjerno: radni dani × contractedHours (npr. 1h/dan → radni dani
+// × 1h), da auto-popuna i platni listić prikažu tačan broj sati za PT radnika.
+export function standardMinutesForMonth(
+  year: number,
+  month: number,
+  contractedHours: number = 8,
+): number {
+  const h = Math.max(Math.min(Number(contractedHours) || 8, 8), 1);
+  return workDaysInMonth(year, month) * h * 60;
 }
 
 // Broj radnih dana u mjesecu (Pon-Pet) - fallback za topli obrok kad nema
@@ -643,6 +660,8 @@ function ObracunPlataApp() {
   const invalidatePayrollCaches = () => {
     queryClient.invalidateQueries({ queryKey: ["payrolls", orgId, year, month] });
     queryClient.invalidateQueries({ queryKey: ["monthlySummary", orgId, year, month] });
+    // KPI "Obračuna (mj.)" na profilu broji obračune, osvježi ga.
+    queryClient.invalidateQueries({ queryKey: ["myStats"] });
   };
 
   const calcMutation = useMutation({
@@ -1391,6 +1410,7 @@ function VlasniciSection({
       queryClient.invalidateQueries({
         queryKey: ["monthlySummary", orgId, year, month],
       });
+      queryClient.invalidateQueries({ queryKey: ["myStats"] });
     },
   });
 
@@ -1987,17 +2007,34 @@ function MonthlyPanel({
       const [, periodDoMm, periodDoDan] = periodDoISO.split("-");
       const t = {
         gross: radniciPayrolls.reduce((a, p) => a + (p.gross || 0), 0),
-        empPio: radniciPayrolls.reduce((a, p) => a + (p.empPio || 0), 0),
-        empZdr: radniciPayrolls.reduce((a, p) => a + (p.empZdravstvo || 0), 0),
-        empNezap: radniciPayrolls.reduce((a, p) => a + (p.empNezaposlenost || 0), 0),
-        empContrib: radniciPayrolls.reduce((a, p) => a + (p.empTotal || 0), 0),
-        erpPio: radniciPayrolls.reduce((a, p) => a + (p.erpPio || 0), 0),
-        erpZdr: radniciPayrolls.reduce((a, p) => a + (p.erpZdravstvo || 0), 0),
-        erpNezap: radniciPayrolls.reduce((a, p) => a + (p.erpNezaposlenost || 0), 0),
-        erpContrib: radniciPayrolls.reduce((a, p) => a + (p.erpTotal || 0), 0),
         tax: radniciPayrolls.reduce((a, p) => a + (p.incomeTax || 0), 0),
+        koristBruto: radniciPayrolls.reduce((a, p) => a + (p.koristBruto || 0), 0),
       };
+      // t.gross je UKUPNA osnovica (plate + korist). Za 2001: polje 8 = plate u
+      // novcu (osnovica minus korist), polje 9 = korist (plaće u stvarima),
+      // polje 10 = ukupno (= t.gross).
       const grossBruto = t.gross;
+      const placeUNovcuVal = +(t.gross - t.koristBruto).toFixed(2);
+
+      // PUFBiH metod: doprinose (polja 16-28) preračunava na UKUPAN bruto
+      // (stopa × ukupne plaće), svaki zaokružen jednom. Naš zbir po radniku
+      // (round-then-sum) odstupa za par feninga pa polje 30 ne bi pristajalo uz
+      // njihovu provjeru. Porez (29) ostaje naš zbir (PUFBiH ga uzima kako se
+      // upiše). Tako se 2001 polje 30 poklapa sa PUFBiH preračunom 1:1.
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const G = t.gross;
+      const o16 = r2(G * EMP_PIO);
+      const o17 = r2(G * EMP_ZDRAVSTVO);
+      const o18 = r2(G * EMP_NEZAPOSLENOST);
+      const o19 = r2(o16 + o17 + o18);
+      const o20 = r2(G * ERP_PIO);
+      const o21 = r2(G * ERP_ZDRAVSTVO);
+      const o22 = r2(G * ERP_NEZAPOSLENOST);
+      const o25 = r2(o20 + o21 + o22);
+      const o26 = r2(o16 + o20);
+      const o27 = r2(o17 + o21);
+      const o28 = r2(o18 + o22);
+      const o30 = r2(o26 + o27 + o28 + t.tax);
       const data: Obrazac2001Data = {
         // Dio 1
         naziv: organization.name || "",
@@ -2015,42 +2052,40 @@ function MonthlyPanel({
           .join(" "),
         // 2001 obrazac obuhvata samo FBiH radnike.
         brojZaposlenih: String(radniciFbih.length),
-        placeUNovcu: fmt2(grossBruto),
-        placeUStvarima: "",
+        placeUNovcu: fmt2(placeUNovcuVal),
+        placeUStvarima: t.koristBruto > 0 ? fmt2(t.koristBruto) : "",
         ukupnePlace: fmt2(grossBruto),
         nerezident: false,
         izuzeci: false,
         konsolidacija: false,
         sportskiKolektiv: false,
         vrstaIsplate: "DOPRINOSA_I_POREZA",
-        // Dio 2 — iz osnovice (zaposlenik)
+        // Dio 2 — iz osnovice (zaposlenik). Iznosi = stopa × ukupan bruto (PUFBiH metod).
         pioStopa: "17,00",
-        pioIznos: fmt2(t.empPio),
+        pioIznos: fmt2(o16),
         zdrStopa: "12,50",
-        zdrIznos: fmt2(t.empZdr),
+        zdrIznos: fmt2(o17),
         nezapStopa: "1,50",
-        nezapIznos: fmt2(t.empNezap),
-        empUkupnoIznos: fmt2(t.empContrib),
+        nezapIznos: fmt2(o18),
+        empUkupnoIznos: fmt2(o19),
         // Dio 3 — na osnovicu (poslodavac)
         erpPioStopa: "2,50",
-        erpPioIznos: fmt2(t.erpPio),
+        erpPioIznos: fmt2(o20),
         erpZdrStopa: "2,00",
-        erpZdrIznos: fmt2(t.erpZdr),
+        erpZdrIznos: fmt2(o21),
         erpNezapStopa: "0,50",
-        erpNezapIznos: fmt2(t.erpNezap),
+        erpNezapIznos: fmt2(o22),
         dodatniPioStopa: "",
         dodatniPioIznos: "",
         dodatniZdrStopa: "",
         dodatniZdrIznos: "",
-        erpUkupnoIznos: fmt2(t.erpContrib),
+        erpUkupnoIznos: fmt2(o25),
         // Dio 4 — obaveze
-        obavezePio: fmt2(t.empPio + t.erpPio),
-        obavezeZdr: fmt2(t.empZdr + t.erpZdr),
-        obavezeNezap: fmt2(t.empNezap + t.erpNezap),
+        obavezePio: fmt2(o26),
+        obavezeZdr: fmt2(o27),
+        obavezeNezap: fmt2(o28),
         obavezePorez: fmt2(t.tax),
-        obavezeUkupno: fmt2(
-          t.empPio + t.erpPio + t.empZdr + t.erpZdr + t.empNezap + t.erpNezap + t.tax,
-        ),
+        obavezeUkupno: fmt2(o30),
         // Dio 5
         potpisObveznika: "",
         datum: (() => {
@@ -2106,28 +2141,33 @@ function MonthlyPanel({
       const [, periodDoMm, periodDoDan] = periodDoISO.split("-");
       const t = {
         gross: rsPayrolls.reduce((a, p) => a + (p.gross || 0), 0),
-        empPio: rsPayrolls.reduce((a, p) => a + (p.empPio || 0), 0),
-        empZdr: rsPayrolls.reduce((a, p) => a + (p.empZdravstvo || 0), 0),
-        empNezap: rsPayrolls.reduce((a, p) => a + (p.empNezaposlenost || 0), 0),
-        empContrib: rsPayrolls.reduce((a, p) => a + (p.empTotal || 0), 0),
-        erpPio: rsPayrolls.reduce((a, p) => a + (p.erpPio || 0), 0),
-        erpZdr: rsPayrolls.reduce((a, p) => a + (p.erpZdravstvo || 0), 0),
-        erpNezap: rsPayrolls.reduce((a, p) => a + (p.erpNezaposlenost || 0), 0),
-        erpContrib: rsPayrolls.reduce((a, p) => a + (p.erpTotal || 0), 0),
         tax: rsPayrolls.reduce((a, p) => a + (p.incomeTax || 0), 0),
+        koristBruto: rsPayrolls.reduce((a, p) => a + (p.koristBruto || 0), 0),
       };
       const r2 = (n: number) => Math.round(n * 100) / 100;
-      const obavezePio = t.empPio + t.erpPio;
-      const obavezeZdr = t.empZdr + t.erpZdr;
-      const obavezeNezap = t.empNezap + t.erpNezap;
+      // PUFBiH metod (kao standardni 2001): doprinosi na UKUPAN bruto
+      // (stopa × ukupne plaće), zaokruženo jednom. Porez (29) ostaje naš zbir.
+      const G = t.gross;
+      const o16 = r2(G * EMP_PIO);
+      const o17 = r2(G * EMP_ZDRAVSTVO);
+      const o18 = r2(G * EMP_NEZAPOSLENOST);
+      const o19 = r2(o16 + o17 + o18);
+      const o20 = r2(G * ERP_PIO);
+      const o21 = r2(G * ERP_ZDRAVSTVO);
+      const o22 = r2(G * ERP_NEZAPOSLENOST);
+      const o25 = r2(o20 + o21 + o22);
+      const obavezePio = r2(o16 + o20);
+      const obavezeZdr = r2(o17 + o21);
+      const obavezeNezap = r2(o18 + o22);
       // FBiH zadržani dio: zdravstvo 10,2%, nezaposlenost 30% (ostatak ide u RS).
       // Zaokruži 27a/28a na fening PRIJE zbira da 30a = 26 + 27a + 28a + 29
       // tačno odgovara prikazanim (zaokruženim) iznosima na obrascu.
       const obavezeZdrFBiH = r2(obavezeZdr * 0.102);
       const obavezeNezapFBiH = r2(obavezeNezap * 0.3);
-      const obavezeUkupno = obavezePio + obavezeZdr + obavezeNezap + t.tax;
-      const obavezeUkupnoFBiH =
-        obavezePio + obavezeZdrFBiH + obavezeNezapFBiH + t.tax;
+      const obavezeUkupno = r2(obavezePio + obavezeZdr + obavezeNezap + t.tax);
+      const obavezeUkupnoFBiH = r2(
+        obavezePio + obavezeZdrFBiH + obavezeNezapFBiH + t.tax,
+      );
       const data: Obrazac2001AData = {
         naziv: organization.name || "",
         jib: (organization.taxNumber || "").replace(/\D/g, ""),
@@ -2143,8 +2183,8 @@ function MonthlyPanel({
           .filter(Boolean)
           .join(" "),
         brojZaposlenih: String(radniciRs.length),
-        placeUNovcu: fmt2(t.gross),
-        placeUStvarima: "",
+        placeUNovcu: fmt2(+(t.gross - t.koristBruto).toFixed(2)),
+        placeUStvarima: t.koristBruto > 0 ? fmt2(t.koristBruto) : "",
         ukupnePlace: fmt2(t.gross),
         nerezident: false,
         izuzeci: false,
@@ -2152,23 +2192,23 @@ function MonthlyPanel({
         sportskiKolektiv: false,
         vrstaIsplate: "DOPRINOSA_I_POREZA",
         pioStopa: "17,00",
-        pioIznos: fmt2(t.empPio),
+        pioIznos: fmt2(o16),
         zdrStopa: "12,50",
-        zdrIznos: fmt2(t.empZdr),
+        zdrIznos: fmt2(o17),
         nezapStopa: "1,50",
-        nezapIznos: fmt2(t.empNezap),
-        empUkupnoIznos: fmt2(t.empContrib),
+        nezapIznos: fmt2(o18),
+        empUkupnoIznos: fmt2(o19),
         erpPioStopa: "2,50",
-        erpPioIznos: fmt2(t.erpPio),
+        erpPioIznos: fmt2(o20),
         erpZdrStopa: "2,00",
-        erpZdrIznos: fmt2(t.erpZdr),
+        erpZdrIznos: fmt2(o21),
         erpNezapStopa: "0,50",
-        erpNezapIznos: fmt2(t.erpNezap),
+        erpNezapIznos: fmt2(o22),
         dodatniPioStopa: "",
         dodatniPioIznos: "",
         dodatniZdrStopa: "",
         dodatniZdrIznos: "",
-        erpUkupnoIznos: fmt2(t.erpContrib),
+        erpUkupnoIznos: fmt2(o25),
         obavezePio: fmt2(obavezePio),
         obavezeZdr: fmt2(obavezeZdr),
         obavezeZdrFBiHStopa: "10,20",
@@ -2476,9 +2516,11 @@ function MonthlyPanel({
       // Multi-page: fillMip1023Template sam dijeli na liste po 5 radnika
       // i generiše dodatne stranice ako je više od 5.
       const rows: Mip1023Row[] = radniciPayrolls.map(({ w, p }) => {
-        const bruto = Number(p.gross) || 0;
-        const koristi = 0;
-        const ukupanPrihod = bruto + koristi;
+        // p.gross je UKUPNA osnovica (plata + korist u naravi). Za MIP: bruto =
+        // plata u novcu (gross - korist), koristi = bruto korist, ukupanPrihod = gross.
+        const koristi = Number(p.koristBruto) || 0;
+        const bruto = +((Number(p.gross) || 0) - koristi).toFixed(2);
+        const ukupanPrihod = +(bruto + koristi).toFixed(2);
         const empPio = Number(p.empPio) || 0;
         const empZdr = Number(p.empZdravstvo) || 0;
         const empNezap = Number(p.empNezaposlenost) || 0;
@@ -2580,9 +2622,11 @@ function MonthlyPanel({
       }
 
       const workers: Mip1023XmlWorker[] = radniciPayrolls.map(({ w, p }) => {
-        const bruto = Number(p.gross) || 0;
-        const koristi = 0;
-        const ukupanPrihod = bruto + koristi;
+        // p.gross = plata + korist u naravi. Bruto = plata u novcu, koristi =
+        // bruto korist, ukupanPrihod = gross.
+        const koristi = Number(p.koristBruto) || 0;
+        const bruto = +((Number(p.gross) || 0) - koristi).toFixed(2);
+        const ukupanPrihod = +(bruto + koristi).toFixed(2);
         const empPio = Number(p.empPio) || 0;
         const empZdr = Number(p.empZdravstvo) || 0;
         const empNezap = Number(p.empNezaposlenost) || 0;
@@ -2761,9 +2805,11 @@ function MonthlyPanel({
       const rows: GipRawRow[] = payrolls
         .filter((p) => Number(p.gross) > 0)
         .map((p) => {
-          const bruto = Number(p.gross) || 0;
-          const koristi = 0;
-          const ukupanPrihod = bruto + koristi;
+          // p.gross = plata + korist u naravi. Za GIP: iznos u novcu = plata,
+          // iznos u stvarima = korist, ukupan/bruto = gross.
+          const koristi = Number(p.koristBruto) || 0;
+          const ukupanPrihod = Number(p.gross) || 0;
+          const brutoNovac = +(ukupanPrihod - koristi).toFixed(2);
           const empPio = Number(p.empPio) || 0;
           const empZdr = Number(p.empZdravstvo) || 0;
           const empNezap = Number(p.empNezaposlenost) || 0;
@@ -2776,9 +2822,9 @@ function MonthlyPanel({
           const neto = Number(p.net) || 0;
           return {
             mjesec: p.month,
-            iznosNovac: ukupanPrihod,
-            iznosStvari: 0,
-            bruto,
+            iznosNovac: brutoNovac,
+            iznosStvari: koristi,
+            bruto: ukupanPrihod,
             pio: empPio,
             zdr: empZdr,
             nezap: empNezap,
@@ -2805,7 +2851,7 @@ function MonthlyPanel({
         rows,
         ukupno: {
           iznosNovac: sum("iznosNovac"),
-          iznosStvari: 0,
+          iznosStvari: sum("iznosStvari"),
           bruto: sum("bruto"),
           pio: sum("pio"),
           zdr: sum("zdr"),
@@ -3971,8 +4017,9 @@ function MonthlyPanel({
                 </strong>
                 <br />
                 <span style={{ fontSize: 12, color: "var(--mid, #6c6862)" }}>
-                  Zdravstvo, nezaposlenost i porez na jedan nalog, šifra općine
-                  = sjedište firme. Sve vaše organizacije, i klijentske.
+                  Zdravstvo i nezaposlenost na jedan nalog po kantonu, šifra
+                  općine = sjedište firme. Porez na dohodak ostaje po općini
+                  radnika. Sve vaše organizacije, i klijentske.
                 </span>
               </span>
             </label>
@@ -4416,9 +4463,21 @@ function PayrollModal({
     return countSihtericaWorkDays((data as { days?: unknown }).days);
   }, [sihQuery.data]);
 
-  // Dani za topli obrok: iz šihterice ako postoji, inače standardni radni dani.
-  const mealDaysFromSih = sihWorkDays > 0;
-  const mealDays = mealDaysFromSih
+  // Da li šihterica UOPĆE postoji (bez obzira na broj dana prisustva). Bitno da
+  // se razlikuje "nema šihterice" (→ pun mjesec) od "šihterica popunjena ali 0
+  // dana prisustva" (radnik cijeli mjesec odsutan → 0 dana za obrok).
+  const hasSihterica = useMemo(() => {
+    const data = sihQuery.data as { days?: unknown } | null | undefined;
+    return !!(
+      data &&
+      Array.isArray(data.days) &&
+      data.days.some((d) => d != null)
+    );
+  }, [sihQuery.data]);
+
+  // Dani za topli obrok: iz šihterice ako postoji (može biti i 0), inače
+  // standardni radni dani (pun mjesec).
+  const mealDays = hasSihterica
     ? sihWorkDays
     : standardWorkDaysForMonth(year, month);
   const mealAuto =
@@ -4433,8 +4492,14 @@ function PayrollModal({
 
   // Pro-rate factor za mid-month prijavu/odjavu. Default = "automatic" (ON
   // kad postoji prijava/odjava u mjesecu). User može isključiti checkbox-om.
+  // Ako je već obračunato za taj mjesec, pamtimo izbor iz snapshot-a
+  // (existing.proRateFactor: 1 = korisnik isključio razmjer).
   const autoProRate = computeProRateFactor(worker, year, month);
-  const [proRateEnabled, setProRateEnabled] = useState<boolean>(autoProRate < 1);
+  const [proRateEnabled, setProRateEnabled] = useState<boolean>(
+    existing && existing.proRateFactor != null
+      ? Number(existing.proRateFactor) < 1
+      : autoProRate < 1,
+  );
   const effectiveProRate = proRateEnabled ? autoProRate : 1;
 
   // Datum za totalYearsOfService — kraj obračunskog mjeseca (isti default
@@ -4537,6 +4602,26 @@ function PayrollModal({
     if (existing) return fmtMoneyInput(Number(existing.travelExpense));
     return fmtMoneyInput(Number(worker.defaultTravelExpense ?? 0));
   });
+  // ── Korist u naravi (službeno vozilo) ──
+  // Konfiguracija je per-radnik (master na workeru). Aktivnost prefilluje iz
+  // postojećeg obračuna (koristBruto > 0) ako postoji, inače iz workera.
+  const [koristAktivna, setKoristAktivna] = useState<boolean>(() =>
+    existing ? Number(existing.koristBruto) > 0 : !!worker.koristVoziloAktivna,
+  );
+  const [koristMetoda, setKoristMetoda] = useState<string>(
+    () => worker.koristVoziloMetoda || "nabavna_1posto",
+  );
+  const [koristVrijednost, setKoristVrijednost] = useState<string>(() =>
+    worker.koristVoziloVrijednost != null
+      ? fmtMoneyInput(Number(worker.koristVoziloVrijednost))
+      : "",
+  );
+  const [koristSaPdv, setKoristSaPdv] = useState<boolean>(() =>
+    worker.koristVoziloSaPdv == null ? true : !!worker.koristVoziloSaPdv,
+  );
+  const [koristOpis, setKoristOpis] = useState<string>(
+    () => worker.koristVoziloOpis || "",
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Auto-prefill:
@@ -4549,19 +4634,26 @@ function PayrollModal({
     if (sihMinutes > 0) {
       setWorkedHours(minutesToHoursStr(sihMinutes));
     } else if (!sihQuery.isLoading) {
-      setWorkedHours(minutesToHoursStr(standardMinutesForMonth(year, month)));
+      setWorkedHours(
+        minutesToHoursStr(
+          standardMinutesForMonth(year, month, worker.contractedHours ?? 8),
+        ),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sihMinutes, sihQuery.isLoading]);
 
-  // Auto-popuna toplog obroka: dnevna stopa × broj radnih dana. Radi samo za
-  // novi obračun i dok korisnik ručno ne dirne polje. Čeka da se šihterica
-  // učita da broj dana bude tačan.
+  // Auto-popuna toplog obroka za NOVI obračun: dnevna stopa × broj dana
+  // prisustva (godišnji/praznik/bolovanje iz šihterice ispadaju). Čeka da se
+  // šihterica učita da broj dana bude tačan, ne dira polje kad ga je korisnik
+  // ručno promijenio. Za POSTOJEĆE obračune se NE dira (da se ne pregazi ručna
+  // korekcija) — re-derivacija ide kroz eksplicitni "Obračunaj sve".
+  // mealAuto je null kad nema dnevne stope (tada se iznos uopće ne dira).
   useEffect(() => {
     if (existing) return;
     if (mealTouchedRef.current) return;
-    if (mealAuto == null) return;
     if (sihQuery.isLoading) return;
+    if (mealAuto == null) return;
     setMeal(fmtMoneyInput(mealAuto));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mealAuto, sihQuery.isLoading]);
@@ -4630,8 +4722,52 @@ function PayrollModal({
   const preview = useMemo(() => {
     if (effectiveGross <= 0) return null;
     const ded = deductionFromCoefficient(parseNum(coeff));
-    return fromGross(effectiveGross, ded);
-  }, [effectiveGross, coeff]);
+    const sal = fromGross(effectiveGross, ded);
+    // Korist u naravi: aditivni sloj na preview, isto kao backend snapshot.
+    // Diže bruto/doprinose/porez/trošak, neto ostaje (korist se ne isplaćuje).
+    const v = koristAktivna
+      ? koristNetValueFromConfig(
+          koristMetoda,
+          parseMoneyInput(koristVrijednost) ?? 0,
+          koristSaPdv,
+        )
+      : 0;
+    const k = computeKorist(v);
+    if (!k) return sal;
+    const empTotal = sal.empTotal + k.empTotal;
+    const incomeTax = sal.incomeTax + k.porez;
+    const erpTotal = sal.erpTotal + k.erpTotal;
+    return {
+      ...sal,
+      gross: sal.gross + k.koristBruto,
+      empPio: sal.empPio + k.empPio,
+      empZdravstvo: sal.empZdravstvo + k.empZdravstvo,
+      empNezaposlenost: sal.empNezaposlenost + k.empNezaposlenost,
+      empTotal,
+      taxBase: sal.taxBase + k.taxBase,
+      incomeTax,
+      erpPio: sal.erpPio + k.erpPio,
+      erpZdravstvo: sal.erpZdravstvo + k.erpZdravstvo,
+      erpNezaposlenost: sal.erpNezaposlenost + k.erpNezaposlenost,
+      erpTotal,
+      // net, vodnaNaknada, naknadaNesrece ostaju (vežu se na platu, ne korist).
+      // totalCost = neto-bazirana formula (bez nenovčanog dijela koristi).
+      totalCost:
+        sal.net +
+        empTotal +
+        incomeTax +
+        erpTotal +
+        sal.vodnaNaknada +
+        sal.naknadaNesrece,
+    };
+  }, [
+    effectiveGross,
+    coeff,
+    koristAktivna,
+    koristMetoda,
+    koristVrijednost,
+    koristSaPdv,
+  ]);
 
   // Bazni preview (osnovica → neto-po-ugovoru, BEZ minulog rada i uvećanja).
   const basePreview = useMemo(() => {
@@ -4748,6 +4884,11 @@ function PayrollModal({
           mealAllowance: parseNum(meal),
           vacationBonus: parseNum(vacation),
           travelExpense: parseNum(travel),
+          koristVoziloAktivna: koristAktivna,
+          koristVoziloMetoda: koristMetoda,
+          koristVoziloVrijednost: koristAktivna ? (parseMoneyInput(koristVrijednost) ?? 0) : 0,
+          koristVoziloSaPdv: koristSaPdv,
+          koristVoziloOpis: koristOpis,
         }),
       ),
     onSuccess: () => {
@@ -4761,6 +4902,7 @@ function PayrollModal({
       // Backend je sticky-upisao stope/naknade na workera — refetch da bi
       // sljedeći mjesec vidio nove default-e.
       queryClient.invalidateQueries({ queryKey: ["workers", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["myStats"] });
       setError(null);
     },
     onError: (e: Error) => setError(e.message || "Greška pri obračunu"),
@@ -4775,6 +4917,8 @@ function PayrollModal({
       queryClient.invalidateQueries({
         queryKey: ["monthlySummary", orgId, year, month],
       });
+      // KPI "Obračuna (mj.)" na profilu broji obračune, osvježi ga.
+      queryClient.invalidateQueries({ queryKey: ["myStats"] });
       onClose();
     },
   });
@@ -4788,6 +4932,7 @@ function PayrollModal({
       queryClient.invalidateQueries({
         queryKey: ["monthlySummary", orgId, year, month],
       });
+      queryClient.invalidateQueries({ queryKey: ["myStats"] });
     },
   });
 
@@ -4844,6 +4989,11 @@ function PayrollModal({
       meal: parseNum(meal),
       vacation: parseNum(vacation),
       travel: parseNum(travel),
+      koristAktivna,
+      koristVrijednost: koristAktivna ? (parseMoneyInput(koristVrijednost) ?? 0) : 0,
+      koristMetoda,
+      koristSaPdv,
+      koristOpis: koristOpis.trim(),
     };
     // Originalna bruto OSNOVICA — koristi shared helper (vidi computeWorkerGrossBase).
     const origGrossFromWorker = (() => {
@@ -4888,6 +5038,18 @@ function PayrollModal({
       travel: existing?.travelExpense != null
         ? Number(existing.travelExpense)
         : Number(worker.defaultTravelExpense ?? 0),
+      koristAktivna: existing
+        ? Number(existing.koristBruto) > 0
+        : !!worker.koristVoziloAktivna,
+      koristVrijednost: (existing
+        ? Number(existing.koristBruto) > 0
+        : !!worker.koristVoziloAktivna)
+        ? Number(worker.koristVoziloVrijednost ?? 0)
+        : 0,
+      koristMetoda: worker.koristVoziloMetoda || "nabavna_1posto",
+      koristSaPdv:
+        worker.koristVoziloSaPdv == null ? true : !!worker.koristVoziloSaPdv,
+      koristOpis: (worker.koristVoziloOpis || "").trim(),
     };
     return (
       cur.gross !== orig.gross ||
@@ -4906,12 +5068,18 @@ function PayrollModal({
       cur.holidayRate !== orig.holidayRate ||
       cur.meal !== orig.meal ||
       cur.vacation !== orig.vacation ||
-      cur.travel !== orig.travel
+      cur.travel !== orig.travel ||
+      cur.koristAktivna !== orig.koristAktivna ||
+      cur.koristVrijednost !== orig.koristVrijednost ||
+      cur.koristMetoda !== orig.koristMetoda ||
+      cur.koristSaPdv !== orig.koristSaPdv ||
+      cur.koristOpis !== orig.koristOpis
     );
   }, [
     gross, coeff, minuliRad, workedHours, sickDays, vacationDays, overtime, night, sunday, holiday,
     overtimeRate, nightRate, sundayRate, holidayRate,
     meal, vacation, travel, existing, worker,
+    koristAktivna, koristVrijednost, koristMetoda, koristSaPdv, koristOpis,
   ]);
 
   const isSavingRef = useRef(false);
@@ -4945,6 +5113,11 @@ function PayrollModal({
             travelExpense: parseNum(travel),
             taxCoefficient: parseNum(coeff),
             minuliRadRate: parseNum(minuliRad),
+            koristVoziloAktivna: koristAktivna,
+            koristVoziloMetoda: koristMetoda,
+            koristVoziloVrijednost: koristAktivna ? (parseMoneyInput(koristVrijednost) ?? 0) : 0,
+            koristVoziloSaPdv: koristSaPdv,
+            koristVoziloOpis: koristOpis,
           }),
         );
         queryClient.invalidateQueries({
@@ -5137,7 +5310,7 @@ function PayrollModal({
                   type="text"
                   inputMode="decimal"
                   value={coeff}
-                  onChange={(e) => setCoeff(e.target.value)}
+                  onChange={(e) => setCoeff(sanitizeDecimalInput(e.target.value))}
                 />
               </div>
               <div className={styles.field}>
@@ -5269,7 +5442,7 @@ function PayrollModal({
                   inputMode="decimal"
                   value={workedHours}
                   onChange={(e) => setWorkedHours(e.target.value)}
-                  placeholder={`Standard: ${standardMinutesForMonth(year, month) / 60}h`}
+                  placeholder={`Standard: ${standardMinutesForMonth(year, month, worker.contractedHours ?? 8) / 60}h`}
                 />
               </div>
               <div className={styles.field}>
@@ -5411,7 +5584,7 @@ function PayrollModal({
                   <div className={styles.note}>
                     {fmtKM(mealRatePerDay)} KM × {mealDays}{" "}
                     {mealDays === 1 ? "dan" : "dana"} = {fmtKM(mealAuto)} KM{" "}
-                    {mealDaysFromSih
+                    {hasSihterica
                       ? "(dani iz šihterice)"
                       : "(standardni radni dani)"}
                     {Math.abs(parseNum(meal) - mealAuto) > 0.005 && (
@@ -5460,12 +5633,147 @@ function PayrollModal({
             </div>
           </div>
 
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>Korist u naravi, službeno vozilo</div>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.55rem",
+                cursor: "pointer",
+                marginBottom: koristAktivna ? "0.75rem" : 0,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={koristAktivna}
+                onChange={(e) => setKoristAktivna(e.target.checked)}
+                style={{ width: 17, height: 17, accentColor: "var(--sage, #3a5c42)" }}
+              />
+              <span style={{ fontSize: 13.5 }}>
+                Radnik koristi službeno vozilo u privatne svrhe (bez putnih naloga)
+              </span>
+            </label>
+            {koristAktivna && (
+              <>
+                <div className={styles.grid2}>
+                  <div className={styles.field}>
+                    <label className={styles.fieldLabel}>Metoda utvrđivanja</label>
+                    <StyledSelect
+                      ariaLabel="Metoda koristi"
+                      value={koristMetoda}
+                      onChange={(v) => setKoristMetoda(String(v))}
+                      groups={[
+                        {
+                          options: [
+                            { value: "nabavna_1posto", label: "1% nabavne vrijednosti (mjesečno)" },
+                            { value: "lizing_20posto", label: "20% rate lizinga / najma" },
+                            { value: "stvarni_km", label: "Stvarni pređeni km (opcionalno)" },
+                          ],
+                        },
+                      ]}
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label className={styles.fieldLabel}>
+                      {koristMetoda === "lizing_20posto"
+                        ? "Mjesečna rata (sa PDV)"
+                        : koristMetoda === "stvarni_km"
+                          ? "Pređeni privatni km"
+                          : "Nabavna vrijednost (sa PDV)"}
+                    </label>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      inputMode="decimal"
+                      value={koristVrijednost}
+                      onChange={(e) => setKoristVrijednost(formatMoneyLive(e.target.value))}
+                      onBlur={() =>
+                        koristMetoda !== "stvarni_km" &&
+                        setKoristVrijednost(formatMoneyBlur(koristVrijednost))
+                      }
+                    />
+                  </div>
+                </div>
+                {koristMetoda !== "stvarni_km" && (
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      marginTop: "0.5rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={koristSaPdv}
+                      onChange={(e) => setKoristSaPdv(e.target.checked)}
+                    />
+                    <span style={{ fontSize: 12.5, color: "var(--mid)" }}>
+                      Unesena vrijednost je sa PDV-om (ako nije, dodaje se 17%)
+                    </span>
+                  </label>
+                )}
+                <div className={styles.field} style={{ marginTop: "0.5rem" }}>
+                  <label className={styles.fieldLabel}>Opis vozila (model, tablice)</label>
+                  <input
+                    className={styles.input}
+                    type="text"
+                    value={koristOpis}
+                    onChange={(e) => setKoristOpis(e.target.value)}
+                    placeholder="npr. VW Passat, A12-B-345"
+                  />
+                </div>
+                {(() => {
+                  const v = koristNetValueFromConfig(
+                    koristMetoda,
+                    parseMoneyInput(koristVrijednost) ?? 0,
+                    koristSaPdv,
+                  );
+                  const k = computeKorist(v);
+                  if (!k) return null;
+                  const dodatniTrosak = +(k.empTotal + k.porez + k.erpTotal).toFixed(2);
+                  return (
+                    <div className={styles.note} style={{ marginTop: "0.6rem" }}>
+                      Bruto korist: <strong>{fmtKM(k.koristBruto)} KM</strong>, dodaje se na
+                      osnovicu za doprinose i porez. Dodatni trošak poslodavca:{" "}
+                      <strong>{fmtKM(dodatniTrosak)} KM</strong> (doprinosi + porez). Neto
+                      radnika se ne mijenja, korist se ne isplaćuje.
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+
           {preview && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Preliminarni izračun</div>
               <div className={styles.resultGrid}>
                 <span className={styles.label}>Bruto</span>
                 <span className={styles.value}>{fmtKM(preview.gross)} KM</span>
+
+                {koristAktivna &&
+                  (parseMoneyInput(koristVrijednost) ?? 0) > 0 && (
+                    <>
+                      <span className={styles.label} style={{ color: "var(--mid)" }}>
+                        od toga korist u naravi
+                      </span>
+                      <span className={styles.value} style={{ color: "var(--mid)" }}>
+                        {fmtKM(
+                          computeKorist(
+                            koristNetValueFromConfig(
+                              koristMetoda,
+                              parseMoneyInput(koristVrijednost) ?? 0,
+                              koristSaPdv,
+                            ),
+                          )?.koristBruto ?? 0,
+                        )}{" "}
+                        KM
+                      </span>
+                    </>
+                  )}
 
                 <span className={styles.label}>Doprinosi iz plate (31%)</span>
                 <span className={styles.value}>{fmtKM(preview.empTotal)} KM</span>

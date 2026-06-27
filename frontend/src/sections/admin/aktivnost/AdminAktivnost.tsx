@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import {
   listActivity,
   getActivityStats,
@@ -29,6 +30,8 @@ const ACTION_LABELS: Record<string, string> = {
   FAKTURA_GENERATE: "Faktura",
   PREDRACUN_GENERATE: "Predračun",
   KARTICA_GENERATE: "Članska kartica",
+  RJESENJE_GENERATE: "Rješenja i odluke",
+  RJESENJE_GO_GENERATE: "Rješenje (god. odmor)",
 };
 
 function actionLabel(action: string) {
@@ -139,17 +142,23 @@ export default function AdminAktivnost() {
           </div>
           <div className={styles.daysPicker}>
             <label className={styles.fieldLabel}>Period (statistika)</label>
-            <select
-              className={styles.select}
+            <StyledSelect
               value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-            >
-              <option value={7}>Zadnjih 7 dana</option>
-              <option value={30}>Zadnjih 30 dana</option>
-              <option value={90}>Zadnjih 90 dana</option>
-              <option value={365}>Zadnjih 365 dana</option>
-              <option value={0}>Zauvijek</option>
-            </select>
+              onChange={(v) => setDays(Number(v))}
+              ariaLabel="Period (statistika)"
+              wrapStyle={{ minWidth: 180 }}
+              groups={[
+                {
+                  options: [
+                    { value: 7, label: "Zadnjih 7 dana" },
+                    { value: 30, label: "Zadnjih 30 dana" },
+                    { value: 90, label: "Zadnjih 90 dana" },
+                    { value: 365, label: "Zadnjih 365 dana" },
+                    { value: 0, label: "Zauvijek" },
+                  ],
+                },
+              ]}
+            />
           </div>
         </div>
 
@@ -208,21 +217,26 @@ export default function AdminAktivnost() {
             ))}
           </div>
 
-          <select
-            className={styles.select}
+          <StyledSelect
             value={action}
-            onChange={(e) => {
-              setAction(e.target.value);
+            onChange={(v) => {
+              setAction(String(v));
               setPage(1);
             }}
-          >
-            <option value="">Svi dokumenti</option>
-            {actionOptions.map((a) => (
-              <option key={a} value={a}>
-                {actionLabel(a)}
-              </option>
-            ))}
-          </select>
+            ariaLabel="Filtriraj po dokumentu"
+            wrapStyle={{ minWidth: 200 }}
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Svi dokumenti" },
+                  ...actionOptions.map((a) => ({
+                    value: a,
+                    label: actionLabel(a),
+                  })),
+                ],
+              },
+            ]}
+          />
 
           <form className={styles.searchBar} onSubmit={applySearch}>
             <input

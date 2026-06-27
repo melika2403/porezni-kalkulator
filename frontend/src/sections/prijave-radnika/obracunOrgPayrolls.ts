@@ -120,26 +120,32 @@ export async function obracunOrgPayrolls(input: {
     ? activeWorkers.filter((w) => w.role === "VLASNIK")
     : [];
 
-  // 3) Prefetch šihterice paralelno za radnike koji nemaju existing.workedMinutes.
-  const workersForSih = radnici.filter((w) => {
-    const ep = payrollByWorker.get(w.id);
-    return ep?.workedMinutes == null;
-  });
+  // 3) Prefetch šihterice paralelno za SVE radnike. Treba i za topli obrok (dani
+  // prisustva) kod POSTOJEĆIH obračuna, ne samo za workedMinutes kod novih.
   const sihResults = await Promise.all(
-    workersForSih.map((w) => getSihterica(w.id, year, month)),
+    radnici.map((w) => getSihterica(w.id, year, month)),
   );
   const sihMinutesByWorker = new Map<number, number>();
   const sihWorkDaysByWorker = new Map<number, number>();
-  workersForSih.forEach((w, i) => {
+  // Radnici koji UOPĆE imaju popunjenu šihtericu (bez obzira na broj dana
+  // prisustva). Razlikuje "nema šihterice" (→ pun mjesec za obrok) od "ima
+  // šihtericu, 0 dana prisustva" (cijeli mjesec odsutan → 0 dana za obrok).
+  const workersWithSihterica = new Set<number>();
+  radnici.forEach((w, i) => {
     const r = sihResults[i];
-    if (r.ok && r.data?.days) {
+    if (
+      r.ok &&
+      r.data?.days &&
+      Array.isArray(r.data.days) &&
+      r.data.days.some((d) => d != null)
+    ) {
+      workersWithSihterica.add(w.id);
       const mins = sumSihtericaMinutes(r.data.days);
       if (mins > 0) sihMinutesByWorker.set(w.id, mins);
-      const wd = countSihtericaWorkDays(r.data.days);
-      if (wd > 0) sihWorkDaysByWorker.set(w.id, wd);
+      // Postavi i kad je 0 (radnik cijeli mjesec odsutan) da obrok padne na 0.
+      sihWorkDaysByWorker.set(w.id, countSihtericaWorkDays(r.data.days));
     }
   });
-  const defaultMonthMinutes = standardMinutesForMonth(year, month);
   const defaultWorkDays = standardWorkDaysForMonth(year, month);
   const paymentDateForCalc = new Date(year, month, 0).toISOString().slice(0, 10);
 
@@ -156,9 +162,12 @@ export async function obracunOrgPayrolls(input: {
     const proRateFactor = computeProRateFactor(w, year, month);
     const existingPayroll = payrollByWorker.get(w.id);
     const prevPayroll = prevPayrollByWorker.get(w.id);
+    // Auto-popuna sati: za nepuno radno vrijeme srazmjerno (radni dani ×
+    // contractedHours), ne pun mjesec od 8h.
     const workedMinutesDefault =
       existingPayroll?.workedMinutes == null
-        ? sihMinutesByWorker.get(w.id) ?? defaultMonthMinutes
+        ? sihMinutesByWorker.get(w.id) ??
+          standardMinutesForMonth(year, month, w.contractedHours ?? 8)
         : undefined;
     // Neoporezivi dodaci: nasljeđuju vrijednost iz prethodnog mjeseca tako da
     // bulk obračun nema potrebu da knjigovođa ulazi u svakog radnika ručno.
@@ -182,15 +191,20 @@ export async function obracunOrgPayrolls(input: {
           ? Number(org.mealAllowancePerDay)
           : null;
     let mealDefault: number | null = null;
-    if (isNewPayroll) {
-      if (mealRatePerDay != null) {
-        const days = sihWorkDaysByWorker.get(w.id) ?? defaultWorkDays;
-        mealDefault = Math.round(mealRatePerDay * days * 100) / 100;
-      } else {
-        mealDefault = Number(
-          prevPayroll?.mealAllowance ?? w.defaultMealAllowance ?? 0,
-        );
-      }
+    if (mealRatePerDay != null) {
+      // Dnevna stopa: topli obrok = stopa × dani prisustva. Ima šihtericu →
+      // dani prisustva (može i 0); nema šihtericu → puni radni dani. Računa se i
+      // za POSTOJEĆE obračune (re-obračun) da se uskladi sa šihtericom popunjenom
+      // naknadno.
+      const days = workersWithSihterica.has(w.id)
+        ? sihWorkDaysByWorker.get(w.id) ?? 0
+        : defaultWorkDays;
+      mealDefault = Math.round(mealRatePerDay * days * 100) / 100;
+    } else if (isNewPayroll) {
+      // Nema dnevne stope: nasljeđuje fiksni iznos (ne smanjuje se po danima).
+      mealDefault = Number(
+        prevPayroll?.mealAllowance ?? w.defaultMealAllowance ?? 0,
+      );
     }
     const vacationDefault = isNewPayroll
       ? Number(prevPayroll?.vacationBonus ?? 0)
@@ -220,9 +234,7 @@ export async function obracunOrgPayrolls(input: {
           ...(workedMinutesDefault !== undefined
             ? { workedMinutes: workedMinutesDefault }
             : {}),
-          ...(mealDefault !== null && mealDefault > 0
-            ? { mealAllowance: mealDefault }
-            : {}),
+          ...(mealDefault !== null ? { mealAllowance: mealDefault } : {}),
           ...(vacationDefault !== null && vacationDefault > 0
             ? { vacationBonus: vacationDefault }
             : {}),

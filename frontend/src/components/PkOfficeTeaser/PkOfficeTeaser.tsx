@@ -1,13 +1,5 @@
 import styles from "./PkOfficeTeaser.module.css";
-
-// PK Office ulaz (login + organizacija). Isti princip kao "Otvori App" u Navbaru:
-// u produkciji app subdomena, u dev-u /app.
-const APP_URL = `${
-  process.env.NEXT_PUBLIC_APP_URL ??
-  (process.env.NODE_ENV === "production"
-    ? "https://app.poreznikalkulator.ba"
-    : "/app")
-}/dashboard`;
+import { PK_OFFICE_DASHBOARD_URL as APP_URL } from "src/lib/pkOfficeUrl";
 
 // Inline ikone (marketing server komponenta, bez icon-lib zavisnosti), u duhu
 // tabler ikona iz PK Office sidebara.

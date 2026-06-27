@@ -1,10 +1,10 @@
 // ──────────────────────────────────────────────────────────────────────────────
 //  Jedan izvor istine za cijene pretplata (frontend).
-//  Backend ima identične brojeve u utils/predracunPdf.js (PLAN_PRICES) — kad
-//  mijenjaš cijene, mijenjaj na oba mjesta.
+//  Backend ima identične brojeve u config/pricing.js — kad mijenjaš cijene,
+//  mijenjaj na oba mjesta.
 //
-//  Svi iznosi su BRUTO (sa PDV-om) — ono što kupac plaća. Neto/PDV se
-//  back-kalkulišu iz bruta po stopi VAT_RATE.
+//  Svi iznosi su NETO (bez PDV-a) — osnovica na koju se PDV dodaje. Cijene se
+//  prikazuju kao "200 KM + PDV"; bruto (za naplatu) = neto × (1 + VAT_RATE).
 //
 //  Godišnja = 10× mjesečna → 2 mjeseca besplatno (ušteda = 2× mjesečna).
 // ──────────────────────────────────────────────────────────────────────────────
@@ -24,10 +24,10 @@ export function annualSavings(plan: Plan): number {
   return PLAN_PRICING[plan].monthly * 2;
 }
 
-export const calcNet = (gross: number) =>
-  +(gross - gross * (VAT_RATE / (1 + VAT_RATE))).toFixed(2);
-export const calcVat = (gross: number) =>
-  +(gross * (VAT_RATE / (1 + VAT_RATE))).toFixed(2);
+// Iznos PDV-a i bruto (za naplatu) iz neto osnovice.
+export const calcVat = (net: number) => +(net * VAT_RATE).toFixed(2);
+export const calcGross = (net: number) =>
+  +(net + net * VAT_RATE).toFixed(2);
 
 export function formatKm(n: number): string {
   return n

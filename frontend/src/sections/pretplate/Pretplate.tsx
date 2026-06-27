@@ -13,8 +13,8 @@ import {
 import {
   PLAN_PRICING,
   annualSavings,
-  calcNet,
   calcVat,
+  calcGross,
   formatKm as fmt,
   type BillingCycle,
 } from "src/data/pricing";
@@ -341,9 +341,12 @@ export default function Pretplate() {
               <div className={styles.popularTag}>{p.tag}</div>
 
               <div className={styles.tier}>{p.tier}</div>
-              <div className={styles.price}>{fmt(priceFor(p.id))} KM</div>
+              <div className={styles.price}>
+                {fmt(priceFor(p.id))} KM
+                <span className={styles.vatSuffix}>+ PDV</span>
+              </div>
               <div className={styles.period}>
-                {cycle === "monthly" ? "mjesečno, sa PDV-om" : "godišnje, sa PDV-om"}
+                {cycle === "monthly" ? "mjesečno / po korisniku" : "godišnje / po korisniku"}
               </div>
               {cycle === "yearly" && (
                 <div className={styles.saveNote}>
@@ -565,7 +568,7 @@ export default function Pretplate() {
           </div>
           <div className={styles.summaryRow}>
             <span>Iznos bez PDV-a</span>
-            <strong>{fmt(calcNet(priceFor(selected)))} KM</strong>
+            <strong>{fmt(priceFor(selected))} KM</strong>
           </div>
           <div className={styles.summaryRow}>
             <span>PDV (17%)</span>
@@ -573,7 +576,7 @@ export default function Pretplate() {
           </div>
           <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
             <span>Za naplatu</span>
-            <strong>{fmt(priceFor(selected))} KM</strong>
+            <strong>{fmt(calcGross(priceFor(selected)))} KM</strong>
           </div>
         </div>
 

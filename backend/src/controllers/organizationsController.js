@@ -207,13 +207,18 @@ function validateOwnerData(owner, opts = {}) {
     data.lastName = owner.lastName.trim();
 
     if (owner.jmbg && String(owner.jmbg).trim()) {
-      if (!/^\d{13}$/.test(String(owner.jmbg).trim())) {
+      const plainJmbg = String(owner.jmbg).trim();
+      if (!/^\d{13}$/.test(plainJmbg)) {
         return {
           ok: false,
           message: "JMBG vlasnika mora imati tačno 13 cifara",
         };
       }
-      data.jmbg = encryptJmbg(String(owner.jmbg).trim());
+      data.jmbg = encryptJmbg(plainJmbg);
+      // Spol se izvodi iz JMBG-a (cifre 10-12: < 500 = M, >= 500 = Z), isto kao
+      // kod radnika, da ga payroll prepozna automatski.
+      const nnn = parseInt(plainJmbg.slice(9, 12), 10);
+      if (Number.isFinite(nnn)) data.spol = nnn >= 500 ? "Z" : "M";
     } else if (requireJmbg) {
       return { ok: false, message: "JMBG vlasnika je obavezan" };
     }
