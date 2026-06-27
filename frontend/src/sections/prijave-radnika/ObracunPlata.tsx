@@ -4658,15 +4658,19 @@ function PayrollModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mealAuto, sihQuery.isLoading]);
 
-  // Parsira de-DE format ("1.234,56") u broj. Tačka je UVIJEK thousands separator,
-  // zarez je UVIJEK decimalni separator — što proizvodi formatMoneyLive. Tako
-  // "1.234" = 1234 (hiljadu dvjesta trideset četiri), ne 1,234 (jedan cijela 234).
+  // parseNum: opšti decimalni parser (parseDecimal heuristika) za polja gdje je
+  // tačka decimalni separator (koeficijent, stope, sati: "0.4", "1.5").
   const parseNum = parseDecimal;
+  // parseMoney: za novčana polja koja se PRIKAZUJU thousands-formatom
+  // (formatMoneyLive: "1030" -> "1.030"). Kod njih je tačka separator hiljada, a
+  // zarez decimala, pa "1.030" = 1030 (ne 1,03). parseDecimal bi jednu tačku
+  // pogrešno protumačio kao decimalu, zato ovdje koristimo parseMoneyInput.
+  const parseMoney = (s: string) => parseMoneyInput(s) ?? 0;
 
   // Preview izračun u modalu (bez minimum-base logike — server primjenjuje to).
   // Efektivni bruto = osnovica + minuli rad + uvećanja (po istoj logici kao server).
   const previewBreakdown = useMemo(() => {
-    const base = parseNum(gross);
+    const base = parseMoney(gross);
     if (base <= 0) return null;
     // Satnica = puna osnovica / (contractedHours × 21.75). Pro-rate i
     // contractedHours se poništavaju jer i baza i sati skaliraju proporcionalno.
@@ -4710,7 +4714,7 @@ function PayrollModal({
   // Efektivni bruto za TAJ mjesec = (osnovica × proRate) + minuli rad + uvećanja.
   // Koristi se za doprinose, porez, neto za isplatu i logiku min osnovice.
   const effectiveGross = useMemo(() => {
-    const base = parseNum(gross);
+    const base = parseMoney(gross);
     if (base <= 0 || !previewBreakdown) return 0;
     const scaledBase = base * effectiveProRate;
     const minuliAmt = scaledBase * minuliMultiplier;
@@ -4771,7 +4775,7 @@ function PayrollModal({
 
   // Bazni preview (osnovica → neto-po-ugovoru, BEZ minulog rada i uvećanja).
   const basePreview = useMemo(() => {
-    const base = parseNum(gross);
+    const base = parseMoney(gross);
     if (base <= 0) return null;
     const ded = deductionFromCoefficient(parseNum(coeff));
     return fromGross(base, ded);
@@ -4781,7 +4785,7 @@ function PayrollModal({
   // ono što radnik prima u "normalan" mjesec bez prekovremenih. Predstavlja
   // anker za tip NETO_ISPLATA.
   const ciljNetoPreview = useMemo(() => {
-    const base = parseNum(gross);
+    const base = parseMoney(gross);
     if (base <= 0) return null;
     const ded = deductionFromCoefficient(parseNum(coeff));
     return fromGross(base * (1 + minuliMultiplier), ded);
@@ -4810,7 +4814,7 @@ function PayrollModal({
     lastEditRef.current = "netoUgovor";
     const formatted = formatMoneyLive(v);
     setNetoUgovorDisplay(formatted);
-    const targetNet = parseNum(formatted);
+    const targetNet = parseMoney(formatted);
     if (!Number.isFinite(targetNet) || targetNet <= 0) {
       setGross("");
       return;
@@ -4829,7 +4833,7 @@ function PayrollModal({
     lastEditRef.current = "netoIsplata";
     const formatted = formatMoneyLive(v);
     setNetoIsplataDisplay(formatted);
-    const targetNet = parseNum(formatted);
+    const targetNet = parseMoney(formatted);
     if (!Number.isFinite(targetNet) || targetNet <= 0) {
       setGross("");
       return;
@@ -4854,15 +4858,15 @@ function PayrollModal({
           workerId: worker.id,
           year,
           month,
-          grossBase: parseNum(gross),
+          grossBase: parseMoney(gross),
           minuliRadRate: parseNum(minuliRad),
           taxCoefficient: parseNum(coeff),
           // "Cilj neto za isplatu": pošalji ciljni neto (iz polja koje user vidi)
           // pa backend fening-search prilagodi bruto da finalni neto bude tačan.
           // Backend primijeni samo bez uvećanja i za pun mjesec.
           ...(worker.salaryType === "NETO_ISPLATA" &&
-          parseNum(netoIsplataDisplay) > 0
-            ? { targetNet: parseNum(netoIsplataDisplay) }
+          parseMoney(netoIsplataDisplay) > 0
+            ? { targetNet: parseMoney(netoIsplataDisplay) }
             : {}),
           // Pro-rate factor (0..1) — automatski za mid-month, user može
           // isključiti checkbox-om. Backend skalira osnovicu, minuli rad,
@@ -4881,9 +4885,9 @@ function PayrollModal({
           nightRate: parseNum(nightRate),
           sundayRate: parseNum(sundayRate),
           holidayRate: parseNum(holidayRate),
-          mealAllowance: parseNum(meal),
-          vacationBonus: parseNum(vacation),
-          travelExpense: parseNum(travel),
+          mealAllowance: parseMoney(meal),
+          vacationBonus: parseMoney(vacation),
+          travelExpense: parseMoney(travel),
           koristVoziloAktivna: koristAktivna,
           koristVoziloMetoda: koristMetoda,
           koristVoziloVrijednost: koristAktivna ? (parseMoneyInput(koristVrijednost) ?? 0) : 0,
@@ -4972,7 +4976,7 @@ function PayrollModal({
 
   const isDirty = useMemo(() => {
     const cur = {
-      gross: parseNum(gross),
+      gross: parseMoney(gross),
       coeff: parseNum(coeff),
       minuli: parseNum(minuliRad),
       workedMinutes: workedHours ? Math.round(parseNum(workedHours) * 60) : null,
@@ -4986,9 +4990,9 @@ function PayrollModal({
       nightRate: parseNum(nightRate),
       sundayRate: parseNum(sundayRate),
       holidayRate: parseNum(holidayRate),
-      meal: parseNum(meal),
-      vacation: parseNum(vacation),
-      travel: parseNum(travel),
+      meal: parseMoney(meal),
+      vacation: parseMoney(vacation),
+      travel: parseMoney(travel),
       koristAktivna,
       koristVrijednost: koristAktivna ? (parseMoneyInput(koristVrijednost) ?? 0) : 0,
       koristMetoda,
@@ -5108,9 +5112,9 @@ function PayrollModal({
             nightRate: parseNum(nightRate),
             sundayRate: parseNum(sundayRate),
             holidayRate: parseNum(holidayRate),
-            mealAllowance: parseNum(meal),
-            vacationBonus: parseNum(vacation),
-            travelExpense: parseNum(travel),
+            mealAllowance: parseMoney(meal),
+            vacationBonus: parseMoney(vacation),
+            travelExpense: parseMoney(travel),
             taxCoefficient: parseNum(coeff),
             minuliRadRate: parseNum(minuliRad),
             koristVoziloAktivna: koristAktivna,
@@ -5215,6 +5219,7 @@ function PayrollModal({
                           lastEditRef.current = "gross";
                           setGross(formatMoneyLive(e.target.value));
                         }}
+                        onBlur={(e) => setGross(formatMoneyBlur(e.target.value))}
                         placeholder="Iz ugovora"
                       />
                     </div>
@@ -5226,6 +5231,9 @@ function PayrollModal({
                         inputMode="decimal"
                         value={netoUgovorDisplay}
                         onChange={(e) => handleNetoUgovorChange(e.target.value)}
+                        onBlur={(e) =>
+                          setNetoUgovorDisplay(formatMoneyBlur(e.target.value))
+                        }
                         placeholder="Iz ugovora"
                       />
                       <p className={styles.note} style={{ margin: "0.3rem 0 0" }}>
@@ -5240,6 +5248,9 @@ function PayrollModal({
                         inputMode="decimal"
                         value={netoIsplataDisplay}
                         onChange={(e) => handleNetoIsplataChange(e.target.value)}
+                        onBlur={(e) =>
+                          setNetoIsplataDisplay(formatMoneyBlur(e.target.value))
+                        }
                         placeholder="Što prima"
                       />
                       <p className={styles.note} style={{ margin: "0.3rem 0 0" }}>
@@ -5331,7 +5342,7 @@ function PayrollModal({
                     .toISOString()
                     .slice(0, 10);
                   const years = totalYearsOfService(worker, asOf);
-                  const baseN = parseNum(gross);
+                  const baseN = parseMoney(gross);
                   const rateN = parseNum(minuliRad);
                   const rawMultiplier = (rateN / 100) * years;
                   const capped = rawMultiplier > MINULI_RAD_CAP;
@@ -5579,6 +5590,7 @@ function PayrollModal({
                     mealTouchedRef.current = true;
                     setMeal(formatMoneyLive(e.target.value));
                   }}
+                  onBlur={(e) => setMeal(formatMoneyBlur(e.target.value))}
                 />
                 {mealRatePerDay != null && mealAuto != null && (
                   <div className={styles.note}>
@@ -5587,7 +5599,7 @@ function PayrollModal({
                     {hasSihterica
                       ? "(dani iz šihterice)"
                       : "(standardni radni dani)"}
-                    {Math.abs(parseNum(meal) - mealAuto) > 0.005 && (
+                    {Math.abs(parseMoney(meal) - mealAuto) > 0.005 && (
                       <button
                         type="button"
                         className={styles.linkInline}
@@ -5618,6 +5630,7 @@ function PayrollModal({
                   inputMode="decimal"
                   value={vacation}
                   onChange={(e) => setVacation(formatMoneyLive(e.target.value))}
+                  onBlur={(e) => setVacation(formatMoneyBlur(e.target.value))}
                 />
               </div>
               <div className={styles.field}>
@@ -5628,6 +5641,7 @@ function PayrollModal({
                   inputMode="decimal"
                   value={travel}
                   onChange={(e) => setTravel(formatMoneyLive(e.target.value))}
+                  onBlur={(e) => setTravel(formatMoneyBlur(e.target.value))}
                 />
               </div>
             </div>
@@ -5802,9 +5816,9 @@ function PayrollModal({
                 <span className={`${styles.value} ${styles.strong}`}>
                   {fmtKM(
                     preview.totalCost +
-                      parseNum(meal) +
-                      parseNum(vacation) +
-                      parseNum(travel),
+                      parseMoney(meal) +
+                      parseMoney(vacation) +
+                      parseMoney(travel),
                   )}{" "}
                   KM
                 </span>
@@ -5879,7 +5893,7 @@ function PayrollModal({
               setError(null);
               calcMutation.mutate();
             }}
-            disabled={calcMutation.isPending || parseNum(gross) <= 0}
+            disabled={calcMutation.isPending || parseMoney(gross) <= 0}
           >
             {calcMutation.isPending ? "Obračunavanje…" : "Obračunaj"}
           </button>
