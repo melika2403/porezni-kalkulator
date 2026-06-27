@@ -4,7 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
-import { formatMoneyLive, formatMoneyBlur, orgInitials } from "src/lib/format";
+import {
+  formatMoneyLive,
+  formatMoneyBlur,
+  parseMoneyInput,
+  orgInitials,
+} from "src/lib/format";
 import { KD_BIH, type KdBihEntry } from "src/data/kd-bih";
 import {
   me,
@@ -700,8 +705,7 @@ function ProfilTab({
       taxRegime: org.taxRegime ?? "",
       taxCategory: org.taxCategory ?? "",
       defaultSalaryType: org.defaultSalaryType ?? "NETO_ISPLATA",
-      mealAllowancePerDay:
-        org.mealAllowancePerDay != null ? String(org.mealAllowancePerDay) : "",
+      mealAllowancePerDay: mealRateToInput(org.mealAllowancePerDay),
     });
     updateOwnOrgMutation.reset();
   };
@@ -1975,6 +1979,15 @@ const emptyOrgForm: OrgFormState = {
   mealAllowancePerDay: "",
 };
 
+// Topli obrok po danu iz baze (DECIMAL, npr. broj 16 ili string "16.00" sa
+// tačkom-decimalom) u naš input format "16,00" (tačka = hiljade, zarez = decimala).
+function mealRateToInput(v: number | string | null | undefined): string {
+  if (v == null || v === "") return "";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "";
+  return formatMoneyBlur(n.toFixed(2).replace(".", ","));
+}
+
 function orgFormToPayload(
   f: OrgFormState,
   owner: OwnerFormState | null,
@@ -1999,7 +2012,7 @@ function orgFormToPayload(
         : null,
     defaultSalaryType: f.defaultSalaryType,
     mealAllowancePerDay: f.mealAllowancePerDay.trim()
-      ? Number(f.mealAllowancePerDay.replace(",", "."))
+      ? parseMoneyInput(f.mealAllowancePerDay)
       : null,
     // Model vlasništva ide na nivo organizacije. Za obrt je uvijek "opcija 1"
     // (vlasnik = obrtnik); backend ga svejedno tretira kao Worker VLASNIK.
@@ -2380,7 +2393,13 @@ function OrgFormFields({
           onChange={(e) =>
             onChange({
               ...value,
-              mealAllowancePerDay: e.target.value.replace(/[^\d.,]/g, ""),
+              mealAllowancePerDay: formatMoneyLive(e.target.value),
+            })
+          }
+          onBlur={(e) =>
+            onChange({
+              ...value,
+              mealAllowancePerDay: formatMoneyBlur(e.target.value),
             })
           }
         />
@@ -2738,8 +2757,7 @@ function DjelatnostTab({
       taxRegime: org.taxRegime ?? "",
       taxCategory: org.taxCategory ?? "",
       defaultSalaryType: org.defaultSalaryType ?? "NETO_ISPLATA",
-      mealAllowancePerDay:
-        org.mealAllowancePerDay != null ? String(org.mealAllowancePerDay) : "",
+      mealAllowancePerDay: mealRateToInput(org.mealAllowancePerDay),
     });
     const ow = org.owner;
     setEditHasOwner(!!ow);
