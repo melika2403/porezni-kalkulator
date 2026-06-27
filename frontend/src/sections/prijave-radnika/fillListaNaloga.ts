@@ -376,7 +376,7 @@ function drawTableHeader(
     { label: "Šifra", w: COLS.sifra },
     { label: "Svrha uplate", w: COLS.svrha },
     { label: "Uplata u korist", w: COLS.primalac },
-    { label: "Žiro računi", w: COLS.acc },
+    { label: "Račun primaoca", w: COLS.acc },
     { label: "Prihod / Općina", w: COLS.prihod },
     { label: "Iznos (KM)", w: COLS.iznos },
   ];
@@ -433,9 +433,9 @@ function drawRow(
     primalacLines.push(...(wrapped.length > 0 ? wrapped : [line]));
   }
 
-  // Account: uplatilac na liniji 0, primalac na liniji 1.
-  // Ako primalac ima >2 linije, accounts idu nakon primalac teksta.
-  const accLines = row.accountPrimalac ? 2 : 1;
+  // Račun: prikazuje se samo račun primaoca (na koji se uplaćuje). Račun
+  // uplatioca (naš žiro) se ne prikazuje, isti je za sve naloge i nije potreban.
+  const accLines = row.accountPrimalac ? 1 : 0;
   const numLines = Math.max(2, svrhaLines.length, primalacLines.length, accLines);
   const rowH = numLines * lineH + 4;
 
@@ -465,12 +465,9 @@ function drawRow(
   }
   x += COLS.primalac;
 
-  // Accounts — uplatilac line 0, primalac line 1
-  drawCellText(page, row.accountUplatilac, x + 2, yTop - 10, reg, 7.5, {
-    maxWidth: COLS.acc - 4,
-  });
+  // Račun primaoca (na koji se uplaćuje). Račun uplatioca se ne prikazuje.
   if (row.accountPrimalac) {
-    drawCellText(page, row.accountPrimalac, x + 2, yTop - 10 - lineH, reg, 7.5, {
+    drawCellText(page, row.accountPrimalac, x + 2, yTop - 10, reg, 7.5, {
       maxWidth: COLS.acc - 4,
     });
   }

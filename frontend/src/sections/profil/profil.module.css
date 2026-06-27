@@ -154,7 +154,70 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
   margin-bottom: 1.5rem;
+}
+
+.headerTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.headerAddBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.42rem 0.8rem;
+  background: var(--sage);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.headerAddBtn:hover {
+  opacity: 0.92;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 1.2rem;
+}
+
+.pagerBtn {
+  min-width: 34px;
+  padding: 0.38rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pagerBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagerBtnActive {
+  background: var(--sage);
+  color: #fff;
+  border-color: var(--sage);
+  font-weight: 600;
 }
 
 .btnEditInline {
@@ -1365,6 +1428,17 @@
   .orgTypeRadios {
     grid-template-columns: 1fr !important;
   }
+  /* Modal na mobitelu: skoro puna širina, poravnat na vrh i viši, da široka
+     forma klijenta stane bez bočnog odsijecanja. */
+  .modalOverlay {
+    padding: 0.75rem;
+    align-items: flex-start;
+  }
+  .modalCard {
+    max-width: none !important;
+    max-height: 94vh;
+    padding: 1.1rem 1.15rem;
+  }
 }
 
 /* ── Pregled tab (landing + onboarding) ─────────────────────────────────── */
@@ -1915,6 +1989,12 @@
   font-size: 24px;
   font-weight: 600;
   color: var(--ink);
+}
+.planCompareVat {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mid);
+  margin-left: 0.35rem;
 }
 .planCompareNote {
   font-size: 12px;

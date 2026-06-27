@@ -14,6 +14,7 @@ import {
   type PredracunStatus,
 } from "src/api/backend/predracun/predracun";
 import { unwrap } from "src/api/auth";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 
 const LIMIT = 20;
 
@@ -148,31 +149,43 @@ export default function AdminPretplate() {
               if (e.key === "Enter") applyFilters();
             }}
           />
-          <select
-            className={styles.select}
+          <StyledSelect
             value={plan}
-            onChange={(e) => {
-              setPlan(e.target.value as "" | "PRO" | "BUSINESS");
+            onChange={(v) => {
+              setPlan(String(v ?? "") as "" | "PRO" | "BUSINESS");
               setPage(1);
             }}
-          >
-            <option value="">Svi planovi</option>
-            <option value="PRO">Pro</option>
-            <option value="BUSINESS">Business</option>
-          </select>
-          <select
-            className={styles.select}
+            ariaLabel="Filter plana"
+            wrapStyle={{ minWidth: 180 }}
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Svi planovi" },
+                  { value: "PRO", label: "Pro" },
+                  { value: "BUSINESS", label: "Business" },
+                ],
+              },
+            ]}
+          />
+          <StyledSelect
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value as "" | PredracunStatus);
+            onChange={(v) => {
+              setStatusFilter(String(v ?? "") as "" | PredracunStatus);
               setPage(1);
             }}
-          >
-            <option value="">Svi statusi</option>
-            <option value="ISSUED">Izdat</option>
-            <option value="PAID">Plaćen</option>
-            <option value="CANCELLED">Otkazan</option>
-          </select>
+            ariaLabel="Filter statusa"
+            wrapStyle={{ minWidth: 180 }}
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Svi statusi" },
+                  { value: "ISSUED", label: "Izdat" },
+                  { value: "PAID", label: "Plaćen" },
+                  { value: "CANCELLED", label: "Otkazan" },
+                ],
+              },
+            ]}
+          />
           <button
             type="button"
             className={styles.btnPrimary}
@@ -284,6 +297,8 @@ export default function AdminPretplate() {
                       </div>
                     </td>
                     <td>
+                      {/* Status je obojeni inline badge (ne filter meni), pa ostaje
+                          native select stilizovan kao badge, ne StyledSelect. */}
                       <select
                         className={`${styles.statusSelect} ${
                           styles[STATUS_CLASS[it.status]]
@@ -301,9 +316,7 @@ export default function AdminPretplate() {
                       >
                         <option value="ISSUED">{STATUS_LABEL.ISSUED}</option>
                         <option value="PAID">{STATUS_LABEL.PAID}</option>
-                        <option value="CANCELLED">
-                          {STATUS_LABEL.CANCELLED}
-                        </option>
+                        <option value="CANCELLED">{STATUS_LABEL.CANCELLED}</option>
                       </select>
                     </td>
                     <td>

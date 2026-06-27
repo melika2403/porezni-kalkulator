@@ -99,6 +99,79 @@ export function fromGross(gross: number, deduction: number): PayrollResult {
   };
 }
 
+// ── Korist u naravi (službeno vozilo u privatne svrhe) ──────────────────────
+// Mirror backend/src/utils/payrollFbih.js. Korist je neto sa sadržanim porezom
+// (čl. 22), grossuje se SAMO za doprinose iz plate, porez ide na preračunati
+// iznos, bez ličnog odbitka. Koeficijent = 1/(1-EMP_TOTAL) = 1,4492753...
+export const PDV_RATE = 0.17;
+
+export function koristCoefficient(): number {
+  return 1 / (1 - EMP_TOTAL);
+}
+
+export type KoristMetoda = "nabavna_1posto" | "lizing_20posto" | "stvarni_km";
+
+export function koristNetValueFromConfig(
+  metoda: KoristMetoda | string | null | undefined,
+  vrijednost: number,
+  saPdv: boolean,
+): number {
+  let v = Math.max(Number(vrijednost) || 0, 0);
+  if (v <= 0) return 0;
+  if (metoda === "stvarni_km") return +(v * 0.3).toFixed(2);
+  if (saPdv === false) v = v * (1 + PDV_RATE);
+  if (metoda === "lizing_20posto") return +(v * 0.2).toFixed(2);
+  return +(v * 0.01).toFixed(2); // nabavna_1posto (default)
+}
+
+export interface KoristResult {
+  koristNetValue: number;
+  koristBruto: number;
+  empPio: number;
+  empZdravstvo: number;
+  empNezaposlenost: number;
+  empTotal: number;
+  taxBase: number;
+  porez: number;
+  erpPio: number;
+  erpZdravstvo: number;
+  erpNezaposlenost: number;
+  erpTotal: number;
+  netoNonCash: number;
+}
+
+export function computeKorist(koristNetValue: number): KoristResult | null {
+  const V = Math.max(Number(koristNetValue) || 0, 0);
+  if (V <= 0) return null;
+  const koristBruto = +(V * koristCoefficient()).toFixed(2);
+  const empPio = +(koristBruto * EMP_PIO).toFixed(2);
+  const empZdravstvo = +(koristBruto * EMP_ZDRAVSTVO).toFixed(2);
+  const empNezaposlenost = +(koristBruto * EMP_NEZAPOSLENOST).toFixed(2);
+  const empTotal = +(empPio + empZdravstvo + empNezaposlenost).toFixed(2);
+  const taxBase = +Math.max(koristBruto - empTotal, 0).toFixed(2);
+  const porez = +(taxBase * TAX_RATE).toFixed(2);
+  const erpPio = +(koristBruto * ERP_PIO).toFixed(2);
+  const erpZdravstvo = +(koristBruto * ERP_ZDRAVSTVO).toFixed(2);
+  const erpNezaposlenost = +(koristBruto * ERP_NEZAPOSLENOST).toFixed(2);
+  const erpTotal = +(erpPio + erpZdravstvo + erpNezaposlenost).toFixed(2);
+  const netoNonCash = +(koristBruto - empTotal - porez).toFixed(2);
+  return {
+    koristNetValue: V,
+    koristBruto,
+    empPio,
+    empZdravstvo,
+    empNezaposlenost,
+    empTotal,
+    taxBase,
+    porez,
+    erpPio,
+    erpZdravstvo,
+    erpNezaposlenost,
+    erpTotal,
+    netoNonCash,
+  };
+}
+
 export function fromNet(net: number, deduction: number): PayrollResult {
   const netCoeff = (1 - EMP_TOTAL) * (1 - TAX_RATE);
   const grossWithTax = (net - deduction * TAX_RATE) / netCoeff;

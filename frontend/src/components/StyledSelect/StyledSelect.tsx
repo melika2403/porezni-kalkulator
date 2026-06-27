@@ -35,6 +35,12 @@ export interface StyledSelectProps {
   ariaLabel?: string;
   disabled?: boolean;
   emptyText?: string;
+  /** Panel se širi do sadržaja (pune labele opcija), umjesto da prati širinu
+   *  okidača. Min širina ostaje širina okidača, max je do ivice ekrana. */
+  fitPanel?: boolean;
+  /** Tekst okidača centriran i u tamnoj (ink) boji i kad je placeholder, da se
+   *  dobro vidi. Za okidače koji se koriste kao dugmad (npr. kategorije). */
+  centerText?: boolean;
 }
 
 const TOP_SAFE = 72;
@@ -48,6 +54,7 @@ type Pos = {
   top?: number;
   bottom?: number;
   maxListH: number;
+  maxPanelW: number;
 };
 
 export default function StyledSelect({
@@ -64,6 +71,8 @@ export default function StyledSelect({
   ariaLabel,
   disabled = false,
   emptyText = "Nema rezultata",
+  fitPanel = false,
+  centerText = false,
 }: StyledSelectProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -75,6 +84,7 @@ export default function StyledSelect({
     up: false,
     top: 0,
     maxListH: 280,
+    maxPanelW: 0,
   });
 
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -121,6 +131,8 @@ export default function StyledSelect({
     // Bez tvrdog capa: lista ide do raspoloživog prostora viewporta, pa se na
     // velikom ekranu vide svi (npr. 12 mjeseci), a na malom/mobitelu scroll.
     const maxListH = Math.max(120, (up ? above : below) - searchH);
+    // Kad se panel širi do sadržaja (fitPanel), ne smije preći desnu ivicu.
+    const maxPanelW = Math.max(r.width, window.innerWidth - r.left - GAP);
     setPos({
       left: r.left,
       width: r.width,
@@ -128,6 +140,7 @@ export default function StyledSelect({
       top: up ? undefined : r.bottom + 4,
       bottom: up ? window.innerHeight - r.top + 4 : undefined,
       maxListH,
+      maxPanelW,
     });
   }, [searchable]);
 
@@ -193,7 +206,9 @@ export default function StyledSelect({
       style={{
         position: "fixed",
         left: pos.left,
-        width: pos.width,
+        ...(fitPanel
+          ? { width: "max-content", minWidth: pos.width, maxWidth: pos.maxPanelW }
+          : { width: pos.width }),
         ...(pos.up ? { bottom: pos.bottom } : { top: pos.top }),
         zIndex: 4000,
       }}
@@ -250,7 +265,9 @@ export default function StyledSelect({
         onClick={() => (open ? close() : openMenu())}
       >
         <span
-          className={selectedLabel ? styles.triggerText : styles.triggerPlaceholder}
+          className={`${
+            selectedLabel ? styles.triggerText : styles.triggerPlaceholder
+          } ${centerText ? styles.triggerCenter : ""}`}
         >
           {selectedLabel ?? placeholder}
         </span>

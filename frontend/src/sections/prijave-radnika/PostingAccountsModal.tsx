@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
 import {
@@ -9,18 +9,22 @@ import {
   type PostingAccount,
 } from "src/api/payroll";
 
+// Doprinosi koji se na dugovnoj strani grupišu po nosiocu (radnik/poslodavac)
+// kad je split isključen. Potražna strana je uvijek po fondu.
+const CONTRIB_KEYS = new Set(["pio", "zdravstvo", "nezaposlenost"]);
+
 // "4522" → "452-2000" (grupa = prve 3 cifre, ostatak dopunjen nulama do 4).
-function formatKontoBlur(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 7);
+function formatKontoBlur(v: string | null | undefined): string {
+  const d = String(v ?? "").replace(/\D/g, "").slice(0, 7);
   if (!d) return "";
   const group = d.slice(0, 3);
   const rest = d.slice(3).padEnd(4, "0").slice(0, 4);
   return `${group}-${rest}`;
 }
 
-function sanitizeLive(v: string): string {
+function sanitizeLive(v: string | null | undefined): string {
   // Auto-crtica: čim se upišu 3 cifre, ubaci "-" (npr. 520 → "520-").
-  const d = v.replace(/\D/g, "").slice(0, 7);
+  const d = String(v ?? "").replace(/\D/g, "").slice(0, 7);
   if (d.length <= 3) return d;
   return `${d.slice(0, 3)}-${d.slice(3)}`;
 }
@@ -39,15 +43,17 @@ export default function PostingAccountsModal({
   });
 
   const [edited, setEdited] = useState<EditState>({});
+  const [split, setSplit] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (q.data) {
       const init: EditState = {};
-      for (const it of q.data.items) {
+      for (const it of [...q.data.items, ...q.data.burdenItems]) {
         init[it.key] = { ...q.data.resolved[it.key] };
       }
       setEdited(init);
+      setSplit(!!q.data.splitByContribution);
     }
   }, [q.data]);
 
@@ -80,38 +86,53 @@ export default function PostingAccountsModal({
     return out;
   }, [edited, defaults]);
 
-  // Isti konto NE smije biti i na trošku (duguje) i na obavezi (potražuje),
-  // to bi se međusobno poništilo. Skupimo sve dugovne i sve potražne konte pa
-  // tražimo presjek.
+  // Stavke koje se STVARNO knjiže u trenutnom modu. Potražna (p) je uvijek po
+  // fondu (items). Dugovna (d): po fondu = items; po nosiocu = ne-doprinosna
+  // konta + zbirna burden konta. Tako skrivena/nekorištena konta ne pucaju
+  // validaciju (npr. 520-2000 u po-nosiocu modu se ne knjiži).
+  const creditItems = q.data?.items ?? [];
+  const debitItems = useMemo(() => {
+    const items = q.data?.items ?? [];
+    const burden = q.data?.burdenItems ?? [];
+    return split
+      ? items
+      : [...items.filter((i) => !CONTRIB_KEYS.has(i.key)), ...burden];
+  }, [q.data, split]);
+
+  // Isti konto NE smije biti i na trošku (duguje) i na obavezi (potražuje).
   const conflictKonta = useMemo(() => {
     const dSet = new Set<string>();
-    const pSet = new Set<string>();
-    for (const it of q.data?.items ?? []) {
+    for (const it of debitItems) {
       const d = formatKontoBlur(edited[it.key]?.d ?? "");
-      const p = formatKontoBlur(edited[it.key]?.p ?? "");
       if (d) dSet.add(d);
+    }
+    const pSet = new Set<string>();
+    for (const it of creditItems) {
+      const p = formatKontoBlur(edited[it.key]?.p ?? "");
       if (p) pSet.add(p);
     }
     return [...dSet].filter((k) => pSet.has(k));
-  }, [edited, q.data]);
+  }, [edited, debitItems, creditItems]);
   const hasConflict = conflictKonta.length > 0;
 
   // Neispravan format konta (mora biti tačno XXX-XXXX). Prazno polje = default.
   const invalidLabels = useMemo(() => {
     const bad: string[] = [];
-    for (const it of q.data?.items ?? []) {
-      for (const side of ["d", "p"] as const) {
+    const checkSide = (its: { key: string; label: string }[], side: "d" | "p") => {
+      for (const it of its) {
         const raw = edited[it.key]?.[side] ?? "";
         if (!raw) continue;
         if (!/^\d{3}-\d{4}$/.test(formatKontoBlur(raw))) bad.push(it.label);
       }
-    }
+    };
+    checkSide(debitItems, "d");
+    checkSide(creditItems, "p");
     return [...new Set(bad)];
-  }, [edited, q.data]);
+  }, [edited, debitItems, creditItems]);
   const hasInvalid = invalidLabels.length > 0;
 
   const saveMut = useMutation({
-    mutationFn: () => unwrap(savePostingAccounts(overrides)),
+    mutationFn: () => unwrap(savePostingAccounts(overrides, split)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["postingAccounts"] });
       setSaved(true);
@@ -121,8 +142,10 @@ export default function PostingAccountsModal({
   const resetToDefault = () => {
     if (!q.data) return;
     const init: EditState = {};
-    for (const it of q.data.items) init[it.key] = { ...q.data.defaults[it.key] };
+    for (const it of [...q.data.items, ...q.data.burdenItems])
+      init[it.key] = { ...q.data.defaults[it.key] };
     setEdited(init);
+    setSplit(false);
     setSaved(false);
   };
 
@@ -135,7 +158,8 @@ export default function PostingAccountsModal({
     fontVariantNumeric: "tabular-nums",
   };
   const isChanged = (key: string, side: "d" | "p") =>
-    !!defaults && formatKontoBlur(edited[key]?.[side] ?? "") !== defaults[key]?.[side];
+    !!defaults &&
+    formatKontoBlur(edited[key]?.[side] ?? "") !== defaults[key]?.[side];
   const isConflict = (key: string, side: "d" | "p") => {
     const k = formatKontoBlur(edited[key]?.[side] ?? "");
     return !!k && conflictKonta.includes(k);
@@ -146,6 +170,30 @@ export default function PostingAccountsModal({
       : isChanged(key, side)
         ? "#3a5c42"
         : "#d4cfc4";
+
+  const debitInput = (key: string) => (
+    <input
+      style={{ ...inputStyle, borderColor: cellBorder(key, "d") }}
+      value={edited[key]?.d ?? ""}
+      onChange={(e) => setCell(key, "d", sanitizeLive(e.target.value))}
+      onBlur={(e) => blurCell(key, "d", e.target.value)}
+      placeholder="XXX-XXXX"
+      inputMode="numeric"
+    />
+  );
+  const creditInput = (key: string) => (
+    <input
+      style={{ ...inputStyle, borderColor: cellBorder(key, "p") }}
+      value={edited[key]?.p ?? ""}
+      onChange={(e) => setCell(key, "p", sanitizeLive(e.target.value))}
+      onBlur={(e) => blurCell(key, "p", e.target.value)}
+      placeholder="XXX-XXXX"
+      inputMode="numeric"
+    />
+  );
+  const mutedCell = (text: string) => (
+    <span style={{ fontSize: 12.5, color: "#9aa39b" }}>{text}</span>
+  );
 
   return (
     <div
@@ -201,6 +249,43 @@ export default function PostingAccountsModal({
           formatu XXX-XXXX (npr. upišete 4522, postaje 452-2000). Prazno polje
           vraća default.
         </p>
+
+        {/* Mod dugovne strane */}
+        <label
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "0.55rem",
+            fontSize: 13.5,
+            color: "#0f1a12",
+            background: "#faf8f3",
+            border: "1px solid #d4cfc4",
+            borderRadius: 8,
+            padding: "0.6rem 0.75rem",
+            marginBottom: "0.8rem",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={split}
+            onChange={(e) => {
+              setSplit(e.target.checked);
+              setSaved(false);
+            }}
+            style={{ width: 16, height: 16, marginTop: 2, accentColor: "#3a5c42" }}
+          />
+          <span>
+            Razdvoji troškove po pojedinačnim doprinosima
+            <br />
+            <span style={{ fontSize: 12, color: "#7a8a7d" }}>
+              Default: doprinosi na trošku idu zbirno, radnikov dio (520-0100) i
+              poslodavčev dio (520-0200). Uključi ovo da se PIO, zdravstvo i
+              nezaposlenost knjiže odvojeno i na dugovnoj strani.
+            </span>
+          </span>
+        </label>
+
         <p
           style={{
             fontSize: 12.5,
@@ -233,43 +318,47 @@ export default function PostingAccountsModal({
               </tr>
             </thead>
             <tbody>
-              {q.data?.items.map((it) => (
-                <tr key={it.key} style={{ borderTop: "1px solid #ede8db" }}>
-                  <td style={{ padding: "0.45rem 0", fontSize: 14 }}>
-                    {it.label}
-                  </td>
-                  <td style={{ padding: "0.45rem 0" }}>
-                    <input
-                      style={{
-                        ...inputStyle,
-                        borderColor: cellBorder(it.key, "d"),
-                      }}
-                      value={edited[it.key]?.d ?? ""}
-                      onChange={(e) =>
-                        setCell(it.key, "d", sanitizeLive(e.target.value))
-                      }
-                      onBlur={(e) => blurCell(it.key, "d", e.target.value)}
-                      placeholder="XXX-XXXX"
-                      inputMode="numeric"
-                    />
-                  </td>
-                  <td style={{ padding: "0.45rem 0" }}>
-                    <input
-                      style={{
-                        ...inputStyle,
-                        borderColor: cellBorder(it.key, "p"),
-                      }}
-                      value={edited[it.key]?.p ?? ""}
-                      onChange={(e) =>
-                        setCell(it.key, "p", sanitizeLive(e.target.value))
-                      }
-                      onBlur={(e) => blurCell(it.key, "p", e.target.value)}
-                      placeholder="XXX-XXXX"
-                      inputMode="numeric"
-                    />
-                  </td>
-                </tr>
-              ))}
+              {q.data?.items.map((it) => {
+                const contribNoSplit = CONTRIB_KEYS.has(it.key) && !split;
+                return (
+                  <Fragment key={it.key}>
+                    <tr style={{ borderTop: "1px solid #ede8db" }}>
+                      <td style={{ padding: "0.45rem 0", fontSize: 14 }}>
+                        {it.label}
+                      </td>
+                      <td style={{ padding: "0.45rem 0" }}>
+                        {contribNoSplit
+                          ? mutedCell("zbirno (vidi dolje)")
+                          : debitInput(it.key)}
+                      </td>
+                      <td style={{ padding: "0.45rem 0" }}>
+                        {creditInput(it.key)}
+                      </td>
+                    </tr>
+                    {it.key === "nezaposlenost" &&
+                      !split &&
+                      q.data?.burdenItems.map((b) => (
+                        <tr key={b.key} style={{ background: "#faf8f3" }}>
+                          <td
+                            style={{
+                              padding: "0.45rem 0 0.45rem 0.6rem",
+                              fontSize: 13,
+                              color: "#3a5c42",
+                            }}
+                          >
+                            {b.label}
+                          </td>
+                          <td style={{ padding: "0.45rem 0" }}>
+                            {debitInput(b.key)}
+                          </td>
+                          <td style={{ padding: "0.45rem 0" }}>
+                            {mutedCell("po fondu ↑")}
+                          </td>
+                        </tr>
+                      ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}

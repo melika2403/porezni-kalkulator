@@ -66,6 +66,74 @@ function fromGross(gross, deduction) {
   };
 }
 
+// ── Korist u naravi (službeno vozilo u privatne svrhe) ──────────────────────
+// Korist je neto iznos u kojem je VEĆ sadržan porez (čl. 22 Pravilnika), NIJE
+// osnovica. Grossuje se SAMO za doprinose iz plate (31%), pa porez ide na taj
+// preračunati iznos. Koeficijent se izvodi iz EMP_TOTAL (ne hardkodira):
+//   koeficijent = 1 / (1 - EMP_TOTAL) = 1 / 0,69 = 1,4492753...
+// Lični odbitak se NE primjenjuje na korist (primjenjuje se samo jednom, na platu).
+function koristCoefficient() {
+  return 1 / (1 - EMP_TOTAL);
+}
+
+// PDV se dodaje na ulaznu vrijednost kad je unesena bez PDV-a (metode 1 i 2
+// traže vrijednost sa PDV-om). Stopa PDV-a u BiH je 17%.
+const PDV_RATE = 0.17;
+
+// Vrijednost koristi V (neto sa sadržanim porezom) iz konfiguracije radnika.
+//   metoda 'nabavna_1posto' → V = 1% × nabavna vrijednost (sa PDV)
+//   metoda 'lizing_20posto' → V = 20% × mjesečna rata (sa PDV)
+//   metoda 'stvarni_km'     → V = pređeni privatni km × 0,30 KM (pojednostavljeno)
+function koristNetValueFromConfig(metoda, vrijednost, saPdv) {
+  let v = Math.max(Number(vrijednost) || 0, 0);
+  if (v <= 0) return 0;
+  if (metoda === "stvarni_km") {
+    return +(v * 0.3).toFixed(2);
+  }
+  // Metode 1 i 2: baza mora biti sa PDV-om; ako je bez, dodaj PDV.
+  if (saPdv === false) v = v * (1 + PDV_RATE);
+  if (metoda === "lizing_20posto") return +(v * 0.2).toFixed(2);
+  // default nabavna_1posto
+  return +(v * 0.01).toFixed(2);
+}
+
+// Razlaganje koristi za TAJ mjesec, iz V (neto sa porezom). Svaki dio zaokružen
+// na 2 decimale (PUFBiH round-then-sum). Vraća null ako nema koristi.
+function computeKorist(koristNetValue) {
+  const V = Math.max(Number(koristNetValue) || 0, 0);
+  if (V <= 0) return null;
+  const koristBruto = +(V * koristCoefficient()).toFixed(2);
+  const empPio = +(koristBruto * EMP_PIO).toFixed(2);
+  const empZdravstvo = +(koristBruto * EMP_ZDRAVSTVO).toFixed(2);
+  const empNezaposlenost = +(koristBruto * EMP_NEZAPOSLENOST).toFixed(2);
+  const empTotal = +(empPio + empZdravstvo + empNezaposlenost).toFixed(2);
+  // Bez ličnog odbitka na korist.
+  const taxBase = +Math.max(koristBruto - empTotal, 0).toFixed(2);
+  const porez = +(taxBase * TAX_RATE).toFixed(2);
+  const erpPio = +(koristBruto * ERP_PIO).toFixed(2);
+  const erpZdravstvo = +(koristBruto * ERP_ZDRAVSTVO).toFixed(2);
+  const erpNezaposlenost = +(koristBruto * ERP_NEZAPOSLENOST).toFixed(2);
+  const erpTotal = +(erpPio + erpZdravstvo + erpNezaposlenost).toFixed(2);
+  // Nenovčani "neto" dio koristi (vrijednost vozila) — ne isplaćuje se radniku.
+  // Služi kao protustavka u nalogu za knjiženje.
+  const netoNonCash = +(koristBruto - empTotal - porez).toFixed(2);
+  return {
+    koristNetValue: V,
+    koristBruto,
+    empPio,
+    empZdravstvo,
+    empNezaposlenost,
+    empTotal,
+    taxBase,
+    porez,
+    erpPio,
+    erpZdravstvo,
+    erpNezaposlenost,
+    erpTotal,
+    netoNonCash,
+  };
+}
+
 function fromNet(net, deduction) {
   const netCoeff = (1 - EMP_TOTAL) * (1 - TAX_RATE);
   const grossWithTax = (net - deduction * TAX_RATE) / netCoeff;
@@ -123,7 +191,11 @@ module.exports = {
   MIN_BASE_FBIH_2026_COEF1,
   MIN_BASE_FBIH_2026_NO_COEF,
   AVG_BRUTO_FBIH_2025,
+  PDV_RATE,
   deductionFromCoefficient,
+  koristCoefficient,
+  koristNetValueFromConfig,
+  computeKorist,
   fromGross,
   fromNet,
   computeMinContribBase,

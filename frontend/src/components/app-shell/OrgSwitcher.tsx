@@ -13,15 +13,7 @@ import {
   useActivateOrganization,
 } from "src/hooks/usePkOfficeMe";
 import type { OrganizationSummary } from "src/api/pkOffice";
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() || "")
-    .join("");
-}
+import { orgInitials } from "src/lib/format";
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Vlasnik",
@@ -77,7 +69,7 @@ export function OrgSwitcher() {
           ].join(" ")}
         >
           <span className="w-9 h-9 rounded-lg bg-brand-700 text-white flex items-center justify-center text-[12px] font-semibold shrink-0">
-            {initials(o.name)}
+            {orgInitials(o.name)}
           </span>
           <span className="flex-1 min-w-0">
             <span className="block text-[13.5px] leading-[1.2] truncate text-text-primary font-medium">
@@ -108,7 +100,7 @@ export function OrgSwitcher() {
         ].join(" ")}
       >
         <span className="w-9 h-9 rounded-[10px] bg-brand-600 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
-          {active ? initials(active.name) : <IconBuildingStore size={20} />}
+          {active ? orgInitials(active.name) : <IconBuildingStore size={20} />}
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-[11px] uppercase tracking-[0.1em] text-text-tertiary leading-none mb-[6px] whitespace-nowrap">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import {
   getAdminDashboard,
   getAdminEngagement,
@@ -28,6 +29,8 @@ const ACTION_LABELS: Record<string, string> = {
   FAKTURA_GENERATE: "Faktura",
   PREDRACUN_GENERATE: "Predračun",
   KARTICA_GENERATE: "Članska kartica",
+  RJESENJE_GENERATE: "Rješenja i odluke",
+  RJESENJE_GO_GENERATE: "Rješenje (god. odmor)",
 };
 
 function km(n: number) {
@@ -79,17 +82,20 @@ export default function AdminDashboard() {
           </div>
           <div className={styles.yearPicker}>
             <label className={styles.fieldLabel}>Godina</label>
-            <select
-              className={styles.select}
+            <StyledSelect
               value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            >
-              {yearOptions().map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setYear(Number(v))}
+              ariaLabel="Godina"
+              wrapStyle={{ minWidth: 120 }}
+              groups={[
+                {
+                  options: yearOptions().map((y) => ({
+                    value: y,
+                    label: String(y),
+                  })),
+                },
+              ]}
+            />
           </div>
         </div>
 

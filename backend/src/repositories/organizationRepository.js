@@ -347,15 +347,36 @@ async function createOrganization(data, ownerData, userId) {
     await OrganizationMember.create({ organizationId: org.id, userId, role: "OWNER" }, { transaction: t });
 
     if (ownerData && asWorker) {
-      await Worker.create({ organizationId: org.id, role: "VLASNIK", ...ownerData }, { transaction: t });
+      // d.o.o./d.d. (ne-obrt): vlasnik je prijavljen direktor (ugovor o radu),
+      // pa mu je radno mjesto "Direktor" po defaultu (osim ako je već uneseno).
+      // Obrt (BUSINESS): vlasnik je obrtnik, poziciju ne diramo.
+      const ownerWithPosition =
+        data.type !== "BUSINESS" && !ownerData.position
+          ? { ...ownerData, position: "Direktor" }
+          : ownerData;
+      await Worker.create({ organizationId: org.id, role: "VLASNIK", ...ownerWithPosition }, { transaction: t });
     } else if (!ownerData) {
       const user = await User.findOne({ where: { id: userId }, attributes: ["firstName", "lastName", "jmbg", "email", "phone", "address", "city"], transaction: t });
+      // Spol vlasnika obrta iz njegovog JMBG-a, da ga payroll prepozna (kao radnika).
+      let spol = null;
+      if (user.jmbg) {
+        try {
+          const j = String(decryptJmbg(user.jmbg) || "").replace(/\D/g, "");
+          if (j.length >= 12) {
+            const nnn = parseInt(j.slice(9, 12), 10);
+            if (Number.isFinite(nnn)) spol = nnn >= 500 ? "Z" : "M";
+          }
+        } catch {
+          spol = null;
+        }
+      }
       await Worker.create({
         organizationId: org.id,
         role: "VLASNIK",
         firstName: user.firstName,
         lastName: user.lastName,
         jmbg: user.jmbg || null,
+        spol,
         email: user.email || null,
         phone: user.phone || null,
         address: user.address || null,
@@ -399,11 +420,22 @@ async function updateOrganization(id, orgData, ownerData, userId) {
     if (ownerData) {
       if (asWorker) {
         // Opcija 1 / obrt: vlasnik je Worker VLASNIK (kao i do sada).
+        // d.o.o./d.d. (ne-obrt) direktor: radno mjesto "Direktor" po defaultu.
+        const isDoo = effType !== "BUSINESS";
         const existing = await Worker.findOne({ where: { organizationId: id, role: "VLASNIK" }, transaction: t });
         if (existing) {
-          await Worker.update(ownerData, { where: { id: existing.id }, transaction: t });
+          // Postojeći: popuni poziciju samo ako je prazna (ne gazi ručni unos).
+          const upd =
+            isDoo && !ownerData.position && !existing.position
+              ? { ...ownerData, position: "Direktor" }
+              : ownerData;
+          await Worker.update(upd, { where: { id: existing.id }, transaction: t });
         } else {
-          await Worker.create({ organizationId: id, role: "VLASNIK", ...ownerData }, { transaction: t });
+          const newOwner =
+            isDoo && !ownerData.position
+              ? { ...ownerData, position: "Direktor" }
+              : ownerData;
+          await Worker.create({ organizationId: id, role: "VLASNIK", ...newOwner }, { transaction: t });
         }
         orgUpdate.ownerInfo = null; // vlasnik je radnik → evidencija se gasi
       } else {

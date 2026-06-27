@@ -20,6 +20,7 @@ import {
 } from "src/api/payroll";
 import type { Worker } from "src/api/profile";
 import { formatMoneyLive, formatMoneyBlur, parseMoneyInput } from "src/lib/format";
+import { parseDecimal, sanitizeDecimalInput } from "src/utils/parseDecimal";
 import DateInput from "src/components/DateInput/DateInput";
 import uvozStyles from "./uvozPlata.module.css";
 
@@ -41,6 +42,21 @@ const MONTHS = [
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const toNum = (s: string | number | null | undefined) =>
   Number(String(s ?? "").replace(",", ".")) || 0;
+
+// Porezni koeficijent: 0 je validan (lični odbitak 0), pa NE smije `|| 1` koji
+// bi falsy-nulu vratio na 1. Prazno polje koristi koeficijent radnika.
+const coefFor = (
+  raw: string | number | null | undefined,
+  workerCoef: number | null | undefined,
+): number => {
+  const src =
+    raw != null && String(raw).trim() !== "" ? raw : (workerCoef ?? 1);
+  // parseDecimal (isti kao u ostalim formama) prihvata i tačku i zarez te
+  // ispravno tretira eventualne thousands separatore, da koeficijent ne divergira
+  // ovisno o ekranu na kojem se unosi.
+  const n = parseDecimal(String(src));
+  return Number.isFinite(n) && n >= 0 ? n : 1;
+};
 
 // Klijentski pregled neto plate, ista formula kao backend (bez minulog rada).
 // Autoritativni izračun radi backend pri spremanju, ovo je samo orijentir.
@@ -217,7 +233,7 @@ export default function UvozPlataModal({
     mutationFn: async () => {
       const rows: ImportPayrollRow[] = [];
       for (const w of workers) {
-        const kc = toNum(koef[w.id] ?? w.taxCoefficient ?? 1) || 1;
+        const kc = coefFor(koef[w.id], w.taxCoefficient);
         for (let m = 1; m <= 12; m++) {
           if (isLocked(w.id, m)) continue;
           const v = bruto[`${w.id}:${m}`];
@@ -366,7 +382,7 @@ export default function UvozPlataModal({
               </thead>
               <tbody>
                 {workers.map((w) => {
-                  const kc = toNum(koef[w.id] ?? w.taxCoefficient ?? 1) || 1;
+                  const kc = coefFor(koef[w.id], w.taxCoefficient);
                   return (
                     <tr key={w.id}>
                       <td style={tdName}>
@@ -376,7 +392,10 @@ export default function UvozPlataModal({
                         <input
                           value={koef[w.id] ?? ""}
                           onChange={(e) =>
-                            setKoef((p) => ({ ...p, [w.id]: e.target.value }))
+                            setKoef((p) => ({
+                              ...p,
+                              [w.id]: sanitizeDecimalInput(e.target.value),
+                            }))
                           }
                           inputMode="decimal"
                           style={{ ...ctrlInput, width: 50 }}

@@ -17,6 +17,7 @@ import RowActionsMenu, {
   type RowPrimaryAction,
   type RowMenuItem,
 } from "src/components/RowActionsMenu/RowActionsMenu";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import styles from "./organizacije.module.css";
 
 const MONTHS = [
@@ -484,65 +485,71 @@ export default function Organizacije() {
       <div className={styles.controlsBar}>
         <div className={styles.fieldGroup}>
           <label htmlFor="mjesec">Mjesec</label>
-          <select
+          <StyledSelect
             id="mjesec"
-            className={styles.input}
+            ariaLabel="Mjesec"
             value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-          >
-            {MONTHS.map((m, i) => (
-              <option key={i + 1} value={i + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setMonth(Number(v))}
+            groups={[
+              { options: MONTHS.map((m, i) => ({ value: i + 1, label: m })) },
+            ]}
+          />
         </div>
         <div className={styles.fieldGroup}>
           <label htmlFor="godina">Godina</label>
-          <select
+          <StyledSelect
             id="godina"
-            className={styles.input}
+            ariaLabel="Godina"
             value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}.
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setYear(Number(v))}
+            groups={[
+              { options: yearOptions.map((y) => ({ value: y, label: `${y}.` })) },
+            ]}
+          />
         </div>
         <div className={styles.fieldGroup}>
           <label htmlFor="tip">Tip</label>
-          <select
+          <StyledSelect
             id="tip"
-            className={styles.input}
+            ariaLabel="Tip"
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-          >
-            <option value="svi">Sve</option>
-            <option value="COMPANY">Privredno društvo</option>
-            <option value="BUSINESS">Obrt / Samostalna djelatnost</option>
-          </select>
+            onChange={(v) => setTypeFilter(String(v) as TypeFilter)}
+            groups={[
+              {
+                options: [
+                  { value: "svi", label: "Sve" },
+                  { value: "COMPANY", label: "Privredno društvo" },
+                  { value: "BUSINESS", label: "Obrt / Samostalna djelatnost" },
+                ],
+              },
+            ]}
+          />
         </div>
         <div className={styles.fieldGroup}>
           <label htmlFor="sort">Sortiraj po</label>
-          <select
+          <StyledSelect
             id="sort"
-            className={styles.input}
+            ariaLabel="Sortiraj po"
             value={sortKey}
-            onChange={(e) => setSortKey(e.target.value as SortKey)}
-          >
-            <option value="naziv">Naziv (A–Z)</option>
-            <option value="radnika">Broju radnika</option>
-            <option value="datum">Datumu kreiranja</option>
-            <option value="status_paid_first">
-              Status plata: isplaćeno prvo
-            </option>
-            <option value="status_unpaid_first">
-              Status plata: neobračunate prvo
-            </option>
-          </select>
+            onChange={(v) => setSortKey(String(v) as SortKey)}
+            groups={[
+              {
+                options: [
+                  { value: "naziv", label: "Naziv (A–Z)" },
+                  { value: "radnika", label: "Broju radnika" },
+                  { value: "datum", label: "Datumu kreiranja" },
+                  {
+                    value: "status_paid_first",
+                    label: "Status plata: isplaćeno prvo",
+                  },
+                  {
+                    value: "status_unpaid_first",
+                    label: "Status plata: neobračunate prvo",
+                  },
+                ],
+              },
+            ]}
+          />
         </div>
         <div className={`${styles.fieldGroup} ${styles.search}`}>
           <label htmlFor="search">Pretraga</label>

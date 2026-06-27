@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import {
   getExpiringRenewals,
   sendRenewalReminder,
@@ -85,19 +86,24 @@ export default function AdminObnove() {
           </div>
           <div className={styles.daysPicker}>
             <label className={styles.fieldLabel}>Prozor</label>
-            <select
-              className={styles.select}
+            <StyledSelect
               value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-            >
-              <option value={7}>Narednih 7 dana</option>
-              <option value={14}>Narednih 14 dana</option>
-              <option value={30}>Narednih 30 dana</option>
-              <option value={60}>Narednih 60 dana</option>
-              <option value={90}>Narednih 90 dana</option>
-              <option value={180}>Narednih 180 dana</option>
-              <option value={365}>Narednih 365 dana</option>
-            </select>
+              onChange={(v) => setDays(Number(v))}
+              ariaLabel="Prozor"
+              groups={[
+                {
+                  options: [
+                    { value: 7, label: "Narednih 7 dana" },
+                    { value: 14, label: "Narednih 14 dana" },
+                    { value: 30, label: "Narednih 30 dana" },
+                    { value: 60, label: "Narednih 60 dana" },
+                    { value: 90, label: "Narednih 90 dana" },
+                    { value: 180, label: "Narednih 180 dana" },
+                    { value: 365, label: "Narednih 365 dana" },
+                  ],
+                },
+              ]}
+            />
           </div>
         </div>
 
