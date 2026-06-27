@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import styles from './Navbar.module.css';
 import { me, logout, unwrap } from 'src/api/auth';
 import { getOrganizations, getClientOrganizations } from 'src/api/profile';
+import { PK_OFFICE_DASHBOARD_URL } from 'src/lib/pkOfficeUrl';
 
 type MenuItem = { label: string; href: string; desc?: string };
 type MenuGroup = { title: string; items: MenuItem[] };
@@ -35,6 +36,7 @@ const FUNCTION_GROUPS: MenuGroup[] = [
       { label: 'Obračun plata', href: '/prijave-radnika?tab=obracun', desc: 'Mjesečni obračun, platni listići, uplatnice, 2001/2002' },
       { label: 'Prijave / odjave radnika', href: '/prijave-radnika', desc: 'JS3100 obrazac za PIO/ZZO' },
       { label: 'Šihterica', href: '/sihterica', desc: 'Mjesečna evidencija radnog vremena' },
+      { label: 'Rješenja i odluke', href: '/rjesenja-i-odluke', desc: 'Godišnji odmor, regres, odsustva' },
     ],
   },
   {
@@ -282,12 +284,7 @@ export default function Navbar() {
             {!needsOrg && orgsQuery.data && orgsQuery.data.length > 0 && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <a
-                href={`${
-                  process.env.NEXT_PUBLIC_APP_URL ??
-                  (process.env.NODE_ENV === "production"
-                    ? "https://app.poreznikalkulator.ba"
-                    : "/app")
-                }/dashboard`}
+                href={PK_OFFICE_DASHBOARD_URL}
                 className={styles.btnApp}
                 title="Otvori PK Office"
               >

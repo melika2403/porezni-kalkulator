@@ -61,6 +61,16 @@
 .trigger .triggerPlaceholder {
   color: var(--mid, #7a8a7d);
 }
+/* centerText: tekst popuni prostor lijevo od strelice i centriran je. */
+.trigger .triggerCenter {
+  flex: 1 1 auto;
+  text-align: center;
+}
+/* I placeholder (npr. naziv kategorije) je tamniji da se dobro vidi. */
+.trigger .triggerPlaceholder.triggerCenter {
+  color: var(--ink, #0f1a12);
+  font-weight: 500;
+}
 
 .chevron {
   flex-shrink: 0;

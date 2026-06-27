@@ -358,13 +358,42 @@
   font-weight: 600;
 }
 
-.statusDone {
-  margin: 0.6rem auto 0;
+.statusBanner {
+  margin: 1rem auto 0;
   max-width: 540px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 500;
-  color: #2d6e54;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.statusBanner svg {
+  flex-shrink: 0;
+}
+
+.statusSuccess {
+  background: #e7f3ec;
+  border-color: #b7dcc4;
+  color: #1f5e44;
+}
+
+.statusInfo {
+  background: #fdf3e2;
+  border-color: #f0d4a6;
+  color: #8a5a16;
+}
+
+.statusError {
+  background: #fdecec;
+  border-color: #f3c4c4;
+  color: #a3322f;
 }
 
 /* ── Responsive ── */

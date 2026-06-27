@@ -95,8 +95,8 @@ async function generatePostingOrderPdf(order, meta) {
       color: ink,
     });
     page.drawText(r.konto, { x: colKonto, y, size: 10, font: reg, color: ink });
-    if (r.duguje > 0) drawRight(fmtMoney(r.duguje), colDuguje, 10, reg);
-    if (r.potrazuje > 0) drawRight(fmtMoney(r.potrazuje), colPotraz, 10, reg);
+    if (r.duguje !== 0) drawRight(fmtMoney(r.duguje), colDuguje, 10, reg);
+    if (r.potrazuje !== 0) drawRight(fmtMoney(r.potrazuje), colPotraz, 10, reg);
     y -= 4;
     page.drawLine({
       start: { x: left, y },

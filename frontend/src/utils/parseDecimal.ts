@@ -33,3 +33,10 @@ export function parseDecimal(s: string | null | undefined): number {
   const n = parseFloat(normalized);
   return Number.isFinite(n) ? n : 0;
 }
+
+// Dozvoli samo cifre, tačku i zarez dok korisnik kuca (npr. porezni koeficijent).
+// Slova i ostali znakovi se odbacuju. Tačka i zarez se tretiraju isto pri
+// parsiranju (vidi parseDecimal), pa "1.5" i "1,5" daju isti koeficijent.
+export function sanitizeDecimalInput(s: string): string {
+  return s.replace(/[^0-9.,]/g, "");
+}

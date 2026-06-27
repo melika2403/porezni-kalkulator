@@ -48,6 +48,49 @@ export function formatMoneyBlur(input: string): string {
   return `${n < 0 ? "-" : ""}${withThousands},${decPart}`;
 }
 
+// Inicijali organizacije za avatar. Ignoriše navodnike i pravne forme
+// (d.o.o., d.d. ... i obrt prefikse TR, STR, SZR, SUR ...), pa uzima inicijale
+// stvarnog naziva. Npr. `"ANDY-S" d.o.o.` -> "AN", `TR "JASMIN"` -> "JA".
+const ORG_FORM_TOKENS = new Set([
+  // Pravne forme (najčešće sufiksi)
+  "doo",
+  "jdoo",
+  "dd",
+  "dno",
+  "kd",
+  "sp",
+  // Obrt / radnja prefiksi (i puni nazivi)
+  "tr",
+  "str",
+  "szr",
+  "sur",
+  "sr",
+  "ur",
+  "zr",
+  "pr",
+  "or",
+  "obrt",
+  "radnja",
+]);
+
+export function orgInitials(name: string | null | undefined): string {
+  if (!name) return "?";
+  // Izbaci navodnike i slične znakove koji smetaju inicijalima.
+  const cleaned = String(name).replace(/["“”„«»'']/g, " ");
+  const tokens = cleaned.split(/\s+/).filter(Boolean);
+  const norm = (t: string) => t.toLowerCase().replace(/[.\-]/g, "");
+  const real = tokens.filter((t) => norm(t) && !ORG_FORM_TOKENS.has(norm(t)));
+  const use = real.length ? real : tokens;
+  if (!use.length) return "?";
+  const lettersOf = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, "");
+  if (use.length === 1) {
+    const l = lettersOf(use[0]) || use[0];
+    return l.slice(0, 2).toUpperCase();
+  }
+  const first = (s: string) => (lettersOf(s)[0] || s[0] || "").toUpperCase();
+  return first(use[0]) + first(use[1]);
+}
+
 export function formatDate(input: Date | string | null | undefined): string {
   if (!input) return "–";
   const d = typeof input === "string" ? new Date(input) : input;

@@ -17,6 +17,7 @@ import { sendTrialInvite } from "src/api/adminEntities";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -194,36 +195,46 @@ export default function Korisnici() {
 
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>Rola</label>
-                <select
-                  className={styles.input}
+                <StyledSelect
                   value={role}
-                  onChange={(e) => {
-                    setRole(e.target.value as typeof role);
+                  onChange={(v) => {
+                    setRole(String(v) as typeof role);
                     setPage(1);
                   }}
-                >
-                  <option value="">Sve role</option>
-                  <option value="USER">Korisnik</option>
-                  <option value="PRO">Pro</option>
-                  <option value="BUSINESS">Business</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
+                  ariaLabel="Rola"
+                  groups={[
+                    {
+                      options: [
+                        { value: "", label: "Sve role" },
+                        { value: "USER", label: "Korisnik" },
+                        { value: "PRO", label: "Pro" },
+                        { value: "BUSINESS", label: "Business" },
+                        { value: "ADMIN", label: "Admin" },
+                      ],
+                    },
+                  ]}
+                />
               </div>
 
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>Sortiraj</label>
-                <select
-                  className={styles.input}
+                <StyledSelect
                   value={sort}
-                  onChange={(e) => {
-                    setSort(e.target.value as typeof sort);
+                  onChange={(v) => {
+                    setSort(String(v) as typeof sort);
                     setPage(1);
                   }}
-                >
-                  <option value="newest">Najnoviji</option>
-                  <option value="oldest">Najstariji</option>
-                  <option value="name">Po prezimenu</option>
-                </select>
+                  ariaLabel="Sortiraj"
+                  groups={[
+                    {
+                      options: [
+                        { value: "newest", label: "Najnoviji" },
+                        { value: "oldest", label: "Najstariji" },
+                        { value: "name", label: "Po prezimenu" },
+                      ],
+                    },
+                  ]}
+                />
               </div>
             </div>
 
@@ -505,16 +516,22 @@ function UserRow({ user }: { user: Users }) {
 
       <td>
         {editing ? (
-          <select
-            className={styles.roleSelect}
+          <StyledSelect
             value={role}
-            onChange={(e) => setRole(e.target.value as Users["role"])}
-          >
-            <option value="USER">Korisnik</option>
-            <option value="PRO">Pro</option>
-            <option value="BUSINESS">Business</option>
-            <option value="ADMIN">Admin</option>
-          </select>
+            onChange={(v) => setRole(String(v) as Users["role"])}
+            ariaLabel="Uloga"
+            wrapStyle={{ minWidth: 140 }}
+            groups={[
+              {
+                options: [
+                  { value: "USER", label: "Korisnik" },
+                  { value: "PRO", label: "Pro" },
+                  { value: "BUSINESS", label: "Business" },
+                  { value: "ADMIN", label: "Admin" },
+                ],
+              },
+            ]}
+          />
         ) : (
           <span
             className={`${styles.orgBadge} ${

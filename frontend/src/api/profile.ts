@@ -571,6 +571,13 @@ export type Worker = {
   // zdravstva/nezaposlenosti ide na Budžet RS (vidi rs-opcine.ts).
   prebivalisteEntitet: "FBIH" | "RS";
   opcinaKod: string | null;
+  // Korist u naravi (službeno vozilo u privatne svrhe). Master konfiguracija
+  // koristi se u mjesečnom obračunu (povećava osnovicu za doprinose i porez).
+  koristVoziloAktivna: boolean;
+  koristVoziloMetoda: string | null;
+  koristVoziloVrijednost: number | null;
+  koristVoziloSaPdv: boolean;
+  koristVoziloOpis: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -753,7 +760,23 @@ export type WorkerDocumentType =
   | "UGOVOR"
   | "OTKAZ"
   | "JS3100_PRIJAVA"
-  | "JS3100_ODJAVA";
+  | "JS3100_ODJAVA"
+  | "RJESENJE_GO"
+  | "RJESENJE_GO_SRAZMJERNI"
+  | "ODLUKA_REGRES"
+  | "ODLUKA_PRIGODNA_NAGRADA"
+  | "RJESENJE_PLACENO_ODSUSTVO"
+  | "RJESENJE_NEPLACENO_ODSUSTVO"
+  | "POTVRDA_ZAPOSLENJE"
+  | "POTVRDA_PLATA"
+  | "POTVRDA_STAZ"
+  | "ODLUKA_VOZILO"
+  | "ANEKS_UGOVORA"
+  | "ODLUKA_PROMJENA_PLATE"
+  | "UPOZORENJE_OTKAZ"
+  | "RJESENJE_PORODILJSKO"
+  | "ODLUKA_OTPREMNINA"
+  | "ODLUKA_TOPLI_OBROK";
 
 export type WorkerDocumentFormat = "DOCX" | "PDF";
 

@@ -4,6 +4,7 @@ import styles from "./ams.module.css";
 import { fillAmsTemplate, type AmsData } from "./fillAms";
 import { fillUplatnice, KANTONI, type KantonKey } from "./fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
@@ -685,37 +686,43 @@ export default function AmsForm() {
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Kanton</label>
-            <select
-              className={styles.fieldInput}
-              value={kanton}
-              onChange={(e) => {
-                setKanton(e.target.value as KantonKey | "");
+            <StyledSelect
+              ariaLabel="Kanton"
+              placeholder="– Odaberite kanton –"
+              value={kanton || null}
+              onChange={(v) => {
+                setKanton(String(v) as KantonKey);
                 setOpcina("");
               }}
-            >
-              <option value="">– Odaberite kanton –</option>
-              {KANTON_KEYS.map((k) => (
-                <option key={k} value={k}>
-                  {KANTONI[k].ime}
-                </option>
-              ))}
-            </select>
+              groups={[
+                {
+                  options: KANTON_KEYS.map((k) => ({
+                    value: k,
+                    label: KANTONI[k].ime,
+                  })),
+                },
+              ]}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Općina</label>
-            <select
-              className={styles.fieldInput}
-              value={opcina}
-              onChange={(e) => setOpcina(e.target.value)}
+            <StyledSelect
+              ariaLabel="Općina"
+              placeholder="– Odaberite općinu –"
+              searchable
+              searchPlaceholder="Pretraži općinu..."
               disabled={!kanton}
-            >
-              <option value="">– Odaberite općinu –</option>
-              {kantonData?.opcine.map((o) => (
-                <option key={o.kod} value={o.kod}>
-                  {o.ime}
-                </option>
-              ))}
-            </select>
+              value={opcina || null}
+              onChange={(v) => setOpcina(String(v))}
+              groups={[
+                {
+                  options: (kantonData?.opcine ?? []).map((o) => ({
+                    value: o.kod,
+                    label: o.ime,
+                  })),
+                },
+              ]}
+            />
           </div>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>Žiro račun pošiljatelja</label>

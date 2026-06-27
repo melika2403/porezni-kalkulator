@@ -8,6 +8,7 @@ const path = require("path");
 const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
 const fontkit = require("@pdf-lib/fontkit");
 const { kantonForOpcina } = require("./uplatnicaPdf");
+const { computeKorist } = require("./payrollFbih");
 
 const FONT_REG_PATH = path.join(__dirname, "..", "assets", "fonts", "arial.ttf");
 const FONT_BOLD_PATH = path.join(__dirname, "..", "assets", "fonts", "arialbd.ttf");
@@ -41,21 +42,44 @@ function fmtDateDDMMYYYY(d) {
   return `${dd}.${mm}.${yyyy}.`;
 }
 
-// Radni staž: razlika između startDate i paymentDate u godinama/mjesecima
-function workTenure(startDateStr, paymentDateStr) {
-  if (!startDateStr) return "–";
-  const start = new Date(startDateStr);
+// Datum od kojeg se prikazuje "datum prijave" na listiću: prijavaDate, pa
+// startDate kao fallback (stari radnici). Novi radnici imaju samo prijavaDate.
+function prijavaDateForPayslip(worker) {
+  return worker.prijavaDate || worker.startDate || null;
+}
+
+// Ukupan radni staž za listić, KONZISTENTNO sa logikom minulog rada
+// (totalYearsOfService u payrollController): priorWorkYears ima prednost (staž
+// prije + staž od prijave), zatim firstEmploymentDate (prvo zaposlenje ikada),
+// inače prijavaDate (ili startDate kao fallback). Vraća "X god. Y mj.".
+function workStazLabel(worker, paymentDateStr) {
   const end = paymentDateStr ? new Date(paymentDateStr) : new Date();
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "–";
-  let years = end.getFullYear() - start.getFullYear();
-  let months = end.getMonth() - start.getMonth();
-  if (end.getDate() < start.getDate()) months -= 1;
-  if (months < 0) { years -= 1; months += 12; }
-  if (years < 0) return "–";
-  if (years === 0 && months === 0) return "< 1 mjesec";
+  if (Number.isNaN(end.getTime())) return "–";
+  let baseStart = null;
+  let extraMonths = 0;
+  if (worker.priorWorkYears != null && worker.priorWorkYears !== "") {
+    baseStart = worker.prijavaDate || worker.startDate || null;
+    extraMonths = Math.round((Number(worker.priorWorkYears) || 0) * 12);
+  } else if (worker.firstEmploymentDate) {
+    baseStart = worker.firstEmploymentDate;
+  } else {
+    baseStart = worker.prijavaDate || worker.startDate || null;
+  }
+  if (!baseStart && extraMonths <= 0) return "–";
+  let months = extraMonths;
+  if (baseStart) {
+    const start = new Date(baseStart);
+    if (Number.isNaN(start.getTime())) return "–";
+    let m = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    if (end.getDate() < start.getDate()) m -= 1;
+    months += Math.max(0, m);
+  }
+  const years = Math.floor(months / 12);
+  const mm = months % 12;
+  if (years === 0 && mm === 0) return "< 1 mjesec";
   const parts = [];
   if (years > 0) parts.push(`${years} god.`);
-  if (months > 0) parts.push(`${months} mj.`);
+  if (mm > 0) parts.push(`${mm} mj.`);
   return parts.join(" ");
 }
 
@@ -183,10 +207,10 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   cursorY -= 24;
 
   drawField("Radno mjesto", worker.position || "–", colLeftX, cursorY);
-  drawField("Datum prijave", fmtDateDDMMYYYY(worker.startDate), colRightX, cursorY);
+  drawField("Datum prijave", fmtDateDDMMYYYY(prijavaDateForPayslip(worker)), colRightX, cursorY);
   cursorY -= 24;
 
-  drawField("Ukupan radni staž", workTenure(worker.startDate, paymentDateIso), colLeftX, cursorY);
+  drawField("Ukupan radni staž", workStazLabel(worker, paymentDateIso), colLeftX, cursorY);
   drawField("Adresa", worker.address || "–", colRightX, cursorY);
   cursorY -= 22;
 
@@ -259,6 +283,25 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   const nightAmt = Number(payroll.nightAmount) || 0;
   const sundayAmt = Number(payroll.sundayAmount) || 0;
   const holidayAmt = Number(payroll.holidayAmount) || 0;
+  // Korist u naravi: payroll.gross/emp*/erp*/incomeTax UKLJUČUJU korist. Na
+  // listiću glavni obračun prikazujemo SAMO platu (neto se onda tačno poklopi),
+  // a korist ide kao zasebna stavka koja jasno kaže da uvećava osnovicu. Zato
+  // izvlačimo salary-only vrijednosti = ukupno minus dio koristi.
+  const koristBrutoVal = Number(payroll.koristBruto) || 0;
+  const k = koristBrutoVal > 0 ? computeKorist(Number(payroll.koristNetValue)) : null;
+  const salGross = (Number(payroll.gross) || 0) - koristBrutoVal;
+  const salEmpPio = (Number(payroll.empPio) || 0) - (k ? k.empPio : 0);
+  const salEmpZdr = (Number(payroll.empZdravstvo) || 0) - (k ? k.empZdravstvo : 0);
+  const salEmpNezap = (Number(payroll.empNezaposlenost) || 0) - (k ? k.empNezaposlenost : 0);
+  const salEmpTotal = (Number(payroll.empTotal) || 0) - (k ? k.empTotal : 0);
+  const salTaxBase = (Number(payroll.taxBase) || 0) - (k ? k.taxBase : 0);
+  const salIncomeTax = (Number(payroll.incomeTax) || 0) - (k ? k.porez : 0);
+  const salErpPio = (Number(payroll.erpPio) || 0) - (k ? k.erpPio : 0);
+  const salErpZdr = (Number(payroll.erpZdravstvo) || 0) - (k ? k.erpZdravstvo : 0);
+  const salErpNezap = (Number(payroll.erpNezaposlenost) || 0) - (k ? k.erpNezaposlenost : 0);
+  const salErpTotal = (Number(payroll.erpTotal) || 0) - (k ? k.erpTotal : 0);
+  // Dodatni trošak poslodavca zbog koristi (doprinosi iz + porez + doprinosi na).
+  const koristBurden = k ? +(k.empTotal + k.porez + k.erpTotal).toFixed(2) : 0;
   const fmtPct = (n) =>
     Number(n || 0).toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const fmtH = (n) =>
@@ -295,22 +338,22 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
       drawSummaryRow(lbl, holidayAmt, cursorY);
       cursorY -= 13;
     }
-    drawSummaryRow("Bruto plata ukupno", payroll.gross, cursorY, { bold: true });
+    drawSummaryRow("Bruto plata ukupno", salGross, cursorY, { bold: true });
     cursorY -= 16;
   } else {
-    drawSummaryRow("Bruto plata", payroll.gross, cursorY, { bold: true });
+    drawSummaryRow("Bruto plata", salGross, cursorY, { bold: true });
     cursorY -= 16;
   }
 
   drawText("Doprinosi iz plate", MARGIN + 4, cursorY, { size: 9, color: mid });
   cursorY -= 13;
-  drawSummaryRow("PIO/MIO (17%)", payroll.empPio, cursorY, { indent: true });
+  drawSummaryRow("PIO/MIO (17%)", salEmpPio, cursorY, { indent: true });
   cursorY -= 13;
-  drawSummaryRow("Zdravstveno osiguranje (12,5%)", payroll.empZdravstvo, cursorY, { indent: true });
+  drawSummaryRow("Zdravstveno osiguranje (12,5%)", salEmpZdr, cursorY, { indent: true });
   cursorY -= 13;
-  drawSummaryRow("Osiguranje od nezaposlenosti (1,5%)", payroll.empNezaposlenost, cursorY, { indent: true });
+  drawSummaryRow("Osiguranje od nezaposlenosti (1,5%)", salEmpNezap, cursorY, { indent: true });
   cursorY -= 15;
-  drawSummaryRow("Ukupno doprinosa iz plate", payroll.empTotal, cursorY, { bold: true });
+  drawSummaryRow("Ukupno doprinosa iz plate", salEmpTotal, cursorY, { bold: true });
   cursorY -= 14;
   // Tanka razdjelna crta između sekcija (doprinosi → porez)
   drawLine(MARGIN, cursorY, PAGE_W - MARGIN, cursorY, border, 0.5);
@@ -321,9 +364,9 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   const odbitakLabel = `Lični odbitak (koef ${taxCoeff.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
   drawSummaryRow(odbitakLabel, taxDed, cursorY);
   cursorY -= 13;
-  drawSummaryRow("Porezna osnovica", payroll.taxBase, cursorY);
+  drawSummaryRow("Porezna osnovica", salTaxBase, cursorY);
   cursorY -= 13;
-  drawSummaryRow("Porez na dohodak (10%)", payroll.incomeTax, cursorY, { bold: true });
+  drawSummaryRow("Porez na dohodak (10%)", salIncomeTax, cursorY, { bold: true });
   cursorY -= 22;
 
   // NETO PLATA — istaknuto bold, vertikalno centrirano između dvije crte
@@ -372,13 +415,13 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
 
   drawText("Doprinosi na platu", MARGIN + 4, cursorY, { size: 9, color: mid });
   cursorY -= 13;
-  drawSummaryRow("PIO/MIO (2,5%)", payroll.erpPio, cursorY, { indent: true });
+  drawSummaryRow("PIO/MIO (2,5%)", salErpPio, cursorY, { indent: true });
   cursorY -= 13;
-  drawSummaryRow("Zdravstveno osiguranje (2%)", payroll.erpZdravstvo, cursorY, { indent: true });
+  drawSummaryRow("Zdravstveno osiguranje (2%)", salErpZdr, cursorY, { indent: true });
   cursorY -= 13;
-  drawSummaryRow("Osiguranje od nezaposlenosti (0,5%)", payroll.erpNezaposlenost, cursorY, { indent: true });
+  drawSummaryRow("Osiguranje od nezaposlenosti (0,5%)", salErpNezap, cursorY, { indent: true });
   cursorY -= 15;
-  drawSummaryRow("Ukupno doprinosa na platu", payroll.erpTotal, cursorY, { bold: true });
+  drawSummaryRow("Ukupno doprinosa na platu", salErpTotal, cursorY, { bold: true });
   cursorY -= 14;
   drawLine(MARGIN, cursorY, PAGE_W - MARGIN, cursorY, border, 0.5);
   cursorY -= 12;
@@ -387,6 +430,18 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   cursorY -= 13;
   drawSummaryRow("Zaštita od prirodnih nesreća (0,5% × neto)", payroll.naknadaNesrece, cursorY);
   cursorY -= 22;
+
+  // ── KORIST U NARAVI ───────────────────────────────────────────────────────
+  // Zasebna stavka: korist uvećava osnovicu za doprinose i porez (uračunato u
+  // ukupan trošak poslodavca), ali ne umanjuje neto radnika.
+  if (koristBrutoVal > 0) {
+    drawText("Korist u naravi (službeno vozilo)", MARGIN, cursorY, { size: 10, bold: true, color: accent });
+    cursorY -= 13;
+    drawSummaryRow("Bruto korist (uvećava osnovicu)", koristBrutoVal, cursorY);
+    cursorY -= 13;
+    drawSummaryRow("Dodatni doprinosi i porez (poslodavac)", koristBurden, cursorY);
+    cursorY -= 20;
+  }
   // Fond invalida (0,5% × bruto) NIJE per-worker stavka — uplaćuje se zbirno
   // na nivou organizacije, pa se ne prikazuje na platnom listiću radnika.
 

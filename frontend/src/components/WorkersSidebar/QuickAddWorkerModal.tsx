@@ -8,9 +8,12 @@ import { createWorker, type Worker, type WorkerPayload } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
-import { parseDecimal } from "src/utils/parseDecimal";
+import { parseDecimal, sanitizeDecimalInput } from "src/utils/parseDecimal";
 import { formatMoneyBlur } from "src/lib/format";
 import DateInput from "src/components/DateInput/DateInput";
+import CitySelect, { CityNote } from "src/components/CitySelect/CitySelect";
+import { useCityLookup } from "src/hooks/useCities";
+import { RS_OPCINE } from "src/data/rs-opcine";
 import styles from "./QuickAddWorkerModal.module.css";
 
 type Props = {
@@ -104,7 +107,17 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
   const [prijavaDate, setPrijavaDate] = useState("");
   const [notRegistered, setNotRegistered] = useState(false);
   const [taxCoefficient, setTaxCoefficient] = useState("1.0");
+  const [prebivalisteEntitet, setPrebivalisteEntitet] = useState<"FBIH" | "RS">(
+    "FBIH",
+  );
+  const [city, setCity] = useState("");
+  const [opcinaKod, setOpcinaKod] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const { findByName } = useCityLookup();
+  // Grad/opština moraju biti sa liste (određuju kanton/općinu za obračun plate).
+  const cityValid =
+    prebivalisteEntitet === "RS" ? !!opcinaKod : !!findByName(city.trim());
 
   const mutation = useMutation({
     mutationFn: (payload: WorkerPayload) => unwrap(createWorker(orgId, payload)),
@@ -129,6 +142,14 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
       setError(parseJmbg(jmbg).error ?? "Nevažeći JMBG");
       return;
     }
+    if (!cityValid) {
+      setError(
+        prebivalisteEntitet === "RS"
+          ? "Odaberite opštinu (RS) sa liste, potrebna je za obračun plate."
+          : "Odaberite grad sa liste, potreban je za obračun plate.",
+      );
+      return;
+    }
     // Ako je korisnik unio datum prijave i nije označio "nije prijavljen",
     // radnik se odmah računa kao PRIJAVLJEN. Inače DRAFT.
     const isPrijavljen = !notRegistered && !!prijavaDate;
@@ -148,6 +169,9 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
       prijavaDate: isPrijavljen ? prijavaDate : null,
       employmentStatus: isPrijavljen ? "PRIJAVLJEN" : "DRAFT",
       taxCoefficient: Number.isFinite(coef) && coef >= 0 ? coef : 1.0,
+      city: city.trim() || undefined,
+      prebivalisteEntitet,
+      opcinaKod: prebivalisteEntitet === "RS" ? opcinaKod : undefined,
     });
   };
 
@@ -231,6 +255,68 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               placeholder="Npr. Programer"
             />
           </label>
+          <label className={styles.field}>
+            <span className={styles.label}>Prebivalište</span>
+            <select
+              className={styles.input}
+              value={prebivalisteEntitet}
+              onChange={(e) => {
+                const v = e.target.value === "RS" ? "RS" : "FBIH";
+                setPrebivalisteEntitet(v);
+                if (v === "FBIH") setOpcinaKod("");
+              }}
+            >
+              <option value="FBIH">Federacija BiH</option>
+              <option value="RS">Republika Srpska</option>
+            </select>
+          </label>
+          {prebivalisteEntitet === "RS" ? (
+            <>
+              <label className={styles.field}>
+                <span className={styles.label}>Grad</span>
+                <input
+                  className={styles.input}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="npr. Banja Luka"
+                />
+              </label>
+              <div className={styles.field}>
+                <span className={styles.label}>Opština (RS) *</span>
+                <select
+                  className={styles.input}
+                  value={opcinaKod}
+                  onChange={(e) => setOpcinaKod(e.target.value)}
+                  style={!opcinaKod ? { borderColor: "#b3261e" } : undefined}
+                >
+                  <option value="">Izaberite opštinu...</option>
+                  {RS_OPCINE.map((o) => (
+                    <option key={o.kod} value={o.kod}>
+                      {o.naziv} ({o.kod})
+                    </option>
+                  ))}
+                </select>
+                <CityNote>
+                  Opštinu obavezno odaberite sa liste, potrebna je za obračun
+                  plate (Budžet RS).
+                </CityNote>
+              </div>
+            </>
+          ) : (
+            <div className={`${styles.field} ${styles.fieldFull}`}>
+              <span className={styles.label}>Grad *</span>
+              <CitySelect
+                value={city}
+                onChange={setCity}
+                className={styles.input}
+                strict
+              />
+              <CityNote>
+                Grad obavezno odaberite sa liste, iz njega se određuje kanton i
+                općina za obračun plate.
+              </CityNote>
+            </div>
+          )}
           <div className={styles.field}>
             <span className={styles.label}>Datum početka rada</span>
             <DateInput
@@ -239,12 +325,28 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               onValueChange={setStartDate}
             />
           </div>
-          <div className={styles.field}>
-            <span className={styles.label}>
-              Datum prijave (JS3100),{" "}
-              <span style={{ color: "var(--mid)", fontSize: 11, fontWeight: 400 }}>
-                ako se unese, radnik je odmah prijavljen
-              </span>
+          <div
+            className={styles.field}
+            style={
+              prijavaDate
+                ? {
+                    background: "#f1f8f3",
+                    border: "1px solid #b7dcc4",
+                    borderRadius: 8,
+                    padding: "0.6rem 0.7rem",
+                  }
+                : undefined
+            }
+          >
+            <span
+              className={styles.label}
+              style={
+                prijavaDate
+                  ? { color: "#1f5e44", fontWeight: 700 }
+                  : { color: "#9a6a00", fontWeight: 700 }
+              }
+            >
+              Datum prijave (status) , bitno
             </span>
             <DateInput
               className={styles.input}
@@ -254,6 +356,11 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
                 if (iso) setNotRegistered(false);
               }}
             />
+            {prijavaDate && (
+              <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#1f5e44" }}>
+                Radnik je Prijavljen. Provjerite datum ako prijava nije na ovaj dan.
+              </span>
+            )}
           </div>
           <label
             className={`${styles.field} ${styles.fieldFull}`}
@@ -276,6 +383,29 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
               Nije još prijavljen, prijavit ću kasnije (JS3100 ili ručno)
             </span>
           </label>
+          <div
+            className={styles.fieldFull}
+            style={{
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              borderRadius: 8,
+              padding: "0.5rem 0.65rem",
+              color: prijavaDate ? "#1f5e44" : "#8a5a00",
+              background: prijavaDate ? "#f1f8f3" : "#fdf6e3",
+              border: prijavaDate ? "1px solid #b7dcc4" : "1px solid #f0d9a6",
+            }}
+          >
+            {prijavaDate ? (
+              <>
+                Radnik je <strong>Prijavljen</strong> i ulazi u obračun plate.
+              </>
+            ) : (
+              <>
+                Bitno: ako se unese datum prijave, radnik je <strong>Prijavljen</strong>{" "}
+                i ulazi u obračun plate. Ako ostane neprijavljen, ne uzima se u obračun.
+              </>
+            )}
+          </div>
           <label className={styles.field}>
             <span className={styles.label}>Bruto plata (KM)</span>
             <input
@@ -318,7 +448,7 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
             <input
               className={styles.input}
               value={taxCoefficient}
-              onChange={(e) => setTaxCoefficient(e.target.value)}
+              onChange={(e) => setTaxCoefficient(sanitizeDecimalInput(e.target.value))}
               inputMode="decimal"
               placeholder="1.0"
             />
@@ -331,7 +461,11 @@ export default function QuickAddWorkerModal({ orgId, onClose, onCreated }: Props
           <button type="button" className={styles.btnGhost} onClick={onClose}>
             Otkaži
           </button>
-          <button type="submit" className={styles.btnPrimary} disabled={mutation.isPending}>
+          <button
+            type="submit"
+            className={styles.btnPrimary}
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? "Čuvam…" : "Sačuvaj"}
           </button>
         </div>

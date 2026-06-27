@@ -10,6 +10,7 @@ import {
   type AdminInvoicesResponse,
   type AdminInvoiceItem,
 } from "src/api/adminInvoices";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import styles from "./fakture.module.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -115,47 +116,61 @@ export default function AdminFakture() {
 
         {/* Filteri */}
         <div className={styles.filters}>
-          <select
-            className={styles.select}
+          <StyledSelect
             value={type}
-            onChange={(e) => {
-              setType(e.target.value as typeof type);
+            onChange={(v) => {
+              setType(String(v ?? "") as typeof type);
               setPage(1);
             }}
-          >
-            <option value="">Sve vrste</option>
-            <option value="INVOICE">Fakture</option>
-            <option value="PROFORMA">Predračuni</option>
-          </select>
-          <select
-            className={styles.select}
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Sve vrste" },
+                  { value: "INVOICE", label: "Fakture" },
+                  { value: "PROFORMA", label: "Predračuni" },
+                ],
+              },
+            ]}
+            ariaLabel="Vrsta dokumenta"
+            wrapStyle={{ minWidth: 160 }}
+          />
+          <StyledSelect
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as typeof status);
+            onChange={(v) => {
+              setStatus(String(v ?? "") as typeof status);
               setPage(1);
             }}
-          >
-            <option value="">Svi statusi</option>
-            <option value="ISSUED">Izdana</option>
-            <option value="PAID">Plaćena</option>
-            <option value="CANCELLED">Otkazana</option>
-            <option value="DRAFT">Nacrt</option>
-          </select>
-          <select
-            className={styles.select}
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Svi statusi" },
+                  { value: "ISSUED", label: "Izdana" },
+                  { value: "PAID", label: "Plaćena" },
+                  { value: "CANCELLED", label: "Otkazana" },
+                  { value: "DRAFT", label: "Nacrt" },
+                ],
+              },
+            ]}
+            ariaLabel="Status fakture"
+            wrapStyle={{ minWidth: 160 }}
+          />
+          <StyledSelect
             value={year}
-            onChange={(e) => {
-              setYear(e.target.value ? Number(e.target.value) : "");
+            onChange={(v) => {
+              setYear(v ? Number(v) : "");
               setPage(1);
             }}
-          >
-            <option value="">Sve godine</option>
-            {yearOptions().map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+            groups={[
+              {
+                options: [
+                  { value: "", label: "Sve godine" },
+                  ...yearOptions().map((y) => ({ value: y, label: String(y) })),
+                ],
+              },
+            ]}
+            ariaLabel="Godina"
+            wrapStyle={{ minWidth: 160 }}
+          />
           <form className={styles.searchBar} onSubmit={applySearch}>
             <input
               className={styles.input}

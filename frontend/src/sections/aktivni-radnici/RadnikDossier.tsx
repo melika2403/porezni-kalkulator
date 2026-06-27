@@ -13,6 +13,16 @@ import {
   type WorkerDocumentType,
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
+import {
+  LuFileText,
+  LuFileX,
+  LuClipboardList,
+  LuCalendarDays,
+  LuNotebookText,
+  LuPencil,
+  LuDownload,
+  LuTrash2,
+} from "react-icons/lu";
 import styles from "./aktivniRadnici.module.css";
 import { parseJmbg } from "src/utils/jmbg";
 import { useNotice } from "src/components/Notice/Notice";
@@ -22,6 +32,22 @@ const DOC_TYPE_LABEL: Record<WorkerDocumentType, string> = {
   OTKAZ: "Otkaz ugovora",
   JS3100_PRIJAVA: "JS3100 prijava",
   JS3100_ODJAVA: "JS3100 odjava",
+  RJESENJE_GO: "Rješenje o godišnjem odmoru",
+  RJESENJE_GO_SRAZMJERNI: "Rješenje o GO (srazmjerni)",
+  ODLUKA_REGRES: "Odluka o isplati regresa",
+  ODLUKA_PRIGODNA_NAGRADA: "Odluka o prigodnoj nagradi",
+  RJESENJE_PLACENO_ODSUSTVO: "Rješenje o plaćenom odsustvu",
+  RJESENJE_NEPLACENO_ODSUSTVO: "Rješenje o neplaćenom odsustvu",
+  POTVRDA_ZAPOSLENJE: "Potvrda o zaposlenju",
+  POTVRDA_PLATA: "Potvrda o visini primanja",
+  POTVRDA_STAZ: "Potvrda o radnom stažu",
+  ODLUKA_VOZILO: "Odluka o korištenju službenog vozila",
+  ANEKS_UGOVORA: "Aneks ugovora o radu",
+  ODLUKA_PROMJENA_PLATE: "Odluka o promjeni plate",
+  UPOZORENJE_OTKAZ: "Upozorenje pred otkaz",
+  RJESENJE_PORODILJSKO: "Rješenje o porodiljskom odsustvu",
+  ODLUKA_OTPREMNINA: "Odluka o isplati otpremnine",
+  ODLUKA_TOPLI_OBROK: "Odluka o pravu na topli obrok",
 };
 
 function fmtDate(iso: string | null | undefined): string {
@@ -147,14 +173,14 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
             href={`/ugovor-o-radu?org=${worker.organizationId}&worker=${worker.id}&tab=ugovor`}
             className={styles.btnPrimary}
           >
-            📄 Generiši ugovor
+            <LuFileText aria-hidden /> Generiši ugovor
           </Link>
           {worker.employmentStatus === "PRIJAVLJEN" && (
             <Link
               href={`/ugovor-o-radu?org=${worker.organizationId}&worker=${worker.id}&tab=otkaz`}
               className={styles.actionLink}
             >
-              ❌ Otkaz
+              <LuFileX aria-hidden /> Otkaz
             </Link>
           )}
           <Link
@@ -163,7 +189,13 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
             }`}
             className={styles.actionLink}
           >
-            📋 JS3100
+            <LuClipboardList aria-hidden /> JS3100
+          </Link>
+          <Link
+            href={`/rjesenja-i-odluke?org=${worker.organizationId}&worker=${worker.id}`}
+            className={styles.actionLink}
+          >
+            <LuCalendarDays aria-hidden /> Godišnji odmor
           </Link>
           <button
             type="button"
@@ -172,10 +204,10 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
             onClick={() => setEvidencijaOpen(true)}
             title="Matična evidencija o radniku (Sl. nov. FBiH 92/16)"
           >
-            📒 Evidencija
+            <LuNotebookText aria-hidden /> Evidencija
           </button>
           <Link href={`/organizacija/${worker.organizationId}`} className={styles.actionLink}>
-            ✏️ Uredi
+            <LuPencil aria-hidden /> Uredi
           </Link>
         </div>
       </div>
@@ -255,7 +287,7 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
                         className={styles.actionLink}
                         download
                       >
-                        ⬇ Preuzmi
+                        <LuDownload aria-hidden /> Preuzmi
                       </a>
                       <button
                         type="button"
@@ -268,7 +300,7 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
                           if (ok) deleteMutation.mutate(d.id);
                         }}
                       >
-                        🗑 Briši
+                        <LuTrash2 aria-hidden /> Briši
                       </button>
                     </div>
                   </td>

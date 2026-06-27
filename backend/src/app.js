@@ -6,7 +6,9 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 
-const { sequelize } = require("./models/index");
+const { sequelize, Organization, Worker } = require("./models/index");
+const { decryptJmbg } = require("./utils/encryptJmbg");
+const KD_BIH_NAMES = require("./data/kdBihNames.json");
 const authRoutes = require("./routes/authRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 const organizationsRoutes = require("./routes/organizationsRoutes");
@@ -129,6 +131,42 @@ async function ensureColumns() {
       column: "trialUsedAt",
       ddl: "ALTER TABLE users ADD COLUMN trialUsedAt DATETIME NULL",
     },
+    // ─── Korist u naravi (službeno vozilo) ────────────────────────────────────
+    {
+      table: "workers",
+      column: "koristVoziloAktivna",
+      ddl: "ALTER TABLE workers ADD COLUMN koristVoziloAktivna TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "workers",
+      column: "koristVoziloMetoda",
+      ddl: "ALTER TABLE workers ADD COLUMN koristVoziloMetoda VARCHAR(20) NULL",
+    },
+    {
+      table: "workers",
+      column: "koristVoziloVrijednost",
+      ddl: "ALTER TABLE workers ADD COLUMN koristVoziloVrijednost DECIMAL(12,2) NULL",
+    },
+    {
+      table: "workers",
+      column: "koristVoziloSaPdv",
+      ddl: "ALTER TABLE workers ADD COLUMN koristVoziloSaPdv TINYINT(1) NOT NULL DEFAULT 1",
+    },
+    {
+      table: "workers",
+      column: "koristVoziloOpis",
+      ddl: "ALTER TABLE workers ADD COLUMN koristVoziloOpis VARCHAR(255) NULL",
+    },
+    {
+      table: "payrolls",
+      column: "koristNetValue",
+      ddl: "ALTER TABLE payrolls ADD COLUMN koristNetValue DECIMAL(12,2) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "payrolls",
+      column: "koristBruto",
+      ddl: "ALTER TABLE payrolls ADD COLUMN koristBruto DECIMAL(12,2) NOT NULL DEFAULT 0",
+    },
     // ─── Workers: employment / ugovor o radu podaci ───────────────────────────
     {
       table: "workers",
@@ -224,6 +262,11 @@ async function ensureColumns() {
       table: "payrolls",
       column: "grossBase",
       ddl: "ALTER TABLE payrolls ADD COLUMN grossBase DECIMAL(12,2) NULL",
+    },
+    {
+      table: "payrolls",
+      column: "proRateFactor",
+      ddl: "ALTER TABLE payrolls ADD COLUMN proRateFactor DECIMAL(5,4) NULL",
     },
     {
       table: "payrolls",
@@ -669,12 +712,17 @@ async function ensureColumns() {
     // Re-derive: taxBase, incomeTax, net iz konzistentnog empTotal.
     // taxBase = max(gross - empTotal - deduction, 0). 10% porez. Net = gross - empTotal - incomeTax.
     // totalCost = gross + erpTotal + vodna + nesrece + meal + regres + travel
+    // VAŽNO: isključi redove sa koristi u naravi. Kod njih je net SAMO iz plate,
+    // a empTotal/incomeTax/gross uključuju i korist, pa formula net = gross -
+    // empTotal - incomeTax NE važi. Ti redovi su novi (post-fix) i ne trebaju
+    // ovaj legacy fening-cleanup.
     const [netRes] = await sequelize.query(
       `UPDATE payrolls
          SET taxBase = GREATEST(ROUND(gross - empTotal - deduction, 2), 0),
              incomeTax = ROUND(GREATEST(gross - empTotal - deduction, 0) * 0.10, 2),
              net = ROUND(gross - empTotal - ROUND(GREATEST(gross - empTotal - deduction, 0) * 0.10, 2), 2)
-       WHERE empTotal IS NOT NULL AND gross IS NOT NULL`,
+       WHERE empTotal IS NOT NULL AND gross IS NOT NULL
+         AND (koristBruto IS NULL OR koristBruto = 0)`,
     );
     const netFixed = netRes?.affectedRows ?? 0;
     if (netFixed > 0) {
@@ -743,6 +791,97 @@ async function ensurePayrollDocTypeEnum() {
   );
 }
 
+// Idempotentno proširenje worker_documents.type ENUM-a (kadrovska rješenja/odluke).
+async function ensureWorkerDocTypeEnum() {
+  const [tblRows] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'worker_documents'",
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+
+  const [colRows] = await sequelize.query(
+    "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'worker_documents' AND COLUMN_NAME = 'type'",
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  const required = [
+    "RJESENJE_GO",
+    "RJESENJE_GO_SRAZMJERNI",
+    "ODLUKA_REGRES",
+    "ODLUKA_PRIGODNA_NAGRADA",
+    "RJESENJE_PLACENO_ODSUSTVO",
+    "RJESENJE_NEPLACENO_ODSUSTVO",
+    "POTVRDA_ZAPOSLENJE",
+    "POTVRDA_PLATA",
+    "POTVRDA_STAZ",
+    "ODLUKA_VOZILO",
+    "ANEKS_UGOVORA",
+    "ODLUKA_PROMJENA_PLATE",
+    "UPOZORENJE_OTKAZ",
+    "RJESENJE_PORODILJSKO",
+    "ODLUKA_OTPREMNINA",
+    "ODLUKA_TOPLI_OBROK",
+  ];
+  // Provjeri svaki kao zaseban token (npr. RJESENJE_GO je substring od
+  // RJESENJE_GO_SRAZMJERNI) , tražimo navodnike oko vrijednosti.
+  if (required.every((v) => colType.includes(`'${v}'`))) return;
+
+  console.log("Proširujem worker_documents.type ENUM...");
+  await sequelize.query(
+    "ALTER TABLE worker_documents MODIFY COLUMN type ENUM('UGOVOR','OTKAZ','JS3100_PRIJAVA','JS3100_ODJAVA','RJESENJE_GO','RJESENJE_GO_SRAZMJERNI','ODLUKA_REGRES','ODLUKA_PRIGODNA_NAGRADA','RJESENJE_PLACENO_ODSUSTVO','RJESENJE_NEPLACENO_ODSUSTVO','POTVRDA_ZAPOSLENJE','POTVRDA_PLATA','POTVRDA_STAZ','ODLUKA_VOZILO','ANEKS_UGOVORA','ODLUKA_PROMJENA_PLATE','UPOZORENJE_OTKAZ','RJESENJE_PORODILJSKO','ODLUKA_OTPREMNINA','ODLUKA_TOPLI_OBROK') NOT NULL",
+  );
+}
+
+// Idempotentni backfill spola vlasnika (VLASNIK Worker) iz JMBG-a, da ga payroll
+// prepozna automatski (kao kod radnika). Cifre 10-12 < 500 = M, >= 500 = Z.
+// Samo za one bez spola; nakon prvog prolaza nema šta ažurirati.
+async function ensureOwnerSpolFromJmbg() {
+  const owners = await Worker.findAll({
+    where: { role: "VLASNIK", spol: null },
+    attributes: ["id", "jmbg", "spol"],
+  });
+  let updated = 0;
+  for (const w of owners) {
+    if (!w.jmbg) continue;
+    let plain;
+    try {
+      plain = decryptJmbg(w.jmbg);
+    } catch {
+      continue;
+    }
+    const j = String(plain || "").replace(/\D/g, "");
+    if (j.length < 12) continue;
+    const nnn = parseInt(j.slice(9, 12), 10);
+    if (!Number.isFinite(nnn)) continue;
+    await w.update({ spol: nnn >= 500 ? "Z" : "M" });
+    updated += 1;
+  }
+  if (updated) {
+    console.log(`Postavljen spol za ${updated} vlasnika iz JMBG-a.`);
+  }
+}
+
+// Idempotentno osvježavanje naziva djelatnosti na zvanične (KD BiH iz PUFBiH
+// PDF-a). Šifra (activityCode) je referenca i NE mijenja se, samo se upisani
+// activityName uskladi sa zvaničnim nazivom za tu šifru. Pokreće se na startu;
+// nakon prvog prolaza nema neslaganja pa samo pročita i ne mijenja ništa.
+async function ensureActivityNamesFresh() {
+  const orgs = await Organization.findAll({
+    attributes: ["id", "activityCode", "activityName"],
+  });
+  let updated = 0;
+  for (const o of orgs) {
+    const code = String(o.activityCode || "").trim();
+    if (!code) continue;
+    const official = KD_BIH_NAMES[code];
+    if (official && o.activityName !== official) {
+      await o.update({ activityName: official });
+      updated += 1;
+    }
+  }
+  if (updated) {
+    console.log(`Osvježeno ${updated} naziva djelatnosti na zvanične (KD BiH).`);
+  }
+}
+
 // Ensure utf8mb4 charset za tabele koje su možda kreirane sa default DB charsetom
 // koji ne podržava bosanske znakove (ć, š, đ, ž, č).
 async function ensureUtf8Mb4() {
@@ -782,6 +921,9 @@ sequelize
   .then(() => sequelize.sync({ alter: false }))
   .then(() => ensureColumns())
   .then(() => ensurePayrollDocTypeEnum())
+  .then(() => ensureWorkerDocTypeEnum())
+  .then(() => ensureActivityNamesFresh())
+  .then(() => ensureOwnerSpolFromJmbg())
   .then(() => ensureUtf8Mb4())
   .then(() => {
     console.log("Database synced successfully");

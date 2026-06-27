@@ -15,6 +15,7 @@ import { fillUodUplatnice } from "./fillUodUplatnice";
 import { fillPdn1033 } from "./fillPdn1033";
 import { KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import { iznosUSlova } from "./iznosSlovima";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useRole } from "src/hooks/useRole";
@@ -1114,39 +1115,40 @@ function UgovorODjeluApp() {
           Podaci za <em>uplatnice</em>
         </h2>
         <div className={styles.fieldGrid}>
-          <label className={styles.field}>
+          <div className={styles.field}>
             <span className={styles.fieldLabel}>Kanton</span>
-            <select
-              className={styles.input}
-              value={kantonKey}
-              onChange={(e) =>
-                handleKantonChange(e.target.value as KantonKey | "")
-              }
-            >
-              <option value="">– Odaberite kanton –</option>
-              {(Object.keys(KANTONI) as KantonKey[]).map((k) => (
-                <option key={k} value={k}>
-                  {KANTONI[k].ime}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.field}>
+            <StyledSelect
+              ariaLabel="Kanton"
+              placeholder="– Odaberite kanton –"
+              value={kantonKey || null}
+              onChange={(v) => handleKantonChange(String(v) as KantonKey)}
+              groups={[
+                {
+                  options: (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
+                    value: k,
+                    label: KANTONI[k].ime,
+                  })),
+                },
+              ]}
+            />
+          </div>
+          <div className={styles.field}>
             <span className={styles.fieldLabel}>Općina (poslodavca)</span>
-            <select
-              className={styles.input}
-              value={opcinaKod}
-              onChange={(e) => setOpcinaKod(e.target.value)}
+            <StyledSelect
+              ariaLabel="Općina (poslodavca)"
+              placeholder="– Odaberite općinu –"
+              searchable
+              searchPlaceholder="Pretraži općinu..."
               disabled={!kantonKey}
-            >
-              <option value="">– Odaberite općinu –</option>
-              {opcine.map((o) => (
-                <option key={o.kod} value={o.kod}>
-                  {o.ime}
-                </option>
-              ))}
-            </select>
-          </label>
+              value={opcinaKod || null}
+              onChange={(v) => setOpcinaKod(String(v))}
+              groups={[
+                {
+                  options: opcine.map((o) => ({ value: o.kod, label: o.ime })),
+                },
+              ]}
+            />
+          </div>
           <label className={`${styles.field} ${styles.fieldFull}`}>
             <span className={styles.fieldLabel}>Žiro račun naručioca</span>
             <input

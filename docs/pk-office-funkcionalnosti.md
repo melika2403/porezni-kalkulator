@@ -293,6 +293,35 @@ Stranica: Zaposlenici → Obračuni plata.
 - Sam obračun (sati, bolovanja, izmjene) se radi na Poreznom Kalkulatoru
   ("Obračunaj plate"); status plata i MIP-a se vidi i na Početnoj.
 
+## 14. Rješenja i odluke (kadrovski akti)
+
+Stranica: Porezni Kalkulator → Rješenja i odluke (`/rjesenja-i-odluke`).
+Dostupna i preko dugmeta "Godišnji odmor" u dosijeu radnika (Aktivni
+radnici) koje auto-popuni radnika i firmu.
+
+- Dokumenti su grupisani u 4 kategorije (dropdown po kategoriji, ispod
+  piše koji je dokument izabran):
+  - **Potvrde**: Potvrda o zaposlenju, Potvrda o visini primanja, Potvrda
+    o radnom stažu.
+  - **Rješenja**: o godišnjem odmoru (u cjelosti / dva dijela / period),
+    o plaćenom odsustvu (čl. 53.), o neplaćenom odsustvu (čl. 54.), o
+    porodiljskom odsustvu (čl. 62.).
+  - **Nagrade i isplate**: Odluka o regresu, o prigodnoj nagradi, o
+    isplati otpremnine (čl. 111.), o pravu na topli obrok.
+  - **Radni odnos**: Odluka o promjeni plate, Aneks ugovora o radu (oba
+    potpisa), Odluka o korištenju službenog vozila, Upozorenje pred otkaz
+    (čl. 96.).
+- Auto-popuna iz profila radnika: ime, radno mjesto, rod, JMBG, datum
+  zaposlenja, radni staž (izračunato trajanje), period zadnja 3 mjeseca,
+  prosječna neto plaća iz obračuna (potvrda o primanjima), stara plaća i
+  broj/datum ugovora. Sve je editabilno.
+- Uslovni tekst po dokumentu, opciono obrazloženje i pouka o pravnom
+  lijeku. Veće zaglavlje firme i naslov u izlazu.
+- Preuzimanje u **PDF** i **Word (DOCX)**; dokument se arhivira u dosije
+  radnika. Preuzimanje je Business funkcija; pregled je dostupan svima.
+- Napomena: pravni tekst za upozorenje, otpremninu i aneks treba provjeriti
+  za konkretan slučaj prije upotrebe.
+
 ---
 
 ## Tehnička bilješka (za razvoj, ne za tutorijal)

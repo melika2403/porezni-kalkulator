@@ -71,6 +71,12 @@ function toPublicWorker(w) {
     contractedHours: rest.contractedHours != null ? Number(rest.contractedHours) : 8,
     prebivalisteEntitet: rest.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod: rest.opcinaKod || null,
+    koristVoziloAktivna: !!rest.koristVoziloAktivna,
+    koristVoziloMetoda: rest.koristVoziloMetoda || null,
+    koristVoziloVrijednost:
+      rest.koristVoziloVrijednost != null ? Number(rest.koristVoziloVrijednost) : null,
+    koristVoziloSaPdv: rest.koristVoziloSaPdv == null ? true : !!rest.koristVoziloSaPdv,
+    koristVoziloOpis: rest.koristVoziloOpis || null,
     evidencijaPodaci: parseEvidencija(rest.evidencijaPodaci),
   };
 }

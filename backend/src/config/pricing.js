@@ -1,5 +1,6 @@
-// Jedan izvor istine za cijene pretplata na backendu (gross = sa PDV-om).
-// Mora odgovarati frontend/src/data/pricing.ts.
+// Jedan izvor istine za cijene pretplata na backendu (net = bez PDV-a).
+// PDV se dodaje odozgo (vidi utils/predracunPdf.js). Mora odgovarati
+// frontend/src/data/pricing.ts.
 const PLAN_PRICES = {
   PRO: { yearly: 200.0, monthly: 20.0 },
   BUSINESS: { yearly: 500.0, monthly: 50.0 },

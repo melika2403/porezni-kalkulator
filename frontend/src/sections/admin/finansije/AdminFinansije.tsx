@@ -7,6 +7,7 @@ import styles from "./finansije.module.css";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import {
   getPayments,
   upsertPayment,
@@ -182,20 +183,22 @@ export default function AdminFinansije() {
 
           <div className={styles.yearPicker}>
             <label className={styles.fieldLabel}>Godina</label>
-            <select
-              className={styles.select}
+            <StyledSelect
+              ariaLabel="Godina"
               value={year}
-              onChange={(e) => {
-                setYear(Number(e.target.value));
+              onChange={(v) => {
+                setYear(Number(v));
                 setPage(1);
               }}
-            >
-              {yearOptions().map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+              groups={[
+                {
+                  options: yearOptions().map((y) => ({
+                    value: y,
+                    label: String(y),
+                  })),
+                },
+              ]}
+            />
           </div>
         </div>
 
@@ -686,17 +689,19 @@ function LedgerColumn({ year, cfg }: { year: number; cfg: LedgerCfg }) {
         {cfg.hasCategory && (
           <div className={styles.expenseField}>
             <label className={styles.fieldLabel}>Kategorija</label>
-            <select
-              className={styles.input}
+            <StyledSelect
+              ariaLabel="Kategorija"
               value={category}
-              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-            >
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {EXPENSE_CATEGORY_LABELS[c]}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setCategory(v as ExpenseCategory)}
+              groups={[
+                {
+                  options: EXPENSE_CATEGORIES.map((c) => ({
+                    value: c,
+                    label: EXPENSE_CATEGORY_LABELS[c],
+                  })),
+                },
+              ]}
+            />
           </div>
         )}
         <div className={styles.expenseField}>
@@ -803,17 +808,19 @@ function LedgerRow({ item, cfg }: { item: LedgerItem; cfg: LedgerCfg }) {
         </td>
         {cfg.hasCategory && (
           <td>
-            <select
-              className={styles.input}
+            <StyledSelect
+              ariaLabel="Kategorija"
               value={category}
-              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-            >
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {EXPENSE_CATEGORY_LABELS[c]}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setCategory(v as ExpenseCategory)}
+              groups={[
+                {
+                  options: EXPENSE_CATEGORIES.map((c) => ({
+                    value: c,
+                    label: EXPENSE_CATEGORY_LABELS[c],
+                  })),
+                },
+              ]}
+            />
           </td>
         )}
         <td className={styles.totalCol}>
