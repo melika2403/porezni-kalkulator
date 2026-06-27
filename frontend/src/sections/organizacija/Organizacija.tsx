@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLastOrg } from "src/hooks/useLastOrg";
 import { LuPencil, LuTrash2 } from "react-icons/lu";
 import styles from "./organizacija.module.css";
-import { formatMoneyBlur } from "src/lib/format";
+import { formatMoneyBlur, parseMoneyInput } from "src/lib/format";
 import {
   getOrganization,
   updateOrganizationSettings,
@@ -188,7 +188,7 @@ function formToPayload(f: WorkerForm): WorkerPayload {
       return total >= 0 ? Number(total.toFixed(4)) : null;
     })(),
     mealAllowancePerDay: f.mealAllowancePerDay.trim()
-      ? parseDecimal(f.mealAllowancePerDay)
+      ? parseMoneyInput(f.mealAllowancePerDay)
       : null,
     prebivalisteEntitet: f.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod:
@@ -258,7 +258,9 @@ function workerToForm(w: Worker): WorkerForm {
       return months > 0 ? String(months) : "";
     })(),
     mealAllowancePerDay:
-      w.mealAllowancePerDay != null ? String(w.mealAllowancePerDay) : "",
+      w.mealAllowancePerDay != null
+        ? formatMoneyBlur(String(w.mealAllowancePerDay).replace(".", ","))
+        : "",
     prebivalisteEntitet: w.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod: w.opcinaKod ?? "",
   };
@@ -690,11 +692,6 @@ function WorkerFormFields({
             value={value.prijavaDate}
             onValueChange={(iso) => onChange({ ...value, prijavaDate: iso })}
           />
-          {value.employmentStatus === "PRIJAVLJEN" && value.prijavaDate && (
-            <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#1f5e44" }}>
-              Stavljen je današnji datum, izmijenite ako prijava nije danas.
-            </span>
-          )}
         </div>
         <div
           className={styles.field}
@@ -724,11 +721,6 @@ function WorkerFormFields({
             value={value.odjavaDate}
             onValueChange={(iso) => onChange({ ...value, odjavaDate: iso })}
           />
-          {value.employmentStatus === "ODJAVLJEN" && value.odjavaDate && (
-            <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#a3322f" }}>
-              Stavljen je današnji datum, izmijenite ako odjava nije danas.
-            </span>
-          )}
         </div>
         {!isObrtVlasnik && (
           <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
@@ -923,12 +915,8 @@ function WorkerFormFields({
               inputMode="decimal"
               placeholder="stopa firme"
               value={value.mealAllowancePerDay}
-              onChange={(e) =>
-                onChange({
-                  ...value,
-                  mealAllowancePerDay: e.target.value.replace(/[^\d.,]/g, ""),
-                })
-              }
+              onChange={setMoney("mealAllowancePerDay")}
+              onBlur={setMoneyBlur("mealAllowancePerDay")}
               title="Override dnevne stope toplog obroka. Prazno = koristi se stopa postavljena na nivou firme."
             />
           </div>

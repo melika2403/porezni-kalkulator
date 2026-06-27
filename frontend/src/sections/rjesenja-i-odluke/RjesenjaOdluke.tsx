@@ -16,6 +16,7 @@ import { listPayrolls } from "src/api/payroll";
 import { trackEvent } from "src/api/activity";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
+import FaqSection from "src/components/FaqSection/FaqSection";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import DateInput from "src/components/DateInput/DateInput";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
@@ -2070,6 +2071,209 @@ export default function RjesenjaOdluke() {
             </p>
           )}
           {error && <div className={styles.error}>{error}</div>}
+
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--mid)",
+              margin: "1.5rem 0 0",
+              lineHeight: 1.5,
+            }}
+          >
+            Predlošci su informativni, usklađeni sa Zakonom o radu FBiH
+            („Službene novine FBiH“, br. 26/16, 89/18, 44/22 i 39/24).
+            Provjerite tačnost prije potpisivanja i pečaćenja.
+          </p>
+
+          {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
+          <section className={styles.section} style={{ marginTop: "1.2rem" }}>
+            <h2 className={styles.sectionTitle}>
+              Šta su <em>rješenja i odluke</em>?
+            </h2>
+            <p>
+              <strong>Rješenja i odluke</strong> su kadrovski (pravni) akti
+              kojima poslodavac uređuje pojedinačna prava i obaveze radnika
+              tokom radnog odnosa. Donose se u pisanoj formi, na osnovu{" "}
+              <em>Zakona o radu FBiH</em> („Službene novine FBiH“, br. 26/16,
+              89/18, 44/22 i 39/24), kolektivnog ugovora i pravilnika o radu.
+            </p>
+            <p style={{ marginTop: "0.85rem" }}>
+              Za razliku od ugovora o radu, koji potpisuju obje strane, rješenja
+              i odluke su najčešće jednostrani akti poslodavca. Punovažni su
+              potpisom i pečatom poslodavca, ali se obavezno dostavljaju radniku,
+              koji na njih ima pravo prigovora.
+            </p>
+          </section>
+
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>
+              Koje dokumente <em>možeš napraviti</em>?
+            </h2>
+            <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+              <li>
+                <strong>Potvrde</strong>, o zaposlenju, o visini primanja i o
+                radnom stažu.
+              </li>
+              <li>
+                <strong>Rješenja</strong>, o godišnjem odmoru, plaćenom i
+                neplaćenom odsustvu te porodiljskom odsustvu.
+              </li>
+              <li>
+                <strong>Nagrade i isplate</strong>, odluke o regresu, prigodnoj
+                nagradi, otpremnini i pravu na topli obrok.
+              </li>
+              <li>
+                <strong>Radni odnos</strong>, odluke o promjeni plate, aneks
+                ugovora, korištenje službenog vozila i upozorenje pred otkaz.
+              </li>
+            </ul>
+            <p style={{ marginTop: "0.85rem" }}>
+              Svaki dokument se preuzima u PDF ili Word (DOCX) formatu, popunjen
+              podacima radnika i firme, spreman za potpis.
+            </p>
+          </section>
+
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>
+              Najvažnije <em>zakonske odredbe</em>
+            </h2>
+            <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+              <li>
+                <strong>Godišnji odmor</strong>, najmanje 20 radnih dana godišnje
+                (član 52), prema planu korištenja kod poslodavca.
+              </li>
+              <li>
+                <strong>Plaćeno odsustvo</strong>, do 7 radnih dana u toku godine
+                (član 53), za stupanje u brak, porođaj supruge, težu bolest ili
+                smrt člana uže porodice i dobrovoljno davanje krvi.
+              </li>
+              <li>
+                <strong>Neplaćeno odsustvo</strong>, odobrava se na zahtjev
+                radnika, a za to vrijeme miruju prava i obaveze iz radnog odnosa
+                (član 55).
+              </li>
+              <li>
+                <strong>Porodiljsko odsustvo</strong>, traje do 12 mjeseci
+                neprekidno, odnosno do 18 mjeseci za blizance, treće i svako
+                naredno dijete (član 62).
+              </li>
+              <li>
+                <strong>Otpremnina</strong>, kod otkaza iz poslovnih razloga,
+                najmanje trećina prosječne mjesečne plate za svaku navršenu
+                godinu staža kod poslodavca (član 111).
+              </li>
+              <li>
+                <strong>Topli obrok i regres</strong>, uređuju se kolektivnim
+                ugovorom ili pravilnikom o radu; topli obrok je neoporeziv do oko
+                17 KM po danu (2026).
+              </li>
+              <li>
+                <strong>Upozorenje pred otkaz</strong>, pisano upozorenje radniku
+                prije otkaza zbog povrede radne obaveze ili nezadovoljavajućeg
+                rada (član 96).
+              </li>
+            </ul>
+          </section>
+
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>
+              Kako napraviti rješenje u <em>3 koraka</em>
+            </h2>
+            <ol style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+              <li>
+                <strong>Odaberite radnika</strong> iz sidebar-a, podaci firme,
+                radnika, radnog mjesta i perioda auto-popunjavaju se iz profila.
+                Ako radnik nije u sistemu, dodajte ga preko „+ Novi radnik“.
+              </li>
+              <li>
+                <strong>Odaberite vrstu dokumenta</strong> (rješenje, odluka ili
+                potvrda) i dopunite specifična polja, datume, iznose ili period.
+              </li>
+              <li>
+                <strong>Preuzmite dokument</strong> u PDF ili Word (DOCX)
+                formatu, spreman za potpis i pečat. Dokument se sprema i u dosije
+                radnika (Aktivni radnici).
+              </li>
+            </ol>
+          </section>
+
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>
+              Povezani <em>alati</em>
+            </h2>
+            <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+              <li>
+                <a href="/ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                  Ugovor o radu i otkaz
+                </a>
+                , zasnivanje i prestanak radnog odnosa sa auto-numeracijom.
+              </li>
+              <li>
+                <a href="/prijave-radnika" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                  JS3100, prijava/odjava radnika
+                </a>
+                , prijava u PIO/MIO i Zavod zdravstvenog osiguranja.
+              </li>
+              <li>
+                <a href="/prijave-radnika?tab=obracun" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                  Obračun plata
+                </a>
+                , mjesečni obračun plata, doprinosa i poreza.
+              </li>
+              <li>
+                <a href="/aktivni-radnici" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                  Aktivni radnici
+                </a>
+                , centralni pregled radnika i dosije dokumenata.
+              </li>
+            </ul>
+            <h2 className={styles.sectionTitle} style={{ marginTop: "2rem" }}>
+              Pročitaj <em>na blogu</em>
+            </h2>
+            <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
+              <li>
+                <a href="/blog/topli-obrok-regres-fbih-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                  Topli obrok i regres u FBiH
+                </a>
+                , neoporezivi iznosi i kako se isplaćuju.
+              </li>
+              <li>
+                <a href="/blog/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                  Otkaz radnika u FBiH
+                </a>
+                , razlozi, otkazni rokovi i postupak.
+              </li>
+            </ul>
+          </section>
+
+          <FaqSection
+            items={[
+              {
+                q: "Šta je rješenje o godišnjem odmoru?",
+                a: "Rješenje o godišnjem odmoru je pisani akt kojim poslodavac radniku utvrđuje pravo na godišnji odmor za određenu godinu, broj radnih dana i period korištenja. Po Zakonu o radu FBiH godišnji odmor iznosi najmanje 20 radnih dana i koristi se prema planu korištenja kod poslodavca.",
+              },
+              {
+                q: "Koliko traje plaćeno odsustvo u FBiH?",
+                a: "Radnik ima pravo na plaćeno odsustvo do 7 radnih dana u toku kalendarske godine (član 53 Zakona o radu FBiH), za stupanje u brak, porođaj supruge, težu bolest ili smrt člana uže porodice i dobrovoljno davanje krvi. Kolektivnim ugovorom ili pravilnikom mogu se utvrditi i povoljniji uslovi.",
+              },
+              {
+                q: "Kada radnik ima pravo na otpremninu?",
+                a: "Pravo na otpremninu radnik ostvaruje kod otkaza iz poslovnih razloga, ako ima najmanje 2 godine neprekidnog rada kod poslodavca. Otpremnina iznosi najmanje trećinu prosječne mjesečne plate za svaku navršenu godinu staža kod tog poslodavca (član 111 Zakona o radu FBiH).",
+              },
+              {
+                q: "Da li su rješenja i odluke punovažni bez potpisa radnika?",
+                a: "Da. Rješenja i odluke su jednostrani akti poslodavca i punovažni su potpisom i pečatom poslodavca. Obavezno se dostavljaju radniku, a radnik ima pravo na pisani prigovor poslodavcu u zakonskom roku.",
+              },
+              {
+                q: "Koja je razlika između rješenja, odluke i potvrde?",
+                a: "Rješenjem se uređuje konkretno pravo radnika (npr. godišnji odmor, plaćeno ili porodiljsko odsustvo). Odlukom se utvrđuje isplata ili promjena (regres, otpremnina, prigodna nagrada, promjena plate). Potvrda je dokaz o činjenici (zaposlenje, visina primanja, radni staž).",
+              },
+              {
+                q: "Moraju li kadrovski akti biti u pisanoj formi?",
+                a: "Da. Rješenja, odluke i potvrde donose se u pisanoj formi i dostavljaju radniku. Pisani akt štiti i radnika i poslodavca i predstavlja dokaz u slučaju spora ili inspekcijskog nadzora.",
+              },
+            ]}
+          />
         </main>
       </div>
     </div>
