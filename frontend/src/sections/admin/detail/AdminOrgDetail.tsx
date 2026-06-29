@@ -299,8 +299,12 @@ export default function AdminOrgDetail({ orgId }: { orgId: number }) {
                     <td>{PAYROLL_STATUS[p.status] ?? p.status}</td>
                     <td className={styles.num}>{fmt(p.gross)}</td>
                     <td className={styles.num}>{fmt(p.empTotal)}</td>
-                    <td className={styles.num}>{fmt(p.incomeTax)}</td>
-                    <td className={styles.num}>{fmt(p.net)}</td>
+                    <td className={styles.num}>
+                      {p.isObrtOwner ? "–" : fmt(p.incomeTax)}
+                    </td>
+                    <td className={styles.num}>
+                      {p.isObrtOwner ? "–" : fmt(p.net)}
+                    </td>
                     <td className={styles.num}>{fmt(p.mealAllowance)}</td>
                     <td className={styles.num}>{fmt(p.totalCost)}</td>
                   </tr>

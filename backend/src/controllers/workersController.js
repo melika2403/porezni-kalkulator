@@ -68,6 +68,8 @@ function toPublicWorker(w) {
     defaultMealAllowance: rest.defaultMealAllowance != null ? Number(rest.defaultMealAllowance) : 0,
     defaultTravelExpense: rest.defaultTravelExpense != null ? Number(rest.defaultTravelExpense) : 0,
     mealAllowancePerDay: rest.mealAllowancePerDay != null ? Number(rest.mealAllowancePerDay) : null,
+    travelAllowancePerMonth:
+      rest.travelAllowancePerMonth != null ? Number(rest.travelAllowancePerMonth) : null,
     contractedHours: rest.contractedHours != null ? Number(rest.contractedHours) : 8,
     prebivalisteEntitet: rest.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod: rest.opcinaKod || null,
@@ -283,6 +285,20 @@ function pickEmploymentFields(body, target) {
         return "Dnevna stopa toplog obroka mora biti pozitivan broj";
       }
       target.mealAllowancePerDay = n;
+    }
+  }
+
+  // Fiksni mjesečni putni trošak (naknada za prevoz). Prazno = bez auto-popune.
+  const { travelAllowancePerMonth } = body ?? {};
+  if (travelAllowancePerMonth !== undefined) {
+    if (travelAllowancePerMonth === null || travelAllowancePerMonth === "") {
+      target.travelAllowancePerMonth = null;
+    } else {
+      const n = Number(travelAllowancePerMonth);
+      if (!Number.isFinite(n) || n < 0) {
+        return "Putni trošak mora biti pozitivan broj";
+      }
+      target.travelAllowancePerMonth = n;
     }
   }
 

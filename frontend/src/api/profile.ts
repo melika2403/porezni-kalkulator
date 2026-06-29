@@ -566,6 +566,9 @@ export type Worker = {
   // Dnevna stopa toplog obroka za radnika (override firme). NULL = naslijedi
   // od organizacije.
   mealAllowancePerDay: number | null;
+  // Fiksni mjesečni putni trošak (naknada za prevoz). NE prati šihtericu.
+  // NULL = bez auto-popune u obračunu.
+  travelAllowancePerMonth: number | null;
   contractedHours: number;
   // Entitet prebivališta: 'FBIH' (default) ili 'RS'. RS radniku kantonalni dio
   // zdravstva/nezaposlenosti ide na Budžet RS (vidi rs-opcine.ts).
@@ -629,6 +632,8 @@ export type WorkerPayload = {
   contractedHours?: number | string | null;
   // Dnevna stopa toplog obroka za ovog radnika (override stope firme).
   mealAllowancePerDay?: number | string | null;
+  // Fiksni mjesečni putni trošak (naknada za prevoz). Prazno/null = bez auto-popune.
+  travelAllowancePerMonth?: number | string | null;
   // Entitet prebivališta (FBIH/RS) + šifra RS opštine.
   prebivalisteEntitet?: "FBIH" | "RS";
   opcinaKod?: string | null;

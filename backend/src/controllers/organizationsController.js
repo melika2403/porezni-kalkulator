@@ -492,9 +492,16 @@ async function create(req, res) {
   let validatedOwner = null;
   if (ownerData) {
     const ownerType = orgBody.ownerType || "fizicko_domace";
-    // JMBG obavezan samo za domaće fizičko lice (stranci/firme nemaju JMBG).
+    // JMBG je obavezan SAMO ako će vlasnik biti prijavljeni radnik (Worker
+    // VLASNIK): obrt (BUSINESS) uvijek, ili d.o.o. gdje je vlasnik prijavljeni
+    // direktor po ugovoru o radu (opcija 1). Kod samo-evidencije, menadžerskog
+    // ugovora ili stranca vlasnik nije prijavljen, pa JMBG ne treba.
+    const ownerIsRegisteredWorker =
+      orgBody.type === "BUSINESS" ||
+      (Boolean(orgBody.ownerIsDirector) &&
+        orgBody.directorEngagement === "ugovor_o_radu");
     const ownerValidation = validateOwnerData(ownerData, {
-      requireJmbg: ownerType === "fizicko_domace",
+      requireJmbg: ownerType === "fizicko_domace" && ownerIsRegisteredWorker,
       ownerType,
     });
     if (!ownerValidation.ok) {

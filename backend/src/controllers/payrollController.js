@@ -759,7 +759,11 @@ function computePayrollSnapshot(input) {
 
   const mealAllowance = Number(input.mealAllowance) || 0;
   const vacationBonus = Number(input.vacationBonus) || 0;
-  const travelExpense = Number(input.travelExpense) || 0;
+  // Topli obrok i putni trošak se NE skaliraju ovdje proRateFactor-om: oba se
+  // već računaju po danima prisustva iz šihterice na frontendu (vidi
+  // obracunOrgPayrolls/ObracunPlata), pa stiže već tačan iznos. Regres je
+  // godišnji pa se ne dira.
+  const travelExpense = +(Number(input.travelExpense) || 0).toFixed(2);
 
   // totalCost = stvarni trošak poslodavca. Neto-bazirana formula da bude tačna
   // i kad ima koristi (nenovčani neto dio koristi se NE plaća u kešu, pa ne ide
