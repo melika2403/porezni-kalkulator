@@ -524,6 +524,11 @@ async function ensureColumns() {
       column: "mealAllowancePerDay",
       ddl: "ALTER TABLE workers ADD COLUMN mealAllowancePerDay DECIMAL(10,2) NULL",
     },
+    {
+      table: "workers",
+      column: "travelAllowancePerMonth",
+      ddl: "ALTER TABLE workers ADD COLUMN travelAllowancePerMonth DECIMAL(10,2) NULL",
+    },
     // Entitet prebivališta radnika (FBIH/RS) + šifra opštine za RS uplatnice.
     {
       table: "workers",

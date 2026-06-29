@@ -176,14 +176,21 @@ export async function obracunOrgPayrolls(input: {
     //   vacation → prevMonth.vacationBonus > 0 (regres nema sticky default
     //              jer je tradicionalno godišnji; ako je u proš mj. plaćen,
     //              user može u modalu obrisati ako ne treba ovaj mjesec)
-    //   travel → prevMonth.travelExpense > worker.defaultTravelExpense > 0
+    //   travel → worker.travelAllowancePerMonth (fiksni mjesečni iznos iz
+    //            profila radnika; prazno = bez putnog, NE vuče iz prošlog mjeseca)
     // VAŽNO: postojeći payroll ovog mjeseca (re-calc) već ima vrijednosti —
     // backend ih sam koristi kao fallback (vidi `pick` u calculate), pa
     // ne diramo. Šaljemo defaults samo kad pravimo NOVI payroll.
     const isNewPayroll = !existingPayroll;
-    // Topli obrok: ako je postavljena dnevna stopa (radnik > firma), računa se
-    // stopa × broj radnih dana (iz šihterice, inače standardni radni dani).
-    // Inače se nasljeđuje iz prethodnog mjeseca / sticky default-a.
+    // Dani prisustva: iz šihterice ako postoji (može biti 0). BEZ šihterice se
+    // za mid-month radnika koriste radni dani PERIODA prijave (puni × proRate),
+    // da se i topli obrok i putni srazmjerno umanje i bez popunjene šihterice.
+    // Topli obrok I putni trošak prate ISTE dane (i za re-obračun postojećih).
+    const attendanceDays = workersWithSihterica.has(w.id)
+      ? sihWorkDaysByWorker.get(w.id) ?? 0
+      : Math.round(defaultWorkDays * proRateFactor);
+    // Topli obrok: dnevna stopa (radnik > firma) × dani prisustva. Bez stope se
+    // nasljeđuje fiksni iznos iz prethodnog mjeseca / sticky default-a.
     const mealRatePerDay =
       w.mealAllowancePerDay != null
         ? Number(w.mealAllowancePerDay)
@@ -192,16 +199,8 @@ export async function obracunOrgPayrolls(input: {
           : null;
     let mealDefault: number | null = null;
     if (mealRatePerDay != null) {
-      // Dnevna stopa: topli obrok = stopa × dani prisustva. Ima šihtericu →
-      // dani prisustva (može i 0); nema šihtericu → puni radni dani. Računa se i
-      // za POSTOJEĆE obračune (re-obračun) da se uskladi sa šihtericom popunjenom
-      // naknadno.
-      const days = workersWithSihterica.has(w.id)
-        ? sihWorkDaysByWorker.get(w.id) ?? 0
-        : defaultWorkDays;
-      mealDefault = Math.round(mealRatePerDay * days * 100) / 100;
+      mealDefault = Math.round(mealRatePerDay * attendanceDays * 100) / 100;
     } else if (isNewPayroll) {
-      // Nema dnevne stope: nasljeđuje fiksni iznos (ne smanjuje se po danima).
       mealDefault = Number(
         prevPayroll?.mealAllowance ?? w.defaultMealAllowance ?? 0,
       );
@@ -209,9 +208,19 @@ export async function obracunOrgPayrolls(input: {
     const vacationDefault = isNewPayroll
       ? Number(prevPayroll?.vacationBonus ?? 0)
       : null;
-    const travelDefault = isNewPayroll
-      ? Number(prevPayroll?.travelExpense ?? w.defaultTravelExpense ?? 0)
-      : null;
+    // Putni trošak prati ISTE dane prisustva kao topli obrok: mjesečni iznos ×
+    // (dani prisustva ÷ puni radni dani). Nepun mjesec → zaokruženo na cijeli
+    // KM; pun mjesec (svi dani) → kako je uneseno.
+    const travelMonthly = Number(w.travelAllowancePerMonth ?? 0);
+    let travelDefault: number | null = null;
+    if (travelMonthly > 0) {
+      travelDefault =
+        attendanceDays < defaultWorkDays
+          ? Math.round((travelMonthly * attendanceDays) / defaultWorkDays)
+          : +travelMonthly.toFixed(2);
+    } else if (isNewPayroll) {
+      travelDefault = 0;
+    }
     try {
       await unwrap(
         calculatePayroll({
@@ -238,7 +247,7 @@ export async function obracunOrgPayrolls(input: {
           ...(vacationDefault !== null && vacationDefault > 0
             ? { vacationBonus: vacationDefault }
             : {}),
-          ...(travelDefault !== null && travelDefault > 0
+          ...(travelDefault !== null
             ? { travelExpense: travelDefault }
             : {}),
         }),

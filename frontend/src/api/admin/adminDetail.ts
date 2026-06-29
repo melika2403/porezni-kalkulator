@@ -70,6 +70,9 @@ export type AdminPayrollRow = {
   workerName: string;
   status: "DRAFT" | "OBRACUNATO" | "ISPLACENO";
   paymentDate: string | null;
+  // Vlasnik obrta (BUSINESS + VLASNIK): nema porez ni neto, samo osnovicu i
+  // doprinose. Porez/neto kolone se za njega prikazuju kao "–".
+  isObrtOwner: boolean;
   gross: number;
   net: number;
   empTotal: number;
