@@ -83,6 +83,8 @@ type WorkerForm = {
   priorWorkMonthsInt: string; // mjeseci 0-11, npr. "6"
   // Dnevna stopa toplog obroka za radnika (override stope firme). "" = naslijedi.
   mealAllowancePerDay: string;
+  // Fiksni mjesečni putni trošak. "" = bez auto-popune u obračunu.
+  travelAllowancePerMonth: string;
   // Entitet prebivališta (FBIH/RS) + šifra RS opštine.
   prebivalisteEntitet: "FBIH" | "RS";
   opcinaKod: string;
@@ -120,6 +122,7 @@ const emptyForm = (): WorkerForm => ({
   priorWorkYearsInt: "",
   priorWorkMonthsInt: "",
   mealAllowancePerDay: "",
+  travelAllowancePerMonth: "",
   prebivalisteEntitet: "FBIH",
   opcinaKod: "",
 });
@@ -189,6 +192,9 @@ function formToPayload(f: WorkerForm): WorkerPayload {
     })(),
     mealAllowancePerDay: f.mealAllowancePerDay.trim()
       ? parseMoneyInput(f.mealAllowancePerDay)
+      : null,
+    travelAllowancePerMonth: f.travelAllowancePerMonth.trim()
+      ? parseMoneyInput(f.travelAllowancePerMonth)
       : null,
     prebivalisteEntitet: f.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod:
@@ -260,6 +266,10 @@ function workerToForm(w: Worker): WorkerForm {
     mealAllowancePerDay:
       w.mealAllowancePerDay != null
         ? formatMoneyBlur(String(w.mealAllowancePerDay).replace(".", ","))
+        : "",
+    travelAllowancePerMonth:
+      w.travelAllowancePerMonth != null
+        ? formatMoneyBlur(String(w.travelAllowancePerMonth).replace(".", ","))
         : "",
     prebivalisteEntitet: w.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod: w.opcinaKod ?? "",
@@ -918,6 +928,21 @@ function WorkerFormFields({
               onChange={setMoney("mealAllowancePerDay")}
               onBlur={setMoneyBlur("mealAllowancePerDay")}
               title="Override dnevne stope toplog obroka. Prazno = koristi se stopa postavljena na nivou firme."
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              Putni trošak (mjesečno) (KM)
+            </label>
+            <input
+              className={styles.input}
+              type="text"
+              inputMode="decimal"
+              placeholder="npr. 30"
+              value={value.travelAllowancePerMonth}
+              onChange={setMoney("travelAllowancePerMonth")}
+              onBlur={setMoneyBlur("travelAllowancePerMonth")}
+              title="Fiksni mjesečni iznos putnog troška. Dok je upisan, automatski se popunjava u obračun plata. Prazno = bez putnog troška."
             />
           </div>
           {/* Tip plate, određuje šta iznos iz "Bruto"/"Neto" polja stvarno

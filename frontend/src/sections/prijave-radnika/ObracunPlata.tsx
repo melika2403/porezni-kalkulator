@@ -4019,7 +4019,7 @@ function MonthlyPanel({
                 <span style={{ fontSize: 12, color: "var(--mid, #6c6862)" }}>
                   Zdravstvo i nezaposlenost na jedan nalog po kantonu, šifra
                   općine = sjedište firme. Porez na dohodak ostaje po općini
-                  radnika. Sve vaše organizacije, i klijentske.
+                  radnika.
                 </span>
               </span>
             </label>
@@ -4477,19 +4477,6 @@ function PayrollModal({
 
   // Dani za topli obrok: iz šihterice ako postoji (može biti i 0), inače
   // standardni radni dani (pun mjesec).
-  const mealDays = hasSihterica
-    ? sihWorkDays
-    : standardWorkDaysForMonth(year, month);
-  const mealAuto =
-    mealRatePerDay != null
-      ? Math.round(mealRatePerDay * mealDays * 100) / 100
-      : null;
-
-  // Tip plate iz worker profila — određuje koje polje je "anker" (source of
-  // truth) za bruto/neto. Sva 3 polja su uvijek vidljiva i sync-ovana, tag
-  // pokazuje koje je ugovorno fiksirano.
-  const workerSalaryType: SalaryType = worker.salaryType ?? "NETO_ISPLATA";
-
   // Pro-rate factor za mid-month prijavu/odjavu. Default = "automatic" (ON
   // kad postoji prijava/odjava u mjesecu). User može isključiti checkbox-om.
   // Ako je već obračunato za taj mjesec, pamtimo izbor iz snapshot-a
@@ -4501,6 +4488,34 @@ function PayrollModal({
       : autoProRate < 1,
   );
   const effectiveProRate = proRateEnabled ? autoProRate : 1;
+
+  // Pun mjesec (standardni radni dani), imenilac za srazmjeru putnog.
+  const fullWorkDays = standardWorkDaysForMonth(year, month);
+  // Dani prisustva: iz šihterice ako postoji. BEZ šihterice, za mid-month
+  // radnika koristi radne dane PERIODA prijave (puni × proRate), da se i topli
+  // obrok i putni srazmjerno umanje i bez popunjene šihterice.
+  const mealDays = hasSihterica
+    ? sihWorkDays
+    : Math.round(fullWorkDays * effectiveProRate);
+  const mealAuto =
+    mealRatePerDay != null
+      ? Math.round(mealRatePerDay * mealDays * 100) / 100
+      : null;
+  // Putni trošak prati ISTE dane kao topli obrok (dani prisustva iz šihterice):
+  // mjesečni iznos × (dani prisustva ÷ puni radni dani). Za nepun mjesec se
+  // zaokružuje na cijeli KM; pun mjesec (svi dani) ostaje kako je uneseno.
+  const travelMonthly = Number(worker.travelAllowancePerMonth ?? 0);
+  const travelAuto =
+    travelMonthly > 0
+      ? mealDays < fullWorkDays
+        ? Math.round((travelMonthly * mealDays) / fullWorkDays)
+        : +travelMonthly.toFixed(2)
+      : null;
+
+  // Tip plate iz worker profila, određuje koje polje je "anker" (source of
+  // truth) za bruto/neto. Sva 3 polja su uvijek vidljiva i sync-ovana, tag
+  // pokazuje koje je ugovorno fiksirano.
+  const workerSalaryType: SalaryType = worker.salaryType ?? "NETO_ISPLATA";
 
   // Datum za totalYearsOfService — kraj obračunskog mjeseca (isti default
   // koji backend koristi). Bez ovog usklađivanja godine staža mogu se
@@ -4598,9 +4613,12 @@ function PayrollModal({
   const [vacation, setVacation] = useState<string>(() =>
     existing ? fmtMoneyInput(Number(existing.vacationBonus)) : "",
   );
+  // Putni se auto-popuni iz mjesečnog iznosa × dani prisustva (vidi efekt niže).
+  // Ručna izmjena gasi auto-popunu.
+  const travelTouchedRef = useRef(false);
   const [travel, setTravel] = useState<string>(() => {
     if (existing) return fmtMoneyInput(Number(existing.travelExpense));
-    return fmtMoneyInput(Number(worker.defaultTravelExpense ?? 0));
+    return ""; // novi obračun: popuniće efekt kad stigne šihterica
   });
   // ── Korist u naravi (službeno vozilo) ──
   // Konfiguracija je per-radnik (master na workeru). Aktivnost prefilluje iz
@@ -4657,6 +4675,17 @@ function PayrollModal({
     setMeal(fmtMoneyInput(mealAuto));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mealAuto, sihQuery.isLoading]);
+
+  // Auto-popuna putnog troška za NOVI obračun: prati dane prisustva iz šihterice
+  // (isto kao topli obrok). Čeka da se šihterica učita, ne dira ručnu izmjenu.
+  useEffect(() => {
+    if (existing) return;
+    if (travelTouchedRef.current) return;
+    if (sihQuery.isLoading) return;
+    if (travelAuto == null) return;
+    setTravel(fmtMoneyInput(travelAuto));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travelAuto, sihQuery.isLoading]);
 
   // parseNum: opšti decimalni parser (parseDecimal heuristika) za polja gdje je
   // tačka decimalni separator (koeficijent, stope, sati: "0.4", "1.5").
@@ -5041,7 +5070,7 @@ function PayrollModal({
       vacation: numericFromExisting(existing?.vacationBonus),
       travel: existing?.travelExpense != null
         ? Number(existing.travelExpense)
-        : Number(worker.defaultTravelExpense ?? 0),
+        : Number(worker.travelAllowancePerMonth ?? 0),
       koristAktivna: existing
         ? Number(existing.koristBruto) > 0
         : !!worker.koristVoziloAktivna,
@@ -5640,7 +5669,10 @@ function PayrollModal({
                   type="text"
                   inputMode="decimal"
                   value={travel}
-                  onChange={(e) => setTravel(formatMoneyLive(e.target.value))}
+                  onChange={(e) => {
+                    travelTouchedRef.current = true;
+                    setTravel(formatMoneyLive(e.target.value));
+                  }}
                   onBlur={(e) => setTravel(formatMoneyBlur(e.target.value))}
                 />
               </div>

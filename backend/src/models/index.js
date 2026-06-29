@@ -294,6 +294,11 @@ const Worker = sequelize.define(
     // stope). NULL = koristi se Organization.mealAllowancePerDay. Obračun
     // množi stopu sa brojem radnih dana iz šihterice.
     mealAllowancePerDay: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    // Fiksni mjesečni putni trošak za ovog radnika (naknada za prevoz). NE prati
+    // šihtericu (flat iznos). NULL = bez auto-popune. Obračun ga auto-popunjava
+    // (Opcija A: šta je u polju to se koristi, prazno = bez putnog, ne vuče se
+    // iz prošlog mjeseca).
+    travelAllowancePerMonth: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     // Ugovoreno radno vrijeme (dnevno) — bitno za minimalnu osnovicu doprinosa.
     // Po Zakonu o doprinosima FBiH (čl. 7, izmjene 33/25 od 01.07.2025):
     //  • 8h (puno) → puna min. bruto osnovica

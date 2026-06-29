@@ -195,26 +195,38 @@ async function organizationPayrolls(req, res) {
     const nameById = new Map(
       workers.map((w) => [w.id, `${w.firstName} ${w.lastName}`.trim()]),
     );
+    const roleById = new Map(workers.map((w) => [w.id, w.role]));
+    // Vlasnik obrta (BUSINESS + VLASNIK) NEMA porez ni neto, samo osnovicu i
+    // doprinose (Obrazac 2002). U bazi su net/incomeTax = 0, ali kod starih
+    // zapisa može zaostati neka vrijednost, pa ih ovdje normalizujemo na prikaz
+    // (kao i sam obračun i uplatnice koje porez za obrtnika preskaču).
+    const orgRow = await Organization.findByPk(id, { attributes: ["type"] });
+    const orgType = orgRow?.type;
     const rows = await Payroll.findAll({
       where: { organizationId: id, year, month },
       order: [["workerId", "ASC"]],
     });
-    items = rows.map((p) => ({
-      id: p.id,
-      workerId: p.workerId,
-      workerName: nameById.get(p.workerId) || `#${p.workerId}`,
-      status: p.status,
-      paymentDate: p.paymentDate ? String(p.paymentDate).slice(0, 10) : null,
-      gross: num(p.gross),
-      net: num(p.net),
-      empTotal: num(p.empTotal),
-      incomeTax: num(p.incomeTax),
-      erpTotal: num(p.erpTotal),
-      mealAllowance: num(p.mealAllowance),
-      vacationBonus: num(p.vacationBonus),
-      travelExpense: num(p.travelExpense),
-      totalCost: num(p.totalCost),
-    }));
+    items = rows.map((p) => {
+      const isObrtOwner =
+        orgType === "BUSINESS" && roleById.get(p.workerId) === "VLASNIK";
+      return {
+        id: p.id,
+        workerId: p.workerId,
+        workerName: nameById.get(p.workerId) || `#${p.workerId}`,
+        status: p.status,
+        paymentDate: p.paymentDate ? String(p.paymentDate).slice(0, 10) : null,
+        isObrtOwner,
+        gross: num(p.gross),
+        net: isObrtOwner ? 0 : num(p.net),
+        empTotal: num(p.empTotal),
+        incomeTax: isObrtOwner ? 0 : num(p.incomeTax),
+        erpTotal: num(p.erpTotal),
+        mealAllowance: num(p.mealAllowance),
+        vacationBonus: num(p.vacationBonus),
+        travelExpense: num(p.travelExpense),
+        totalCost: num(p.totalCost),
+      };
+    });
     summary = items.reduce(
       (acc, it) => {
         acc.gross += it.gross;

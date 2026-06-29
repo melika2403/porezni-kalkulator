@@ -67,6 +67,56 @@ function getDayOfWeek(year: number, month: number, day: number): number {
   return new Date(year, month - 1, day).getDay();
 }
 
+// Aktivni opseg dana radnika unutar mjeseca, iz datuma prijave/odjave.
+// Dan odjave je UKLJUČEN (radnik radi do i uključujući taj dan). Ako prijava
+// pada poslije ovog mjeseca ili odjava prije njega → notRegistered.
+function activeRangeForMonth(
+  worker: {
+    prijavaDate: string | null;
+    odjavaDate: string | null;
+    employmentStatus: string;
+  },
+  year: number,
+  month: number, // 1-12
+  daysInMonth: number,
+): { start: number; end: number; notRegistered: boolean; fullMonth: boolean } {
+  const parse = (iso: string | null) => {
+    if (!iso) return null;
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    if (!y || !m || !d) return null;
+    return { y, m, d };
+  };
+  // -1 prije ovog mjeseca, 0 u njemu, 1 poslije.
+  const cmp = (dt: { y: number; m: number; d: number }) => {
+    if (dt.y < year || (dt.y === year && dt.m < month)) return -1;
+    if (dt.y > year || (dt.y === year && dt.m > month)) return 1;
+    return 0;
+  };
+  const p = parse(worker.prijavaDate);
+  const o = parse(worker.odjavaDate);
+  let start = 1;
+  let end = daysInMonth;
+  let notRegistered = false;
+
+  if (p) {
+    const c = cmp(p);
+    if (c === 1) notRegistered = true; // prijavljen tek poslije ovog mjeseca
+    else if (c === 0) start = p.d;
+  } else if (worker.employmentStatus === "DRAFT") {
+    notRegistered = true; // nikad prijavljen i nema datuma
+  }
+
+  if (o) {
+    const c = cmp(o);
+    if (c === -1) notRegistered = true; // odjavljen prije ovog mjeseca
+    else if (c === 0) end = o.d;
+  }
+
+  if (start > end) notRegistered = true;
+  const fullMonth = !notRegistered && start === 1 && end === daysInMonth;
+  return { start, end, notRegistered, fullMonth };
+}
+
 function parseTimeToMins(hhmm: string): number | null {
   if (!hhmm) return null;
   const parts = hhmm.split(":");
@@ -640,7 +690,17 @@ function SihtericaApp() {
     });
   };
 
-  const handleAutoFill = useCallback(async () => {
+  const [autoFillWarn, setAutoFillWarn] = useState<{
+    start: number;
+    end: number;
+    notRegistered: boolean;
+  } | null>(null);
+  // Potvrda za brisanje cijelog mjeseca tekućeg radnika.
+  const [confirmClearMonth, setConfirmClearMonth] = useState(false);
+
+  // Popunjava samo dane unutar [activeStart, activeEnd] (period prijave radnika).
+  // Dani van opsega ostaju prazni (radnik tad nije bio zaposlen).
+  const applyAutoFill = useCallback(async (activeStart: number, activeEnd: number) => {
     if (!workerId) return;
     const holidayDays = new Set(
       autoHolidays
@@ -666,6 +726,7 @@ function SihtericaApp() {
     const next = entries.map((e) => ({ ...e }));
     for (let i = 0; i < daysInMonth; i++) {
       const dayNum = i + 1;
+      const inRange = dayNum >= activeStart && dayNum <= activeEnd;
       const dow = getDayOfWeek(year, month, dayNum);
       const isSick = sickDays.has(dayNum);
       const isVacation = vacationDays.has(dayNum);
@@ -684,6 +745,8 @@ function SihtericaApp() {
       if (autoOverwrite) {
         next[i] = { ...EMPTY_ENTRY };
       }
+      // Dan van perioda prijave/odjave: ostaje prazan, ne popunjavamo.
+      if (!inRange) continue;
       if (isSick) {
         next[i].absence = "9.3";
       } else if (isVacation) {
@@ -732,6 +795,22 @@ function SihtericaApp() {
     selectedWorker,
     queryClient,
   ]);
+
+  // Klik na "Popuni mjesec": ako je radnik prijavljen cijeli mjesec, popuni
+  // odmah; inače pokaži upozorenje (prijava/odjava) sa izborom šta popuniti.
+  const handleAutoFill = useCallback(() => {
+    if (!workerId || !selectedWorker) return;
+    const range = activeRangeForMonth(selectedWorker, year, month, daysInMonth);
+    if (range.fullMonth) {
+      void applyAutoFill(1, daysInMonth);
+    } else {
+      setAutoFillWarn({
+        start: range.start,
+        end: range.end,
+        notRegistered: range.notRegistered,
+      });
+    }
+  }, [workerId, selectedWorker, year, month, daysInMonth, applyAutoFill]);
 
   const updateEntry = useCallback(
     (dayIdx: number, field: ColKey, value: string) => {
@@ -1096,6 +1175,14 @@ function SihtericaApp() {
             const hasData = wMonths.length > 0;
             const isActive = workerId === w.id;
             const label = `${w.firstName} ${w.lastName}`.trim() || `#${w.id}`;
+            // Status zaposlenja (kao u sidebaru ugovora o radu): boja je na
+            // malom kružiću lijevo, badge tekst je neutralan (bez boje).
+            const sb =
+              w.employmentStatus === "PRIJAVLJEN"
+                ? { t: "prijavljen", dot: "#10b981" }
+                : w.employmentStatus === "ODJAVLJEN"
+                  ? { t: "odjavljen", dot: "#ef4444" }
+                  : { t: "draft", dot: "#94a3b8" };
             return (
               <div key={w.id} className={styles.sidebarItemWrap}>
                 <button
@@ -1108,11 +1195,31 @@ function SihtericaApp() {
                   }}
                 >
                   <span
-                    className={
-                      hasData ? styles.sidebarDot : styles.sidebarDotEmpty
-                    }
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: sb.dot,
+                    }}
                   />
                   <span className={styles.sidebarName}>{label}</span>
+                  <span
+                    style={{
+                      fontSize: "10.5px",
+                      fontWeight: 500,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      color: "var(--mid)",
+                      background: "var(--paper)",
+                      borderRadius: 10,
+                      padding: "0.1rem 0.4rem",
+                      marginLeft: "auto",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {sb.t}
+                  </span>
                   {hasData && (
                     <span className={styles.sidebarCount}>
                       {wMonths.length}
@@ -1457,6 +1564,24 @@ function SihtericaApp() {
                 </div>
 
                 <div className={styles.autoFillRow2}>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClearMonth(true)}
+                    style={{
+                      marginRight: "auto",
+                      padding: "0.55rem 1rem",
+                      border: "1px solid #e3b3ad",
+                      borderRadius: "var(--radius)",
+                      background: "#fff",
+                      color: "#c0524a",
+                      fontFamily: "inherit",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Obriši cijeli mjesec
+                  </button>
                   <div className={styles.autoFillField}>
                     <span className={styles.autoFillLabel}>
                       Godišnji odmor (9.1)
@@ -1790,6 +1915,213 @@ function SihtericaApp() {
           <NapomenaSection />
         </div>
       </div>
+
+      {/* Upozorenje: auto-popuna vs period prijave/odjave radnika */}
+      {autoFillWarn && (
+        <div
+          onClick={() => setAutoFillWarn(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              maxWidth: 480,
+              width: "100%",
+              padding: "1.5rem",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 0.7rem", fontSize: "1.1rem", color: "#0f1a12" }}>
+              Period prijave radnika
+            </h3>
+            <p style={{ margin: "0 0 1.3rem", fontSize: 14, lineHeight: 1.6, color: "#3a3a3a" }}>
+              {autoFillWarn.notRegistered ? (
+                <>
+                  Radnik <strong>{workerName}</strong> nije bio prijavljen u
+                  mjesecu{" "}
+                  <strong>
+                    {MONTHS[month - 1]} {year}
+                  </strong>
+                  . Možete svejedno popuniti cijeli mjesec.
+                </>
+              ) : (
+                <>
+                  Radnik <strong>{workerName}</strong> je prijavljen
+                  {autoFillWarn.start > 1
+                    ? ` od ${String(autoFillWarn.start).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}.`
+                    : ""}
+                  {autoFillWarn.end < daysInMonth
+                    ? ` do ${String(autoFillWarn.end).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}.`
+                    : ""}
+                  . Šihtericu možete popuniti samo za taj period (ostali dani
+                  ostaju prazni) ili za cijeli mjesec.
+                </>
+              )}
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.6rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              {!autoFillWarn.notRegistered && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void applyAutoFill(autoFillWarn.start, autoFillWarn.end);
+                    setAutoFillWarn(null);
+                  }}
+                  style={{
+                    padding: "0.55rem 0.9rem",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#3a5c42",
+                    color: "#fff",
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Popuni samo za period prijave
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  void applyAutoFill(1, daysInMonth);
+                  setAutoFillWarn(null);
+                }}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "1px solid #d4cfc4",
+                  background: "#fff",
+                  color: "#0f1a12",
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Popuni cijeli mjesec
+              </button>
+              <button
+                type="button"
+                onClick={() => setAutoFillWarn(null)}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "1px solid #e3b3ad",
+                  background: "#fff",
+                  color: "#c0524a",
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Otkaži
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Potvrda brisanja cijelog mjeseca */}
+      {confirmClearMonth && (
+        <div
+          onClick={() => setConfirmClearMonth(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1001,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              maxWidth: 440,
+              width: "100%",
+              padding: "1.5rem",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 0.7rem", fontSize: "1.1rem", color: "#0f1a12" }}>
+              Obrisati cijeli mjesec?
+            </h3>
+            <p style={{ margin: "0 0 1.3rem", fontSize: 14, lineHeight: 1.6, color: "#3a3a3a" }}>
+              Ovo briše sve upise u šihterici za <strong>{workerName}</strong> za{" "}
+              <strong>
+                {MONTHS[month - 1]} {year}
+              </strong>
+              . Akcija se ne može poništiti.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.6rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setConfirmClearMonth(false)}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "1px solid #d4cfc4",
+                  background: "#fff",
+                  color: "#0f1a12",
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Otkaži
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntries(emptyMonth());
+                  setConfirmClearMonth(false);
+                  setAutoFillWarn(null);
+                }}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#c0392b",
+                  color: "#fff",
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Da, obriši
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
