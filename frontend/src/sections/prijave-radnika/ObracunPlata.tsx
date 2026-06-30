@@ -805,6 +805,38 @@ function ObracunPlataApp() {
     return warnings;
   }, [radnici, vlasnici, year, month]);
 
+  // Nedostajući podaci za obrasce/uplatnice: JMBG (svi koji ulaze u obračun) i
+  // grad. Ne blokira generisanje, samo upozorava da obrazac (2002/GIP/MIP) i
+  // uplatnice ne budu nepotpuni. Za obrt RADNIKA općina ide iz sjedišta
+  // djelatnosti (organization.city), pa mu se grad ne pripisuje pojedinačno.
+  const missingDataWarnings = useMemo(() => {
+    const out: {
+      id: number;
+      name: string;
+      isVlasnik: boolean;
+      missing: string[];
+    }[] = [];
+    for (const w of [...vlasnici, ...radnici]) {
+      const missing: string[] = [];
+      if (!(w.jmbg || "").trim()) missing.push("JMBG");
+      const usesOwnCity = !(isObrt && w.role === "RADNIK");
+      if (usesOwnCity && !(w.city || "").trim()) missing.push("grad");
+      if (missing.length) {
+        out.push({
+          id: w.id,
+          name: `${w.firstName} ${w.lastName}`.trim() || "Radnik",
+          isVlasnik: w.role === "VLASNIK",
+          missing,
+        });
+      }
+    }
+    return out;
+  }, [vlasnici, radnici, isObrt]);
+
+  // Obrt sa radnicima: njihova općina (uplatnica) ide iz sjedišta djelatnosti.
+  const orgCityMissing =
+    isObrt && radnici.length > 0 && !((currentOrg?.city || "").trim());
+
   return (
     <div>
       {!canGenerate && (
@@ -853,6 +885,49 @@ function ObracunPlataApp() {
             Bruto plata radnika upišite proporcionalno (npr. {`mjesečna_bruto × dani_aktivnosti / ukupni_dani`}).
             Obrazac 2001 period će se automatski prilagoditi datumima.
             {isObrt && " Vlasniku obrta se osnovica i doprinosi (2002) automatski obračunavaju proporcionalno (pro-rate) za aktivni period."}
+          </p>
+        </div>
+      )}
+      {(missingDataWarnings.length > 0 || orgCityMissing) && (
+        <div
+          style={{
+            margin: "0 0 1.25rem",
+            padding: "0.95rem 1.1rem",
+            background: "#fffbeb",
+            border: "1px solid #f59e0b",
+            borderRadius: 10,
+            fontSize: 14,
+            color: "#92400e",
+            lineHeight: 1.55,
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: 6 }}>
+            ⚠️ Nepotpuni podaci za obrasce
+          </strong>
+          <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+            {missingDataWarnings.map((w) => (
+              <li key={w.id}>
+                <strong>{w.name}</strong>
+                {w.isVlasnik ? " (vlasnik)" : ""}: nedostaje{" "}
+                <strong>{w.missing.join(" i ")}</strong>.
+              </li>
+            ))}
+            {orgCityMissing && (
+              <li>
+                Djelatnost nema unesen <strong>grad / sjedište</strong> (potreban
+                za općinu na uplatnicama radnika).
+              </li>
+            )}
+          </ul>
+          <p style={{ margin: "0.6rem 0 0", fontSize: 12.5, color: "#78350f" }}>
+            JMBG i grad su potrebni za obrasce (2002, GIP, MIP) i uplatnice.
+            Obrazac će se i bez njih generisati, ali ta polja ostaju prazna.{" "}
+            <a
+              href={`/organizacija/${orgId}`}
+              style={{ color: "#92400e", fontWeight: 600 }}
+            >
+              Dopuni podatke →
+            </a>
           </p>
         </div>
       )}

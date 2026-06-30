@@ -375,6 +375,37 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
         </strong>
       </div>
 
+      {selected?.owner &&
+        (() => {
+          const miss: string[] = [];
+          if (!(selected.owner.jmbg || "").trim()) miss.push("JMBG");
+          if (!(selected.owner.city || "").trim()) miss.push("grad");
+          if (!miss.length) return null;
+          return (
+            <div
+              style={{
+                margin: "0.6rem 0 0",
+                padding: "0.6rem 0.8rem",
+                background: "#fffbeb",
+                border: "1px solid #f59e0b",
+                borderRadius: 8,
+                fontSize: 12.5,
+                color: "#92400e",
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ Vlasniku nedostaje <strong>{miss.join(" i ")}</strong>,
+              potrebno za obrasce (2002, GIP, MIP) i uplatnice.{" "}
+              <a
+                href={`/organizacija/${selected.id}`}
+                style={{ color: "#92400e", fontWeight: 600 }}
+              >
+                Dopuni podatke →
+              </a>
+            </div>
+          );
+        })()}
+
       <form className={styles.form} onSubmit={handleSave}>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Prijavljen sam u</label>
@@ -725,9 +756,12 @@ function ProfilTab({
   const [phone, setPhone] = useState(user.phone ?? "");
   const [address, setAddress] = useState(user.address ?? "");
   const [city, setCity] = useState(user.city ?? "");
+  // Grad mora biti sa liste (zbog kantona/općine za obrasce). Prazno je ok.
+  const [cityValid, setCityValid] = useState(true);
   const [jmbg, setJmbg] = useState(user.jmbg ?? "");
   const [idCardNumber, setIdCardNumber] = useState(user.idCardNumber ?? "");
   const [success, setSuccess] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: (payload: Parameters<typeof updateProfile>[1]) =>
@@ -743,6 +777,11 @@ function ProfilTab({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess(false);
+    setValidationError(null);
+    if (city.trim() && !cityValid) {
+      setValidationError("Grad odaberite sa liste (potreban za obrasce).");
+      return;
+    }
     mutation.mutate({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -760,19 +799,23 @@ function ProfilTab({
     setPhone(user.phone ?? "");
     setAddress(user.address ?? "");
     setCity(user.city ?? "");
+    setCityValid(true);
     setJmbg(user.jmbg ?? "");
     setIdCardNumber(user.idCardNumber ?? "");
+    setValidationError(null);
     mutation.reset();
     setEditing(false);
   };
 
-  const errorMsg = mutation.error
-    ? mutation.error.message === "jmbg must be exactly 13 digits"
-      ? "JMBG mora imati tačno 13 cifara."
-      : mutation.error.message === "DUPLICATE_VALUE"
-        ? "JMBG je već u upotrebi."
-        : "Greška pri snimanju. Pokušajte ponovo."
-    : null;
+  const errorMsg =
+    validationError ??
+    (mutation.error
+      ? mutation.error.message === "jmbg must be exactly 13 digits"
+        ? "JMBG mora imati tačno 13 cifara."
+        : mutation.error.message === "DUPLICATE_VALUE"
+          ? "JMBG je već u upotrebi."
+          : "Greška pri snimanju. Pokušajte ponovo."
+      : null);
 
   // Postotak popunjenosti ličnih podataka (za prsten napretka).
   const personalDone = [
@@ -994,6 +1037,8 @@ function ProfilTab({
                   value={city}
                   onChange={setCity}
                   className={styles.input}
+                  strict
+                  onValidityChange={setCityValid}
                 />
               </div>
             </div>

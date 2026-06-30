@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { BLOG_POSTS } from "src/sections/blog/posts";
 import { reviewedFor } from "src/data/contentMeta";
 
-const SITE_URL = "https://poreznikalkulator.ba";
+const SITE_URL = "https://www.poreznikalkulator.ba";
 
 // Public, indexable pages. Auth-only pages (profil, fakture, organizacija…)
 // and legal/account flows are excluded — they're noindex or per-user.
@@ -20,7 +20,11 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
   { path: "/ugovor-o-pozajmici", priority: 0.8, changeFrequency: "monthly" },
   { path: "/ugovor-o-djelu", priority: 0.8, changeFrequency: "monthly" },
   { path: "/ugovor-o-radu", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/rjesenja-i-odluke", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/cesije-i-kompenzacije", priority: 0.8, changeFrequency: "monthly" },
   { path: "/clanske-kartice", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/pk-office", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/pretplate", priority: 0.6, changeFrequency: "monthly" },
   { path: "/fakture", priority: 0.8, changeFrequency: "monthly" },
   { path: "/fakture/nova", priority: 0.8, changeFrequency: "monthly" },
   { path: "/prijave-radnika", priority: 0.7, changeFrequency: "monthly" },

@@ -5,7 +5,7 @@ import Register from "src/sections/auth/Register";
 export const metadata: Metadata = {
   title: "Registracija, Porezni Kalkulator BiH",
   description: "Napravite besplatan račun na Porezni Kalkulator BiH.",
-  alternates: { canonical: "https://poreznikalkulator.ba/registracija" },
+  alternates: { canonical: "https://www.poreznikalkulator.ba/registracija" },
   robots: { index: false, follow: false },
 };
 

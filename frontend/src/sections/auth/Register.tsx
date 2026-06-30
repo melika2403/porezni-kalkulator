@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import styles from "./auth.module.css";
 import { me, register, resendVerification, unwrap } from "src/api/auth";
-import CitySelect from "src/components/CitySelect/CitySelect";
 import { getBackendUrl } from "src/utils/backendUrl";
 import { getUtmForRegister, clearUtm } from "src/utils/utm";
 
@@ -19,6 +18,9 @@ export default function Register() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextUrl = safeNext(searchParams.get("next"));
+  // Registracija pokrenuta sa trial CTA (next vodi na /pretplate?trial=auto) ->
+  // backend će trial auto-aktivirati pri verifikaciji maila.
+  const wantsTrial = nextUrl.includes("trial=auto");
 
   // Ako je korisnik već ulogovan (npr. nakon verifikacije maila pa povratak
   // na /registracija), preusmjeri ga na ?next= ili početnu.
@@ -36,9 +38,6 @@ export default function Register() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
@@ -85,9 +84,7 @@ export default function Register() {
       password,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      phone: phone.trim(),
-      address: address.trim() || undefined,
-      city: city.trim() || undefined,
+      wantsTrial,
       ...getUtmForRegister(),
     });
   };
@@ -99,7 +96,7 @@ export default function Register() {
 
   const serverError = mutation.error
     ? mutation.error.message === "DUPLICATE_VALUE"
-      ? "Email ili telefon su već registrovani."
+      ? "Email je već registrovan."
       : mutation.error.message === "NETWORK_ERROR"
         ? "Server nije dostupan. Pokušajte ponovo."
         : mutation.error.message || "Došlo je do greške."
@@ -200,50 +197,6 @@ export default function Register() {
             autoComplete="email"
             required
           />
-        </div>
-
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="phone">
-            Telefon (opcionalno)
-          </label>
-          <input
-            id="phone"
-            className={styles.input}
-            type="tel"
-            placeholder="+387 ..."
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            autoComplete="tel"
-            maxLength={11}
-          />
-        </div>
-
-        <div className={styles.row}>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="address">
-              Adresa (opcionalno)
-            </label>
-            <input
-              id="address"
-              className={styles.input}
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              autoComplete="street-address"
-              placeholder="Ulica i broj"
-            />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="city">
-              Grad (opcionalno)
-            </label>
-            <CitySelect
-              id="city"
-              value={city}
-              onChange={setCity}
-              className={styles.input}
-            />
-          </div>
         </div>
 
         <div className={styles.row}>

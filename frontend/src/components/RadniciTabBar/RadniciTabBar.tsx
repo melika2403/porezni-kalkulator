@@ -4,10 +4,17 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useLastOrg } from "src/hooks/useLastOrg";
 
-type ActiveKey = "js3100" | "obracun" | "aktivni" | "ugovori" | "rjesenja";
+type ActiveKey =
+  | "js3100"
+  | "obracun"
+  | "aktivni"
+  | "ugovori"
+  | "rjesenja"
+  | "cesije";
 
 function detectActive(pathname: string | null, tab: string | null): ActiveKey {
   if (pathname?.startsWith("/ugovor-o-radu")) return "ugovori";
+  if (pathname?.startsWith("/cesije-i-kompenzacije")) return "cesije";
   if (pathname?.startsWith("/rjesenja-i-odluke")) return "rjesenja";
   if (pathname?.startsWith("/aktivni-radnici")) return "aktivni";
   if (tab === "obracun") return "obracun";
@@ -59,6 +66,11 @@ export default function RadniciTabBar() {
       label: "Rješenja i odluke",
       href: `/rjesenja-i-odluke${orgQs ? `?${orgQs}` : ""}`,
     },
+    {
+      key: "cesije",
+      label: "Cesije i kompenzacije",
+      href: `/cesije-i-kompenzacije${orgQs ? `?${orgQs}` : ""}`,
+    },
   ];
 
   return (
@@ -76,12 +88,14 @@ export default function RadniciTabBar() {
         role="tablist"
         aria-label="Radnici i plate"
         style={{
-          maxWidth: 860,
+          maxWidth: 1080,
           margin: "0 auto",
-          padding: "0 2rem",
+          padding: "0 1.5rem",
           display: "flex",
-          gap: "0.5rem",
-          flexWrap: "wrap",
+          gap: "0.4rem",
+          flexWrap: "nowrap",
+          overflowX: "auto",
+          overflowY: "hidden",
         }}
       >
         {tabs.map((t) => {
@@ -94,7 +108,7 @@ export default function RadniciTabBar() {
               aria-selected={isActive}
               scroll={false}
               style={{
-                padding: "0.7rem 1.1rem",
+                padding: "0.7rem 1rem",
                 fontSize: "0.92rem",
                 fontWeight: isActive ? 600 : 500,
                 color: isActive ? "#111" : "#666",
@@ -103,6 +117,8 @@ export default function RadniciTabBar() {
                 marginBottom: -1,
                 fontFamily: "inherit",
                 textDecoration: "none",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               {t.label}

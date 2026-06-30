@@ -13,7 +13,7 @@ import {
 } from "src/data/uplatni-racuni";
 import { OPCINE_GROUPS } from "src/data/opcine";
 
-const PAGE_URL = "https://poreznikalkulator.ba/javni-prihodi";
+const PAGE_URL = "https://www.poreznikalkulator.ba/javni-prihodi";
 
 const totalVrste = VRSTE_PRIHODA_GROUPS.reduce((a, g) => a + g.items.length, 0);
 const totalRacuni =
@@ -24,10 +24,9 @@ const totalRacuni =
 const totalOpcina = OPCINE_GROUPS.reduce((a, g) => a + g.opcine.length, 0);
 
 export const metadata: Metadata = {
-  title:
-    "Uplatni računi javnih prihoda FBiH, 315 šifri vrsta prihoda + općinski računi | Porezni Kalkulator BiH",
+  title: "Uplatni računi javnih prihoda FBiH",
   description:
-    `Kompletna referenca: ${totalRacuni} federalna i kantonalna uplatna računa, ${totalVrste} šifri vrsta prihoda i ${totalOpcina} općinskih računa za uplate javnih prihoda u FBiH. Pretraga po šifri ili nazivu, copy-paste direktno u platni nalog. Federalni računi uvijek aktuelni sa PUFBiH stranice.`,
+    `Pretraga ${totalRacuni} federalnih i kantonalnih uplatnih računa, ${totalVrste} šifri vrsta prihoda i ${totalOpcina} općinskih računa za javne prihode u FBiH.`,
 alternates: { canonical: PAGE_URL },
   robots: {
     index: true,
@@ -92,7 +91,7 @@ inLanguage: ["bs", "hr", "sr"],
   publisher: {
     "@type": "Organization",
     name: "Porezni Kalkulator BiH",
-    url: "https://poreznikalkulator.ba",
+    url: "https://www.poreznikalkulator.ba",
   },
   license: "https://www.pufbih.ba",
 };
@@ -192,7 +191,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

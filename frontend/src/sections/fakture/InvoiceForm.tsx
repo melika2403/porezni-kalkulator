@@ -1208,7 +1208,11 @@ export default function InvoiceForm() {
             </button>
           ) : (
             <Link
-              href={role ? "/pretplate?trial=1" : "/registracija"}
+              href={
+                role
+                  ? "/pretplate?trial=1"
+                  : `/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`
+              }
               className={styles.exportBtn}
             >
               {role ? "Nadogradi na PRO za PDF →" : "Registruj se za PDF →"}

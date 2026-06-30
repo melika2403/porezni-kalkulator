@@ -1,13 +1,12 @@
 import ClanskeKartice from "src/sections/clanske-kartice/ClanskeKartice";
 import type { Metadata } from "next";
 
-const PAGE_URL = "https://poreznikalkulator.ba/clanske-kartice";
+const PAGE_URL = "https://www.poreznikalkulator.ba/clanske-kartice";
 
 export const metadata: Metadata = {
-  title:
-    "Generator članskih kartica sa QR kodom | Porezni Kalkulator BiH",
+  title: "Generator članskih kartica sa QR kodom",
   description:
-    "Kreirajte profesionalne članske kartice sa QR kodom za klubove, fitness centre, biblioteke i druge organizacije. Veličina kreditne kartice, spremno za štampanje ili pokazivanje na mobitelu.",
+    "Generator članskih kartica sa QR kodom za klubove, fitness centre i udruženja, u formatu kreditne kartice, spremno za štampanje ili prikaz na mobitelu.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -81,7 +80,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

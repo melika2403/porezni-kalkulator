@@ -42,6 +42,9 @@ const User = sequelize.define(
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
     trialUsedAt: { type: DataTypes.DATE, allowNull: true },
+    // Korisnik se registrovao klikom na trial CTA -> trial se auto-aktivira pri
+    // verifikaciji maila, i NE šaljemo mu "aktiviraj trial" welcome mail.
+    wantsTrial: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     // UTM atribucija — odakle korisnik dolazi (capture pri registraciji).
     utmSource: { type: DataTypes.STRING(80), allowNull: true },
     utmCampaign: { type: DataTypes.STRING(120), allowNull: true },

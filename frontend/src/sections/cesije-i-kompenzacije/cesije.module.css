@@ -1,0 +1,46 @@
+/* Dugmad za preuzimanje, isti izgled kao na Rješenja i odluke (sa fallback
+   bojama da rade i na marketing stranicama gdje tokeni nisu definisani). */
+
+.downloadRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 2rem 0 0.5rem;
+}
+
+.btnDownload {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1.3rem;
+  background: var(--sage, #3a5c42);
+  color: #fff;
+  border: 1px solid var(--sage, #3a5c42);
+  border-radius: var(--radius, 8px);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.btnDownload:hover {
+  opacity: 0.92;
+}
+
+.btnDownloadAlt {
+  background: var(--white, #fff);
+  color: var(--sage, #3a5c42);
+}
+
+.btnDownload:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btnDownload svg {
+  flex-shrink: 0;
+}

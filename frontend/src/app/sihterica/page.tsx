@@ -3,14 +3,13 @@ import type { Metadata } from "next";
 import Sihterica from "src/sections/sihterica/Sihterica";
 import SihtericaEdu from "src/sections/sihterica/SihtericaEdu";
 
-const PAGE_URL = "https://poreznikalkulator.ba/sihterica";
+const PAGE_URL = "https://www.poreznikalkulator.ba/sihterica";
 const OG_TITLE = "Šihterica online, evidencija radnog vremena FBiH (PDF)";
 const OG_DESCRIPTION =
   "Popunite šihtericu online za sve radnike i preuzmite popunjeni PDF obrazac. Evidencija radnog vremena prema propisima FBiH, brzo, jednostavno, besplatno za probu.";
 
 export const metadata: Metadata = {
-  title:
-    "Šihterica online, evidencija radnog vremena radnika FBiH | PDF besplatno",
+  title: "Šihterica, evidencija radnog vremena FBiH",
   description: OG_DESCRIPTION,
 alternates: { canonical: PAGE_URL },
   openGraph: {
