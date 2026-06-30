@@ -8,9 +8,9 @@ const DESC =
   "Napravi fakturu, predračun, profakturu ili račun u par klikova: stavke, rabat, PDV (17%), podaci prodavca i kupca, automatska numeracija i izvoz u PDF.";
 
 export const metadata: Metadata = {
-  title: TITLE,
+  title: "Nova faktura ili predračun online",
   description: DESC,
-  alternates: { canonical: "https://poreznikalkulator.ba/fakture/nova" },
+  alternates: { canonical: "https://www.poreznikalkulator.ba/fakture/nova" },
   keywords: [
     "nova faktura",
     "kreiraj fakturu",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    url: "https://poreznikalkulator.ba/fakture/nova",
+    url: "https://www.poreznikalkulator.ba/fakture/nova",
     title: TITLE,
     description: DESC,
     siteName: "Porezni Kalkulator BiH",
@@ -48,9 +48,23 @@ export const metadata: Metadata = {
   },
 };
 
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Početna", item: "https://www.poreznikalkulator.ba/" },
+    { "@type": "ListItem", position: 2, name: "Fakture i predračuni", item: "https://www.poreznikalkulator.ba/fakture" },
+    { "@type": "ListItem", position: 3, name: "Nova faktura", item: "https://www.poreznikalkulator.ba/fakture/nova" },
+  ],
+};
+
 export default function NovaFakturaPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       <Suspense>
         <InvoiceForm />
       </Suspense>

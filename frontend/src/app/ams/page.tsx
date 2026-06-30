@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import AmsForm from "src/sections/ams/Ams";
 
-const PAGE_URL = "https://poreznikalkulator.ba/ams";
+const PAGE_URL = "https://www.poreznikalkulator.ba/ams";
 
 export const metadata: Metadata = {
-  title:
-    "AMS generator, AMS-1035 obrazac i uplatnice (FBiH) | Porezni Kalkulator",
+  title: "AMS-1035 obrazac, generator i uplatnice",
   description:
-    "Kako popuniti AMS-1035 obrazac? Online generator AMS-1035 obrasca za akontaciju poreza po odbitku na druge samostalne djelatnosti i prihod iz inostranstva u FBiH. Automatski obračun, popunjene uplatnice spremne za banku, besplatno, bez registracije.",
+    "AMS-1035 obrazac za prihod iz inostranstva u FBiH, online generator i popunjene uplatnice spremne za banku, besplatno i bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -121,7 +120,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import GpdUpute from "../../../sections/gpd/GpdUpute";
 
-const PAGE_URL = "https://poreznikalkulator.ba/gpd/upute";
+const PAGE_URL = "https://www.poreznikalkulator.ba/gpd/upute";
 
 export const metadata: Metadata = {
-  title: "Kako popuniti GPD-1051 obrazac, Upute | Porezni Kalkulator BiH",
+  title: "GPD-1051 obrazac, upute za popunjavanje",
   description:
     "Detaljan vodič za pravilno popunjavanje godišnje prijave poreza na dohodak, obrazac GPD-1051 u FBiH.",
   alternates: { canonical: PAGE_URL },

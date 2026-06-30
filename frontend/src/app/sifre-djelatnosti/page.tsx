@@ -3,12 +3,12 @@ import { reviewedFor } from "src/data/contentMeta";
 import SifreDjelatnosti from "src/sections/sifre-djelatnosti/SifreDjelatnosti";
 import { KD_BIH_DETAILED } from "src/data/kd-bih-detailed";
 
-const PAGE_URL = "https://poreznikalkulator.ba/sifre-djelatnosti";
+const PAGE_URL = "https://www.poreznikalkulator.ba/sifre-djelatnosti";
 
 export const metadata: Metadata = {
-  title: "Šifre djelatnosti FBiH (KD BiH 2010), kompletna lista sa opisima",
+  title: "Šifre djelatnosti FBiH (KD BiH 2010)",
   description:
-    "Kompletna lista šifri djelatnosti za Federaciju BiH prema KD BiH 2010 (NACE Rev. 2). Pretražite po nazivu ili šifri, pročitajte detaljne opise i šta razred uključuje/izuzima, sve potrebno za otvaranje obrta ili registraciju djelatnosti u FBiH.",
+    "Kompletna lista šifri djelatnosti FBiH prema KD BiH 2010 (NACE Rev. 2). Pretraga po nazivu ili šifri, sa detaljnim opisima za otvaranje obrta.",
 alternates: { canonical: PAGE_URL },
   robots: {
     index: true,
@@ -65,7 +65,7 @@ inLanguage: ["bs", "hr", "sr"],
   publisher: {
     "@type": "Organization",
     name: "Porezni Kalkulator BiH",
-    url: "https://poreznikalkulator.ba",
+    url: "https://www.poreznikalkulator.ba",
   },
   license: "https://www.bhas.gov.ba",
 };
@@ -129,7 +129,7 @@ const breadcrumbSchema = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Početna", item: "https://poreznikalkulator.ba/" },
+    { "@type": "ListItem", position: 1, name: "Početna", item: "https://www.poreznikalkulator.ba/" },
     { "@type": "ListItem", position: 2, name: "Šifre djelatnosti FBiH", item: PAGE_URL },
   ],
 };

@@ -19,7 +19,7 @@ import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 function getMarketingUrl() {
   if (typeof window === "undefined") return "";
   const isProd = window.location.hostname.endsWith("poreznikalkulator.ba");
-  if (isProd) return "https://poreznikalkulator.ba";
+  if (isProd) return "https://www.poreznikalkulator.ba";
   const port = window.location.port ? `:${window.location.port}` : "";
   return `${window.location.protocol}//localhost${port}`;
 }

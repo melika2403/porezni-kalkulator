@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import GpdForm from "src/sections/gpd/Gpd";
 
-const PAGE_URL = "https://poreznikalkulator.ba/gpd";
+const PAGE_URL = "https://www.poreznikalkulator.ba/gpd";
 
 export const metadata: Metadata = {
-  title:
-    "GPD-1051 obrazac, godišnja prijava poreza na dohodak FBiH | Porezni Kalkulator BiH",
+  title: "GPD-1051 obrazac, godišnja prijava",
   description:
-    "Popunite GPD-1051 obrazac online za godišnju prijavu poreza na dohodak fizičkih lica u FBiH. Predaje se do 31. marta. Preuzmite popunjeni PDF besplatno, bez registracije.",
+    "GPD-1051 obrazac za godišnju prijavu poreza na dohodak fizičkih lica u FBiH, online popuna i preuzimanje PDF-a besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -119,7 +118,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

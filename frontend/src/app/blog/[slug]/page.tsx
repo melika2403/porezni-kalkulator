@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import BlogPostPage from "src/sections/blog/BlogPostPage";
 import { BLOG_POSTS, getPostBySlug } from "src/sections/blog/posts";
 
-const SITE_URL = "https://poreznikalkulator.ba";
+const SITE_URL = "https://www.poreznikalkulator.ba";
 
 type Params = { slug: string };
 

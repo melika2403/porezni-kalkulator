@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Amortizacija from "../../sections/amortizacija/Amortizacija";
 
-const PAGE_URL = "https://poreznikalkulator.ba/amortizacija";
+const PAGE_URL = "https://www.poreznikalkulator.ba/amortizacija";
 
 export const metadata: Metadata = {
-  title:
-    "PLDI-1043 obrazac, popisna lista dugotrajne imovine i obračun amortizacije | Porezni Kalkulator BiH",
+  title: "PLDI-1043 obrazac i amortizacija imovine",
   description:
-    "Online popis dugotrajne imovine i automatski obračun amortizacije stalnih sredstava u FBiH. Automatski prenos podataka iz godine u godinu. Preuzmite PLDI-1043 PDF besplatno.",
+    "PLDI-1043 obrazac za popis dugotrajne imovine i obračun amortizacije u FBiH, automatski prenos iz godine u godinu, PDF besplatno bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -120,7 +119,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

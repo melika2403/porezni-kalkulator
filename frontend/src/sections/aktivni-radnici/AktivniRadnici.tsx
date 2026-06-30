@@ -220,15 +220,20 @@ export default function AktivniRadnici() {
   };
 
   if (!isLoggedIn) {
+    // Zadrži tab-bar i u preview (neulogovanom) stanju da korisnik može preći
+    // na druge funkcije (Obračun plata, Ugovori...) bez vraćanja na početnu.
     return (
-      <PreviewRegisterGate
-        pageLabel="Radnici"
-        pageTitle={<>Aktivni <em>radnici</em></>}
-        pageSubtitle="Centralni pregled radnika i vlasnika obrta sa statusom prijave kod PIO/ZZO, ugovornim podacima i brzim akcijama."
-        featureName="aktivnih radnika"
-        previewDesc="dodavati radnike i vlasnike, vidjeti njihov status, ugovore i historiju dokumenata"
-        proUnlocks="Generisanje JS3100 prijave/odjave i ugovora o radu"
-      />
+      <>
+        <RadniciTabBar />
+        <PreviewRegisterGate
+          pageLabel="Radnici"
+          pageTitle={<>Aktivni <em>radnici</em></>}
+          pageSubtitle="Centralni pregled radnika i vlasnika obrta sa statusom prijave kod PIO/ZZO, ugovornim podacima i brzim akcijama."
+          featureName="aktivnih radnika"
+          previewDesc="dodavati radnike i vlasnike, vidjeti njihov status, ugovore i historiju dokumenata"
+          proUnlocks="Generisanje JS3100 prijave/odjave i ugovora o radu"
+        />
+      </>
     );
   }
 

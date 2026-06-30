@@ -9,18 +9,18 @@ import "./fonts.css";
 import "./globals.css";
 
 // ── Replace with your real domain ─────────────────────────────────────────
-const SITE_URL = "https://poreznikalkulator.ba";
+const SITE_URL = "https://www.poreznikalkulator.ba";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: "Porezni Kalkulator BiH, SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
+    default: "Porezni Kalkulator BiH, obrasci, plate, PDV i ugovori",
     template: "%s | Porezni Kalkulator BiH",
   },
 
   description:
-    "SPR-1053 · GPD-1051 · ZO3 obrazac · AMS-1035 · PDV kalkulator · Obračun neto/bruto plate · Stalna sredstva i amortizacija · Šihterica · Ugovori o djelu i pozajmici, besplatni porezni alati za poduzetnike u BiH. Bez excela, bez gužve.",
+    "Besplatni porezni alati za poduzetnike u BiH: SPR-1053, GPD-1051, ZO-3, AMS-1035, PDV kalkulator, obračun plate, amortizacija, šihterica i ugovori.",
 authors: [{ name: "Porezni Kalkulator BiH" }],
   creator: "Porezni Kalkulator BiH",
 

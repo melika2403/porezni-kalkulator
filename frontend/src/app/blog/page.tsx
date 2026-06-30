@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 import BlogIndex from "src/sections/blog/BlogIndex";
 import { BLOG_POSTS } from "src/sections/blog/posts";
 
-const PAGE_URL = "https://poreznikalkulator.ba/blog";
+const PAGE_URL = "https://www.poreznikalkulator.ba/blog";
 
 export const metadata: Metadata = {
-  title:
-    "Blog, Vodiči o porezima, plati i obrascima u FBiH | Porezni Kalkulator BiH",
+  title: "Blog, porezi, plata i obrasci u FBiH",
   description:
-    "Stručni članci o porezima, obrascima, obračunu plata, ugovorima i računovodstvu u Federaciji BiH. Praktični vodiči sa primjerima i brojevima za obrtnike, d.o.o. i knjigovođe.",
+    "Praktični vodiči o porezima, obrascima, obračunu plata, ugovorima i računovodstvu u FBiH, sa primjerima i brojevima za obrtnike, d.o.o. i knjigovođe.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",

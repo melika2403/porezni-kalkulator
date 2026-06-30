@@ -32,6 +32,8 @@ const ACTION_LABELS: Record<string, string> = {
   KARTICA_GENERATE: "Članska kartica",
   RJESENJE_GENERATE: "Rješenja i odluke",
   RJESENJE_GO_GENERATE: "Rješenje (god. odmor)",
+  CESIJA_GENERATE: "Ugovor o cesiji",
+  KOMPENZACIJA_GENERATE: "Kompenzacija",
 };
 
 function actionLabel(action: string) {

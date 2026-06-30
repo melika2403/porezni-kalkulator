@@ -2,13 +2,12 @@ import UgovorOPozajmici from "src/sections/ugovor-o-pozajmici/UgovorOPozajmici";
 
 import type { Metadata } from "next";
 
-const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-pozajmici";
+const PAGE_URL = "https://www.poreznikalkulator.ba/ugovor-o-pozajmici";
 
 export const metadata: Metadata = {
-  title:
-    "Ugovor o pozajmici novca, predložak i online popuna | Porezni Kalkulator BiH",
+  title: "Ugovor o pozajmici novca, Word i PDF",
   description:
-    "Kreirajte pravno validan ugovor o pozajmici novca između fizičkih ili pravnih lica u BiH, iznos, kamata, rok, uslovi. Preuzmite gotov ugovor u PDF ili Word formatu, besplatno.",
+    "Ugovor o pozajmici novca između fizičkih i pravnih lica u BiH: online popuna iznosa, kamate i roka, preuzimanje u PDF i Word formatu, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -120,7 +119,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

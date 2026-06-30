@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Zo3Form from "src/sections/zo3/Zo3";
 
-const PAGE_URL = "https://poreznikalkulator.ba/zo3";
+const PAGE_URL = "https://www.poreznikalkulator.ba/zo3";
 
 export const metadata: Metadata = {
-  title:
-    "ZO3 obrazac, prijava člana porodice na zdravstveno osiguranje | Porezni Kalkulator BiH",
+  title: "ZO-3 obrazac, prijava člana porodice",
   description:
-    "Popunite ZO3 obrazac online i prijavite supružnika, dijete ili roditelja na zdravstveno osiguranje u FBiH. Auto-popuna, popunjen PDF spreman za predaju Zavodu, besplatno, bez registracije.",
+    "ZO-3 obrazac za prijavu člana porodice na zdravstveno osiguranje u FBiH, online popuna i popunjen PDF spreman za predaju Zavodu, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -105,7 +104,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

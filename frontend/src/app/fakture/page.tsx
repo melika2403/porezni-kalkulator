@@ -7,12 +7,13 @@ const DESC =
   "Besplatna izrada faktura, predračuna, profaktura i računa online za BiH. Automatski PDV (17%), numeracija (0001-2026), podaci kupaca i organizacije, izvoz u PDF, bez instalacije.";
 
 export const metadata: Metadata = {
-  title: TITLE,
-  description: DESC,
-  alternates: { canonical: "https://poreznikalkulator.ba/fakture" },
+  title: "Fakture, predračuni i profakture online",
+  description:
+    "Besplatna izrada faktura, predračuna, profaktura i računa online za BiH, automatski PDV 17 posto, numeracija, podaci kupaca, izvoz u PDF bez instalacije.",
+  alternates: { canonical: "https://www.poreznikalkulator.ba/fakture" },
 openGraph: {
     type: "website",
-    url: "https://poreznikalkulator.ba/fakture",
+    url: "https://www.poreznikalkulator.ba/fakture",
     title: TITLE,
     description: DESC,
     siteName: "Porezni Kalkulator BiH",
@@ -25,9 +26,22 @@ openGraph: {
   },
 };
 
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Početna", item: "https://www.poreznikalkulator.ba/" },
+    { "@type": "ListItem", position: 2, name: "Fakture i predračuni", item: "https://www.poreznikalkulator.ba/fakture" },
+  ],
+};
+
 export default function FakturePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       <Fakture />
       <FaktureEdu />
     </>

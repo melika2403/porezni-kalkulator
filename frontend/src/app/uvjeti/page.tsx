@@ -3,10 +3,10 @@ import Link from "next/link";
 import styles from "../legal.module.css";
 
 export const metadata: Metadata = {
-  title: "Uvjeti korištenja, Porezni Kalkulator BiH",
+  title: "Uvjeti korištenja platforme",
   description:
     "Uvjeti korištenja platforme Porezni Kalkulator BiH, pravila o registraciji, pretplatama, naplati, trial periodu i otkazu računa.",
-  alternates: { canonical: "https://poreznikalkulator.ba/uvjeti" },
+  alternates: { canonical: "https://www.poreznikalkulator.ba/uvjeti" },
 };
 
 export default function UvjetiPage() {
@@ -30,7 +30,7 @@ export default function UvjetiPage() {
           Davalac usluge je obrt <strong>Biro Japić</strong>, JIB{" "}
           <strong>4364314150003</strong> (u daljem tekstu „Davalac usluge" ili „Porezni Kalkulator
           BiH"), koji upravlja platformom dostupnom na{" "}
-          <a href="https://poreznikalkulator.ba">poreznikalkulator.ba</a> (u daljem tekstu
+          <a href="https://www.poreznikalkulator.ba">poreznikalkulator.ba</a> (u daljem tekstu
           „Platforma").
         </p>
         <p>

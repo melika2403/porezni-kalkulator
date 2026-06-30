@@ -1,5 +1,6 @@
 const userRepository = require("../repositories/userRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
+const ownerIdentitySync = require("../services/ownerIdentitySync");
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -159,6 +160,13 @@ async function update(req, res) {
     const user = await userRepository.updateUserById(id, validation.value);
     if (!user)
       return res.status(404).json({ ok: false, error: "User not found" });
+    // Mirror identitet vlasnika na VLASNIK workere njegovih vlastitih djelatnosti
+    // (best-effort, ne smije srusiti snimanje profila).
+    try {
+      await ownerIdentitySync.syncFromUser(id, validation.value);
+    } catch (syncErr) {
+      console.error("ownerIdentitySync.syncFromUser:", syncErr?.message || syncErr);
+    }
     res.status(200).json({ ok: true, data: user });
   } catch (error) {
     if (error && error.name === "SequelizeUniqueConstraintError") {

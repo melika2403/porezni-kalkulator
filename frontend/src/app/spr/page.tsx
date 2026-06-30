@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import SprForm from "src/sections/spr/Spr";
 
-const PAGE_URL = "https://poreznikalkulator.ba/spr";
+const PAGE_URL = "https://www.poreznikalkulator.ba/spr";
 
 export const metadata: Metadata = {
-  title:
-    "SPR-1053 obrazac, specifikacija dohotka od samostalne djelatnosti | Porezni Kalkulator BiH",
+  title: "SPR-1053 obrazac, specifikacija dohotka",
   description:
-    "Kako popuniti SPR-1053 obrazac? Online popuna obrasca za specifikaciju dohotka od obrta, slobodnih zanimanja i poljoprivrede u FBiH. Predaje se uz GPD-1051 do 31. marta. Preuzmite popunjeni PDF besplatno, bez registracije.",
+    "SPR-1053 obrazac za specifikaciju dohotka od samostalne djelatnosti u FBiH, online popuna i preuzimanje PDF-a besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -106,7 +105,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

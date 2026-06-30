@@ -2,12 +2,12 @@ import UgovorODjelu from "src/sections/ugovor-o-djelu/UgovorODjelu";
 
 import type { Metadata } from "next";
 
-const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-djelu";
+const PAGE_URL = "https://www.poreznikalkulator.ba/ugovor-o-djelu";
 
 export const metadata: Metadata = {
-  title: "Ugovor o djelu, kalkulator poreza i doprinosa, predložak (Word/PDF)",
+  title: "Ugovor o djelu, kalkulator i predložak",
   description:
-    "Kako popuniti ugovor o djelu u FBiH? Online kalkulator poreza i doprinosa (NETO ↔ BRUTO), predložak ugovora u Word i PDF formatu te 6 uplatnica spremnih za banku, besplatno, bez registracije.",
+    "Kalkulator poreza i doprinosa za ugovor o djelu u FBiH: online popuna, predložak ugovora i 6 uplatnica za banku u Word i PDF formatu, besplatno.",
 alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "article",
@@ -130,8 +130,8 @@ const breadcrumbSchema = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Početna", item: "https://poreznikalkulator.ba/" },
-    { "@type": "ListItem", position: 2, name: "Ugovori", item: "https://poreznikalkulator.ba/#funkcije" },
+    { "@type": "ListItem", position: 1, name: "Početna", item: "https://www.poreznikalkulator.ba/" },
+    { "@type": "ListItem", position: 2, name: "Ugovori", item: "https://www.poreznikalkulator.ba/#funkcije" },
     { "@type": "ListItem", position: 3, name: "Ugovor o djelu", item: PAGE_URL },
   ],
 };

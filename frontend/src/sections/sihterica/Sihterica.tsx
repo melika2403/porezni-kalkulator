@@ -406,6 +406,10 @@ function SihtericaApp() {
   });
   const trialAvailable =
     meQuery.data?.role === "USER" && !meQuery.data?.trialUsedAt;
+  // Neregistrovan: trial mu je dostupan nakon registracije (auto-aktivacija),
+  // pa ga tretiramo kao trial ponudu i vodimo na /registracija?next=...trial=auto.
+  const isAnonymous = !meQuery.isLoading && !meQuery.data;
+  const showTrialOffer = trialAvailable || isAnonymous;
   const userId = meQuery.data?.id ?? null;
 
   // Whether each paid-absence code counts as 8h in totals.
@@ -1780,10 +1784,10 @@ function SihtericaApp() {
               {!canExport && (
                 <div className={styles.exportPaywall}>
                   <div className={styles.exportPaywallIcon}>
-                    {trialAvailable ? "🎁" : "🔒"}
+                    {showTrialOffer ? "🎁" : "🔒"}
                   </div>
                   <div className={styles.exportPaywallText}>
-                    {trialAvailable ? (
+                    {showTrialOffer ? (
                       <>
                         <strong>Probajte 30 dana besplatno</strong> i preuzmite
                         PDF obrazac. Bez kartice, bez automatske naplate.
@@ -1800,12 +1804,18 @@ function SihtericaApp() {
                   </div>
                   <a
                     href={
-                      trialAvailable ? "/pretplate?trial=1" : "/pretplate"
+                      trialAvailable
+                        ? "/pretplate?trial=1"
+                        : isAnonymous
+                        ? `/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`
+                        : "/pretplate"
                     }
                     className={styles.exportPaywallBtn}
                   >
                     {trialAvailable
                       ? "Aktiviraj 30 dana besplatno →"
+                      : isAnonymous
+                      ? "Registruj se i probaj besplatno →"
                       : "Pogledaj pretplate →"}
                   </a>
                 </div>

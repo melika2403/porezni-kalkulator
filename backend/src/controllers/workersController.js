@@ -8,6 +8,7 @@ const {
   EDITABLE_FIELDS,
 } = require("../utils/evidencija");
 const { generateEvidencijaPdf } = require("../utils/evidencijaPdf");
+const ownerIdentitySync = require("../services/ownerIdentitySync");
 
 const PRO_WORKERS_LIMIT = 5;
 const USER_WORKERS_LIMIT = 1;
@@ -489,6 +490,16 @@ async function update(req, res) {
   try {
     await Worker.update(data, { where: { id: workerId } });
     const updated = await Worker.findOne({ where: { id: workerId } });
+    // Ako je ovo VLASNIK korisnikove VLASTITE djelatnosti, mirror identitet nazad
+    // na profil i ostale vlastite djelatnosti (best-effort).
+    try {
+      const ownerUserId = await ownerIdentitySync.ownerUserIdForWorker(orgId, existing);
+      if (ownerUserId) {
+        await ownerIdentitySync.syncFromOwnerWorker(ownerUserId, workerId, data);
+      }
+    } catch (syncErr) {
+      console.error("ownerIdentitySync.syncFromOwnerWorker:", syncErr?.message || syncErr);
+    }
     return res.json({ ok: true, data: toPublicWorker(updated) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: String(error?.message ?? error) });

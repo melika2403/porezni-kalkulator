@@ -16,6 +16,7 @@ const {
   UserPreference,
 } = require("../models/index");
 const googleAuth = require("../auth/googleAuth");
+const subscriptionRepository = require("../repositories/subscriptionRepository");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
 const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10; // 10 godina
@@ -147,6 +148,7 @@ async function register(req, res) {
     city,
     utmSource,
     utmCampaign,
+    wantsTrial,
   } = req.body ?? {};
 
   if (!isNonEmptyString(email))
@@ -182,7 +184,7 @@ async function register(req, res) {
       password: passwordHash,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      phone: phone.trim(),
+      phone: typeof phone === "string" ? phone.trim() : null,
       address: typeof address === "string" ? address.trim() : null,
       city: typeof city === "string" ? city.trim() : null,
       role: "USER",
@@ -197,6 +199,7 @@ async function register(req, res) {
         typeof utmCampaign === "string" && utmCampaign.trim()
           ? utmCampaign.trim().slice(0, 120)
           : null,
+      wantsTrial: wantsTrial === true || wantsTrial === "true",
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -450,18 +453,51 @@ async function verifyEmail(req, res) {
       { where: { id: user.id } },
     );
 
-    const jwtToken = signJwtForUser(user);
+    // Ako se korisnik registrovao klikom na trial CTA (wantsTrial), aktiviramo
+    // mu 30-dnevni PRO trial ODMAH pri verifikaciji (server-side), pa ga ne
+    // tjeramo da ga sam pali i NE šaljemo mu "aktiviraj trial" welcome mail.
+    let effectiveRole = user.role;
+    const autoTrial =
+      user.wantsTrial && user.role === "USER" && !user.trialUsedAt;
+    if (autoTrial) {
+      try {
+        const start = new Date();
+        const end = new Date();
+        end.setDate(end.getDate() + 30);
+        await subscriptionRepository.upsert(user.id, {
+          startDate: start,
+          endDate: end,
+          isActive: true,
+          isTrial: true,
+        });
+        await User.update(
+          { role: "PRO", trialUsedAt: start },
+          { where: { id: user.id } },
+        );
+        effectiveRole = "PRO";
+      } catch (trialErr) {
+        // Ako aktivacija trial-a padne, ne blokiramo verifikaciju — korisnik
+        // ga može aktivirati ručno na /pretplate, pa mu zato i pošaljemo mail.
+        console.error("auto-trial on verify failed:", trialErr?.message || trialErr);
+        effectiveRole = user.role;
+      }
+    }
+
+    const jwtToken = signJwtForUser({ id: user.id, role: effectiveRole });
     setAuthCookie(res, jwtToken);
 
-    // Welcome email with 30-day PRO trial CTA (fire-and-forget)
-    try {
-      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-      const trialUrl = `${frontendUrl}/pretplate?trial=1`;
-      void sendWelcomeEmail(user.email, user.firstName, trialUrl).catch(
-        (err) => console.error("sendWelcomeEmail failed:", err?.message || err),
-      );
-    } catch (err) {
-      console.error("welcome email dispatch error:", err?.message || err);
+    // Welcome email s pozivom na trial — SAMO ako trial nije već auto-aktiviran.
+    const trialAutoActivated = autoTrial && effectiveRole === "PRO";
+    if (!trialAutoActivated) {
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+        const trialUrl = `${frontendUrl}/pretplate?trial=1`;
+        void sendWelcomeEmail(user.email, user.firstName, trialUrl).catch(
+          (err) => console.error("sendWelcomeEmail failed:", err?.message || err),
+        );
+      } catch (err) {
+        console.error("welcome email dispatch error:", err?.message || err);
+      }
     }
 
     return res.status(200).json({ ok: true });

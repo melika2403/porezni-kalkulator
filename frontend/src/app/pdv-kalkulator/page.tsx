@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import PdvKalkulator from "src/sections/pdv/Pdv";
 
-const PAGE_URL = "https://poreznikalkulator.ba/pdv-kalkulator";
+const PAGE_URL = "https://www.poreznikalkulator.ba/pdv-kalkulator";
 
 export const metadata: Metadata = {
-  title:
-    "PDV kalkulator BiH, preračun PDV-a u oba smjera (stopa 17%) | Porezni Kalkulator BiH",
+  title: "PDV kalkulator BiH, preračun stope 17%",
   description:
-    "Online PDV kalkulator za Bosnu i Hercegovinu (stopa 17%). Preračunajte PDV iz cijene bez PDV-a ili iz maloprodajne cijene, podrška za KM i EUR, besplatno i bez registracije.",
+    "PDV kalkulator za BiH sa stopom 17%, preračun iz cijene bez PDV-a i iz maloprodajne cijene u oba smjera, podrška za KM i EUR, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -75,7 +74,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

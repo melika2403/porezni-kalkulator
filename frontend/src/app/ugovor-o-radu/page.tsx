@@ -3,12 +3,12 @@ import UgovorORadu from "src/sections/ugovor-o-radu/UgovorORadu";
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import type { Metadata } from "next";
 
-const PAGE_URL = "https://poreznikalkulator.ba/ugovor-o-radu";
+const PAGE_URL = "https://www.poreznikalkulator.ba/ugovor-o-radu";
 
 export const metadata: Metadata = {
-  title: "Ugovor o radu i otkaz, predložak (Word/PDF) FBiH",
+  title: "Ugovor o radu i otkaz, Word i PDF",
   description:
-    "Generator ugovora o radu i odluke o prestanku radnog odnosa prema Zakonu o radu FBiH. Popunite podatke jednom i preuzmite oba dokumenta u Word i PDF formatu, sa probnim radom, određenim/neodređenim trajanjem i automatskim popunjavanjem podataka iz profila.",
+    "Generator ugovora o radu i odluke o otkazu po Zakonu o radu FBiH: online popuna jednom, preuzmite oba dokumenta u Word i PDF formatu, besplatno.",
 alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "article",
@@ -115,8 +115,8 @@ const breadcrumbSchema = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Početna", item: "https://poreznikalkulator.ba/" },
-    { "@type": "ListItem", position: 2, name: "Ugovori", item: "https://poreznikalkulator.ba/#funkcije" },
+    { "@type": "ListItem", position: 1, name: "Početna", item: "https://www.poreznikalkulator.ba/" },
+    { "@type": "ListItem", position: 2, name: "Ugovori", item: "https://www.poreznikalkulator.ba/#funkcije" },
     { "@type": "ListItem", position: 3, name: "Ugovor o radu", item: PAGE_URL },
   ],
 };
