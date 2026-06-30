@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap, startTrial, type AuthUser } from "src/api/auth";
@@ -68,13 +68,16 @@ const PLANS: {
 type Status = "idle" | "sending" | "done" | "error";
 
 export default function Pretplate() {
-  // ── AUTH GUARD ───────────────────────────────────────────────────────────
-  // Pretplata zahtjeva ulogovanog korisnika (bilo koja rola: USER+).
-  // Ako korisnik nije ulogovan, redirect na /prijava (sa returnTo back-om).
+  // ── Pristup ──────────────────────────────────────────────────────────────
+  // Stranica je javna: i neregistrovani korisnici vide pakete i trial karticu.
+  // Ako neregistrovan klikne trial, vodimo ga na registraciju sa
+  // ?next=/pretplate?trial=auto, pa se trial sam aktivira nakon verifikacije.
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
-  const showTrialBanner = params.get("trial") === "1";
+  const trialParam = params.get("trial");
+  // trial=auto: dolazak iz registracije/verifikacije -> auto-aktiviraj trial.
+  const autoTrial = trialParam === "auto";
   const [trialStatus, setTrialStatus] = useState<
     "idle" | "starting" | "done" | "error"
   >("idle");
@@ -83,21 +86,59 @@ export default function Pretplate() {
   const {
     data: user,
     isLoading: userLoading,
-    isError: userError,
   } = useQuery<AuthUser>({
     queryKey: ["me"],
     queryFn: () => unwrap(me()),
     retry: false,
   });
 
-  useEffect(() => {
-    if (!userLoading && (userError || !user)) {
-      // sačuvaj plan parametar pa da se vrati ovdje nakon login-a
-      const planQ = params.get("plan");
-      const next = planQ ? `/pretplate?plan=${planQ}` : "/pretplate";
-      router.replace(`/prijava?next=${encodeURIComponent(next)}`);
+  const isAnonymous = !userLoading && !user;
+  const trialEligible =
+    isAnonymous || (!!user && user.role === "USER" && !user.trialUsedAt);
+
+  const handleStartTrial = async () => {
+    // Neregistrovan: vodi na registraciju, trial se aktivira nakon verifikacije.
+    if (isAnonymous) {
+      router.push(
+        `/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`,
+      );
+      return;
     }
-  }, [userLoading, userError, user, router, params]);
+    setTrialError("");
+    setTrialStatus("starting");
+    const res = await startTrial();
+    if (!res.ok) {
+      setTrialStatus("error");
+      setTrialError(
+        res.error === "TRIAL_ALREADY_USED"
+          ? "Već ste iskoristili besplatan probni period."
+          : res.error === "ALREADY_SUBSCRIBED"
+          ? "Već imate aktivnu pretplatu."
+          : res.error || "Greška pri aktiviranju.",
+      );
+      return;
+    }
+    setTrialStatus("done");
+    await queryClient.invalidateQueries({ queryKey: ["me"] });
+  };
+
+  // Dolazak iz registracije/verifikacije (?trial=auto). Backend je trial najčešće
+  // već aktivirao pri verifikaciji maila (role -> PRO), pa samo prikažemo potvrdu.
+  // Fallback: ako iz nekog razloga nije (npr. Google), aktiviramo ga ovdje.
+  const autoTrialRef = useRef(false);
+  useEffect(() => {
+    if (!autoTrial || autoTrialRef.current) return;
+    if (userLoading || !user) return;
+    if (user.role === "USER" && !user.trialUsedAt) {
+      autoTrialRef.current = true;
+      void handleStartTrial();
+    } else if (user.trialUsedAt) {
+      // trial je već aktivan (server-side) -> prikaži potvrdu odmah
+      autoTrialRef.current = true;
+      setTrialStatus("done");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTrial, userLoading, user]);
 
   const initialPlan = (params.get("plan") || "").toUpperCase();
   const [selected, setSelected] = useState<Plan>(
@@ -200,45 +241,18 @@ export default function Pretplate() {
     (k: keyof BuyerInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
       setBuyer({ ...buyer, [k]: e.target.value });
 
-  // ── AUTH GATE — loading / redirect screens ──────────────────────────────
+  // ── Loading screen (kratko, dok se ne zna ko je korisnik) ────────────────
   if (userLoading) {
     return (
       <div className={styles.page}>
-        <div className={styles.authLoading}>Provjera prijave…</div>
-      </div>
-    );
-  }
-  if (!user) {
-    // useEffect iznad već radi router.replace(...) — ovdje samo placeholder
-    // dok se redirect ne desi.
-    return (
-      <div className={styles.page}>
-        <div className={styles.authLoading}>Preusmjeravam na prijavu…</div>
+        <div className={styles.authLoading}>Učitavam…</div>
       </div>
     );
   }
 
-  const trialAvailable = user.role === "USER" && !user.trialUsedAt;
-  const showTrialCard = trialAvailable && (showTrialBanner || trialStatus === "done");
-
-  const handleStartTrial = async () => {
-    setTrialError("");
-    setTrialStatus("starting");
-    const res = await startTrial();
-    if (!res.ok) {
-      setTrialStatus("error");
-      setTrialError(
-        res.error === "TRIAL_ALREADY_USED"
-          ? "Već ste iskoristili besplatan probni period."
-          : res.error === "ALREADY_SUBSCRIBED"
-          ? "Već imate aktivnu pretplatu."
-          : res.error || "Greška pri aktiviranju.",
-      );
-      return;
-    }
-    setTrialStatus("done");
-    await queryClient.invalidateQueries({ queryKey: ["me"] });
-  };
+  // Trial karticu uvijek prikazujemo kad je korisnik kvalifikovan (i anonimni),
+  // plus nakon uspješne aktivacije da se vidi potvrda.
+  const showTrialCard = trialEligible || trialStatus === "done";
 
   return (
     <div className={styles.page}>
@@ -267,6 +281,18 @@ export default function Pretplate() {
                 Otvori šihtericu →
               </a>
             </>
+          ) : autoTrial && !isAnonymous ? (
+            <>
+              <div className={styles.trialIcon}>🎁</div>
+              <h2 className={styles.trialTitle}>Aktiviram probni period…</h2>
+              <p className={styles.trialText}>
+                Samo trenutak, pripremamo vaših <strong>30 dana</strong> PRO
+                pretplate besplatno.
+              </p>
+              {trialStatus === "error" && (
+                <p className={styles.trialError}>{trialError}</p>
+              )}
+            </>
           ) : (
             <>
               <div className={styles.trialIcon}>🎁</div>
@@ -274,9 +300,10 @@ export default function Pretplate() {
                 Probaj PRO besplatno 30 dana
               </h2>
               <p className={styles.trialText}>
-                Bez kartice, bez automatske naplate. Aktivirajte odmah i
-                koristite sve PRO funkcije: obračun plata, prijave radnika,
-                šihtericu, fakture i klijente.
+                Bez kartice, bez automatske naplate.{" "}
+                {isAnonymous
+                  ? "Registrujte se i odmah dobijate sve PRO funkcije: obračun plata, prijave radnika, šihtericu, fakture i klijente."
+                  : "Aktivirajte odmah i koristite sve PRO funkcije: obračun plata, prijave radnika, šihtericu, fakture i klijente."}
               </p>
               {trialStatus === "error" && (
                 <p className={styles.trialError}>{trialError}</p>
@@ -287,7 +314,9 @@ export default function Pretplate() {
                 onClick={handleStartTrial}
                 disabled={trialStatus === "starting"}
               >
-                {trialStatus === "starting"
+                {isAnonymous
+                  ? "Registruj se i probaj besplatno →"
+                  : trialStatus === "starting"
                   ? "Aktiviram..."
                   : "Aktiviraj 30 dana besplatno →"}
               </button>
@@ -404,8 +433,40 @@ export default function Pretplate() {
               Unesite podatke kupca onako kako trebaju biti na predračunu.
             </p>
           </div>
-          <BuyerFillSelect onFill={handleFillFromProfile} />
+          {!isAnonymous && <BuyerFillSelect onFill={handleFillFromProfile} />}
         </div>
+
+        {isAnonymous && (
+          <div className={styles.anonNote}>
+            <svg
+              className={styles.anonNoteIcon}
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="10" cy="10" r="8" />
+              <path d="M10 9v4" />
+              <path d="M10 6.5h.01" />
+            </svg>
+            <div>
+              <strong>
+                Predračun možete generisati i bez registracije.
+              </strong>{" "}
+              Ako se registrujete, podaci se popunjavaju automatski iz vašeg
+              profila, a uz to dobijate 30 dana PRO pretplate besplatno.{" "}
+              <a
+                href={`/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`}
+                className={styles.anonNoteLink}
+              >
+                Registruj se besplatno →
+              </a>
+            </div>
+          </div>
+        )}
 
         <div className={styles.fieldsGrid}>
           <div className={`${styles.field} ${styles.colSpan2}`}>

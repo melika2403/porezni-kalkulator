@@ -3,10 +3,10 @@ import Link from "next/link";
 import styles from "../legal.module.css";
 
 export const metadata: Metadata = {
-  title: "O nama, Porezni Kalkulator BiH",
+  title: "O nama",
   description:
-    "Saznajte više o Porezni Kalkulator BiH, online platformi za poduzetnike, obrtnike i računovođe u Federaciji BiH. Porezni obrasci, ugovori, evidencije radnika, šifre djelatnosti i još mnogo toga.",
-  alternates: { canonical: "https://poreznikalkulator.ba/o-nama" },
+    "Porezni Kalkulator BiH je online platforma za poduzetnike, obrtnike i računovođe u FBiH, porezni obrasci, ugovori, evidencije radnika i šifre djelatnosti.",
+  alternates: { canonical: "https://www.poreznikalkulator.ba/o-nama" },
 };
 
 export default function ONamaPage() {

@@ -131,6 +131,11 @@ async function ensureColumns() {
       column: "trialUsedAt",
       ddl: "ALTER TABLE users ADD COLUMN trialUsedAt DATETIME NULL",
     },
+    {
+      table: "users",
+      column: "wantsTrial",
+      ddl: "ALTER TABLE users ADD COLUMN wantsTrial TINYINT(1) NOT NULL DEFAULT 0",
+    },
     // ─── Korist u naravi (službeno vozilo) ────────────────────────────────────
     {
       table: "workers",

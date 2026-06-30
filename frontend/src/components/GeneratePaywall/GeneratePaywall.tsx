@@ -39,7 +39,7 @@ export default function GeneratePaywall({
     const next =
       tier === "BUSINESS"
         ? "/pretplate?plan=business"
-        : "/pretplate?trial=1";
+        : "/pretplate?trial=auto";
     return (
       <div className={styles.paywall}>
         <div className={styles.icon}>🎁</div>

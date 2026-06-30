@@ -3,13 +3,12 @@ import type { Metadata } from "next";
 import PrijaveRadnikaTabs from "src/sections/prijave-radnika/PrijaveRadnikaTabs";
 import PrijaveRadnikaEdu from "src/sections/prijave-radnika/PrijaveRadnikaEdu";
 
-const PAGE_URL = "https://poreznikalkulator.ba/prijave-radnika";
+const PAGE_URL = "https://www.poreznikalkulator.ba/prijave-radnika";
 
 export const metadata: Metadata = {
-  title:
-    "Obračun plata FBiH + JS3100 prijava/odjava radnika, online generator | Porezni Kalkulator BiH",
+  title: "Obračun plata FBiH i JS3100 prijava radnika",
   description:
-    "Mjesečni obračun bruto/neto plata, doprinosa i poreza za radnike u FBiH. Automatska generacija platnih listića, uplatnica i obrazaca 2001 i 2002. JS3100 prijava, odjava i promjena podataka radnika kod PUFBiH, sve iz jedne aplikacije, sa auto-popunom iz profila.",
+    "Mjesečni obračun bruto/neto plata, doprinosa i poreza za FBiH, platni listići, uplatnice, obrasci 2001 i 2002 te JS3100 prijava i odjava radnika kod PUFBiH.",
 alternates: { canonical: PAGE_URL },
   robots: {
     index: true,
@@ -70,7 +69,7 @@ const softwareSchema = {
   provider: {
     "@type": "Organization",
     name: "Porezni Kalkulator BiH",
-    url: "https://poreznikalkulator.ba",
+    url: "https://www.poreznikalkulator.ba",
   },
   featureList: [
     "Mjesečni obračun bruto/neto plata po radniku",
@@ -182,13 +181,13 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",
       position: 2,
       name: "Funkcije",
-      item: "https://poreznikalkulator.ba/#funkcije",
+      item: "https://www.poreznikalkulator.ba/#funkcije",
     },
     {
       "@type": "ListItem",

@@ -65,11 +65,14 @@ export type RegisterPayload = {
   password: string;
   firstName: string;
   lastName: string;
-  phone: string;
+  phone?: string;
   address?: string;
   city?: string;
   utmSource?: string;
   utmCampaign?: string;
+  // Registracija pokrenuta klikom na trial CTA -> trial se auto-aktivira pri
+  // verifikaciji maila (i preskačemo "aktiviraj trial" welcome mail).
+  wantsTrial?: boolean;
 };
 
 export function register(payload: RegisterPayload) {

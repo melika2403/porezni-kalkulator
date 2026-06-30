@@ -3,10 +3,10 @@ import Link from "next/link";
 import styles from "../legal.module.css";
 
 export const metadata: Metadata = {
-  title: "Politika privatnosti, Porezni Kalkulator BiH",
+  title: "Politika privatnosti i zaštita podataka",
   description:
     "Politika privatnosti platforme Porezni Kalkulator BiH, kako prikupljamo, koristimo i štitimo vaše podatke, podatke o klijentima i radnicima.",
-  alternates: { canonical: "https://poreznikalkulator.ba/privatnost" },
+  alternates: { canonical: "https://www.poreznikalkulator.ba/privatnost" },
 };
 
 export default function PrivatnostPage() {
@@ -30,7 +30,7 @@ export default function PrivatnostPage() {
         <p>
           Rukovalac ličnih podataka u smislu Zakona o zaštiti ličnih podataka BiH („ZZLP") je obrt{" "}
           <strong>Biro Japić</strong>, JIB <strong>4364314150003</strong>, koji upravlja platformom{" "}
-          <a href="https://poreznikalkulator.ba">poreznikalkulator.ba</a> (u daljem tekstu
+          <a href="https://www.poreznikalkulator.ba">poreznikalkulator.ba</a> (u daljem tekstu
           „Platforma" ili „mi"). Za sva pitanja u vezi sa zaštitom podataka možete nas kontaktirati
           na <a href="mailto:info@poreznikalkulator.ba">info@poreznikalkulator.ba</a>.
         </p>

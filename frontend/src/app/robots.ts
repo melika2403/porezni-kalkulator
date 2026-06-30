@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const SITE_URL = "https://poreznikalkulator.ba";
+const SITE_URL = "https://www.poreznikalkulator.ba";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -16,7 +16,6 @@ export default function robots(): MetadataRoute.Robots {
           "/organizacija/",
           "/organizacije",
           "/aktivni-radnici",
-          "/pretplate",
           "/prijava",
           "/registracija",
           "/zaboravljena-lozinka",

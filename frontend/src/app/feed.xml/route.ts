@@ -1,7 +1,7 @@
 // RSS 2.0 feed bloga, generisan iz BLOG_POSTS.
 import { BLOG_POSTS } from "src/sections/blog/posts";
 
-const SITE_URL = "https://poreznikalkulator.ba";
+const SITE_URL = "https://www.poreznikalkulator.ba";
 
 function escapeXml(s: string): string {
   return s

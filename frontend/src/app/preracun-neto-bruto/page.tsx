@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import PreracunPlate from "src/sections/plata/Plata";
 
-const PAGE_URL = "https://poreznikalkulator.ba/preracun-neto-bruto";
+const PAGE_URL = "https://www.poreznikalkulator.ba/preracun-neto-bruto";
 
 export const metadata: Metadata = {
-  title:
-    "Kalkulator plate FBiH, preračun neto u bruto i bruto u neto | Porezni Kalkulator BiH",
+  title: "Neto u bruto plata, kalkulator FBiH",
   description:
-    "Online kalkulator plate za Federaciju BiH, preračun neto u bruto i bruto u neto po važećim stopama. Pregled doprinosa radnika i poslodavca, poreza na dohodak i ukupnog troška poslodavca, besplatno.",
+    "Online kalkulator plate za FBiH: preračun neto u bruto i bruto u neto sa svim doprinosima, porezom na dohodak i ukupnim troškom poslodavca, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -83,7 +82,7 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Početna",
-      item: "https://poreznikalkulator.ba/",
+      item: "https://www.poreznikalkulator.ba/",
     },
     {
       "@type": "ListItem",

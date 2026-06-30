@@ -375,6 +375,39 @@
   font-weight: 300;
 }
 
+.anonNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  margin: 1rem 0 0;
+  background: var(--sage-pale, #eef3ee);
+  border: 1px solid rgba(58, 92, 66, 0.22);
+  border-radius: var(--radius, 12px);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.anonNoteIcon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--mid, #7a8a7d);
+}
+
+.anonNoteLink {
+  color: var(--sage, #3a5c42);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.anonNoteLink:hover {
+  text-decoration: underline;
+}
+
 .fieldsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

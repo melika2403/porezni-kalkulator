@@ -3,12 +3,12 @@ import RjesenjaOdluke from "src/sections/rjesenja-i-odluke/RjesenjaOdluke";
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import type { Metadata } from "next";
 
-const PAGE_URL = "https://poreznikalkulator.ba/rjesenja-i-odluke";
+const PAGE_URL = "https://www.poreznikalkulator.ba/rjesenja-i-odluke";
 
 export const metadata: Metadata = {
-  title: "Rješenja i odluke, kadrovski akti (Word/PDF) FBiH",
+  title: "Rješenja i odluke, kadrovski akti FBiH",
   description:
-    "Generator kadrovskih rješenja i odluka prema Zakonu o radu FBiH: rješenje o korištenju godišnjeg odmora, regres, prigodna nagrada, plaćeno i neplaćeno odsustvo. Popunite podatke i preuzmite u Word i PDF formatu.",
+    "Generator kadrovskih rješenja i odluka po Zakonu o radu FBiH: godišnji odmor, regres, odsustva, online popuna i preuzimanje u Word i PDF formatu.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "article",
@@ -36,11 +36,26 @@ export const metadata: Metadata = {
   },
 };
 
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Početna", item: "https://www.poreznikalkulator.ba/" },
+    { "@type": "ListItem", position: 2, name: "Rješenja i odluke", item: PAGE_URL },
+  ],
+};
+
 export default function RjesenjaOdlukePage() {
   return (
-    <Suspense fallback={null}>
-      <RadniciTabBar />
-      <RjesenjaOdluke />
-    </Suspense>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <Suspense fallback={null}>
+        <RadniciTabBar />
+        <RjesenjaOdluke />
+      </Suspense>
+    </>
   );
 }
