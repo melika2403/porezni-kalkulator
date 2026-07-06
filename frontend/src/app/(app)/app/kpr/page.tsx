@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -9,13 +9,16 @@ import {
   IconArrowRight,
 } from "@tabler/icons-react";
 import { formatBAM, formatDate } from "src/lib/format";
+import { parseDateInput } from "src/lib/dateInput";
+import { PkSelect } from "src/components/app-shell/PkSelect";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { useKpr } from "src/hooks/useBankStatements";
 import type { KprCols } from "src/api/bankStatements";
 
 const PRIHOD_COLS: Array<{ key: keyof KprCols; n: number; label: string }> = [
   { key: "k11", n: 11, label: "U gotovini" },
-  { key: "k12", n: 12, label: "Preko raÄuna" },
+  { key: "k12", n: 12, label: "Preko računa" },
   { key: "k13", n: 13, label: "U stvarima" },
   { key: "k14", n: 14, label: "PDV u prihodima" },
   { key: "k15", n: 15, label: "Ukupni prihodi" },
@@ -23,25 +26,12 @@ const PRIHOD_COLS: Array<{ key: keyof KprCols; n: number; label: string }> = [
 
 const RASHOD_COLS: Array<{ key: keyof KprCols; n: number; label: string }> = [
   { key: "k16", n: 16, label: "Roba / materijal" },
-  { key: "k17", n: 17, label: "Bruto plaÄ‡e" },
+  { key: "k17", n: 17, label: "Bruto plaće" },
   { key: "k18", n: 18, label: "Doprinosi poduzetnika" },
   { key: "k19", n: 19, label: "Ostali" },
   { key: "k20", n: 20, label: "PDV u rashodima" },
   { key: "k21", n: 21, label: "Ukupni rashodi" },
 ];
-
-/** "10.06.2026." ili "10.06.2026" â†’ "2026-06-10" ili null */
-function parseDateInput(s: string): string | null {
-  const m = String(s || "")
-    .trim()
-    .match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/);
-  if (!m) return null;
-  const day = Number(m[1]);
-  const month = Number(m[2]);
-  const year = Number(m[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
 
 function Num({
   value,
@@ -78,7 +68,7 @@ export default function KprPage() {
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
   const orgId = activeOrg?.id ?? null;
 
-  // period: godina ili ruÄni raspon (obrt otvoren/zatvoren u toku godine)
+  // period: godina ili ručni raspon (obrt otvoren/zatvoren u toku godine)
   const fromIso = parseDateInput(fromStr);
   const toIso = parseDateInput(toStr);
   const period = customPeriod
@@ -124,8 +114,8 @@ export default function KprPage() {
             Knjiga prihoda i rashoda.
           </h1>
           <p className="text-[13px] leading-6 text-text-tertiary max-w-[520px]">
-            KPR-1041 se puni automatski iz potvrÄ‘enih stavki bankovnih izvoda.
-            Princip blagajne: prihod na datum naplate, rashod na datum plaÄ‡anja.
+            KPR-1041 se puni automatski iz potvrđenih stavki bankovnih izvoda.
+            Princip blagajne: prihod na datum naplate, rashod na datum plaćanja.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -136,44 +126,31 @@ export default function KprPage() {
               onChange={(e) => setCustomPeriod(e.target.checked)}
               className="w-4 h-4 accent-[#3a5c42]"
             />
-            RuÄni period
+            Ručni period
           </label>
           {customPeriod ? (
             <>
-              <input
+              <PkDateInput
                 value={fromStr}
-                onChange={(e) => setFromStr(e.target.value)}
-                placeholder="DD.MM.GGGG."
-                inputMode="numeric"
-                className={[
-                  "w-[120px] rounded-lg border bg-cream-100 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600",
-                  fromStr && !fromIso ? "border-warning" : "border-cream-300",
-                ].join(" ")}
+                onChange={setFromStr}
+                ariaLabel="Period od"
+                className="w-[145px]"
               />
               <span className="text-text-tertiary text-[13px]">do</span>
-              <input
+              <PkDateInput
                 value={toStr}
-                onChange={(e) => setToStr(e.target.value)}
-                placeholder="DD.MM.GGGG."
-                inputMode="numeric"
-                className={[
-                  "w-[120px] rounded-lg border bg-cream-100 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600",
-                  toStr && !toIso ? "border-warning" : "border-cream-300",
-                ].join(" ")}
+                onChange={setToStr}
+                ariaLabel="Period do"
+                className="w-[145px]"
               />
             </>
           ) : (
-            <select
+            <PkSelect
+              ariaLabel="Godina"
               value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600"
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}.
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setYear(Number(v))}
+              options={years.map((y) => ({ value: y, label: `${y}.` }))}
+            />
           )}
           <button
             type="button"
@@ -195,7 +172,7 @@ export default function KprPage() {
       <div className="rounded-xl bg-cream-100 border border-cream-300">
         {isLoading ? (
           <div className="px-4 py-12 text-center text-text-tertiary text-[13px]">
-            UÄitavanje knjige...
+            Učitavanje knjige...
           </div>
         ) : !data || data.rows.length === 0 ? (
           <div className="px-4 py-12 text-center">
@@ -207,7 +184,7 @@ export default function KprPage() {
             </p>
             <p className="text-[12.5px] text-text-tertiary mt-1 max-w-[400px] mx-auto">
               Potvrdite stavke na bankovnim izvodima sa kategorijom koja ide u
-              KPR i pojaviÄ‡e se ovdje.
+              KPR i pojaviće se ovdje.
             </p>
             <Link
               href="/app/bankovni-izvodi"
@@ -300,8 +277,8 @@ export default function KprPage() {
       )}
 
       <p className="text-[12px] text-text-tertiary mt-1.5">
-        Napomena: da bi knjiga bila kompletna za poreznu prijavu, uÄitajte sve
-        izvode od poÄetka godine (ili od otvaranja obrta). Banke drÅ¾e arhivu
+        Napomena: da bi knjiga bila kompletna za poreznu prijavu, učitajte sve
+        izvode od početka godine (ili od otvaranja obrta). Banke drže arhivu
         izvoda u e-bankingu.
       </p>
     </div>

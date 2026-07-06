@@ -5,11 +5,17 @@ import ConditionalFooter from "src/components/Footer/ConditionalFooter";
 import Providers from "src/components/Providers/Providers";
 import ConsentBanner from "src/components/ConsentBanner/ConsentBanner";
 import ConditionalChrome from "src/components/ConditionalChrome/ConditionalChrome";
+import MetaPixelPageView from "src/components/MetaPixel/MetaPixelPageView";
 import "./fonts.css";
 import "./globals.css";
 
 // ── Replace with your real domain ─────────────────────────────────────────
 const SITE_URL = "https://www.poreznikalkulator.ba";
+
+// Meta (Facebook) Pixel: postavi NEXT_PUBLIC_META_PIXEL_ID u .env da se
+// aktivira. Consent model isti kao GA4: revoke po defaultu, grant tek na
+// "Prihvati sve" (ConsentBanner); eventi prije granta čekaju u redu.
+const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -180,11 +186,38 @@ export default function RootLayout({
             `,
           }}
         />
+
+        {/* Meta Pixel (consent revoked dok korisnik ne prihvati u banneru). */}
+        {META_PIXEL_ID && (
+          <Script
+            id="meta-pixel"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
+                n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;
+                s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+                document,'script','https://connect.facebook.net/en_US/fbevents.js');
+                fbq('consent', 'revoke');
+                try {
+                  if (localStorage.getItem('cookieConsent') === 'accepted') {
+                    fbq('consent', 'grant');
+                  }
+                } catch (e) {}
+                fbq('init', '${META_PIXEL_ID}');
+                fbq('track', 'PageView');
+              `,
+            }}
+          />
+        )}
         <Providers>
           <ConditionalNavbar />
           <div className="pageContent">{children}</div>
           <ConditionalFooter />
           <ConsentBanner />
+          {META_PIXEL_ID && <MetaPixelPageView />}
         </Providers>
       </body>
     </html>

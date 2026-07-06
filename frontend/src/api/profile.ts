@@ -236,6 +236,8 @@ export type Organization = {
   address: string | null;
   city: string | null;
   bankAccount: string | null;
+  /** Svi žiro računi (samo cifre); prvi je glavni (= bankAccount). */
+  bankAccounts: string[] | null;
   logoUrl: string | null;
   taxCategory: TaxCategory | null;
   // Default tip plate za nove radnike u ovoj org-i. Vidi SalaryType u Worker.
@@ -274,6 +276,8 @@ export type OrgPayload = {
   address?: string;
   city?: string;
   bankAccount?: string;
+  /** Lista svih žiro računa; backend prvi tretira kao glavni (bankAccount). */
+  bankAccounts?: string[] | null;
   taxCategory?: TaxCategory | null;
   defaultSalaryType?: SalaryType;
   mealAllowancePerDay?: number | null;

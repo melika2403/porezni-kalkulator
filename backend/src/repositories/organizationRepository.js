@@ -2,7 +2,48 @@ const { Op } = require("sequelize");
 const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 
-const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "logoUrl", "mealAllowancePerDay", "ownerType", "ownerIsDirector", "directorEngagement", "directorWorkerId", "ownerInfo", "createdAt", "updatedAt"];
+const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "bankAccounts", "logoUrl", "mealAllowancePerDay", "ownerType", "ownerIsDirector", "directorEngagement", "directorWorkerId", "ownerInfo", "createdAt", "updatedAt"];
+
+// MariaDB vraća JSON kolone kao string (Sequelize ih ne parsira).
+function parseJsonArray(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// Marketing forma šalje samo bankAccount (glavni): sinhronizuj prvi element
+// bankAccounts liste da se glavni račun i lista ne raziđu. PK Office šalje
+// cijelu listu (bankAccounts) pa se ovdje ništa ne radi.
+function syncMainAccountIntoList(orgUpdate, existingOrg) {
+  if (
+    orgUpdate.bankAccount === undefined ||
+    orgUpdate.bankAccounts !== undefined
+  ) {
+    return;
+  }
+  const digits = String(orgUpdate.bankAccount || "").replace(/\D+/g, "");
+  const list = (parseJsonArray(existingOrg?.bankAccounts) || [])
+    .map((a) => String(a || "").replace(/\D+/g, ""))
+    .filter(Boolean);
+  if (digits) {
+    // novi glavni na prvo mjesto, SVI ostali (ne samo rep) sačuvani bez
+    // duplikata; tako se stari glavni ne gubi kad novi već postoji u listi
+    const rest = list.filter((a) => a !== digits);
+    orgUpdate.bankAccounts = [digits, ...rest];
+  } else if (list.length > 0) {
+    // glavni obrisan: sljedeći sa liste postaje glavni
+    const rest = list.slice(1);
+    orgUpdate.bankAccounts = rest.length ? rest : null;
+    orgUpdate.bankAccount = rest[0] ?? null;
+  }
+}
 
 // Vlasnik je Worker VLASNIK (i ima payroll) samo u "opciji 1" ili kod obrta.
 // Za d.o.o. opcije 2/3/4 vlasnik je evidencija (org.ownerInfo), nije radnik.
@@ -183,6 +224,7 @@ function toPublicOrg(org, memberRole, ownerWorker, effectiveTier, directorWorker
   const { workers: _w, ownerInfo: _oi, ...rest } = plain;
   return {
     ...rest,
+    bankAccounts: parseJsonArray(plain.bankAccounts),
     ownerIsDirector,
     owner,
     signer,
@@ -329,6 +371,11 @@ async function getOrganizationForUser(id, userId) {
 }
 
 async function createOrganization(data, ownerData, userId) {
+  // glavni račun sa forme kreće listu svih računa
+  if (data.bankAccount && data.bankAccounts === undefined) {
+    const digits = String(data.bankAccount).replace(/\D+/g, "");
+    if (digits) data.bankAccounts = [digits];
+  }
   return sequelize.transaction(async (t) => {
     const asWorker = ownerIsWorker(
       data.type,
@@ -416,6 +463,7 @@ async function updateOrganization(id, orgData, ownerData, userId) {
     const asWorker = ownerIsWorker(effType, effIsDir, effEng);
 
     const orgUpdate = { ...orgData };
+    syncMainAccountIntoList(orgUpdate, existingOrg);
 
     if (ownerData) {
       if (asWorker) {

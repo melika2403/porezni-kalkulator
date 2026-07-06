@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -9,6 +9,9 @@ import {
   IconLoader2,
 } from "@tabler/icons-react";
 import { formatBAM, formatDate } from "src/lib/format";
+import { parseDateInput } from "src/lib/dateInput";
+import { PkSelect } from "src/components/app-shell/PkSelect";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import {
   useSearchBankTransactions,
@@ -25,20 +28,7 @@ import type {
   TxSearchQuery,
 } from "src/api/bankStatements";
 
-const PAGE_SIZE = 50;
-
-/** "10.06.2026." ili "10.06.2026" â†’ "2026-06-10" ili null */
-function parseDateInput(s: string): string | null {
-  const m = String(s || "")
-    .trim()
-    .match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/);
-  if (!m) return null;
-  const day = Number(m[1]);
-  const month = Number(m[2]);
-  const year = Number(m[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
+const PAGE_SIZE = 20;
 
 export default function TransakcijePage() {
   const { data: me } = usePkOfficeMe();
@@ -52,7 +42,7 @@ export default function TransakcijePage() {
   const [category, setCategory] = useState("");
   const [fromStr, setFromStr] = useState("");
   const [toStr, setToStr] = useState("");
-  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [page, setPage] = useState(1);
   const [selected, setSelected] =
     useState<BankTransactionWithStatement | null>(null);
 
@@ -61,10 +51,15 @@ export default function TransakcijePage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // novi filter resetuje paginaciju
-  useEffect(() => {
-    setLimit(PAGE_SIZE);
-  }, [debouncedSearch, direction, status, category, fromStr, toStr]);
+  // novi filter resetuje paginaciju (reset tokom rendera, bez effecta)
+  const filtersKey = JSON.stringify([
+    debouncedSearch, direction, status, category, fromStr, toStr,
+  ]);
+  const [prevFiltersKey, setPrevFiltersKey] = useState(filtersKey);
+  if (filtersKey !== prevFiltersKey) {
+    setPrevFiltersKey(filtersKey);
+    setPage(1);
+  }
 
   const query: TxSearchQuery = {
     q: debouncedSearch || undefined,
@@ -73,7 +68,8 @@ export default function TransakcijePage() {
     category: category || undefined,
     dateFrom: parseDateInput(fromStr) ?? undefined,
     dateTo: parseDateInput(toStr) ?? undefined,
-    limit,
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
   };
   const { data, isLoading, isFetching } = useSearchBankTransactions(
     orgId,
@@ -83,6 +79,14 @@ export default function TransakcijePage() {
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Rezultat se smanjio ispod trenutne stranice (npr. potvrda stavki pod
+  // filterom) → vrati na zadnju postojeću, da ne ostanemo na praznoj.
+  if (!isFetching && page > totalPages) {
+    setPage(totalPages);
+  }
+  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = total === 0 ? 0 : from + items.length - 1;
   const selectedFresh = selected
     ? items.find((t) => t.id === selected.id) ?? selected
     : null;
@@ -118,63 +122,55 @@ export default function TransakcijePage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="TraÅ¾i: opis, protivstrana, referenca, iznos..."
+              placeholder="Traži: opis, protivstrana, referenca, iznos..."
               className={`${inputCls} w-full pl-9`}
             />
           </div>
-          <select
+          <PkSelect
+            ariaLabel="Smjer"
             value={direction}
-            onChange={(e) => setDirection(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Svi smjerovi</option>
-            <option value="IN">PotraÅ¾uje (uplate)</option>
-            <option value="OUT">Duguje (isplate)</option>
-          </select>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Svi statusi</option>
-            <option value="UNMATCHED">Za pregled</option>
-            <option value="CONFIRMED">PotvrÄ‘eno</option>
-            <option value="IGNORED">Zanemareno</option>
-          </select>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className={`${inputCls} max-w-[230px]`}
-          >
-            <option value="">Sve kategorije</option>
-            <option value="__none">Bez kategorije</option>
-            {BANK_CATEGORIES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <input
-            value={fromStr}
-            onChange={(e) => setFromStr(e.target.value)}
-            placeholder="Od DD.MM.GGGG."
-            inputMode="numeric"
-            className={[
-              inputCls,
-              "w-[130px]",
-              fromStr && !parseDateInput(fromStr) ? "border-warning" : "",
-            ].join(" ")}
+            onChange={(v) => setDirection(String(v ?? ""))}
+            options={[
+              { value: "", label: "Svi smjerovi" },
+              { value: "IN", label: "Potražuje (uplate)" },
+              { value: "OUT", label: "Duguje (isplate)" },
+            ]}
           />
-          <input
+          <PkSelect
+            ariaLabel="Status"
+            value={status}
+            onChange={(v) => setStatus(String(v ?? ""))}
+            options={[
+              { value: "", label: "Svi statusi" },
+              { value: "UNMATCHED", label: "Za pregled" },
+              { value: "CONFIRMED", label: "Potvrđeno" },
+              { value: "IGNORED", label: "Zanemareno" },
+            ]}
+          />
+          <PkSelect
+            ariaLabel="Kategorija"
+            value={category}
+            onChange={(v) => setCategory(String(v ?? ""))}
+            options={[
+              { value: "", label: "Sve kategorije" },
+              { value: "__none", label: "Bez kategorije" },
+              ...BANK_CATEGORIES.map((c) => ({ value: c.id, label: c.label })),
+            ]}
+            wrapStyle={{ maxWidth: 230 }}
+          />
+          <PkDateInput
+            value={fromStr}
+            onChange={setFromStr}
+            placeholder="DD.MM.GGGG."
+            ariaLabel="Datum od"
+            className="w-[150px]"
+          />
+          <PkDateInput
             value={toStr}
-            onChange={(e) => setToStr(e.target.value)}
-            placeholder="Do DD.MM.GGGG."
-            inputMode="numeric"
-            className={[
-              inputCls,
-              "w-[130px]",
-              toStr && !parseDateInput(toStr) ? "border-warning" : "",
-            ].join(" ")}
+            onChange={setToStr}
+            placeholder="DD.MM.GGGG."
+            ariaLabel="Datum do"
+            className="w-[150px]"
           />
         </div>
       </div>
@@ -189,13 +185,13 @@ export default function TransakcijePage() {
             {isFetching && !isLoading ? (
               <IconLoader2 size={14} className="inline animate-spin mr-1.5" />
             ) : null}
-            prikazano {items.length} od {total}
+            {total === 0 ? "0 rezultata" : `${from}–${to} od ${total}`}
           </span>
         </div>
 
         {isLoading ? (
           <div className="px-4 py-12 text-center text-text-tertiary text-[13px]">
-            UÄitavanje...
+            Učitavanje...
           </div>
         ) : items.length === 0 ? (
           <div className="px-4 py-12 text-center">
@@ -206,7 +202,7 @@ export default function TransakcijePage() {
               Nema transakcija za zadate filtere
             </p>
             <p className="text-[12.5px] text-text-tertiary mt-1">
-              Promijenite pretragu ili uÄitajte izvode.
+              Promijenite pretragu ili učitajte izvode.
             </p>
           </div>
         ) : (
@@ -250,12 +246,12 @@ export default function TransakcijePage() {
                         {[
                           t.date ? formatDate(t.date) : null,
                           t.statement
-                            ? `${t.statement.bankName ?? "Banka"} Â· Izvod ${t.statement.statementNumber ?? "?"}`
+                            ? `${t.statement.bankName ?? "Banka"} · Izvod ${t.statement.statementNumber ?? "?"}`
                             : null,
                           categoryDisplayLabel(t.category),
                         ]
                           .filter(Boolean)
-                          .join(" Â· ")}
+                          .join(" · ")}
                       </div>
                     </div>
 
@@ -266,7 +262,7 @@ export default function TransakcijePage() {
                           isIn ? "text-brand-600" : "text-text-primary",
                         ].join(" ")}
                       >
-                        {isIn ? "+" : "âˆ’"}
+                        {isIn ? "+" : "−"}
                         {formatBAM(Number(t.amount))}
                       </span>
                       <div className="flex items-center justify-end sm:w-full">
@@ -292,15 +288,26 @@ export default function TransakcijePage() {
                 );
               })}
             </ul>
-            {items.length < total && (
-              <div className="px-4 py-3 border-t border-cream-300/70 text-center">
+            {totalPages > 1 && (
+              <div className="px-4 py-3 border-t border-cream-300/70 flex items-center justify-center gap-3">
                 <button
                   type="button"
-                  disabled={isFetching}
-                  onClick={() => setLimit((l) => l + PAGE_SIZE)}
-                  className="px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+                  disabled={page <= 1 || isFetching}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="px-3 py-[5px] rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                 >
-                  UÄitaj joÅ¡ ({total - items.length})
+                  Prethodna
+                </button>
+                <span className="text-[12.5px] text-text-tertiary">
+                  Stranica {page} od {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages || isFetching}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="px-3 py-[5px] rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  Sljedeća
                 </button>
               </div>
             )}

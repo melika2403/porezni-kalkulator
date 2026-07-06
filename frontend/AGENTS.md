@@ -12,7 +12,7 @@ Postoji oko 1300 postojećih em dasheva u `src/` koji se čiste postepeno. `npm 
 
 # PK Office dizajn standard
 
-Ovo je default dizajn sistem za svaki tab PK Office-a (`/app/*`) i šire u projektu. Ne izmišljaj novi stil po stranici, svaka stranica kreće od ovih tokena i komponenti. Glavni (marketing) dio aplikacije se NE dira, ovo vrijedi samo za PK Office i novi rad.
+Ovo je default dizajn sistem za svaki tab PK Office-a (`/app/*`) i šire u projektu. Ne izmišljaj novi stil po stranici, svaka stranica kreće od ovih tokena i komponenti. Glavni (marketing) dio aplikacije se NE dira, ovo vrijedi samo za PK Office i novi rad. Izuzetak (odluka vlasnika): stranice radnika na marketing dijelu (/organizacija/:id, /aktivni-radnici) koriste PK Office tabelu i modal forme kroz `src/styles/pk-embed.css` (Tailwind tokeni + utilities BEZ preflighta) i `.pk-scope` wrapper; dijeljene komponente su `src/sections/zaposlenici/WorkersTable.tsx` i `WorkerModal.tsx`.
 
 ## Standing pravila
 
@@ -49,6 +49,9 @@ Semantika boja (dosljedna kroz modul): zelena (`success`) = pozitivno / povezano
 ## Komponente i obrasci
 
 - Kartica: bijela (`cream-100`), .5px border (`cream-300`), radius 12 (`rounded-xl`).
+- Dropdown: NIKAD native `<select>` u /app. Koristi `PkSelect` (`src/components/app-shell/PkSelect.tsx`), wrapper oko marketing `StyledSelect`-a sa PK Office dimenzijama. Podržava `options`/`groups`, `searchable`, širina preko `wrapStyle`.
+- Unos datuma: uvijek `PkDateInput` (`src/components/app-shell/PkDateInput.tsx`): auto-tačke pri kucanju (1106 → "11.06.") + kalendar dugme (native showPicker). Vrijednost je display string "DD.MM.GGGG.", za ISO `parseDateInput` iz `src/lib/dateInput.ts` (tu su i maska/format helperi, ne duplirati ih po stranicama).
+- Unos iznosa (KM): uvijek `PkAmountInput` (`src/components/app-shell/PkAmountInput.tsx`): tačke hiljada se upisuju dok se kuca (1234 → "1.234"), na blur pune decimale ("1.234,00"). Vrijednost je display string, za broj `parseKm` iz `src/lib/amountInput.ts` (tu su i `formatKm`/maska, ne duplirati po stranicama).
 - KPI/stat kartica: ikona u obojenom kvadratiću po semantici, caps label, velika serif brojka, sitan sub-tekst.
 - Badge: `success`/`warning`/`info`/neutral, tekst u tamnijoj nijansi iste boje, radius 20.
 - Liste i redovi: cijeli red klik na detalj, primarna akcija vidljiva, rijetke akcije u overflow meni (RowActionsMenu). Dugmad u redu rade stopPropagation.

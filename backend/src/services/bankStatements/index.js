@@ -76,6 +76,9 @@ async function parseBankStatement(buffer) {
     bankId: bank.id,
     ...result,
     validation,
+    // kompletan tekst izvoda: za provjeru da izvod pripada organizaciji
+    // (naziv vlasnika računa se ne parsira po banci, traži se u tekstu)
+    allText,
   };
 }
 

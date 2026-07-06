@@ -19,6 +19,8 @@ import RowActionsMenu, {
 } from "src/components/RowActionsMenu/RowActionsMenu";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import styles from "./organizacije.module.css";
+// PK Office tokeni + utility klase za .pk-scope blokove (stats, tabela)
+import "src/styles/pk-embed.css";
 
 const MONTHS = [
   "Januar",
@@ -43,12 +45,14 @@ const STATUS_LABEL: Record<OrgPayrollStatus, string> = {
   isplaceno: "Isplaćeno",
 };
 
-const STATUS_CLASS: Record<OrgPayrollStatus, string> = {
-  no_workers: styles.statusNoWorkers,
-  none: styles.statusNone,
-  partial: styles.statusPartial,
-  obracunato: styles.statusObracunato,
-  isplaceno: styles.statusIsplaceno,
+// PK semantika: obračunato i isplaćeno zeleno, djelimično žuto,
+// neobračunato crveno, bez radnika neutralno.
+const STATUS_PK_CLASS: Record<OrgPayrollStatus, string> = {
+  no_workers: "bg-cream-200 text-text-secondary",
+  none: "bg-danger-bg text-danger",
+  partial: "bg-warning-bg text-warning",
+  obracunato: "bg-success-bg text-success",
+  isplaceno: "bg-success-bg text-success",
 };
 
 type TypeFilter = "svi" | "COMPANY" | "BUSINESS";
@@ -415,69 +419,39 @@ export default function Organizacije() {
         </p>
       </div>
 
-      {/* Stats kartice */}
+      {/* Stats kartice (PK stil) */}
       {hasAnyOrg && (
-        <div className={styles.statsRow}>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Organizacija</span>
-            <span className={styles.statValue}>{stats.totalOrgs}</span>
-            <span className={styles.statHint}>
-              {ownAll.length} mojih + {clientsAll.length} klijenata
-            </span>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Ukupno radnika</span>
-            <span className={styles.statValue}>{stats.totalWorkers}</span>
-            <span className={styles.statHint}>aktivnih u svim org.</span>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Plate obračunate</span>
-            <span className={styles.statValue}>
-              {stats.obracunato}
-              <em> / {stats.orgsWithWorkers}</em>
-            </span>
-            <span className={styles.statHint}>
-              org. sa kompletnim obračunom za {MONTHS[month - 1].toLowerCase()}
-            </span>
-            <span className={styles.statBar} aria-hidden="true">
-              <span
-                className={styles.statBarFill}
-                style={{
-                  width: `${
-                    stats.orgsWithWorkers
-                      ? Math.round(
-                          (stats.obracunato / stats.orgsWithWorkers) * 100,
-                        )
-                      : 0
-                  }%`,
-                }}
-              />
-            </span>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Plate isplaćene</span>
-            <span className={styles.statValue}>
-              {stats.isplaceno}
-              <em> / {stats.orgsWithWorkers}</em>
-            </span>
-            <span className={styles.statHint}>
-              org. sa označenim isplatama
-            </span>
-            <span className={styles.statBar} aria-hidden="true">
-              <span
-                className={styles.statBarFill}
-                style={{
-                  width: `${
-                    stats.orgsWithWorkers
-                      ? Math.round(
-                          (stats.isplaceno / stats.orgsWithWorkers) * 100,
-                        )
-                      : 0
-                  }%`,
-                }}
-              />
-            </span>
-          </div>
+        <div className="pk-scope grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          <OrgStatTile
+            label="Organizacija"
+            value={String(stats.totalOrgs)}
+            hint={`${ownAll.length} mojih + ${clientsAll.length} klijenata`}
+          />
+          <OrgStatTile
+            label="Ukupno radnika"
+            value={String(stats.totalWorkers)}
+            hint="aktivnih u svim org."
+          />
+          <OrgStatTile
+            label="Plate obračunate"
+            value={`${stats.obracunato} / ${stats.orgsWithWorkers}`}
+            hint={`org. sa kompletnim obračunom za ${MONTHS[month - 1].toLowerCase()}`}
+            pct={
+              stats.orgsWithWorkers
+                ? Math.round((stats.obracunato / stats.orgsWithWorkers) * 100)
+                : 0
+            }
+          />
+          <OrgStatTile
+            label="Plate isplaćene"
+            value={`${stats.isplaceno} / ${stats.orgsWithWorkers}`}
+            hint="org. sa označenim isplatama"
+            pct={
+              stats.orgsWithWorkers
+                ? Math.round((stats.isplaceno / stats.orgsWithWorkers) * 100)
+                : 0
+            }
+          />
         </div>
       )}
 
@@ -564,9 +538,9 @@ export default function Organizacije() {
         </div>
       </div>
 
-      {/* Quick status filter chips */}
+      {/* Quick status filter chips (PK stil) */}
       {hasAnyOrg && (
-        <div className={styles.statusChips}>
+        <div className="pk-scope flex flex-wrap gap-2 mb-4">
           {(
             [
               ["all", "Sve"],
@@ -578,13 +552,23 @@ export default function Organizacije() {
             <button
               key={key}
               type="button"
-              className={`${styles.statusChip} ${
-                statusFilter === key ? styles.statusChipActive : ""
-              }`}
               onClick={() => setStatusFilter(key)}
+              className={[
+                "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors",
+                statusFilter === key
+                  ? "bg-brand-600 border-brand-600 text-white"
+                  : "bg-cream-100 border-cream-300 text-text-secondary hover:bg-cream-200",
+              ].join(" ")}
             >
               {label}
-              <span className={styles.statusChipCount}>
+              <span
+                className={[
+                  "px-1.5 py-0.5 rounded-full text-[11px] font-semibold tabular-nums",
+                  statusFilter === key
+                    ? "bg-white/20 text-white"
+                    : "bg-cream-200 text-text-tertiary",
+                ].join(" ")}
+              >
                 {statusCounts[key]}
               </span>
             </button>
@@ -795,7 +779,7 @@ export default function Organizacije() {
                 <p style={{ margin: "0 0 0.8rem", color: "var(--mid)", fontSize: 14 }}>
                   Obračunat će se{" "}
                   <strong>{bulkCalcCandidates.length} org.</strong> sekvencijalno.
-                  Za svaku org-u koristi se isti default kao "Obračunaj sve" iz
+                  Za svaku org-u koristi se isti default kao &quot;Obračunaj sve&quot; iz
                   modula plate (sihterica → standardni fond mjeseca, automatski
                   pro-rate za mid-month radnike).
                 </p>
@@ -1035,9 +1019,8 @@ export default function Organizacije() {
       {!statusQuery.isLoading && hasAnyOrg && (
         <>
           {/* Sekcija 1: Moje organizacije */}
-          <div className={styles.sectionTitle}>
-            Moje organizacije
-            <span className={styles.sectionCount}>({ownAll.length})</span>
+          <div className="pk-scope text-[12px] font-semibold uppercase tracking-wider text-text-primary mt-6 mb-2">
+            Moje organizacije ({ownAll.length})
           </div>
           {ownAll.length === 0 ? (
             <div className={styles.emptyOwn}>
@@ -1055,11 +1038,8 @@ export default function Organizacije() {
           {/* Sekcija 2: Klijentske organizacije */}
           {clientsAll.length > 0 && (
             <>
-              <div className={styles.sectionTitle}>
-                Klijentske organizacije
-                <span className={styles.sectionCount}>
-                  ({clientsAll.length})
-                </span>
+              <div className="pk-scope text-[12px] font-semibold uppercase tracking-wider text-text-primary mt-6 mb-2">
+                Klijentske organizacije ({clientsAll.length})
               </div>
               {clients.length === 0 ? (
                 <div className={styles.empty}>
@@ -1096,113 +1076,154 @@ function OrgsTable({
   // ove parametre i auto-otvara edit formu za tu organizaciju.
   const editTab = section === "own" ? "djelatnosti" : "klijenti";
   return (
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Naziv</th>
-            <th>Vlasnik</th>
-            <th>Tip</th>
-            <th>Radnika</th>
-            <th>JIB</th>
-            <th>Šifra dj.</th>
-            <th>Grad</th>
-            <th>Status plata</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {orgs.map((o) => {
-            // Attention dot: org sa radnicima ali bez ijednog obračuna (crveno)
-            // ili sa djelimičnim obračunom (žuto).
-            const needsRed =
-              o.workerCount > 0 && o.payrollStatus === "none";
-            const needsYellow = o.payrollStatus === "partial";
-            return (
-              <tr key={o.id}>
-                <td className={styles.nameCell} data-label="Naziv">
-                  {(needsRed || needsYellow) && (
+    <div className="pk-scope rounded-xl bg-cream-100 border border-cream-300 overflow-hidden mb-4">
+      <div className="overflow-x-auto">
+        {/* Fiksne širine kolona: obje tabele (moje/klijentske) se poravnaju
+            identično, umjesto da svaka računa širine po svom sadržaju. */}
+        <table className="w-full text-[13px] table-fixed min-w-[1080px]">
+          <thead>
+            <tr className="border-b border-cream-300 text-left text-[11px] uppercase tracking-wider text-text-tertiary">
+              <th className="px-4 py-2.5 font-semibold w-[17%]">Naziv</th>
+              <th className="px-3 py-2.5 font-semibold w-[11%]">Vlasnik</th>
+              <th className="px-3 py-2.5 font-semibold w-[7%]">Tip</th>
+              <th className="px-3 py-2.5 font-semibold text-right w-[6%]">Radnika</th>
+              <th className="px-3 py-2.5 font-semibold w-[12%]">JIB</th>
+              <th className="px-3 py-2.5 font-semibold w-[9%]">Grad</th>
+              <th className="px-3 py-2.5 font-semibold w-[15%]">Status plata</th>
+              <th className="px-4 py-2.5 w-[23%]"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {orgs.map((o) => {
+              // Attention dot: org sa radnicima ali bez ijednog obračuna
+              // (crveno) ili sa djelimičnim obračunom (žuto).
+              const needsRed = o.workerCount > 0 && o.payrollStatus === "none";
+              const needsYellow = o.payrollStatus === "partial";
+              return (
+                <tr
+                  key={o.id}
+                  className="border-b border-cream-300/70 last:border-0"
+                >
+                  <td className="px-4 py-3">
+                    {(needsRed || needsYellow) && (
+                      <span
+                        className="inline-block w-2 h-2 rounded-full mr-2 align-middle"
+                        style={{
+                          background: needsRed ? "#dc2626" : "#e0a93b",
+                        }}
+                        title={
+                          needsRed
+                            ? "Plate još nisu obračunate"
+                            : "Plate djelimično obračunate"
+                        }
+                      />
+                    )}
+                    <Link
+                      href={`/organizacija/${o.id}`}
+                      className="font-semibold text-brand-600 hover:text-brand-700"
+                    >
+                      {o.name}
+                    </Link>
+                    <div className="text-[11.5px] text-text-tertiary mt-0.5">
+                      {o.activityCode || ""}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-text-secondary">
+                    {o.owner
+                      ? o.owner.name ||
+                        `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim() ||
+                        "–"
+                      : "–"}
+                  </td>
+                  <td className="px-3 py-3">
                     <span
-                      className={`${styles.attentionDot} ${
-                        needsRed ? styles.attentionDotRed : ""
-                      }`}
-                      title={
-                        needsRed
-                          ? "Plate još nisu obračunate"
-                          : "Plate djelimično obračunate"
-                      }
-                    />
-                  )}
-                  <Link
-                    href={`/organizacija/${o.id}`}
-                    style={{
-                      color: "#3a5c42",
-                      fontWeight: 600,
-                      textDecoration: "none",
-                    }}
-                  >
-                    {o.name}
-                  </Link>
-                </td>
-                <td className={styles.muted} data-label="Vlasnik">
-                  {o.owner
-                    ? o.owner.name ||
-                      `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim() ||
-                      "–"
-                    : "–"}
-                </td>
-                <td data-label="Tip">
-                  <span
-                    className={`${styles.typeBadge} ${
-                      o.type === "COMPANY"
-                        ? styles.typeCompany
-                        : styles.typeBusiness
-                    }`}
-                  >
-                    {o.type === "COMPANY" ? "D.o.o." : "Obrt"}
-                  </span>
-                </td>
-                <td className={styles.num} data-label="Radnika">
-                  {o.workerCount}
-                </td>
-                <td className={styles.muted} data-label="JIB">
-                  {o.taxNumber || "–"}
-                </td>
-                <td className={styles.muted} data-label="Šifra dj.">
-                  {o.activityCode || "–"}
-                </td>
-                <td className={styles.muted} data-label="Grad">
-                  {o.city || "–"}
-                </td>
-                <td data-label="Status plata">
-                  <span
-                    className={`${styles.statusBadge} ${STATUS_CLASS[o.payrollStatus]}`}
-                  >
-                    {STATUS_LABEL[o.payrollStatus]}
-                  </span>
-                  {(o.payrollStatus === "partial" ||
-                    o.payrollStatus === "obracunato") && (
-                    <span className={styles.statusDetail}>
-                      {o.payrollObracunato}/{o.workerCount} obračunato
-                      {o.payrollIsplaceno > 0
-                        ? ` · ${o.payrollIsplaceno} isplaćeno`
-                        : ""}
+                      className={[
+                        "inline-flex items-center px-2 py-0.5 rounded-full text-[11.5px] font-medium whitespace-nowrap",
+                        o.type === "COMPANY"
+                          ? "bg-info-bg text-info"
+                          : "bg-brand-100 text-brand-700",
+                      ].join(" ")}
+                    >
+                      {o.type === "COMPANY" ? "D.o.o." : "Obrt"}
                     </span>
-                  )}
-                </td>
-                <td data-label="Akcije">
-                  <OrgRowActions
-                    org={o}
-                    year={year}
-                    month={month}
-                    editTab={editTab}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-text-primary">
+                    {o.workerCount}
+                  </td>
+                  <td className="px-3 py-3 font-mono text-[12px] text-text-secondary whitespace-nowrap">
+                    {o.taxNumber || "–"}
+                  </td>
+                  <td className="px-3 py-3 text-text-secondary">
+                    {o.city || "–"}
+                  </td>
+                  <td className="px-3 py-3">
+                    <span
+                      className={[
+                        "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap",
+                        STATUS_PK_CLASS[o.payrollStatus],
+                      ].join(" ")}
+                    >
+                      {STATUS_LABEL[o.payrollStatus]}
+                    </span>
+                    {(o.payrollStatus === "partial" ||
+                      o.payrollStatus === "obracunato") && (
+                      <div className="text-[11.5px] text-text-tertiary mt-0.5 whitespace-nowrap">
+                        {o.payrollObracunato}/{o.workerCount} obračunato
+                        {o.payrollIsplaceno > 0
+                          ? ` · ${o.payrollIsplaceno} isplaćeno`
+                          : ""}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <OrgRowActions
+                      org={o}
+                      year={year}
+                      month={month}
+                      editTab={editTab}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// PK stat pločica: caps label, serif brojka, hint, opcioni progress bar.
+function OrgStatTile({
+  label,
+  value,
+  hint,
+  pct,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  pct?: number;
+}) {
+  return (
+    <div className="bg-cream-100 border border-cream-300 rounded-xl p-4">
+      <div className="text-[10.5px] leading-4 font-semibold uppercase tracking-wider text-text-tertiary mb-1">
+        {label}
+      </div>
+      <div className="font-serif-display text-[24px] leading-8 text-text-primary tabular-nums">
+        {value}
+      </div>
+      <div className="text-[11.5px] leading-4 text-text-tertiary mt-0.5">
+        {hint}
+      </div>
+      {pct != null && (
+        <div className="h-1.5 bg-cream-200 rounded-full overflow-hidden mt-2">
+          <div
+            className={`h-full ${pct >= 100 ? "bg-success" : "bg-brand-600"}`}
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }

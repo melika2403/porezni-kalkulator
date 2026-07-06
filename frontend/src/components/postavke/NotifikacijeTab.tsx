@@ -76,7 +76,7 @@ export function NotifikacijeTab() {
             >
               <span
                 className={[
-                  "absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm",
+                  "absolute left-0 top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm",
                   state[item.key] ? "translate-x-[18px]" : "translate-x-0.5",
                 ].join(" ")}
               />

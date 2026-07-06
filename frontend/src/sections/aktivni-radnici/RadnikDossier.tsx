@@ -1,5 +1,8 @@
 "use client";
 
+// Karton radnika u PK Office stilu (podaci i akcije isti kao prije, samo
+// dizajn): zaglavlje sa avatarom i statusom, brze akcije, info kartice,
+// dokumenti. "Uredi" otvara punu PK formu radnika na licu mjesta.
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +10,7 @@ import EvidencijaModal from "src/sections/organizacije/EvidencijaModal";
 import {
   deleteWorkerDocument,
   getAllMyWorkers,
+  getOrganization,
   listWorkerDocuments,
   workerDocumentDownloadUrl,
   type WorkerDocument,
@@ -14,18 +18,24 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import {
-  LuFileText,
-  LuFileX,
-  LuClipboardList,
-  LuCalendarDays,
-  LuNotebookText,
-  LuPencil,
-  LuDownload,
-  LuTrash2,
-} from "react-icons/lu";
+  IconArrowLeft,
+  IconCalendar,
+  IconClipboardList,
+  IconCrown,
+  IconDownload,
+  IconFileText,
+  IconNotebook,
+  IconPencil,
+  IconTrash,
+  IconUserOff,
+} from "@tabler/icons-react";
 import styles from "./aktivniRadnici.module.css";
+import "src/styles/pk-embed.css";
 import { parseJmbg } from "src/utils/jmbg";
 import { useNotice } from "src/components/Notice/Notice";
+import { formatBAM, formatDate, formatDateTime } from "src/lib/format";
+import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
+import { WorkerStatusBadge } from "src/sections/zaposlenici/WorkersTable";
 
 const DOC_TYPE_LABEL: Record<WorkerDocumentType, string> = {
   UGOVOR: "Ugovor o radu",
@@ -50,25 +60,6 @@ const DOC_TYPE_LABEL: Record<WorkerDocumentType, string> = {
   ODLUKA_TOPLI_OBROK: "Odluka o pravu na topli obrok",
 };
 
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "–";
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return `${d}.${m}.${y}.`;
-}
-
-function fmtDateTime(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}. ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function fmtKm(n: number | null): string {
-  if (n == null) return "–";
-  return (
-    n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
-    " KM"
-  );
-}
-
 function fmtSize(b: number | null): string {
   if (b == null) return "–";
   if (b < 1024) return `${b} B`;
@@ -76,22 +67,14 @@ function fmtSize(b: number | null): string {
   return `${(b / 1024 / 1024).toFixed(2)} MB`;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  PRIJAVLJEN: "Prijavljen",
-  DRAFT: "Draft",
-  ODJAVLJEN: "Odjavljen",
-};
-
-const STATUS_CLASS: Record<string, string> = {
-  PRIJAVLJEN: styles.badgeActive,
-  DRAFT: styles.badgeDraft,
-  ODJAVLJEN: styles.badgeInactive,
-};
+const actionBtn =
+  "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-cream-300 bg-cream-100 text-[13px] font-medium text-text-primary hover:bg-cream-200 transition-colors";
 
 export default function RadnikDossier({ workerId }: { workerId: number }) {
   const queryClient = useQueryClient();
   const { confirm: confirmDialog } = useNotice();
   const [evidencijaOpen, setEvidencijaOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const workersQuery = useQuery({
     queryKey: ["allMyWorkers"],
@@ -99,6 +82,13 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
   });
 
   const worker = workersQuery.data?.find((w) => w.id === workerId);
+
+  // Tip organizacije treba punoj formi (obrt vlasnik nema ugovor/platu).
+  const orgQuery = useQuery({
+    queryKey: ["pk-org", worker?.organizationId ?? null],
+    queryFn: () => unwrap(getOrganization(worker!.organizationId)),
+    enabled: !!worker,
+  });
 
   const docsQuery = useQuery({
     queryKey: ["workerDocuments", workerId],
@@ -124,8 +114,8 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
   if (!worker) {
     return (
       <main className={styles.page}>
-        <Link href="/aktivni-radnici" className={styles.actionLink}>
-          ← Nazad na listu
+        <Link href="/aktivni-radnici" className={styles.backLink}>
+          ← Nazad na listu radnika
         </Link>
         <div className={styles.empty} style={{ marginTop: "1.5rem" }}>
           Radnik nije pronađen ili nemate pristup.
@@ -136,79 +126,257 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
 
   const docs = docsQuery.data ?? [];
   const jmbgInfo = worker.jmbg ? parseJmbg(worker.jmbg) : null;
+  const initials =
+    `${worker.firstName[0] ?? ""}${worker.lastName[0] ?? ""}`.toUpperCase();
 
   return (
     <main className={styles.page}>
-      <Link href="/aktivni-radnici" className={styles.backLink}>
-        ← Nazad na listu radnika
-      </Link>
+      <div className="pk-scope space-y-5">
+        <Link
+          href="/aktivni-radnici"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-700 hover:text-brand-600"
+        >
+          <IconArrowLeft size={15} />
+          Nazad na listu radnika
+        </Link>
 
-      <div className={styles.dossierHeader}>
-        <div>
-          <p className={styles.label}>{worker.organizationName}</p>
-          <h1 className={styles.h1}>
-            {worker.firstName} <em>{worker.lastName}</em>
-          </h1>
-          <div className={styles.dossierMeta}>
-            <span
-              className={`${styles.badge} ${
-                STATUS_CLASS[worker.employmentStatus] ?? styles.badgeDraft
-              }`}
-            >
-              {STATUS_LABEL[worker.employmentStatus] ?? worker.employmentStatus}
-            </span>
-            {worker.position && <span>{worker.position}</span>}
-            {worker.contractType && (
-              <span>
-                {worker.contractType === "NEODREDJENO" ? "Neodređeno" : "Određeno"}
-                {worker.contractType === "ODREDJENO" && worker.contractEndDate
-                  ? ` do ${fmtDate(worker.contractEndDate)}`
-                  : ""}
+        {/* Zaglavlje */}
+        <div className="bg-cream-100 border border-cream-300 rounded-xl p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <span
+                className={[
+                  "w-14 h-14 rounded-full inline-flex items-center justify-center text-[19px] font-semibold shrink-0",
+                  worker.role === "VLASNIK"
+                    ? "bg-brand-600 text-white"
+                    : "bg-brand-100 text-brand-700",
+                ].join(" ")}
+              >
+                {initials}
               </span>
+              <div className="min-w-0">
+                <div className="text-[11px] leading-4 font-semibold uppercase tracking-wider text-text-tertiary mb-0.5">
+                  {worker.organizationName}
+                </div>
+                <h1 className="font-serif-display text-[26px] leading-8 text-text-primary">
+                  {worker.firstName} {worker.lastName}
+                </h1>
+                <div className="flex items-center gap-2 flex-wrap mt-1.5 text-[12.5px] text-text-secondary">
+                  <WorkerStatusBadge status={worker.employmentStatus} />
+                  {worker.role === "VLASNIK" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-brand-100 text-brand-700">
+                      <IconCrown size={11} /> vlasnik
+                    </span>
+                  )}
+                  {worker.position && <span>{worker.position}</span>}
+                  {worker.contractType && (
+                    <span>
+                      {worker.contractType === "NEODREDJENO"
+                        ? "Neodređeno"
+                        : "Određeno"}
+                      {worker.contractType === "ODREDJENO" &&
+                      worker.contractEndDate
+                        ? ` do ${formatDate(worker.contractEndDate)}`
+                        : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            >
+              <IconPencil size={15} />
+              Uredi radnika
+            </button>
+          </div>
+
+          {/* Brze akcije: generisanje dokumenata sa auto-popunom */}
+          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-cream-300">
+            <Link
+              href={`/ugovor-o-radu?org=${worker.organizationId}&worker=${worker.id}&tab=ugovor`}
+              className={actionBtn}
+            >
+              <IconFileText size={15} className="text-brand-600" />
+              Ugovor o radu
+            </Link>
+            {worker.employmentStatus === "PRIJAVLJEN" && (
+              <Link
+                href={`/ugovor-o-radu?org=${worker.organizationId}&worker=${worker.id}&tab=otkaz`}
+                className={actionBtn}
+              >
+                <IconUserOff size={15} className="text-accent-500" />
+                Otkaz
+              </Link>
             )}
+            <Link
+              href={`/prijave-radnika?org=${worker.organizationId}&worker=${worker.id}&vrsta=${
+                worker.employmentStatus === "PRIJAVLJEN" ? "ODJAVA" : "PRIJAVA"
+              }`}
+              className={actionBtn}
+            >
+              <IconClipboardList size={15} className="text-info" />
+              JS3100
+            </Link>
+            <Link
+              href={`/rjesenja-i-odluke?org=${worker.organizationId}&worker=${worker.id}`}
+              className={actionBtn}
+            >
+              <IconCalendar size={15} className="text-success" />
+              Godišnji odmor
+            </Link>
+            <button
+              type="button"
+              className={actionBtn}
+              onClick={() => setEvidencijaOpen(true)}
+              title="Matična evidencija o radniku (Sl. nov. FBiH 92/16)"
+            >
+              <IconNotebook size={15} className="text-text-secondary" />
+              Evidencija
+            </button>
           </div>
         </div>
-        <div className={styles.actions}>
-          <Link
-            href={`/ugovor-o-radu?org=${worker.organizationId}&worker=${worker.id}&tab=ugovor`}
-            className={styles.btnPrimary}
-          >
-            <LuFileText aria-hidden /> Generiši ugovor
-          </Link>
-          {worker.employmentStatus === "PRIJAVLJEN" && (
-            <Link
-              href={`/ugovor-o-radu?org=${worker.organizationId}&worker=${worker.id}&tab=otkaz`}
-              className={styles.actionLink}
-            >
-              <LuFileX aria-hidden /> Otkaz
-            </Link>
+
+        {/* Info kartice */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <InfoBlock title="Lični podaci">
+            <Row label="JMBG" value={worker.jmbg ?? "–"} />
+            <Row
+              label="Datum rođenja"
+              value={
+                jmbgInfo?.birthDateIso ? formatDate(jmbgInfo.birthDateIso) : "–"
+              }
+            />
+            <Row
+              label="Spol"
+              value={
+                worker.spol === "M"
+                  ? "Muški"
+                  : worker.spol === "Z"
+                    ? "Ženski"
+                    : "–"
+              }
+            />
+            <Row label="Adresa" value={worker.address ?? "–"} />
+            <Row label="Grad" value={worker.city ?? "–"} />
+            <Row label="Email" value={worker.email ?? "–"} />
+            <Row label="Žiro" value={worker.bankAccount ?? "–"} />
+          </InfoBlock>
+
+          <InfoBlock title="Ugovor o radu">
+            <Row label="Broj ugovora" value={worker.contractNumber ?? "–"} />
+            <Row label="Pozicija" value={worker.position ?? "–"} />
+            <Row
+              label="Bruto plata"
+              value={worker.salaryBruto != null ? formatBAM(worker.salaryBruto) : "–"}
+            />
+            <Row
+              label="Neto plata"
+              value={worker.salaryNeto != null ? formatBAM(worker.salaryNeto) : "–"}
+            />
+            <Row
+              label="Probni rad"
+              value={worker.probationMonths ? `${worker.probationMonths} mj.` : "–"}
+            />
+            <Row label="Otkazni rok" value={worker.noticePeriod ?? "–"} />
+          </InfoBlock>
+
+          <InfoBlock title="Radni odnos">
+            <Row
+              label="Datum početka rada"
+              value={worker.startDate ? formatDate(worker.startDate) : "–"}
+            />
+            <Row
+              label="Datum prijave"
+              value={worker.prijavaDate ? formatDate(worker.prijavaDate) : "–"}
+            />
+            <Row
+              label="Datum odjave"
+              value={worker.odjavaDate ? formatDate(worker.odjavaDate) : "–"}
+            />
+            <Row
+              label="Kraj radnog odnosa"
+              value={worker.endDate ? formatDate(worker.endDate) : "–"}
+            />
+          </InfoBlock>
+        </div>
+
+        {/* Dokumenti */}
+        <div className="bg-cream-100 border border-cream-300 rounded-xl p-5">
+          <h2 className="text-[14px] leading-5 font-semibold text-text-primary mb-4">
+            Generisani dokumenti
+          </h2>
+          {docsQuery.isLoading ? (
+            <p className="text-[13px] text-text-tertiary">
+              Učitavam dokumente…
+            </p>
+          ) : docs.length === 0 ? (
+            <p className="text-[13px] text-text-tertiary">
+              Još nema generisanih dokumenata za ovog radnika.
+            </p>
+          ) : (
+            <div className="overflow-x-auto -mx-5 px-5">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-cream-300 text-left text-[11px] uppercase tracking-wider text-text-tertiary">
+                    <th className="py-2 font-semibold">Tip</th>
+                    <th className="py-2 font-semibold">Broj</th>
+                    <th className="py-2 font-semibold">Format</th>
+                    <th className="py-2 font-semibold">Veličina</th>
+                    <th className="py-2 font-semibold">Datum</th>
+                    <th className="py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {docs.map((d: WorkerDocument) => (
+                    <tr
+                      key={d.id}
+                      className="border-b border-cream-300/70 last:border-0"
+                    >
+                      <td className="py-3 font-medium text-text-primary">
+                        {DOC_TYPE_LABEL[d.type]}
+                      </td>
+                      <td className="py-3 text-text-secondary whitespace-nowrap">
+                        {d.number ?? "–"}
+                      </td>
+                      <td className="py-3 text-text-secondary">{d.format}</td>
+                      <td className="py-3 text-text-secondary whitespace-nowrap">
+                        {fmtSize(d.sizeBytes)}
+                      </td>
+                      <td className="py-3 text-text-secondary whitespace-nowrap">
+                        {formatDateTime(d.createdAt)}
+                      </td>
+                      <td className="py-3 text-right whitespace-nowrap">
+                        <a
+                          href={workerDocumentDownloadUrl(d.id)}
+                          download
+                          title="Preuzmi"
+                          className="inline-flex p-1.5 rounded-lg text-text-tertiary hover:bg-cream-200 hover:text-brand-600 transition-colors"
+                        >
+                          <IconDownload size={16} />
+                        </a>
+                        <button
+                          type="button"
+                          title="Obriši dokument"
+                          onClick={async () => {
+                            const ok = await confirmDialog(
+                              `Izbrisati dokument "${d.originalName}"?`,
+                            );
+                            if (ok) deleteMutation.mutate(d.id);
+                          }}
+                          className="inline-flex p-1.5 rounded-lg text-text-tertiary hover:bg-cream-200 hover:text-accent-500 transition-colors"
+                        >
+                          <IconTrash size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-          <Link
-            href={`/prijave-radnika?org=${worker.organizationId}&worker=${worker.id}&vrsta=${
-              worker.employmentStatus === "PRIJAVLJEN" ? "ODJAVA" : "PRIJAVA"
-            }`}
-            className={styles.actionLink}
-          >
-            <LuClipboardList aria-hidden /> JS3100
-          </Link>
-          <Link
-            href={`/rjesenja-i-odluke?org=${worker.organizationId}&worker=${worker.id}`}
-            className={styles.actionLink}
-          >
-            <LuCalendarDays aria-hidden /> Godišnji odmor
-          </Link>
-          <button
-            type="button"
-            className={styles.actionLink}
-            style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
-            onClick={() => setEvidencijaOpen(true)}
-            title="Matična evidencija o radniku (Sl. nov. FBiH 92/16)"
-          >
-            <LuNotebookText aria-hidden /> Evidencija
-          </button>
-          <Link href={`/organizacija/${worker.organizationId}`} className={styles.actionLink}>
-            <LuPencil aria-hidden /> Uredi
-          </Link>
         </div>
       </div>
 
@@ -222,112 +390,46 @@ export default function RadnikDossier({ workerId }: { workerId: number }) {
         />
       )}
 
-      {/* Info grid */}
-      <div className={styles.infoGrid}>
-        <InfoBlock title="Lični podaci">
-          <Row label="JMBG" value={worker.jmbg ?? "–"} />
-          <Row label="Datum rođenja" value={fmtDate(jmbgInfo?.birthDateIso ?? null)} />
-          <Row label="Spol" value={worker.spol === "M" ? "Muški" : worker.spol === "Z" ? "Ženski" : "–"} />
-          <Row label="Adresa" value={worker.address ?? "–"} />
-          <Row label="Grad" value={worker.city ?? "–"} />
-          <Row label="Email" value={worker.email ?? "–"} />
-          <Row label="Žiro" value={worker.bankAccount ?? "–"} />
-        </InfoBlock>
-
-        <InfoBlock title="Ugovor o radu">
-          <Row label="Broj ugovora" value={worker.contractNumber ?? "–"} />
-          <Row label="Pozicija" value={worker.position ?? "–"} />
-          <Row label="Bruto plata" value={fmtKm(worker.salaryBruto)} />
-          <Row label="Neto plata" value={fmtKm(worker.salaryNeto)} />
-          <Row label="Probni rad" value={worker.probationMonths ? `${worker.probationMonths} mj.` : "–"} />
-          <Row label="Otkazni rok" value={worker.noticePeriod ?? "–"} />
-        </InfoBlock>
-
-        <InfoBlock title="Radni odnos">
-          <Row label="Datum početka rada" value={fmtDate(worker.startDate)} />
-          <Row label="Datum prijave" value={fmtDate(worker.prijavaDate)} />
-          <Row label="Datum odjave" value={fmtDate(worker.odjavaDate)} />
-          <Row label="Kraj radnog odnosa" value={fmtDate(worker.endDate)} />
-        </InfoBlock>
-      </div>
-
-      {/* Dokumenti */}
-      <h2 className={styles.sectionH2}>Generisani dokumenti</h2>
-      <div className={styles.tableWrap}>
-        {docsQuery.isLoading ? (
-          <div className={styles.empty}>Učitavam dokumente…</div>
-        ) : docs.length === 0 ? (
-          <div className={styles.empty}>
-            Još nema generisanih dokumenata za ovog radnika.
-          </div>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Tip</th>
-                <th>Broj</th>
-                <th>Format</th>
-                <th>Veličina</th>
-                <th>Datum</th>
-                <th>Akcije</th>
-              </tr>
-            </thead>
-            <tbody>
-              {docs.map((d: WorkerDocument) => (
-                <tr key={d.id}>
-                  <td className={styles.nameCell}>{DOC_TYPE_LABEL[d.type]}</td>
-                  <td className={styles.muted}>{d.number ?? "–"}</td>
-                  <td>{d.format}</td>
-                  <td className={styles.muted}>{fmtSize(d.sizeBytes)}</td>
-                  <td className={styles.muted}>{fmtDateTime(d.createdAt)}</td>
-                  <td>
-                    <div className={styles.actions}>
-                      <a
-                        href={workerDocumentDownloadUrl(d.id)}
-                        className={styles.actionLink}
-                        download
-                      >
-                        <LuDownload aria-hidden /> Preuzmi
-                      </a>
-                      <button
-                        type="button"
-                        className={styles.actionLink}
-                        style={{ background: "#fee2e2", color: "#991b1b" }}
-                        onClick={async () => {
-                          const ok = await confirmDialog(
-                            `Izbrisati dokument "${d.originalName}"?`,
-                          );
-                          if (ok) deleteMutation.mutate(d.id);
-                        }}
-                      >
-                        <LuTrash2 aria-hidden /> Briši
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {editOpen && (
+        <div className="pk-scope">
+          <WorkerModal
+            key={worker.id}
+            orgId={worker.organizationId}
+            orgType={orgQuery.data?.type ?? null}
+            worker={worker}
+            onClose={() => {
+              setEditOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["allMyWorkers"] });
+            }}
+          />
+        </div>
+      )}
     </main>
   );
 }
 
-function InfoBlock({ title, children }: { title: string; children: React.ReactNode }) {
+function InfoBlock({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={styles.infoBlock}>
-      <h3 className={styles.infoTitle}>{title}</h3>
-      <dl className={styles.infoList}>{children}</dl>
+    <div className="bg-cream-100 border border-cream-300 rounded-xl p-5">
+      <h3 className="text-[11.5px] font-semibold uppercase tracking-wider text-brand-700 border-b border-cream-300 pb-2 mb-3">
+        {title}
+      </h3>
+      <dl className="space-y-2">{children}</dl>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className={styles.infoRow}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
+    <div className="flex items-baseline justify-between gap-3 text-[13px] leading-5">
+      <dt className="text-text-tertiary shrink-0">{label}</dt>
+      <dd className="text-text-primary text-right break-all">{value}</dd>
     </div>
   );
 }

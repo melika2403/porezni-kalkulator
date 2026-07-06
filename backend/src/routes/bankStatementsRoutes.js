@@ -18,6 +18,24 @@ const pdfUpload = multer({
   },
 });
 
+// Grupni uvoz (Inbox): analiza više PDF-ova odjednom, bez snimanja.
+// Prepoznavanje organizacije po žiro računu; mora biti PRIJE /:orgId ruta.
+router.post(
+  "/bulk/analyze",
+  requireAuth,
+  (req, res, next) => {
+    pdfUpload.array("files", 20)(req, res, (err) => {
+      if (err) {
+        const code =
+          err.message === "INVALID_FILE_TYPE" ? "INVALID_FILE_TYPE" : "UPLOAD_ERROR";
+        return res.status(400).json({ ok: false, error: code });
+      }
+      next();
+    });
+  },
+  ctrl.bulkAnalyze,
+);
+
 router.post(
   "/:orgId/upload",
   requireAuth,

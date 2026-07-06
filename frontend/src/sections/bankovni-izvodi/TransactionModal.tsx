@@ -1,19 +1,29 @@
 "use client";
 
-// Dijeljeni modal za detalj stavke izvoda: kategorija, potvrda, svi
-// podaci sa izvoda. Koristi se na detalju izvoda i na Transakcije tabu.
+// Dijeljeni modal za detalj stavke izvoda: kategorija, partner, potvrda,
+// svi podaci sa izvoda. Koristi se na detalju izvoda i na Transakcije tabu.
+import { useState } from "react";
 import Link from "next/link";
 import {
   IconAlertCircle,
   IconLink,
+  IconLinkOff,
   IconExternalLink,
 } from "@tabler/icons-react";
 import { formatBAM, formatDate } from "src/lib/format";
 import { Modal } from "src/components/app-shell/Modal";
+import { PkSelect } from "src/components/app-shell/PkSelect";
+import { PartnerCombobox } from "src/components/app-shell/PartnerCombobox";
+import {
+  PartnerFormModal,
+  EMPTY_PARTNER_FORM,
+  type PartnerFormState,
+} from "src/sections/partneri/PartnerFormModal";
 import {
   useOrgInvoices,
   useUpdateBankTransaction,
 } from "src/hooks/useBankStatements";
+import { usePartners } from "src/hooks/usePartners";
 import { categoriesForDirection } from "src/lib/bankCategories";
 import type { BankTransactionWithStatement } from "src/api/bankStatements";
 
@@ -77,6 +87,31 @@ export function TransactionModal({
     tx != null && tx.direction === "IN" ? orgId : null,
     { status: "ISSUED" },
   );
+
+  // partneri za (od)vezivanje stavke sa kartice partnera
+  const { data: partners } = usePartners(tx != null ? orgId : null);
+  const [newPartnerInitial, setNewPartnerInitial] =
+    useState<PartnerFormState | null>(null);
+
+  // Naziv povezanog partnera (derivira se iz liste; može stići async).
+  const linkedName =
+    tx?.partnerId != null
+      ? ((partners ?? []).find((p) => p.id === tx.partnerId)?.name ?? "")
+      : "";
+  // draft = tekst koji korisnik kuca; null = ne uređuje, prikazuje povezanog.
+  // Reset SAMO kad se promijeni stavka ili veza (ne kad linkedName async
+  // stigne), da refetch liste partnera ne obriše ono što korisnik kuca.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [prevTxKey, setPrevTxKey] = useState("");
+  const txKey = `${tx?.id ?? "x"}:${tx?.partnerId ?? "x"}`;
+  if (txKey !== prevTxKey) {
+    setPrevTxKey(txKey);
+    setDraft(null);
+  }
+  const partnerText = draft ?? linkedName;
+  // dok korisnik kuca (draft != null), combobox se ponaša kao nepovezan
+  const shownPartnerId =
+    tx?.partnerId != null && draft === null ? tx.partnerId : null;
 
   return (
     <Modal
@@ -147,40 +182,101 @@ export function TransactionModal({
             <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1.5">
               Kategorija
             </div>
-            <select
+            <PkSelect
+              ariaLabel="Kategorija"
               value={tx.category ?? ""}
               disabled={updateTx.isPending}
-              onChange={(e) =>
+              onChange={(v) =>
                 updateTx.mutate({
                   txId: tx.id,
-                  patch: { category: e.target.value || null },
+                  patch: { category: v ? String(v) : null },
                 })
               }
-              className="w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600"
-            >
-              <option value="">Bez kategorije</option>
-              {(() => {
-                const groups = categoriesForDirection(tx.direction);
-                return (
-                  <>
-                    <optgroup label="Ide u KPR">
-                      {groups.uKpr.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label} (Kolona {c.kprColumn})
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Ne ide u KPR (nije prihod ni rashod)">
-                      {groups.bezKpr.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </>
-                );
+              groups={(() => {
+                const g = categoriesForDirection(tx.direction);
+                return [
+                  { options: [{ value: "", label: "Bez kategorije" }] },
+                  {
+                    label: "Ide u KPR",
+                    options: g.uKpr.map((c) => ({
+                      value: c.id,
+                      label: `${c.label} (Kolona ${c.kprColumn})`,
+                    })),
+                  },
+                  {
+                    label: "Ne ide u KPR (nije prihod ni rashod)",
+                    options: g.bezKpr.map((c) => ({
+                      value: c.id,
+                      label: c.label,
+                    })),
+                  },
+                ];
               })()}
-            </select>
+              wrapStyle={{ width: "100%" }}
+            />
+          </div>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1.5">
+              Partner (kartica)
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <PartnerCombobox
+                  value={partnerText}
+                  partnerId={shownPartnerId}
+                  onChange={(text, pid) => {
+                    if (pid != null) {
+                      setDraft(null); // vrati na prikaz povezanog
+                      updateTx.mutate({
+                        txId: tx.id,
+                        patch: { partnerId: pid },
+                      });
+                    } else {
+                      setDraft(text);
+                    }
+                  }}
+                  partners={partners ?? []}
+                  onRequestNew={(typed) => {
+                    const digits = (tx.counterpartyAccount ?? "").replace(
+                      /\D+/g,
+                      "",
+                    );
+                    setNewPartnerInitial({
+                      ...EMPTY_PARTNER_FORM,
+                      name: typed.trim() || tx.counterpartyName || "",
+                      accounts: digits ? [digits] : [""],
+                    });
+                  }}
+                  placeholder="poveži: naziv, šifra ili žiro račun partnera"
+                  ariaLabel="Partner"
+                  inputClassName="bg-cream-50"
+                />
+              </div>
+              {tx.partnerId != null && (
+                <button
+                  type="button"
+                  disabled={updateTx.isPending}
+                  onClick={() =>
+                    updateTx.mutate({
+                      txId: tx.id,
+                      patch: { partnerId: null },
+                    })
+                  }
+                  title="Skini vezu sa partnerom"
+                  className="w-9 h-9 shrink-0 rounded-lg border border-cream-300 text-text-tertiary hover:text-danger hover:border-danger/40 inline-flex items-center justify-center transition-colors disabled:opacity-50"
+                >
+                  <IconLinkOff size={15} />
+                </button>
+              )}
+            </div>
+            <p className="text-[11.5px] text-text-tertiary mt-1.5">
+              Povezana stavka se vodi na kartici partnera
+              {tx.direction === "OUT"
+                ? "; potvrđena isplata dobavljaču zatvara njegov otvoren ulazni račun"
+                : ""}
+              .
+            </p>
           </div>
 
           {tx.direction === "IN" && (
@@ -188,35 +284,35 @@ export function TransactionModal({
               <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1.5">
                 Povezana faktura
               </div>
-              <select
+              <PkSelect
+                ariaLabel="Povezana faktura"
                 value={tx.invoiceId ?? ""}
                 disabled={updateTx.isPending}
-                onChange={(e) =>
+                onChange={(v) =>
                   updateTx.mutate({
                     txId: tx.id,
-                    patch: {
-                      invoiceId: e.target.value ? Number(e.target.value) : null,
-                    },
+                    patch: { invoiceId: v ? Number(v) : null },
                   })
                 }
-                className="w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600"
-              >
-                <option value="">Nije povezano sa fakturom</option>
-                {/* trenutno povezana (može biti već naplaćena pa nije u otvorenim) */}
-                {tx.invoice &&
-                  !(openInvoices ?? []).some((i) => i.id === tx.invoice?.id) && (
-                    <option value={tx.invoice.id}>
-                      {tx.invoice.fullNumber} · {formatBAM(Number(tx.invoice.grossTotal))}
-                      {tx.invoice.status === "PAID" ? " (naplaćena)" : ""}
-                    </option>
-                  )}
-                {(openInvoices ?? []).map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.fullNumber} · {inv.buyerName} ·{" "}
-                    {formatBAM(Number(inv.grossTotal))}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "Nije povezano sa fakturom" },
+                  // trenutno povezana (može biti već naplaćena pa nije u otvorenim)
+                  ...(tx.invoice &&
+                  !(openInvoices ?? []).some((i) => i.id === tx.invoice?.id)
+                    ? [
+                        {
+                          value: tx.invoice.id,
+                          label: `${tx.invoice.fullNumber} · ${formatBAM(Number(tx.invoice.grossTotal))}${tx.invoice.status === "PAID" ? " (naplaćena)" : ""}`,
+                        },
+                      ]
+                    : []),
+                  ...(openInvoices ?? []).map((inv) => ({
+                    value: inv.id,
+                    label: `${inv.fullNumber} · ${inv.buyerName} · ${formatBAM(Number(inv.grossTotal))}`,
+                  })),
+                ]}
+                wrapStyle={{ width: "100%" }}
+              />
               {tx.invoice && tx.status === "UNMATCHED" && (
                 <p className="text-[11.5px] text-text-tertiary mt-1.5">
                   Potvrdom stavke faktura {tx.invoice.fullNumber} se označava
@@ -255,6 +351,18 @@ export function TransactionModal({
           )}
         </div>
       )}
+
+      {/* "+ Novi partner" iz comboboxa: po snimanju stavka se odmah poveže */}
+      <PartnerFormModal
+        orgId={orgId}
+        initial={newPartnerInitial}
+        onClose={() => setNewPartnerInitial(null)}
+        onSaved={(p) => {
+          if (tx) {
+            updateTx.mutate({ txId: tx.id, patch: { partnerId: p.id } });
+          }
+        }}
+      />
     </Modal>
   );
 }

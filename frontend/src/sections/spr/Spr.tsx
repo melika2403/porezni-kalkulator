@@ -1,6 +1,10 @@
 "use client";
-import { useMemo, useState, useCallback, useRef } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import styles from "./spr.module.css";
+import { getOrganization } from "src/api/profile";
+import { getKpr, searchBankTransactions } from "src/api/bankStatements";
+import { getAmortizacija } from "src/api/amortizacija";
+import { calcRow } from "src/sections/amortizacija/Amortizacija";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import DateInput from "src/components/DateInput/DateInput";
@@ -179,6 +183,134 @@ export default function SprForm() {
     }));
   }, []);
 
+  /* ── PK Office prefill (/spr?pkOrg=..&pkYear=..) ── */
+  // Povuče obveznika i cifre iz knjiga te organizacije: prihodi/rashodi iz
+  // KPR-a (samo potvrđene stavke izvoda), amortizacija iz PLDI obrasca iste
+  // godine. Sve povučeno ostaje editabilno, korisnik provjerava prije predaje.
+  const [pkFill, setPkFill] = useState<{
+    orgName: string;
+    year: number;
+    notes: string[];
+    error?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const orgId = Number(sp.get("pkOrg"));
+    const year = Number(sp.get("pkYear"));
+    if (!Number.isInteger(orgId) || orgId <= 0) return;
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) return;
+    let cancelled = false;
+    (async () => {
+      const [orgRes, kprRes, amortRes, unmatchedRes] = await Promise.all([
+        getOrganization(orgId),
+        getKpr(orgId, { year }),
+        getAmortizacija(String(year), orgId),
+        searchBankTransactions(orgId, {
+          status: "UNMATCHED",
+          dateFrom: `${year}-01-01`,
+          dateTo: `${year}-12-31`,
+          limit: 1,
+        }),
+      ]);
+      if (cancelled) return;
+
+      if (!orgRes.ok) {
+        setPkFill({
+          orgName: "",
+          year,
+          notes: [],
+          error:
+            "Podaci iz PK Office se ne mogu povući. Provjerite da ste prijavljeni, pa otvorite obrazac ponovo iz PK Office (Obrasci).",
+        });
+        return;
+      }
+      const org = orgRes.data;
+      const owner = org.owner;
+
+      setPersonal((p) => ({
+        ...p,
+        jmbOsobni: owner?.jmbg ?? p.jmbOsobni,
+        fullName:
+          owner?.name ||
+          [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") ||
+          p.fullName,
+        address: owner?.address ?? p.address,
+        city: owner?.city ?? p.city,
+      }));
+      setBusiness((p) => ({
+        ...p,
+        jibJmb: org.taxNumber ?? p.jibJmb,
+        periodFrom: `${year}-01-01`,
+        periodTo: `${year}-12-31`,
+        name: org.name ?? p.name,
+        address: org.address ?? p.address,
+        city: org.city ?? p.city,
+        activityCode: org.activityCode ?? p.activityCode,
+        activityName: org.activityName ?? p.activityName,
+      }));
+      setSourceOrgId(orgId);
+
+      const notes: string[] = [];
+
+      // Paušalni režim: SPR se ne puni iz KPR-a, povlačimo samo obveznika.
+      if (org.taxRegime === "PAUSALNI") {
+        notes.push(
+          "Organizacija je u paušalnom režimu oporezivanja, pa cifre iz knjiga nisu povučene.",
+        );
+        setPkFill({ orgName: org.name, year, notes });
+        return;
+      }
+
+      if (kprRes.ok) {
+        const t = kprRes.data.totals;
+        const f = (n: number) => (n > 0 ? fmt(n) : "");
+        setIncome((s) => ({
+          ...s,
+          row11: f(t.k11),
+          row12: f(t.k12),
+          row13: f(t.k13),
+        }));
+        setExpenses((s) => ({
+          ...s,
+          row17: f(t.k16),
+          row18: f(t.k17),
+          row19: f(t.k18),
+          row20: f(t.k19),
+        }));
+      } else {
+        notes.push(
+          "KPR se nije mogao učitati, pa prihodi i rashodi nisu povučeni.",
+        );
+      }
+
+      if (amortRes.ok && amortRes.data?.rows?.length) {
+        const od = amortRes.data.obveznik?.periodOd || `${year}-01-01`;
+        const doo = amortRes.data.obveznik?.periodDo || `${year}-12-31`;
+        const total = amortRes.data.rows.reduce(
+          (a, row) => a + (calcRow(row, od, doo).iznos ?? 0),
+          0,
+        );
+        if (total > 0) setExpenses((s) => ({ ...s, row22: fmt(total) }));
+      } else {
+        notes.push(
+          `Amortizacija (PLDI) za ${year}. nije pronađena za ovu organizaciju: red 22 unesite ručno ili prvo popunite alat Stalna sredstva i amortizacija.`,
+        );
+      }
+
+      if (unmatchedRes.ok && unmatchedRes.data.total > 0) {
+        notes.push(
+          `${unmatchedRes.data.total} stavki iz izvoda u ${year}. još nije potvrđeno, pa NISU uključene u cifre. Potvrdite stavke u PK Office pa ponovo otvorite obrazac.`,
+        );
+      }
+
+      setPkFill({ orgName: org.name, year, notes });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /* ── Computed values ── */
 
   const computed = useMemo(() => {
@@ -319,6 +451,42 @@ export default function SprForm() {
           i bez registracije.
         </p>
       </div>
+
+      {/* PK Office prefill baner */}
+      {pkFill && (
+        <div
+          style={{
+            margin: "0 0 1.5rem",
+            padding: "14px 18px",
+            borderRadius: 12,
+            background: pkFill.error ? "#f3d8d8" : "var(--sage-pale, #e3ede4)",
+            border: "1px solid rgba(0, 0, 0, 0.07)",
+            fontSize: "13.5px",
+            lineHeight: 1.55,
+          }}
+        >
+          {pkFill.error ? (
+            <strong>{pkFill.error}</strong>
+          ) : (
+            <>
+              <strong>
+                Podaci povučeni iz PK Office knjiga: {pkFill.orgName},{" "}
+                {pkFill.year}. godina.
+              </strong>{" "}
+              Prihodi i rashodi su iz KPR-a (potvrđene stavke izvoda),
+              amortizacija iz PLDI obrasca. Sva polja ostaju editabilna,
+              provjerite cifre prije predaje.
+              {pkFill.notes.length > 0 && (
+                <ul style={{ margin: "8px 0 0 18px", color: "#8a4f10" }}>
+                  {pkFill.notes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Dio 1, Podaci o poreznom obvezniku ── */}
       <section className={styles.section}>

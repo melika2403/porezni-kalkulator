@@ -14,6 +14,7 @@ import {
   IconCash,
 } from "@tabler/icons-react";
 import { formatBAM } from "src/lib/format";
+import { PkSelect } from "src/components/app-shell/PkSelect";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { usePayrollStatus } from "src/hooks/usePkOfficeMe";
 import {
@@ -212,8 +213,6 @@ export default function ObracuniPlataPage() {
   }
 
   const years = [now.getFullYear(), now.getFullYear() - 1];
-  const selectCls =
-    "rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600";
 
   return (
     <div className="px-6 py-6 max-w-[1280px] mx-auto">
@@ -233,20 +232,18 @@ export default function ObracuniPlataPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className={selectCls}>
-            {MJESECI.map((m, i) => (
-              <option key={m} value={i + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={selectCls}>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}.
-              </option>
-            ))}
-          </select>
+          <PkSelect
+            ariaLabel="Mjesec"
+            value={month}
+            onChange={(v) => setMonth(Number(v))}
+            options={MJESECI.map((m, i) => ({ value: i + 1, label: m }))}
+          />
+          <PkSelect
+            ariaLabel="Godina"
+            value={year}
+            onChange={(v) => setYear(Number(v))}
+            options={years.map((y) => ({ value: y, label: `${y}.` }))}
+          />
           <a
             href={`${MARKETING_URL}/prijave-radnika?tab=obracun${orgId ? `&org=${orgId}&year=${year}&month=${month}` : ""}`}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors"

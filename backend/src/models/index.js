@@ -123,6 +123,11 @@ const Organization = sequelize.define(
     activityName: { type: DataTypes.STRING(255), allowNull: true },
     isClientOrg: { type: DataTypes.BOOLEAN, defaultValue: false },
     bankAccount: { type: DataTypes.STRING(25), allowNull: true },
+    // Svi žiro računi organizacije (JSON lista stringova, samo cifre).
+    // Prvi je GLAVNI i drži se sinhronizovan sa bankAccount (stari kod
+    // svuda čita bankAccount). Novi računi viđeni na izvodima se
+    // automatski dopisuju na kraj liste.
+    bankAccounts: { type: DataTypes.JSON, allowNull: true },
     logoUrl: { type: DataTypes.STRING(500), allowNull: true },
     // Konfiguracija računa primalaca i vrsta prihoda za uplatnice doprinosa/poreza.
     // JSON struktura: { pio: { account, vrstaPrihoda, primalac }, ... }
@@ -855,8 +860,10 @@ const InvoiceCounter = sequelize.define(
     // imaju organizationId i koriste org-based counter.
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     year: { type: DataTypes.INTEGER, allowNull: false },
+    // serija numeracije: INVOICE (F-), PROFORMA (P-), AVANS (A-, avansne i
+    // storno avansnih), KO (KO-, knjižne obavijesti)
     type: {
-      type: DataTypes.ENUM("INVOICE", "PROFORMA"),
+      type: DataTypes.ENUM("INVOICE", "PROFORMA", "AVANS", "KO"),
       allowNull: false,
       defaultValue: "INVOICE",
     },
@@ -897,6 +904,17 @@ const Invoice = sequelize.define(
       allowNull: false,
       defaultValue: "INVOICE",
     },
+    // vrsta izlaznog dokumenta: STANDARD | AVANSNA | STORNO_AVANSNE |
+    // KNJIZNA_OBAVIJEST. Avansne+storno i KO imaju SVOJE serije brojeva
+    // (A- odnosno KO-); storno/KO ulaze u knjige negativno (iznosi u bazi
+    // su pozitivni, predznak se izvodi iz vrste, kao u PDV obračunu).
+    docType: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "STANDARD",
+    },
+    // storno → avansna faktura koju stornira; KO → izvorna faktura
+    linkedInvoiceId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     year: { type: DataTypes.INTEGER, allowNull: false },
     sequence: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     fullNumber: { type: DataTypes.STRING(40), allowNull: false }, // npr. "0001-2026"
@@ -908,6 +926,28 @@ const Invoice = sequelize.define(
     emailSentTo: { type: DataTypes.STRING(255), allowNull: true },
 
     applyVat: { type: DataTypes.BOOLEAN, defaultValue: true },
+
+    // vrsta isporuke za KIF/PDV prijavu: OPOREZIVA | IZVOZ | OSLOBODJENA
+    vrstaIsporuke: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "OPOREZIVA",
+    },
+
+    // ── KIF klasifikacije (PDV evidencije); null = izvedeno iz vrsteIsporuke ──
+    // tip dokumenta po UINO evidencijama ("01".."09")
+    kifTipDokumenta: { type: DataTypes.STRING(2), allowNull: true },
+    // DOMACI_KUPAC | INOSTRANI_KUPAC | VANPOSLOVNE_SVRHE |
+    // OSTALO_NEOPOREZOVANO | GOTOVINSKA_UZ_RACUN | GOTOVINSKA_BEZ_RACUNA
+    kifVrstaFakture: { type: DataTypes.STRING(30), allowNull: true },
+    // REDOVNA | AVANSNA | KNJIZNA_OBAVIJEST | STORNO_AVANSNE | OSTALO
+    kifVrstaDokumenta: { type: DataTypes.STRING(20), allowNull: true },
+    // krajnja potrošnja: FBIH | RS | BD | NISTA (null = automatski)
+    kifKpEntitet: { type: DataTypes.STRING(10), allowNull: true },
+    kifKpIznos: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    // izvozna faktura (tip 04): jedinstvena carinska isprava
+    kifJciBroj: { type: DataTypes.STRING(30), allowNull: true },
+    kifJciDatum: { type: DataTypes.DATEONLY, allowNull: true },
 
     currency: {
       type: DataTypes.ENUM("BAM", "EUR"),
@@ -1191,7 +1231,17 @@ const BankStatement = sequelize.define(
     tableName: "bank_statements",
     charset: "utf8mb4",
     collate: "utf8mb4_unicode_ci",
-    indexes: [{ fields: ["organizationId", "statementDate"] }],
+    indexes: [
+      { fields: ["organizationId", "statementDate"] },
+      // duplikat istog izvoda (isti račun + broj + datum) se odbija na nivou
+      // baze; NULL vrijednosti (ručni/prebijanje bez računa ili broja) su
+      // distinktne pa ih ne blokira. Backfill/kreiranje kroz ensureColumns.
+      {
+        name: "bank_statements_org_num_date_acc",
+        unique: true,
+        fields: ["organizationId", "statementNumber", "statementDate", "account"],
+      },
+    ],
   },
 );
 
@@ -1343,6 +1393,64 @@ const UlazniRacun = sequelize.define(
     // ukupan iznos sa PDV-om; pdvIznos opciono (dobavljač PDV obveznik)
     iznos: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     pdvIznos: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    // ── KUF polja (PDV evidencije) ──
+    // vrsta fakture: DOMACA | UVOZ | OD_NEOBVEZNIKA (poljoprivrednik paušal)
+    vrstaNabavke: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "DOMACA",
+    },
+    // naslijeđeni sve-ili-ništa flag; mjerodavan je pdvNeodbitniIznos
+    pdvNeodbitan: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    // dio ulaznog PDV-a koji se NE može odbiti (npr. gorivo za putnički
+    // auto); ne ulazi u polje 61 PDV prijave
+    pdvNeodbitniIznos: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    // KUF ide po periodu PRIJEMA fakture (default = datum računa)
+    datumPrijema: { type: DataTypes.DATEONLY, allowNull: true },
+    // tip dokumenta po UINO evidencijama ("01".."09")
+    tipDokumenta: {
+      type: DataTypes.STRING(2),
+      allowNull: false,
+      defaultValue: "01",
+    },
+    // REDOVNA | AVANSNA | KNJIZNA_OBAVIJEST | STORNO_AVANSNE |
+    // PDV_NA_CEKANJU | OSTALO
+    vrstaDokumenta: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "REDOVNA",
+    },
+    // uvoz: jedinstvena carinska isprava
+    jciBroj: { type: DataTypes.STRING(30), allowNull: true },
+    jciDatum: { type: DataTypes.DATEONLY, allowNull: true },
+    // otkup od poljoprivrednika: paušalna naknada (polja 23/43 prijave)
+    pausalnaNaknada: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    // krajnja potrošnja: FBIH | RS | BD (null = ništa) + iznos
+    kpEntitet: { type: DataTypes.STRING(10), allowNull: true },
+    kpIznos: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    // samo PDV evidencija: ulazi u KUF/e-KUF/prijavu, ali NE stvara obavezu
+    // prema dobavljaču (tipično uvoz: PDV sa JCI, plaćen UINO-u/špediteru)
+    samoEvidencija: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     status: {
       type: DataTypes.ENUM("OTVOREN", "PLACEN"),
       allowNull: false,
@@ -1358,6 +1466,81 @@ const UlazniRacun = sequelize.define(
     indexes: [
       { fields: ["organizationId", "status"] },
       { fields: ["partnerId"] },
+    ],
+  },
+);
+
+// D-PDV (Dodatak uz PDV prijavu): ručni unos po poreznom periodu.
+// Stavke obrasca su u JSON-u (ključ → iznos u KM) da se obrazac može
+// mijenjati bez migracija; obračunska polja prijave se NE čuvaju ovdje
+// (deriviraju se iz KUF/KIF).
+const PdvDodatak = sequelize.define(
+  "PdvDodatak",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    year: { type: DataTypes.INTEGER, allowNull: false },
+    month: { type: DataTypes.INTEGER, allowNull: false },
+    // šifra pretežne djelatnosti (KD BiH), default iz profila organizacije
+    preteznaDjelatnost: { type: DataTypes.STRING(20), allowNull: true },
+    fields: { type: DataTypes.JSON, allowNull: true },
+  },
+  {
+    tableName: "pdv_dodaci",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { unique: true, fields: ["organizationId", "year", "month"] },
+    ],
+  },
+);
+
+// ── Prebijanja (kompenzacije i cesije) ───────────────────────────────────────
+// Knjiženje zatvaranja kupaca/dobavljača bez novca. Svako prebijanje kreira
+// svoj "izvod" (BankStatement bankId kompenzacija/cesija) čije CONFIRMED
+// stavke nose KPR efekat (prihod k12, rashod k16/k19); ovaj model čuva
+// zaglavlje (broj, datum, strane, iznos) i vezu na taj izvod.
+const Prebijanje = sequelize.define(
+  "Prebijanje",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    type: {
+      type: DataTypes.ENUM("KOMPENZACIJA", "CESIJA"),
+      allowNull: false,
+    },
+    broj: { type: DataTypes.STRING(30), allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    iznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // kompenzacija: obje strane isti partner (partnerId);
+    // cesija: kupac/dužnik = cesusPartnerId, dobavljač = cesionarPartnerId
+    partnerId: { type: DataTypes.INTEGER, allowNull: true },
+    cesusPartnerId: { type: DataTypes.INTEGER, allowNull: true },
+    cesionarPartnerId: { type: DataTypes.INTEGER, allowNull: true },
+    statementId: { type: DataTypes.INTEGER, allowNull: false },
+    napomena: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    tableName: "prebijanja",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      // broj (K-N/god, C-N/god) je jedinstven po organizaciji: štiti od
+      // istovremenih/recikliranih brojeva (uz retry u kontroleru)
+      {
+        name: "prebijanja_org_broj",
+        unique: true,
+        fields: ["organizationId", "broj"],
+      },
     ],
   },
 );
@@ -1512,6 +1695,32 @@ UlazniRacun.hasMany(BankTransaction, {
   foreignKey: "ulazniRacunId",
   as: "bankTransactions",
 });
+Organization.hasMany(Prebijanje, {
+  foreignKey: "organizationId",
+  as: "prebijanja",
+});
+Prebijanje.belongsTo(Organization, { foreignKey: "organizationId" });
+Prebijanje.belongsTo(Partner, {
+  foreignKey: "partnerId",
+  as: "partner",
+  constraints: false,
+});
+Prebijanje.belongsTo(Partner, {
+  foreignKey: "cesusPartnerId",
+  as: "cesus",
+  constraints: false,
+});
+Prebijanje.belongsTo(Partner, {
+  foreignKey: "cesionarPartnerId",
+  as: "cesionar",
+  constraints: false,
+});
+Prebijanje.belongsTo(BankStatement, {
+  foreignKey: "statementId",
+  as: "statement",
+  constraints: false,
+});
+
 BankTransaction.belongsTo(UlazniRacun, {
   foreignKey: "ulazniRacunId",
   as: "ulazniRacun",
@@ -1550,4 +1759,6 @@ module.exports = {
   BankMatchRule,
   Partner,
   UlazniRacun,
+  PdvDodatak,
+  Prebijanje,
 };

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import styles from "./ConsentBanner.module.css";
+import { fbqConsent } from "src/lib/metaPixel";
 
 type Choice = "accepted" | "essential" | null;
 
@@ -16,7 +17,9 @@ declare global {
 }
 
 function applyConsent(choice: "accepted" | "essential") {
-  if (typeof window === "undefined" || !window.gtag) return;
+  if (typeof window === "undefined") return;
+  fbqConsent(choice === "accepted");
+  if (!window.gtag) return;
   if (choice === "accepted") {
     window.gtag("consent", "update", {
       analytics_storage: "granted",
@@ -75,9 +78,9 @@ export default function ConsentBanner() {
       <div className={styles.content}>
         <div className={styles.text}>
           <strong>Koristimo kolačiće.</strong> Ova stranica koristi kolačiće
-          za analitiku posjeta (Google Analytics) i oglase (Google AdSense)
-          kako bismo poboljšali sadržaj i podržali besplatne alate. Detalji
-          u{" "}
+          za analitiku posjeta (Google Analytics), oglase (Google AdSense) i
+          mjerenje uspješnosti naših kampanja (Meta Pixel) kako bismo
+          poboljšali sadržaj i podržali besplatne alate. Detalji u{" "}
           <Link href="/privatnost" className={styles.link}>
             Politici privatnosti
           </Link>

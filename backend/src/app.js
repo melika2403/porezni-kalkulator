@@ -8,6 +8,9 @@ const cookieParser = require("cookie-parser");
 
 const { sequelize, Organization, Worker } = require("./models/index");
 const { decryptJmbg } = require("./utils/encryptJmbg");
+const {
+  formatAccountDashed,
+} = require("./services/bankStatements/bankCodes");
 const KD_BIH_NAMES = require("./data/kdBihNames.json");
 const authRoutes = require("./routes/authRoutes");
 const usersRoutes = require("./routes/usersRoutes");
@@ -35,6 +38,9 @@ const meRoutes = require("./routes/meRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const bankStatementsRoutes = require("./routes/bankStatementsRoutes");
 const partnersRoutes = require("./routes/partnersRoutes");
+const pdvRoutes = require("./routes/pdvRoutes");
+const publicStatsRoutes = require("./routes/publicStatsRoutes");
+const prebijanjaRoutes = require("./routes/prebijanjaRoutes");
 
 const app = express();
 
@@ -92,6 +98,9 @@ app.use("/api/me", meRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/bank-statements", bankStatementsRoutes);
 app.use("/api/partners", partnersRoutes);
+app.use("/api/pdv", pdvRoutes);
+app.use("/api/public", publicStatsRoutes);
+app.use("/api/prebijanja", prebijanjaRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -112,6 +121,118 @@ async function ensureColumns() {
       ddl: "ALTER TABLE organizations ADD COLUMN pdvNumber VARCHAR(20) NULL",
     },
     {
+      table: "organizations",
+      column: "bankAccounts",
+      ddl: "ALTER TABLE organizations ADD COLUMN bankAccounts JSON NULL",
+    },
+    // ─── PDV evidencije (KUF/KIF) ─────────────────────────────────────────────
+    {
+      table: "ulazni_racuni",
+      column: "vrstaNabavke",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN vrstaNabavke VARCHAR(20) NOT NULL DEFAULT 'DOMACA'",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "pdvNeodbitan",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN pdvNeodbitan TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "pdvNeodbitniIznos",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN pdvNeodbitniIznos DECIMAL(12,2) NOT NULL DEFAULT 0",
+      // naslijeđeni sve-ili-ništa checkbox → cijeli PDV postaje neodbitni iznos
+      backfill:
+        "UPDATE ulazni_racuni SET pdvNeodbitniIznos = COALESCE(pdvIznos, 0) WHERE pdvNeodbitan = 1",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "datumPrijema",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN datumPrijema DATE NULL",
+      // KUF ide po periodu prijema; za postojeća knjiženja = datum računa
+      backfill:
+        "UPDATE ulazni_racuni SET datumPrijema = datumRacuna WHERE datumPrijema IS NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "tipDokumenta",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN tipDokumenta VARCHAR(2) NOT NULL DEFAULT '01'",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "vrstaDokumenta",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN vrstaDokumenta VARCHAR(20) NOT NULL DEFAULT 'REDOVNA'",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "jciBroj",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN jciBroj VARCHAR(30) NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "jciDatum",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN jciDatum DATE NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "pausalnaNaknada",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN pausalnaNaknada DECIMAL(12,2) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "kpEntitet",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN kpEntitet VARCHAR(10) NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "kpIznos",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN kpIznos DECIMAL(12,2) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "samoEvidencija",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN samoEvidencija TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "invoices",
+      column: "vrstaIsporuke",
+      ddl: "ALTER TABLE invoices ADD COLUMN vrstaIsporuke VARCHAR(20) NOT NULL DEFAULT 'OPOREZIVA'",
+    },
+    {
+      table: "invoices",
+      column: "kifTipDokumenta",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifTipDokumenta VARCHAR(2) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifVrstaFakture",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifVrstaFakture VARCHAR(30) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifVrstaDokumenta",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifVrstaDokumenta VARCHAR(20) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifKpEntitet",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifKpEntitet VARCHAR(10) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifKpIznos",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifKpIznos DECIMAL(12,2) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifJciBroj",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifJciBroj VARCHAR(30) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifJciDatum",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifJciDatum DATE NULL",
+    },
+    {
       table: "invoices",
       column: "emailSentAt",
       ddl: "ALTER TABLE invoices ADD COLUMN emailSentAt DATETIME NULL",
@@ -125,6 +246,17 @@ async function ensureColumns() {
       table: "invoices",
       column: "convertedFromProformaId",
       ddl: "ALTER TABLE invoices ADD COLUMN convertedFromProformaId INT UNSIGNED NULL",
+    },
+    // ─── Avansne fakture, storno avansnih i knjižne obavijesti ───────────────
+    {
+      table: "invoices",
+      column: "docType",
+      ddl: "ALTER TABLE invoices ADD COLUMN docType VARCHAR(20) NOT NULL DEFAULT 'STANDARD'",
+    },
+    {
+      table: "invoices",
+      column: "linkedInvoiceId",
+      ddl: "ALTER TABLE invoices ADD COLUMN linkedInvoiceId INT UNSIGNED NULL",
     },
     {
       table: "users",
@@ -607,6 +739,8 @@ async function ensureColumns() {
     if (!exists) {
       console.log(`Adding column ${c.table}.${c.column}...`);
       await sequelize.query(c.ddl);
+      // jednokratna migracija podataka uz novu kolonu
+      if (c.backfill) await sequelize.query(c.backfill);
     }
   }
 
@@ -777,6 +911,26 @@ async function ensureInvoiceCounterTypeColumn() {
   );
 }
 
+// Idempotentno proširenje invoice_counters.type ENUM-a: serije za avansne
+// fakture (A-) i knjižne obavijesti (KO-) pored postojećih INVOICE/PROFORMA.
+async function ensureInvoiceCounterSeriesEnum() {
+  const [tblRows] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_counters'",
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+
+  const [colRows] = await sequelize.query(
+    "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_counters' AND COLUMN_NAME = 'type'",
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  if (colType.includes("'AVANS'") && colType.includes("'KO'")) return;
+
+  console.log("Proširujem invoice_counters.type ENUM (AVANS, KO)...");
+  await sequelize.query(
+    "ALTER TABLE invoice_counters MODIFY COLUMN type ENUM('INVOICE','PROFORMA','AVANS','KO') NOT NULL DEFAULT 'INVOICE'",
+  );
+}
+
 // Idempotent ENUM proširenja — sync ne mijenja postojeće ENUM definicije.
 async function ensurePayrollDocTypeEnum() {
   const [tblRows] = await sequelize.query(
@@ -892,6 +1046,77 @@ async function ensureActivityNamesFresh() {
   }
 }
 
+// Backfill: računi sa VEĆ učitanih izvoda u organizations.bankAccounts.
+// Auto-upis novog računa u profil radi tek od uvođenja liste računa; ovo
+// jednom pokupi račune sa ranijih izvoda. Idempotentno: kad je lista već
+// popunjena i nema novih računa, ništa se ne piše.
+async function ensureOrgBankAccountsBackfill() {
+  // Brza kapija: ima li uopšte org-e koje treba backfill-ati (bankAccounts
+  // prazan, a postoji izvod sa računom)? Nakon prvog prolaza ovo je prazno pa
+  // preskačemo skupi DISTINCT scan i update petlju na svakom startu.
+  const [pending] = await sequelize.query(
+    `SELECT 1 FROM organizations o
+     WHERE o.bankAccounts IS NULL
+       AND EXISTS (
+         SELECT 1 FROM bank_statements s
+         WHERE s.organizationId = o.id AND s.account IS NOT NULL AND s.account != ''
+       )
+     LIMIT 1`,
+  );
+  if (!pending || pending.length === 0) return;
+
+  const [rows] = await sequelize.query(
+    "SELECT DISTINCT organizationId, account FROM bank_statements WHERE account IS NOT NULL AND account != ''",
+  );
+  const byOrg = new Map();
+  for (const r of rows) {
+    const digits = String(r.account || "").replace(/\D+/g, "");
+    if (digits.length < 8) continue;
+    if (!byOrg.has(r.organizationId)) byOrg.set(r.organizationId, []);
+    const arr = byOrg.get(r.organizationId);
+    if (!arr.includes(digits)) arr.push(digits);
+  }
+  if (byOrg.size === 0) return;
+
+  const orgs = await Organization.findAll({
+    where: { id: [...byOrg.keys()] },
+    attributes: ["id", "bankAccount", "bankAccounts"],
+  });
+  let updated = 0;
+  for (const org of orgs) {
+    let list = org.bankAccounts;
+    if (typeof list === "string") {
+      try {
+        list = JSON.parse(list);
+      } catch {
+        list = null;
+      }
+    }
+    if (!Array.isArray(list)) list = [];
+    const existing = list
+      .map((a) => String(a || "").replace(/\D+/g, ""))
+      .filter(Boolean);
+    const mainDigits = String(org.bankAccount || "").replace(/\D+/g, "");
+    // glavni iz profila je uvijek prvi u listi
+    const next = existing.length === 0 && mainDigits ? [mainDigits] : [...existing];
+    for (const acc of byOrg.get(org.id) || []) {
+      if (!next.includes(acc)) next.push(acc);
+    }
+    if (next.length === 0 || next.length === existing.length) continue;
+    await org.update({
+      bankAccounts: next,
+      bankAccount:
+        org.bankAccount || (next[0] ? formatAccountDashed(next[0]) : null),
+    });
+    updated += 1;
+  }
+  if (updated) {
+    console.log(
+      `Backfill žiro računa sa izvoda u profil za ${updated} organizacija.`,
+    );
+  }
+}
+
 // Ensure utf8mb4 charset za tabele koje su možda kreirane sa default DB charsetom
 // koji ne podržava bosanske znakove (ć, š, đ, ž, č).
 async function ensureUtf8Mb4() {
@@ -924,17 +1149,59 @@ async function ensureUtf8Mb4() {
   }
 }
 
+// Idempotentno dodavanje unique indeksa na POSTOJEĆE tabele (sync({alter:false})
+// ne dira postojeće tabele). Ako već postoji ili ako postoje duplikati u
+// testnim podacima, samo upozori, ne ruši start.
+async function ensureUniqueIndex(table, indexName, columns) {
+  const [tblRows] = await sequelize.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}'`,
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return; // tabelu će sync tek napraviti (sa indeksom)
+
+  const [idxRows] = await sequelize.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}' AND INDEX_NAME = '${indexName}'`,
+  );
+  if (Number(idxRows?.[0]?.cnt || 0)) return; // već postoji
+
+  const cols = columns.map((c) => `\`${c}\``).join(", ");
+  try {
+    await sequelize.query(
+      `CREATE UNIQUE INDEX \`${indexName}\` ON \`${table}\` (${cols})`,
+    );
+  } catch (e) {
+    console.warn(
+      `Unique index ${indexName} nije kreiran (vjerovatno postoje duplikati u testnim podacima): ${e.message}`,
+    );
+  }
+}
+
 // Sync database tables and start server
 sequelize
   .authenticate()
   .then(() => ensureInvoiceCounterTypeColumn())
   .then(() => sequelize.sync({ alter: false }))
   .then(() => ensureColumns())
+  .then(() => ensureOrgBankAccountsBackfill())
+  .then(() => ensureInvoiceCounterSeriesEnum())
   .then(() => ensurePayrollDocTypeEnum())
   .then(() => ensureWorkerDocTypeEnum())
   .then(() => ensureActivityNamesFresh())
   .then(() => ensureOwnerSpolFromJmbg())
   .then(() => ensureUtf8Mb4())
+  .then(() =>
+    ensureUniqueIndex("prebijanja", "prebijanja_org_broj", [
+      "organizationId",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("bank_statements", "bank_statements_org_num_date_acc", [
+      "organizationId",
+      "statementNumber",
+      "statementDate",
+      "account",
+    ]),
+  )
   .then(() => {
     console.log("Database synced successfully");
     app.listen(port, () => {

@@ -7,6 +7,7 @@ import styles from "./auth.module.css";
 import { me, register, resendVerification, unwrap } from "src/api/auth";
 import { getBackendUrl } from "src/utils/backendUrl";
 import { getUtmForRegister, clearUtm } from "src/utils/utm";
+import { fbqTrack } from "src/lib/metaPixel";
 
 function safeNext(raw: string | null): string {
   if (!raw) return "/";
@@ -54,6 +55,8 @@ export default function Register() {
     onSuccess: (data) => {
       setSentTo(data.email);
       clearUtm();
+      // Meta konverzija za optimizaciju kampanja (šalje se samo uz consent).
+      fbqTrack("CompleteRegistration");
     },
   });
 

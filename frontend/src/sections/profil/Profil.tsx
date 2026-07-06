@@ -40,9 +40,13 @@ import {
   LuArrowRight,
   LuWallet,
   LuCalendarDays,
+  LuTrash2,
 } from "react-icons/lu";
+import { PkSelect } from "src/components/app-shell/PkSelect";
+import { Modal } from "src/components/app-shell/Modal";
 import {
   updateProfile,
+  getOrganization,
   getOrganizations,
   getClientOrganizations,
   createOrganization,
@@ -87,12 +91,7 @@ import {
   fillPldiTemplate,
   type PldiData,
 } from "src/sections/amortizacija/fillPldi";
-import {
-  createPredracun,
-  type Plan as PredracunPlan,
-  type BillingCycle,
-} from "src/api/backend/predracun/predracun";
-import { PLAN_PRICING, formatKm } from "src/data/pricing";
+import { PretplataPanel } from "src/sections/pretplata/PretplataPanel";
 import { fillAmsTemplate, type AmsData } from "src/sections/ams/fillAms";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
@@ -159,31 +158,6 @@ const MONTHS = [
 
 function initials(u: AuthUser) {
   return `${u.firstName[0] ?? ""}${u.lastName[0] ?? ""}`.toUpperCase();
-}
-
-function typeBadgeClass(type: FormType, s: Record<string, string>) {
-  const map: Record<FormType, string> = {
-    GPD: s.badgeGpd,
-    SPR: s.badgeSpr,
-    ZO3: s.badgeZo3,
-    UGOVOR: s.badgeUgovor,
-    UOD: s.badgeUod ?? s.badgeUgovor,
-    SIH: s.badgeSih ?? s.badgeUgovor,
-    PLDI: s.badgePldi,
-    AMS: s.badgeAms ?? s.badgeUgovor,
-    JS3100: s.badgeJs3100 ?? s.badgeUgovor,
-  };
-  return `${s.formTypeBadge} ${map[type] ?? ""}`;
-}
-
-function statusClass(status: string, s: Record<string, string>) {
-  const map: Record<string, string> = {
-    DRAFT: s.statusDraft,
-    GENERATED: s.statusGenerated,
-    SUBMITTED: s.statusSubmitted,
-    ARCHIVED: s.statusArchived,
-  };
-  return `${s.formStatus} ${map[status] ?? ""}`;
 }
 
 type Tab =
@@ -409,17 +383,16 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
       <form className={styles.form} onSubmit={handleSave}>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Prijavljen sam u</label>
-          <select
-            className={styles.select}
-            value={selId ?? ""}
-            onChange={(e) => setSelId(Number(e.target.value))}
-          >
-            {ownOrgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name} ({ORG_TYPE_LABELS[o.type] ?? o.type})
-              </option>
-            ))}
-          </select>
+          <PkSelect
+            ariaLabel="Prijavljen sam u"
+            value={selId != null ? String(selId) : ""}
+            onChange={(v) => setSelId(v ? Number(v) : null)}
+            options={ownOrgs.map((o) => ({
+              value: String(o.id),
+              label: `${o.name} (${ORG_TYPE_LABELS[o.type] ?? o.type})`,
+            }))}
+            wrapStyle={{ width: "100%" }}
+          />
           <p
             className={styles.fieldHint}
             style={{ fontSize: 12, color: "#666", marginTop: "0.3rem" }}
@@ -452,67 +425,82 @@ function MyEmploymentCard({ ownOrgs }: { ownOrgs: Organization[] }) {
           <div className={styles.row}>
             <div className={styles.field}>
               <label className={styles.fieldLabel}>Režim oporezivanja</label>
-              <select
-                className={styles.select}
+              <PkSelect
+                ariaLabel="Režim oporezivanja"
                 value={regime}
-                onChange={(e) => {
-                  setRegime(e.target.value as OrgFormState["taxRegime"]);
+                onChange={(v) => {
+                  setRegime((v ?? "") as OrgFormState["taxRegime"]);
                   setCategory("");
                 }}
-              >
-                <option value="">– Odaberi –</option>
-                <option value="STVARNI_DOHODAK">
-                  Stvarni dohodak (poslovne knjige, čl. 19)
-                </option>
-                <option value="PAUSALNI">Paušalni iznos (čl. 31)</option>
-                <option value="OSTALI">Ostali obveznici (čl. 6 t.10)</option>
-              </select>
+                placeholder="– Odaberi –"
+                options={[
+                  { value: "", label: "– Odaberi –" },
+                  {
+                    value: "STVARNI_DOHODAK",
+                    label: "Stvarni dohodak (poslovne knjige, čl. 19)",
+                  },
+                  { value: "PAUSALNI", label: "Paušalni iznos (čl. 31)" },
+                  { value: "OSTALI", label: "Ostali obveznici (čl. 6 t.10)" },
+                ]}
+                wrapStyle={{ width: "100%" }}
+              />
             </div>
             {regime && regime !== "OSTALI" && (
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>
                   Kategorija djelatnosti
                 </label>
-                <select
-                  className={styles.select}
+                <PkSelect
+                  ariaLabel="Kategorija djelatnosti"
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  <option value="">– Odaberi –</option>
-                  {regime === "STVARNI_DOHODAK" && (
-                    <>
-                      <option value="SLOBODNA_ZANIMANJA">
-                        Slobodna zanimanja (2.710 KM)
-                      </option>
-                      <option value="OBRT_SRODNE">
-                        Obrt i srodne djelatnosti (1.602 KM)
-                      </option>
-                      <option value="POLJOPRIVREDA_SUMARSTVO">
-                        Poljoprivreda i šumarstvo (715 KM)
-                      </option>
-                      <option value="TRGOVAC_POJEDINAC">
-                        Trgovac pojedinac (715 KM)
-                      </option>
-                    </>
-                  )}
-                  {regime === "PAUSALNI" && (
-                    <>
-                      <option value="OBRT_SRODNE">
-                        Obrt i srodne djelatnosti (1.355 KM)
-                      </option>
-                      <option value="ESNAFSKI_ZANATI">
-                        Niskoakumulativni esnafski zanati (616 KM)
-                      </option>
-                      <option value="POLJOPRIVREDA_SUMARSTVO">
-                        Poljoprivreda i šumarstvo (616 KM)
-                      </option>
-                      <option value="TAXI">Taxi prijevoz (616 KM)</option>
-                      <option value="TRGOVAC_POJEDINAC">
-                        Trgovac pojedinac (715 KM)
-                      </option>
-                    </>
-                  )}
-                </select>
+                  onChange={(v) => setCategory(v == null ? "" : String(v))}
+                  placeholder="– Odaberi –"
+                  options={[
+                    { value: "", label: "– Odaberi –" },
+                    ...(regime === "STVARNI_DOHODAK"
+                      ? [
+                          {
+                            value: "SLOBODNA_ZANIMANJA",
+                            label: "Slobodna zanimanja (2.710 KM)",
+                          },
+                          {
+                            value: "OBRT_SRODNE",
+                            label: "Obrt i srodne djelatnosti (1.602 KM)",
+                          },
+                          {
+                            value: "POLJOPRIVREDA_SUMARSTVO",
+                            label: "Poljoprivreda i šumarstvo (715 KM)",
+                          },
+                          {
+                            value: "TRGOVAC_POJEDINAC",
+                            label: "Trgovac pojedinac (715 KM)",
+                          },
+                        ]
+                      : []),
+                    ...(regime === "PAUSALNI"
+                      ? [
+                          {
+                            value: "OBRT_SRODNE",
+                            label: "Obrt i srodne djelatnosti (1.355 KM)",
+                          },
+                          {
+                            value: "ESNAFSKI_ZANATI",
+                            label: "Niskoakumulativni esnafski zanati (616 KM)",
+                          },
+                          {
+                            value: "POLJOPRIVREDA_SUMARSTVO",
+                            label: "Poljoprivreda i šumarstvo (616 KM)",
+                          },
+                          { value: "TAXI", label: "Taxi prijevoz (616 KM)" },
+                          {
+                            value: "TRGOVAC_POJEDINAC",
+                            label: "Trgovac pojedinac (715 KM)",
+                          },
+                        ]
+                      : []),
+                  ]}
+                  wrapStyle={{ width: "100%" }}
+                />
               </div>
             )}
           </div>
@@ -669,7 +657,6 @@ function ProfilTab({
   // djelatnost (Moje Djelatnosti tab), "all" = oboje (back-compat).
   section?: "all" | "licni" | "djelatnost";
 }) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
 
@@ -1119,118 +1106,127 @@ function ProfilTab({
 
         {filterOrgs(ownOrgs, ownFilter).map((org) => (
           <div key={org.id} className={styles.ownOrgItem}>
-            {editOwnId === org.id ? (
-              <form
-                className={styles.form}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const missing: string[] = [];
-                  if (!editOwnOrg.name.trim()) missing.push("naziv");
-                  if (!orgCityOk(editOwnOrg.city))
-                    missing.push("grad (odaberite sa liste)");
-                  if (missing.length) {
-                    setOwnEditError("Nedostaje: " + missing.join(", ") + ".");
-                    return;
-                  }
-                  setOwnEditError(null);
-                  updateOwnOrgMutation.mutate({
-                    id: org.id,
-                    payload: orgFormToPayload(editOwnOrg, null),
-                  });
-                }}
-              >
-                <OrgFormFields value={editOwnOrg} onChange={setEditOwnOrg} />
-                {ownEditError && (
-                  <div className={styles.errorMsg}>{ownEditError}</div>
-                )}
-                {updateOwnOrgMutation.error && (
-                  <div className={styles.errorMsg}>
-                    {updateOwnOrgMutation.error.message}
-                  </div>
-                )}
-                <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
-                  <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
-                </RoleGuard>
-                {deleteOwnOrgMutation.error && confirmDeleteId === org.id && (
-                  <div className={styles.errorMsg}>
-                    Greška pri brisanju. Pokušajte ponovo.
-                  </div>
-                )}
-                {confirmDeleteId === org.id ? (
-                  <div className={styles.deleteConfirm}>
-                    <span className={styles.deleteConfirmText}>
-                      Sigurno želite obrisati djelatnost? Ova akcija se ne može
-                      poništiti.
+            <button
+              type="button"
+              className={styles.bizCard}
+              onClick={() => startEditOwnOrg(org)}
+            >
+              <span className={styles.bizAvatar}>{orgInitials(org.name)}</span>
+              <span className={styles.bizInfo}>
+                <span className={styles.bizName}>{org.name}</span>
+                <span className={styles.bizSub}>
+                  {ORG_TYPE_LABELS[org.type] ?? org.type}
+                  {org.taxNumber ? ` · JIB: ${org.taxNumber}` : ""}
+                </span>
+              </span>
+              <LuChevronRight size={17} className={styles.bizChevron} />
+            </button>
+          </div>
+        ))}
+
+        {/* Uređivanje djelatnosti u PK modalu (kao forma radnika) */}
+        {(() => {
+          const org = ownOrgs.find((o) => o.id === editOwnId);
+          if (!org) return null;
+          const submitOwnEdit = () => {
+            const missing: string[] = [];
+            if (!editOwnOrg.name.trim()) missing.push("naziv");
+            if (!orgCityOk(editOwnOrg.city))
+              missing.push("grad (odaberite sa liste)");
+            if (missing.length) {
+              setOwnEditError("Nedostaje: " + missing.join(", ") + ".");
+              return;
+            }
+            setOwnEditError(null);
+            updateOwnOrgMutation.mutate({
+              id: org.id,
+              payload: orgFormToPayload(editOwnOrg, null),
+            });
+          };
+          const closeEdit = () => {
+            setEditOwnId(null);
+            setConfirmDeleteId(null);
+          };
+          return (
+            <Modal
+              open
+              onClose={closeEdit}
+              title={org.name}
+              maxWidthClass="max-w-[760px]"
+              footer={
+                confirmDeleteId === org.id ? (
+                  <>
+                    <span className="mr-auto self-center text-[12.5px] text-danger">
+                      Sigurno obrisati djelatnost? Ne može se poništiti.
                     </span>
-                    <div className={styles.deleteConfirmActions}>
-                      <button
-                        type="button"
-                        className={styles.btnGhost}
-                        onClick={() => setConfirmDeleteId(null)}
-                      >
-                        Odustani
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.btnDanger}
-                        onClick={() => deleteOwnOrgMutation.mutate(org.id)}
-                        disabled={deleteOwnOrgMutation.isPending}
-                      >
-                        {deleteOwnOrgMutation.isPending
-                          ? "Brisanje..."
-                          : "Da, obriši"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={styles.formActionsWithDelete}>
                     <button
                       type="button"
-                      className={styles.btnDanger}
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+                    >
+                      Odustani
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleteOwnOrgMutation.isPending}
+                      onClick={() => deleteOwnOrgMutation.mutate(org.id)}
+                      className="px-4 py-2 rounded-lg bg-accent-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {deleteOwnOrgMutation.isPending
+                        ? "Brisanje..."
+                        : "Da, obriši"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
                       onClick={() => setConfirmDeleteId(org.id)}
+                      className="mr-auto px-4 py-2 rounded-lg border border-danger/30 text-[13px] text-danger hover:bg-danger-bg transition-colors"
                     >
                       Obriši djelatnost
                     </button>
-                    <div className={styles.formActions} style={{ margin: 0 }}>
-                      <button
-                        type="button"
-                        className={styles.btnGhost}
-                        onClick={() => setEditOwnId(null)}
-                      >
-                        Odustani
-                      </button>
-                      <button
-                        type="submit"
-                        className={styles.btnPrimary}
-                        disabled={updateOwnOrgMutation.isPending}
-                      >
-                        {updateOwnOrgMutation.isPending
-                          ? "Snimanje..."
-                          : "Sačuvaj"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </form>
-            ) : (
-              <button
-                type="button"
-                className={styles.bizCard}
-                onClick={() => startEditOwnOrg(org)}
-              >
-                <span className={styles.bizAvatar}>{orgInitials(org.name)}</span>
-                <span className={styles.bizInfo}>
-                  <span className={styles.bizName}>{org.name}</span>
-                  <span className={styles.bizSub}>
-                    {ORG_TYPE_LABELS[org.type] ?? org.type}
-                    {org.taxNumber ? ` · JIB: ${org.taxNumber}` : ""}
-                  </span>
-                </span>
-                <LuChevronRight size={17} className={styles.bizChevron} />
-              </button>
-            )}
-          </div>
-        ))}
+                    <button
+                      type="button"
+                      onClick={closeEdit}
+                      className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+                    >
+                      Odustani
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updateOwnOrgMutation.isPending}
+                      onClick={submitOwnEdit}
+                      className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {updateOwnOrgMutation.isPending
+                        ? "Snimanje..."
+                        : "Sačuvaj"}
+                    </button>
+                  </>
+                )
+              }
+            >
+              <OrgFormFields value={editOwnOrg} onChange={setEditOwnOrg} />
+              {ownEditError && (
+                <div className={styles.errorMsg}>{ownEditError}</div>
+              )}
+              {updateOwnOrgMutation.error && (
+                <div className={styles.errorMsg}>
+                  {updateOwnOrgMutation.error.message}
+                </div>
+              )}
+              {deleteOwnOrgMutation.error && confirmDeleteId === org.id && (
+                <div className={styles.errorMsg}>
+                  Greška pri brisanju. Pokušajte ponovo.
+                </div>
+              )}
+              <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
+                <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+              </RoleGuard>
+            </Modal>
+          );
+        })()}
 
         {/* Dugme "Dodaj djelatnost" je premješteno gore u zaglavlje kartice. */}
 
@@ -1259,16 +1255,12 @@ function ProfilTab({
             </div>
           )}
 
-        {/* Dodavanje djelatnosti ide kroz isti brzi wizard kao na Pregledu. */}
+        {/* Dodavanje djelatnosti: puni create modal; prijava vlasnika i
+            režim/plata se rješavaju odmah u modalu, pa nema redirecta. */}
         {showAddOrg && (
           <QuickCreateOrgModal
             onClose={() => setShowAddOrg(false)}
-            onCreated={() => {
-              // Prva djelatnost: odmah vodi na profil da odluči o prijavi vlasnika.
-              const wasFirst = ownOrgs.length === 0;
-              setShowAddOrg(false);
-              if (wasFirst) router.push("/profil?tab=profil&prijava=1");
-            }}
+            onCreated={() => setShowAddOrg(false)}
           />
         )}
       </div>
@@ -1578,17 +1570,19 @@ function OwnerFields({
         <div className={styles.row}>
           <div className={styles.field}>
             <label className={styles.fieldLabel}>Tip vlasnika</label>
-            <select
-              className={styles.input}
+            <PkSelect
+              ariaLabel="Tip vlasnika"
               value={value.ownerType}
-              onChange={(e) =>
-                onChange({ ...value, ownerType: e.target.value as OwnerType })
+              onChange={(v) =>
+                onChange({ ...value, ownerType: (v ?? "pravno_lice") as OwnerType })
               }
-            >
-              <option value="pravno_lice">Pravno lice (firma)</option>
-              <option value="vise_lica">Više lica</option>
-              <option value="fizicko_domace">Fizičko lice (domaće)</option>
-            </select>
+              options={[
+                { value: "pravno_lice", label: "Pravno lice (firma)" },
+                { value: "vise_lica", label: "Više lica" },
+                { value: "fizicko_domace", label: "Fizičko lice (domaće)" },
+              ]}
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
           <div className={styles.field} />
         </div>
@@ -1598,16 +1592,21 @@ function OwnerFields({
         <div className={styles.row}>
           <div className={styles.field}>
             <label className={styles.fieldLabel}>Tip vlasnika</label>
-            <select
-              className={styles.input}
+            <PkSelect
+              ariaLabel="Tip vlasnika"
               value={value.ownerType}
-              onChange={(e) =>
-                onChange({ ...value, ownerType: e.target.value as OwnerType })
+              onChange={(v) =>
+                onChange({
+                  ...value,
+                  ownerType: (v ?? "fizicko_domace") as OwnerType,
+                })
               }
-            >
-              <option value="fizicko_domace">Domaće fizičko lice</option>
-              <option value="fizicko_strano">Strano fizičko lice</option>
-            </select>
+              options={[
+                { value: "fizicko_domace", label: "Domaće fizičko lice" },
+                { value: "fizicko_strano", label: "Strano fizičko lice" },
+              ]}
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
           <div className={styles.field} />
         </div>
@@ -2215,14 +2214,21 @@ function OrgFormFields({
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Tip *</label>
-          <select
-            className={styles.select}
+          <PkSelect
+            ariaLabel="Tip organizacije"
             value={value.type}
-            onChange={set("type")}
-          >
-            <option value="COMPANY">Privredno društvo (d.o.o. / d.d.)</option>
-            <option value="BUSINESS">Obrt / Samostalna djelatnost</option>
-          </select>
+            onChange={(v) =>
+              onChange({
+                ...value,
+                type: (v === "BUSINESS" ? "BUSINESS" : "COMPANY") as OrgFormState["type"],
+              })
+            }
+            options={[
+              { value: "COMPANY", label: "Privredno društvo (d.o.o. / d.d.)" },
+              { value: "BUSINESS", label: "Obrt / Samostalna djelatnost" },
+            ]}
+            wrapStyle={{ width: "100%" }}
+          />
         </div>
       </div>
       <ActivityCombobox
@@ -2320,69 +2326,89 @@ function OrgFormFields({
             <label className={styles.fieldLabel}>
               Režim oporezivanja vlasnika
             </label>
-            <select
-              className={styles.select}
+            <PkSelect
+              ariaLabel="Režim oporezivanja vlasnika"
               value={value.taxRegime}
-              onChange={(e) =>
+              onChange={(v) =>
                 onChange({
                   ...value,
-                  taxRegime: e.target.value as OrgFormState["taxRegime"],
+                  taxRegime: (v ?? "") as OrgFormState["taxRegime"],
                   // Resetuj kategoriju jer su validne vrijednosti zavisne od režima
                   taxCategory: "",
                 })
               }
-            >
-              <option value="">– Odaberi –</option>
-              <option value="STVARNI_DOHODAK">
-                Stvarni dohodak (poslovne knjige, čl. 19)
-              </option>
-              <option value="PAUSALNI">Paušalni iznos (čl. 31)</option>
-              <option value="OSTALI">Ostali obveznici (čl. 6 t.10)</option>
-            </select>
+              placeholder="– Odaberi –"
+              options={[
+                { value: "", label: "– Odaberi –" },
+                {
+                  value: "STVARNI_DOHODAK",
+                  label: "Stvarni dohodak (poslovne knjige, čl. 19)",
+                },
+                { value: "PAUSALNI", label: "Paušalni iznos (čl. 31)" },
+                { value: "OSTALI", label: "Ostali obveznici (čl. 6 t.10)" },
+              ]}
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
           {value.taxRegime && value.taxRegime !== "OSTALI" && (
             <div className={styles.field}>
               <label className={styles.fieldLabel}>Kategorija djelatnosti</label>
-              <select
-                className={styles.select}
+              <PkSelect
+                ariaLabel="Kategorija djelatnosti"
                 value={value.taxCategory}
-                onChange={set("taxCategory")}
-              >
-                <option value="">– Odaberi –</option>
-                {value.taxRegime === "STVARNI_DOHODAK" && (
-                  <>
-                    <option value="SLOBODNA_ZANIMANJA">
-                      Slobodna zanimanja (2.710 KM)
-                    </option>
-                    <option value="OBRT_SRODNE">
-                      Obrt i srodne djelatnosti (1.602 KM)
-                    </option>
-                    <option value="POLJOPRIVREDA_SUMARSTVO">
-                      Poljoprivreda i šumarstvo (715 KM)
-                    </option>
-                    <option value="TRGOVAC_POJEDINAC">
-                      Trgovac pojedinac (715 KM)
-                    </option>
-                  </>
-                )}
-                {value.taxRegime === "PAUSALNI" && (
-                  <>
-                    <option value="OBRT_SRODNE">
-                      Obrt i srodne djelatnosti (1.355 KM)
-                    </option>
-                    <option value="ESNAFSKI_ZANATI">
-                      Niskoakumulativni esnafski zanati (616 KM)
-                    </option>
-                    <option value="POLJOPRIVREDA_SUMARSTVO">
-                      Poljoprivreda i šumarstvo (616 KM)
-                    </option>
-                    <option value="TAXI">Taxi prijevoz (616 KM)</option>
-                    <option value="TRGOVAC_POJEDINAC">
-                      Trgovac pojedinac (715 KM)
-                    </option>
-                  </>
-                )}
-              </select>
+                onChange={(v) =>
+                  onChange({
+                    ...value,
+                    taxCategory: (v ?? "") as OrgFormState["taxCategory"],
+                  })
+                }
+                placeholder="– Odaberi –"
+                options={[
+                  { value: "", label: "– Odaberi –" },
+                  ...(value.taxRegime === "STVARNI_DOHODAK"
+                    ? [
+                        {
+                          value: "SLOBODNA_ZANIMANJA",
+                          label: "Slobodna zanimanja (2.710 KM)",
+                        },
+                        {
+                          value: "OBRT_SRODNE",
+                          label: "Obrt i srodne djelatnosti (1.602 KM)",
+                        },
+                        {
+                          value: "POLJOPRIVREDA_SUMARSTVO",
+                          label: "Poljoprivreda i šumarstvo (715 KM)",
+                        },
+                        {
+                          value: "TRGOVAC_POJEDINAC",
+                          label: "Trgovac pojedinac (715 KM)",
+                        },
+                      ]
+                    : []),
+                  ...(value.taxRegime === "PAUSALNI"
+                    ? [
+                        {
+                          value: "OBRT_SRODNE",
+                          label: "Obrt i srodne djelatnosti (1.355 KM)",
+                        },
+                        {
+                          value: "ESNAFSKI_ZANATI",
+                          label: "Niskoakumulativni esnafski zanati (616 KM)",
+                        },
+                        {
+                          value: "POLJOPRIVREDA_SUMARSTVO",
+                          label: "Poljoprivreda i šumarstvo (616 KM)",
+                        },
+                        { value: "TAXI", label: "Taxi prijevoz (616 KM)" },
+                        {
+                          value: "TRGOVAC_POJEDINAC",
+                          label: "Trgovac pojedinac (715 KM)",
+                        },
+                      ]
+                    : []),
+                ]}
+                wrapStyle={{ width: "100%" }}
+              />
             </div>
           )}
         </div>
@@ -2395,24 +2421,22 @@ function OrgFormFields({
         <label className={styles.fieldLabel}>
           Default tip plate (za nove radnike)
         </label>
-        <select
-          className={styles.input}
+        <PkSelect
+          ariaLabel="Default tip plate"
           value={value.defaultSalaryType}
-          onChange={(e) =>
+          onChange={(v) =>
             onChange({
               ...value,
-              defaultSalaryType: e.target.value as SalaryType,
+              defaultSalaryType: (v ?? "NETO_ISPLATA") as SalaryType,
             })
           }
-        >
-          <option value="NETO_ISPLATA">
-            {SALARY_TYPE_LABELS.NETO_ISPLATA}
-          </option>
-          <option value="NETO_UGOVOR">
-            {SALARY_TYPE_LABELS.NETO_UGOVOR}
-          </option>
-          <option value="BRUTO">{SALARY_TYPE_LABELS.BRUTO}</option>
-        </select>
+          options={[
+            { value: "NETO_ISPLATA", label: SALARY_TYPE_LABELS.NETO_ISPLATA },
+            { value: "NETO_UGOVOR", label: SALARY_TYPE_LABELS.NETO_UGOVOR },
+            { value: "BRUTO", label: SALARY_TYPE_LABELS.BRUTO },
+          ]}
+          wrapStyle={{ width: "100%", maxWidth: 420 }}
+        />
         <p
           className={styles.fieldHint}
           style={{ marginTop: "0.3rem", fontSize: 12, color: "#666" }}
@@ -2805,7 +2829,10 @@ function DjelatnostTab({
       mealAllowancePerDay: mealRateToInput(org.mealAllowancePerDay),
     });
     const ow = org.owner;
-    setEditHasOwner(!!ow);
+    // Obrt uvijek ima sekciju vlasnika u editu, i kad owner zapis ne postoji
+    // (npr. greškom obrisan VLASNIK radnik): snimanje sa ownerData ga ponovo
+    // kreira na backendu, pa je ovo i put oporavka.
+    setEditHasOwner(!!ow || org.type === "BUSINESS");
     setEditOwner(
       ow
         ? {
@@ -3013,142 +3040,145 @@ function DjelatnostTab({
 
         {clientOrgs.length > 0 && (
           <div className={styles.orgList}>
-            {pagedClientOrgs.map((org) =>
-              editId === org.id ? (
-                <form
-                  key={org.id}
-                  className={styles.form}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const missing = orgMissing(
-                      editOrg,
-                      editHasOwner ? editOwner.city : null,
-                    );
-                    if (missing.length) {
-                      setEditError("Nedostaje: " + missing.join(", ") + ".");
-                      return;
-                    }
-                    setEditError(null);
-                    updateOrgMutation.mutate({
-                      id: org.id,
-                      payload: orgFormToPayload(
-                        editOrg,
-                        editHasOwner ? editOwner : null,
-                      ),
-                    });
-                  }}
-                >
-                  <OrgFormFields value={editOrg} onChange={setEditOrg} />
-                  {org.memberRole !== "OWNER" && (
-                    <label className={styles.ownerToggle}>
-                      <input
-                        type="checkbox"
-                        checked={editHasOwner}
-                        onChange={(e) => setEditHasOwner(e.target.checked)}
-                      />
-                      Uredi podatke vlasnika
-                    </label>
-                  )}
-                  {editHasOwner && (
-                    <OwnerFields
-                      value={editOwner}
-                      onChange={setEditOwner}
-                      requireJmbg={false}
-                      orgType={editOrg.type}
-                    />
-                  )}
-                  {editError && (
-                    <div className={styles.errorMsg}>{editError}</div>
-                  )}
-                  {updateOrgMutation.error && (
-                    <div className={styles.errorMsg}>
-                      {updateOrgMutation.error.message}
-                    </div>
-                  )}
-                  {(org.memberRole === "OWNER" || org.memberRole === "ADMIN") && (
-                    <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
-                  )}
-                  {confirmDeleteOrgId === org.id ? (
-                    <div className={styles.deleteConfirm}>
-                      <span className={styles.deleteConfirmText}>
-                        Brisanjem se brišu i svi sačuvani obrasci ovog klijenta.
-                        Sigurni ste?
-                      </span>
-                      <div className={styles.deleteConfirmActions}>
-                        <button
-                          type="button"
-                          className={styles.btnGhost}
-                          onClick={() => setConfirmDeleteOrgId(null)}
-                        >
-                          Odustani
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.btnDanger}
-                          disabled={deleteClientOrgMutation.isPending}
-                          onClick={() => deleteClientOrgMutation.mutate(org.id)}
-                        >
-                          {deleteClientOrgMutation.isPending
-                            ? "Brisanje..."
-                            : "Obriši"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className={styles.formActions}>
-                      <button
-                        type="button"
-                        className={styles.btnDanger}
-                        onClick={() => setConfirmDeleteOrgId(org.id)}
-                      >
-                        Obriši klijenta
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.btnGhost}
-                        onClick={() => setEditId(null)}
-                      >
-                        Odustani
-                      </button>
-                      <button
-                        type="submit"
-                        className={styles.btnPrimary}
-                        disabled={updateOrgMutation.isPending}
-                      >
-                        {updateOrgMutation.isPending
-                          ? "Snimanje..."
-                          : "Sačuvaj"}
-                      </button>
-                    </div>
-                  )}
-                </form>
-              ) : (
-                <button
-                  key={org.id}
-                  type="button"
-                  className={styles.bizCard}
-                  onClick={() =>
-                    org.memberRole === "OWNER" || org.memberRole === "ADMIN"
-                      ? startEditOrg(org)
-                      : router.push(`/organizacija/${org.id}`)
-                  }
-                >
-                  <span className={`${styles.bizAvatar} ${styles.bizAvatarAccent}`}>
-                    {orgInitials(org.name)}
+            {pagedClientOrgs.map((org) => (
+              <button
+                key={org.id}
+                type="button"
+                className={styles.bizCard}
+                onClick={() =>
+                  org.memberRole === "OWNER" || org.memberRole === "ADMIN"
+                    ? startEditOrg(org)
+                    : router.push(`/organizacija/${org.id}`)
+                }
+              >
+                <span className={`${styles.bizAvatar} ${styles.bizAvatarAccent}`}>
+                  {orgInitials(org.name)}
+                </span>
+                <span className={styles.bizInfo}>
+                  <span className={styles.bizName}>{org.name}</span>
+                  <span className={styles.bizSub}>
+                    {ORG_TYPE_LABELS[org.type] ?? org.type}
+                    {org.taxNumber ? ` · JIB: ${org.taxNumber}` : ""}
                   </span>
-                  <span className={styles.bizInfo}>
-                    <span className={styles.bizName}>{org.name}</span>
-                    <span className={styles.bizSub}>
-                      {ORG_TYPE_LABELS[org.type] ?? org.type}
-                      {org.taxNumber ? ` · JIB: ${org.taxNumber}` : ""}
-                    </span>
-                  </span>
-                  <LuChevronRight size={17} className={styles.bizChevron} />
-                </button>
-              ),
-            )}
+                </span>
+                <LuChevronRight size={17} className={styles.bizChevron} />
+              </button>
+            ))}
           </div>
         )}
+
+        {/* Uređivanje klijenta u PK modalu (kao forma radnika) */}
+        {(() => {
+          const org = clientOrgs.find((o) => o.id === editId);
+          if (!org) return null;
+          const submitEdit = () => {
+            const missing = orgMissing(
+              editOrg,
+              editHasOwner ? editOwner.city : null,
+            );
+            if (missing.length) {
+              setEditError("Nedostaje: " + missing.join(", ") + ".");
+              return;
+            }
+            setEditError(null);
+            updateOrgMutation.mutate({
+              id: org.id,
+              payload: orgFormToPayload(editOrg, editHasOwner ? editOwner : null),
+            });
+          };
+          const closeEdit = () => {
+            setEditId(null);
+            setConfirmDeleteOrgId(null);
+          };
+          return (
+            <Modal
+              open
+              onClose={closeEdit}
+              title={org.name}
+              maxWidthClass="max-w-[760px]"
+              footer={
+                confirmDeleteOrgId === org.id ? (
+                  <>
+                    <span className="mr-auto self-center text-[12.5px] text-danger">
+                      Brišu se i svi sačuvani obrasci klijenta. Sigurni ste?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteOrgId(null)}
+                      className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+                    >
+                      Odustani
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleteClientOrgMutation.isPending}
+                      onClick={() => deleteClientOrgMutation.mutate(org.id)}
+                      className="px-4 py-2 rounded-lg bg-accent-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {deleteClientOrgMutation.isPending
+                        ? "Brisanje..."
+                        : "Da, obriši"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteOrgId(org.id)}
+                      className="mr-auto px-4 py-2 rounded-lg border border-danger/30 text-[13px] text-danger hover:bg-danger-bg transition-colors"
+                    >
+                      Obriši klijenta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeEdit}
+                      className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+                    >
+                      Odustani
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updateOrgMutation.isPending}
+                      onClick={submitEdit}
+                      className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {updateOrgMutation.isPending ? "Snimanje..." : "Sačuvaj"}
+                    </button>
+                  </>
+                )
+              }
+            >
+              <OrgFormFields value={editOrg} onChange={setEditOrg} />
+              {org.memberRole !== "OWNER" && (
+                <label className={styles.ownerToggle}>
+                  <input
+                    type="checkbox"
+                    checked={editHasOwner}
+                    onChange={(e) => setEditHasOwner(e.target.checked)}
+                  />
+                  Uredi podatke vlasnika
+                </label>
+              )}
+              {editHasOwner && (
+                <OwnerFields
+                  value={editOwner}
+                  onChange={setEditOwner}
+                  requireJmbg={false}
+                  orgType={editOrg.type}
+                />
+              )}
+              {editError && <div className={styles.errorMsg}>{editError}</div>}
+              {updateOrgMutation.error && (
+                <div className={styles.errorMsg}>
+                  {updateOrgMutation.error.message}
+                </div>
+              )}
+              {(org.memberRole === "OWNER" || org.memberRole === "ADMIN") && (
+                <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+              )}
+            </Modal>
+          );
+        })()}
 
         {totalOrgPages > 1 && (
           <div className={styles.pager}>
@@ -3195,127 +3225,126 @@ function DjelatnostTab({
 
             {persons.length > 0 && (
               <div className={styles.orgList}>
-                {persons.map((p) =>
-                  editPersonId === p.id ? (
-                    <form
-                      key={p.id}
-                      className={styles.form}
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        updatePersonMutation.mutate({
-                          id: p.id,
-                          payload: personFormToPayload(editPerson),
-                        });
-                      }}
-                    >
-                      <PersonFormFields
-                        value={editPerson}
-                        onChange={setEditPerson}
-                      />
-                      {updatePersonMutation.error && (
-                        <div className={styles.errorMsg}>
-                          {updatePersonMutation.error.message}
-                        </div>
-                      )}
-                      {confirmDeletePersonId === p.id ? (
-                        <div className={styles.deleteConfirm}>
-                          <span className={styles.deleteConfirmText}>
-                            Brisanjem se brišu i svi sačuvani obrasci ovog
-                            klijenta. Sigurni ste?
-                          </span>
-                          <div className={styles.deleteConfirmActions}>
-                            <button
-                              type="button"
-                              className={styles.btnGhost}
-                              onClick={() => setConfirmDeletePersonId(null)}
-                            >
-                              Odustani
-                            </button>
-                            <button
-                              type="button"
-                              className={styles.btnDanger}
-                              disabled={deletePersonMutation.isPending}
-                              onClick={() => deletePersonMutation.mutate(p.id)}
-                            >
-                              {deletePersonMutation.isPending
-                                ? "Brisanje..."
-                                : "Obriši"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className={styles.formActions}>
-                          <button
-                            type="button"
-                            className={styles.btnDanger}
-                            onClick={() => setConfirmDeletePersonId(p.id)}
-                          >
-                            Obriši klijenta
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.btnGhost}
-                            onClick={() => setEditPersonId(null)}
-                          >
-                            Odustani
-                          </button>
-                          <button
-                            type="submit"
-                            className={styles.btnPrimary}
-                            disabled={updatePersonMutation.isPending}
-                          >
-                            {updatePersonMutation.isPending
-                              ? "Snimanje..."
-                              : "Sačuvaj"}
-                          </button>
-                        </div>
-                      )}
-                    </form>
-                  ) : (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={styles.bizCard}
-                      onClick={() => startEditPerson(p)}
-                    >
-                      <span className={`${styles.bizAvatar} ${styles.bizAvatarAccent}`}>
-                        {initials2(`${p.firstName ?? ""} ${p.lastName ?? ""}`)}
+                {persons.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={styles.bizCard}
+                    onClick={() => startEditPerson(p)}
+                  >
+                    <span className={`${styles.bizAvatar} ${styles.bizAvatarAccent}`}>
+                      {initials2(`${p.firstName ?? ""} ${p.lastName ?? ""}`)}
+                    </span>
+                    <span className={styles.bizInfo}>
+                      <span className={styles.bizName}>
+                        {p.firstName} {p.lastName}
                       </span>
-                      <span className={styles.bizInfo}>
-                        <span className={styles.bizName}>
-                          {p.firstName} {p.lastName}
-                        </span>
-                        <span className={styles.bizSub}>
-                          Fizičko lice
-                          {p.taxNumber ? ` · ${p.taxNumber}` : ""}
-                        </span>
+                      <span className={styles.bizSub}>
+                        Fizičko lice
+                        {p.taxNumber ? ` · ${p.taxNumber}` : ""}
                       </span>
-                      <LuChevronRight size={17} className={styles.bizChevron} />
-                    </button>
-                  ),
-                )}
+                    </span>
+                    <LuChevronRight size={17} className={styles.bizChevron} />
+                  </button>
+                ))}
               </div>
             )}
+
+            {/* Uređivanje fizičkog lica u PK modalu */}
+            {(() => {
+              const p = persons.find((x) => x.id === editPersonId);
+              if (!p) return null;
+              const closePersonEdit = () => {
+                setEditPersonId(null);
+                setConfirmDeletePersonId(null);
+              };
+              return (
+                <Modal
+                  open
+                  onClose={closePersonEdit}
+                  title={`${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || "Fizičko lice"}
+                  maxWidthClass="max-w-[640px]"
+                  footer={
+                    confirmDeletePersonId === p.id ? (
+                      <>
+                        <span className="mr-auto self-center text-[12.5px] text-danger">
+                          Brišu se i svi sačuvani obrasci klijenta. Sigurni ste?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeletePersonId(null)}
+                          className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+                        >
+                          Odustani
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletePersonMutation.isPending}
+                          onClick={() => deletePersonMutation.mutate(p.id)}
+                          className="px-4 py-2 rounded-lg bg-accent-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                        >
+                          {deletePersonMutation.isPending
+                            ? "Brisanje..."
+                            : "Da, obriši"}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeletePersonId(p.id)}
+                          className="mr-auto px-4 py-2 rounded-lg border border-danger/30 text-[13px] text-danger hover:bg-danger-bg transition-colors"
+                        >
+                          Obriši klijenta
+                        </button>
+                        <button
+                          type="button"
+                          onClick={closePersonEdit}
+                          className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+                        >
+                          Odustani
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updatePersonMutation.isPending}
+                          onClick={() =>
+                            updatePersonMutation.mutate({
+                              id: p.id,
+                              payload: personFormToPayload(editPerson),
+                            })
+                          }
+                          className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                        >
+                          {updatePersonMutation.isPending
+                            ? "Snimanje..."
+                            : "Sačuvaj"}
+                        </button>
+                      </>
+                    )
+                  }
+                >
+                  <PersonFormFields value={editPerson} onChange={setEditPerson} />
+                  {updatePersonMutation.error && (
+                    <div className={styles.errorMsg}>
+                      {updatePersonMutation.error.message}
+                    </div>
+                  )}
+                </Modal>
+              );
+            })()}
           </>
         </RoleGuard>
       </div>
 
-      {/* ── Add klijenta modal ── */}
+      {/* ── Add klijenta modal (PK shell, postojeća forma) ── */}
       {showAdd && (
-        <div className={styles.modalOverlay} onClick={resetAddForm}>
-          <div
-            className={styles.modalCard}
-            style={{
-              maxWidth: 760,
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={styles.addOrgForm}>
-              <p className={styles.addOrgTitle}>Šta želite dodati?</p>
-
+        <Modal
+          open
+          onClose={resetAddForm}
+          title="Šta želite dodati?"
+          maxWidthClass="max-w-[760px]"
+        >
+          <div className={styles.addOrgForm}>
             <div className={styles.orgTypeRadios}>
               <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]}>
                 <label
@@ -3476,9 +3505,8 @@ function DjelatnostTab({
                 </div>
               </form>
             )}
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -3955,173 +3983,172 @@ function HistorijaTab() {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.historyFilterRow}>
-        <select
-          className={styles.filterSelect}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as HistorijaFilter)}
-        >
-          {FILTER_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <input
-          type="search"
-          className={styles.searchInput}
-          placeholder="Pretraži po imenu, godini…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {isLoading && (
-        <div className={styles.empty}>
-          <div className={styles.emptyText}>Učitavanje...</div>
+      <div className="pk-scope space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <PkSelect
+            ariaLabel="Filter tipa dokumenta"
+            value={filter}
+            onChange={(v) => setFilter((v ?? "ALL") as HistorijaFilter)}
+            options={FILTER_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: opt.label,
+            }))}
+            wrapStyle={{ minWidth: 180 }}
+          />
+          <input
+            type="search"
+            className="flex-1 min-w-[200px] rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600"
+            placeholder="Pretraži po imenu, godini…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-      )}
 
-      {!isLoading && totalItems === 0 && (
-        <div className={styles.empty}>
-          <div className={styles.emptyIcon}>📄</div>
-          <div className={styles.emptyText}>Nema pronađenih obrazaca.</div>
-        </div>
-      )}
+        {isLoading && (
+          <p className="text-[13px] text-text-tertiary py-6 text-center">
+            Učitavanje...
+          </p>
+        )}
 
-      {!isLoading && totalItems > 0 && (
-        <>
-          <div className={styles.formList}>
-            {pagedAmort.map((year) => (
-              <AmortizacijaFormItem
-                key={`amort-${year}`}
-                year={year}
-                name={nameByYear[year] || ""}
-                onDelete={() => {
-                  setDeletingAmortYear(year);
-                  deleteAmortMutation.mutate(year);
-                }}
-                deleteLoading={
-                  deleteAmortMutation.isPending && deletingAmortYear === year
-                }
-              />
-            ))}
-            {pagedForms.map((f) => (
-              <div key={f.id} className={styles.formItem}>
-                <span className={typeBadgeClass(f.type, styles)}>
-                  {FORM_TYPE_LABELS[f.type]}
-                </span>
-                <div className={styles.formDetails}>
-                  <div className={styles.formTitle}>
-                    {displayTitle(f)}
-                    {/* Faza 3B: team marker za forme koje je kreirao drugi član iz iste org-e */}
-                    {f.organization && f.createdById !== null && myUserId !== null && f.createdById !== myUserId && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          fontSize: 11,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          background: "var(--color-bg-subtle, #f0f0f0)",
-                          color: "var(--color-text-muted, #666)",
-                        }}
-                        title="Dokument kreiran od strane drugog člana organizacije"
-                      >
-                        Tim
-                      </span>
-                    )}
+        {!isLoading && totalItems === 0 && (
+          <p className="text-[13px] text-text-tertiary py-8 text-center">
+            Nema pronađenih obrazaca.
+          </p>
+        )}
+
+        {!isLoading && totalItems > 0 && (
+          <>
+            <div className="space-y-2">
+              {pagedAmort.map((year) => (
+                <AmortizacijaFormItem
+                  key={`amort-${year}`}
+                  year={year}
+                  name={nameByYear[year] || ""}
+                  onDelete={() => {
+                    setDeletingAmortYear(year);
+                    deleteAmortMutation.mutate(year);
+                  }}
+                  deleteLoading={
+                    deleteAmortMutation.isPending && deletingAmortYear === year
+                  }
+                />
+              ))}
+              {pagedForms.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex flex-wrap items-center gap-3 bg-cream-100 border border-cream-300 rounded-xl px-4 py-3"
+                >
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-brand-100 text-brand-700 shrink-0">
+                    {FORM_TYPE_LABELS[f.type]}
+                  </span>
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="text-[13.5px] font-medium text-text-primary">
+                      {displayTitle(f)}
+                      {/* Team marker: formu kreirao drugi član iste org-e */}
+                      {f.organization &&
+                        f.createdById !== null &&
+                        myUserId !== null &&
+                        f.createdById !== myUserId && (
+                          <span
+                            className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-cream-200 text-text-secondary align-middle"
+                            title="Dokument kreiran od strane drugog člana organizacije"
+                          >
+                            Tim
+                          </span>
+                        )}
+                    </div>
+                    <div className="text-[11.5px] text-text-tertiary mt-0.5">
+                      {recipientLabel(f)}
+                      {(() => {
+                        const d = new Date(f.createdAt);
+                        return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}.`;
+                      })()}
+                    </div>
                   </div>
-                  <div className={styles.formMeta}>
-                    {recipientLabel(f)}
-                    {(() => {
-                      const d = new Date(f.createdAt);
-                      return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}.`;
-                    })()}
-                  </div>
-                </div>
-                <span className={statusClass(f.status, styles)}>
-                  {STATUS_LABELS[f.status] ?? f.status}
-                </span>
-                <FormDownloadButton form={f} s={styles} />
-                {f.pdfUrl && (
-                  <a
-                    href={f.pdfUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={styles.btnGhost}
-                    style={{ textDecoration: "none", fontSize: 12 }}
+                  <span
+                    className={[
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide shrink-0",
+                      f.status === "SUBMITTED" || f.status === "GENERATED"
+                        ? "bg-success-bg text-success"
+                        : f.status === "ARCHIVED"
+                          ? "bg-cream-200 text-text-secondary"
+                          : "bg-warning-bg text-warning",
+                    ].join(" ")}
                   >
-                    PDF
-                  </a>
-                )}
-                {confirmDeleteId === f.id ? (
-                  <div className={styles.deleteConfirm}>
-                    <span className={styles.deleteConfirmText}>
-                      Sigurno želite obrisati dokument?
-                    </span>
-                    <div className={styles.deleteConfirmActions}>
+                    {STATUS_LABELS[f.status] ?? f.status}
+                  </span>
+                  <FormDownloadButton form={f} s={styles} />
+                  {f.pdfUrl && (
+                    <a
+                      href={f.pdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-lg border border-cream-300 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors"
+                    >
+                      PDF
+                    </a>
+                  )}
+                  {confirmDeleteId === f.id ? (
+                    <span className="inline-flex items-center gap-2">
                       <button
                         type="button"
-                        className={styles.btnGhost}
                         onClick={() => setConfirmDeleteId(null)}
+                        className="px-3 py-1.5 rounded-lg border border-cream-300 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors"
                       >
                         Odustani
                       </button>
                       <button
                         type="button"
-                        className={styles.btnDanger}
                         disabled={deleteMutation.isPending}
                         onClick={() => deleteMutation.mutate(f.id)}
+                        className="px-3 py-1.5 rounded-lg bg-accent-500 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                       >
-                        {deleteMutation.isPending
-                          ? "Brisanje..."
-                          : "Da, obriši"}
+                        {deleteMutation.isPending ? "Brisanje..." : "Da, obriši"}
                       </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.btnGhost}
-                    style={{
-                      fontSize: 12,
-                      color: "var(--color-danger, #e53e3e)",
-                    }}
-                    onClick={() => {
-                      deleteMutation.reset();
-                      setConfirmDeleteId(f.id);
-                    }}
-                  >
-                    Obriši
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className={styles.pagination}>
-              <button
-                className={styles.pageBtn}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-              >
-                ←
-              </button>
-              <span className={styles.pageInfo}>
-                {page + 1} / {totalPages}
-              </span>
-              <button
-                className={styles.pageBtn}
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
-              >
-                →
-              </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      title="Obriši dokument"
+                      onClick={() => {
+                        deleteMutation.reset();
+                        setConfirmDeleteId(f.id);
+                      }}
+                      className="inline-flex p-1.5 rounded-lg text-text-tertiary hover:bg-cream-200 hover:text-accent-500 transition-colors"
+                    >
+                      <LuTrash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-        </>
-      )}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="px-3 py-1.5 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-40"
+                >
+                  ← Prethodna
+                </button>
+                <span className="text-[12.5px] text-text-tertiary tabular-nums">
+                  {page + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={page === totalPages - 1}
+                  className="px-3 py-1.5 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-40"
+                >
+                  Sljedeća →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -4363,418 +4390,12 @@ function SigurnostTab({ user }: { user: AuthUser }) {
 
 // ─── Pretplata tab ────────────────────────────────────────────────────────────
 
-const PLAN_LABELS: Record<string, string> = {
-  USER: "Besplatan",
-  PRO: "Pro",
-  BUSINESS: "Business",
-  ADMIN: "Admin",
-};
-
-const PLAN_FEATURES: Record<string, string[]> = {
-  USER: [
-    "SPR-1053 i GPD-1051 obrazac",
-    "izrada i automatska popuna ZO3 obrazca",
-    "AMS-1035 generator zajedno sa uplatnicama",
-    "Stalna sredstva i amortizacija kroz godine",
-    "Historija svih dokumenata po godinama ili obrascima",
-    "Pohrana podataka obrta u svim dokumentima",
-    "Izvoz u Docx / PDF",
-  ],
-  PRO: [
-    "Sve iz besplatnog plana",
-    "Šihterica, Evidencija radnog vremena",
-    "Generator članskih kartica",
-    "Fakture/računi i predračuni/ponude za vaše djelatnosti ili vaše klijente",
-    "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
-    "Maksimalno 5 radnika po organizaciji/klijentu",
-    "Prijave/odjave radnika, izrada JS3000 obrasca",
-    "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
-    "Generisanje uplatnica za plate i doprinose",
-  ],
-  BUSINESS: [
-    "Sve iz Pro plana",
-    "Upravljanje neograničenim brojem klijenata i fizičkih lica",
-    "Neograničen broj radnika po organizaciji/klijentu",
-    "Višekorisnički pristup (tim)",
-    "Ugovori o djelu i automatski obračun poreza i doprinosa",
-    "Automatsko generisanje AUG-1031 obrasca uz ugovor o djelu",
-    "Ugovor o radu i mogućnost prilagođavanja ugovora po Vašim potrebama",
-    "Prioritetna podrška",
-  ],
-  ADMIN: ["Puni administratorski pristup"],
-};
-
-function fmtDate(iso: string) {
-  if (!iso) return "–";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}.${mm}.${yyyy}.`;
-}
-
-// Broj dana do isteka (negativno = isteklo). Računa se iz endDate jer rola/
-// isActive mogu biti spušteni lazy-expiry-jem nakon isteka.
-function daysUntil(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const parts = iso.slice(0, 10).split("-").map(Number);
-  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
-  const end = Date.UTC(parts[0], parts[1] - 1, parts[2]);
-  const now = new Date();
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((end - today) / 86400000);
-}
-
-// Dan nakon isteka (YYYY-MM-DD) — prvi dan nove pretplate (kontinuitet).
-function dayAfterIso(iso: string): string {
-  const parts = iso.slice(0, 10).split("-").map(Number);
-  const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-  dt.setUTCDate(dt.getUTCDate() + 1);
-  return dt.toISOString().slice(0, 10);
-}
-
-// Kraj perioda nove pretplate (start + 1 mjesec/godina - 1 dan).
-function periodEndFrom(startIso: string, cycle: BillingCycle): string {
-  const parts = startIso.slice(0, 10).split("-").map(Number);
-  const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-  if (cycle === "monthly") dt.setUTCMonth(dt.getUTCMonth() + 1);
-  else dt.setUTCFullYear(dt.getUTCFullYear() + 1);
-  dt.setUTCDate(dt.getUTCDate() - 1);
-  return dt.toISOString().slice(0, 10);
-}
-
-// Plan za obnovu: subscription.plan (ako je PRO/BUSINESS), inače rola, inače PRO.
-function renewalPlan(user: AuthUser): PredracunPlan {
-  const sp = user.subscription?.plan;
-  if (sp === "PRO" || sp === "BUSINESS") return sp;
-  if (user.role === "PRO" || user.role === "BUSINESS") return user.role;
-  return "PRO";
-}
-
-function SubscriptionRenewal({
-  user,
-  daysLeft,
-}: {
-  user: AuthUser;
-  daysLeft: number;
-}) {
-  const sub = user.subscription!;
-  const plan = renewalPlan(user);
-  const cycle: BillingCycle = sub.billingCycle === "monthly" ? "monthly" : "yearly";
-  // Kontinuitet: dan nakon isteka. Ali ako je već isteklo, ne idemo unazad —
-  // počinjemo od danas (max(endDate+1, danas)). ISO datumi se porede leksički.
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const afterExpiry = dayAfterIso(sub.endDate);
-  const periodStart = afterExpiry > todayIso ? afterExpiry : todayIso;
-  const periodEnd = periodEndFrom(periodStart, cycle);
-  const cycleLabel = cycle === "monthly" ? "mjesečna" : "godišnja";
-  const planLabel = PLAN_LABELS[plan] ?? plan;
-  const expired = daysLeft < 0;
-
-  const [done, setDone] = useState<{ number: string; url: string } | null>(null);
-
-  const gen = useMutation({
-    mutationFn: async () => {
-      if (!user.email) throw new Error("Vaš profil nema email adresu.");
-      const res = await createPredracun(
-        plan,
-        cycle,
-        {
-          name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
-          email: user.email,
-          address: user.address ?? undefined,
-          city: user.city ?? undefined,
-          phone: user.phone ?? undefined,
-        },
-        periodStart,
-      );
-      if (!res.ok) throw new Error(res.error);
-      return res;
-    },
-    onSuccess: (res) => {
-      setDone({ number: res.fullNumber, url: res.pdfUrl });
-      if (typeof window !== "undefined") window.open(res.pdfUrl, "_blank");
-    },
-  });
-
-  return (
-    <div className={styles.renewalBox}>
-      <p className={styles.renewalTitle}>
-        {expired ? "Obnovite pretplatu" : "Pretplata uskoro ističe"}
-      </p>
-      <p className={styles.renewalDesc}>
-        Generišite novi predračun za obnovu. Nova pretplata:{" "}
-        <strong>
-          {planLabel}, {cycleLabel}
-        </strong>,{" "}
-        period {fmtDate(periodStart)} do {fmtDate(periodEnd)}{" "}
-        {expired
-          ? "(počinje danas)."
-          : "(počinje dan nakon isteka tekuće, bez prekida)."}
-      </p>
-
-      {done ? (
-        <div className={styles.renewalDone}>
-          <p>
-            Predračun <strong>{done.number}</strong> je generisan i poslan na{" "}
-            <strong>{user.email}</strong>.
-          </p>
-          <a
-            href={done.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.planLink}
-          >
-            Ponovo otvori PDF
-          </a>
-        </div>
-      ) : (
-        <>
-          <button
-            className={styles.btnPrimary}
-            onClick={() => gen.mutate()}
-            disabled={gen.isPending || !user.email}
-          >
-            {gen.isPending ? "Generišem…" : "Generiši predračun za obnovu"}
-          </button>
-          {!user.email && (
-            <p className={styles.renewalHint}>
-              Dodajte email adresu u profilu da generišete predračun.
-            </p>
-          )}
-          {gen.isError && (
-            <p className={styles.renewalError}>
-              {(gen.error as Error).message}
-            </p>
-          )}
-        </>
-      )}
-
-      <p className={styles.renewalHint}>
-        Želite drugi plan ili način plaćanja (mjesečno/godišnje)?{" "}
-        <Link
-          href={`/pretplate?plan=${plan}&cycle=${cycle}`}
-          className={styles.planLink}
-        >
-          Promijeni pretplatu
-        </Link>
-        .
-      </p>
-
-      <p className={styles.renewalHint}>
-        Ako želite produžiti, možete i odgovoriti na email podsjetnik ili nas
-        kontaktirati putem{" "}
-        <a href="/kontakt" className={styles.planLink}>
-          kontakt forme
-        </a>
-        .
-      </p>
-    </div>
-  );
-}
-
-function PretplataTab({ user }: { user: AuthUser }) {
-  const plan = user.role in PLAN_LABELS ? user.role : "USER";
-  const isPaid = plan === "PRO" || plan === "BUSINESS";
-  const isAdmin = plan === "ADMIN";
-  const sub = user.subscription;
-  const isActive = isAdmin || (sub?.isActive ?? false);
-  const isExpired = !isAdmin && sub && !sub.isActive;
-  // Obnova: pred istek (≤7 dana) ili već isteklo. Računamo iz endDate.
-  const daysLeft = !isAdmin && sub ? daysUntil(sub.endDate) : null;
-  const showRenewal = daysLeft !== null && daysLeft <= 7;
-
+// Identičan sadržaj kao /app/pretplata: dijeljeni PretplataPanel (PK stil).
+function PretplataTab() {
   return (
     <div className={styles.panel}>
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <p className={styles.cardTitle}>Moja pretplata</p>
-        </div>
-
-        <div className={styles.planCard}>
-          <div
-            className={`${styles.planBadge} ${plan === "PRO" ? styles.planBadgePro : plan === "BUSINESS" ? styles.planBadgeBusiness : plan === "ADMIN" ? styles.planBadgeAdmin : ""}`}
-          >
-            {PLAN_LABELS[plan] ?? plan}
-          </div>
-          <p className={styles.planDesc}>
-            {isAdmin
-              ? "Puni administratorski pristup, uvijek aktivan."
-              : isPaid && isActive
-                ? "Imate aktivan plaćeni plan."
-                : isPaid && isExpired
-                  ? "Vaša pretplata je istekla."
-                  : "Trenutno koristite besplatan plan."}
-          </p>
-          <ul className={styles.planFeatures}>
-            {(PLAN_FEATURES[plan] ?? []).map((f) => (
-              <li key={f} className={styles.planFeatureItem}>
-                <span className={styles.planCheck}>✓</span>
-                {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {sub && (
-          <div className={styles.subInfo}>
-            <div className={styles.subDates}>
-              <div className={styles.subDateItem}>
-                <span className={styles.subDateLabel}>Vrijedi od</span>
-                <span className={styles.subDateValue}>
-                  {fmtDate(sub.startDate)}
-                </span>
-              </div>
-              <div className={styles.subDateItem}>
-                <span className={styles.subDateLabel}>Vrijedi do</span>
-                <span className={styles.subDateValue}>
-                  {fmtDate(sub.endDate)}
-                </span>
-              </div>
-            </div>
-            <div className={styles.subStatusRow}>
-              {isActive ? (
-                <span className={styles.subActive}>● Aktivna</span>
-              ) : (
-                <span className={styles.subExpired}>● Istekla</span>
-              )}
-              {isExpired && !showRenewal && (
-                <span className={styles.subStatusNote}>
-                  Za obnovu kontaktirajte nas putem{" "}
-                  <a href="/kontakt" className={styles.planLink}>
-                    kontakt forme
-                  </a>
-                  .
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {showRenewal && (
-          <SubscriptionRenewal user={user} daysLeft={daysLeft as number} />
-        )}
-
-        {!isPaid && !showRenewal && (
-          <div className={styles.planUpgrade}>
-            <p className={styles.planUpgradeText}>
-              Nadogradite na <strong>Pro</strong> ili <strong>Business</strong>{" "}
-              plan za pristup svim funkcionalnostima.
-            </p>
-            <Link className={styles.btnPrimary} href="/pretplate">
-              Nadogradi
-            </Link>
-            <p className={styles.planComingSoon}>
-              Na stranici za pretplatu generišete predračun i platite po
-              uplatnici. Nakon evidentiranja uplate aktiviramo vaš plan. Za
-              pomoć nas kontaktirajte putem{" "}
-              <a href="/kontakt" className={styles.planLink}>
-                kontakt forme
-              </a>
-              .
-            </p>
-          </div>
-        )}
-
-        {plan === "PRO" && (
-          <div className={styles.planUpgrade}>
-            <p className={styles.planUpgradeText}>
-              Nadogradite na <strong>Business</strong> plan za pristup
-              neograničenom broju klijenata, višekorisničkom pristupu i
-              prioritetnoj podršci.
-            </p>
-            <Link
-              className={styles.btnPrimary}
-              href="/pretplate?plan=BUSINESS"
-            >
-              Nadogradi na Business
-            </Link>
-          </div>
-        )}
-      </div>
-
-      <PlanComparison currentPlan={plan} />
-    </div>
-  );
-}
-
-function PlanComparison({ currentPlan }: { currentPlan: string }) {
-  const plans = [
-    {
-      key: "USER",
-      title: "Besplatan",
-      price: "0 KM",
-      note: "Osnovni alati, bez obaveza",
-      features: PLAN_FEATURES.USER,
-      href: null as string | null,
-      recommended: false,
-    },
-    {
-      key: "PRO",
-      title: "Pro",
-      price: `${formatKm(PLAN_PRICING.PRO.yearly)} KM`,
-      note: `godišnje · ili ${formatKm(PLAN_PRICING.PRO.monthly)} KM mjesečno`,
-      features: PLAN_FEATURES.PRO,
-      href: "/pretplate?plan=PRO",
-      recommended: true,
-    },
-    {
-      key: "BUSINESS",
-      title: "Business",
-      price: `${formatKm(PLAN_PRICING.BUSINESS.yearly)} KM`,
-      note: `godišnje · ili ${formatKm(PLAN_PRICING.BUSINESS.monthly)} KM mjesečno`,
-      features: PLAN_FEATURES.BUSINESS,
-      href: "/pretplate?plan=BUSINESS",
-      recommended: false,
-    },
-  ];
-
-  return (
-    <div className={styles.card} style={{ marginTop: "1.5rem" }}>
-      <div className={styles.cardHeader}>
-        <p className={styles.cardTitle}>Planovi i cijene</p>
-      </div>
-      <div className={styles.planCompareGrid}>
-        {plans.map((p) => {
-          const isCurrent = currentPlan === p.key;
-          return (
-            <div
-              key={p.key}
-              className={`${styles.planCompareCard} ${p.recommended ? styles.planCompareRec : ""}`}
-            >
-              {p.recommended && (
-                <span className={styles.planCompareRecBadge}>Preporučeno</span>
-              )}
-              <div className={styles.planCompareTitle}>{p.title}</div>
-              <div className={styles.planComparePrice}>
-                {p.price}
-                {p.key !== "USER" && (
-                  <span className={styles.planCompareVat}>+ PDV</span>
-                )}
-              </div>
-              <div className={styles.planCompareNote}>{p.note}</div>
-              <ul className={styles.planCompareFeatures}>
-                {p.features.map((f) => (
-                  <li key={f}>
-                    <span className={styles.planCheck}>✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              {isCurrent ? (
-                <span className={styles.planCompareCurrent}>Trenutni plan</span>
-              ) : p.href ? (
-                <Link
-                  href={p.href}
-                  className={p.recommended ? styles.btnPrimary : styles.btnGhost}
-                >
-                  Izaberi {p.title}
-                </Link>
-              ) : null}
-            </div>
-          );
-        })}
+      <div className="pk-scope">
+        <PretplataPanel />
       </div>
     </div>
   );
@@ -4954,7 +4575,7 @@ export default function Profil() {
         )}
         {tab === "historija" && <HistorijaTab />}
         {tab === "sigurnost" && <SigurnostTab user={user} />}
-        {tab === "pretplata" && <PretplataTab user={user} />}
+        {tab === "pretplata" && <PretplataTab />}
       </main>
     </div>
   );
@@ -5262,14 +4883,10 @@ function PregledTab({
         <QuickCreateOrgModal
           onClose={() => setWizardOpen(false)}
           onCreated={() => {
-            // Prva VLASTITA djelatnost: vodi na profil da odmah odluči o prijavi
-            // vlasnika. Filtriraj na OWNER (lista može sadržati i članstva u tuđim
-            // org-ama), isto kao ProfilTab.
-            const wasFirst =
-              ownOrgs.filter((o) => o.memberRole === "OWNER").length === 0;
+            // Prijava vlasnika i režim/plata se rješavaju u samom modalu,
+            // pa redirect na profil više nije potreban.
             setWizardOpen(false);
             orgsQuery.refetch();
-            if (wasFirst) router.push("/profil?tab=profil&prijava=1");
           }}
         />
       )}
@@ -5402,8 +5019,8 @@ function ChecklistStep({
   );
 }
 
-// Brzi wizard za kreiranje djelatnosti — minimalna polja (tip, naziv, JIB).
-// Ostalo (adresa, šifra, računi, režim) korisnik dopunjuje kasnije na profilu.
+// Kreiranje vlastite djelatnosti: puna forma organizacije u PK modalu
+// (nekadašnji "brzi wizard" je zamijenjen punim create-om, odluka vlasnika).
 function QuickCreateOrgModal({
   onClose,
   onCreated,
@@ -5417,8 +5034,79 @@ function QuickCreateOrgModal({
   const [error, setError] = useState<string | null>(null);
   const cityOk = !!findByName((form.city || "").trim());
 
+  // Prijava vlasnika odmah pri kreiranju: da korisnik ne mora naknadno na
+  // profilu tražiti "Moja djelatnost i primanja". Za obrt režim ide kroz samu
+  // formu (taxRegime), za d.o.o. se upisuje vlastita plata.
+  const ownOrgsQ = useQuery<Organization[]>({
+    queryKey: ["organizations"],
+    queryFn: () => unwrap(getOrganizations()),
+  });
+  const myOwnOrgs = (ownOrgsQ.data ?? []).filter(
+    (o) => o.memberRole === "OWNER",
+  );
+  const employedOrg =
+    myOwnOrgs.find((o) => o.owner?.employmentStatus === "PRIJAVLJEN") ?? null;
+  const [prijavljen, setPrijavljen] = useState(true);
+  const [prijavaDate, setPrijavaDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [bruto, setBruto] = useState("");
+  const [neto, setNeto] = useState("");
+
   const create = useMutation({
-    mutationFn: () => unwrap(createOrganization(orgFormToPayload(form, null))),
+    mutationFn: async () => {
+      const created = await unwrap(
+        createOrganization(orgFormToPayload(form, null)),
+      );
+      // Prijava vlasnika u novoj djelatnosti (ista logika kao "Moja djelatnost
+      // i primanja"): prijavi ovdje, odjavi u ostalim svojim org-ama.
+      if (prijavljen) {
+        let owner = created.owner;
+        if (!owner?.id) {
+          const full = await unwrap(getOrganization(created.id));
+          owner = full.owner;
+        }
+        if (owner?.id) {
+          const today = new Date().toISOString().slice(0, 10);
+          if (form.type === "COMPANY") {
+            const b = parseMoneyInput(bruto);
+            const n = parseMoneyInput(neto);
+            const salaryType =
+              n != null ? "NETO_ISPLATA" : b != null ? "BRUTO" : undefined;
+            await unwrap(
+              updateWorker(created.id, owner.id, {
+                salaryBruto: b,
+                salaryNeto: n,
+                ...(salaryType && { salaryType }),
+                employmentStatus: "PRIJAVLJEN",
+                prijavaDate: prijavaDate || today,
+              }),
+            );
+          } else {
+            await unwrap(
+              updateWorker(created.id, owner.id, {
+                employmentStatus: "PRIJAVLJEN",
+                prijavaDate: prijavaDate || today,
+              }),
+            );
+          }
+          // Isključivost prijave: odjavi vlasnika u ostalim svojim org-ama.
+          for (const o of myOwnOrgs.filter(
+            (x) => x.id !== created.id && x.owner?.id,
+          )) {
+            await unwrap(
+              updateWorker(o.id, o.owner!.id!, {
+                salaryBruto: null,
+                salaryNeto: null,
+                prijavaDate: null,
+                employmentStatus: "ODJAVLJEN",
+              }),
+            );
+          }
+        }
+      }
+      return created;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
       queryClient.invalidateQueries({ queryKey: ["me"] });
@@ -5440,11 +5128,15 @@ function QuickCreateOrgModal({
     },
   });
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = () => {
     const missing: string[] = [];
     if (!form.name.trim()) missing.push("naziv djelatnosti");
     if (!cityOk) missing.push("grad (odaberite sa liste)");
+    // Ako je vlasnik prijavljen u obrtu, režim je obavezan: iz njega se računa
+    // njegov mjesečni obračun doprinosa (Obrazac 2002).
+    if (prijavljen && form.type === "BUSINESS" && !form.taxRegime) {
+      missing.push("režim oporezivanja (određuje tvoj mjesečni obračun)");
+    }
     if (missing.length) {
       setError("Nedostaje: " + missing.join(", ") + ".");
       return;
@@ -5454,33 +5146,121 @@ function QuickCreateOrgModal({
   };
 
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div
-        className={styles.modalCard}
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }}
-      >
-        <p className={styles.cardTitle}>Napravite svoju djelatnost</p>
+    <Modal
+      open
+      onClose={onClose}
+      title="Napravite svoju djelatnost"
+      maxWidthClass="max-w-[760px]"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+          >
+            Otkaži
+          </button>
+          <button
+            type="button"
+            disabled={create.isPending}
+            onClick={submit}
+            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {create.isPending ? "Pravim..." : "Napravi djelatnost"}
+          </button>
+        </>
+      }
+    >
+      <OrgFormFields value={form} onChange={setForm} />
 
-        <form onSubmit={submit}>
-          <OrgFormFields value={form} onChange={setForm} />
+      {/* ── Prijava vlasnika ── */}
+      <div className="pk-scope mt-4 pt-4 border-t border-cream-300">
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={prijavljen}
+            onChange={(e) => setPrijavljen(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span className="text-[13px] leading-5 text-text-primary">
+            <strong>Prijavljen sam u ovoj djelatnosti</strong> (vlasnik u radnom
+            odnosu ovdje)
+            <span className="block text-[12px] text-text-tertiary mt-0.5">
+              Na osnovu ovoga se računa tvoj mjesečni obračun: za obrt po režimu
+              oporezivanja (Obrazac 2002), za d.o.o. po tvojoj plati.
+            </span>
+          </span>
+        </label>
 
-          {error && <div className={styles.errorMsg}>{error}</div>}
+        {prijavljen && (
+          <div className="mt-3 space-y-3">
+            <div className="max-w-[280px]">
+              <label className="block text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                Datum prijave
+              </label>
+              <DateInput
+                value={prijavaDate}
+                onValueChange={setPrijavaDate}
+                className="w-full rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600"
+              />
+              <p className="text-[11.5px] text-text-tertiary mt-1">
+                Ako ostaviš prazno, računa se od danas.
+              </p>
+            </div>
 
-          <div className={styles.modalActions}>
-            <button
-              className={styles.btnPrimary}
-              type="submit"
-              disabled={create.isPending}
-            >
-              {create.isPending ? "Pravim..." : "Napravi djelatnost"}
-            </button>
-            <button className={styles.btnGhost} type="button" onClick={onClose}>
-              Otkaži
-            </button>
+            {form.type === "BUSINESS" ? (
+              <p className="text-[12.5px] leading-5 text-text-secondary px-3 py-2 rounded-lg bg-brand-100/50 border border-brand-600/15">
+                Tvoje obaveze kao obrtnika određuje{" "}
+                <strong>režim oporezivanja</strong> koji si izabrao iznad.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-[480px]">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                    Bruto plata (KM)
+                  </label>
+                  <input
+                    className="w-full rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary tabular-nums focus:outline-none focus:border-brand-600"
+                    value={bruto}
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    onChange={(e) => setBruto(formatMoneyLive(e.target.value))}
+                    onBlur={(e) => setBruto(formatMoneyBlur(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                    ili neto za isplatu (KM)
+                  </label>
+                  <input
+                    className="w-full rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary tabular-nums focus:outline-none focus:border-brand-600"
+                    value={neto}
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    onChange={(e) => setNeto(formatMoneyLive(e.target.value))}
+                    onBlur={(e) => setNeto(formatMoneyBlur(e.target.value))}
+                  />
+                </div>
+                <p className="sm:col-span-2 text-[11.5px] leading-4 text-text-tertiary">
+                  Dovoljno je jedno od dva; možeš dopuniti i kasnije na profilu
+                  (Moja djelatnost i primanja).
+                </p>
+              </div>
+            )}
+
+            {employedOrg && (
+              <p className="text-[12.5px] leading-5 px-3 py-2 rounded-lg bg-warning-bg/50 border border-warning/30 text-text-secondary">
+                Trenutno si prijavljen u{" "}
+                <strong>{employedOrg.name}</strong>. Prijava je isključiva:
+                snimanjem se tamo odjavljuješ i vodiš se samo u novoj
+                djelatnosti. Postojeći obračuni se ne mijenjaju.
+              </p>
+            )}
           </div>
-        </form>
+        )}
       </div>
-    </div>
+
+      {error && <div className={styles.errorMsg}>{error}</div>}
+    </Modal>
   );
 }

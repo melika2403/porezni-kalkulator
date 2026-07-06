@@ -125,6 +125,46 @@ export function deletePartner(orgId: number, partnerId: number) {
 // ── Ulazni računi (fakture dobavljača) ──────────────────────────────────────
 
 export type UlazniRacunStatus = "OTVOREN" | "PLACEN";
+/** KUF vrsta fakture: domaći dobavljač, uvoz, ili poljoprivrednik (paušal) */
+export type VrstaNabavke = "DOMACA" | "UVOZ" | "OD_NEOBVEZNIKA";
+/** KUF tip dokumenta po UINO evidencijama */
+export type TipDokumentaKuf =
+  | "01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09";
+export type VrstaDokumenta =
+  | "REDOVNA"
+  | "AVANSNA"
+  | "KNJIZNA_OBAVIJEST"
+  | "STORNO_AVANSNE"
+  | "PDV_NA_CEKANJU"
+  | "OSTALO";
+export type KpEntitet = "FBIH" | "RS" | "BD";
+
+export const TIPOVI_DOKUMENTA_KUF: { value: TipDokumentaKuf; label: string }[] = [
+  { value: "01", label: "01 · Ulazna faktura za robu i usluge iz zemlje" },
+  { value: "02", label: "02 · Faktura za vlastitu potrošnju (vanposlovne svrhe)" },
+  { value: "03", label: "03 · Avansna faktura (dati avansi)" },
+  { value: "04", label: "04 · Uvozna faktura (JCI)" },
+  { value: "05", label: "05 · Faktura za usluge primljene iz inostranstva" },
+  { value: "06", label: "06 · Naknadna umanjenja i primljeni popusti" },
+  { value: "07", label: "07 · Ispravak odbitka ulaznog poreza" },
+  { value: "08", label: "08 · Ulazni PDV u posebnoj šemi građevinarstva" },
+  { value: "09", label: "09 · Ostalo" },
+];
+
+export const VRSTE_DOKUMENTA: { value: VrstaDokumenta; label: string }[] = [
+  { value: "REDOVNA", label: "Redovna faktura" },
+  { value: "AVANSNA", label: "Avansna faktura" },
+  { value: "KNJIZNA_OBAVIJEST", label: "Knjižna obavijest" },
+  { value: "STORNO_AVANSNE", label: "Storno avansne fakture" },
+  { value: "PDV_NA_CEKANJU", label: "PDV na čekanju" },
+  { value: "OSTALO", label: "Ostalo" },
+];
+
+export const KP_ENTITETI: { value: KpEntitet; label: string }[] = [
+  { value: "FBIH", label: "Federacija BiH" },
+  { value: "RS", label: "Republika Srpska" },
+  { value: "BD", label: "Distrikt Brčko" },
+];
 
 export type UlazniRacun = {
   id: number;
@@ -135,10 +175,34 @@ export type UlazniRacun = {
   rokPlacanja: string | null;
   iznos: string; // DECIMAL stiže kao string
   pdvIznos: string | null;
+  vrstaNabavke: VrstaNabavke;
+  /** naslijeđeni sve-ili-ništa flag; mjerodavan je pdvNeodbitniIznos */
+  pdvNeodbitan: boolean;
+  /** dio ulaznog PDV-a koji se NE može odbiti (ne ulazi u polje 61 prijave) */
+  pdvNeodbitniIznos: string;
+  /** KUF period ide po datumu prijema fakture */
+  datumPrijema: string | null;
+  tipDokumenta: TipDokumentaKuf;
+  vrstaDokumenta: VrstaDokumenta;
+  jciBroj: string | null;
+  jciDatum: string | null;
+  /** otkup od poljoprivrednika: paušalna naknada (polja 23/43 prijave) */
+  pausalnaNaknada: string;
+  kpEntitet: KpEntitet | null;
+  kpIznos: string;
+  /** samo PDV evidencija (uvoz/JCI): u KUF-u je, ali ne stvara obavezu */
+  samoEvidencija: boolean;
   status: UlazniRacunStatus;
   paidAt: string | null;
   note: string | null;
-  partner?: { id: number; name: string };
+  partner?: {
+    id: number;
+    name: string;
+    jib?: string | null;
+    pdvBroj?: string | null;
+    code?: number | null;
+    city?: string | null;
+  };
 };
 
 export type UlazniRacunPayload = {
@@ -148,8 +212,33 @@ export type UlazniRacunPayload = {
   rokPlacanja?: string | null;
   iznos: number;
   pdvIznos?: number | null;
+  vrstaNabavke?: VrstaNabavke;
+  pdvNeodbitniIznos?: number;
+  datumPrijema?: string; // YYYY-MM-DD
+  tipDokumenta?: TipDokumentaKuf;
+  vrstaDokumenta?: VrstaDokumenta;
+  jciBroj?: string | null;
+  jciDatum?: string | null;
+  pausalnaNaknada?: number;
+  kpEntitet?: KpEntitet | null;
+  kpIznos?: number;
+  samoEvidencija?: boolean;
   note?: string;
 };
+
+export function listUlazniRacuni(
+  orgId: number,
+  query?: { partnerId?: number; status?: UlazniRacunStatus },
+) {
+  const sp = new URLSearchParams();
+  if (query?.partnerId) sp.set("partnerId", String(query.partnerId));
+  if (query?.status) sp.set("status", query.status);
+  const qs = sp.toString();
+  return jsonRequest<UlazniRacun[]>(
+    `/api/partners/${orgId}/ulazni-racuni${qs ? `?${qs}` : ""}`,
+    { method: "GET" },
+  );
+}
 
 export function createUlazniRacun(orgId: number, payload: UlazniRacunPayload) {
   return jsonRequest<UlazniRacun & { matched: boolean }>(
@@ -205,6 +294,8 @@ export type KarticaInvoice = {
   paidAt: string | null;
   grossTotal: string;
   status: string;
+  /** STANDARD | AVANSNA | STORNO_AVANSNE | KNJIZNA_OBAVIJEST (predznak iz vrste) */
+  docType: string | null;
 };
 
 export type KarticaData = {

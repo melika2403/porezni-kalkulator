@@ -1,24 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  IconUsers,
-  IconExternalLink,
-  IconInbox,
-  IconCrown,
-} from "@tabler/icons-react";
-import { formatBAM, formatDate } from "src/lib/format";
+import { IconInbox, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { formatBAM } from "src/lib/format";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { getOrganization, getWorkers, type Worker } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { getOsnovica, REZIM_LABELS } from "src/utils/obrtniciFbih";
+import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
+import { WorkersTable } from "src/sections/zaposlenici/WorkersTable";
+import { DeleteWorkerModal } from "src/sections/zaposlenici/DeleteWorkerModal";
 
-const MARKETING_URL =
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
-
-function initials(w: Worker) {
-  return `${w.firstName[0] ?? ""}${w.lastName[0] ?? ""}`.toUpperCase();
-}
+const PRO_WORKERS_LIMIT = 5;
+const USER_WORKERS_LIMIT = 1;
 
 function salaryLabel(w: Worker): string {
   if (w.salaryType === "BRUTO" && w.salaryBruto != null) {
@@ -28,28 +23,6 @@ function salaryLabel(w: Worker): string {
     return `${formatBAM(Number(w.salaryNeto))} neto`;
   }
   return "plata nije unesena";
-}
-
-function StatusBadge({ status }: { status: Worker["employmentStatus"] }) {
-  if (status === "PRIJAVLJEN") {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium bg-success-bg text-success shrink-0">
-        prijavljen
-      </span>
-    );
-  }
-  if (status === "ODJAVLJEN") {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium bg-cream-200 text-text-secondary shrink-0">
-        odjavljen
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium bg-warning-bg text-warning shrink-0">
-      nacrt
-    </span>
-  );
 }
 
 export default function ZaposleniciPage() {
@@ -62,15 +35,30 @@ export default function ZaposleniciPage() {
     queryFn: () => unwrap(getWorkers(orgId as number)),
     enabled: orgId != null,
   });
-  // puna organizacija zbog režima oporezivanja (osnovica vlasnika)
+  // puna organizacija zbog režima oporezivanja (osnovica vlasnika) i prava
   const { data: fullOrg } = useQuery({
     queryKey: ["pk-org", orgId],
     queryFn: () => unwrap(getOrganization(orgId as number)),
     enabled: orgId != null,
   });
 
-  // vlasnik nema platu: prikazuje se osnovica za doprinose + režim
-  function vlasnikLabel(): string {
+  // modal: null = zatvoreno; { worker: null } = novi radnik
+  const [modal, setModal] = useState<{ worker: Worker | null } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Worker | null>(null);
+
+  const canEdit =
+    fullOrg == null ||
+    fullOrg.memberRole === "OWNER" ||
+    fullOrg.memberRole === "ADMIN";
+  const tier = fullOrg?.effectiveTier ?? null;
+  const count = workers?.length ?? 0;
+  const limitReached =
+    (tier === "PRO" && count >= PRO_WORKERS_LIMIT) ||
+    (tier === "USER" && count >= USER_WORKERS_LIMIT);
+
+  // vlasnik obrta nema platu: osnovica za doprinose, režim u tooltipu
+  // (kratko, da tabela ne dobije horizontalni scroll)
+  function vlasnikLabel(): React.ReactNode {
     const rezim = fullOrg?.taxRegime ?? null;
     if (!rezim) return "osnovica: režim nije postavljen";
     try {
@@ -79,9 +67,11 @@ export default function ZaposleniciPage() {
         rezim,
         fullOrg?.taxCategory ?? undefined,
       );
-      return `osnovica ${formatBAM(osnovica)} · ${REZIM_LABELS[rezim]}`;
+      return (
+        <span title={REZIM_LABELS[rezim]}>osnovica {formatBAM(osnovica)}</span>
+      );
     } catch {
-      return `osnovica po režimu: ${REZIM_LABELS[rezim]}`;
+      return <span title={REZIM_LABELS[rezim]}>osnovica po režimu</span>;
     }
   }
 
@@ -110,21 +100,33 @@ export default function ZaposleniciPage() {
             Zaposlenici.
           </h1>
           <p className="text-[13px] leading-6 text-text-tertiary max-w-[520px]">
-            Radnici i vlasnik obrta, povezano sa Poreznim Kalkulatorom.
+            Radnici i vlasnik obrta: pregled, dodavanje i uređivanje.
             {activeCount > 0 ? ` Trenutno ${activeCount} prijavljenih radnika.` : ""}
           </p>
         </div>
-        <a
-          href={`${MARKETING_URL}/aktivni-radnici${orgId ? `?org=${orgId}` : ""}`}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors"
-        >
-          <IconExternalLink size={16} />
-          Dodaj / uredi radnike
-        </a>
+        {canEdit && (
+          <button
+            type="button"
+            disabled={limitReached}
+            onClick={() => setModal({ worker: null })}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            <IconPlus size={16} />
+            Dodaj radnika
+          </button>
+        )}
       </div>
 
-      {/* Lista */}
-      <div className="rounded-xl bg-cream-100 border border-cream-300">
+      {limitReached && (
+        <p className="text-[12.5px] text-warning mb-3">
+          {tier === "USER"
+            ? "Besplatan preview: 1 radnik. Pretplatite se za neograničeno radnika."
+            : `PRO plan: maksimalno ${PRO_WORKERS_LIMIT} radnika po organizaciji.`}
+        </p>
+      )}
+
+      {/* Tabela */}
+      <div className="rounded-xl bg-cream-100 border border-cream-300 overflow-hidden">
         {isLoading ? (
           <div className="px-4 py-12 text-center text-text-tertiary text-[13px]">
             Učitavanje...
@@ -138,67 +140,69 @@ export default function ZaposleniciPage() {
               Još nema unesenih radnika
             </p>
             <p className="text-[12.5px] text-text-tertiary mt-1 max-w-[380px] mx-auto">
-              Dodajte vlasnika i radnike kroz "Dodaj / uredi radnike" pa će se
+              Dodajte vlasnika i radnike kroz &quot;Dodaj radnika&quot; pa će se
               pojaviti ovdje, zajedno sa obračunima plata.
             </p>
           </div>
         ) : (
-          <ul>
-            {rows.map((w, i) => (
-              <li
-                key={w.id}
-                className={[
-                  "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-[13px]",
-                  i < rows.length - 1 ? "border-b border-cream-300/70" : "",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "w-10 h-10 rounded-full inline-flex items-center justify-center text-[13px] font-semibold shrink-0",
-                    w.role === "VLASNIK"
-                      ? "bg-brand-600 text-white"
-                      : "bg-brand-100 text-brand-700",
-                  ].join(" ")}
-                >
-                  {initials(w)}
-                </span>
-                <div className="flex-1 min-w-[200px]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13.5px] font-medium text-text-primary">
-                      {w.firstName} {w.lastName}
-                    </span>
-                    {w.role === "VLASNIK" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium bg-brand-100 text-brand-700 shrink-0">
-                        <IconCrown size={11} /> vlasnik
-                      </span>
-                    )}
-                    <StatusBadge status={w.employmentStatus} />
-                  </div>
-                  <div className="text-[11.5px] text-text-tertiary mt-0.5 truncate">
-                    {[
-                      w.position,
-                      w.startDate ? `od ${formatDate(w.startDate)}` : null,
-                      w.endDate ? `do ${formatDate(w.endDate)}` : null,
-                      w.city,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                </div>
-                <span className="text-[13px] font-medium tabular-nums text-text-primary whitespace-nowrap">
-                  {w.role === "VLASNIK" ? vlasnikLabel() : salaryLabel(w)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <WorkersTable
+            workers={rows}
+            plataCell={(w) =>
+              w.role === "VLASNIK" ? vlasnikLabel() : salaryLabel(w)
+            }
+            onRowClick={canEdit ? (w) => setModal({ worker: w }) : undefined}
+            actionsFor={
+              canEdit
+                ? (w) => ({
+                    primary: [
+                      {
+                        key: "uredi",
+                        label: "Uredi",
+                        icon: <IconPencil size={14} />,
+                        onClick: () => setModal({ worker: w }),
+                      },
+                    ],
+                    // Vlasnik se ne briše (organizacija ne postoji bez njega),
+                    // pa mu se akcija i ne nudi.
+                    menu:
+                      w.role === "VLASNIK"
+                        ? []
+                        : [
+                            {
+                              kind: "item",
+                              key: "obrisi",
+                              label: "Obriši radnika",
+                              sub: "trajno, uz potvrdu",
+                              icon: <IconTrash size={14} />,
+                              onClick: () => setDeleteTarget(w),
+                            },
+                          ],
+                  })
+                : undefined
+            }
+          />
         )}
       </div>
 
-      <p className="text-[12px] text-text-tertiary mt-3 flex items-center gap-1.5">
-        <IconUsers size={13} />
-        Dodavanje, izmjene i prijave/odjave radnika rade se na Poreznom
-        Kalkulatoru; ovdje se sve odmah vidi.
-      </p>
+      {/* Modal za dodavanje / uređivanje (keyed remount po radniku) */}
+      {orgId != null && modal != null && (
+        <WorkerModal
+          key={modal.worker?.id ?? "new"}
+          orgId={orgId}
+          orgType={fullOrg?.type ?? activeOrg?.type ?? null}
+          worker={modal.worker}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {/* Potvrda brisanja */}
+      {orgId != null && (
+        <DeleteWorkerModal
+          orgId={orgId}
+          worker={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }

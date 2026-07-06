@@ -352,7 +352,11 @@ export default function Navbar() {
           </>
         ) : (
           <>
-            <Link href="/pk-office" className={styles.btnApp} title="PK Office">
+            <Link
+              href="/pk-office"
+              className={`${styles.btnApp} ${styles.hideOnMobile}`}
+              title="PK Office"
+            >
               <svg
                 width="16"
                 height="16"
@@ -384,7 +388,12 @@ export default function Navbar() {
                 <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
             </Link>
-            <Link href="/prijava" className={styles.btnGhost}>Prijavi se</Link>
+            <Link
+              href="/prijava"
+              className={`${styles.btnGhost} ${styles.hideOnMobile}`}
+            >
+              Prijavi se
+            </Link>
             <Link href="/registracija" className={styles.btnPrimary}>Registruj se</Link>
           </>
         ))}
@@ -393,6 +402,40 @@ export default function Navbar() {
       {mobileOpen && (
         <div className={styles.mobileBackdrop} onClick={() => setMobileOpen(false)}>
           <div className={styles.mobileDrawer} onClick={(e) => e.stopPropagation()}>
+            {!user && !isLoading && (
+              <div className={styles.mobileGroup}>
+                <div className={styles.mobileGroupTitle}>Nalog</div>
+                <ul className={styles.mobileList}>
+                  <li>
+                    <Link
+                      href="/prijava"
+                      className={styles.mobileItem}
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      Prijavi se
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/registracija"
+                      className={styles.mobileItem}
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      Registruj se
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/pk-office"
+                      className={styles.mobileItem}
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      PK Office
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            )}
             {user && (
               <div className={styles.mobileGroup}>
                 <div className={styles.mobileGroupTitle}>Tvoj nalog</div>

@@ -34,11 +34,10 @@ import {
 } from "src/api/partners";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
-import {
-  UlazniRacunModal,
-  parseDateInput,
-  maskDateInput,
-} from "src/sections/partneri/UlazniRacunModal";
+import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
+import { KompenzacijaModal } from "src/sections/prebijanja/PrebijanjeModali";
+import { parseDateInput } from "src/lib/dateInput";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import {
   PartnerFormModal,
   formFromPartner,
@@ -134,6 +133,8 @@ export default function PartnerKarticaPage({
   });
 
   const [racunModalOpen, setRacunModalOpen] = useState(false);
+  // kompenzacija (partner sa dugom na obje strane)
+  const [kompOpen, setKompOpen] = useState(false);
   const [editInitial, setEditInitial] = useState<PartnerFormState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [mailInfo, setMailInfo] = useState<string | null>(null);
@@ -324,6 +325,18 @@ export default function PartnerKarticaPage({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {(totals?.openInvoicesTotal ?? 0) > 0 &&
+            (totals?.openPayablesTotal ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setKompOpen(true)}
+                title="Partner ima dug na obje strane: zatvorite ga kompenzacijom"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors"
+              >
+                <IconArrowsExchange size={15} />
+                Kompenzacija
+              </button>
+            )}
           <button
             type="button"
             onClick={() => setEditInitial(formFromPartner(p))}
@@ -345,21 +358,21 @@ export default function PartnerKarticaPage({
 
       {/* Kartica prometa: period + PDF + email */}
       <div className="flex flex-wrap items-center gap-2 mb-5">
-        <input
-          className="rounded-lg border border-cream-300 bg-cream-100 px-3 py-1.5 text-[12.5px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600 w-[120px]"
+        <PkDateInput
           value={periodOd}
-          onChange={(e) => setPeriodOd(maskDateInput(e.target.value))}
-          placeholder="od DD.MM.GGGG."
-          inputMode="numeric"
+          onChange={setPeriodOd}
+          placeholder="DD.MM.GGGG."
+          ariaLabel="Period od"
           title="Period štampe kartice (prazno = cijeli promet)"
+          className="w-[150px]"
         />
-        <input
-          className="rounded-lg border border-cream-300 bg-cream-100 px-3 py-1.5 text-[12.5px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600 w-[120px]"
+        <PkDateInput
           value={periodDo}
-          onChange={(e) => setPeriodDo(maskDateInput(e.target.value))}
-          placeholder="do DD.MM.GGGG."
-          inputMode="numeric"
+          onChange={setPeriodDo}
+          placeholder="DD.MM.GGGG."
+          ariaLabel="Period do"
           title="Period štampe kartice (prazno = do danas)"
+          className="w-[150px]"
         />
         {jeKupac && (
           <button
@@ -680,7 +693,19 @@ export default function PartnerKarticaPage({
         onClose={() => setRacunModalOpen(false)}
         fixedPartner={p ? { id: p.id, name: p.name, code: p.code } : null}
         isPdvObveznik={Boolean(fullOrg?.isPdvObveznik)}
+        orgJurisdiction={fullOrg?.jurisdiction ?? null}
       />
+
+      {/* Kompenzacija sa ovim partnerom (dug na obje strane) */}
+      {kompOpen && orgId != null && (
+        <KompenzacijaModal
+          key={`komp-${orgId}-${partnerId}`}
+          orgId={orgId}
+          orgName={fullOrg?.name ?? activeOrg?.name ?? ""}
+          initialPartnerId={partnerId ?? undefined}
+          onClose={() => setKompOpen(false)}
+        />
+      )}
 
       {/* Uređivanje podataka partnera direktno sa kartice */}
       <PartnerFormModal
