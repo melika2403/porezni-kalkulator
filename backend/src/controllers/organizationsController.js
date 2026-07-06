@@ -10,6 +10,10 @@ const {
 } = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
+const {
+  formatAccountDashed,
+} = require("../services/bankStatements/bankCodes");
+
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
@@ -58,6 +62,26 @@ function validateOrgData(body, requireName = true) {
     data.bankAccount = body.bankAccount
       ? String(body.bankAccount).trim()
       : null;
+  // Lista svih žiro računa (samo cifre, bez duplikata); prvi je glavni
+  // pa se bankAccount drži sinhronizovan sa njim.
+  if (body.bankAccounts !== undefined) {
+    if (body.bankAccounts === null) {
+      data.bankAccounts = null;
+    } else if (Array.isArray(body.bankAccounts)) {
+      const seen = new Set();
+      const list = [];
+      for (const a of body.bankAccounts) {
+        const digits = String(a || "").replace(/\D+/g, "");
+        if (digits.length < 8 || seen.has(digits)) continue;
+        seen.add(digits);
+        list.push(digits);
+      }
+      data.bankAccounts = list.length ? list : null;
+      data.bankAccount = list[0] ? formatAccountDashed(list[0]) : null;
+    } else {
+      return { ok: false, message: "bankAccounts mora biti lista računa" };
+    }
+  }
 
   // Režim oporezivanja vlasnika obrta (čl. 19 / 31 / 6 t.10)
   if (body.taxRegime !== undefined) {

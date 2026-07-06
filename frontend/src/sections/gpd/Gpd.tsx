@@ -19,6 +19,10 @@ import PersonFillSelect, {
 } from "src/components/PersonFillSelect/PersonFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import { trackEvent } from "src/api/activity";
+import { getOrganization, getForms } from "src/api/profile";
+import { getDocument } from "src/api/documents";
+import { searchBankTransactions } from "src/api/bankStatements";
+import type { SprData } from "src/sections/spr/fillSpr";
 
 /* ── Row definitions ── */
 
@@ -114,6 +118,13 @@ interface RefundOption {
 const num = (v: string) => {
   const n = parseFloat(v.replace(/\./g, "").replace(",", "."));
   return isNaN(n) ? 0 : n;
+};
+
+// ISO datum → ddMM za zaglavlje "za period od-do" (prazno = cijela godina)
+const isoToDdMm = (iso: string): string | undefined => {
+  if (!iso) return undefined;
+  const [, m, d] = iso.split("-");
+  return d && m ? `${d}${m}` : undefined;
 };
 
 const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
@@ -221,6 +232,11 @@ export default function GpdForm() {
 
   const [dateSigned, setDateSigned] = useState(() => getTodayIsoString());
 
+  // "za period od-do" iz zaglavlja: prazno = cijela godina (0101/3112);
+  // kraći period kod početka/prestanka djelatnosti u toku godine
+  const [periodOd, setPeriodOd] = useState("");
+  const [periodDo, setPeriodDo] = useState("");
+
   const [kantonGpd, setKantonGpd] = useState<KantonKey | "">("");
   const [opcinaGpd, setOpcinaGpd] = useState("");
   const [ziroRacunGpd, setZiroRacunGpd] = useState("");
@@ -324,6 +340,136 @@ export default function GpdForm() {
       setSourceOrgId(data.sourceWorkerOrgId);
   }, []);
 
+  /* ── PK Office prefill (/gpd?pkOrg=..&pkYear=..) ── */
+  // Red 9 se puni iz reda 28 snimljenog SPR-1053 iste organizacije i godine,
+  // lični odbitak iz porezne kartice vlasnika (koeficijent x 3.600 KM), a
+  // uplaćene akontacije poreza se PREDLAŽU kao zbir uplata prema budžetu
+  // kantona sa izvoda (korisnik potvrđuje ili ispravlja ručno).
+  const [pkFill, setPkFill] = useState<{
+    orgName: string;
+    year: number;
+    notes: string[];
+    error?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const orgId = Number(sp.get("pkOrg"));
+    const year = Number(sp.get("pkYear"));
+    if (!Number.isInteger(orgId) || orgId <= 0) return;
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) return;
+    let cancelled = false;
+    (async () => {
+      const [orgRes, formsRes, advRes] = await Promise.all([
+        getOrganization(orgId),
+        getForms("SPR"),
+        searchBankTransactions(orgId, {
+          category: "POREZ_DOHODAK_VLASNIKA",
+          direction: "OUT",
+          status: "CONFIRMED",
+          dateFrom: `${year}-01-01`,
+          dateTo: `${year}-12-31`,
+          limit: 500,
+        }),
+      ]);
+      if (cancelled) return;
+
+      if (!orgRes.ok) {
+        setPkFill({
+          orgName: "",
+          year,
+          notes: [],
+          error:
+            "Podaci iz PK Office se ne mogu povući. Provjerite da ste prijavljeni, pa otvorite obrazac ponovo iz PK Office (Obrasci).",
+        });
+        return;
+      }
+      const org = orgRes.data;
+      const owner = org.owner;
+      const notes: string[] = [];
+
+      setPersonal((p) => ({
+        ...p,
+        jmb: owner?.jmbg ?? p.jmb,
+        fullName:
+          owner?.name ||
+          [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") ||
+          p.fullName,
+        address: owner?.address ?? p.address,
+        city: owner?.city ?? p.city,
+        taxYear: String(year).slice(-2),
+      }));
+      setSourceOrgId(orgId);
+
+      // Red 9: dohodak iz reda 28 snimljenog SPR-a (org + godina, najnoviji)
+      const sprForm = formsRes.ok
+        ? formsRes.data
+            .filter(
+              (f) =>
+                f.type === "SPR" &&
+                f.year === year &&
+                f.organization?.id === orgId,
+            )
+            .sort((a, b) => b.id - a.id)[0]
+        : undefined;
+      if (sprForm) {
+        const docRes = await getDocument<SprData>(sprForm.id);
+        if (cancelled) return;
+        const row28 = docRes.ok ? docRes.data.data?.row28NetIncome : null;
+        if (typeof row28 === "number" && row28 > 0) {
+          setRows((prev) => ({
+            ...prev,
+            9: { ...prev[9], profit: fmt(row28) },
+          }));
+        } else {
+          notes.push(
+            `Snimljeni SPR-1053 za ${year}. ima dohodak 0, pa red 9 nije popunjen.`,
+          );
+        }
+      } else {
+        notes.push(
+          `SPR-1053 za ${year}. nije pronađen za ovu organizaciju. Prvo pripremite i snimite SPR (red 9 se puni iz njegovog reda 28).`,
+        );
+      }
+
+      // Lični odbitak: koeficijent iz porezne kartice x 300 KM x 12 mjeseci
+      const coef = owner?.taxCoefficient;
+      if (typeof coef === "number" && coef > 0) {
+        setDeductions((d) => ({ ...d, personal: fmt(coef * 3600) }));
+        notes.push(
+          `Lični odbitak je izračunat iz koeficijenta porezne kartice vlasnika (${fmt(coef * 3600)} KM za punu godinu). Ako kartica ne pokriva cijelu godinu, ispravite iznos.`,
+        );
+      } else {
+        notes.push(
+          "Vlasnik nema upisan koeficijent porezne kartice, pa lični odbitak nije popunjen.",
+        );
+      }
+
+      // Akontacije: zbir uplata prema budžetu kantona (prijedlog, ne KPR)
+      if (advRes.ok && advRes.data.items.length > 0) {
+        const sum = advRes.data.items.reduce(
+          (a, tx) => a + (parseFloat(tx.amount) || 0),
+          0,
+        );
+        if (sum > 0) {
+          setTaxCalc((t) => ({ ...t, advancePayments: fmt(sum) }));
+          notes.push(
+            `Uplaćene akontacije poreza (${fmt(sum)} KM) su zbir ${advRes.data.items.length} uplata prema budžetu kantona sa izvoda u ${year}. Provjerite iznos prije predaje.`,
+          );
+        }
+      } else {
+        notes.push(
+          `Na izvodima u ${year}. nisu pronađene uplate akontacija poreza: ako ste ih plaćali, unesite iznos ručno.`,
+        );
+      }
+
+      setPkFill({ orgName: org.name, year, notes });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /* ── PDF Export ── */
 
   const buildGpdData = useCallback((): GpdData => {
@@ -332,6 +478,8 @@ export default function GpdForm() {
       jmb: personal.jmb,
       fullName: personal.fullName,
       taxYear: personal.taxYear,
+      periodFrom: isoToDdMm(periodOd),
+      periodTo: isoToDdMm(periodDo),
       address: formatAddress(personal.address, personal.city, findCity(personal.city)?.postalCode),
       contactChanged: personal.contactChanged,
       phone: personal.phone,
@@ -381,7 +529,7 @@ export default function GpdForm() {
       // Dio 5
       dateSigned: isoToFormatted(dateSigned),
     };
-  }, [personal, rows, deductions, taxCalc, refundOption, dateSigned, computed]);
+  }, [personal, rows, deductions, taxCalc, refundOption, dateSigned, computed, periodOd, periodDo]);
 
   const exportPdf = useCallback(async () => {
     const data = buildGpdData();
@@ -491,6 +639,42 @@ export default function GpdForm() {
         </p>
       </div>
 
+      {/* PK Office prefill baner */}
+      {pkFill && (
+        <div
+          style={{
+            margin: "0 0 1.5rem",
+            padding: "14px 18px",
+            borderRadius: 12,
+            background: pkFill.error ? "#f3d8d8" : "var(--sage-pale, #e3ede4)",
+            border: "1px solid rgba(0, 0, 0, 0.07)",
+            fontSize: "13.5px",
+            lineHeight: 1.55,
+          }}
+        >
+          {pkFill.error ? (
+            <strong>{pkFill.error}</strong>
+          ) : (
+            <>
+              <strong>
+                Podaci povučeni iz PK Office: {pkFill.orgName}, {pkFill.year}.
+                godina.
+              </strong>{" "}
+              Dohodak od samostalne djelatnosti (red 9) dolazi iz snimljenog
+              SPR-1053. Ostale izvore dohotka (plata kod poslodavca, najam...)
+              unesite ručno. Sva polja ostaju editabilna.
+              {pkFill.notes.length > 0 && (
+                <ul style={{ margin: "8px 0 0 18px", color: "#8a4f10" }}>
+                  {pkFill.notes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Dio 1 ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
@@ -569,6 +753,25 @@ export default function GpdForm() {
                 onChange={(e) =>
                   setPersonal((s) => ({ ...s, taxYear: e.target.value }))
                 }
+              />
+            </div>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>
+              Za period od / do (prazno = cijela godina)
+            </label>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <DateInput
+                className={styles.fieldInput}
+                value={periodOd}
+                onValueChange={setPeriodOd}
+              />
+              <DateInput
+                className={styles.fieldInput}
+                value={periodDo}
+                onValueChange={setPeriodDo}
               />
             </div>
           </div>

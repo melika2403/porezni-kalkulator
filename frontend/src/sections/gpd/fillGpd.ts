@@ -8,6 +8,10 @@ export interface GpdData {
   jmb: string;
   fullName: string;
   taxYear: string; // 2-digit
+  // Zaglavlje "za period od-do" (ddMM). Prazno = cijela godina (0101/3112);
+  // kraći period se koristi kod početka/prestanka djelatnosti u toku godine.
+  periodFrom?: string;
+  periodTo?: string;
   address: string;
   contactChanged: boolean;
   phone: string;
@@ -126,8 +130,8 @@ export async function fillGpdTemplate(data: GpdData): Promise<Uint8Array> {
     setCheckBox(form, name, checked);
 
   /* ── Page 1 header ── */
-  setBold("Text14", "0101", 9);   // period from
-  setBold("Text2", "3112", 9);    // period to
+  setBold("Text14", data.periodFrom || "0101", 9); // period from (ddMM)
+  setBold("Text2", data.periodTo || "3112", 9); // period to (ddMM)
 
   /* ── Dio 1 — Podaci o poreznom obvezniku ── */
   setBold("1 JMB", data.jmb, 10);

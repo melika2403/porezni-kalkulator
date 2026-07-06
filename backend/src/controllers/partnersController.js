@@ -565,6 +565,24 @@ async function tryMatchExistingPayment(racun) {
   return true;
 }
 
+const VRSTE_NABAVKE = ["DOMACA", "UVOZ", "OD_NEOBVEZNIKA"];
+const TIPOVI_DOKUMENTA_KUF = ["01", "02", "03", "04", "05", "06", "07", "08", "09"];
+const VRSTE_DOKUMENTA = [
+  "REDOVNA",
+  "AVANSNA",
+  "KNJIZNA_OBAVIJEST",
+  "STORNO_AVANSNE",
+  "PDV_NA_CEKANJU",
+  "OSTALO",
+];
+const KP_ENTITETI = ["FBIH", "RS", "BD"];
+
+// nenegativan novčani iznos ili default
+function parseAmount(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : fallback;
+}
+
 function racunPayload(body) {
   return {
     brojRacuna: String(body.brojRacuna || "").trim(),
@@ -575,6 +593,27 @@ function racunPayload(body) {
       body.pdvIznos != null && body.pdvIznos !== ""
         ? Number(body.pdvIznos)
         : null,
+    // ── KUF polja (PDV evidencije) ──
+    vrstaNabavke: VRSTE_NABAVKE.includes(body.vrstaNabavke)
+      ? body.vrstaNabavke
+      : "DOMACA",
+    pdvNeodbitniIznos: parseAmount(body.pdvNeodbitniIznos),
+    // KUF period ide po datumu prijema; default = datum računa
+    datumPrijema:
+      parseIsoDate(body.datumPrijema) || parseIsoDate(body.datumRacuna),
+    tipDokumenta: TIPOVI_DOKUMENTA_KUF.includes(body.tipDokumenta)
+      ? body.tipDokumenta
+      : "01",
+    vrstaDokumenta: VRSTE_DOKUMENTA.includes(body.vrstaDokumenta)
+      ? body.vrstaDokumenta
+      : "REDOVNA",
+    jciBroj: String(body.jciBroj || "").trim().slice(0, 30) || null,
+    jciDatum: parseIsoDate(body.jciDatum),
+    pausalnaNaknada: parseAmount(body.pausalnaNaknada),
+    kpEntitet: KP_ENTITETI.includes(body.kpEntitet) ? body.kpEntitet : null,
+    kpIznos: parseAmount(body.kpIznos),
+    // samo PDV evidencija (uvoz/JCI): ulazi u KUF, ne stvara obavezu
+    samoEvidencija: Boolean(body.samoEvidencija),
     note: String(body.note || "").trim() || null,
   };
 }
@@ -593,7 +632,14 @@ async function listUlazniRacuni(req, res) {
   }
   const racuni = await UlazniRacun.findAll({
     where,
-    include: [{ model: Partner, as: "partner", attributes: ["id", "name"] }],
+    // jib/pdvBroj/code/city trebaju KUF-u (PDV evidencije, izvještaj, e-KUF)
+    include: [
+      {
+        model: Partner,
+        as: "partner",
+        attributes: ["id", "name", "jib", "pdvBroj", "code", "city"],
+      },
+    ],
     order: [["datumRacuna", "DESC"], ["id", "DESC"]],
   });
   return res.json({ ok: true, data: racuni });
@@ -623,8 +669,22 @@ async function createUlazniRacun(req, res) {
   if (!payload.datumRacuna) {
     return res.status(400).json({ ok: false, error: "DATUM_INVALID" });
   }
-  if (!Number.isFinite(payload.iznos) || payload.iznos <= 0) {
+  // samo PDV evidencija dozvoljava unos SAMO PDV-a (obračun uvoznog PDV-a
+  // po JCI): iznos ostaje 0, u KUF ide isključivo PDV
+  const samoPdv = payload.samoEvidencija && (payload.pdvIznos ?? 0) > 0;
+  if (samoPdv && (!Number.isFinite(payload.iznos) || payload.iznos <= 0)) {
+    payload.iznos = 0;
+  }
+  if (
+    !Number.isFinite(payload.iznos) ||
+    payload.iznos < 0 ||
+    (payload.iznos === 0 && !samoPdv)
+  ) {
     return res.status(400).json({ ok: false, error: "IZNOS_INVALID" });
+  }
+  // neodbitni dio PDV-a ne može premašiti ukupni PDV
+  if (payload.pdvNeodbitniIznos > (payload.pdvIznos ?? 0)) {
+    payload.pdvNeodbitniIznos = payload.pdvIznos ?? 0;
   }
   // bez unesenog roka plaćanja podrazumijeva se 30 dana od datuma računa
   if (!payload.rokPlacanja) {
@@ -632,13 +692,21 @@ async function createUlazniRacun(req, res) {
     d.setUTCDate(d.getUTCDate() + 30);
     payload.rokPlacanja = d.toISOString().slice(0, 10);
   }
+  // samo PDV evidencija: nema obaveze prema dobavljaču, odmah zatvoreno
+  if (payload.samoEvidencija) {
+    payload.status = "PLACEN";
+    payload.paidAt = payload.datumRacuna;
+    payload.rokPlacanja = null;
+  }
   const racun = await UlazniRacun.create({
     organizationId,
     partnerId,
     ...payload,
   });
   // izvod je možda već stigao: odmah probaj zatvoriti postojećom isplatom
-  const matched = await tryMatchExistingPayment(racun);
+  const matched = payload.samoEvidencija
+    ? false
+    : await tryMatchExistingPayment(racun);
   return res
     .status(201)
     .json({ ok: true, data: { ...racun.toJSON(), matched } });
@@ -673,7 +741,12 @@ async function updateUlazniRacun(req, res) {
   }
   if (body.iznos !== undefined) {
     const v = Number(body.iznos);
-    if (!Number.isFinite(v) || v <= 0) {
+    // 0 je dozvoljeno samo za "samo PDV evidencija" knjiženja (uvozni PDV)
+    const evid =
+      body.samoEvidencija !== undefined
+        ? Boolean(body.samoEvidencija)
+        : Boolean(racun.samoEvidencija);
+    if (!Number.isFinite(v) || v < 0 || (v === 0 && !evid)) {
       return res.status(400).json({ ok: false, error: "IZNOS_INVALID" });
     }
     updates.iznos = v;
@@ -686,6 +759,61 @@ async function updateUlazniRacun(req, res) {
   }
   if (body.note !== undefined) {
     updates.note = String(body.note || "").trim() || null;
+  }
+  if (body.vrstaNabavke !== undefined) {
+    if (!VRSTE_NABAVKE.includes(body.vrstaNabavke)) {
+      return res.status(400).json({ ok: false, error: "INVALID_VRSTA" });
+    }
+    updates.vrstaNabavke = body.vrstaNabavke;
+  }
+  if (body.pdvNeodbitan !== undefined) {
+    updates.pdvNeodbitan = Boolean(body.pdvNeodbitan);
+  }
+  // ── KUF polja (PDV evidencije) ──
+  if (body.pdvNeodbitniIznos !== undefined) {
+    updates.pdvNeodbitniIznos = parseAmount(body.pdvNeodbitniIznos);
+  }
+  if (body.datumPrijema !== undefined) {
+    const v = parseIsoDate(body.datumPrijema);
+    if (!v) return res.status(400).json({ ok: false, error: "DATUM_INVALID" });
+    updates.datumPrijema = v;
+  }
+  if (body.tipDokumenta !== undefined) {
+    if (!TIPOVI_DOKUMENTA_KUF.includes(body.tipDokumenta)) {
+      return res.status(400).json({ ok: false, error: "INVALID_TIP" });
+    }
+    updates.tipDokumenta = body.tipDokumenta;
+  }
+  if (body.vrstaDokumenta !== undefined) {
+    if (!VRSTE_DOKUMENTA.includes(body.vrstaDokumenta)) {
+      return res.status(400).json({ ok: false, error: "INVALID_VRSTA_DOK" });
+    }
+    updates.vrstaDokumenta = body.vrstaDokumenta;
+  }
+  if (body.jciBroj !== undefined) {
+    updates.jciBroj = String(body.jciBroj || "").trim().slice(0, 30) || null;
+  }
+  if (body.jciDatum !== undefined) {
+    updates.jciDatum = parseIsoDate(body.jciDatum);
+  }
+  if (body.pausalnaNaknada !== undefined) {
+    updates.pausalnaNaknada = parseAmount(body.pausalnaNaknada);
+  }
+  if (body.kpEntitet !== undefined) {
+    updates.kpEntitet = KP_ENTITETI.includes(body.kpEntitet)
+      ? body.kpEntitet
+      : null;
+  }
+  if (body.kpIznos !== undefined) {
+    updates.kpIznos = parseAmount(body.kpIznos);
+  }
+  if (body.samoEvidencija !== undefined) {
+    updates.samoEvidencija = Boolean(body.samoEvidencija);
+    // uključeno: zatvori (nema obaveze); isključeno: vrati u otvoreno
+    if (updates.samoEvidencija && racun.status === "OTVOREN") {
+      updates.status = "PLACEN";
+      updates.paidAt = racun.datumRacuna;
+    }
   }
   // ručna promjena statusa (plaćeno gotovinom i sl.)
   if (body.status !== undefined) {
@@ -773,6 +901,7 @@ async function kartica(req, res) {
       "paidAt",
       "grossTotal",
       "status",
+      "docType",
     ],
     order: [["issueDate", "DESC"]],
     raw: true,
@@ -838,7 +967,7 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
         status: { [Op.in]: ["ISSUED", "PAID"] },
         issueDate: { [Op.gte]: from, [Op.lte]: to },
       },
-      attributes: ["fullNumber", "buyerName", "buyerIdNumber", "issueDate", "grossTotal"],
+      attributes: ["fullNumber", "buyerName", "buyerIdNumber", "issueDate", "grossTotal", "docType"],
       raw: true,
     });
     for (const inv of invoices) {
@@ -846,11 +975,23 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
         (pJib && normalizeDigits(inv.buyerIdNumber) === pJib) ||
         normalizeName(inv.buyerName) === pName;
       if (!matches) continue;
+      // storno avansne i knjižna obavijest UMANJUJU dug kupca (potražuje)
+      const doc = inv.docType || "STANDARD";
+      const odobrenje = doc === "STORNO_AVANSNE" || doc === "KNJIZNA_OBAVIJEST";
+      const label =
+        doc === "AVANSNA"
+          ? `Avansna faktura ${inv.fullNumber}`
+          : doc === "STORNO_AVANSNE"
+            ? `Storno avans ${inv.fullNumber}`
+            : doc === "KNJIZNA_OBAVIJEST"
+              ? `Knjižna obavijest ${inv.fullNumber}`
+              : `Faktura ${inv.fullNumber}`;
+      const gross = Number(inv.grossTotal) || 0;
       rows.push({
         date: String(inv.issueDate).slice(0, 10),
-        label: `Faktura ${inv.fullNumber}`,
-        duguje: Number(inv.grossTotal) || 0,
-        potrazuje: 0,
+        label,
+        duguje: odobrenje ? 0 : gross,
+        potrazuje: odobrenje ? gross : 0,
       });
     }
   } else {
@@ -863,6 +1004,8 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
       raw: true,
     });
     for (const r of racuni) {
+      // samo PDV evidencija (uvoz/JCI) ne stvara obavezu prema dobavljaču
+      if (r.samoEvidencija) continue;
       rows.push({
         date: String(r.datumRacuna).slice(0, 10),
         label: `Račun ${r.brojRacuna}`,

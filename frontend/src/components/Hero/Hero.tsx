@@ -1,7 +1,12 @@
+'use client';
+
 import Link from 'next/link';
 import styles from './Hero.module.css';
+import { useMe } from 'src/hooks/useMe';
 
 export default function Hero() {
+  // Gost vidi registraciju i trial poruku; ulogovan korisnik svoje alate.
+  const user = useMe();
   return (
     <>
       <section className={styles.hero}>
@@ -24,19 +29,30 @@ export default function Hero() {
           Štedi sate svake sedmice. Bez excela, bez gužve.
         </p>
         <div className={styles.actions}>
-          <Link href="#funkcije" className={`${styles.btn} ${styles.btnPrimary}`}>
-            Počni besplatno
+          <Link
+            href={user ? '#funkcije' : '/registracija'}
+            className={`${styles.btn} ${styles.btnPrimary}`}
+          >
+            {user ? 'Otvori alate' : 'Počni besplatno: 30 dana PRO'}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 8h10M9 4l4 4-4 4" />
             </svg>
           </Link>
-          <Link href="#kako" className={`${styles.btn} ${styles.btnOutline}`}>
-            Kako radi?
-          </Link>
+          {user ? (
+            <Link href="/organizacije" className={`${styles.btn} ${styles.btnOutline}`}>
+              Moje organizacije
+            </Link>
+          ) : (
+            <Link href="#funkcije" className={`${styles.btn} ${styles.btnOutline}`}>
+              Pogledaj funkcije
+            </Link>
+          )}
         </div>
-        <p className={styles.note}>
-          <strong>30 dana PRO besplatno</strong> za sve nove korisnike, bez kartice.
-        </p>
+        {!user && (
+          <p className={styles.note}>
+            Bez kartice. Besplatni alati ostaju <strong>besplatni zauvijek</strong>.
+          </p>
+        )}
       </section>
 
     </>

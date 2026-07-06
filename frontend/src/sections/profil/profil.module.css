@@ -208,6 +208,11 @@
   cursor: pointer;
 }
 
+.pagerBtn:hover:not(:disabled) {
+  background: var(--sage-pale);
+  border-color: var(--sage);
+}
+
 .pagerBtn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -336,21 +341,23 @@
   gap: 0.4rem;
 }
 
+/* PK Office stil labela i inputa (usklađeno sa PK formama: caps label,
+   bijeli input radius 8, sage focus) — pogađa sve forme na profilu. */
 .fieldLabel {
-  font-size: 12.5px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--mid);
-  text-transform: none;
-  letter-spacing: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .input {
   font-family: "DM Sans", sans-serif;
-  font-size: 0.9rem;
-  padding: 0.75rem 1rem;
+  font-size: 13px;
+  padding: 0.55rem 0.8rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--paper);
+  border-radius: 8px;
+  background: var(--white);
   color: var(--ink);
   outline: none;
   transition:
@@ -399,11 +406,11 @@
 
 .select {
   font-family: "DM Sans", sans-serif;
-  font-size: 0.9rem;
-  padding: 0.75rem 1rem;
+  font-size: 13px;
+  padding: 0.55rem 0.8rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--paper);
+  border-radius: 8px;
+  background: var(--white);
   color: var(--ink);
   outline: none;
   width: 100%;
@@ -1874,23 +1881,27 @@
 }
 .bizCard:hover {
   border-color: var(--sage);
+  background: #fbfaf6;
   transform: translateY(-1px);
 }
+/* PK Office stil avatara: okrugao, soft sage podloga + tamniji sage tekst
+   (isto kao avatari u tabelama radnika). Klijenti dobiju terracotta ton. */
 .bizAvatar {
   width: 42px;
   height: 42px;
   flex: none;
-  border-radius: 10px;
-  background: var(--sage);
-  color: #fff;
+  border-radius: 999px;
+  background: var(--sage-pale);
+  color: #2d4633;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 14px;
 }
 .bizAvatarAccent {
-  background: var(--accent);
+  background: var(--accent-pale);
+  color: var(--accent);
 }
 .bizInfo {
   flex: 1;

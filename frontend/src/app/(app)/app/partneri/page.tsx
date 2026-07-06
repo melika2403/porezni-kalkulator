@@ -12,6 +12,7 @@ import {
   IconPencil,
   IconReceipt,
   IconSearch,
+  IconX,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { formatBAM, formatDate } from "src/lib/format";
@@ -26,6 +27,9 @@ import type { Partner } from "src/api/partners";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
+import { Modal } from "src/components/app-shell/Modal";
+import { PkSelect } from "src/components/app-shell/PkSelect";
+import RowActionsMenu from "src/components/RowActionsMenu/RowActionsMenu";
 import {
   PartnerFormModal,
   EMPTY_PARTNER_FORM,
@@ -128,6 +132,10 @@ export default function PartneriPage() {
 
   const [tab, setTab] = useState<TabId>("svi");
   const [q, setQ] = useState("");
+  const [sort, setSort] = useState<"aktivnost" | "naziv" | "sifra">(
+    "aktivnost",
+  );
+  const [deleteTarget, setDeleteTarget] = useState<Partner | null>(null);
   const [formInitial, setFormInitial] = useState<PartnerFormState | null>(null);
   // globalno knjiženje ulaznog računa (izbor dobavljača u modalu)
   const [racunModalOpen, setRacunModalOpen] = useState(false);
@@ -146,7 +154,19 @@ export default function PartneriPage() {
   const deletePartner = useDeletePartner(orgId);
 
   const visible = useMemo(() => {
-    const all = partners ?? [];
+    // sortiranje: najnovija aktivnost (default), abecedno ili po šifri
+    const cmp = (a: Partner, b: Partner): number => {
+      if (sort === "naziv") return a.name.localeCompare(b.name, "bs");
+      if (sort === "sifra") {
+        const ca = a.code ?? Number.MAX_SAFE_INTEGER;
+        const cb = b.code ?? Number.MAX_SAFE_INTEGER;
+        return ca - cb || a.name.localeCompare(b.name, "bs");
+      }
+      const da = a.stats.lastDate ?? "";
+      const db = b.stats.lastDate ?? "";
+      return db.localeCompare(da) || a.name.localeCompare(b.name, "bs");
+    };
+    const all = [...(partners ?? [])].sort(cmp);
     let base = all;
     if (tab === "kupci") base = all.filter(isKupac);
     else if (tab === "dobavljaci") base = all.filter(isDobavljac);
@@ -178,7 +198,18 @@ export default function PartneriPage() {
         looseText(p.name).includes(nq) ||
         looseText(p.city ?? "").includes(nq),
     );
-  }, [partners, tab, q]);
+  }, [partners, tab, q, sort]);
+
+  // brojači po tabu (za navbar)
+  const tabCounts = useMemo(() => {
+    const all = partners ?? [];
+    return {
+      kupci: all.filter(isKupac).length,
+      dobavljaci: all.filter(isDobavljac).length,
+      svi: all.filter(isAktivan).length,
+      imenik: all.length,
+    } as Record<TabId, number>;
+  }, [partners]);
 
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
   const suggestionList = useMemo(() => {
@@ -190,16 +221,6 @@ export default function PartneriPage() {
     ? suggestionList
     : suggestionList.slice(0, 4);
 
-  function removePartner(p: Partner) {
-    if (
-      !window.confirm(
-        `Obrisati partnera "${p.name}"? Transakcije ostaju, samo se skida veza.`,
-      )
-    ) {
-      return;
-    }
-    deletePartner.mutate(p.id);
-  }
 
   return (
     <div className="px-6 py-6 max-w-[1280px] mx-auto">
@@ -318,27 +339,61 @@ export default function PartneriPage() {
               type="button"
               onClick={() => setTab(t.id)}
               className={[
-                "px-4 py-2 text-[13px] font-medium border-b-2 -mb-px transition-colors",
+                "inline-flex items-center gap-2 px-5 py-3 text-[14.5px] font-medium border-b-2 -mb-px transition-colors",
                 tab === t.id
                   ? "border-brand-600 text-brand-700"
                   : "border-transparent text-text-tertiary hover:text-text-primary",
               ].join(" ")}
             >
               {t.label}
+              <span
+                className={[
+                  "inline-flex items-center justify-center min-w-[22px] px-1.5 py-0.5 rounded-full text-[11.5px] tabular-nums",
+                  tab === t.id
+                    ? "bg-brand-100 text-brand-700"
+                    : "bg-cream-200 text-text-tertiary",
+                ].join(" ")}
+              >
+                {tabCounts[t.id]}
+              </span>
             </button>
           ))}
         </div>
-        <div className="relative mb-1.5">
-          <IconSearch
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
+        <div className="flex items-center gap-2 mb-1.5">
+          <PkSelect
+            ariaLabel="Sortiranje"
+            value={sort}
+            onChange={(v) =>
+              setSort(String(v ?? "aktivnost") as typeof sort)
+            }
+            options={[
+              { value: "aktivnost", label: "Najnovije prvo" },
+              { value: "naziv", label: "Abecedno" },
+              { value: "sifra", label: "Po šifri" },
+            ]}
           />
-          <input
-            className="rounded-lg border border-cream-300 bg-cream-100 pl-9 pr-3 py-1.5 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600 w-[240px]"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Naziv, šifra, JIB, račun..."
-          />
+          <div className="relative">
+            <IconSearch
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
+            />
+            <input
+              className="rounded-lg border border-cream-300 bg-cream-100 pl-9 pr-8 py-1.5 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600 w-[240px]"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Naziv, šifra, JIB, račun..."
+            />
+            {q && (
+              <button
+                type="button"
+                aria-label="Očisti pretragu"
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-text-tertiary hover:text-text-primary"
+              >
+                <IconX size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -466,6 +521,10 @@ export default function PartneriPage() {
                   {tab === "svi" && (
                     <div className="flex gap-5">
                       <MiniStat
+                        label="Promet"
+                        value={formatBAM(p.stats.totalIn + p.stats.totalOut)}
+                      />
+                      <MiniStat
                         label="Njihov dug"
                         value={
                           p.stats.openInvoicesTotal > 0
@@ -511,17 +570,31 @@ export default function PartneriPage() {
                   >
                     <IconPencil size={15} />
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removePartner(p);
-                    }}
-                    title="Obriši partnera"
-                    className="p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-accent-500 hover:border-accent-500/50 transition-colors"
-                  >
-                    <IconTrash size={15} />
-                  </button>
+                  {/* rijetke akcije u overflow meni; klik ne otvara karticu */}
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <RowActionsMenu
+                      primaryActions={[]}
+                      menuItems={[
+                        {
+                          kind: "item",
+                          key: "racun",
+                          label: "Proknjiži ulazni račun",
+                          icon: <IconReceipt size={14} />,
+                          onClick: () => {
+                            setRacunPreselect(p.id);
+                            setRacunModalOpen(true);
+                          },
+                        },
+                        {
+                          kind: "item",
+                          key: "delete",
+                          label: "Obriši partnera",
+                          icon: <IconTrash size={14} />,
+                          onClick: () => setDeleteTarget(p),
+                        },
+                      ]}
+                    />
+                  </span>
                 </li>
               );
             })}
@@ -548,6 +621,46 @@ export default function PartneriPage() {
         }}
       />
 
+      {/* Potvrda brisanja partnera */}
+      <Modal
+        open={deleteTarget != null}
+        onClose={() => setDeleteTarget(null)}
+        title="Brisanje partnera"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              disabled={deletePartner.isPending}
+              onClick={() => {
+                if (!deleteTarget) return;
+                deletePartner.mutate(deleteTarget.id, {
+                  onSuccess: () => setDeleteTarget(null),
+                });
+              }}
+              className="px-4 py-2 rounded-lg bg-accent-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              Obriši partnera
+            </button>
+          </>
+        }
+      >
+        <p className="text-[13px] leading-6 text-text-secondary">
+          Obrisati partnera{" "}
+          <span className="font-semibold text-text-primary">
+            {deleteTarget?.name}
+          </span>
+          ? Transakcije, izvodi i fakture ostaju netaknuti, skida se samo
+          veza sa karticom ovog partnera.
+        </p>
+      </Modal>
+
       {/* Globalno knjiženje ulaznog računa */}
       <UlazniRacunModal
         orgId={orgId}
@@ -560,6 +673,7 @@ export default function PartneriPage() {
         }))}
         preselectPartnerId={racunPreselect}
         isPdvObveznik={Boolean(fullOrg?.isPdvObveznik)}
+        orgJurisdiction={fullOrg?.jurisdiction ?? null}
         onRequestNewPartner={() => {
           setRacunModalOpen(false);
           setReturnToRacun(true);

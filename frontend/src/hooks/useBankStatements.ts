@@ -139,12 +139,15 @@ export function useUpdateBankTransaction(orgId: number | null) {
         status?: TxStatus;
         category?: string | null;
         invoiceId?: number | null;
+        partnerId?: number | null;
       };
     }) => unwrap(updateBankTransaction(orgId as number, txId, patch)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bank-statements", orgId] });
       // potvrda može označiti fakturu naplaćenom
       qc.invalidateQueries({ queryKey: ["pk-invoices", orgId] });
+      // (od)vezivanje partnera mijenja kartice, statistike i prijedloge
+      qc.invalidateQueries({ queryKey: ["partners", orgId] });
     },
   });
 }

@@ -43,8 +43,17 @@ function fmtDate(d) {
   return `${dd}.${mm}.${yy}.`;
 }
 
-function formatInvoiceNumber(seq, year, type) {
-  const prefix = type === "PROFORMA" ? "P-" : "F-";
+function formatInvoiceNumber(seq, year, type, docType = "STANDARD") {
+  // svaka serija ima svoj prefiks i brojač: P- predračuni, F- fakture,
+  // A- avansne i storno avansnih (zajednička serija), KO- knjižne obavijesti
+  const prefix =
+    type === "PROFORMA"
+      ? "P-"
+      : docType === "AVANSNA" || docType === "STORNO_AVANSNE"
+        ? "A-"
+        : docType === "KNJIZNA_OBAVIJEST"
+          ? "KO-"
+          : "F-";
   return `${prefix}${String(seq).padStart(4, "0")}-${year}`;
 }
 
@@ -188,7 +197,22 @@ async function generateInvoicePdf(invoice, opts = {}) {
     invoice = convertInvoiceCurrency(invoice, opts.displayCurrency);
   }
   const isProforma = invoice.type === "PROFORMA";
-  const docTitle = isProforma ? "Predračun" : "Faktura";
+  const docType = invoice.docType || "STANDARD";
+  const docTitle = isProforma
+    ? "Predračun"
+    : docType === "AVANSNA"
+      ? "Avansna faktura"
+      : docType === "STORNO_AVANSNE"
+        ? "Storno avansne fakture"
+        : docType === "KNJIZNA_OBAVIJEST"
+          ? "Knjižna obavijest"
+          : docType === "PAZAR"
+            ? "Evidencija pazara"
+            : "Faktura";
+  // storno i knjižna obavijest se ISPISUJU negativno (u bazi su pozitivni,
+  // predznak nosi vrsta dokumenta, isto kao u KIF-u i PDV prijavi)
+  const sign =
+    docType === "STORNO_AVANSNE" || docType === "KNJIZNA_OBAVIJEST" ? -1 : 1;
 
   const items = (invoice.items || []).slice().sort((a, b) => a.ordinal - b.ordinal);
   const totals = {
@@ -300,9 +324,17 @@ async function generateInvoicePdf(invoice, opts = {}) {
   const RIGHT_LBL_X = 320;
   const RIGHT_VAL_X = 460;
 
-  // Naslov dokumenta — prvi (na vrhu desnog bloka)
-  drawText(`${docTitle} br.  ${invoice.fullNumber}`, RIGHT_LBL_X, yR, { size: 14, bold: true });
-  yR -= 22;
+  // Naslov dokumenta — prvi (na vrhu desnog bloka); duži naslovi (avansna,
+  // storno, knjižna obavijest) idu u dva reda da ne izađu iz margine
+  if (docType === "STANDARD" || isProforma) {
+    drawText(`${docTitle} br.  ${invoice.fullNumber}`, RIGHT_LBL_X, yR, { size: 14, bold: true });
+    yR -= 22;
+  } else {
+    drawText(docTitle, RIGHT_LBL_X, yR, { size: 13, bold: true });
+    yR -= 16;
+    drawText(`br.  ${invoice.fullNumber}`, RIGHT_LBL_X, yR, { size: 12, bold: true });
+    yR -= 20;
+  }
 
   const drawRow = (lbl, val) => {
     drawText(lbl, RIGHT_LBL_X, yR, { size: 9 });
@@ -311,7 +343,16 @@ async function generateInvoicePdf(invoice, opts = {}) {
   };
   drawRow("Datum izdavanja:", fmtDate(invoice.issueDate));
   if (invoice.dueDate) drawRow("Datum dospijeća:", fmtDate(invoice.dueDate));
-  drawRow("Način plaćanja:", "Žiralno");
+  // veza na izvorni dokument (storno → avansna, KO → faktura)
+  if (invoice.linkedFullNumber) {
+    drawRow(
+      docType === "STORNO_AVANSNE" ? "Po avansnoj fakturi:" : "Uz fakturu broj:",
+      invoice.linkedFullNumber,
+    );
+  }
+  if (docType === "AVANSNA") drawRow("Način plaćanja:", "Avansna uplata");
+  else if (docType === "PAZAR") drawRow("Način plaćanja:", "Gotovina");
+  else if (sign > 0) drawRow("Način plaćanja:", "Žiralno");
 
   // ── TABELA ─────────────────────────────────────────────────────────────
   let y = Math.min(yL, yR) - 24;
@@ -379,7 +420,7 @@ async function generateInvoicePdf(invoice, opts = {}) {
     drawRight(fmt4(it.unitPrice), COL_CIJ, y, { size: 9 });
     drawRight(fmt2(it.discountPct), COL_RAB, y, { size: 9 });
     drawRight(invoice.applyVat ? fmt2(it.vatPct) : "–", COL_PDV, y, { size: 9 });
-    drawRight(fmt2(computed.netLine), COL_BRUTO, y, { size: 9 });
+    drawRight(fmt2(sign * computed.netLine), COL_BRUTO, y, { size: 9 });
 
     y -= rowH;
 
@@ -412,19 +453,21 @@ async function generateInvoicePdf(invoice, opts = {}) {
     hLine(TOT_L, MR, yT - 4, 0.3, grey);
     yT -= 14;
   };
+  // storno/KO: "za naplatu" nema smisla, iznos je odobrenje kupcu
+  const totalLbl = sign < 0 ? "UKUPNO UMANJENJE:" : "ZA NAPLATU:";
   if (invoice.applyVat) {
-    totRow("Bruto iznos:", totals.netTotal + totals.discountTotal);
-    if (totals.discountTotal > 0) totRow("- Rabat:", totals.discountTotal);
-    totRow("Osnovica (bez PDV-a):", totals.netTotal);
-    totRow("+ PDV:", totals.vatTotal);
-    totRow("ZA NAPLATU:", totals.grossTotal, true);
+    totRow("Bruto iznos:", sign * (totals.netTotal + totals.discountTotal));
+    if (totals.discountTotal > 0) totRow("- Rabat:", sign * totals.discountTotal);
+    totRow("Osnovica (bez PDV-a):", sign * totals.netTotal);
+    totRow("+ PDV:", sign * totals.vatTotal);
+    totRow(totalLbl, sign * totals.grossTotal, true);
   } else {
-    totRow("Bruto iznos:", totals.netTotal + totals.discountTotal);
-    if (totals.discountTotal > 0) totRow("- Rabat:", totals.discountTotal);
-    totRow("ZA NAPLATU:", totals.grossTotal, true);
+    totRow("Bruto iznos:", sign * (totals.netTotal + totals.discountTotal));
+    if (totals.discountTotal > 0) totRow("- Rabat:", sign * totals.discountTotal);
+    totRow(totalLbl, sign * totals.grossTotal, true);
   }
 
-  // Slovima blok lijevo
+  // Slovima blok lijevo (uvijek apsolutni iznos, predznak nose totali)
   let yS = y - 14;
   drawText(`SLOVIMA: (${amountInWords(totals.grossTotal, currency)} )`, ML, yS, { size: 9 });
   yS -= 16;
@@ -434,6 +477,12 @@ async function generateInvoicePdf(invoice, opts = {}) {
     drawText("(Sl. glasnik BiH, broj 9/05 i 35/05)", ML, yS, { size: 8, color: grey });
   } else {
     drawText("Obveznik nije u sistemu PDV-a, PDV nije obračunat.", ML, yS, { size: 8, color: grey });
+  }
+  if (docType === "KNJIZNA_OBAVIJEST" && invoice.applyVat) {
+    yS -= 14;
+    drawText("Kupac PDV obveznik je dužan po ovoj knjižnoj obavijesti izvršiti", ML, yS, { size: 8, color: grey });
+    yS -= 11;
+    drawText("ispravku (smanjenje) odbitka ulaznog PDV-a (član 20. stav 11. Zakona o PDV-u).", ML, yS, { size: 8, color: grey });
   }
 
   // ── Notes ──────────────────────────────────────────────────────────────
@@ -457,7 +506,9 @@ async function generateInvoicePdf(invoice, opts = {}) {
   drawText(
     isProforma
       ? "Predračun je punovažan bez potpisa i pečata."
-      : "Faktura je punovažna bez potpisa i pečata.",
+      : docType === "STANDARD"
+        ? "Faktura je punovažna bez potpisa i pečata."
+        : "Dokument je punovažan bez potpisa i pečata.",
     ML, 96, { size: 8, color: grey },
   );
   drawRight("1/1", MR, 96, { size: 8, color: grey });

@@ -30,6 +30,16 @@ const CATEGORIES = [
     kprOpis: "Polog pazara",
   },
   {
+    // prihod na koji NIJE obračunat PDV (izvoz, usluge inostranstvu...):
+    // puni iznos ide u kolonu 12, ne izbija se 17/117
+    id: "PRIHOD_RACUN_BEZ_PDV",
+    label: "Prihod bez PDV-a (izvoz, inostranstvo)",
+    direction: "IN",
+    kprColumn: 12,
+    pdvSplit: false,
+    kprOpis: "Naplata preko računa (bez PDV-a)",
+  },
+  {
     id: "PRIHOD_NATURA",
     label: "Prihod u stvarima i uslugama",
     direction: "IN",
@@ -69,6 +79,15 @@ const CATEGORIES = [
     kprOpis: "Nabavka robe/materijala",
   },
   {
+    // račun bez PDV-a (ino dobavljač, dobavljač koji nije PDV obveznik...)
+    id: "ROBA_MATERIJAL_BEZ_PDV",
+    label: "Nabavka robe i materijala bez PDV-a",
+    direction: "OUT",
+    kprColumn: 16,
+    pdvSplit: false,
+    kprOpis: "Nabavka robe/materijala (bez PDV-a)",
+  },
+  {
     id: "PLATE_ZAPOSLENIKA",
     label: "Bruto plate zaposlenika",
     direction: "OUT",
@@ -91,6 +110,14 @@ const CATEGORIES = [
     kprColumn: 19,
     pdvSplit: true,
     kprOpis: "Ostali rashodi",
+  },
+  {
+    id: "OSTALI_RASHODI_BEZ_PDV",
+    label: "Ostali rashodi bez PDV-a (ino, neobveznici)",
+    direction: "OUT",
+    kprColumn: 19,
+    pdvSplit: false,
+    kprOpis: "Ostali rashodi (bez PDV-a)",
   },
   {
     id: "PROVIZIJA_BANKE",

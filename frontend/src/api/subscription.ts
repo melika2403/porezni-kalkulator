@@ -56,6 +56,7 @@ export type Subscription = {
   id: number;
   plan: PlanKey;
   status: SubscriptionStatus;
+  isTrial: boolean;
   billingCycle: BillingCycle | null;
   isActive: boolean;
   currentPeriodStart: string;
@@ -75,8 +76,19 @@ export type SubscriptionInvoice = {
   invoiceDate: string;
   dueDate: string;
   plan: "PRO" | "BUSINESS";
+  billingCycle: BillingCycle;
+  /** Period pretplate koji predračun pokriva (YYYY-MM-DD). */
+  periodStart: string | null;
+  periodEnd: string | null;
+  /** Približan datum evidentiranja uplate (kad je označen plaćenim). */
+  paidAt: string | null;
   pdfUrl: string | null;
 };
+
+/** URL za PDF vlastitog predračuna (auth kolačić ide automatski). */
+export function subscriptionInvoicePdfUrl(id: number): string {
+  return `${BACKEND_URL}/api/subscription/invoices/${id}/pdf`;
+}
 
 export type SubscriptionInvoicesResponse = {
   items: SubscriptionInvoice[];

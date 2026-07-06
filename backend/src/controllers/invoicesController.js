@@ -72,6 +72,26 @@ async function getAccessibleInvoicingOrgIds(userId, userRole, { adminGlobal = tr
   return [...allowed];
 }
 
+// ── serije numeracije: fakture (F-), predračuni (P-), avansne + storno
+// avansnih (A-, zajednički brojač) i knjižne obavijesti (KO-) imaju SVAKA
+// svoj brojač po organizaciji i godini.
+function seriesFor(type, docType) {
+  if (type === "PROFORMA") return "PROFORMA";
+  if (docType === "AVANSNA" || docType === "STORNO_AVANSNE") return "AVANS";
+  if (docType === "KNJIZNA_OBAVIJEST") return "KO";
+  return "INVOICE";
+}
+
+// where-uslov za seed brojača iz postojećih dokumenata serije
+function seriesSeedWhere(series) {
+  if (series === "PROFORMA") return { type: "PROFORMA" };
+  if (series === "AVANS") {
+    return { type: "INVOICE", docType: { [Op.in]: ["AVANSNA", "STORNO_AVANSNE"] } };
+  }
+  if (series === "KO") return { type: "INVOICE", docType: "KNJIZNA_OBAVIJEST" };
+  return { type: "INVOICE", docType: "STANDARD" };
+}
+
 // ── numeracija: po organizaciji (Faza 3) sa fallback-om na user-counter za legacy
 async function nextSequence({ organizationId, userId }, year, type, t) {
   if (organizationId) {
@@ -83,7 +103,7 @@ async function nextSequence({ organizationId, userId }, year, type, t) {
     if (!row) {
       // Seed iz postojećih faktura te org-e da nova numeracija krene od max+1.
       const maxExisting = await Invoice.max("sequence", {
-        where: { organizationId, year, type },
+        where: { organizationId, year, ...seriesSeedWhere(type) },
         transaction: t,
       });
       const seed = Number.isFinite(maxExisting) ? maxExisting : 0;
@@ -128,6 +148,16 @@ function validateCreate(body) {
   const type = String(body?.type || "INVOICE").toUpperCase();
   if (!["INVOICE", "PROFORMA"].includes(type)) errors.push("Neispravan tip dokumenta.");
 
+  // direktno se kreira samo standardna ili avansna faktura; storno avansne i
+  // knjižna obavijest nastaju ISKLJUČIVO iz postojećeg dokumenta (svoji endpointi)
+  const docType = String(body?.docType || "STANDARD").toUpperCase();
+  if (!["STANDARD", "AVANSNA"].includes(docType)) {
+    errors.push("Neispravna vrsta dokumenta.");
+  }
+  if (docType === "AVANSNA" && type !== "INVOICE") {
+    errors.push("Avansna faktura ne može biti predračun.");
+  }
+
   const seller = body?.seller || {};
   if (!isStr(seller.name)) errors.push("Naziv prodavca je obavezan.");
 
@@ -142,7 +172,7 @@ function validateCreate(body) {
     if (Number(it.unitPrice) < 0) errors.push(`Stavka ${i + 1}: cijena ne može biti negativna.`);
   });
 
-  return { errors, type };
+  return { errors, type, docType };
 }
 
 // ── LIST ───────────────────────────────────────────────────────────────────
@@ -192,12 +222,41 @@ async function list(req, res) {
     }
   }
 
+  // veze avansnih dokumenata: storno/KO nose broj izvornog dokumenta, a
+  // avansna broj svog storna (da UI zna da je već stornirana)
+  const linkedIds = [...new Set(invoices.map((i) => i.linkedInvoiceId).filter(Boolean))];
+  const linkedMap = new Map();
+  if (linkedIds.length) {
+    const linked = await Invoice.findAll({
+      where: { id: { [Op.in]: linkedIds } },
+      attributes: ["id", "fullNumber"],
+    });
+    for (const l of linked) linkedMap.set(l.id, l.fullNumber);
+  }
+  const avansIds = invoices.filter((i) => i.docType === "AVANSNA").map((i) => i.id);
+  const stornoMap = new Map();
+  if (avansIds.length) {
+    const storno = await Invoice.findAll({
+      where: { linkedInvoiceId: { [Op.in]: avansIds }, docType: "STORNO_AVANSNE" },
+      attributes: ["id", "fullNumber", "linkedInvoiceId"],
+    });
+    for (const s of storno) stornoMap.set(s.linkedInvoiceId, { id: s.id, fullNumber: s.fullNumber });
+  }
+
   const data = invoices.map((inv) => {
     const plain = publicInvoice(inv);
     if (inv.type === "PROFORMA" && convertedMap.has(inv.id)) {
       const c = convertedMap.get(inv.id);
       plain.convertedToInvoiceId = c.id;
       plain.convertedToFullNumber = c.fullNumber;
+    }
+    if (inv.linkedInvoiceId && linkedMap.has(inv.linkedInvoiceId)) {
+      plain.linkedFullNumber = linkedMap.get(inv.linkedInvoiceId);
+    }
+    if (inv.docType === "AVANSNA" && stornoMap.has(inv.id)) {
+      const s = stornoMap.get(inv.id);
+      plain.stornoInvoiceId = s.id;
+      plain.stornoFullNumber = s.fullNumber;
     }
     return plain;
   });
@@ -307,12 +366,31 @@ async function getById(req, res) {
   if (!(await userCanAccessInvoice(inv, req.user.id, req.user.role))) {
     return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
   }
-  res.status(200).json({ ok: true, data: publicInvoice(inv) });
+  const plain = publicInvoice(inv);
+  // broj izvornog dokumenta (storno/KO) odnosno broj storna (avansna)
+  if (inv.linkedInvoiceId) {
+    const linked = await Invoice.findOne({
+      where: { id: inv.linkedInvoiceId },
+      attributes: ["id", "fullNumber"],
+    });
+    if (linked) plain.linkedFullNumber = linked.fullNumber;
+  }
+  if (inv.docType === "AVANSNA") {
+    const storno = await Invoice.findOne({
+      where: { linkedInvoiceId: inv.id, docType: "STORNO_AVANSNE" },
+      attributes: ["id", "fullNumber"],
+    });
+    if (storno) {
+      plain.stornoInvoiceId = storno.id;
+      plain.stornoFullNumber = storno.fullNumber;
+    }
+  }
+  res.status(200).json({ ok: true, data: plain });
 }
 
 // ── CREATE ─────────────────────────────────────────────────────────────────
 async function create(req, res) {
-  const { errors, type } = validateCreate(req.body);
+  const { errors, type, docType } = validateCreate(req.body);
   if (errors.length) return res.status(400).json({ ok: false, error: errors.join(" ") });
 
   const body = req.body;
@@ -322,6 +400,12 @@ async function create(req, res) {
   const applyVat = body.applyVat !== false;
   const currency = body.currency === "EUR" ? "EUR" : "BAM";
   const buyerKind = body.buyerKind === "COMPANY" ? "COMPANY" : "PERSON";
+  // vrsta isporuke za KIF/PDV prijavu; default oporeziva
+  const vrstaIsporuke = ["OPOREZIVA", "IZVOZ", "OSLOBODJENA"].includes(
+    body.vrstaIsporuke,
+  )
+    ? body.vrstaIsporuke
+    : "OPOREZIVA";
 
   const orgIdFromSeller = seller.organizationId ? Number(seller.organizationId) : null;
   if (orgIdFromSeller !== null && !Number.isInteger(orgIdFromSeller)) {
@@ -371,8 +455,9 @@ async function create(req, res) {
   try {
     const result = await sequelize.transaction(async (t) => {
       const year = issueDate.getFullYear();
-      const seq = await nextSequence({ organizationId: orgIdFromSeller, userId: req.user.id }, year, type, t);
-      const fullNumber = formatInvoiceNumber(seq, year, type);
+      const series = seriesFor(type, docType);
+      const seq = await nextSequence({ organizationId: orgIdFromSeller, userId: req.user.id }, year, series, t);
+      const fullNumber = formatInvoiceNumber(seq, year, type, docType);
 
       let clientId = buyer.clientId ? Number(buyer.clientId) : null;
       if (body.saveBuyerAsClient && !clientId) {
@@ -441,14 +526,18 @@ async function create(req, res) {
         organizationId: orgIdFromSeller,
         clientId,
         type,
+        docType,
         year,
         sequence: seq,
         fullNumber,
         issueDate,
-        dueDate,
+        dueDate: docType === "AVANSNA" ? null : dueDate,
         applyVat,
+        vrstaIsporuke,
         currency,
-        status: "ISSUED",
+        // avansna = primljena uplata, odmah je naplaćena (nema potraživanja)
+        status: docType === "AVANSNA" ? "PAID" : "ISSUED",
+        paidAt: docType === "AVANSNA" ? issueDate : null,
 
         sellerName: trimOrNull(seller.name),
         sellerAddress: trimOrNull(seller.address),
@@ -535,6 +624,41 @@ async function patch(req, res) {
   if (paidAt !== undefined) updates.paidAt = paidAt ? new Date(paidAt) : null;
   if (notes !== undefined) updates.notes = trimOrNull(notes);
 
+  // ── KIF klasifikacije (PDV evidencije) ──
+  const b = req.body || {};
+  if (b.kifTipDokumenta !== undefined) {
+    const ok = ["01","02","03","04","05","06","07","08","09"].includes(b.kifTipDokumenta);
+    if (!ok) return res.status(400).json({ ok: false, error: "Neispravan tip dokumenta" });
+    updates.kifTipDokumenta = b.kifTipDokumenta;
+  }
+  if (b.kifVrstaFakture !== undefined) {
+    const ok = ["DOMACI_KUPAC","INOSTRANI_KUPAC","VANPOSLOVNE_SVRHE","OSTALO_NEOPOREZOVANO","GOTOVINSKA_UZ_RACUN","GOTOVINSKA_BEZ_RACUNA"].includes(b.kifVrstaFakture);
+    if (!ok) return res.status(400).json({ ok: false, error: "Neispravna vrsta fakture" });
+    updates.kifVrstaFakture = b.kifVrstaFakture;
+  }
+  if (b.kifVrstaDokumenta !== undefined) {
+    const ok = ["REDOVNA","AVANSNA","KNJIZNA_OBAVIJEST","STORNO_AVANSNE","OSTALO"].includes(b.kifVrstaDokumenta);
+    if (!ok) return res.status(400).json({ ok: false, error: "Neispravna vrsta dokumenta" });
+    updates.kifVrstaDokumenta = b.kifVrstaDokumenta;
+  }
+  if (b.kifKpEntitet !== undefined) {
+    // NISTA = korisnik izričito bez KP; null = automatski (heuristika)
+    updates.kifKpEntitet = ["FBIH","RS","BD","NISTA"].includes(b.kifKpEntitet)
+      ? b.kifKpEntitet
+      : null;
+  }
+  if (b.kifKpIznos !== undefined) {
+    const n = Number(b.kifKpIznos);
+    updates.kifKpIznos = Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+  }
+  if (b.kifJciBroj !== undefined) {
+    updates.kifJciBroj = String(b.kifJciBroj || "").trim().slice(0, 30) || null;
+  }
+  if (b.kifJciDatum !== undefined) {
+    const v = String(b.kifJciDatum || "").slice(0, 10);
+    updates.kifJciDatum = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  }
+
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ ok: false, error: "Nema polja za ažuriranje" });
   }
@@ -583,14 +707,38 @@ async function pdf(req, res) {
     // Opcioni ispis u protuvaluti: ?currency=EUR ili ?currency=BAM.
     const reqCur = String(req.query.currency || "").toUpperCase();
     const displayCurrency = reqCur === "EUR" || reqCur === "BAM" ? reqCur : null;
-    const buf = await generateInvoicePdf(publicInvoice(inv), { displayCurrency });
-    const base = inv.type === "PROFORMA" ? "Predracun" : "Faktura";
+    const plain = publicInvoice(inv);
+    // broj izvornog dokumenta za podnaslov (storno → avansna, KO → faktura)
+    if (inv.linkedInvoiceId) {
+      const linked = await Invoice.findOne({
+        where: { id: inv.linkedInvoiceId },
+        attributes: ["fullNumber"],
+      });
+      if (linked) plain.linkedFullNumber = linked.fullNumber;
+    }
+    const buf = await generateInvoicePdf(plain, { displayCurrency });
+    const base =
+      inv.type === "PROFORMA"
+        ? "Predracun"
+        : inv.docType === "AVANSNA"
+          ? "Avansna-faktura"
+          : inv.docType === "STORNO_AVANSNE"
+            ? "Storno-avansne"
+            : inv.docType === "KNJIZNA_OBAVIJEST"
+              ? "Knjizna-obavijest"
+              : inv.docType === "PAZAR"
+                ? "Pazar"
+                : "Faktura";
     // Sufiks valute u nazivu fajla samo kad je protuvaluta (različita od originalne).
     const curSuffix =
       displayCurrency && displayCurrency !== inv.currency
         ? `-${displayCurrency}`
         : "";
-    const fname = `${base}-${inv.fullNumber}${curSuffix}.pdf`;
+    // broj dokumenta može sadržavati "/" (npr. PAZAR-07/2026)
+    const fname = `${base}-${inv.fullNumber}${curSuffix}.pdf`.replace(
+      /[\\/:*?"<>|]/g,
+      "-",
+    );
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${fname}"`);
     return res.status(200).end(buf);
@@ -693,6 +841,7 @@ async function convertProforma(req, res) {
         issueDate,
         dueDate,
         applyVat: src.applyVat,
+        vrstaIsporuke: src.vrstaIsporuke,
         currency: src.currency,
         status: "ISSUED",
         sellerName: src.sellerName,
@@ -755,4 +904,347 @@ async function convertProforma(req, res) {
   }
 }
 
-module.exports = { list, adminList, getById, create, patch, remove, pdf, emailToBuyer, convertProforma };
+// ── STORNO AVANSNE FAKTURE ─────────────────────────────────────────────────
+// Radi se ISKLJUČIVO nad postojećom avansnom fakturom (tipično kad se izda
+// konačna faktura): kopija sa istim iznosima, docType STORNO_AVANSNE, vezana
+// na avansnu. U knjige (KIF/prijava) ulazi negativno; iznosi u bazi su
+// pozitivni, predznak se izvodi iz vrste dokumenta.
+async function stornoAvans(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
+
+  const src = await Invoice.findOne({
+    where: { id },
+    include: [{ model: InvoiceItem, as: "items" }],
+  });
+  if (!src) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(src, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
+  if (src.type !== "INVOICE" || src.docType !== "AVANSNA") {
+    return res.status(400).json({ ok: false, error: "Stornirati se može samo avansna faktura." });
+  }
+  if (src.status === "CANCELLED") {
+    return res.status(400).json({ ok: false, error: "Avansna faktura je stornirana kroz status." });
+  }
+
+  const already = await Invoice.findOne({
+    where: { linkedInvoiceId: src.id, docType: "STORNO_AVANSNE" },
+  });
+  if (already) {
+    return res.status(200).json({ ok: true, data: publicInvoice(already), alreadyExisted: true });
+  }
+
+  const rawDate = String(req.body?.issueDate || "").slice(0, 10);
+  const issueDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? new Date(rawDate) : new Date();
+
+  try {
+    const result = await sequelize.transaction(async (t) => {
+      const year = issueDate.getFullYear();
+      const seq = await nextSequence({ organizationId: src.organizationId, userId: req.user.id }, year, "AVANS", t);
+      const fullNumber = formatInvoiceNumber(seq, year, "INVOICE", "STORNO_AVANSNE");
+      const items = (src.items || []).slice().sort((a, b) => a.ordinal - b.ordinal);
+
+      const inv = await Invoice.create({
+        userId: req.user.id,
+        organizationId: src.organizationId,
+        clientId: src.clientId,
+        type: "INVOICE",
+        docType: "STORNO_AVANSNE",
+        linkedInvoiceId: src.id,
+        year,
+        sequence: seq,
+        fullNumber,
+        issueDate,
+        dueDate: null,
+        applyVat: src.applyVat,
+        vrstaIsporuke: src.vrstaIsporuke,
+        currency: src.currency,
+        // ne naplaćuje se: odmah zatvorena (ne ulazi u potraživanja ni auto-match)
+        status: "PAID",
+        paidAt: issueDate,
+        sellerName: src.sellerName,
+        sellerAddress: src.sellerAddress,
+        sellerCity: src.sellerCity,
+        sellerPhone: src.sellerPhone,
+        sellerEmail: src.sellerEmail,
+        sellerTaxNumber: src.sellerTaxNumber,
+        sellerVatNumber: src.sellerVatNumber,
+        sellerBankAccount: src.sellerBankAccount,
+        sellerLogoUrl: src.sellerLogoUrl,
+        buyerName: src.buyerName,
+        buyerAddress: src.buyerAddress,
+        buyerCity: src.buyerCity,
+        buyerPostalCode: src.buyerPostalCode,
+        buyerPhone: src.buyerPhone,
+        buyerEmail: src.buyerEmail,
+        buyerIdNumber: src.buyerIdNumber,
+        buyerVatNumber: src.buyerVatNumber,
+        netTotal: src.netTotal,
+        discountTotal: src.discountTotal,
+        vatTotal: src.vatTotal,
+        grossTotal: src.grossTotal,
+        notes: trimOrNull(req.body?.note) || `Storno avansne fakture br. ${src.fullNumber}.`,
+      }, { transaction: t });
+
+      let ord = 1;
+      for (const it of items) {
+        await InvoiceItem.create({
+          invoiceId: inv.id,
+          ordinal: ord++,
+          name: it.name,
+          unit: it.unit,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          discountPct: it.discountPct,
+          vatPct: it.vatPct,
+          netLine: it.netLine,
+          discountLine: it.discountLine,
+          vatLine: it.vatLine,
+          grossLine: it.grossLine,
+        }, { transaction: t });
+      }
+
+      const fresh = await Invoice.findOne({
+        where: { id: inv.id },
+        include: [{ model: InvoiceItem, as: "items" }],
+        transaction: t,
+      });
+      return fresh;
+    });
+
+    res.status(201).json({ ok: true, data: publicInvoice(result) });
+  } catch (e) {
+    console.error("invoice storno avans error:", e);
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+// ── KNJIŽNA OBAVIJEST ──────────────────────────────────────────────────────
+// Umanjenje po postojećoj standardnoj fakturi (povrat, naknadni rabat,
+// reklamacija). Iznos je SA PDV-om; PDV dio se računa 17/117 ako je izvorna
+// faktura sa PDV-om. U knjige ulazi negativno. Dozvoljeno je više djelimičnih
+// obavijesti po istoj fakturi.
+async function knjiznaObavijest(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
+
+  const src = await Invoice.findOne({ where: { id } });
+  if (!src) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(src, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
+  if (src.type !== "INVOICE" || src.docType !== "STANDARD") {
+    return res.status(400).json({ ok: false, error: "Knjižna obavijest se izdaje uz standardnu fakturu." });
+  }
+  if (!["ISSUED", "PAID"].includes(src.status)) {
+    return res.status(400).json({ ok: false, error: "Faktura mora biti izdana ili naplaćena." });
+  }
+
+  const iznos = Math.round(Number(req.body?.iznos) * 100) / 100;
+  if (!Number.isFinite(iznos) || iznos <= 0) {
+    return res.status(400).json({ ok: false, error: "Iznos umanjenja nije validan." });
+  }
+  if (iznos > Number(src.grossTotal)) {
+    return res.status(400).json({ ok: false, error: "Umanjenje ne može biti veće od iznosa fakture." });
+  }
+  const razlog = trimOrNull(req.body?.razlog);
+  const rawDate = String(req.body?.issueDate || "").slice(0, 10);
+  const issueDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? new Date(rawDate) : new Date();
+
+  // PDV dio umanjenja: 17/117 iz iznosa sa PDV-om (tačno, bez preračuna stavki)
+  const saPdv = src.applyVat && Number(src.vatTotal) > 0;
+  const vat = saPdv ? Math.round(((iznos * 17) / 117) * 100) / 100 : 0;
+  const net = Math.round((iznos - vat) * 100) / 100;
+
+  try {
+    const result = await sequelize.transaction(async (t) => {
+      const year = issueDate.getFullYear();
+      const seq = await nextSequence({ organizationId: src.organizationId, userId: req.user.id }, year, "KO", t);
+      const fullNumber = formatInvoiceNumber(seq, year, "INVOICE", "KNJIZNA_OBAVIJEST");
+
+      const inv = await Invoice.create({
+        userId: req.user.id,
+        organizationId: src.organizationId,
+        clientId: src.clientId,
+        type: "INVOICE",
+        docType: "KNJIZNA_OBAVIJEST",
+        linkedInvoiceId: src.id,
+        year,
+        sequence: seq,
+        fullNumber,
+        issueDate,
+        dueDate: null,
+        applyVat: saPdv,
+        vrstaIsporuke: src.vrstaIsporuke,
+        currency: src.currency,
+        // ne naplaćuje se: odmah zatvorena (ne ulazi u potraživanja ni auto-match)
+        status: "PAID",
+        paidAt: issueDate,
+        sellerName: src.sellerName,
+        sellerAddress: src.sellerAddress,
+        sellerCity: src.sellerCity,
+        sellerPhone: src.sellerPhone,
+        sellerEmail: src.sellerEmail,
+        sellerTaxNumber: src.sellerTaxNumber,
+        sellerVatNumber: src.sellerVatNumber,
+        sellerBankAccount: src.sellerBankAccount,
+        sellerLogoUrl: src.sellerLogoUrl,
+        buyerName: src.buyerName,
+        buyerAddress: src.buyerAddress,
+        buyerCity: src.buyerCity,
+        buyerPostalCode: src.buyerPostalCode,
+        buyerPhone: src.buyerPhone,
+        buyerEmail: src.buyerEmail,
+        buyerIdNumber: src.buyerIdNumber,
+        buyerVatNumber: src.buyerVatNumber,
+        netTotal: net,
+        discountTotal: 0,
+        vatTotal: vat,
+        grossTotal: iznos,
+        notes: razlog ? `Razlog: ${razlog}` : null,
+      }, { transaction: t });
+
+      await InvoiceItem.create({
+        invoiceId: inv.id,
+        ordinal: 1,
+        name: `Umanjenje po fakturi br. ${src.fullNumber}${razlog ? ` (${razlog})` : ""}`,
+        unit: null,
+        quantity: 1,
+        unitPrice: net,
+        discountPct: 0,
+        vatPct: saPdv ? 17 : 0,
+        netLine: net,
+        discountLine: 0,
+        vatLine: vat,
+        grossLine: iznos,
+      }, { transaction: t });
+
+      const fresh = await Invoice.findOne({
+        where: { id: inv.id },
+        include: [{ model: InvoiceItem, as: "items" }],
+        transaction: t,
+      });
+      return fresh;
+    });
+
+    res.status(201).json({ ok: true, data: publicInvoice(result) });
+  } catch (e) {
+    console.error("invoice knjizna obavijest error:", e);
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+// ── PAZAR (gotovinski promet) ──────────────────────────────────────────────
+// Zbirno mjesečno knjiženje pazara u KIF za PDV obveznike: PDV se računa
+// preračunatom stopom 17/117 iz bruto pazara. Čista PDV evidencija: odmah
+// zatvorena (novac je već primljen gotovinom / preko pologa na izvodu koji
+// puni KPR), kupci su krajnji potrošači pa PDV ide u krajnju potrošnju.
+async function pazar(req, res) {
+  const body = req.body || {};
+  const organizationId = Number(body.organizationId);
+  const month = Number(body.month);
+  const year = Number(body.year);
+  const iznos = Math.round(Number(body.iznos) * 100) / 100;
+  if (!Number.isInteger(organizationId) || organizationId <= 0) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year)) {
+    return res.status(400).json({ ok: false, error: "INVALID_PERIOD" });
+  }
+  if (!Number.isFinite(iznos) || iznos <= 0) {
+    return res.status(400).json({ ok: false, error: "IZNOS_INVALID" });
+  }
+
+  // pristup kao kod kreiranja fakture: član org-e + owner PRO+
+  if (req.user.role !== "ADMIN") {
+    const member = await OrganizationMember.findOne({
+      where: { organizationId, userId: req.user.id },
+    });
+    if (!member) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+    const ownerTier = await getOrgOwnerRole(organizationId);
+    if (!["PRO", "BUSINESS", "ADMIN"].includes(ownerTier)) {
+      return res.status(403).json({ ok: false, error: "FORBIDDEN_OWNER_TIER" });
+    }
+  }
+  const org = await Organization.findByPk(organizationId);
+  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+
+  const mm = String(month).padStart(2, "0");
+  const brojDokumenta =
+    trimOrNull(body.brojDokumenta) || `PAZAR-${mm}/${year}`;
+  // KIF period ide po datumu: zadnji dan mjeseca (obračun na kraju mjeseca)
+  const lastDay = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+
+  const applyVat = Boolean(org.isPdvObveznik);
+  const vat = applyVat ? Math.round(((iznos * 17) / 117) * 100) / 100 : 0;
+  const net = Math.round((iznos - vat) * 100) / 100;
+
+  try {
+    const result = await sequelize.transaction(async (t) => {
+      const inv = await Invoice.create({
+        userId: req.user.id,
+        organizationId,
+        clientId: null,
+        type: "INVOICE",
+        docType: "PAZAR",
+        year,
+        sequence: 0,
+        fullNumber: brojDokumenta,
+        issueDate: lastDay,
+        dueDate: null,
+        applyVat,
+        vrstaIsporuke: "OPOREZIVA",
+        // gotovinska naplata; kupci bez PDV broja → krajnja potrošnja (auto)
+        kifVrstaFakture: "GOTOVINSKA_UZ_RACUN",
+        currency: "BAM",
+        status: "PAID",
+        paidAt: lastDay,
+        sellerName: org.name,
+        sellerAddress: org.address,
+        sellerCity: org.city,
+        sellerPhone: org.phone,
+        sellerEmail: org.email,
+        sellerTaxNumber: org.taxNumber,
+        sellerVatNumber: org.pdvNumber,
+        sellerBankAccount: org.bankAccount,
+        sellerLogoUrl: org.logoUrl,
+        buyerName: "Krajnji potrošači (pazar)",
+        netTotal: net,
+        discountTotal: 0,
+        vatTotal: vat,
+        grossTotal: iznos,
+        notes: trimOrNull(body.note),
+      }, { transaction: t });
+
+      await InvoiceItem.create({
+        invoiceId: inv.id,
+        ordinal: 1,
+        name: `Gotovinski promet (pazar) za ${mm}/${year}.`,
+        unit: null,
+        quantity: 1,
+        unitPrice: net,
+        discountPct: 0,
+        vatPct: applyVat ? 17 : 0,
+        netLine: net,
+        discountLine: 0,
+        vatLine: vat,
+        grossLine: iznos,
+      }, { transaction: t });
+
+      const fresh = await Invoice.findOne({
+        where: { id: inv.id },
+        include: [{ model: InvoiceItem, as: "items" }],
+        transaction: t,
+      });
+      return fresh;
+    });
+
+    res.status(201).json({ ok: true, data: publicInvoice(result) });
+  } catch (e) {
+    console.error("invoice pazar error:", e);
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+module.exports = { list, adminList, getById, create, patch, remove, pdf, emailToBuyer, convertProforma, stornoAvans, knjiznaObavijest, pazar };

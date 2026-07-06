@@ -8,6 +8,8 @@ import SifreTeaser from "src/components/SifreTeaser/SifreTeaser";
 import JavniPrihodiTeaser from "src/components/JavniPrihodiTeaser/JavniPrihodiTeaser";
 import PoreznKalendar from "src/components/PoreznKalendar/PoreznKalendar";
 import Faq from "src/components/Faq/Faq";
+import SocialProof from "src/components/SocialProof/SocialProof";
+import FinalCta from "src/components/FinalCta/FinalCta";
 
 export default function HomePage() {
   return (
@@ -17,12 +19,14 @@ export default function HomePage() {
         <Features />
         <Pricing />
         <HowItWorks />
+        <SocialProof />
         <PkOfficeTeaser />
         <BlogTeaser />
         <SifreTeaser />
         <JavniPrihodiTeaser />
         <PoreznKalendar />
         <Faq />
+        <FinalCta />
       </main>
     </>
   );

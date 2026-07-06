@@ -225,11 +225,21 @@ async function ensureSubscription(userId, role) {
   return sub;
 }
 
+// Neki stariji zapisi nemaju popunjen status (admin upsert ga ne dira),
+// pa ga izvedemo iz isActive + endDate da frontend nikad ne dobije prazno.
+function effectiveStatus(sub) {
+  if (sub.status) return sub.status;
+  const end = sub.endDate ? new Date(sub.endDate) : null;
+  if (!sub.isActive || (end && end.getTime() < Date.now())) return "expired";
+  return "active";
+}
+
 function buildSubscriptionResponse(sub, plan, usage) {
   return {
     id: sub.id,
     plan: sub.plan,
-    status: sub.status,
+    status: effectiveStatus(sub),
+    isTrial: !!sub.isTrial,
     billingCycle: sub.billingCycle,
     isActive: sub.isActive,
     currentPeriodStart: sub.startDate,
@@ -283,6 +293,11 @@ async function listInvoices(req, res) {
     invoiceDate: p.issueDate,
     dueDate: p.dueDate,
     plan: p.plan,
+    billingCycle: p.billingCycle || "yearly",
+    periodStart: p.periodStart,
+    periodEnd: p.periodEnd,
+    // Nemamo poseban datum uplate; kad admin označi PAID, updatedAt je najbliža aproksimacija.
+    paidAt: p.status === "PAID" ? p.updatedAt : null,
     pdfUrl: null,
   }));
 
@@ -290,6 +305,57 @@ async function listInvoices(req, res) {
     ok: true,
     data: { items: data, total: count, page, limit },
   });
+}
+
+// GET /api/subscription/invoices/:id/pdf — PDF vlastitog predračuna.
+// Regeneriše se iz snimljenog zapisa (snapshot), isto kao admin verzija,
+// ali sa provjerom vlasništva (predračun mora pripadati ulogovanom korisniku).
+async function invoicePdf(req, res) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Nevažeći ID." });
+  }
+
+  const r = await Predracun.findOne({ where: { id, userId } });
+  if (!r) {
+    return res.status(404).json({ ok: false, error: "Predračun nije pronađen." });
+  }
+
+  try {
+    const { generatePredracunPdf } = require("../utils/predracunPdf");
+    const pdfBuffer = await generatePredracunPdf({
+      plan: r.plan,
+      billingCycle: r.billingCycle,
+      periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
+      fullNumber: r.fullNumber,
+      issueDate: r.issueDate,
+      dueDate: r.dueDate,
+      buyer: {
+        code: r.buyerCode,
+        name: r.buyerName,
+        address: r.buyerAddress,
+        city: r.buyerCity,
+        postalCode: r.buyerPostalCode,
+        phone: r.buyerPhone,
+        idNumber: r.buyerIdNumber,
+        vatNumber: r.buyerVatNumber,
+        email: r.buyerEmail,
+      },
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="Predracun-${String(r.fullNumber).replace(/\//g, "-")}.pdf"`,
+    );
+    return res.status(200).end(pdfBuffer);
+  } catch (e) {
+    console.error("subscription invoicePdf error:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
 }
 
 async function changePlan(req, res) {
@@ -374,6 +440,7 @@ module.exports = {
   getCurrent,
   listPlans,
   listInvoices,
+  invoicePdf,
   changePlan,
   cancelCurrent,
   reactivateCurrent,

@@ -8,6 +8,7 @@ import {
   deleteUlazniRacun,
   getPartnerKartica,
   listPartners,
+  listUlazniRacuni,
   partnerSuggestions,
   updatePartner,
   updateUlazniRacun,
@@ -83,6 +84,14 @@ export function usePartnerKartica(
     queryFn: () =>
       unwrap(getPartnerKartica(orgId as number, partnerId as number)),
     enabled: orgId != null && partnerId != null,
+  });
+}
+
+export function useUlazniRacuni(orgId: number | null) {
+  return useQuery({
+    queryKey: ["partners", orgId, "ulazni-racuni"],
+    queryFn: () => unwrap(listUlazniRacuni(orgId as number)),
+    enabled: orgId != null,
   });
 }
 

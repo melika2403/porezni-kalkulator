@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import {
   IconLayoutDashboard,
@@ -26,6 +27,9 @@ import styles from "./Sidebar.module.css";
 
 const MARKETING_URL =
   process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+
+// Stabilan no-op subscribe za useSyncExternalStore (hydrated flag).
+const emptySubscribe = () => () => {};
 
 export type NavItem = {
   href: string;
@@ -98,6 +102,15 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname() || "";
+  // Hydration-safe aktivni link: sa Proxy rewrite-om (app subdomena) server pri
+  // prerenderu vidi drugačiji pathname od browsera, pa aria-current/klasa pukne
+  // na hidrataciji. Server + prvi klijentski render zato NE označavaju aktivni
+  // link (stabilan fallback), a odmah nakon hidratacije se označi.
+  const hydrated = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 
   // badge za bankovne izvode: stvaran broj stavki koje čekaju pregled
   const { data: me } = usePkOfficeMe();
@@ -141,8 +154,9 @@ export function Sidebar({
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
+                    hydrated &&
+                    (pathname === item.href ||
+                      pathname.startsWith(item.href + "/"));
                   return (
                     <Link
                       key={item.href}

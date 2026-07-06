@@ -27,4 +27,22 @@ function bankNameFromAccount(account) {
   return BANK_CODES[Number(digits.slice(0, 3))] || null;
 }
 
-module.exports = { bankNameFromAccount, BANK_CODES };
+/** Samo cifre iz žiro računa (skida crtice/razmake). */
+function normalizeAccountDigits(value) {
+  return String(value || "").replace(/\D+/g, "");
+}
+
+/** "1610000000000000" → "161-000-00000000-00" (grupe 3-3-8-2). Prazno → "". */
+function formatAccountDashed(value) {
+  const d = normalizeAccountDigits(value).slice(0, 16);
+  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 14), d.slice(14, 16)]
+    .filter(Boolean)
+    .join("-");
+}
+
+module.exports = {
+  bankNameFromAccount,
+  BANK_CODES,
+  normalizeAccountDigits,
+  formatAccountDashed,
+};

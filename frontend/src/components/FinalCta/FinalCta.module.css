@@ -1,0 +1,63 @@
+.section {
+  padding: 2rem 2rem 6rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.1rem;
+  background: var(--sage);
+  border-radius: var(--radius-lg);
+  padding: 3.5rem 2rem;
+}
+
+.h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(1.7rem, 3.5vw, 2.5rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: white;
+  margin: 0;
+}
+
+.h2 em {
+  font-style: italic;
+  color: #d6e8d9;
+}
+
+.sub {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 480px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.8rem;
+  border-radius: 999px;
+  background: white;
+  color: var(--sage);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+}
+
+.note {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
