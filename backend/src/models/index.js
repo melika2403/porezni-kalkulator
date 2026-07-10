@@ -1545,6 +1545,118 @@ const Prebijanje = sequelize.define(
   },
 );
 
+// ─── ANNOUNCEMENT (admin obavijesti korisnicima) ─────────────────────────────
+const Announcement = sequelize.define(
+  "Announcement",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    title: { type: DataTypes.STRING(200), allowNull: false },
+    body: { type: DataTypes.TEXT, allowNull: false },
+    // Publika: svi, ili tačno određena rola / trial korisnici.
+    audience: {
+      type: DataTypes.ENUM("ALL", "USER", "PRO", "BUSINESS", "TRIAL"),
+      allowNull: false,
+      defaultValue: "ALL",
+    },
+    // Severity za boju callouta na korisničkoj strani.
+    type: {
+      type: DataTypes.ENUM("INFO", "WARNING", "SUCCESS"),
+      allowNull: false,
+      defaultValue: "INFO",
+    },
+    active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    publishedAt: { type: DataTypes.DATE, allowNull: true },
+    expiresAt: { type: DataTypes.DATE, allowNull: true },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "announcements",
+    timestamps: true,
+    indexes: [{ fields: ["active"] }, { fields: ["audience"] }],
+  },
+);
+
+// ─── ANNOUNCEMENT READ (per-user pročitano) ───────────────────────────────────
+const AnnouncementRead = sequelize.define(
+  "AnnouncementRead",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    announcementId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    readAt: { type: DataTypes.DATE, allowNull: false },
+  },
+  {
+    tableName: "announcement_reads",
+    timestamps: true,
+    indexes: [
+      { unique: true, fields: ["announcementId", "userId"] },
+      { fields: ["userId"] },
+    ],
+  },
+);
+
+// ─── SUPPORT TICKET (live chat korisnik ↔ admin) ─────────────────────────────
+const SupportTicket = sequelize.define(
+  "SupportTicket",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    subject: { type: DataTypes.STRING(200), allowNull: false },
+    status: {
+      type: DataTypes.ENUM("OTVOREN", "ZATVOREN"),
+      allowNull: false,
+      defaultValue: "OTVOREN",
+    },
+    // Vrijeme zadnje poruke: za sortiranje liste razgovora.
+    lastMessageAt: { type: DataTypes.DATE, allowNull: true },
+    // Zadnji put kad je svaka strana pročitala nit: nepročitane = poruke druge
+    // strane sa createdAt > <mojLastReadAt>.
+    userLastReadAt: { type: DataTypes.DATE, allowNull: true },
+    adminLastReadAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    tableName: "support_tickets",
+    timestamps: true,
+    indexes: [{ fields: ["userId"] }, { fields: ["status"] }],
+  },
+);
+
+// ─── SUPPORT MESSAGE ──────────────────────────────────────────────────────────
+const SupportMessage = sequelize.define(
+  "SupportMessage",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    ticketId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    senderId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    senderRole: {
+      type: DataTypes.ENUM("USER", "ADMIN"),
+      allowNull: false,
+    },
+    body: { type: DataTypes.TEXT, allowNull: false },
+  },
+  {
+    tableName: "support_messages",
+    timestamps: true,
+    indexes: [{ fields: ["ticketId"] }],
+  },
+);
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 User.hasOne(Subscription, { foreignKey: "userId", as: "subscription" });
 Subscription.belongsTo(User, { foreignKey: "userId" });
@@ -1726,6 +1838,35 @@ BankTransaction.belongsTo(UlazniRacun, {
   as: "ulazniRacun",
 });
 
+// Support (live chat) associations
+User.hasMany(SupportTicket, { foreignKey: "userId", as: "supportTickets" });
+SupportTicket.belongsTo(User, { foreignKey: "userId", as: "user" });
+SupportTicket.hasMany(SupportMessage, {
+  foreignKey: "ticketId",
+  as: "messages",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+SupportMessage.belongsTo(SupportTicket, {
+  foreignKey: "ticketId",
+  as: "ticket",
+});
+SupportMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
+
+// Announcements associations
+Announcement.belongsTo(User, { foreignKey: "createdById", as: "author" });
+Announcement.hasMany(AnnouncementRead, {
+  foreignKey: "announcementId",
+  as: "reads",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+AnnouncementRead.belongsTo(Announcement, {
+  foreignKey: "announcementId",
+  as: "announcement",
+});
+AnnouncementRead.belongsTo(User, { foreignKey: "userId", as: "user" });
+
 module.exports = {
   sequelize,
   User,
@@ -1761,4 +1902,8 @@ module.exports = {
   UlazniRacun,
   PdvDodatak,
   Prebijanje,
+  SupportTicket,
+  SupportMessage,
+  Announcement,
+  AnnouncementRead,
 };
