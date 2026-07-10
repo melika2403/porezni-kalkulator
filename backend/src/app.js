@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const path = require("path");
 const fs = require("fs");
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -41,6 +42,9 @@ const partnersRoutes = require("./routes/partnersRoutes");
 const pdvRoutes = require("./routes/pdvRoutes");
 const publicStatsRoutes = require("./routes/publicStatsRoutes");
 const prebijanjaRoutes = require("./routes/prebijanjaRoutes");
+const supportRoutes = require("./routes/supportRoutes");
+const announcementsRoutes = require("./routes/announcementsRoutes");
+const { initSocket } = require("./socket");
 const kalkulacijeRoutes = require("./routes/kalkulacijeRoutes");
 const lagerRoutes = require("./routes/lagerRoutes");
 const blagajnaRoutes = require("./routes/blagajnaRoutes");
@@ -108,6 +112,8 @@ app.use("/api/partners", partnersRoutes);
 app.use("/api/pdv", pdvRoutes);
 app.use("/api/public", publicStatsRoutes);
 app.use("/api/prebijanja", prebijanjaRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/announcements", announcementsRoutes);
 app.use("/api/kalkulacije", kalkulacijeRoutes);
 app.use("/api/lager", lagerRoutes);
 app.use("/api/blagajna", blagajnaRoutes);
@@ -1369,7 +1375,11 @@ sequelize
   )
   .then(() => {
     console.log("Database synced successfully");
-    app.listen(port, () => {
+    // http.Server je potreban da bi Socket.IO (live chat podrška) mogao dijeliti
+    // isti port sa Express aplikacijom.
+    const server = http.createServer(app);
+    initSocket(server);
+    server.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}`);
     });
   })

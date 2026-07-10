@@ -7,6 +7,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { UvozIzvodaTab } from "src/sections/inbox/UvozIzvodaTab";
 import { PorukeTab } from "src/sections/inbox/PorukeTab";
 import { PodrskaTab } from "src/sections/inbox/PodrskaTab";
+import { useSupportUnread } from "src/api/support";
+import { useNotificationsUnread } from "src/api/announcements";
 
 type TabId = "izvodi" | "poruke" | "podrska";
 
@@ -25,6 +27,9 @@ export default function InboxPage() {
   const router = useRouter();
   const param = searchParams.get("tab");
   const activeTab: TabId = isTabId(param) ? param : "izvodi";
+  const supportUnread = useSupportUnread();
+  const { unread: porukeUnread, setUnread: setPorukeUnread } =
+    useNotificationsUnread();
 
   function setTab(id: TabId) {
     router.push(`/app/inbox?tab=${id}`);
@@ -60,12 +65,35 @@ export default function InboxPage() {
             ].join(" ")}
           >
             {tab.label}
+            {(() => {
+              const count =
+                tab.id === "podrska"
+                  ? supportUnread
+                  : tab.id === "poruke"
+                    ? porukeUnread
+                    : 0;
+              if (count <= 0) return null;
+              return (
+                <span
+                  className={[
+                    "ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-medium",
+                    activeTab === tab.id
+                      ? "bg-white/25 text-white"
+                      : "bg-brand-600 text-white",
+                  ].join(" ")}
+                >
+                  {count}
+                </span>
+              );
+            })()}
           </button>
         ))}
       </div>
 
       {activeTab === "izvodi" && <UvozIzvodaTab />}
-      {activeTab === "poruke" && <PorukeTab />}
+      {activeTab === "poruke" && (
+        <PorukeTab onMarkedRead={() => setPorukeUnread(0)} />
+      )}
       {activeTab === "podrska" && <PodrskaTab />}
     </div>
   );

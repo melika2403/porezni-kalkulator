@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
+import { useSupportUnread } from "src/api/support";
 import styles from "./adminLayout.module.css";
 
 // ── Stavke admin sidebar-a ────────────────────────────────────────────────────
@@ -27,6 +28,40 @@ const NAV_ITEMS: {
         <rect x="14" y="3" width="7" height="5" rx="1" />
         <rect x="14" y="12" width="7" height="9" rx="1" />
         <rect x="3" y="16" width="7" height="5" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/podrska",
+    label: "Podrška",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/obavijesti",
+    label: "Obavijesti",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M3 11l18-5v12L3 14v-3z" />
+        <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
       </svg>
     ),
   },
@@ -235,6 +270,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const supportUnread = useSupportUnread();
 
   return (
     <RoleGuard roles={["ADMIN"]} label="Nemate pristup" mode="hide">
@@ -280,6 +316,9 @@ export default function AdminLayout({
                 >
                   <span className={styles.navIcon}>{item.icon}</span>
                   <span className={styles.navLabel}>{item.label}</span>
+                  {item.href === "/admin/podrska" && supportUnread > 0 && (
+                    <span className={styles.navBadge}>{supportUnread}</span>
+                  )}
                 </Link>
               );
             })}
