@@ -35,6 +35,66 @@ const ROLE_BADGE_CLASS: Record<Users["role"], string> = {
   BUSINESS: "roleBusiness",
 };
 
+// "free = vječno" pretplata ima endDate ~ +100 godina (ensureSubscription na
+// backendu kreira je pri prvom /api/subscription pozivu). U tabeli to
+// prikazujemo kao "trajno", ne kao npr. 10.07.2126. koji izgleda kao greška.
+function isForeverEnd(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const y = Number(String(iso).slice(0, 4));
+  return Number.isFinite(y) && y - new Date().getFullYear() > 50;
+}
+
+// Paket = aktivna pretplata (subscriptions.plan), nezavisno od role: office
+// korisnik u bazi ostaje USER, pa se paket vidi samo ovdje.
+const PLAN_LABELS: Record<string, string> = {
+  pro: "Pro",
+  business: "Business",
+  office_2: "Office Start",
+  office_10: "Office Tim",
+  office_25: "Office Agencija",
+  office_50: "Office Agencija+",
+};
+
+function aktivniPaket(
+  user: Users,
+): { label: string; cls: string; title?: string } | null {
+  const today = todayInputDate();
+  const sub = user.subscription;
+  const plan = (sub?.plan ?? "").toLowerCase();
+  const subOk =
+    !!sub?.isActive && (!sub.endDate || toInputDate(sub.endDate) >= today);
+
+  if (subOk && PLAN_LABELS[plan]) {
+    return {
+      label: PLAN_LABELS[plan],
+      cls: plan.startsWith("office")
+        ? "planOffice"
+        : plan === "business"
+          ? "roleBusiness"
+          : "rolePro",
+    };
+  }
+  // legacy pretplate bez plana: paket izvedi iz role
+  if (subOk && (user.role === "PRO" || user.role === "BUSINESS")) {
+    return {
+      label: ROLE_LABELS[user.role],
+      cls: ROLE_BADGE_CLASS[user.role],
+    };
+  }
+  const trialEnd = user.pkOfficeTrialEndsAt
+    ? toInputDate(user.pkOfficeTrialEndsAt)
+    : "";
+  if (trialEnd && trialEnd >= today) {
+    // kratka labela da ne razvlači tabelu; datum isteka je u tooltipu
+    return {
+      label: "Office trial",
+      cls: "planTrial",
+      title: `Ističe ${formatDate(trialEnd)}.`,
+    };
+  }
+  return null;
+}
+
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "–";
   if (iso.includes("T") || iso.includes("Z")) {
@@ -80,8 +140,9 @@ export default function Korisnici() {
     lastName: "",
     email: "",
   });
-  // Rola i sortiranje primjenjuju se odmah (bez dugmeta Pretraži).
-  const [role, setRole] = useState<"" | "USER" | "PRO" | "BUSINESS" | "ADMIN">("");
+  // Rola/paket i sortiranje primjenjuju se odmah (bez dugmeta Pretraži).
+  // Office vrijednosti backend filtrira preko aktivne pretplate, ne role.
+  const [role, setRole] = useState<string>("");
   const [sort, setSort] = useState<"newest" | "oldest" | "name">("newest");
   const [page, setPage] = useState(1);
 
@@ -194,14 +255,15 @@ export default function Korisnici() {
               </div>
 
               <div className={styles.field}>
-                <label className={styles.fieldLabel}>Rola</label>
+                <label className={styles.fieldLabel}>Rola / paket</label>
                 <StyledSelect
                   value={role}
                   onChange={(v) => {
-                    setRole(String(v) as typeof role);
+                    setRole(String(v));
                     setPage(1);
                   }}
-                  ariaLabel="Rola"
+                  ariaLabel="Rola / paket"
+                  fitPanel
                   groups={[
                     {
                       options: [
@@ -210,6 +272,16 @@ export default function Korisnici() {
                         { value: "PRO", label: "Pro" },
                         { value: "BUSINESS", label: "Business" },
                         { value: "ADMIN", label: "Admin" },
+                      ],
+                    },
+                    {
+                      label: "PK Office paketi",
+                      options: [
+                        { value: "office", label: "PK Office (svi)" },
+                        { value: "office_2", label: "Office Start" },
+                        { value: "office_10", label: "Office Tim" },
+                        { value: "office_25", label: "Office Agencija" },
+                        { value: "office_50", label: "Office Agencija+" },
                       ],
                     },
                   ]}
@@ -310,7 +382,7 @@ function UsersTable({ users }: { users: Users[] }) {
           <th>E-mail</th>
           <th>Registracija</th>
           <th>Verifikacija</th>
-          <th>Uloga</th>
+          <th>Uloga / paket</th>
           <th>Datum od</th>
           <th>Datum do</th>
           <th>Aktivna</th>
@@ -356,33 +428,111 @@ function UserRow({ user }: { user: Users }) {
   });
 
   // ── user edit state ──
+  // U dropdownu "Uloga / paket" su i office paketi: biraju se isto kao
+  // Pro/Business, a u pozadini prave pretplatu (rola u bazi se ne dira).
+  const sub = user.subscription;
+  const activeOfficePlan =
+    sub?.isActive && (sub.plan ?? "").toLowerCase().startsWith("office")
+      ? (sub.plan as string).toLowerCase()
+      : null;
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
-  const [role, setRole] = useState(user.role);
+  const [role, setRole] = useState<string>(activeOfficePlan ?? user.role);
   const [editError, setEditError] = useState<string | null>(null);
 
   // ── subscription state ──
-  const sub = user.subscription;
   const [subStartDate, setSubStartDate] = useState(toInputDate(sub?.startDate));
   const [subEndDate, setSubEndDate] = useState(toInputDate(sub?.endDate));
   const [subError, setSubError] = useState<string | null>(null);
 
   const isAdmin = user.role === "ADMIN";
+  const paket = aktivniPaket(user);
   const isActive = sub?.isActive ?? false;
-  const canEditDates = editing && isActive && !isAdmin;
+
+  // Office trial se ne vodi kao pretplata nego na user.pkOfficeTrialEndsAt
+  // (+30 dana). Da admin, kao kod PRO trial-a, vidi tačan mjesec važenja,
+  // u kolonama Datum od/do prikaži trial prozor (do = kraj, od = kraj - 30d)
+  // umjesto datuma "vječne" besplatne pretplate.
+  const officeTrialEnd = user.pkOfficeTrialEndsAt
+    ? toInputDate(user.pkOfficeTrialEndsAt)
+    : null;
+  const officeTrialActive =
+    !!officeTrialEnd && officeTrialEnd >= todayInputDate();
+  const officeTrialStart =
+    officeTrialActive && officeTrialEnd
+      ? new Date(new Date(officeTrialEnd).getTime() - 30 * 86400000)
+          .toISOString()
+          .slice(0, 10)
+      : null;
+  const isPackageValue = (v: string) =>
+    v === "PRO" || v === "BUSINESS" || v.startsWith("office_");
+  const canEditDates =
+    editing && !isAdmin && (isActive || isPackageValue(role));
+
+  // izbor paketa bez postojećih datuma: predloži danas + godinu
+  function onRoleChange(v: string) {
+    setRole(v);
+    if (isPackageValue(v)) {
+      if (!subStartDate) setSubStartDate(todayInputDate());
+      if (!subEndDate) {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() + 1);
+        setSubEndDate(d.toISOString().slice(0, 10));
+      }
+    }
+  }
 
   const updateUser = useMutation({
     mutationFn: async () => {
-      await unwrap(adminUpdateUser(user.id, { firstName, lastName, role }));
-      await unwrap(
-        upsertSubscription(user.id, {
-          startDate: subStartDate,
-          endDate: subEndDate,
-        }),
-      );
+      if (role.startsWith("office_")) {
+        // office paket: rola se NE dira (effectiveRole je diže na BUSINESS),
+        // paket i period žive u pretplati
+        await unwrap(adminUpdateUser(user.id, { firstName, lastName }));
+        await unwrap(
+          upsertSubscription(user.id, {
+            plan: role,
+            isActive: true,
+            billingCycle: "yearly",
+            startDate: subStartDate || todayInputDate(),
+            ...(subEndDate ? { endDate: subEndDate } : {}),
+          }),
+        );
+      } else {
+        await unwrap(
+          adminUpdateUser(user.id, {
+            firstName,
+            lastName,
+            role: role as Users["role"],
+          }),
+        );
+        if (role === "PRO" || role === "BUSINESS") {
+          // plan prati izbor (i gasi eventualni office paket / trial oznaku)
+          if (subStartDate && subEndDate) {
+            await unwrap(
+              upsertSubscription(user.id, {
+                plan: role,
+                isActive: true,
+                startDate: subStartDate,
+                endDate: subEndDate,
+              }),
+            );
+          }
+        } else if (role === "USER" && activeOfficePlan) {
+          // vraćanje na Korisnika gasi office paket
+          await unwrap(upsertSubscription(user.id, { isActive: false }));
+        } else if (subStartDate && subEndDate) {
+          await unwrap(
+            upsertSubscription(user.id, {
+              startDate: subStartDate,
+              endDate: subEndDate,
+            }),
+          );
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] });
       setEditing(false);
       setEditError(null);
       setSubError(null);
@@ -454,7 +604,7 @@ function UserRow({ user }: { user: Users }) {
   const cancelEdit = () => {
     setFirstName(user.firstName);
     setLastName(user.lastName);
-    setRole(user.role);
+    setRole(activeOfficePlan ?? user.role);
     setEditing(false);
     setEditError(null);
     setSubStartDate(toInputDate(user.subscription?.startDate));
@@ -465,7 +615,7 @@ function UserRow({ user }: { user: Users }) {
   const beginEdit = () => {
     setFirstName(user.firstName);
     setLastName(user.lastName);
-    setRole(user.role);
+    setRole(activeOfficePlan ?? user.role);
     setSubStartDate(toInputDate(user.subscription?.startDate));
     setSubEndDate(toInputDate(user.subscription?.endDate));
     setEditing(true);
@@ -477,29 +627,12 @@ function UserRow({ user }: { user: Users }) {
     <>
     <tr>
       <td className={styles.workerName}>
-        {editing ? (
-          <span className={styles.inlineFields}>
-            <input
-              className={styles.inlineInput}
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="Ime"
-            />
-            <input
-              className={styles.inlineInput}
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="Prezime"
-            />
-          </span>
-        ) : (
-          <Link
-            href={`/admin/korisnici/${user.id}`}
-            style={{ color: "#3a5c42", fontWeight: 600, textDecoration: "none" }}
-          >
-            {user.firstName} {user.lastName}
-          </Link>
-        )}
+        <Link
+          href={`/admin/korisnici/${user.id}`}
+          style={{ color: "#3a5c42", fontWeight: 600, textDecoration: "none" }}
+        >
+          {user.firstName} {user.lastName}
+        </Link>
       </td>
 
       <td>{user.email || "–"}</td>
@@ -515,23 +648,21 @@ function UserRow({ user }: { user: Users }) {
       </td>
 
       <td>
-        {editing ? (
-          <StyledSelect
-            value={role}
-            onChange={(v) => setRole(String(v) as Users["role"])}
-            ariaLabel="Uloga"
-            wrapStyle={{ minWidth: 140 }}
-            groups={[
-              {
-                options: [
-                  { value: "USER", label: "Korisnik" },
-                  { value: "PRO", label: "Pro" },
-                  { value: "BUSINESS", label: "Business" },
-                  { value: "ADMIN", label: "Admin" },
-                ],
-              },
-            ]}
-          />
+        {/* jedna kolona za "šta korisnik ima": Admin, pa aktivni paket
+            (Pro/Business/Office/trial), pa tek onda gola rola */}
+        {user.role === "ADMIN" ? (
+          <span className={`${styles.orgBadge} ${styles.roleAdmin}`}>
+            Admin
+          </span>
+        ) : paket ? (
+          <span
+            className={`${styles.orgBadge} ${
+              styles[paket.cls as keyof typeof styles] ?? ""
+            }`}
+            title={paket.title}
+          >
+            {paket.label}
+          </span>
         ) : (
           <span
             className={`${styles.orgBadge} ${
@@ -544,35 +675,21 @@ function UserRow({ user }: { user: Users }) {
       </td>
 
       <td>
-        {isAdmin ? (
-          ", "
-        ) : editing ? (
-          <DateInput
-            className={styles.input}
-            value={subStartDate}
-            disabled={!canEditDates}
-            onValueChange={setSubStartDate}
-            title={!canEditDates ? "Aktivirajte pretplatu da mijenjate datume" : ""}
-          />
-        ) : (
-          formatDate(sub?.startDate)
-        )}
+        {isAdmin
+          ? "–"
+          : officeTrialActive
+            ? formatDate(officeTrialStart)
+            : formatDate(sub?.startDate)}
       </td>
 
       <td>
-        {isAdmin ? (
-          ", "
-        ) : editing ? (
-          <DateInput
-            className={styles.input}
-            value={subEndDate}
-            disabled={!canEditDates}
-            onValueChange={setSubEndDate}
-            title={!canEditDates ? "Aktivirajte pretplatu da mijenjate datume" : ""}
-          />
-        ) : (
-          formatDate(endDateToDisplay)
-        )}
+        {isAdmin
+          ? "–"
+          : officeTrialActive
+            ? formatDate(officeTrialEnd)
+            : isForeverEnd(endDateToDisplay)
+              ? "trajno"
+              : formatDate(endDateToDisplay)}
       </td>
 
       <td>
@@ -599,49 +716,137 @@ function UserRow({ user }: { user: Users }) {
               {trialSent ? <LuCheck /> : <LuMail />}
             </button>
           )}
-          {editing ? (
-            <>
-              <button
-                className={styles.btnIcon}
-                title="Sačuvaj"
-                onClick={() => updateUser.mutate()}
-                disabled={updateUser.isPending}
-              >
-                <LuCheck />
-              </button>
-              <button
-                className={styles.btnIcon}
-                title="Otkaži"
-                onClick={cancelEdit}
-              >
-                <LuX />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className={styles.btnIcon}
-                title="Uredi"
-                onClick={beginEdit}
-              >
-                <LuPencil />
-              </button>
-              <button
-                className={`${styles.btnIcon} ${styles.btnIconDanger}`}
-                title="Obriši korisnika"
-                onClick={() => setConfirmDelete((v) => !v)}
-              >
-                <LuTrash2 />
-              </button>
-            </>
+          <button
+            className={styles.btnIcon}
+            title={editing ? "Zatvori uređivanje" : "Uredi"}
+            onClick={() => (editing ? cancelEdit() : beginEdit())}
+          >
+            {editing ? <LuX /> : <LuPencil />}
+          </button>
+          {!editing && (
+            <button
+              className={`${styles.btnIcon} ${styles.btnIconDanger}`}
+              title="Obriši korisnika"
+              onClick={() => setConfirmDelete((v) => !v)}
+            >
+              <LuTrash2 />
+            </button>
           )}
         </span>
 
-        {editError && <div className={styles.errorMsg}>{editError}</div>}
-        {subError && <div className={styles.errorMsg}>{subError}</div>}
         {trialError && <div className={styles.errorMsg}>{trialError}</div>}
       </td>
     </tr>
+    {editing && (
+      <tr>
+        <td colSpan={9} className={styles.editRow}>
+          <div className={styles.editRowInner}>
+            <div className={styles.editField}>
+              <label className={styles.fieldLabel}>Ime</label>
+              <input
+                className={styles.input}
+                style={{ width: 150 }}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Ime"
+              />
+            </div>
+            <div className={styles.editField}>
+              <label className={styles.fieldLabel}>Prezime</label>
+              <input
+                className={styles.input}
+                style={{ width: 170 }}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Prezime"
+              />
+            </div>
+            <div className={styles.editField}>
+              <label className={styles.fieldLabel}>Uloga / paket</label>
+              <StyledSelect
+                value={role}
+                onChange={(v) => onRoleChange(String(v))}
+                ariaLabel="Uloga / paket"
+                fitPanel
+                wrapStyle={{ minWidth: 210 }}
+                groups={[
+                  {
+                    options: [
+                      { value: "USER", label: "Korisnik" },
+                      { value: "PRO", label: "Pro" },
+                      { value: "BUSINESS", label: "Business" },
+                      { value: "ADMIN", label: "Admin" },
+                    ],
+                  },
+                  {
+                    label: "PK Office paketi",
+                    options: [
+                      { value: "office_2", label: "Office Start (do 2 obrta)" },
+                      { value: "office_10", label: "Office Tim (do 10 obrta)" },
+                      {
+                        value: "office_25",
+                        label: "Office Agencija (do 25 obrta)",
+                      },
+                      {
+                        value: "office_50",
+                        label: "Office Agencija+ (do 50 obrta)",
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </div>
+            {!isAdmin && (
+              <>
+                <div className={styles.editField} style={{ width: 150 }}>
+                  <label className={styles.fieldLabel}>Datum od</label>
+                  <DateInput
+                    className={styles.input}
+                    value={subStartDate}
+                    disabled={!canEditDates}
+                    onValueChange={setSubStartDate}
+                    title={
+                      !canEditDates
+                        ? "Aktivirajte pretplatu da mijenjate datume"
+                        : ""
+                    }
+                  />
+                </div>
+                <div className={styles.editField} style={{ width: 150 }}>
+                  <label className={styles.fieldLabel}>Datum do</label>
+                  <DateInput
+                    className={styles.input}
+                    value={subEndDate}
+                    disabled={!canEditDates}
+                    onValueChange={setSubEndDate}
+                    title={
+                      !canEditDates
+                        ? "Aktivirajte pretplatu da mijenjate datume"
+                        : ""
+                    }
+                  />
+                </div>
+              </>
+            )}
+            <button
+              className={styles.btnPrimary}
+              onClick={() => updateUser.mutate()}
+              disabled={updateUser.isPending}
+            >
+              {updateUser.isPending ? "Snimam…" : "Sačuvaj"}
+            </button>
+            <button className={styles.btnGhost} onClick={cancelEdit}>
+              Otkaži
+            </button>
+          </div>
+          {(editError || subError) && (
+            <div className={styles.errorMsg} style={{ marginTop: "0.4rem" }}>
+              {editError || subError}
+            </div>
+          )}
+        </td>
+      </tr>
+    )}
     {confirmDelete && !editing && (
       <tr>
         <td colSpan={9} className={styles.deleteConfirmRow}>

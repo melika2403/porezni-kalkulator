@@ -13,6 +13,7 @@ import { markMonthPaid } from "src/api/payroll";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import { useNotice } from "src/components/Notice/Notice";
 import EvidencijaModal from "./EvidencijaModal";
+import PkOfficeSlotPanel from "./PkOfficeSlotPanel";
 import RowActionsMenu, {
   type RowPrimaryAction,
   type RowMenuItem,
@@ -454,6 +455,9 @@ export default function Organizacije() {
           />
         </div>
       )}
+
+      {/* PK Office slotovi: vidljivo samo Office pretplatnicima (uz naplatu) */}
+      <PkOfficeSlotPanel />
 
       {/* Filter / sort bar */}
       <div className={styles.controlsBar}>

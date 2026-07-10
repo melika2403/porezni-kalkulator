@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 import { formatBAM } from "src/lib/format";
 import { PkSelect } from "src/components/app-shell/PkSelect";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { usePayrollStatus } from "src/hooks/usePkOfficeMe";
 import {
@@ -24,9 +25,11 @@ import {
   markMonthPaid,
   markMipDownloaded,
   listPayrolls,
+  calculatePayroll,
   type PayrollStatus,
 } from "src/api/payroll";
 import { unwrap } from "src/api/auth";
+import { getOrganization } from "src/api/profile";
 
 const MARKETING_URL =
   process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
@@ -35,6 +38,41 @@ const MJESECI = [
   "Januar", "Februar", "Mart", "April", "Maj", "Juni",
   "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar",
 ];
+
+// Pro-rate faktor (0..1) za vlasnika obrta prijavljenog/odjavljenog u toku
+// mjeseca: radni dani u aktivnom periodu / radni dani u mjesecu. Ista logika
+// kao computeProRateFactor na Poreznom (ObracunPlata), da doprinosi na 2002
+// prate skraćeni period umjesto da se knjiže za pun mjesec.
+function proRateFactorVlasnik(
+  prijavaDate: string | null | undefined,
+  odjavaDate: string | null | undefined,
+  year: number,
+  month: number,
+): number {
+  const lastDay = new Date(year, month, 0).getDate();
+  const mm = String(month).padStart(2, "0");
+  const startISO = `${year}-${mm}-01`;
+  const endISO = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  const prijava = prijavaDate?.slice(0, 10) ?? null;
+  const odjava = odjavaDate?.slice(0, 10) ?? null;
+  if ((!prijava || prijava <= startISO) && (!odjava || odjava >= endISO)) {
+    return 1;
+  }
+  const effStart = prijava && prijava > startISO ? prijava : startISO;
+  const effEnd = odjava && odjava < endISO ? odjava : endISO;
+  const workDays = (fromIso: string, toIso: string) => {
+    let c = 0;
+    for (let d = new Date(fromIso); d <= new Date(toIso); d.setDate(d.getDate() + 1)) {
+      const wd = d.getDay();
+      if (wd !== 0 && wd !== 6) c++;
+    }
+    return c;
+  };
+  const wdMonth = workDays(startISO, endISO);
+  const wdPeriod = workDays(effStart, effEnd);
+  if (wdMonth <= 0) return 1;
+  return Math.max(0, Math.min(wdPeriod / wdMonth, 1));
+}
 
 function triggerBlobDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -98,6 +136,8 @@ export default function ObracuniPlataPage() {
   const [year, setYear] = useState(defYear);
   const [month, setMonth] = useState(defMonth);
   const [busy, setBusy] = useState<string | null>(null);
+  // poruka greške/upozorenja u PK modalu umjesto window.alert
+  const [obavijest, setObavijest] = useState<string | null>(null);
 
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
@@ -121,6 +161,163 @@ export default function ObracuniPlataPage() {
   const vlasnikIds = new Set(
     (workers ?? []).filter((w) => w.role === "VLASNIK").map((w) => w.id),
   );
+  const vlasnik = (workers ?? []).find((w) => w.role === "VLASNIK") ?? null;
+
+  // puna org (taxRegime/taxCategory/activityCode) za doprinose vlasnika i 2002
+  const { data: fullOrg } = useQuery({
+    queryKey: ["pk-org", orgId],
+    queryFn: () => unwrap(getOrganization(orgId as number)),
+    enabled: orgId != null,
+  });
+
+  // obračun vlasnika za mjesec (doprinosi samostalne djelatnosti, 36% na
+  // fiksnu osnovicu); monthlySummary ga namjerno ne vraća u perWorker
+  const { data: mjesecniPayrolls } = useQuery({
+    queryKey: ["pk-payrolls", orgId, year, month],
+    queryFn: () => unwrap(listPayrolls(orgId as number, year, month)),
+    enabled: orgId != null && vlasnik != null,
+  });
+  const vlasnikPayroll =
+    (mjesecniPayrolls ?? []).find((p) => p.workerId === vlasnik?.id) ?? null;
+
+  const obracunajVlasnika = useMutation({
+    mutationFn: () =>
+      unwrap(
+        calculatePayroll({
+          organizationId: orgId as number,
+          workerId: vlasnik?.id as number,
+          year,
+          month,
+          // skalira osnovicu i doprinose ako je vlasnik prijavljen/odjavljen
+          // u toku mjeseca (inače 1 = pun mjesec)
+          proRateFactor: proRateFactorVlasnik(
+            vlasnik?.prijavaDate,
+            vlasnik?.odjavaDate,
+            year,
+            month,
+          ),
+        }),
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pk-payrolls", orgId] });
+      qc.invalidateQueries({ queryKey: ["pk-payroll-summary", orgId] });
+    },
+  });
+
+  // Obrazac 2002 (specifikacija uz uplatu doprinosa poduzetnika): isti tok
+  // kao na Poreznom (ObracunPlata), samo iz PK Office podataka
+  async function download2002() {
+    if (!vlasnik || !fullOrg || !vlasnikPayroll) return;
+    setBusy("2002");
+    try {
+      if (!fullOrg.taxRegime) {
+        setObavijest("Postavi režim oporezivanja na postavkama obrta.");
+        return;
+      }
+      const { fillObrazac2002Template } = await import(
+        "src/sections/prijave-radnika/fillObrazac2002"
+      );
+      const p = vlasnikPayroll;
+      const fmt2 = (n: number) =>
+        n.toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      const mm = String(month).padStart(2, "0");
+      const yyyy = String(year);
+      const lastDay = new Date(year, month, 0).getDate();
+      const startISO = `${yyyy}-${mm}-01`;
+      const endISO = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
+      const vlPrijava = vlasnik.prijavaDate?.slice(0, 10) ?? null;
+      const vlOdjava = vlasnik.odjavaDate?.slice(0, 10) ?? null;
+      const periodOdISO = vlPrijava && vlPrijava > startISO ? vlPrijava : startISO;
+      const periodDoISO = vlOdjava && vlOdjava < endISO ? vlOdjava : endISO;
+      const [, odMm, odDan] = periodOdISO.split("-");
+      const [, doMm, doDan] = periodDoISO.split("-");
+      const countWorkDays = (fromIso: string, toIso: string) => {
+        let count = 0;
+        for (
+          let d = new Date(fromIso);
+          d <= new Date(toIso);
+          d.setDate(d.getDate() + 1)
+        ) {
+          const wd = d.getDay();
+          if (wd !== 0 && wd !== 6) count++;
+        }
+        return count;
+      };
+      const vrstaSamostalne = (() => {
+        switch (fullOrg.taxCategory) {
+          case "SLOBODNA_ZANIMANJA":
+            return "SLOBODNO_ZANIMANJE" as const;
+          case "OBRT_SRODNE":
+            return "DJELATNOST_OBRTA" as const;
+          case "ESNAFSKI_ZANATI":
+            return "NISKO_AKUMULACIJSKA" as const;
+          case "POLJOPRIVREDA_SUMARSTVO":
+            return "POLJOPRIVREDA_SUMARSTVO" as const;
+          case "TRGOVAC_POJEDINAC":
+            return "TRGOVAC_POJEDINAC" as const;
+          case "TAXI":
+            return "NISKO_AKUMULACIJSKA" as const;
+          default:
+            return "DJELATNOST_OBRTA" as const;
+        }
+      })();
+      const bytes = await fillObrazac2002Template({
+        naziv: fullOrg.name || "",
+        jib: (fullOrg.taxNumber || "").replace(/\D/g, ""),
+        operacija: "PRIJAVA",
+        periodOdDan: odDan,
+        periodOdMjesec: odMm,
+        periodOdGodina: yyyy,
+        periodDoDan: doDan,
+        periodDoMjesec: doMm,
+        periodDoGodina: yyyy,
+        adresa: fullOrg.address || "",
+        opcina: fullOrg.city || "",
+        // vlasnik se po PU FBiH broji u zaposlene (ukupno svi u org-u)
+        brojZaposlenih: String((workers ?? []).length),
+        vrstaDjelatnosti: [fullOrg.activityCode, fullOrg.activityName]
+          .filter(Boolean)
+          .join(" "),
+        vrstaSamostalne,
+        dohodakNa:
+          fullOrg.taxRegime === "STVARNI_DOHODAK"
+            ? "POSLOVNIH_KNJIGA"
+            : "PAUSALNO",
+        osnovica: fmt2(Number(p.gross ?? p.grossBase) || 0),
+        brojRadnihSati: String(countWorkDays(periodOdISO, periodDoISO) * 8),
+        brojRadnihSatiBolovanje: "0",
+        datumUplateDan: String(lastDay).padStart(2, "0"),
+        datumUplateMjesec: mm,
+        datumUplateGodina: yyyy,
+        prezimeIme: `${vlasnik.firstName} ${vlasnik.lastName}`.trim(),
+        jmb: (vlasnik.jmbg || "").replace(/\D/g, ""),
+        adresaPoduzetnika: vlasnik.address || "",
+        opcinaPoduzetnika: vlasnik.city || "",
+        pioStopa: "19,50",
+        pioIznos: fmt2(Number(p.empPio) || 0),
+        zdrStopa: "14,50",
+        zdrIznos: fmt2(Number(p.empZdravstvo) || 0),
+        nezapStopa: "2,00",
+        nezapIznos: fmt2(Number(p.empNezaposlenost) || 0),
+        ukupnoIznos: fmt2(Number(p.empTotal) || 0),
+        potpis: "",
+        datum: `${String(lastDay).padStart(2, "0")}.${mm}.${yyyy}.`,
+      });
+      triggerBlobDownload(
+        new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
+        `Obrazac-2002-${`${vlasnik.firstName}_${vlasnik.lastName}`.replace(/[^A-Za-z0-9_]/g, "_")}-${yyyy}-${mm}.pdf`,
+      );
+    } catch (e) {
+      setObavijest(
+        `Greška pri generisanju obrasca 2002: ${(e as Error).message ?? e}`,
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
   const { data: mipStatus } = usePayrollStatus(year, month);
   const mipInfo = activeOrg
     ? [...(mipStatus?.own ?? []), ...(mipStatus?.clients ?? [])].find(
@@ -145,12 +342,12 @@ export default function ObracuniPlataPage() {
     (r) => r.status === "OBRACUNATO" || r.status === "ISPLACENO",
   );
 
-  async function downloadPayslip(payrollId: number, workerName: string) {
+  async function downloadPayslip(payrollId: number) {
     setBusy(`payslip-${payrollId}`);
     try {
       const r = await generateWorkerPayslip(payrollId);
       if (r.ok) triggerBlobDownload(r.blob, r.filename);
-      else alert(`Greška: ${r.error}`);
+      else setObavijest(`Greška: ${r.error}`);
     } finally {
       setBusy(null);
     }
@@ -162,7 +359,7 @@ export default function ObracuniPlataPage() {
     try {
       const r = await generateMonthlyPayslips(orgId, year, month);
       if (r.ok) triggerBlobDownload(r.blob, r.filename);
-      else alert(`Greška: ${r.error}`);
+      else setObavijest(`Greška: ${r.error}`);
     } finally {
       setBusy(null);
     }
@@ -195,7 +392,7 @@ export default function ObracuniPlataPage() {
         month,
       });
       if (!result.ok) {
-        alert(result.error);
+        setObavijest(result.error);
         return;
       }
       triggerBlobDownload(
@@ -206,7 +403,9 @@ export default function ObracuniPlataPage() {
         qc.invalidateQueries({ queryKey: ["pk-office", "payroll-status"] });
       });
     } catch (e) {
-      alert(`Greška pri generisanju MIP XML-a: ${(e as Error).message ?? e}`);
+      setObavijest(
+        `Greška pri generisanju MIP XML-a: ${(e as Error).message ?? e}`,
+      );
     } finally {
       setBusy(null);
     }
@@ -265,6 +464,73 @@ export default function ObracuniPlataPage() {
           />
           <Kpi label="Porez na dohodak" value={formatBAM(totals.tax)} />
           <Kpi label="Ukupan trošak" value={formatBAM(totals.totalCost)} sub="sa naknadama" />
+        </div>
+      )}
+
+      {/* Vlasnik obrta: doprinosi samostalne djelatnosti + Obrazac 2002 */}
+      {vlasnik && fullOrg?.type === "BUSINESS" && (
+        <div className="rounded-xl bg-cream-100 border border-cream-300 px-4 py-3 mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 inline-flex items-center justify-center shrink-0">
+            <IconCoins size={17} />
+          </span>
+          <div className="flex-1 min-w-[200px]">
+            <div className="flex items-center gap-2">
+              <span className="text-[13.5px] font-medium text-text-primary">
+                {vlasnik.firstName} {vlasnik.lastName}
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium bg-cream-200 text-text-secondary shrink-0">
+                vlasnik obrta
+              </span>
+              {vlasnikPayroll ? (
+                <PayrollBadge status={vlasnikPayroll.status} />
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium bg-warning-bg text-warning shrink-0">
+                  <IconAlertCircle size={11} /> nije obračunat
+                </span>
+              )}
+            </div>
+            <div className="text-[11.5px] text-text-tertiary mt-0.5">
+              {vlasnikPayroll
+                ? `osnovica ${formatBAM(Number(vlasnikPayroll.gross) || 0)} · doprinosi 36%: ${formatBAM(Number(vlasnikPayroll.empTotal) || 0)}`
+                : "Doprinosi samostalne djelatnosti na fiksnu osnovicu (Sl. novine FBiH)."}
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={obracunajVlasnika.isPending || busy != null}
+            onClick={() => obracunajVlasnika.mutate()}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            {obracunajVlasnika.isPending && (
+              <IconLoader2 size={15} className="animate-spin" />
+            )}
+            {vlasnikPayroll ? "Preračunaj doprinose" : "Obračunaj doprinose"}
+          </button>
+          <button
+            type="button"
+            disabled={!vlasnikPayroll || busy != null}
+            onClick={download2002}
+            title={
+              vlasnikPayroll
+                ? "Specifikacija uz uplatu doprinosa poduzetnika"
+                : "Prvo obračunaj doprinose vlasnika"
+            }
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-brand-600 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {busy === "2002" ? (
+              <IconLoader2 size={15} className="animate-spin" />
+            ) : (
+              <IconDownload size={15} />
+            )}
+            Obrazac 2002
+          </button>
+          {obracunajVlasnika.isError && (
+            <p className="w-full text-[12px] text-accent-500">
+              {(obracunajVlasnika.error as Error)?.message?.includes("režim")
+                ? "Postavi režim oporezivanja na postavkama obrta pa pokušaj ponovo."
+                : "Greška pri obračunu doprinosa vlasnika."}
+            </p>
+          )}
         </div>
       )}
 
@@ -341,8 +607,8 @@ export default function ObracuniPlataPage() {
               Nema obračuna za {MJESECI[month - 1].toLowerCase()} {year}.
             </p>
             <p className="text-[12.5px] text-text-tertiary mt-1 max-w-[400px] mx-auto">
-              Obračunajte plate kroz "Obračunaj plate" pa se ovdje pojavljuju
-              pregled, platne liste i MIP.
+              Obračunajte plate kroz &quot;Obračunaj plate&quot; pa se ovdje
+              pojavljuju pregled, platne liste i MIP.
             </p>
           </div>
         ) : (
@@ -384,7 +650,7 @@ export default function ObracuniPlataPage() {
                   <button
                     type="button"
                     disabled={busy != null || r.status === "DRAFT"}
-                    onClick={() => downloadPayslip(r.payrollId, r.workerName)}
+                    onClick={() => downloadPayslip(r.payrollId)}
                     title="Platna lista (PDF)"
                     className="p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-brand-600 hover:border-brand-600/50 transition-colors disabled:opacity-40"
                   >
@@ -400,6 +666,14 @@ export default function ObracuniPlataPage() {
           </ul>
         )}
       </div>
+
+      {/* obavijest/greška u PK modalu umjesto window.alert */}
+      <ConfirmModal
+        open={obavijest != null}
+        onClose={() => setObavijest(null)}
+        title="Obavijest"
+        message={obavijest}
+      />
     </div>
   );
 }

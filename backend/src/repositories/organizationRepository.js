@@ -1,8 +1,9 @@
 const { Op } = require("sequelize");
 const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form, FormVersion, FormAttachment } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
+const { officeUserIds, getEffectiveRole } = require("../services/tierService");
 
-const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "bankAccounts", "logoUrl", "mealAllowancePerDay", "ownerType", "ownerIsDirector", "directorEngagement", "directorWorkerId", "ownerInfo", "createdAt", "updatedAt"];
+const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "kprPazarIzKp", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "bankAccounts", "logoUrl", "mealAllowancePerDay", "ownerType", "ownerIsDirector", "directorEngagement", "directorWorkerId", "ownerInfo", "createdAt", "updatedAt"];
 
 // MariaDB vraća JSON kolone kao string (Sequelize ih ne parsira).
 function parseJsonArray(raw) {
@@ -272,11 +273,21 @@ async function fetchOwnerTiers(orgIds) {
   if (orgIds.length === 0) return new Map();
   const ownerMemberships = await OrganizationMember.findAll({
     where: { organizationId: { [Op.in]: orgIds }, role: "OWNER" },
-    include: [{ model: User, as: "user", attributes: ["role"] }],
+    include: [{ model: User, as: "user", attributes: ["id", "role"] }],
   });
+  // Efektivni tier: vlasnikov PK Office paket/trial diže USER/PRO na
+  // BUSINESS (batch provjera, jedan upit za sve vlasnike).
+  const kandidati = ownerMemberships
+    .filter((m) => m.user && m.user.role !== "ADMIN" && m.user.role !== "BUSINESS")
+    .map((m) => m.user.id);
+  const office = await officeUserIds(kandidati);
   const byOrgId = new Map();
   for (const m of ownerMemberships) {
-    byOrgId.set(m.organizationId, m.user?.role ?? null);
+    const role = m.user?.role ?? null;
+    byOrgId.set(
+      m.organizationId,
+      role && office.has(m.user.id) ? "BUSINESS" : role,
+    );
   }
   return byOrgId;
 }
@@ -437,8 +448,13 @@ async function createOrganization(data, ownerData, userId) {
       attributes: ownerWorkerAttributes,
       transaction: t,
     });
-    const ownerUser = await User.findOne({ where: { id: userId }, attributes: ["role"], transaction: t });
-    return toPublicOrg(created, "OWNER", ownerWorker, ownerUser?.role ?? null);
+    const ownerUser = await User.findOne({ where: { id: userId }, attributes: ["id", "role"], transaction: t });
+    return toPublicOrg(
+      created,
+      "OWNER",
+      ownerWorker,
+      ownerUser ? await getEffectiveRole(ownerUser) : null,
+    );
   });
 }
 
@@ -553,14 +569,16 @@ async function updateOrganization(id, orgData, ownerData, userId) {
       : null;
     const ownerMembership = await OrganizationMember.findOne({
       where: { organizationId: id, role: "OWNER" },
-      include: [{ model: User, as: "user", attributes: ["role"] }],
+      include: [{ model: User, as: "user", attributes: ["id", "role"] }],
       transaction: t,
     });
     return toPublicOrg(
       updated,
       membership.role,
       ownerWorker,
-      ownerMembership?.user?.role ?? null,
+      ownerMembership?.user
+        ? await getEffectiveRole(ownerMembership.user)
+        : null,
       directorWorker,
     );
   });

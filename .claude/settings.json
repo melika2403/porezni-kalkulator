@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Edit",
+      "Write",
+      "Bash(npm run:*)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(node --check:*)",
+      "Bash(cd:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git add:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "PowerShell(npm run:*)",
+      "PowerShell(npx tsc:*)",
+      "PowerShell(npx eslint:*)",
+      "PowerShell(node --check:*)",
+      "PowerShell(git status:*)",
+      "PowerShell(git diff:*)",
+      "PowerShell(git log:*)"
+    ],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git rebase:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git reflog expire:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git restore:*)",
+      "PowerShell(Remove-Item:*)",
+      "PowerShell(rm:*)",
+      "PowerShell(git push:*)",
+      "PowerShell(git reset --hard:*)"
+    ]
+  }
+}

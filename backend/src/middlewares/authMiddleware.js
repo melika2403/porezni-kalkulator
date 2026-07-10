@@ -61,7 +61,12 @@ function requireRole(...requiredRoles) {
 }
 
 function pickOrgIdFromReq(req) {
-  const candidates = [req.params?.id, req.params?.orgId, req.params?.organizationId];
+  // Eksplicitno imenovani org param ima prednost nad generičkim ":id". Na
+  // dvoparametarskim rutama (npr. /:orgId/stanje/:id) ":id" je id podresursa,
+  // NE organizacije: kad bi se uzeo prvi, autorizacija bi se radila na pogrešnom
+  // id-u (feature bi pukao za ne-admin korisnike, a poklapanje id-a bi omogućilo
+  // cross-tenant pristup). Na jednoparametarskim /:id rutama ":id" je i dalje org.
+  const candidates = [req.params?.orgId, req.params?.organizationId, req.params?.id];
   for (const c of candidates) {
     const n = Number(c);
     if (Number.isInteger(n) && n > 0) return n;
@@ -109,6 +114,67 @@ function requireOwnerTier(...allowedTiers) {
   };
 }
 
+/**
+ * PK Office gate po obrtu (samo kad je PK_OFFICE_NAPLATA uključena):
+ *  - obrt (BUSINESS) mora biti AKTIVIRAN u PK Office (pkOfficeEnabled slot),
+ *  - korisnik mora imati office pristup: vlastita pretplata/trial, ili
+ *    naslijeđen kroz TAJ obrt (član obrta office pretplatnika).
+ * Primjenjuje se na čisto PK Office module (kalkulacije, lager, blagajna,
+ * putni nalozi, prebijanja, PDV, izvodi), POSLIJE requireAuth/requireOrgRole.
+ * Sa isključenom naplatom je no-op, sve radi kao prije.
+ */
+function requireOfficeOrg() {
+  return async (req, res, next) => {
+    try {
+      if (process.env.PK_OFFICE_NAPLATA !== "true") return next();
+      if (!req.user) {
+        return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+      }
+      if (req.user.role === "ADMIN") return next();
+
+      const orgId = pickOrgIdFromReq(req);
+      if (!orgId) {
+        return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+      }
+      // lazy require: izbjegni require-cikluse pri učitavanju modula
+      const { Organization } = require("../models/index");
+      const org = await Organization.findByPk(orgId, {
+        attributes: ["id", "type", "pkOfficeEnabled"],
+      });
+      if (!org) {
+        return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+      }
+      if (org.type === "BUSINESS" && !org.pkOfficeEnabled) {
+        return res
+          .status(403)
+          .json({ ok: false, error: "ORG_NIJE_U_PK_OFFICE" });
+      }
+      const {
+        getOfficeAccess,
+      } = require("../controllers/pkOfficeGateController");
+      const access = await getOfficeAccess(req.user.id);
+      if (!access.enforced) return next();
+      if (!access.hasOffice) {
+        return res
+          .status(403)
+          .json({ ok: false, error: "NEMA_OFFICE_PRISTUPA" });
+      }
+      if (
+        access.scope === "naslijedjen" &&
+        !(access.nasljedjeneOrgIds || []).includes(orgId)
+      ) {
+        return res
+          .status(403)
+          .json({ ok: false, error: "NEMA_OFFICE_PRISTUPA" });
+      }
+      return next();
+    } catch (err) {
+      console.error("requireOfficeOrg error:", err);
+      return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+    }
+  };
+}
+
 // Postavi req.user ako validan token postoji; NE odbija ako ga nema.
 // Koristi se za rute koje rade i za anonimne (npr. tracking aktivnosti).
 function optionalAuth(req, _res, next) {
@@ -136,4 +202,5 @@ module.exports = {
   requireRole,
   requireOrgRole,
   requireOwnerTier,
+  requireOfficeOrg,
 };

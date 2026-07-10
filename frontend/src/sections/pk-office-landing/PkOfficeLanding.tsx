@@ -1,9 +1,9 @@
+import Link from "next/link";
 import {
   IconBuildingBank,
   IconReceiptTax,
   IconCoins,
   IconFileText,
-  IconAddressBook,
   IconArrowsExchange,
   IconWallet,
   IconArrowDownLeft,
@@ -12,41 +12,69 @@ import {
   IconAlertCircle,
   IconCloudUpload,
   IconCircleCheck,
+  IconInbox,
+  IconPackage,
+  IconTransfer,
+  IconArrowRight,
 } from "@tabler/icons-react";
 import { LandingCta } from "./LandingCta";
+import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 import styles from "./pkOffice.module.css";
 
 const FEATURES = [
   {
-    icon: IconBuildingBank,
-    name: "Bankovni izvodi",
-    desc: "Učitaj PDF izvod iz e-bankinga, promet se provjerava prema saldu prije uvoza.",
+    icon: IconInbox,
+    name: "Grupni uvoz izvoda",
+    desc: "Za knjigovođe: ubaci PDF izvode SVIH obrta odjednom, svaki se sam prepozna po žiro računu i rasporedi na svoj obrt.",
   },
   {
     icon: IconArrowsExchange,
     name: "Automatsko knjiženje",
-    desc: "Transakcije se same razvrstavaju po kategorijama iz opisa, ti samo potvrdiš.",
+    desc: "Transakcije se same kategorišu, vežu za partnere i zatvaraju fakture; KPR, KUF i KIF se pune sami, ti samo potvrdiš.",
   },
   {
     icon: IconCoins,
     name: "Obračun plata",
-    desc: "Mjesečni obračun, platni listići, uplatnice i MIP/2001 obrasci na par klikova.",
+    desc: "Mjesečni obračun, platni listići, uplatnice i MIP-1023 XML i 2001/2002 obrasci na par klikova.",
   },
   {
     icon: IconReceiptTax,
-    name: "KPR i PDV evidencije",
-    desc: "Knjiga prihoda i rashoda i PDV evidencije se vode automatski iz tvojih dokumenata.",
+    name: "PDV evidencije",
+    desc: "KUF i KIF iz knjiženja, PDV prijava, e-KUF/e-KIF CSV za UINO portal i D-PDV obrazac.",
+  },
+  {
+    icon: IconFileText,
+    name: "KPR i porezni obrasci",
+    desc: "Knjiga prihoda i rashoda se vodi sama, SPR i GPD se pripreme iz knjiga na kraju godine.",
   },
   {
     icon: IconFileInvoice,
     name: "Fakture i partneri",
-    desc: "Izdavanje faktura, kartice kupaca i dobavljača, saldo i dospjele obaveze.",
+    desc: "Izdavanje faktura, kartice kupaca i dobavljača, kompenzacije i cesije, dospjele obaveze.",
   },
   {
-    icon: IconFileText,
-    name: "Obrasci",
-    desc: "Svi porezni obrasci za obrt na jednom mjestu, popunjeni iz tvojih podataka.",
+    icon: IconPackage,
+    name: "Roba i maloprodaja",
+    desc: "Kalkulacije (KCM), lager lista, popis, nivelacije i trgovačka knjiga na malo (TKM).",
   },
+  {
+    icon: IconBuildingBank,
+    name: "Blagajna i putni nalozi",
+    desc: "Blagajnički nalozi i dnevnik po uredbi, putni nalozi sa dnevnicama.",
+  },
+  {
+    icon: IconTransfer,
+    name: "Migracija iz starog programa",
+    desc: "Besplatan uvoz artikala, partnera i izvoda: pređi bez ponovnog kucanja šifarnika.",
+  },
+];
+
+// PK Office paketi (cijene iz src/data/pricing.ts, neto bez PDV-a)
+const PLAN_TIERS = [
+  { naziv: "Office Start", obrta: "do 2 obrta", cijena: "20 KM" },
+  { naziv: "Office Tim", obrta: "do 10 obrta", cijena: "80 KM" },
+  { naziv: "Office Agencija", obrta: "do 25 obrta", cijena: "175 KM" },
+  { naziv: "Office Agencija+", obrta: "do 50 obrta", cijena: "300 KM" },
 ];
 
 export default function PkOfficeLanding() {
@@ -56,15 +84,15 @@ export default function PkOfficeLanding() {
       <section className={styles.hero}>
         <span className={styles.badge}>
           <span className={styles.badgeDot} />
-          PK Office, uskoro
+          PK Office
         </span>
         <h1 className={styles.h1}>
           Knjigovodstvo tvog obrta, <em>na jednom mjestu</em>.
         </h1>
         <p className={styles.sub}>
           PK Office spaja bankovne izvode, automatsko knjiženje, obračun plata i
-          sve porezne obrasce u jedan jednostavan alat. Radimo na njemu, a ti se
-          možeš registrovati i biti među prvima koji ga isprobaju.
+          sve porezne obrasce u jedan jednostavan alat. Isprobaj ga 30 dana
+          besplatno, bez kartice i bez obaveze.
         </p>
         <div className={styles.ctaRow}>
           <LandingCta withSecondary />
@@ -262,7 +290,7 @@ export default function PkOfficeLanding() {
         </div>
       </section>
 
-      {/* Najava pretplate (teaser, bez cijene) */}
+      {/* Pretplata: sve funkcije u svakom paketu, cijena po broju obrta */}
       <section className={styles.plan}>
         <div className={styles.planCard}>
           <span className={styles.planBadge}>
@@ -274,19 +302,30 @@ export default function PkOfficeLanding() {
                 background: "#fff",
               }}
             />
-            Uskoro
+            Paketi
           </span>
-          <h2>Jedna pretplata. Neograničen broj obrta.</h2>
+          <h2>Sve funkcije. Cijena po broju obrta.</h2>
           <p className={styles.planLead}>
-            Plaćaš jednom, vodiš koliko god obrta želiš. Bez naplate po obrtu i
-            bez skrivenih doplata.
+            Office Start pokriva sve za do 2 obrta, a paketi Tim i veći uz PK
+            Office uključuju i kompletan Business bez ograničenja. Biraš samo
+            koliko obrta vodiš.
           </p>
+          <div className={styles.planTiers}>
+            {PLAN_TIERS.map((t) => (
+              <div key={t.naziv} className={styles.planTier}>
+                <div className={styles.planTierName}>{t.naziv}</div>
+                <div className={styles.planTierObrta}>{t.obrta}</div>
+                <div className={styles.planTierPrice}>{t.cijena}</div>
+                <div className={styles.planTierPer}>mjesečno + PDV</div>
+              </div>
+            ))}
+          </div>
           <div className={styles.planFeatures}>
             {[
-              ["Neograničen broj obrta", "svi na jednom nalogu, bez limita"],
-              ["Sve funkcije uključene", "izvodi, plate, obrasci, fakture"],
-              ["Idealno za knjigovođe", "vodi i obrte svojih klijenata"],
-              ["Bez naplate po obrtu", "jedna fiksna pretplata"],
+              ["Grupni uvoz izvoda", "svi obrti odjednom, sami se rasporede"],
+              ["Automatsko knjiženje", "KPR, KUF i KIF se pune sami"],
+              ["30 dana besplatne probe", "bez kartice i bez obaveze"],
+              ["Besplatna migracija", "uvoz artikala, partnera i izvoda"],
             ].map(([title, desc]) => (
               <div key={title} className={styles.planFeat}>
                 <IconCircleCheck size={19} className={styles.planFeatIcon} />
@@ -296,16 +335,30 @@ export default function PkOfficeLanding() {
               </div>
             ))}
           </div>
+          <div className={styles.planCtaRow}>
+            <OfficeTrialLink className={styles.planCtaBtn}>
+              Isprobaj 30 dana besplatno
+              <IconArrowRight size={16} />
+            </OfficeTrialLink>
+            <Link href="/pretplate#pk-office" className={styles.planCtaGhost}>
+              Pogledaj cjenovnik i izračunaj svoju cijenu
+            </Link>
+          </div>
+          <p className={styles.planFine}>
+            Godišnja pretplata: 2 mjeseca besplatno. Preko 50 obrta? Javi se za
+            posebnu ponudu.
+          </p>
         </div>
       </section>
 
       {/* Zavrsni CTA */}
       <section className={styles.cta}>
         <div className={styles.ctaCard}>
-          <h2>Budi među prvima.</h2>
+          <h2>Spreman za početak?</h2>
           <p>
-            Registruj se sada, obavijestićemo te čim PK Office bude spreman, a
-            dotad možeš koristiti sve naše besplatne porezne alate.
+            Registruj se, aktiviraj 30 dana besplatne probe i prebaci knjige
+            svojih obrta još danas. Migracija podataka iz starog programa je
+            besplatna, a tu su i svi naši besplatni porezni alati.
           </p>
           <LandingCta />
         </div>

@@ -8,7 +8,13 @@ import { getBackendUrl } from "src/utils/backendUrl";
 
 const BACKEND_URL = getBackendUrl();
 
-export type Plan = "PRO" | "BUSINESS";
+export type Plan =
+  | "PRO"
+  | "BUSINESS"
+  | "OFFICE_2"
+  | "OFFICE_10"
+  | "OFFICE_25"
+  | "OFFICE_50";
 export type BillingCycle = "monthly" | "yearly";
 
 export interface BuyerInput {

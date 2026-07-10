@@ -14,6 +14,7 @@ import {
   type PredracunStatus,
 } from "src/api/backend/predracun/predracun";
 import { unwrap } from "src/api/auth";
+import { upsertSubscription } from "src/api/profile";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 
 const LIMIT = 20;
@@ -89,6 +90,53 @@ export default function AdminPretplate() {
     onSuccess: () => {
       // refresh tabele nakon uspješne promjene
       queryClient.invalidateQueries({ queryKey: ["admin-predracuni"] });
+    },
+  });
+
+  // ── Aktivacija pretplate po predračunu ─────────────────────────────────
+  // Povuče paket i ciklus sa predračuna, upsertuje pretplatu korisniku
+  // (početak: periodStart predračuna ako postoji, inače danas; kraj računa
+  // backend iz ciklusa) i označi predračun plaćenim. Office paketi ne diraju
+  // rolu (effectiveRole), PRO/BUSINESS postavljaju rolu kao i do sada.
+  const [aktivirajInfo, setAktivirajInfo] = useState<{
+    id: number;
+    ok: boolean;
+    msg: string;
+  } | null>(null);
+  const aktivirajMutation = useMutation({
+    mutationFn: async (it: PredracunListItem) => {
+      if (!it.user) throw new Error("Predračun nema vezanog korisnika.");
+      const start =
+        it.periodStart?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+      await unwrap(
+        upsertSubscription(it.user.id, {
+          plan: it.plan,
+          billingCycle: it.billingCycle,
+          startDate: start,
+          isActive: true,
+        }),
+      );
+      if (it.status !== "PAID") {
+        await unwrap(updatePredracunStatus(it.id, "PAID"));
+      }
+      return it;
+    },
+    onSuccess: (it) => {
+      setAktivirajInfo({
+        id: it.id,
+        ok: true,
+        msg: `Pretplata ${it.plan} aktivirana za ${it.user?.firstName ?? ""} ${it.user?.lastName ?? ""}.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-predracuni"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (e: Error, it) => {
+      setAktivirajInfo({
+        id: it.id,
+        ok: false,
+        msg: e.message || "Greška pri aktivaciji pretplate.",
+      });
     },
   });
 
@@ -339,7 +387,29 @@ export default function AdminPretplate() {
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: "flex", gap: 6 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {it.user && it.status !== "CANCELLED" && (
+                            <button
+                              type="button"
+                              className={styles.detailBtn}
+                              style={{
+                                background: "#2d6a4f",
+                                borderColor: "#2d6a4f",
+                                color: "#fff",
+                              }}
+                              disabled={
+                                aktivirajMutation.isPending &&
+                                aktivirajMutation.variables?.id === it.id
+                              }
+                              title="Dodijeli paket sa predračuna korisniku (od danas, trajanje po ciklusu) i označi predračun plaćenim"
+                              onClick={() => aktivirajMutation.mutate(it)}
+                            >
+                              {aktivirajMutation.isPending &&
+                              aktivirajMutation.variables?.id === it.id
+                                ? "Aktiviram…"
+                                : "Aktiviraj pretplatu"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className={styles.detailBtn}
@@ -356,6 +426,17 @@ export default function AdminPretplate() {
                           >
                             Obriši
                           </button>
+                        </div>
+                      )}
+                      {aktivirajInfo?.id === it.id && (
+                        <div
+                          className={styles.metaCell}
+                          style={{
+                            marginTop: 4,
+                            color: aktivirajInfo.ok ? "#2d6a4f" : "#b3261e",
+                          }}
+                        >
+                          {aktivirajInfo.msg}
                         </div>
                       )}
                     </td>

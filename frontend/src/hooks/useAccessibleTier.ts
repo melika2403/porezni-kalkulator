@@ -34,7 +34,8 @@ export function useMaxAccessibleTier(): {
   isLoading: boolean;
   hasAccessToTier: (minimum: AppRole) => boolean;
 } {
-  const { role, isLoading: roleLoading } = useRole();
+  // effectiveRole: PK Office paket/trial korisnika diže USER/PRO na BUSINESS
+  const { effectiveRole: role, isLoading: roleLoading } = useRole();
   // Računaj tier preko obje vrste org-a:
   //   (a) primarne (isClientOrg=false) — moje vlastite org-e
   //   (b) klijent-org-e (isClientOrg=true) — npr. ako me BUSINESS vlasnik

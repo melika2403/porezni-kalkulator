@@ -13,8 +13,10 @@ import {
   IconReceipt,
   IconSearch,
   IconX,
+  IconFileUpload,
+  IconReportAnalytics,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatBAM, formatDate } from "src/lib/format";
 import { bankNameFromAccount, formatBankAccount } from "src/lib/bankCodes";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
@@ -23,11 +25,14 @@ import {
   usePartners,
   usePartnerSuggestions,
 } from "src/hooks/usePartners";
-import type { Partner } from "src/api/partners";
+import { uvozPartnera, type Partner } from "src/api/partners";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
+import { parsePartneriFile } from "src/lib/comsoftUvoz";
 import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
+import { PrometModal } from "src/sections/partneri/PrometModal";
 import { Modal } from "src/components/app-shell/Modal";
+import { UvozSifarnikaModal } from "src/components/app-shell/UvozSifarnikaModal";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import RowActionsMenu from "src/components/RowActionsMenu/RowActionsMenu";
 import {
@@ -142,6 +147,9 @@ export default function PartneriPage() {
   const [racunPreselect, setRacunPreselect] = useState<number | null>(null);
   // "+ Novi partner" iz knjiženja: po snimanju vrati na knjiženje
   const [returnToRacun, setReturnToRacun] = useState(false);
+  const [uvozOpen, setUvozOpen] = useState(false);
+  const [prometOpen, setPrometOpen] = useState(false);
+  const qc = useQueryClient();
 
   const { data: fullOrg } = useQuery({
     queryKey: ["pk-org", orgId],
@@ -242,6 +250,22 @@ export default function PartneriPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            onClick={() => setPrometOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-cream-300 text-text-primary text-[13px] font-medium hover:bg-cream-200 transition-colors"
+          >
+            <IconReportAnalytics size={16} />
+            Ukupni promet
+          </button>
+          <button
+            type="button"
+            onClick={() => setUvozOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-cream-300 text-text-primary text-[13px] font-medium hover:bg-cream-200 transition-colors"
+          >
+            <IconFileUpload size={16} />
+            Uvoz
+          </button>
+          <button
+            type="button"
             onClick={() => {
               setRacunPreselect(null);
               setRacunModalOpen(true);
@@ -330,27 +354,27 @@ export default function PartneriPage() {
         </div>
       )}
 
-      {/* Tabovi + pretraga */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4 border-b border-cream-300">
-        <div className="flex gap-1">
+      {/* Tabovi + pretraga (segmented pilula kao na ostatku PK Office-a) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="inline-flex items-center gap-1 p-1 rounded-full border border-cream-300 bg-cream-100 flex-wrap">
           {TABS.map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
               className={[
-                "inline-flex items-center gap-2 px-5 py-3 text-[14.5px] font-medium border-b-2 -mb-px transition-colors",
+                "inline-flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-medium rounded-full transition-colors whitespace-nowrap",
                 tab === t.id
-                  ? "border-brand-600 text-brand-700"
-                  : "border-transparent text-text-tertiary hover:text-text-primary",
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-text-secondary hover:text-text-primary hover:bg-cream-200",
               ].join(" ")}
             >
               {t.label}
               <span
                 className={[
-                  "inline-flex items-center justify-center min-w-[22px] px-1.5 py-0.5 rounded-full text-[11.5px] tabular-nums",
+                  "inline-flex items-center justify-center min-w-[20px] px-1.5 py-px rounded-full text-[11px] tabular-nums",
                   tab === t.id
-                    ? "bg-brand-100 text-brand-700"
+                    ? "bg-white/20 text-white"
                     : "bg-cream-200 text-text-tertiary",
                 ].join(" ")}
               >
@@ -359,7 +383,7 @@ export default function PartneriPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 mb-1.5">
+        <div className="flex items-center gap-2">
           <PkSelect
             ariaLabel="Sortiranje"
             value={sort}
@@ -608,6 +632,37 @@ export default function PartneriPage() {
       </p>
 
       {/* Forma partnera (dodavanje/uređivanje) */}
+      <PrometModal
+        open={prometOpen}
+        onClose={() => setPrometOpen(false)}
+        orgId={orgId}
+        org={fullOrg}
+      />
+
+      <UvozSifarnikaModal
+        open={uvozOpen}
+        onClose={() => setUvozOpen(false)}
+        title="Uvoz partnera"
+        opis="Uvoz poslovnih partnera iz drugih programa (XML ili CSV fajl). Partneri koji već postoje (isti ID broj ili isti naziv) se preskaču i ništa im se ne mijenja."
+        parse={parsePartneriFile}
+        uvezi={async (parsed) => {
+          const r = await unwrap(uvozPartnera(orgId as number, parsed));
+          qc.invalidateQueries({ queryKey: ["partners", orgId] });
+          const napomene: string[] = [];
+          if (r.bezIdBroja > 0) {
+            napomene.push(
+              `${r.bezIdBroja} ${r.bezIdBroja === 1 ? "partner je uvezen" : "partnera je uvezeno"} bez ID broja (u fajlu ga nema). Za knjiženje faktura i PDV evidencije dopunite ID broj na partneru.`,
+            );
+          }
+          if (r.vezanoTransakcija > 0) {
+            napomene.push(
+              `${r.vezanoTransakcija} postojećih transakcija sa izvoda je automatski povezano sa uvezenim partnerima.`,
+            );
+          }
+          return { ...r, napomene };
+        }}
+      />
+
       <PartnerFormModal
         orgId={orgId}
         initial={formInitial}

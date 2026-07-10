@@ -87,6 +87,195 @@
   margin-top: 3rem;
 }
 
+/* ── PK Office banner ispod paketa: tamnozelena kartica, terracotta naglasci ── */
+.officeBanner {
+  margin-top: 16px;
+  background: #14241b;
+  border-radius: var(--radius-lg, 16px);
+  padding: 2rem 2.1rem;
+  color: #fff;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: center;
+  text-align: left;
+  box-shadow: 0 24px 48px -22px rgba(15, 26, 18, 0.45);
+}
+
+.officeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 20px;
+  padding: 4px 12px;
+  margin-bottom: 0.8rem;
+}
+
+.officeTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+  color: #fff;
+}
+
+.officeText {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #b9c8bd;
+  margin: 0 0 1.1rem;
+  max-width: 46ch;
+}
+
+.officeText strong {
+  color: #fff;
+}
+
+.officeList {
+  list-style: none;
+  margin: 0 0 1.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.officeList li {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #d8e0d9;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.officeList li::before {
+  content: "✓";
+  color: #e08a52;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.officeCtaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.1rem;
+}
+
+.officeCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0.7rem 1.35rem;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.officeCta:hover {
+  opacity: 0.9;
+}
+
+/* Sekundarno dugme: pravo outline dugme (par primarnom), ne goli link */
+.officeGhost {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  padding: 0.7rem 1.35rem;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.officeGhost:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: #fff;
+}
+
+/* Dvolinijska dugmad: glavni tekst + sitan opis kuda dugme vodi */
+.officeCtaInner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.officeCtaSub {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.75;
+  letter-spacing: 0.01em;
+}
+
+.officeTiers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.officeTier {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 0.85rem 0.95rem;
+}
+
+.officeTierName {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #e08a52;
+  margin-bottom: 2px;
+}
+
+.officeTierObrta {
+  font-size: 12px;
+  color: #b9c8bd;
+  margin-bottom: 6px;
+}
+
+.officeTierPrice {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: #fff;
+}
+
+.officeTierPrice span {
+  font-family: inherit;
+  font-size: 11px;
+  color: #b9c8bd;
+  margin-left: 4px;
+}
+
+@media (max-width: 900px) {
+  .officeBanner {
+    grid-template-columns: 1fr;
+  }
+}
+
 .card {
   background: white;
   border: 1px solid var(--border);

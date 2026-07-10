@@ -68,6 +68,8 @@ function PazarForm({
   const mm = String(month).padStart(2, "0");
   const [iznos, setIznos] = useState("");
   const [brojDokumenta, setBrojDokumenta] = useState(`PAZAR-${mm}/${year}`);
+  // opciono razduženje TKM-a (trgovačka knjiga na malo) istim iznosom
+  const [uTkm, setUTkm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // zbir potvrđenih pologa pazara sa izvoda za period (pomoć pri unosu)
@@ -102,6 +104,7 @@ function PazarForm({
         year,
         iznos: iznosNum,
         brojDokumenta: brojDokumenta.trim() || undefined,
+        uTkm,
       });
       if (!res.ok) throw new Error(res.error);
       return res.data;
@@ -109,6 +112,8 @@ function PazarForm({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pk-invoices"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
+      // uTkm upisuje red i u TKM (lager modul)
+      qc.invalidateQueries({ queryKey: ["lager", orgId] });
       onClose();
     },
     onError: () => setError("Greška pri snimanju, pokušajte ponovo."),
@@ -168,11 +173,22 @@ function PazarForm({
         </div>
       )}
 
+      <label className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer">
+        <input
+          type="checkbox"
+          checked={uTkm}
+          onChange={(e) => setUTkm(e.target.checked)}
+          className="accent-brand-600"
+        />
+        Razduži i TKM (trgovačku knjigu na malo) ovim iznosom
+      </label>
+
       <p className="text-[11.5px] text-text-tertiary">
         Knjiži se zbirno za mjesec (zadnji dan mjeseca), kao gotovinska
         naplata: ulazi u KIF, e-KIF i PDV prijavu, a PDV ide u krajnju
         potrošnju (polja 32/33/34). Ne stvara potraživanje i ne dira KPR,
-        prihod tamo već knjiže polozi sa izvoda.
+        prihod tamo već knjiže polozi sa izvoda. TKM se razdužuje samo ako
+        je označeno (ili kroz dnevni unos pazara na TKM tabu, ne oboje).
       </p>
       {error && <p className="text-[12.5px] text-accent-500">{error}</p>}
 

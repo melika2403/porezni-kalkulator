@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { IconInbox, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import {
+  IconClipboardText,
+  IconFileText,
+  IconFileX,
+  IconInbox,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { formatBAM } from "src/lib/format";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { getOrganization, getWorkers, type Worker } from "src/api/profile";
@@ -14,6 +22,12 @@ import { DeleteWorkerModal } from "src/sections/zaposlenici/DeleteWorkerModal";
 
 const PRO_WORKERS_LIMIT = 5;
 const USER_WORKERS_LIMIT = 1;
+
+// Kadrovski dokumenti (ugovor, otkaz, rješenja) se generišu na marketing
+// strani: generatori već podržavaju ?org= i ?worker= predizbor, pa ih
+// otvaramo predpopunjene u novoj kartici (app ostaje otvoren).
+const MARKETING_URL =
+  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
 
 function salaryLabel(w: Worker): string {
   if (w.salaryType === "BRUTO" && w.salaryBruto != null) {
@@ -162,12 +176,57 @@ export default function ZaposleniciPage() {
                         onClick: () => setModal({ worker: w }),
                       },
                     ],
-                    // Vlasnik se ne briše (organizacija ne postoji bez njega),
-                    // pa mu se akcija i ne nudi.
+                    // Vlasnik se ne briše (organizacija ne postoji bez njega)
+                    // i nema kadrovske dokumente (nije radnik po ugovoru).
                     menu:
                       w.role === "VLASNIK"
                         ? []
                         : [
+                            {
+                              kind: "group",
+                              key: "dokumenti",
+                              label: "Kadrovski dokumenti",
+                            },
+                            {
+                              kind: "item",
+                              key: "ugovor",
+                              label: "Ugovor o radu",
+                              sub: "predpopunjen, nova kartica",
+                              icon: <IconFileText size={14} />,
+                              onClick: () =>
+                                window.open(
+                                  `${MARKETING_URL}/ugovor-o-radu?org=${orgId}&worker=${w.id}`,
+                                  "_blank",
+                                  "noopener",
+                                ),
+                            },
+                            {
+                              kind: "item",
+                              key: "otkaz",
+                              label: "Otkaz ugovora",
+                              sub: "odluka o prestanku radnog odnosa",
+                              icon: <IconFileX size={14} />,
+                              onClick: () =>
+                                window.open(
+                                  `${MARKETING_URL}/ugovor-o-radu?tab=otkaz&org=${orgId}&worker=${w.id}`,
+                                  "_blank",
+                                  "noopener",
+                                ),
+                            },
+                            {
+                              kind: "item",
+                              key: "rjesenja",
+                              label: "Rješenja i odluke",
+                              sub: "godišnji, odsustva, regres...",
+                              icon: <IconClipboardText size={14} />,
+                              onClick: () =>
+                                window.open(
+                                  `${MARKETING_URL}/rjesenja-i-odluke?org=${orgId}&worker=${w.id}`,
+                                  "_blank",
+                                  "noopener",
+                                ),
+                            },
+                            { kind: "group", key: "ostalo", label: "Ostalo" },
                             {
                               kind: "item",
                               key: "obrisi",

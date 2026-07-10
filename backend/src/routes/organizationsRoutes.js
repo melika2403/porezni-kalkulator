@@ -107,7 +107,7 @@ router.delete(
 router.get(
   "/:orgId/workers",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   workersController.list,
 );
 router.post(
@@ -133,7 +133,7 @@ router.delete(
 router.get(
   "/:orgId/workers/:workerId/evidencija",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   workersController.getEvidencija,
 );
 router.patch(
@@ -145,7 +145,7 @@ router.patch(
 router.get(
   "/:orgId/workers/:workerId/evidencija-pdf",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   workersController.generateEvidencija,
 );
 

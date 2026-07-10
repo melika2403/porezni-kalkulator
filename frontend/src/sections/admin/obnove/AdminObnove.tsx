@@ -14,12 +14,20 @@ import {
 import styles from "./obnove.module.css";
 
 // Paket se određuje po ROLI korisnika (izvor istine, kao u Korisnici/Finansije).
-// subscription.plan je nepouzdan (stara baza zna držati "free").
+// subscription.plan je nepouzdan (stara baza zna držati "free"), OSIM za
+// office pakete: oni ne diraju rolu pa se čitaju baš iz plana.
 const ROLE_LABELS: Record<string, string> = {
   USER: "Besplatno",
   PRO: "Pro",
   BUSINESS: "Business",
   ADMIN: "Admin",
+};
+
+const OFFICE_LABELS: Record<string, string> = {
+  office_2: "Office Start",
+  office_10: "Office Tim",
+  office_25: "Office Agencija",
+  office_50: "Office Agencija+",
 };
 
 // Boje paketa kao u ostatku panela: Pro = tamno zelena, Business = plava.
@@ -29,6 +37,17 @@ const ROLE_BADGE_CLASS: Record<string, string> = {
   BUSINESS: "planBusiness",
   ADMIN: "planAdmin",
 };
+
+function paketPrikaz(item: RenewalItem): { label: string; cls: string } {
+  const plan = String(item.plan ?? "").toLowerCase();
+  if (OFFICE_LABELS[plan]) {
+    return { label: OFFICE_LABELS[plan], cls: "planOffice" };
+  }
+  return {
+    label: ROLE_LABELS[item.role] ?? item.role,
+    cls: ROLE_BADGE_CLASS[item.role] ?? "planUser",
+  };
+}
 
 function formatDate(iso: string) {
   const [y, m, d] = iso.slice(0, 10).split("-");
@@ -198,13 +217,18 @@ function RenewalRow({
         </div>
       </td>
       <td>
-        <span
-          className={`${styles.planBadge} ${
-            styles[ROLE_BADGE_CLASS[item.role] as keyof typeof styles] ?? ""
-          }`}
-        >
-          {ROLE_LABELS[item.role] ?? item.role}
-        </span>
+        {(() => {
+          const p = paketPrikaz(item);
+          return (
+            <span
+              className={`${styles.planBadge} ${
+                styles[p.cls as keyof typeof styles] ?? ""
+              }`}
+            >
+              {p.label}
+            </span>
+          );
+        })()}
         {item.isTrial && <span className={styles.trialBadge}>Trial</span>}
       </td>
       <td>

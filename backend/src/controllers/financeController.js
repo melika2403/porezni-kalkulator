@@ -69,7 +69,7 @@ async function listPayments(req, res) {
         {
           model: Subscription,
           as: "subscription",
-          attributes: ["startDate", "endDate", "isActive"],
+          attributes: ["startDate", "endDate", "isActive", "plan"],
           // Opcionalno — period pretplate se prikazuje kad postoji.
           required: false,
         },
@@ -112,6 +112,8 @@ async function listPayments(req, res) {
           lastName: plain.lastName,
           email: plain.email,
           role: plain.role, // paket (PRO / BUSINESS / …)
+          // office paketi ne diraju rolu, čitaju se iz plana pretplate
+          plan: plain.subscription?.plan ?? null,
           subscriptionActive: plain.subscription?.isActive ?? false,
           subscriptionStart: plain.subscription?.startDate ?? null,
           subscriptionEnd: plain.subscription?.endDate ?? null,

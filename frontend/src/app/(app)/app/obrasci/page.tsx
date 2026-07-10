@@ -24,6 +24,7 @@ import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
 import { formatKm } from "src/lib/amountInput";
 import { SprModal } from "src/sections/obrasci/SprModal";
 import { GpdModal } from "src/sections/obrasci/GpdModal";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 
 const MONTHS = [
   "Januar",
@@ -221,13 +222,24 @@ export default function ObrasciPage() {
     }
   }
 
-  async function removeDoc(f: FormRecord) {
-    const sure = window.confirm(
-      `Obrisati spremljeni ${f.type === "SPR" ? "SPR-1053" : "GPD-1051"} za ${f.year}. godinu? Ovo se ne može poništiti.`,
-    );
-    if (!sure) return;
-    await deleteDocument(f.id);
-    formsQ.refetch();
+  // dokument koji čeka potvrdu brisanja (PK modal umjesto window.confirm)
+  const [docZaBrisanje, setDocZaBrisanje] = useState<FormRecord | null>(null);
+  const [brisanjeBusy, setBrisanjeBusy] = useState(false);
+
+  function removeDoc(f: FormRecord) {
+    setDocZaBrisanje(f);
+  }
+
+  async function confirmRemoveDoc() {
+    if (!docZaBrisanje) return;
+    setBrisanjeBusy(true);
+    try {
+      await deleteDocument(docZaBrisanje.id);
+      formsQ.refetch();
+      setDocZaBrisanje(null);
+    } finally {
+      setBrisanjeBusy(false);
+    }
   }
 
   const akontacije = advQ.data ?? [];
@@ -463,6 +475,27 @@ export default function ObrasciPage() {
           onDelete={removeDoc}
         />
       </div>
+
+      <ConfirmModal
+        open={docZaBrisanje != null}
+        onClose={() => setDocZaBrisanje(null)}
+        title="Obriši obrazac"
+        message={
+          docZaBrisanje && (
+            <>
+              Obrisati spremljeni{" "}
+              <strong className="text-text-primary">
+                {docZaBrisanje.type === "SPR" ? "SPR-1053" : "GPD-1051"} za{" "}
+                {docZaBrisanje.year}. godinu
+              </strong>
+              ? Ovo se ne može poništiti.
+            </>
+          )
+        }
+        confirmLabel="Da, obriši"
+        busy={brisanjeBusy}
+        onConfirm={confirmRemoveDoc}
+      />
     </div>
   );
 }

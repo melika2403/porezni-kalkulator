@@ -3,6 +3,7 @@
 import Link from "next/link";
 import styles from "./Features.module.css";
 import { useMe } from "src/hooks/useMe";
+import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 
 type Badge = "free" | "reg" | "pro" | "business";
 
@@ -440,6 +441,30 @@ export default function Features() {
         tools={BUSINESS_TOOLS}
         cta={user ? "Otvori alat" : "Isprobaj besplatno"}
       />
+
+      {/* PK Office: cijeli modul, izdvojena traka umjesto kartice u gridu */}
+      <div className={styles.officeBanner}>
+        <div className={styles.officeBody}>
+          <span className={styles.officeTag}>PK Office</span>
+          <h3 className={styles.officeTitle}>
+            Kompletno knjigovodstvo obrta
+          </h3>
+          <p className={styles.officeDesc}>
+            KUF/KIF i PDV prijava, fakture, bankovni izvodi sa automatskim
+            knjiženjem, blagajna, kalkulacije i lager. Sve funkcije u svakom
+            paketu, cijena po broju obrta.
+          </p>
+        </div>
+        <div className={styles.officeCta}>
+          <OfficeTrialLink className={styles.officeButton}>
+            Isprobaj 30 dana besplatno <ArrowIcon />
+          </OfficeTrialLink>
+          <Link href="/pk-office" className={styles.officeGhostLink}>
+            Saznaj više →
+          </Link>
+          <span className={styles.officeNote}>Bez kartice i bez obaveze</span>
+        </div>
+      </div>
 
       {/* Brzi kalkulatori: odvojen red na dnu, kao i prije */}
       <div className={styles.group}>

@@ -16,7 +16,9 @@ import { formatBAM } from "src/lib/format";
 import { parseDateInput, todayFormatted } from "src/lib/dateInput";
 import { parseKm } from "src/lib/amountInput";
 import { bankNameFromAccount, formatBankAccount } from "src/lib/bankCodes";
+import { categoriesForDirection } from "src/lib/bankCategories";
 import { getOrganization } from "src/api/profile";
+import { suggestCategories } from "src/api/bankStatements";
 import { unwrap } from "src/api/auth";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
@@ -43,9 +45,33 @@ type RowInput = {
   partnerId: number | null;
   amount: string;
   direction: "in" | "out";
+  /** KPR kategorija: prijedlog programa dok je categoryAuto, ili ručni izbor */
+  category: string | null;
+  categoryAuto: boolean;
 };
 
 let keyCounter = 1;
+
+// opcije KPR kategorije za smjer stavke, grupisane: ide u KPR / ne ide
+function kategorijaGroups(direction: "in" | "out") {
+  const { uKpr, bezKpr } = categoriesForDirection(
+    direction === "in" ? "IN" : "OUT",
+  );
+  return [
+    { options: [{ value: "", label: "Bez kategorije (odluči kasnije)" }] },
+    {
+      label: "Ide u KPR",
+      options: uKpr.map((c) => ({
+        value: c.id,
+        label: `${c.label} · kolona ${c.kprColumn}`,
+      })),
+    },
+    {
+      label: "Ne ide u KPR",
+      options: bezKpr.map((c) => ({ value: c.id, label: c.label })),
+    },
+  ];
+}
 
 export default function RucniUnosIzvodaPage() {
   const router = useRouter();
@@ -107,9 +133,50 @@ export default function RucniUnosIzvodaPage() {
       partnerId: null,
       amount: "",
       direction: "out",
+      category: null,
+      categoryAuto: true,
     },
   ]);
   const [error, setError] = useState<string | null>(null);
+
+  // živi prijedlog KPR kategorije dok se kuca (naučena pravila obrta + seed
+  // heuristike sa backenda); vrijedi samo za redove koje korisnik nije ručno
+  // kategorisao (categoryAuto)
+  useEffect(() => {
+    if (orgId == null) return;
+    const targets = rows.filter(
+      (r) =>
+        r.categoryAuto && (r.description.trim() || r.counterpartyName.trim()),
+    );
+    if (targets.length === 0) return;
+    const timer = setTimeout(async () => {
+      const res = await suggestCategories(
+        orgId,
+        targets.map((r) => ({
+          description: r.description,
+          counterpartyName: r.counterpartyName,
+          direction: r.direction,
+        })),
+      );
+      if (!res.ok) return;
+      const byKey = new Map(
+        targets.map((r, i) => [r.key, res.data[i] ?? null] as const),
+      );
+      setRows((rs) => {
+        let changed = false;
+        const next = rs.map((r) => {
+          if (!r.categoryAuto || !byKey.has(r.key)) return r;
+          const sug = byKey.get(r.key) ?? null;
+          if (sug === r.category) return r;
+          changed = true;
+          return { ...r, category: sug };
+        });
+        // ista referenca kad nema promjene, da se effect ne vrti u krug
+        return changed ? next : rs;
+      });
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [orgId, rows]);
 
   // partneri za autocomplete protivstrane + "+ Novi partner" modal
   const { data: partners } = usePartners(orgId);
@@ -137,6 +204,18 @@ export default function RucniUnosIzvodaPage() {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
 
+  // promjena smjera: kategorija drugog smjera ne važi, resetuj na auto pa
+  // je prijedlog ponovo popuni
+  function changeDirection(key: number, direction: "in" | "out") {
+    setRows((rs) =>
+      rs.map((r) =>
+        r.key === key && r.direction !== direction
+          ? { ...r, direction, category: null, categoryAuto: true }
+          : r,
+      ),
+    );
+  }
+
   // nakon "Dodaj stavku" fokus na opis novog reda (brzi unos bez miša)
   const rowsWrapRef = useRef<HTMLDivElement>(null);
   const focusLastRow = useRef(false);
@@ -160,6 +239,8 @@ export default function RucniUnosIzvodaPage() {
         partnerId: null,
         amount: "",
         direction: "out",
+        category: null,
+        categoryAuto: true,
       },
     ]);
   }
@@ -241,6 +322,8 @@ export default function RucniUnosIzvodaPage() {
           partnerId: r.partnerId ?? undefined,
           amount: parseKm(r.amount) as number,
           direction: r.direction,
+          // izabrana/predložena KPR kategorija (prazno = odluči kasnije)
+          category: r.category ?? undefined,
         })),
       },
       {
@@ -398,13 +481,13 @@ export default function RucniUnosIzvodaPage() {
           {rows.map((r) => (
             <div
               key={r.key}
-              className="grid grid-cols-2 lg:grid-cols-[210px_minmax(0,1fr)_minmax(0,1fr)_120px_36px] gap-2.5 items-end rounded-lg border border-cream-300/70 bg-cream-50/50 p-3"
+              className="grid grid-cols-2 lg:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.15fr)_110px_36px] gap-2.5 items-end rounded-lg border border-cream-300/70 bg-cream-50/50 p-3"
             >
               <Field label="Smjer" small>
                 <div className="flex rounded-lg border border-cream-300 overflow-hidden">
                   <button
                     type="button"
-                    onClick={() => updateRow(r.key, { direction: "out" })}
+                    onClick={() => changeDirection(r.key, "out")}
                     className={[
                       "flex-1 px-3 py-2 text-[12.5px] font-medium transition-colors",
                       r.direction === "out"
@@ -416,7 +499,7 @@ export default function RucniUnosIzvodaPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => updateRow(r.key, { direction: "in" })}
+                    onClick={() => changeDirection(r.key, "in")}
                     className={[
                       "flex-1 px-3 py-2 text-[12.5px] font-medium transition-colors border-l border-cream-300",
                       r.direction === "in"
@@ -453,6 +536,27 @@ export default function RucniUnosIzvodaPage() {
                   placeholder="opciono · naziv, šifra ili žiro račun partnera"
                   ariaLabel="Protivstrana"
                   inputClassName="bg-cream-50"
+                />
+              </Field>
+              <Field
+                label={
+                  r.categoryAuto && r.category
+                    ? "KPR kategorija · prijedlog"
+                    : "KPR kategorija"
+                }
+                small
+              >
+                <PkSelect
+                  ariaLabel="KPR kategorija"
+                  value={r.category ?? ""}
+                  onChange={(v) =>
+                    updateRow(r.key, {
+                      category: String(v ?? "") || null,
+                      categoryAuto: false,
+                    })
+                  }
+                  groups={kategorijaGroups(r.direction)}
+                  wrapStyle={{ width: "100%" }}
                 />
               </Field>
               <Field label="Iznos (KM)" small>

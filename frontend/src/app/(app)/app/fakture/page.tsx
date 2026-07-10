@@ -1,14 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   IconFileInvoice,
   IconDownload,
   IconCircleCheck,
   IconAlertCircle,
+  IconArrowsExchange,
+  IconMail,
   IconPlus,
   IconInbox,
+  IconSearch,
   IconLoader2,
   IconReceipt,
   IconTrash,
@@ -17,10 +20,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatBAM, formatDate } from "src/lib/format";
 import { PkSelect } from "src/components/app-shell/PkSelect";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { Modal } from "src/components/app-shell/Modal";
 import RowActionsMenu from "src/components/RowActionsMenu/RowActionsMenu";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { useOrgInvoices } from "src/hooks/useBankStatements";
+import { parseDateInput } from "src/lib/dateInput";
+import { searchBankTransactions } from "src/api/bankStatements";
 import {
   usePartners,
   useUlazniRacuni,
@@ -30,6 +36,7 @@ import {
 import {
   convertProformaToInvoice,
   downloadInvoicePdf,
+  emailInvoice,
   patchInvoice,
   stornoAvansneFakture,
   type Invoice,
@@ -81,6 +88,55 @@ function invoiceLate(inv: Invoice): boolean {
 }
 function racunLate(r: UlazniRacun): boolean {
   return r.status === "OTVOREN" && !!r.rokPlacanja && r.rokPlacanja < todayIso();
+}
+
+// "rok 06.08.2026. (za 27 d)" ili "(kasni 3 d)": broj dana uz rok
+function rokSaDanima(rokIso: string, otvoreno: boolean): string {
+  const rok = `rok ${formatDate(rokIso)}`;
+  if (!otvoreno) return rok;
+  const end = new Date(`${rokIso.slice(0, 10)}T00:00:00`);
+  const today = new Date(`${todayIso()}T00:00:00`);
+  const dana = Math.round((end.getTime() - today.getTime()) / 86400000);
+  if (dana === 0) return `${rok} (ističe danas)`;
+  return dana > 0 ? `${rok} (za ${dana} d)` : `${rok} (kasni ${-dana} d)`;
+}
+
+// "DD.MM.GGGG." za PkDateInput (brzi periodi)
+function fmtDisplay(d: Date) {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}.`;
+}
+
+function periodRange(kind: "mjesec" | "prosli" | "godina"): [string, string] {
+  const now = new Date();
+  if (kind === "mjesec") {
+    return [
+      fmtDisplay(new Date(now.getFullYear(), now.getMonth(), 1)),
+      fmtDisplay(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    ];
+  }
+  if (kind === "prosli") {
+    return [
+      fmtDisplay(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+      fmtDisplay(new Date(now.getFullYear(), now.getMonth(), 0)),
+    ];
+  }
+  return [
+    fmtDisplay(new Date(now.getFullYear(), 0, 1)),
+    fmtDisplay(new Date(now.getFullYear(), 11, 31)),
+  ];
+}
+
+const MJESECI = [
+  "januar", "februar", "mart", "april", "maj", "juni",
+  "juli", "august", "septembar", "oktobar", "novembar", "decembar",
+];
+
+// "juli 2026." iz ISO datuma, za mjesečne podnaslove na tabu "Sve"
+function mjesecLabel(iso: string): string {
+  const m = Number(iso.slice(5, 7));
+  const y = iso.slice(0, 4);
+  return m >= 1 && m <= 12 ? `${MJESECI[m - 1]} ${y}.` : "bez datuma";
 }
 
 function InvoiceBadge({ inv }: { inv: Invoice }) {
@@ -152,11 +208,14 @@ function Kpi({
   value,
   sub,
   tone,
+  onClick,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "success" | "warning" | "accent";
+  /** klik na karticu prebaci tab/filter na odgovarajuću listu */
+  onClick?: () => void;
 }) {
   const color =
     tone === "success"
@@ -166,8 +225,8 @@ function Kpi({
         : tone === "accent"
           ? "text-accent-500"
           : "text-text-primary";
-  return (
-    <div className="bg-cream-100 border border-cream-300 rounded-xl p-[18px]">
+  const inner = (
+    <>
       <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
         {label}
       </div>
@@ -179,6 +238,22 @@ function Kpi({
       {sub && (
         <div className="text-[11.5px] text-text-tertiary mt-1.5">{sub}</div>
       )}
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="bg-cream-100 border border-cream-300 rounded-xl p-[18px] text-left cursor-pointer hover:border-text-tertiary transition-colors"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <div className="bg-cream-100 border border-cream-300 rounded-xl p-[18px]">
+      {inner}
     </div>
   );
 }
@@ -192,6 +267,7 @@ const DOC_PREFIX: Record<string, string> = {
   STORNO_AVANSNE: "Storno avans",
   KNJIZNA_OBAVIJEST: "Knjižna obavijest",
   PAZAR: "Pazar",
+  PDV_EVIDENCIJA: "PDV evidencija",
 };
 
 function InvoiceRow({
@@ -206,6 +282,8 @@ function InvoiceRow({
   onStorno,
   onKnjizna,
   onCopy,
+  onEmail,
+  uplataPrijedlog,
 }: {
   inv: Invoice;
   last: boolean;
@@ -218,6 +296,9 @@ function InvoiceRow({
   onStorno: (inv: Invoice) => void;
   onKnjizna: (inv: Invoice) => void;
   onCopy: (inv: Invoice) => void;
+  onEmail?: (inv: Invoice, podsjetnik: boolean) => void;
+  /** nepovezan priliv istog iznosa na izvodu: prijedlog naplate */
+  uplataPrijedlog?: { statementId: number; broj: string | null } | null;
 }) {
   // storno avansne i knjižne obavijesti se prikazuju negativno
   const sign = kifSign(inv);
@@ -272,6 +353,31 @@ function InvoiceRow({
           },
         ]
       : []),
+    // slanje kupcu emailom (PDF u prilogu); podsjetnik samo za nenaplaćene
+    ...(onEmail &&
+    inv.docType === "STANDARD" &&
+    (inv.status === "ISSUED" || inv.status === "PAID")
+      ? [
+          {
+            kind: "item" as const,
+            key: "email",
+            label: "Pošalji kupcu emailom",
+            icon: <IconMail size={14} />,
+            onClick: () => onEmail(inv, false),
+          },
+        ]
+      : []),
+    ...(onEmail && inv.docType === "STANDARD" && inv.status === "ISSUED"
+      ? [
+          {
+            kind: "item" as const,
+            key: "podsjetnik",
+            label: "Pošalji podsjetnik za plaćanje",
+            icon: <IconMail size={14} />,
+            onClick: () => onEmail(inv, true),
+          },
+        ]
+      : []),
   ];
   return (
     <li
@@ -297,10 +403,13 @@ function InvoiceRow({
           {[
             inv.buyerName,
             `izdana ${formatDate(inv.issueDate)}`,
-            inv.dueDate ? `rok ${formatDate(inv.dueDate)}` : null,
+            inv.dueDate
+              ? rokSaDanima(inv.dueDate, inv.status === "ISSUED")
+              : null,
             inv.docType === "STANDARD" && inv.paidAt
               ? `naplaćena ${formatDate(inv.paidAt)}`
               : null,
+            inv.emailSentAt ? `email poslan ${formatDate(inv.emailSentAt)}` : null,
             // veze dokumenata
             inv.linkedFullNumber
               ? inv.docType === "STORNO_AVANSNE"
@@ -315,6 +424,20 @@ function InvoiceRow({
             .filter(Boolean)
             .join(" · ")}
         </div>
+        {/* nepovezan priliv istog iznosa na izvodu: prijedlog naplate */}
+        {uplataPrijedlog && inv.status === "ISSUED" && (
+          <Link
+            href={`/app/bankovni-izvodi/${uplataPrijedlog.statementId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-info-bg text-info hover:opacity-80 transition-opacity"
+            title="Na izvodu postoji nepovezan priliv istog iznosa: otvorite izvod i povežite uplatu sa fakturom"
+          >
+            <IconAlertCircle size={11} />
+            {uplataPrijedlog.broj
+              ? `moguća uplata na izvodu br. ${uplataPrijedlog.broj}`
+              : "moguća uplata na izvodu"}
+          </Link>
+        )}
       </div>
       <span className="text-[13.5px] font-semibold tabular-nums whitespace-nowrap">
         {formatBAM(sign * Number(inv.grossTotal))}
@@ -395,7 +518,9 @@ function RacunRow({
           {[
             `račun ${r.brojRacuna}`,
             formatDate(r.datumRacuna),
-            r.rokPlacanja ? `rok ${formatDate(r.rokPlacanja)}` : null,
+            r.rokPlacanja
+              ? rokSaDanima(r.rokPlacanja, r.status === "OTVOREN" && !r.samoEvidencija)
+              : null,
             r.pdvIznos ? `PDV ${formatBAM(Number(r.pdvIznos))}` : null,
             r.paidAt ? `plaćen ${formatDate(r.paidAt)}` : null,
           ]
@@ -467,6 +592,16 @@ export default function FakturePage() {
   const [tab, setTab] = useState<TabId>("izlazne");
   const [statusFilter, setStatusFilter] = useState("");
   const [ulazFilter, setUlazFilter] = useState("");
+  // pretraga + partner + period (klijentski, nad već učitanim listama)
+  const [q, setQ] = useState("");
+  const [partnerFilter, setPartnerFilter] = useState<number | null>(null);
+  const [fromStr, setFromStr] = useState("");
+  const [toStr, setToStr] = useState("");
+  // email kupcu / podsjetnik za plaćanje
+  const [emailTarget, setEmailTarget] = useState<{
+    inv: Invoice;
+    podsjetnik: boolean;
+  } | null>(null);
   const [downloading, setDownloading] = useState<number | null>(null);
   const [deleteRacunTarget, setDeleteRacunTarget] =
     useState<UlazniRacun | null>(null);
@@ -489,6 +624,7 @@ export default function FakturePage() {
   const [deletePrebTarget, setDeletePrebTarget] = useState<Prebijanje | null>(
     null,
   );
+  const [prebPdfBusy, setPrebPdfBusy] = useState<number | null>(null);
 
   const { data: fullOrg } = useQuery({
     queryKey: ["pk-org", orgId],
@@ -545,8 +681,16 @@ export default function FakturePage() {
   );
   const openRacuni = allRacuni.filter((r) => r.status === "OTVOREN");
   const openPayable = openRacuni.reduce((s, r) => s + Number(r.iznos), 0);
-  const lateInvoices = openInvoices.filter(invoiceLate).length;
-  const lateRacuni = openRacuni.filter(racunLate).length;
+  const lateInvoicesList = openInvoices.filter(invoiceLate);
+  const lateRacuniList = openRacuni.filter(racunLate);
+  const lateInvoices = lateInvoicesList.length;
+  const lateRacuni = lateRacuniList.length;
+  // dospjelo = otvoreno kojem je rok već prošao (to se stvarno naplaćuje)
+  const lateReceivable = lateInvoicesList.reduce(
+    (s, i) => s + Number(i.grossTotal),
+    0,
+  );
+  const latePayable = lateRacuniList.reduce((s, r) => s + Number(r.iznos), 0);
   const currentYear = String(new Date().getFullYear());
   // izlazni PDV: samo fakture (ne predračuni); storno/KO umanjuju (predznak)
   const pdvOut = allInvoices
@@ -561,15 +705,115 @@ export default function FakturePage() {
     .filter((r) => r.datumRacuna?.startsWith(currentYear))
     .reduce((s, r) => s + Number(r.pdvIznos || 0), 0);
 
-  const visibleInvoices = statusFilter
-    ? allInvoices.filter((i) => i.status === statusFilter)
-    : allInvoices;
-  const visibleRacuni =
+  // ── zajednički filteri: pretraga, partner, period ──────────────────────
+  const fromIso = parseDateInput(fromStr);
+  const toIso = parseDateInput(toStr);
+  const needle = q.trim().toLowerCase();
+  const partnerName = partnerFilter
+    ? ((partners ?? []).find((p) => p.id === partnerFilter)?.name ?? null)
+    : null;
+
+  // normalizacija naziva za poređenje: skida razmake, tačke, zareze, crtice,
+  // pa "SF PHARM DOO" == "SF PHARM d.o.o." (fakture nemaju partnerId, vežu
+  // se po nazivu kupca koji ne mora biti identičan nazivu partnera)
+  const normNaziv = (s: string | null | undefined) =>
+    (s ?? "").toLowerCase().replace(/[\s.,\-]/g, "");
+  const partnerNorm = partnerName ? normNaziv(partnerName) : "";
+
+  function invoiceMatches(i: Invoice): boolean {
+    if (needle) {
+      const hit =
+        i.fullNumber.toLowerCase().includes(needle) ||
+        (i.buyerName ?? "").toLowerCase().includes(needle) ||
+        String(Number(i.grossTotal).toFixed(2)).includes(needle.replace(",", "."));
+      if (!hit) return false;
+    }
+    // veza po normalizovanom nazivu kupca (jednakost ili podniz u oba smjera,
+    // da uhvati "SF PHARM" partner vs "SF PHARM DOO Sarajevo" na fakturi)
+    if (partnerNorm) {
+      const a = normNaziv(i.buyerName);
+      // prazan naziv kupca nikad ne poklapa stvarnog partnera
+      if (!a || !(a === partnerNorm || a.includes(partnerNorm) || partnerNorm.includes(a))) {
+        return false;
+      }
+    }
+    const d = (i.issueDate ?? "").slice(0, 10);
+    if (fromIso && d < fromIso) return false;
+    if (toIso && d > toIso) return false;
+    return true;
+  }
+
+  function racunMatches(r: UlazniRacun): boolean {
+    if (needle) {
+      const hit =
+        (r.brojRacuna ?? "").toLowerCase().includes(needle) ||
+        (r.partner?.name ?? "").toLowerCase().includes(needle) ||
+        String(Number(r.iznos).toFixed(2)).includes(needle.replace(",", "."));
+      if (!hit) return false;
+    }
+    if (partnerFilter && r.partner?.id !== partnerFilter) return false;
+    const d = (r.datumRacuna ?? "").slice(0, 10);
+    if (fromIso && d < fromIso) return false;
+    if (toIso && d > toIso) return false;
+    return true;
+  }
+
+  const aktivanPeriod = (["mjesec", "prosli", "godina"] as const).find((k) => {
+    const [od, dod] = periodRange(k);
+    return fromStr === od && toStr === dod;
+  });
+
+  function primijeniPeriod(kind: "mjesec" | "prosli" | "godina" | "sve") {
+    if (kind === "sve") {
+      setFromStr("");
+      setToStr("");
+      return;
+    }
+    const [od, dod] = periodRange(kind);
+    setFromStr(od);
+    setToStr(dod);
+  }
+
+  const visibleInvoices = (
+    statusFilter === "KASNI"
+      ? allInvoices.filter(invoiceLate)
+      : statusFilter
+        ? allInvoices.filter((i) => i.status === statusFilter)
+        : allInvoices
+  ).filter(invoiceMatches);
+  const visibleRacuni = (
     ulazFilter === "OTVOREN" || ulazFilter === "PLACEN"
       ? allRacuni.filter((r) => r.status === ulazFilter)
       : ulazFilter === "KASNI"
         ? allRacuni.filter(racunLate)
-        : allRacuni;
+        : allRacuni
+  ).filter(racunMatches);
+
+  // sume za filtrirano (po tabu), da lista radi i kao brzi izvještaj
+  const invSume = useMemo(() => {
+    let ukupno = 0;
+    let naplaceno = 0;
+    let otvoreno = 0;
+    for (const i of visibleInvoices) {
+      if (i.status === "CANCELLED" || i.type === "PROFORMA") continue;
+      const iznos = kifSign(i) * Number(i.grossTotal);
+      ukupno += iznos;
+      if (i.status === "PAID" && i.docType === "STANDARD") naplaceno += iznos;
+      if (i.status === "ISSUED") otvoreno += iznos;
+    }
+    return { ukupno, naplaceno, otvoreno };
+  }, [visibleInvoices]);
+  const racSume = useMemo(() => {
+    let ukupno = 0;
+    let placeno = 0;
+    let otvoreno = 0;
+    for (const r of visibleRacuni) {
+      ukupno += Number(r.iznos);
+      if (r.status === "PLACEN") placeno += Number(r.iznos);
+      if (r.status === "OTVOREN") otvoreno += Number(r.iznos);
+    }
+    return { ukupno, placeno, otvoreno };
+  }, [visibleRacuni]);
 
   // "Sve": glavna knjiga dokumenata, hronološki (izlazne + ulazne zajedno)
   type LedgerRow =
@@ -577,12 +821,12 @@ export default function FakturePage() {
     | { kind: "ulazna"; date: string; racun: UlazniRacun };
   const ledger: LedgerRow[] = useMemo(() => {
     const rows: LedgerRow[] = [
-      ...allInvoices.map((inv) => ({
+      ...allInvoices.filter(invoiceMatches).map((inv) => ({
         kind: "izlazna" as const,
         date: inv.issueDate ?? "",
         inv,
       })),
-      ...allRacuni.map((racun) => ({
+      ...allRacuni.filter(racunMatches).map((racun) => ({
         kind: "ulazna" as const,
         date: racun.datumRacuna ?? "",
         racun,
@@ -590,7 +834,60 @@ export default function FakturePage() {
     ];
     rows.sort((a, b) => b.date.localeCompare(a.date));
     return rows;
-  }, [allInvoices, allRacuni]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allInvoices, allRacuni, needle, partnerFilter, partnerName, fromIso, toIso]);
+
+  // nepovezani prilivi sa izvoda → prijedlog naplate za izdane fakture
+  const { data: prilivi } = useQuery({
+    queryKey: ["bank-statements", orgId, "prilivi-za-fakture"],
+    queryFn: () =>
+      unwrap(
+        searchBankTransactions(orgId as number, { direction: "IN", limit: 500 }),
+      ),
+    enabled: orgId != null,
+  });
+  const uplataPrijedlozi = useMemo(() => {
+    const map = new Map<number, { statementId: number; broj: string | null }>();
+    // svaki priliv se troši: jedan priliv ne smije biti prijedlog za više
+    // faktura istog iznosa (npr. dvije fakture po 1.170 a jedna uplata)
+    const slobodni = (prilivi?.items ?? []).filter((t) => t.invoiceId == null);
+    const iskorišteni = new Set<number>();
+    for (const inv of allInvoices) {
+      if (inv.status !== "ISSUED" || inv.docType !== "STANDARD") continue;
+      const tx = slobodni.find(
+        (t) =>
+          !iskorišteni.has(t.id) &&
+          Math.abs(Number(t.amount) - Number(inv.grossTotal)) < 0.005,
+      );
+      if (tx) {
+        iskorišteni.add(tx.id);
+        map.set(inv.id, {
+          statementId: tx.statementId,
+          broj: tx.statement?.statementNumber ?? null,
+        });
+      }
+    }
+    return map;
+  }, [prilivi, allInvoices]);
+
+  // prijedlozi prebijanja: partneri sa otvorenim stavkama na OBJE strane
+  const prebijanjePrijedlozi = useMemo(
+    () =>
+      (partners ?? [])
+        .filter(
+          (p) => p.stats.openInvoicesTotal > 0 && p.stats.openPayablesTotal > 0,
+        )
+        .map((p) => ({
+          partner: p,
+          iznos: Math.min(
+            p.stats.openInvoicesTotal,
+            p.stats.openPayablesTotal,
+          ),
+        }))
+        .sort((a, b) => b.iznos - a.iznos),
+    [partners],
+  );
+  const [kompPartnerId, setKompPartnerId] = useState<number | null>(null);
 
   const tabCounts: Record<TabId, number> = {
     izlazne: allInvoices.length,
@@ -598,6 +895,15 @@ export default function FakturePage() {
     sve: allInvoices.length + allRacuni.length,
     prebijanja: (prebijanja ?? []).length,
   };
+
+  const sendEmail = useMutation({
+    mutationFn: (args: { id: number; to: string; message: string }) =>
+      unwrap(emailInvoice(args.id, { to: args.to, message: args.message })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pk-invoices", orgId] });
+      setEmailTarget(null);
+    },
+  });
 
   const delPreb = useMutation({
     mutationFn: (p: Prebijanje) =>
@@ -615,6 +921,96 @@ export default function FakturePage() {
       await downloadInvoicePdf(inv.id, `Faktura-${inv.fullNumber}.pdf`);
     } finally {
       setDownloading(null);
+    }
+  }
+
+  // PDF prebijanja se regeneriše iz snimljenih podataka (stavke sa smjerom,
+  // partneri, org), pa je štampa uvijek dostupna, ne samo u momentu knjiženja.
+  async function handlePrebijanjePdf(p: Prebijanje) {
+    setPrebPdfBusy(p.id);
+    try {
+      const { collapseStavke, formatBroj, iznosUSlova } = await import(
+        "src/sections/cesije-i-kompenzacije/money"
+      );
+      const orgName = fullOrg?.name ?? activeOrg?.name ?? "";
+      // PDF prikazuje CIJELE dokumente (punIznos), nikad djelimično alocirane
+      // iznose: kompenzuje se manji zbir, a razlika ide u "nekompenzirani
+      // ostatak uplatiti na žiro račun" (računa je sam generator).
+      const stavke = (dir: "IN" | "OUT") =>
+        p.stavke
+          .filter((s) => s.direction === dir)
+          .map((s) => ({
+            opis: s.oznaka ?? s.description ?? "",
+            iznos: Number(s.punIznos ?? s.amount),
+          }));
+
+      let blob: Blob;
+      let filename: string;
+      if (p.type === "KOMPENZACIJA") {
+        const partner = (partners ?? []).find((x) => x.id === p.partner?.id);
+        const { generateKompenzacijaPdf } = await import(
+          "src/sections/cesije-i-kompenzacije/kompenzacijaPdf"
+        );
+        blob = await generateKompenzacijaPdf({
+          broj: p.broj,
+          datum: formatDate(p.datum),
+          duznikNaziv: orgName,
+          duznikAdresa: [fullOrg?.address, fullOrg?.city]
+            .filter(Boolean)
+            .join(", "),
+          duznikId: fullOrg?.taxNumber ?? "",
+          duznikPdv: fullOrg?.pdvNumber ?? "",
+          duznikSifra: "",
+          povjeriocNaziv: p.partner?.name ?? partner?.name ?? "",
+          povjeriocAdresa: [partner?.address, partner?.city]
+            .filter(Boolean)
+            .join(", "),
+          povjeriocId: partner?.jib ?? "",
+          povjeriocPdv: partner?.pdvBroj ?? "",
+          povjeriocSifra: partner?.code != null ? String(partner.code) : "",
+          duznikStavke: collapseStavke(stavke("OUT")),
+          povjeriocStavke: collapseStavke(stavke("IN")),
+        });
+        filename = `Kompenzacija_${p.broj.replace("/", "-")}.pdf`;
+      } else {
+        const cesus = (partners ?? []).find((x) => x.id === p.cesus?.id);
+        const cesionar = (partners ?? []).find(
+          (x) => x.id === p.cesionar?.id,
+        );
+        const { generateCesijaPdf } = await import(
+          "src/sections/cesije-i-kompenzacije/cesijaPdf"
+        );
+        blob = await generateCesijaPdf({
+          mjesto: fullOrg?.city ?? "",
+          datum: formatDate(p.datum),
+          cedentNaziv: orgName,
+          cedentId: fullOrg?.taxNumber ?? "",
+          cedentZastupnik:
+            fullOrg?.owner?.name ||
+            [fullOrg?.owner?.firstName, fullOrg?.owner?.lastName]
+              .filter(Boolean)
+              .join(" "),
+          cesionarNaziv: p.cesionar?.name ?? cesionar?.name ?? "",
+          cesionarId: cesionar?.jib ?? "",
+          cesionarZastupnik: "",
+          cesusNaziv: p.cesus?.name ?? cesus?.name ?? "",
+          cesusId: cesus?.jib ?? "",
+          cesusZastupnik: "",
+          iznosBroj: `${formatBroj(Number(p.iznos))} KM`,
+          iznosSlovima: iznosUSlova(Number(p.iznos)),
+          sud: fullOrg?.city ?? "",
+          brojPrimjeraka: "3 (tri)",
+        });
+        filename = `Ugovor_o_cesiji_${p.broj.replace("/", "-")}.pdf`;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      setPrebPdfBusy(null);
     }
   }
 
@@ -677,25 +1073,50 @@ export default function FakturePage() {
         </div>
       </div>
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      {/* KPI (klik na karticu filtrira listu ispod) */}
+      <div
+        className={`grid grid-cols-2 lg:grid-cols-4 ${fullOrg?.isPdvObveznik ? "xl:grid-cols-5" : ""} gap-4 mb-5`}
+      >
         <Kpi
           label="Njihov dug (fakture)"
           value={formatBAM(openReceivable)}
-          sub={`${openInvoices.length} otvorenih${lateInvoices > 0 ? ` · ${lateInvoices} kasni` : ""}`}
+          sub={`${openInvoices.length} otvorenih · klik filtrira`}
           tone={openReceivable > 0 ? "success" : undefined}
+          onClick={() => {
+            setTab("izlazne");
+            setStatusFilter("ISSUED");
+          }}
         />
         <Kpi
           label="Naš dug (ulazni računi)"
           value={formatBAM(openPayable)}
-          sub={`${openRacuni.length} otvorenih${lateRacuni > 0 ? ` · ${lateRacuni} kasni` : ""}`}
+          sub={`${openRacuni.length} otvorenih · klik filtrira`}
           tone={openPayable > 0 ? "warning" : undefined}
+          onClick={() => {
+            setTab("ulazne");
+            setUlazFilter("OTVOREN");
+          }}
+        />
+        <Kpi
+          label="Dospjelo (rok prošao)"
+          value={formatBAM(lateReceivable)}
+          sub={
+            lateInvoices || lateRacuni
+              ? `${lateInvoices} njihovih kasni${latePayable > 0 ? ` · naš dug kasni ${formatBAM(latePayable)}` : ""}`
+              : "ništa ne kasni"
+          }
+          tone={lateReceivable > 0 ? "accent" : undefined}
+          onClick={() => {
+            setTab("izlazne");
+            setStatusFilter("KASNI");
+          }}
         />
         <Kpi
           label="Saldo otvorenog"
           value={formatBAM(openReceivable - openPayable)}
           sub="njihov dug minus naš dug"
           tone={openReceivable - openPayable < 0 ? "accent" : undefined}
+          onClick={() => setTab("sve")}
         />
         {fullOrg?.isPdvObveznik && (
           <Kpi
@@ -706,27 +1127,27 @@ export default function FakturePage() {
         )}
       </div>
 
-      {/* Tabovi + filter */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4 border-b border-cream-300">
-        <div className="flex gap-1">
+      {/* Tabovi + filter (segmented pilula kao na ostatku PK Office-a) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="inline-flex items-center gap-1 p-1 rounded-full border border-cream-300 bg-cream-100 flex-wrap">
           {TABS.map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
               className={[
-                "inline-flex items-center gap-2 px-5 py-3 text-[14.5px] font-medium border-b-2 -mb-px transition-colors",
+                "inline-flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-medium rounded-full transition-colors whitespace-nowrap",
                 tab === t.id
-                  ? "border-brand-600 text-brand-700"
-                  : "border-transparent text-text-tertiary hover:text-text-primary",
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-text-secondary hover:text-text-primary hover:bg-cream-200",
               ].join(" ")}
             >
               {t.label}
               <span
                 className={[
-                  "inline-flex items-center justify-center min-w-[22px] px-1.5 py-0.5 rounded-full text-[11.5px] tabular-nums",
+                  "inline-flex items-center justify-center min-w-[20px] px-1.5 py-px rounded-full text-[11px] tabular-nums",
                   tab === t.id
-                    ? "bg-brand-100 text-brand-700"
+                    ? "bg-white/20 text-white"
                     : "bg-cream-200 text-text-tertiary",
                 ].join(" ")}
               >
@@ -735,7 +1156,7 @@ export default function FakturePage() {
             </button>
           ))}
         </div>
-        <div className="mb-1.5">
+        <div>
           {tab === "izlazne" && (
             <PkSelect
               ariaLabel="Status faktura"
@@ -744,6 +1165,7 @@ export default function FakturePage() {
               options={[
                 { value: "", label: "Svi statusi" },
                 { value: "ISSUED", label: "Izdane (nenaplaćene)" },
+                { value: "KASNI", label: "Kasne sa naplatom" },
                 { value: "PAID", label: "Naplaćene" },
                 { value: "DRAFT", label: "Nacrti" },
                 { value: "CANCELLED", label: "Stornirane" },
@@ -786,6 +1208,170 @@ export default function FakturePage() {
         </div>
       </div>
 
+      {/* Pretraga + partner + period (za izlazne/ulazne/sve) */}
+      {tab !== "prebijanja" && (
+        <div className="rounded-xl bg-cream-100 border border-cream-300 p-3.5 mb-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative flex-1 min-w-[200px]">
+              <IconSearch
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
+              />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Traži: broj, kupac/dobavljač, iznos..."
+                className="w-full rounded-lg border border-cream-300 bg-cream-50 pl-9 pr-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600"
+              />
+            </div>
+            <PkSelect
+              ariaLabel="Partner"
+              value={partnerFilter != null ? String(partnerFilter) : ""}
+              onChange={(v) =>
+                setPartnerFilter(v ? Number(v) : null)
+              }
+              searchable
+              options={[
+                { value: "", label: "Svi partneri" },
+                ...(partners ?? []).map((p) => ({
+                  value: String(p.id),
+                  label: p.name,
+                })),
+              ]}
+              wrapStyle={{ maxWidth: 220 }}
+            />
+            <PkDateInput
+              value={fromStr}
+              onChange={setFromStr}
+              placeholder="DD.MM.GGGG."
+              ariaLabel="Datum od"
+              className="w-[140px]"
+            />
+            <PkDateInput
+              value={toStr}
+              onChange={setToStr}
+              placeholder="DD.MM.GGGG."
+              ariaLabel="Datum do"
+              className="w-[140px]"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+            {(
+              [
+                { id: "mjesec", label: "Ovaj mjesec" },
+                { id: "prosli", label: "Prošli mjesec" },
+                { id: "godina", label: "Ova godina" },
+              ] as const
+            ).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => primijeniPeriod(p.id)}
+                className={[
+                  "px-3 py-1 rounded-full text-[12px] font-medium border transition-colors",
+                  aktivanPeriod === p.id
+                    ? "bg-brand-600 text-white border-brand-600"
+                    : "bg-cream-50 text-text-secondary border-cream-300 hover:border-text-tertiary",
+                ].join(" ")}
+              >
+                {p.label}
+              </button>
+            ))}
+            {(fromStr || toStr) && (
+              <button
+                type="button"
+                onClick={() => primijeniPeriod("sve")}
+                className="px-3 py-1 rounded-full text-[12px] font-medium text-text-tertiary hover:text-text-primary transition-colors"
+              >
+                Poništi period
+              </button>
+            )}
+            {/* sume za trenutno filtrirano: lista kao brzi izvještaj */}
+            <span className="ml-auto text-[12px] text-text-tertiary tabular-nums">
+              {tab === "izlazne" && visibleInvoices.length > 0 && (
+                <>
+                  Ukupno:{" "}
+                  <strong className="text-text-primary">
+                    {formatBAM(invSume.ukupno)}
+                  </strong>
+                  {" · "}Naplaćeno:{" "}
+                  <strong className="text-success">
+                    {formatBAM(invSume.naplaceno)}
+                  </strong>
+                  {" · "}Otvoreno:{" "}
+                  <strong className="text-warning">
+                    {formatBAM(invSume.otvoreno)}
+                  </strong>
+                </>
+              )}
+              {tab === "ulazne" && visibleRacuni.length > 0 && (
+                <>
+                  Ukupno:{" "}
+                  <strong className="text-text-primary">
+                    {formatBAM(racSume.ukupno)}
+                  </strong>
+                  {" · "}Plaćeno:{" "}
+                  <strong className="text-success">
+                    {formatBAM(racSume.placeno)}
+                  </strong>
+                  {" · "}Otvoreno:{" "}
+                  <strong className="text-warning">
+                    {formatBAM(racSume.otvoreno)}
+                  </strong>
+                </>
+              )}
+              {tab === "sve" && ledger.length > 0 && (
+                <>
+                  Izlazno:{" "}
+                  <strong className="text-text-primary">
+                    {formatBAM(invSume.ukupno)}
+                  </strong>
+                  {" · "}Ulazno:{" "}
+                  <strong className="text-text-primary">
+                    {formatBAM(racSume.ukupno)}
+                  </strong>
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Prijedlozi prebijanja: partneri sa dugom na obje strane */}
+      {tab === "prebijanja" && prebijanjePrijedlozi.length > 0 && (
+        <div className="rounded-xl border border-brand-600/25 bg-brand-100/40 p-3.5 mb-4">
+          <div className="text-[12px] uppercase tracking-[0.06em] text-brand-700 font-semibold mb-2">
+            Prijedlozi kompenzacije
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {prebijanjePrijedlozi.map(({ partner: p, iznos }) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-text-primary"
+              >
+                <IconArrowsExchange size={15} className="text-brand-700 shrink-0" />
+                <span className="min-w-0">
+                  Sa <strong>{p.name}</strong> imate dug na obje strane:
+                  možete prebiti{" "}
+                  <strong className="tabular-nums">{formatBAM(iznos)}</strong>
+                  <span className="text-text-tertiary">
+                    {" "}(potražujete {formatBAM(p.stats.openInvoicesTotal)},
+                    dugujete {formatBAM(p.stats.openPayablesTotal)})
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setKompPartnerId(p.id)}
+                  className="ml-auto shrink-0 px-3 py-1 rounded-lg border border-brand-600 text-brand-600 text-[12px] font-medium hover:bg-brand-100 transition-colors"
+                >
+                  Kompenzacija
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Lista */}
       <div className="rounded-xl bg-cream-100 border border-cream-300">
         {loading ? (
@@ -819,6 +1405,8 @@ export default function FakturePage() {
                 key={p.id}
                 p={p}
                 last={i === (prebijanja ?? []).length - 1}
+                pdfBusy={prebPdfBusy === p.id}
+                onPdf={handlePrebijanjePdf}
                 onDelete={setDeletePrebTarget}
               />
             ))}
@@ -840,6 +1428,10 @@ export default function FakturePage() {
                   onStorno={setStornoTarget}
                   onKnjizna={setKoTarget}
                   onCopy={setCopyTarget}
+                  onEmail={(x, podsjetnik) =>
+                    setEmailTarget({ inv: x, podsjetnik })
+                  }
+                  uplataPrijedlog={uplataPrijedlozi.get(inv.id) ?? null}
                 />
               ))}
             {tab === "ulazne" &&
@@ -856,35 +1448,61 @@ export default function FakturePage() {
                 />
               ))}
             {tab === "sve" &&
-              ledger.map((row, i) =>
-                row.kind === "izlazna" ? (
-                  <InvoiceRow
-                    key={`i-${row.inv.id}`}
-                    inv={row.inv}
-                    last={i === ledger.length - 1}
-                    downloading={downloading}
-                    markPending={markPaid.isPending}
-                    onMarkPaid={(x) => markPaid.mutate(x)}
-                    onPdf={handlePdf}
-                    onOpen={(x) => setPreviewId(x.id)}
-                    onConvert={setConvertTarget}
-                    onStorno={setStornoTarget}
-                    onKnjizna={setKoTarget}
-                    onCopy={setCopyTarget}
-                  />
-                ) : (
-                  <RacunRow
-                    key={`u-${row.racun.id}`}
-                    r={row.racun}
-                    last={i === ledger.length - 1}
-                    updatePending={updateRacun.isPending}
-                    onMarkPaid={markRacunPaid}
-                    onReopen={reopenRacun}
-                    onDelete={setDeleteRacunTarget}
-                    onOpen={setRacunEdit}
-                  />
-                ),
-              )}
+              ledger.map((row, i) => {
+                // mjesečni podnaslov: glavna knjiga po mjesecima
+                const mjesec = row.date ? mjesecLabel(row.date) : "bez datuma";
+                const prethodni =
+                  i > 0 && ledger[i - 1].date
+                    ? mjesecLabel(ledger[i - 1].date)
+                    : null;
+                const noviMjesec = i === 0 || mjesec !== prethodni;
+                const rowEl =
+                  row.kind === "izlazna" ? (
+                    <InvoiceRow
+                      inv={row.inv}
+                      last={i === ledger.length - 1}
+                      downloading={downloading}
+                      markPending={markPaid.isPending}
+                      onMarkPaid={(x) => markPaid.mutate(x)}
+                      onPdf={handlePdf}
+                      onOpen={(x) => setPreviewId(x.id)}
+                      onConvert={setConvertTarget}
+                      onStorno={setStornoTarget}
+                      onKnjizna={setKoTarget}
+                      onCopy={setCopyTarget}
+                      onEmail={(x, podsjetnik) =>
+                        setEmailTarget({ inv: x, podsjetnik })
+                      }
+                      uplataPrijedlog={uplataPrijedlozi.get(row.inv.id) ?? null}
+                    />
+                  ) : (
+                    <RacunRow
+                      r={row.racun}
+                      last={i === ledger.length - 1}
+                      updatePending={updateRacun.isPending}
+                      onMarkPaid={markRacunPaid}
+                      onReopen={reopenRacun}
+                      onDelete={setDeleteRacunTarget}
+                      onOpen={setRacunEdit}
+                    />
+                  );
+                return (
+                  <Fragment
+                    key={
+                      row.kind === "izlazna"
+                        ? `i-${row.inv.id}`
+                        : `u-${row.racun.id}`
+                    }
+                  >
+                    {noviMjesec && (
+                      <li className="px-4 pt-2.5 pb-1 text-[11px] uppercase tracking-[0.06em] text-text-tertiary border-b border-cream-300/40 bg-cream-50/50 list-none">
+                        {mjesec}
+                      </li>
+                    )}
+                    {rowEl}
+                  </Fragment>
+                );
+              })}
           </ul>
         )}
       </div>
@@ -972,6 +1590,16 @@ export default function FakturePage() {
           orgId={orgId}
           orgName={fullOrg?.name ?? activeOrg?.name ?? ""}
           onClose={() => setKompOpen(false)}
+        />
+      )}
+      {/* kompenzacija otvorena iz prijedloga (predizabran partner) */}
+      {kompPartnerId != null && orgId != null && (
+        <KompenzacijaModal
+          key={`komp-prijedlog-${orgId}-${kompPartnerId}`}
+          orgId={orgId}
+          orgName={fullOrg?.name ?? activeOrg?.name ?? ""}
+          initialPartnerId={kompPartnerId}
+          onClose={() => setKompPartnerId(null)}
         />
       )}
       {cesijaOpen && orgId != null && (
@@ -1140,7 +1768,126 @@ export default function FakturePage() {
         partners={partners ?? []}
         onClose={() => setCopyTarget(null)}
       />
+
+      {/* Slanje fakture / podsjetnika kupcu emailom (PDF u prilogu) */}
+      <EmailFaktureModal
+        target={emailTarget}
+        pending={sendEmail.isPending}
+        error={sendEmail.isError ? (sendEmail.error as Error).message : null}
+        onSend={(to, message) => {
+          if (!emailTarget) return;
+          sendEmail.mutate({ id: emailTarget.inv.id, to, message });
+        }}
+        onClose={() => {
+          setEmailTarget(null);
+          sendEmail.reset();
+        }}
+      />
     </div>
+  );
+}
+
+// Modal za slanje fakture kupcu: adresa (default sa fakture) + poruka.
+// Podsjetnik = ista faktura u prilogu, samo sa tekstom opomene.
+function EmailFaktureModal({
+  target,
+  pending,
+  error,
+  onSend,
+  onClose,
+}: {
+  target: { inv: Invoice; podsjetnik: boolean } | null;
+  pending: boolean;
+  error: string | null;
+  onSend: (to: string, message: string) => void;
+  onClose: () => void;
+}) {
+  const [to, setTo] = useState("");
+  const [message, setMessage] = useState("");
+  // novi target → predpopuni polja (reset tokom rendera, bez effecta)
+  const [prevKey, setPrevKey] = useState<string | null>(null);
+  const key = target ? `${target.inv.id}-${target.podsjetnik}` : null;
+  if (key !== prevKey) {
+    setPrevKey(key);
+    if (target) {
+      setTo(target.inv.buyerEmail ?? "");
+      setMessage(
+        target.podsjetnik
+          ? `Poštovani,\n\npodsjećamo Vas da faktura ${target.inv.fullNumber} od ${formatDate(target.inv.issueDate)} na iznos ${formatBAM(Number(target.inv.grossTotal))}${target.inv.dueDate ? ` sa rokom plaćanja ${formatDate(target.inv.dueDate)}` : ""} još nije plaćena. Fakturu šaljemo ponovo u prilogu.\n\nAko je uplata u međuvremenu izvršena, zanemarite ovu poruku.`
+          : "",
+      );
+    }
+  }
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim());
+  return (
+    <Modal
+      open={target != null}
+      onClose={onClose}
+      title={
+        target?.podsjetnik
+          ? `Podsjetnik za ${target.inv.fullNumber}`
+          : `Pošalji fakturu ${target?.inv.fullNumber ?? ""}`
+      }
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+          >
+            Odustani
+          </button>
+          <button
+            type="button"
+            disabled={pending || !validEmail}
+            onClick={() => onSend(to.trim(), message.trim())}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {pending && <IconLoader2 size={15} className="animate-spin" />}
+            <IconMail size={15} />
+            Pošalji
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-[13px] leading-6 text-text-secondary">
+          Kupcu se šalje email sa PDF-om fakture u prilogu
+          {target?.podsjetnik ? " i tekstom podsjetnika za plaćanje" : ""}.
+        </p>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1.5">
+            Email kupca *
+          </div>
+          <input
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="kupac@email.ba"
+            className="w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-brand-600"
+          />
+          {!target?.inv.buyerEmail && (
+            <p className="text-[11.5px] text-text-tertiary mt-1">
+              Kupac na fakturi nema email: upišite adresu (snima se samo za
+              ovo slanje).
+            </p>
+          )}
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1.5">
+            Poruka (opciono)
+          </div>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={5}
+            className="w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13px] leading-5 text-text-primary focus:outline-none focus:border-brand-600 resize-y"
+          />
+        </div>
+        {error && (
+          <p className="text-[12.5px] text-danger leading-5">{error}</p>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -1148,10 +1895,14 @@ export default function FakturePage() {
 function PrebijanjeRow({
   p,
   last,
+  pdfBusy,
+  onPdf,
   onDelete,
 }: {
   p: Prebijanje;
   last: boolean;
+  pdfBusy: boolean;
+  onPdf: (p: Prebijanje) => void;
   onDelete: (p: Prebijanje) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -1192,6 +1943,24 @@ function PrebijanjeRow({
           className="text-[12px] text-brand-700 hover:underline"
         >
           {expanded ? "Sakrij stavke" : `Stavke (${p.stavke.length})`}
+        </button>
+        <button
+          type="button"
+          onClick={() => onPdf(p)}
+          disabled={pdfBusy}
+          title={
+            p.type === "KOMPENZACIJA"
+              ? "Preuzmi PDF prijedloga kompenzacije"
+              : "Preuzmi PDF ugovora o cesiji"
+          }
+          className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-cream-300 text-[12px] font-medium text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+        >
+          {pdfBusy ? (
+            <IconLoader2 size={13} className="animate-spin" />
+          ) : (
+            <IconDownload size={13} />
+          )}
+          PDF
         </button>
         <button
           type="button"

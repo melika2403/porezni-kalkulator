@@ -52,3 +52,71 @@ export function upsertPdvDodatak(orgId: number, payload: PdvDodatakPayload) {
     body: JSON.stringify(payload),
   });
 }
+
+// ── Stanje PDV-a (knjiga knjiženja prema UINO) ───────────────────────────────
+
+export type PdvKnjizenjeVrsta =
+  | "OBAVEZA"
+  | "PRETPLATA"
+  | "UPLATA"
+  | "POVRAT"
+  | "KOREKCIJA";
+
+export type PdvKnjizenje = {
+  id: number;
+  datum: string;
+  /** porezni period "YYYY-MM" (null za korekcije bez perioda) */
+  period: string | null;
+  vrsta: PdvKnjizenjeVrsta;
+  /** true povećava dug, false ga smanjuje */
+  zaduzenje: boolean;
+  iznos: number;
+  opis: string | null;
+  transactionId: number | null;
+};
+
+export type PdvPrijedlog = {
+  transactionId: number;
+  datum: string | null;
+  opis: string;
+  iznos: number;
+  vrsta: "UPLATA" | "POVRAT";
+};
+
+export type PdvStanje = {
+  /** > 0 dug, 0 izmireno, < 0 pretplata */
+  saldo: number;
+  knjizenja: PdvKnjizenje[];
+  prijedlozi: PdvPrijedlog[];
+};
+
+export type PdvKnjizenjePayload = {
+  datum: string;
+  vrsta: PdvKnjizenjeVrsta;
+  iznos: number;
+  period?: string | null;
+  opis?: string;
+  /** samo za KOREKCIJA: true = zaduženje, false = odobrenje */
+  zaduzenje?: boolean;
+  transactionId?: number | null;
+};
+
+export function getPdvStanje(orgId: number) {
+  return jsonRequest<PdvStanje>(`/api/pdv/${orgId}/stanje`, { method: "GET" });
+}
+
+export function createPdvKnjizenje(
+  orgId: number,
+  payload: PdvKnjizenjePayload,
+) {
+  return jsonRequest<PdvKnjizenje>(`/api/pdv/${orgId}/stanje`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePdvKnjizenje(orgId: number, id: number) {
+  return jsonRequest<null>(`/api/pdv/${orgId}/stanje/${id}`, {
+    method: "DELETE",
+  });
+}

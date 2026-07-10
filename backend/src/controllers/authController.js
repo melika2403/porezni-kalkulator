@@ -17,6 +17,8 @@ const {
 } = require("../models/index");
 const googleAuth = require("../auth/googleAuth");
 const subscriptionRepository = require("../repositories/subscriptionRepository");
+const { dodijeliOfficeTrial } = require("./pkOfficeGateController");
+const { getEffectiveRole } = require("../services/tierService");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
 const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10; // 10 godina
@@ -149,6 +151,7 @@ async function register(req, res) {
     utmSource,
     utmCampaign,
     wantsTrial,
+    wantsOfficeTrial,
   } = req.body ?? {};
 
   if (!isNonEmptyString(email))
@@ -200,6 +203,8 @@ async function register(req, res) {
           ? utmCampaign.trim().slice(0, 120)
           : null,
       wantsTrial: wantsTrial === true || wantsTrial === "true",
+      wantsOfficeTrial:
+        wantsOfficeTrial === true || wantsOfficeTrial === "true",
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -322,10 +327,16 @@ async function me(req, res) {
       null;
   }
 
+  // Efektivna rola: PK Office paket/trial diže USER/PRO na BUSINESS za
+  // marketing funkcije (rola u bazi se ne mijenja). Frontend gating
+  // (useMaxAccessibleTier) čita ovo polje.
+  const effectiveRole = await getEffectiveRole(user);
+
   return res.status(200).json({
     ok: true,
     data: {
       ...toPublicUser(user),
+      effectiveRole,
       organizations,
       activeOrganization,
       preferences: preferences
@@ -483,12 +494,28 @@ async function verifyEmail(req, res) {
       }
     }
 
+    // PK Office trial CTA (wantsOfficeTrial): aktiviramo pkOfficeTrialEndsAt
+    // odmah pri verifikaciji, isto kao PRO trial iznad. Helper ne radi ništa
+    // kad PK_OFFICE_NAPLATA nije uključena (pristup je tada ionako slobodan).
+    let officeTrialActivated = false;
+    if (user.wantsOfficeTrial) {
+      try {
+        officeTrialActivated = Boolean(await dodijeliOfficeTrial(user));
+      } catch (officeErr) {
+        console.error(
+          "auto office-trial on verify failed:",
+          officeErr?.message || officeErr,
+        );
+      }
+    }
+
     const jwtToken = signJwtForUser({ id: user.id, role: effectiveRole });
     setAuthCookie(res, jwtToken);
 
-    // Welcome email s pozivom na trial — SAMO ako trial nije već auto-aktiviran.
+    // Welcome email s pozivom na trial — SAMO ako trial nije već auto-aktiviran
+    // (PRO ili PK Office; office korisniku mail "aktiviraj PRO trial" ne treba).
     const trialAutoActivated = autoTrial && effectiveRole === "PRO";
-    if (!trialAutoActivated) {
+    if (!trialAutoActivated && !officeTrialActivated) {
       try {
         const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
         const trialUrl = `${frontendUrl}/pretplate?trial=1`;

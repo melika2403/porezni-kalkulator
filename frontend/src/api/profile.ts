@@ -38,6 +38,9 @@ export type Subscription = {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  /** free | pro | business | office_2 | office_10 | office_25 | office_50 */
+  plan?: string | null;
+  billingCycle?: "monthly" | "yearly" | null;
 };
 
 export type UsersListResponse = {
@@ -59,6 +62,7 @@ export type Users = {
   createdAt: string;
   isEmailVerified: boolean;
   trialUsedAt: string | null;
+  pkOfficeTrialEndsAt?: string | null;
   subscription: Subscription | null;
 };
 
@@ -75,6 +79,9 @@ export type SubscriptionPayload = {
   startDate?: string;
   endDate?: string;
   isActive?: boolean;
+  /** PRO | BUSINESS | office_2 | office_10 | office_25 | office_50 */
+  plan?: string;
+  billingCycle?: "monthly" | "yearly";
 };
 
 export function updateProfile(userId: number, payload: ProfileUpdatePayload) {
@@ -88,7 +95,8 @@ export function getUsers(params?: {
   firstName?: string;
   lastName?: string;
   email?: string;
-  role?: "USER" | "PRO" | "BUSINESS" | "ADMIN";
+  /** rola (USER/PRO/BUSINESS/ADMIN) ili office paket: office, office_2..office_50 */
+  role?: string;
   sort?: "newest" | "oldest" | "name";
   page?: number;
   limit?: number;
@@ -227,6 +235,8 @@ export type Organization = {
   taxNumber: string | null;
   pdvNumber: string | null;
   isPdvObveznik: boolean;
+  /** KPR prihod od pazara iz KP-1042 (dnevni promet) umjesto pologa sa izvoda */
+  kprPazarIzKp?: boolean;
   jurisdiction: Jurisdiction | null;
   taxRegime: TaxRegime | null;
   activityCode: string | null;
@@ -253,7 +263,7 @@ export type Organization = {
   owner: OrgOwner | null;
   // Razriješeni potpisnik poslodavca (vlasnik ili radnik-direktor).
   signer?: OrgSigner;
-  memberRole: "OWNER" | "ADMIN" | "MEMBER";
+  memberRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   // Plan tier of the org's OWNER. In-org features (workers, members,
   // logo, JS3100, …) are gated by this rather than the viewer's own role.
   effectiveTier: "USER" | "PRO" | "BUSINESS" | "ADMIN" | null;
@@ -267,6 +277,7 @@ export type OrgPayload = {
   taxNumber?: string;
   pdvNumber?: string;
   isPdvObveznik?: boolean;
+  kprPazarIzKp?: boolean;
   jurisdiction?: Jurisdiction | null;
   taxRegime?: TaxRegime | null;
   activityCode?: string;
@@ -447,7 +458,7 @@ export function deleteOrganization(id: number) {
 
 export type OrgMember = {
   userId: number;
-  role: "OWNER" | "ADMIN" | "MEMBER";
+  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   joinedAt: string;
   user: {
     id: number;
@@ -463,7 +474,7 @@ export function getMembers(orgId: number) {
 
 export function addMember(
   orgId: number,
-  payload: { email: string; role: "ADMIN" | "MEMBER" },
+  payload: { email: string; role: "ADMIN" | "MEMBER" | "VIEWER" },
 ) {
   return request<OrgMember>(`/api/organizations/${orgId}/members`, {
     method: "POST",
@@ -474,7 +485,7 @@ export function addMember(
 export function updateMemberRole(
   orgId: number,
   userId: number,
-  role: "ADMIN" | "MEMBER",
+  role: "ADMIN" | "MEMBER" | "VIEWER",
 ) {
   return request<OrgMember>(`/api/organizations/${orgId}/members/${userId}`, {
     method: "PUT",

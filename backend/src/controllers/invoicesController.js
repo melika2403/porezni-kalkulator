@@ -7,6 +7,8 @@ const {
   Organization,
   OrganizationMember,
   Client,
+  Partner,
+  TkmPazar,
 } = require("../models/index");
 const {
   generateInvoicePdf,
@@ -728,7 +730,9 @@ async function pdf(req, res) {
               ? "Knjizna-obavijest"
               : inv.docType === "PAZAR"
                 ? "Pazar"
-                : "Faktura";
+                : inv.docType === "PDV_EVIDENCIJA"
+                  ? "PDV-evidencija"
+                  : "Faktura";
     // Sufiks valute u nazivu fajla samo kad je protuvaluta (različita od originalne).
     const curSuffix =
       displayCurrency && displayCurrency !== inv.currency
@@ -1143,8 +1147,12 @@ async function knjiznaObavijest(req, res) {
 async function pazar(req, res) {
   const body = req.body || {};
   const organizationId = Number(body.organizationId);
-  const month = Number(body.month);
-  const year = Number(body.year);
+  // dnevni unos: datum umjesto month/year (issueDate = taj dan)
+  const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(body.datum || ""))
+    ? String(body.datum)
+    : null;
+  const month = datum ? Number(datum.slice(5, 7)) : Number(body.month);
+  const year = datum ? Number(datum.slice(0, 4)) : Number(body.year);
   const iznos = Math.round(Number(body.iznos) * 100) / 100;
   if (!Number.isInteger(organizationId) || organizationId <= 0) {
     return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
@@ -1172,9 +1180,13 @@ async function pazar(req, res) {
 
   const mm = String(month).padStart(2, "0");
   const brojDokumenta =
-    trimOrNull(body.brojDokumenta) || `PAZAR-${mm}/${year}`;
-  // KIF period ide po datumu: zadnji dan mjeseca (obračun na kraju mjeseca)
-  const lastDay = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    trimOrNull(body.brojDokumenta) ||
+    (datum
+      ? `PAZAR-${datum.slice(8, 10)}.${mm}.${year}`
+      : `PAZAR-${mm}/${year}`);
+  // KIF period po datumu: dnevni unos = taj dan, mjesečni = zadnji dan mjeseca
+  const lastDay =
+    datum ?? new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
 
   const applyVat = Boolean(org.isPdvObveznik);
   const vat = applyVat ? Math.round(((iznos * 17) / 117) * 100) / 100 : 0;
@@ -1220,7 +1232,9 @@ async function pazar(req, res) {
       await InvoiceItem.create({
         invoiceId: inv.id,
         ordinal: 1,
-        name: `Gotovinski promet (pazar) za ${mm}/${year}.`,
+        name: datum
+          ? `Gotovinski promet (pazar) za ${datum.slice(8, 10)}.${mm}.${year}.`
+          : `Gotovinski promet (pazar) za ${mm}/${year}.`,
         unit: null,
         quantity: 1,
         unitPrice: net,
@@ -1231,6 +1245,20 @@ async function pazar(req, res) {
         vatLine: vat,
         grossLine: iznos,
       }, { transaction: t });
+
+      // opciono razduženje TKM-a istim iznosom (odvojena evidencija od
+      // KIF-a; TKM čita samo tkm_pazari)
+      if (body.uTkm) {
+        await TkmPazar.create(
+          {
+            organizationId,
+            datum: lastDay,
+            iznos,
+            opis: `Promet (pazar) ${brojDokumenta}`,
+          },
+          { transaction: t },
+        );
+      }
 
       const fresh = await Invoice.findOne({
         where: { id: inv.id },
@@ -1247,4 +1275,135 @@ async function pazar(req, res) {
   }
 }
 
-module.exports = { list, adminList, getById, create, patch, remove, pdf, emailToBuyer, convertProforma, stornoAvans, knjiznaObavijest, pazar };
+// ── Direktno "samo PDV" knjiženje u KIF ──────────────────────────────────────
+// Ogledalo KUF opcije "samo PDV evidencija": KIF red sa osnovicom i ukupnim
+// iznosom 0, samo izlazni PDV. Glavni slučaj je posebna šema u građevinarstvu
+// (čl. 40): kad MI uplatimo PDV za dobavljača, u KIF ide ovaj red (broj
+// dokumenta "POSEBNA ŠEMA U GRAĐEVINARSTVU"), a dobavljačev račun u KUF
+// normalno, pa je neto PDV efekat 0. Format potvrđen iz stvarnog e-KIF
+// fajla: tip 01, sve kolone 0.00 osim PDV-a. Suprotni smjer (kupac plati naš
+// PDV) se knjiži kroz postojeći KUF unos samo-PDV sa tipom 08.
+async function kifPdv(req, res) {
+  const body = req.body || {};
+  const organizationId = Number(body.organizationId);
+  const partnerId = Number(body.partnerId);
+  const pdvIznos = Math.round(Number(body.pdvIznos) * 100) / 100;
+  const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(body.datum || ""))
+    ? String(body.datum)
+    : null;
+  if (!Number.isInteger(organizationId) || organizationId <= 0) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  if (!Number.isInteger(partnerId) || partnerId <= 0) {
+    return res.status(400).json({ ok: false, error: "PARTNER_REQUIRED" });
+  }
+  if (!datum) return res.status(400).json({ ok: false, error: "DATUM_INVALID" });
+  if (!Number.isFinite(pdvIznos) || pdvIznos <= 0) {
+    return res.status(400).json({ ok: false, error: "IZNOS_INVALID" });
+  }
+  if (!trimOrNull(body.brojDokumenta)) {
+    return res.status(400).json({ ok: false, error: "BROJ_REQUIRED" });
+  }
+
+  // pristup kao kod pazara: član org-e + owner PRO+
+  if (req.user.role !== "ADMIN") {
+    const member = await OrganizationMember.findOne({
+      where: { organizationId, userId: req.user.id },
+    });
+    if (!member) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+    const ownerTier = await getOrgOwnerRole(organizationId);
+    if (!["PRO", "BUSINESS", "ADMIN"].includes(ownerTier)) {
+      return res.status(403).json({ ok: false, error: "FORBIDDEN_OWNER_TIER" });
+    }
+  }
+  const org = await Organization.findByPk(organizationId);
+  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+  // KIF izlazni PDV ima smisla samo za PDV obveznika (UI dugme je disabled,
+  // ali serverska provjera štiti od direktnog API poziva u ne-obveznika)
+  if (!org.isPdvObveznik) {
+    return res.status(400).json({ ok: false, error: "NIJE_PDV_OBVEZNIK" });
+  }
+  const partner = await Partner.findOne({
+    where: { id: partnerId, organizationId },
+  });
+  if (!partner) {
+    return res.status(404).json({ ok: false, error: "PARTNER_NOT_FOUND" });
+  }
+
+  const brojDokumenta = trimOrNull(body.brojDokumenta);
+
+  try {
+    const result = await sequelize.transaction(async (t) => {
+      const inv = await Invoice.create({
+        userId: req.user.id,
+        organizationId,
+        clientId: null,
+        type: "INVOICE",
+        docType: "PDV_EVIDENCIJA",
+        year: Number(datum.slice(0, 4)),
+        sequence: 0,
+        fullNumber: brojDokumenta,
+        issueDate: datum,
+        dueDate: null,
+        applyVat: true,
+        vrstaIsporuke: "OPOREZIVA",
+        kifTipDokumenta: "01",
+        // partner je PDV obveznik koji će ovaj PDV odbiti: NIJE krajnja potrošnja
+        kifKpEntitet: "NISTA",
+        currency: "BAM",
+        // ništa se ne naplaćuje (PDV je uplaćen direktno UIO)
+        status: "PAID",
+        paidAt: datum,
+        sellerName: org.name,
+        sellerAddress: org.address,
+        sellerCity: org.city,
+        sellerPhone: org.phone,
+        sellerEmail: org.email,
+        sellerTaxNumber: org.taxNumber,
+        sellerVatNumber: org.pdvNumber,
+        sellerBankAccount: org.bankAccount,
+        sellerLogoUrl: org.logoUrl,
+        buyerName: partner.name,
+        buyerAddress: partner.address,
+        buyerCity: partner.city,
+        buyerIdNumber: partner.jib,
+        buyerVatNumber: partner.pdvBroj,
+        // čista PDV evidencija: osnovica i ukupno 0, samo izlazni PDV
+        netTotal: 0,
+        discountTotal: 0,
+        vatTotal: pdvIznos,
+        grossTotal: 0,
+        notes: trimOrNull(body.note),
+      }, { transaction: t });
+
+      await InvoiceItem.create({
+        invoiceId: inv.id,
+        ordinal: 1,
+        name: `Direktno PDV knjiženje u KIF: ${brojDokumenta}`,
+        unit: null,
+        quantity: 1,
+        unitPrice: 0,
+        discountPct: 0,
+        vatPct: 0,
+        netLine: 0,
+        discountLine: 0,
+        vatLine: pdvIznos,
+        grossLine: 0,
+      }, { transaction: t });
+
+      const fresh = await Invoice.findOne({
+        where: { id: inv.id },
+        include: [{ model: InvoiceItem, as: "items" }],
+        transaction: t,
+      });
+      return fresh;
+    });
+
+    res.status(201).json({ ok: true, data: publicInvoice(result) });
+  } catch (e) {
+    console.error("invoice kifPdv error:", e);
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+module.exports = { list, adminList, getById, create, patch, remove, pdf, emailToBuyer, convertProforma, stornoAvans, knjiznaObavijest, pazar, kifPdv };

@@ -20,6 +20,7 @@ const {
   BankStatement,
   Organization,
   Worker,
+  TkmPazar,
 } = require("../models/index");
 const { CATEGORY_BY_ID } = require("./bankStatements/categories");
 const { decryptJmbg } = require("../utils/encryptJmbg");
@@ -49,9 +50,22 @@ function centsToKm(obj) {
  */
 async function buildKpr(organizationId, from, to) {
   const org = await Organization.findByPk(organizationId, {
-    attributes: ["id", "name", "address", "city", "taxNumber", "isPdvObveznik"],
+    attributes: [
+      "id",
+      "name",
+      "address",
+      "city",
+      "taxNumber",
+      "isPdvObveznik",
+      "kprPazarIzKp",
+    ],
   });
   if (!org) return null;
+  // opcija po obrtu: prihod od pazara u KPR ide iz dnevnog prometa
+  // (KP-1042/tkm_pazari) umjesto iz pologa sa izvoda; tada se kategorija
+  // PAZAR sa izvoda BEZUSLOVNO isključuje iz knjige (i ručno potvrđena),
+  // da se isti novac ne knjiži dvaput
+  const pazarIzKp = !!org.kprPazarIzKp;
 
   // vlasnik obrta postoji kao Worker sa rolom VLASNIK (dijeljeno sa
   // marketing dijelom) — za polja 1-3 KPR obrasca
@@ -91,11 +105,12 @@ async function buildKpr(organizationId, from, to) {
 
   const rows = [];
   const totals = emptyCols();
-  let rbr = 1;
 
   for (const tx of txs) {
     const cat = CATEGORY_BY_ID.get(tx.category);
     if (!cat || cat.kprColumn == null) continue; // "ne ide u KPR"
+    // pazar ide iz KP-1042: polozi sa izvoda su samo prenos novca
+    if (pazarIzKp && tx.category === "PAZAR") continue;
 
     const gross = Math.round(Number(tx.amount) * 100);
     const pdv = org.isPdvObveznik && cat.pdvSplit ? pdvFromGross(gross) : 0;
@@ -114,7 +129,6 @@ async function buildKpr(organizationId, from, to) {
 
     const statementNumber = tx.statement ? tx.statement.statementNumber : null;
     rows.push({
-      rbr: rbr++,
       datum: tx.date,
       brojDokumenta: statementNumber
         ? `Izvod ${statementNumber}`
@@ -125,6 +139,37 @@ async function buildKpr(organizationId, from, to) {
       ...centsToKm(cols),
     });
   }
+
+  // dnevni promet iz KP-1042 kao prihod u gotovini (kolona 11), sa PDV
+  // splitom za obveznike (bruto pazar sadrži PDV)
+  if (pazarIzKp) {
+    const pazari = await TkmPazar.findAll({
+      where: { organizationId, datum: { [Op.gte]: from, [Op.lte]: to } },
+      order: [["datum", "ASC"], ["id", "ASC"]],
+    });
+    for (const p of pazari) {
+      const gross = Math.round(Number(p.iznos) * 100);
+      const pdv = org.isPdvObveznik ? pdvFromGross(gross) : 0;
+      const cols = emptyCols();
+      cols.k11 = gross;
+      cols.k14 = pdv;
+      cols.k15 = gross - pdv;
+      for (const c of COLS) totals[c] += cols[c];
+      rows.push({
+        datum: p.datum,
+        brojDokumenta: "KP-1042",
+        opis: p.opis || "Dnevni promet (pazar)",
+        kategorija: "PAZAR",
+        ...centsToKm(cols),
+      });
+    }
+    // hronološki redoslijed nakon spajanja dva izvora
+    rows.sort((a, b) => a.datum.localeCompare(b.datum));
+  }
+
+  rows.forEach((r, i) => {
+    r.rbr = i + 1;
+  });
 
   return {
     from,
