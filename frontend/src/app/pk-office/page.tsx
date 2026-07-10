@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     siteName: "Porezni Kalkulator BiH",
     title: "PK Office, knjigovodstvo obrta na jednom mjestu",
     description:
-      "Bankovni izvodi, automatsko knjiženje, obračun plata i porezni obrasci za obrte u BiH. Registruj se i budi među prvima.",
+      "Bankovni izvodi, automatsko knjiženje, obračun plata i porezni obrasci za obrte u BiH. Isprobaj 30 dana besplatno.",
   },
 };
 

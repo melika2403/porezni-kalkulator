@@ -43,6 +43,7 @@ import {
   formFromPartner,
   type PartnerFormState,
 } from "src/sections/partneri/PartnerFormModal";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 
 function RacunBadge({ r }: { r: UlazniRacun }) {
   if (r.status === "PLACEN") {
@@ -124,6 +125,10 @@ export default function PartnerKarticaPage({
   const { data: kartica, isLoading } = usePartnerKartica(orgId, partnerId);
   const updateRacun = useUpdateUlazniRacun(orgId);
   const deleteRacun = useDeleteUlazniRacun(orgId);
+  // ulazni račun koji čeka potvrdu brisanja (PK modal umjesto window.confirm)
+  const [racunZaBrisanje, setRacunZaBrisanje] = useState<UlazniRacun | null>(
+    null,
+  );
 
   // PDV status obrta zbog PDV split-a kod knjiženja
   const { data: fullOrg } = useQuery({
@@ -550,13 +555,7 @@ export default function PartnerKarticaPage({
                   <button
                     type="button"
                     title="Obriši račun"
-                    onClick={() => {
-                      if (
-                        window.confirm(`Obrisati ulazni račun ${r.brojRacuna}?`)
-                      ) {
-                        deleteRacun.mutate(r.id);
-                      }
-                    }}
+                    onClick={() => setRacunZaBrisanje(r)}
                     className="p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-accent-500 hover:border-accent-500/50 transition-colors"
                   >
                     <IconTrash size={15} />
@@ -712,6 +711,33 @@ export default function PartnerKarticaPage({
         orgId={orgId}
         initial={editInitial}
         onClose={() => setEditInitial(null)}
+      />
+
+      {/* potvrda brisanja ulaznog računa (PK modal umjesto window.confirm) */}
+      <ConfirmModal
+        open={racunZaBrisanje != null}
+        onClose={() => setRacunZaBrisanje(null)}
+        title="Obriši ulazni račun"
+        message={
+          racunZaBrisanje && (
+            <>
+              Obrisati ulazni račun{" "}
+              <strong className="text-text-primary">
+                {racunZaBrisanje.brojRacuna}
+              </strong>{" "}
+              ({formatBAM(Number(racunZaBrisanje.iznos))})? Ovo se ne može
+              poništiti.
+            </>
+          )
+        }
+        confirmLabel="Da, obriši račun"
+        busy={deleteRacun.isPending}
+        onConfirm={() => {
+          if (!racunZaBrisanje) return;
+          deleteRacun.mutate(racunZaBrisanje.id, {
+            onSuccess: () => setRacunZaBrisanje(null),
+          });
+        }}
       />
     </div>
   );

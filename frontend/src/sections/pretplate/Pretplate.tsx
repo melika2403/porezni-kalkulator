@@ -3,6 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  IconInbox,
+  IconArrowsExchange,
+  IconCoins,
+  IconReceiptTax,
+  IconFileText,
+  IconFileInvoice,
+  IconPackage,
+  IconBuildingBank,
+  IconTransfer,
+  IconBriefcase,
+} from "@tabler/icons-react";
 import { me, unwrap, startTrial, type AuthUser } from "src/api/auth";
 import styles from "./pretplate.module.css";
 import {
@@ -12,12 +24,18 @@ import {
 } from "src/api/backend/predracun/predracun";
 import {
   PLAN_PRICING,
+  OFFICE_PLANS,
+  officePlanForCount,
   annualSavings,
   calcVat,
   calcGross,
   formatKm as fmt,
   type BillingCycle,
 } from "src/data/pricing";
+import { sendContactForm } from "src/api/backend/contactForm/contactForm";
+import { PK_OFFICE_DASHBOARD_URL } from "src/lib/pkOfficeUrl";
+import { getPkOfficePristup, startPkOfficeTrial } from "src/api/pkOffice";
+import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import BuyerFillSelect, {
@@ -66,6 +84,55 @@ const PLANS: {
 ];
 
 type Status = "idle" | "sending" | "done" | "error";
+
+// "1 radni dan" / "2-4 radna dana" / "5+ radnih dana"
+function radniDani(n: number): string {
+  if (n === 1) return "1 radni dan";
+  if (n >= 2 && n <= 4) return `${n} radna dana`;
+  return `${n} radnih dana`;
+}
+
+// naziv plana za summary/dugme (Office planovi nose i limit obrta)
+const PLAN_LABELS: Record<Plan, string> = {
+  PRO: "Pro",
+  BUSINESS: "Business",
+  OFFICE_2: "Office Start (do 2 obrta)",
+  OFFICE_10: "Office Tim (do 10 obrta)",
+  OFFICE_25: "Office Agencija (do 25 obrta)",
+  OFFICE_50: "Office Agencija+ (do 50 obrta)",
+};
+
+// PK Office funkcije: dvije udarne + ostatak (sve su u SVAKOM paketu);
+// ikonice su iste koje koristi i sam PK Office
+type OfficeFeature = {
+  title: string;
+  desc: string;
+  icon: React.ComponentType<{ size?: number }>;
+};
+
+const OFFICE_HERO_FEATURES: OfficeFeature[] = [
+  {
+    icon: IconInbox,
+    title: "Grupni uvoz izvoda za sve obrte",
+    desc: "Ubaci PDF izvode svih obrta odjednom: svaki izvod se sam prepozna po žiro računu, rasporedi na svoj obrt i preskoči ako je već uvezen. Najveća ušteda vremena za knjigovođe.",
+  },
+  {
+    icon: IconArrowsExchange,
+    title: "Automatsko knjiženje",
+    desc: "Transakcije sa izvoda se same kategorišu, vežu za partnere i zatvaraju fakture i ulazne račune. KPR, KUF i KIF se pune sami, ti samo potvrdiš.",
+  },
+];
+
+const OFFICE_FEATURES: OfficeFeature[] = [
+  { icon: IconCoins, title: "Obračun plata", desc: "Plate, listići, uplatnice, MIP-1023 i 2001/2002" },
+  { icon: IconReceiptTax, title: "PDV evidencije", desc: "KUF/KIF, PDV prijava, e-KUF/e-KIF, D-PDV" },
+  { icon: IconFileText, title: "KPR i obrasci", desc: "Knjiga prihoda i rashoda, SPR i GPD iz knjiga" },
+  { icon: IconFileInvoice, title: "Fakture i partneri", desc: "Fakture, kartice kupaca i dobavljača, kompenzacije" },
+  { icon: IconPackage, title: "Roba", desc: "Kalkulacije (KCM), lager lista, popis i TKM" },
+  { icon: IconBuildingBank, title: "Blagajna i putni nalozi", desc: "Nalozi, dnevnik i dnevnice po pravilima" },
+  { icon: IconTransfer, title: "Migracija iz starog programa", desc: "Besplatan uvoz artikala, partnera i izvoda" },
+  { icon: IconBriefcase, title: "Business funkcije uključene", desc: "Ugovori, rješenja, radnici i tim; od paketa Tim neograničeno" },
+];
 
 export default function Pretplate() {
   // ── Pristup ──────────────────────────────────────────────────────────────
@@ -140,10 +207,95 @@ export default function Pretplate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoTrial, userLoading, user]);
 
+  // ── PK Office trial (?officeTrial=auto) ───────────────────────────────────
+  // Dolazak iz registracije preko PK Office trial CTA. Backend je trial u
+  // pravilu već aktivirao pri verifikaciji maila (wantsOfficeTrial); fallback
+  // (npr. Google registracija) ga aktivira ovdje. Skrolamo direktno na PK
+  // Office sekciju da se preskoči PRO/BUSINESS dio.
+  const officeTrialAuto = params.get("officeTrial") === "auto";
+  const [officeTrialStatus, setOfficeTrialStatus] = useState<
+    "idle" | "done" | "subscribed" | "used" | "error"
+  >("idle");
+  const officeTrialRef = useRef(false);
+
+  useEffect(() => {
+    // #pk-office hash: stranica se renderuje klijentski pa browserov native
+    // skok na anchor promaši (sekcija još ne postoji u momentu učitavanja).
+    const hashOffice =
+      typeof window !== "undefined" && window.location.hash === "#pk-office";
+    if (!officeTrialAuto && !hashOffice) return;
+    // mali delay da se sekcija izrenderuje prije skrola
+    const t = setTimeout(() => {
+      document
+        .getElementById("pk-office")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [officeTrialAuto]);
+
+  useEffect(() => {
+    if (!officeTrialAuto || officeTrialRef.current) return;
+    if (userLoading || !user) return;
+    officeTrialRef.current = true;
+    void (async () => {
+      const res = await startPkOfficeTrial();
+      if (res.ok) {
+        setOfficeTrialStatus("done");
+        return;
+      }
+      if (res.error === "ALREADY_SUBSCRIBED") {
+        setOfficeTrialStatus("subscribed");
+        return;
+      }
+      if (res.error === "TRIAL_ALREADY_USED") {
+        // najčešći slučaj: backend ga je već aktivirao pri verifikaciji maila,
+        // pa provjerimo da li proba stvarno teče ili je odavno potrošena
+        const p = await getPkOfficePristup();
+        const ends =
+          p.ok && p.data?.trialEndsAt ? new Date(p.data.trialEndsAt) : null;
+        setOfficeTrialStatus(ends && ends > new Date() ? "done" : "used");
+        return;
+      }
+      setOfficeTrialStatus("error");
+    })();
+  }, [officeTrialAuto, userLoading, user]);
+
   const initialPlan = (params.get("plan") || "").toUpperCase();
   const [selected, setSelected] = useState<Plan>(
-    initialPlan === "PRO" ? "PRO" : "BUSINESS",
+    initialPlan in PLAN_PRICING ? (initialPlan as Plan) : "BUSINESS",
   );
+  // PK Office kalkulator: broj obrta → predloženi paket
+  const [brojObrta, setBrojObrta] = useState(5);
+  const predlozeni = officePlanForCount(brojObrta);
+
+  // posebna ponuda za 50+ obrta: kontakt forma u modalu (bez mailto)
+  const [ponudaOpen, setPonudaOpen] = useState(false);
+  const [ponudaIme, setPonudaIme] = useState("");
+  const [ponudaEmail, setPonudaEmail] = useState("");
+  const [ponudaPoruka, setPonudaPoruka] = useState("");
+  const [ponudaStatus, setPonudaStatus] = useState<Status>("idle");
+
+  function otvoriPonudu() {
+    setPonudaStatus("idle");
+    setPonudaEmail((prev) => prev || buyer.email || user?.email || "");
+    setPonudaPoruka(
+      (prev) =>
+        prev ||
+        "Pozdrav,\n\nvodim više od 50 obrta i zanima me posebna PK Office ponuda.\n\nBroj obrta: \nTrenutni program: ",
+    );
+    setPonudaOpen(true);
+  }
+
+  async function posaljiPonudu(e: React.FormEvent) {
+    e.preventDefault();
+    setPonudaStatus("sending");
+    const res = await sendContactForm({
+      ime: ponudaIme,
+      email: ponudaEmail,
+      poruka: `[PK Office ponuda 50+ obrta]\n\n${ponudaPoruka}`,
+    });
+    setPonudaStatus(res.ok ? "done" : "error");
+  }
   // Ciklus naplate — godišnje je default (bolja ponuda: 2 mjeseca gratis).
   const initialCycle = (params.get("cycle") || "").toLowerCase();
   const [cycle, setCycle] = useState<BillingCycle>(
@@ -207,10 +359,18 @@ export default function Pretplate() {
   }, [lastUrl]);
 
   useEffect(() => {
-    if (initialPlan === "PRO" || initialPlan === "BUSINESS") {
+    if (initialPlan in PLAN_PRICING) {
       setSelected(initialPlan as Plan);
     }
   }, [initialPlan]);
+
+  // promjena broja obrta u kalkulatoru odmah selektuje predloženi paket
+  function handleBrojObrta(n: number) {
+    const v = Math.max(1, Math.min(50, Math.round(n) || 1));
+    setBrojObrta(v);
+    const p = officePlanForCount(v);
+    if (p) setSelected(p.id);
+  }
 
   // Auto-popuni e-mail iz profila kada se korisnik učita (samo ako polje prazno).
   useEffect(() => {
@@ -424,6 +584,399 @@ export default function Pretplate() {
         })}
       </div>
 
+      {/* ── PK Office paketi (naplata po broju obrta) ───────────────────── */}
+      <section className={styles.officeSection} id="pk-office">
+        <div className={styles.officeHeader}>
+          <span className={styles.officeBadge}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "#fff",
+              }}
+            />
+            PK Office
+          </span>
+          <h2 className={styles.officeTitle}>
+            Kompletno knjigovodstvo obrta. Cijena po broju obrta.
+          </h2>
+          <p className={styles.officeLead}>
+            <strong>Office Start</strong> daje sve funkcije za do 2 obrta, a
+            paketi <strong>Tim i veći</strong> uz PK Office knjigovodstvo
+            uključuju i <strong>kompletan Business bez ograničenja</strong>{" "}
+            (neograničeni klijenti na obrascima, ugovorima i platama). 30 dana
+            besplatne probe i besplatna migracija podataka iz starog programa.
+          </p>
+        </div>
+
+        {/* potvrda nakon dolaska iz registracije (?officeTrial=auto) */}
+        {officeTrialStatus !== "idle" && (
+          <div
+            className={`${styles.officeTrialBanner} ${
+              officeTrialStatus === "error" || officeTrialStatus === "used"
+                ? styles.officeTrialBannerWarn
+                : ""
+            }`}
+          >
+            {officeTrialStatus === "done" && (
+              <>
+                <strong>Probni period je aktiviran!</strong> Imaš 30 dana
+                kompletnog PK Office-a (nivo Office Tim, do 10 obrta), bez
+                kartice i bez obaveze.
+              </>
+            )}
+            {officeTrialStatus === "subscribed" && (
+              <>
+                <strong>Već imaš PK Office pristup.</strong> Slobodno nastavi u
+                aplikaciju.
+              </>
+            )}
+            {officeTrialStatus === "used" && (
+              <>
+                <strong>Probni period je već iskorišten.</strong> Izaberi paket
+                ispod i pošalji zahtjev za predračun.
+              </>
+            )}
+            {officeTrialStatus === "error" && (
+              <>
+                <strong>Greška pri aktivaciji probe.</strong> Pokušaj ponovo iz
+                aplikacije ili nam se javi.
+              </>
+            )}
+            {(officeTrialStatus === "done" ||
+              officeTrialStatus === "subscribed") && (
+              <a
+                href={PK_OFFICE_DASHBOARD_URL}
+                className={styles.officeTrialBannerBtn}
+              >
+                Otvori PK Office →
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* ciklus naplate i ovdje, da se ne promaši da postoji i mjesečno */}
+        <div
+          className={styles.cycleToggle}
+          role="tablist"
+          aria-label="Ciklus naplate PK Office"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={cycle === "monthly"}
+            className={`${styles.cycleBtn} ${cycle === "monthly" ? styles.cycleBtnActive : ""}`}
+            onClick={() => setCycle("monthly")}
+          >
+            Mjesečno
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={cycle === "yearly"}
+            className={`${styles.cycleBtn} ${cycle === "yearly" ? styles.cycleBtnActive : ""}`}
+            onClick={() => setCycle("yearly")}
+          >
+            Godišnje
+            <span className={styles.cycleBadge}>2 mjeseca besplatno</span>
+          </button>
+        </div>
+
+        {/* kalkulator broja obrta */}
+        <div className={styles.officeCalc}>
+          <span className={styles.officeCalcLabel}>Koliko obrta vodiš?</span>
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={brojObrta}
+            onChange={(e) => handleBrojObrta(Number(e.target.value))}
+            className={styles.officeCalcInput}
+            aria-label="Broj obrta"
+          />
+          <input
+            type="range"
+            min={1}
+            max={50}
+            value={brojObrta}
+            onChange={(e) => handleBrojObrta(Number(e.target.value))}
+            className={styles.officeRange}
+            aria-label="Broj obrta (klizač)"
+          />
+          {predlozeni && (
+            <span className={styles.officeSuggest}>
+              Preporučeno: <strong>{predlozeni.naziv}</strong> ·{" "}
+              {fmt(PLAN_PRICING[predlozeni.id][cycle])} KM{" "}
+              {cycle === "monthly" ? "mjesečno" : "godišnje"} + PDV
+            </span>
+          )}
+          {/* procjena uštede: ~3 sata po obrtu mjesečno (uvoz izvoda,
+              knjiženje, KPR/KUF/KIF i obrasci koji se pune sami) */}
+          <div className={styles.officeRoi}>
+            Automatski izvodi, knjiženje i evidencije za {brojObrta}{" "}
+            {brojObrta === 1 ? "obrt" : "obrta"} štede otprilike{" "}
+            <strong>
+              {brojObrta * 3} {brojObrta === 1 ? "sata" : "sati"} mjesečno
+            </strong>
+            {brojObrta * 3 >= 8 && (
+              <> (oko {radniDani(Math.round((brojObrta * 3) / 8))})</>
+            )}
+            , računajući skromna 3 sata ručnog prekucavanja i knjiženja po
+            obrtu.
+          </div>
+        </div>
+
+        <div className={styles.officeGrid}>
+          {OFFICE_PLANS.map((p) => {
+            const isActive = selected === p.id;
+            const cijena = PLAN_PRICING[p.id][cycle];
+            const poObrtu = PLAN_PRICING[p.id].monthly / p.maxObrta;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setSelected(p.id)}
+                className={`${styles.card} ${styles.featuredOffice} ${
+                  isActive ? styles.cardActive : styles.cardInactive
+                }`}
+                aria-pressed={isActive}
+              >
+                {predlozeni?.id === p.id && (
+                  <div className={styles.popularTag}>Preporučeno za tebe</div>
+                )}
+                <div className={styles.tier}>{p.naziv}</div>
+                <div className={styles.officeObrta}>do {p.maxObrta} obrta</div>
+                <div className={styles.price}>
+                  {fmt(cijena)} KM
+                  <span className={styles.vatSuffix}>+ PDV</span>
+                </div>
+                <div className={styles.period}>
+                  {cycle === "monthly" ? "mjesečno" : "godišnje"}
+                </div>
+                {cycle === "yearly" && (
+                  <div className={styles.saveNote}>
+                    2 mjeseca besplatno · ušteda {fmt(annualSavings(p.id))} KM
+                  </div>
+                )}
+                <div className={styles.officePerObrt}>
+                  već od {fmt(poObrtu)} KM po obrtu mjesečno
+                </div>
+                <div className={styles.divider} />
+                <ul className={styles.features}>
+                  <li>Sve PK Office funkcije</li>
+                  {p.id === "OFFICE_2" ? (
+                    <li>Business funkcije za ta 2 obrta</li>
+                  ) : (
+                    <li>Kompletan Business: neograničeni klijenti</li>
+                  )}
+                  <li>30 dana besplatne probe</li>
+                </ul>
+                <div className={styles.selectIndicator}>
+                  {isActive ? (
+                    <>
+                      <svg
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <circle cx="10" cy="10" r="8" />
+                        <path d="M6 10l3 3 5-6" />
+                      </svg>
+                      Izabrano
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <circle cx="10" cy="10" r="8" />
+                      </svg>
+                      Izaberi
+                    </>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* probni period: prijavljen ide u app (proba se tamo eksplicitno
+            pokreće), neprijavljen na registraciju pa auto-aktivacija */}
+        <div className={styles.officeTrialRow}>
+          <OfficeTrialLink className={styles.officeTrialBtn}>
+            Isprobaj 30 dana besplatno →
+          </OfficeTrialLink>
+          <span className={styles.officeTrialNote}>
+            Bez kartice i bez obaveze. Proba je na nivou paketa Office Tim (do
+            10 obrta).
+          </span>
+        </div>
+
+        {/* funkcije: dvije udarne + ostatak, PK Office stil sa ikonicama */}
+        <div className={styles.officeHeroGrid}>
+          {OFFICE_HERO_FEATURES.map((f) => {
+            const Icon = f.icon;
+            return (
+              <div key={f.title} className={styles.officeHero}>
+                <span className={styles.officeHeroIcon}>
+                  <Icon size={22} />
+                </span>
+                <div>
+                  <div className={styles.officeHeroTitle}>{f.title}</div>
+                  <p className={styles.officeHeroDesc}>{f.desc}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className={styles.officeFeatGrid}>
+          {OFFICE_FEATURES.map((f) => {
+            const Icon = f.icon;
+            return (
+              <div key={f.title} className={styles.officeFeat}>
+                <span className={styles.officeFeatIcon}>
+                  <Icon size={18} />
+                </span>
+                <strong>{f.title}</strong>
+                {f.desc}
+              </div>
+            );
+          })}
+        </div>
+        <div className={styles.officeContact}>
+          <span className={styles.officeContactIcon}>
+            <IconBuildingBank size={22} />
+          </span>
+          <div className={styles.officeContactBody}>
+            <div className={styles.officeContactTitle}>
+              Vodiš više od 50 obrta?
+            </div>
+            <p className={styles.officeContactDesc}>
+              Za veće agencije pravimo posebnu ponudu.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={otvoriPonudu}
+            className={styles.officeContactBtn}
+          >
+            Javi nam se →
+          </button>
+        </div>
+
+        {/* modal: upit za posebnu ponudu ide kroz kontakt formu, ne mailto.
+            Klik van modala NAMJERNO ne zatvara (da se upit ne izgubi);
+            zatvaranje samo kroz Odustani/Zatvori. */}
+        {ponudaOpen && (
+          <div className={styles.officeModalOverlay}>
+            <div
+              className={styles.officeModal}
+              role="dialog"
+              aria-modal="true"
+            >
+              <h3 className={styles.officeModalTitle}>
+                Posebna ponuda za 50+ obrta
+              </h3>
+              <p className={styles.officeModalSub}>
+                Ostavi podatke i par detalja, javljamo se u roku od 24 sata sa
+                ponudom po mjeri.
+              </p>
+              {ponudaStatus === "done" ? (
+                <>
+                  <div className={styles.successMsg}>
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M4 10l4 4 8-8" />
+                    </svg>
+                    Poruka je poslana. Javljamo se uskoro na{" "}
+                    <strong>{ponudaEmail}</strong>
+                  </div>
+                  <div className={styles.officeModalActions}>
+                    <button
+                      type="button"
+                      className={styles.officeModalSend}
+                      onClick={() => setPonudaOpen(false)}
+                    >
+                      Zatvori
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <form onSubmit={posaljiPonudu}>
+                  <div className={styles.officeModalFields}>
+                    <div className={styles.field}>
+                      <label className={styles.fieldLabel}>
+                        Ime i prezime *
+                      </label>
+                      <input
+                        className={styles.input}
+                        type="text"
+                        value={ponudaIme}
+                        onChange={(e) => setPonudaIme(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.fieldLabel}>E-mail *</label>
+                      <input
+                        className={styles.input}
+                        type="email"
+                        value={ponudaEmail}
+                        onChange={(e) => setPonudaEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.fieldLabel}>Poruka *</label>
+                      <textarea
+                        className={styles.officeModalTextarea}
+                        rows={6}
+                        value={ponudaPoruka}
+                        onChange={(e) => setPonudaPoruka(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  {ponudaStatus === "error" && (
+                    <div className={styles.errorMsg}>
+                      Došlo je do greške pri slanju. Pokušaj ponovo ili piši
+                      direktno na info@poreznikalkulator.ba.
+                    </div>
+                  )}
+                  <div className={styles.officeModalActions}>
+                    <button
+                      type="button"
+                      className={styles.officeModalCancel}
+                      onClick={() => setPonudaOpen(false)}
+                    >
+                      Odustani
+                    </button>
+                    <button
+                      type="submit"
+                      className={styles.officeModalSend}
+                      disabled={ponudaStatus === "sending"}
+                    >
+                      {ponudaStatus === "sending"
+                        ? "Šaljem..."
+                        : "Pošalji upit"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* ── Forma podataka kupca ────────────────────────────────────────── */}
       <form className={styles.form} onSubmit={onSubmit}>
         <div className={styles.formHeader}>
@@ -623,7 +1176,7 @@ export default function Pretplate() {
           <div className={styles.summaryRow}>
             <span>Plan</span>
             <strong>
-              {selected === "PRO" ? "Pro" : "Business"} ·{" "}
+              {PLAN_LABELS[selected]} ·{" "}
               {cycle === "monthly" ? "mjesečno" : "godišnje"}
             </strong>
           </div>
@@ -648,7 +1201,7 @@ export default function Pretplate() {
         >
           {status === "sending"
             ? "Generišem predračun..."
-            : `Generiši predračun za ${selected === "PRO" ? "Pro" : "Business"}`}
+            : `Generiši predračun za ${PLAN_LABELS[selected]}`}
         </button>
         <p className={styles.fineprint}>
           Klikom na dugme generišemo predračun i šaljemo ga na navedeni e-mail.

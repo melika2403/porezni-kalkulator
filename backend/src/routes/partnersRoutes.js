@@ -10,20 +10,34 @@ const router = express.Router();
 router.get(
   "/:orgId",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   ctrl.list,
 );
 router.get(
   "/:orgId/suggestions",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   ctrl.suggestions,
+);
+// zbirni promet kupaca/dobavljača za period (izvještaj)
+router.get(
+  "/:orgId/promet",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
+  ctrl.promet,
+);
+// grupni uvoz partnera (Com_Soft XML/CSV), prije generičkih ruta
+router.post(
+  "/:orgId/uvoz",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  ctrl.uvozPartnera,
 );
 // ulazni računi prije generičkih /:orgId/:partnerId ruta
 router.get(
   "/:orgId/ulazni-racuni",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   ctrl.listUlazniRacuni,
 );
 router.post(
@@ -47,13 +61,13 @@ router.delete(
 router.get(
   "/:orgId/:partnerId/kartica",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   ctrl.kartica,
 );
 router.get(
   "/:orgId/:partnerId/kartica.pdf",
   requireAuth,
-  requireOrgRole("OWNER", "ADMIN", "MEMBER"),
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   ctrl.karticaPdfDownload,
 );
 router.post(

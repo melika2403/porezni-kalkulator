@@ -10,7 +10,8 @@ export type RenewalItem = {
   email: string | null;
   phone: string | null;
   role: "USER" | "PRO" | "BUSINESS" | "ADMIN";
-  plan: "PRO" | "BUSINESS" | null;
+  /** PRO | BUSINESS | office_2..office_50 | free | null */
+  plan: string | null;
   billingCycle: "monthly" | "yearly" | null;
   startDate: string;
   endDate: string;

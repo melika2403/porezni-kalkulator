@@ -8,6 +8,8 @@ router.get("/", requireAuth, invoicesController.list);
 router.post("/", requireAuth, invoicesController.create);
 // zbirno mjesečno knjiženje pazara u KIF (gotovinski promet, PDV 17/117)
 router.post("/pazar", requireAuth, invoicesController.pazar);
+// direktno "samo PDV" knjiženje u KIF (npr. posebna šema u građevinarstvu)
+router.post("/kif-pdv", requireAuth, invoicesController.kifPdv);
 router.get("/:id", requireAuth, invoicesController.getById);
 router.patch("/:id", requireAuth, invoicesController.patch);
 router.delete("/:id", requireAuth, invoicesController.remove);

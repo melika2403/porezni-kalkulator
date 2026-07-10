@@ -45,6 +45,11 @@ const prebijanjaRoutes = require("./routes/prebijanjaRoutes");
 const supportRoutes = require("./routes/supportRoutes");
 const announcementsRoutes = require("./routes/announcementsRoutes");
 const { initSocket } = require("./socket");
+const kalkulacijeRoutes = require("./routes/kalkulacijeRoutes");
+const lagerRoutes = require("./routes/lagerRoutes");
+const blagajnaRoutes = require("./routes/blagajnaRoutes");
+const putniNaloziRoutes = require("./routes/putniNaloziRoutes");
+const pkOfficeRoutes = require("./routes/pkOfficeRoutes");
 
 const app = express();
 
@@ -67,7 +72,9 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+// veći limit zbog grupnih uvoza (šifarnik artikala/partnera zna imati
+// desetine hiljada stavki poslanih kao JSON)
+app.use(express.json({ limit: "25mb" }));
 app.use(cookieParser());
 
 // ── static za uploadane fajlove (logo organizacije, kasnije i drugi) ─────────
@@ -107,6 +114,11 @@ app.use("/api/public", publicStatsRoutes);
 app.use("/api/prebijanja", prebijanjaRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/announcements", announcementsRoutes);
+app.use("/api/kalkulacije", kalkulacijeRoutes);
+app.use("/api/lager", lagerRoutes);
+app.use("/api/blagajna", blagajnaRoutes);
+app.use("/api/putni-nalozi", putniNaloziRoutes);
+app.use("/api/pk-office", pkOfficeRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -130,6 +142,12 @@ async function ensureColumns() {
       table: "organizations",
       column: "bankAccounts",
       ddl: "ALTER TABLE organizations ADD COLUMN bankAccounts JSON NULL",
+    },
+    {
+      table: "organizations",
+      column: "kprPazarIzKp",
+      // KPR prihod od pazara iz KP-1042 umjesto pologa sa izvoda
+      ddl: "ALTER TABLE organizations ADD COLUMN kprPazarIzKp TINYINT(1) NOT NULL DEFAULT 0",
     },
     // ─── PDV evidencije (KUF/KIF) ─────────────────────────────────────────────
     {
@@ -197,6 +215,32 @@ async function ensureColumns() {
       table: "ulazni_racuni",
       column: "samoEvidencija",
       ddl: "ALTER TABLE ulazni_racuni ADD COLUMN samoEvidencija TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "artikli",
+      column: "tip",
+      ddl: "ALTER TABLE artikli ADD COLUMN tip VARCHAR(10) NOT NULL DEFAULT 'ROBA'",
+    },
+    // PK Office slotovi po Office paketu + Office trial
+    {
+      table: "organizations",
+      column: "pkOfficeEnabled",
+      ddl: "ALTER TABLE organizations ADD COLUMN pkOfficeEnabled TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "organizations",
+      column: "pkOfficeActivatedAt",
+      ddl: "ALTER TABLE organizations ADD COLUMN pkOfficeActivatedAt DATETIME NULL",
+    },
+    {
+      table: "organizations",
+      column: "pkOfficeDisabledAt",
+      ddl: "ALTER TABLE organizations ADD COLUMN pkOfficeDisabledAt DATETIME NULL",
+    },
+    {
+      table: "users",
+      column: "pkOfficeTrialEndsAt",
+      ddl: "ALTER TABLE users ADD COLUMN pkOfficeTrialEndsAt DATETIME NULL",
     },
     {
       table: "invoices",
@@ -273,6 +317,11 @@ async function ensureColumns() {
       table: "users",
       column: "wantsTrial",
       ddl: "ALTER TABLE users ADD COLUMN wantsTrial TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "users",
+      column: "wantsOfficeTrial",
+      ddl: "ALTER TABLE users ADD COLUMN wantsOfficeTrial TINYINT(1) NOT NULL DEFAULT 0",
     },
     // ─── Korist u naravi (službeno vozilo) ────────────────────────────────────
     {
@@ -937,6 +986,64 @@ async function ensureInvoiceCounterSeriesEnum() {
   );
 }
 
+// VIEWER rola člana organizacije (read-only pristup, npr. vlasnik obrta koji
+// samo gleda knjige kod knjigovođe). Aditivno širenje enum-a, bez backfilla
+// (postojeće vrijednosti OWNER/ADMIN/MEMBER ostaju u novoj listi).
+async function ensureMemberRoleEnum() {
+  const [tblRows] = await sequelize.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'organization_members'`,
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+  const [colRows] = await sequelize.query(
+    `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'organization_members' AND COLUMN_NAME = 'role'`,
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  if (!colType || colType.includes("'VIEWER'")) return;
+  console.log("Proširujem organization_members.role ENUM (VIEWER)...");
+  await sequelize.query(
+    "ALTER TABLE organization_members MODIFY COLUMN role ENUM('OWNER','ADMIN','MEMBER','VIEWER') DEFAULT 'MEMBER'",
+  );
+}
+
+// PK Office paketi: proširi plan ENUM na subscriptions i predracuni
+// (sync ne mijenja postojeće ENUM definicije). PAŽNJA: subscriptions.plan
+// je legacy LOWERCASE ('free','pro','business'), predracuni.plan UPPERCASE.
+async function ensureOfficePlanEnums() {
+  const targets = [
+    {
+      table: "subscriptions",
+      marker: "'office_2'",
+      // subscriptions.plan je dodan kao nullable (ensureColumns), a postojeći
+      // redovi (npr. admin upsert samo sa datumima) imaju NULL. MODIFY ... NOT
+      // NULL bi na strict MySQL-u pukao na NULL vrijednostima (i srušio startup),
+      // a na non-strict ih pretvorio u '' umjesto DEFAULT-a. Zato backfill prije.
+      backfill:
+        "UPDATE subscriptions SET plan = 'free' WHERE plan IS NULL OR plan = ''",
+      ddl: "ALTER TABLE subscriptions MODIFY COLUMN plan ENUM('free','pro','business','office_2','office_10','office_25','office_50') NOT NULL DEFAULT 'free'",
+    },
+    {
+      table: "predracuni",
+      marker: "'OFFICE_2'",
+      ddl: "ALTER TABLE predracuni MODIFY COLUMN plan ENUM('PRO','BUSINESS','OFFICE_2','OFFICE_10','OFFICE_25','OFFICE_50') NOT NULL",
+    },
+  ];
+  for (const t of targets) {
+    const [tblRows] = await sequelize.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${t.table}'`,
+    );
+    if (!Number(tblRows?.[0]?.cnt || 0)) continue;
+    const [colRows] = await sequelize.query(
+      `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${t.table}' AND COLUMN_NAME = 'plan'`,
+    );
+    const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+    if (!colType || colType.includes(t.marker)) continue;
+    console.log(`Proširujem ${t.table}.plan ENUM (OFFICE paketi)...`);
+    // Očisti NULL/'' vrijednosti prije MODIFY ... NOT NULL da migracija ne pukne.
+    if (t.backfill) await sequelize.query(t.backfill);
+    await sequelize.query(t.ddl);
+  }
+}
+
 // Idempotent ENUM proširenja — sync ne mijenja postojeće ENUM definicije.
 async function ensurePayrollDocTypeEnum() {
   const [tblRows] = await sequelize.query(
@@ -1189,6 +1296,8 @@ sequelize
   .then(() => ensureColumns())
   .then(() => ensureOrgBankAccountsBackfill())
   .then(() => ensureInvoiceCounterSeriesEnum())
+  .then(() => ensureOfficePlanEnums())
+  .then(() => ensureMemberRoleEnum())
   .then(() => ensurePayrollDocTypeEnum())
   .then(() => ensureWorkerDocTypeEnum())
   .then(() => ensureActivityNamesFresh())
@@ -1206,6 +1315,62 @@ sequelize
       "statementNumber",
       "statementDate",
       "account",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("artikli", "artikli_org_sifra", [
+      "organizationId",
+      "sifra",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("kalkulacije", "kalkulacije_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("popisi", "popisi_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("nivelacije", "nivelacije_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("razduzenja", "razduzenja_org_tip_god_broj", [
+      "organizationId",
+      "tip",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("tkm_pocetna_stanja", "tkm_pocetno_org_godina", [
+      "organizationId",
+      "godina",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("blagajna_nalozi", "blagajna_org_tip_god_broj", [
+      "organizationId",
+      "tip",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("putni_nalozi", "putni_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
     ]),
   )
   .then(() => {

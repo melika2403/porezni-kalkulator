@@ -186,7 +186,10 @@
   background: white;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  /* auto umjesto hidden: kad je sadržaj širi od ekrana, tabela dobije
+     horizontalni scroll umjesto da odsiječe zadnje kolone (dugmad). */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .table {
@@ -262,7 +265,9 @@
 .roleUser,
 .rolePro,
 .roleBusiness,
-.roleAdmin {
+.roleAdmin,
+.planOffice,
+.planTrial {
   display: inline-block;
   font-size: 11px;
   font-weight: 500;
@@ -343,6 +348,17 @@
   color: var(--accent);
 }
 
+/* Paket (aktivna pretplata / office trial) */
+.planOffice {
+  background: #dce9df;
+  color: #2d4633;
+}
+
+.planTrial {
+  background: #f2dec0;
+  color: #8a4f10;
+}
+
 /* ── Inputs (inline edit) ─────────────────────────────────────────────── */
 .inlineInput {
   font-family: "DM Sans", sans-serif;
@@ -404,6 +420,23 @@
   display: flex;
   gap: 0.4rem;
   justify-content: flex-end;
+}
+
+/* Red za uređivanje: otvara se ISPOD korisnika preko cijele širine tabele
+   (kao potvrda brisanja), pa polja imaju mjesta i tabela se ne razvlači. */
+.editRow {
+  background: var(--paper);
+}
+.editRowInner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+.editField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 /* ── States ───────────────────────────────────────────────────────────── */

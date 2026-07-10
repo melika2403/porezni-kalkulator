@@ -26,8 +26,15 @@ export type RashodKategorija = "ROBA_MATERIJAL" | "OSTALI_RASHODI";
 
 export type PrebijanjeStavka = {
   description: string | null;
+  /** ALOCIRANI (za KPR, može biti djelimičan) iznos ove stavke */
   amount: string;
   direction: "IN" | "OUT";
+  /** oznaka izvornog dokumenta ("Faktura F-0001-2026" / "Račun 123") */
+  oznaka: string | null;
+  /** PUN iznos izvornog dokumenta: PDF kompenzacije prikazuje cijele
+   * dokumente, razlika ide u "nekompenzirani ostatak" (null ako je
+   * dokument naknadno obrisan) */
+  punIznos: string | null;
 };
 
 export type Prebijanje = {

@@ -3,6 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   activateOrganization,
+  aktivirajObrtUPkOffice,
+  deaktivirajObrtUPkOffice,
+  getPkOfficePristup,
   meWithOrgs,
   payrollStatusForMonth,
 } from "src/api/pkOffice";
@@ -30,4 +33,28 @@ export function useActivateOrganization() {
       qc.invalidateQueries({ queryKey: ["pk-office", "me"] });
     },
   });
+}
+
+// ── PK Office pristup i slotovi (Office paketi) ──────────────────────────────
+
+export function usePkOfficePristup() {
+  return useQuery({
+    queryKey: ["pk-office", "pristup"],
+    queryFn: () => unwrap(getPkOfficePristup()),
+  });
+}
+
+export function usePkOfficeSlot() {
+  const qc = useQueryClient();
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: ["pk-office", "pristup"] });
+  const aktiviraj = useMutation({
+    mutationFn: (orgId: number) => unwrap(aktivirajObrtUPkOffice(orgId)),
+    onSuccess: invalidate,
+  });
+  const deaktiviraj = useMutation({
+    mutationFn: (orgId: number) => unwrap(deaktivirajObrtUPkOffice(orgId)),
+    onSuccess: invalidate,
+  });
+  return { aktiviraj, deaktiviraj };
 }

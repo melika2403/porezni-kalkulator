@@ -27,7 +27,7 @@ const userInclude = [
 const userAttributes = [
   "id", "email", "jmbg", "idCardNumber", "firstName", "lastName",
   "phone", "address", "city", "role", "createdAt", "updatedAt", "isEmailVerified",
-  "trialUsedAt",
+  "trialUsedAt", "pkOfficeTrialEndsAt",
 ];
 
 function toPublicUser(user) {
@@ -50,7 +50,29 @@ async function listUsers({
   if (firstName) where.firstName = { [Op.like]: `%${firstName.trim()}%` };
   if (lastName) where.lastName = { [Op.like]: `%${lastName.trim()}%` };
   if (email) where.email = { [Op.like]: `%${email.trim()}%` };
-  if (role && ["USER", "PRO", "BUSINESS", "ADMIN"].includes(role)) {
+
+  // Office paketi nisu role nego pretplate: filter "office"/"office_X" ide
+  // preko subscription.plan (samo aktivne), ostale vrijednosti preko role.
+  let include = userInclude;
+  const officeFilter =
+    typeof role === "string" && /^office(_(2|10|25|50))?$/i.test(role)
+      ? role.toLowerCase()
+      : null;
+  if (officeFilter) {
+    include = [
+      {
+        ...userInclude[0],
+        required: true,
+        where: {
+          isActive: true,
+          plan:
+            officeFilter === "office"
+              ? { [Op.like]: "office%" }
+              : officeFilter,
+        },
+      },
+    ];
+  } else if (role && ["USER", "PRO", "BUSINESS", "ADMIN"].includes(role)) {
     where.role = role;
   }
 
@@ -63,7 +85,7 @@ async function listUsers({
   const { count: total, rows: items } = await User.findAndCountAll({
     where,
     attributes: userAttributes,
-    include: userInclude,
+    include,
     order,
     limit,
     offset,

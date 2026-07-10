@@ -10,6 +10,9 @@ export type AuthUser = {
   address: string | null;
   city: string | null;
   role: string;
+  /** Efektivna rola: PK Office paket/trial diže USER/PRO na BUSINESS
+      (marketing funkcije). Rola u bazi ostaje netaknuta. */
+  effectiveRole?: string;
   createdAt: string;
   updatedAt: string;
   hasPassword: boolean;
@@ -73,6 +76,8 @@ export type RegisterPayload = {
   // Registracija pokrenuta klikom na trial CTA -> trial se auto-aktivira pri
   // verifikaciji maila (i preskačemo "aktiviraj trial" welcome mail).
   wantsTrial?: boolean;
+  // Isto, ali za PK Office trial (pkOfficeTrialEndsAt).
+  wantsOfficeTrial?: boolean;
 };
 
 export function register(payload: RegisterPayload) {

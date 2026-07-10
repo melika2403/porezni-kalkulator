@@ -18,7 +18,11 @@ import BuyerFillSelect, {
 import { useCityLookup } from "src/hooks/useCities";
 import { me, unwrap } from "src/api/auth";
 import { trackEvent } from "src/api/activity";
-import { getOrganizations, type Organization } from "src/api/profile";
+import {
+  getOrganization,
+  getOrganizations,
+  type Organization,
+} from "src/api/profile";
 import {
   createInvoice,
   downloadInvoicePdf,
@@ -34,6 +38,9 @@ import {
   type InvoiceItemTemplate,
 } from "src/api/invoiceItemTemplates";
 import { usePartners } from "src/hooks/usePartners";
+import { useArtikli } from "src/hooks/useKalkulacije";
+import { ArtikalModal } from "src/sections/kalkulacije/ArtikalModal";
+import type { Artikal } from "src/api/kalkulacije";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import type { Partner } from "src/api/partners";
 import {
@@ -76,6 +83,12 @@ function fmt(v: number): string {
   const [int, dec] = v.toFixed(2).split(".");
   return int.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + dec;
 }
+// Brojčana polja drže "0" kao default: na fokus se sve selektuje pa kucanje
+// odmah piše preko (bez ručnog brisanja nule), kao u desktop programima.
+function selectAllOnFocus(e: React.FocusEvent<HTMLInputElement>) {
+  e.currentTarget.select();
+}
+
 // Žiro račun format: XXX-XXX-XXXXXXXX-XX (3-3-8-2)
 function formatBankAccount(v: string): string {
   const d = v.replace(/\D/g, "").slice(0, 16);
@@ -224,7 +237,11 @@ export default function InvoiceForm({
     queryFn: () => unwrap(listItemTemplates()),
     enabled: isAllowed,
   });
-  const templates: InvoiceItemTemplate[] = templatesQuery.data ?? [];
+  const templatesData = templatesQuery.data;
+  const templates: InvoiceItemTemplate[] = useMemo(
+    () => templatesData ?? [],
+    [templatesData],
+  );
 
   const saveTemplate = useMutation({
     mutationFn: (it: ItemRow) =>
@@ -273,6 +290,103 @@ export default function InvoiceForm({
     return templates.filter((t) => t.name.toLowerCase().includes(q));
   }, [templates, tplFilter]);
 
+  // PK Office: naziv stavke je živa pretraga šifarnika artikala (kao izbor
+  // artikla na kalkulacijama): kucanjem se filtriraju artikli (roba i usluge,
+  // zajednička baza) i snimljeni šabloni stavki, a "+ Dodaj u šifarnik" snima
+  // ukucani naziv kao novi artikal. Stara dugmad (📋/💾) su samo na marketing
+  // strani forme.
+  const artikliQ = useArtikli(isPkOffice ? lockedSellerOrgId : null);
+
+  const [nameDropRow, setNameDropRow] = useState<number | null>(null);
+  const [nameDropCoords, setNameDropCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const [nameDropHi, setNameDropHi] = useState(0);
+  // "+ Dodaj u šifarnik": red za koji se otvara ArtikalModal
+  const [newArtikalForRow, setNewArtikalForRow] = useState<number | null>(null);
+
+  const nameQuery =
+    nameDropRow != null ? (items[nameDropRow]?.name ?? "").trim() : "";
+  const nameMatches = useMemo(() => {
+    if (!isPkOffice || !nameQuery) {
+      return { artikli: [] as Artikal[], sabloni: [] as InvoiceItemTemplate[] };
+    }
+    const q = nameQuery.toLowerCase();
+    const artikli = (artikliQ.data ?? [])
+      .filter(
+        (a) =>
+          a.aktivan &&
+          (a.naziv.toLowerCase().includes(q) ||
+            a.sifra.toLowerCase().startsWith(q)),
+      )
+      .slice(0, 8);
+    const sabloni = templates
+      .filter((t) => t.name.toLowerCase().includes(q))
+      .slice(0, 5);
+    return { artikli, sabloni };
+  }, [isPkOffice, nameQuery, artikliQ.data, templates]);
+  // opcije za strelice/Enter: artikli, šabloni, pa "+ Dodaj u šifarnik"
+  const nameDropCount =
+    nameMatches.artikli.length + nameMatches.sabloni.length + 1;
+
+  function closeNameDrop() {
+    setNameDropRow(null);
+    setNameDropCoords(null);
+    setNameDropHi(0);
+  }
+
+  function applyArtikal(rowIdx: number, a: Artikal) {
+    setItem(rowIdx, {
+      name: a.naziv,
+      unit: a.jm.toLowerCase(),
+      vatPct: a.oslobodjenPdv ? "0" : "17",
+    });
+    setTplPickerForRow(null);
+    setTplFilter("");
+    closeNameDrop();
+  }
+
+  function pickNameOption(idx: number) {
+    if (nameDropRow == null) return;
+    const { artikli, sabloni } = nameMatches;
+    if (idx < artikli.length) {
+      applyArtikal(nameDropRow, artikli[idx]);
+      return;
+    }
+    if (idx < artikli.length + sabloni.length) {
+      applyTemplate(nameDropRow, sabloni[idx - artikli.length]);
+      closeNameDrop();
+      return;
+    }
+    setNewArtikalForRow(nameDropRow);
+    closeNameDrop();
+  }
+
+  // zatvaranje pretrage naziva: klik van, Escape, scroll, resize
+  useEffect(() => {
+    if (nameDropRow === null) return;
+    const close = () => closeNameDrop();
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(`[data-name-picker]`)) close();
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onEsc);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onEsc);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [nameDropRow]);
+
   // close picker on outside click / esc / scroll (fixed-position drift)
   useEffect(() => {
     if (tplPickerForRow === null) return;
@@ -310,13 +424,22 @@ export default function InvoiceForm({
     queryFn: () => unwrap(getOrganizations()),
     enabled: !!user && isAllowed,
   });
-  // Pre-popuni seller: fiksna organizacija (PK Office) ili jedina organizacija
+  // PK Office: prodavac se povlači direktno po ID-u aktivnog obrta (isti
+  // endpoint/cache kao ostatak app-a). Lista /api/organizations ne mora
+  // sadržavati obrte kojima se pristupa kao član, a i gate-ovana je tier
+  // provjerom, pa bi find po njoj znao ostaviti prodavca praznim.
+  const { data: lockedOrg } = useQuery({
+    queryKey: ["pk-org", lockedSellerOrgId],
+    queryFn: () => unwrap(getOrganization(lockedSellerOrgId as number)),
+    enabled: lockedSellerOrgId != null,
+  });
   useEffect(() => {
-    if (lockedSellerOrgId) {
-      const org = orgs.find((o) => o.id === lockedSellerOrgId);
-      if (org) pickSellerOrg(org);
-      return;
-    }
+    if (lockedOrg) pickSellerOrg(lockedOrg);
+  }, [lockedOrg]);
+
+  // Marketing dio: pre-popuni prodavca kad korisnik ima tačno jednu org-u
+  useEffect(() => {
+    if (lockedSellerOrgId) return; // PK Office ide kroz lockedOrg efekat
     if (orgs.length === 1 && !seller.name) {
       pickSellerOrg(orgs[0]);
     }
@@ -1249,50 +1372,94 @@ export default function InvoiceForm({
                       data-label="Naziv robe / usluge"
                       className={styles.itemNameCell}
                     >
-                      <div className={styles.itemNameWrap}>
+                      <div className={styles.itemNameWrap} data-name-picker>
                         <textarea
                           className={`${styles.input} ${styles.itemNameArea}`}
                           value={it.name}
-                          onChange={(e) => setItem(i, { name: e.target.value })}
-                          placeholder="npr. Konsultacije"
+                          onChange={(e) => {
+                            setItem(i, { name: e.target.value });
+                            // PK Office: kucanje otvara pretragu šifarnika
+                            if (isPkOffice) {
+                              if (e.target.value.trim()) {
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                setNameDropCoords({
+                                  top: rect.bottom,
+                                  left: rect.left,
+                                  width: rect.width,
+                                });
+                                setNameDropRow(i);
+                                setNameDropHi(0);
+                              } else {
+                                closeNameDrop();
+                              }
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (!isPkOffice || nameDropRow !== i) return;
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setNameDropHi((h) =>
+                                Math.min(h + 1, nameDropCount - 1),
+                              );
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setNameDropHi((h) => Math.max(h - 1, 0));
+                            } else if (e.key === "Enter") {
+                              e.preventDefault();
+                              pickNameOption(nameDropHi);
+                            }
+                          }}
+                          placeholder={
+                            isPkOffice
+                              ? "Upiši naziv, šifru ili novi tekst"
+                              : "npr. Konsultacije"
+                          }
                           rows={Math.max(
                             1,
                             (it.name.match(/\n/g)?.length || 0) + 1,
                           )}
                         />
-                        <div className={styles.itemNameActions} data-tpl-picker>
-                          <button
-                            type="button"
-                            className={styles.tplBtn}
-                            onClick={(e) => {
-                              if (tplPickerForRow === i) {
-                                setTplPickerForRow(null);
-                                return;
+                        {!isPkOffice && (
+                          <div
+                            className={styles.itemNameActions}
+                            data-tpl-picker
+                          >
+                            <button
+                              type="button"
+                              className={styles.tplBtn}
+                              onClick={(e) => {
+                                if (tplPickerForRow === i) {
+                                  setTplPickerForRow(null);
+                                  return;
+                                }
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                setTplPickerCoords({
+                                  top: rect.bottom,
+                                  left: rect.right,
+                                  width: rect.width,
+                                });
+                                setTplPickerForRow(i);
+                                setTplFilter("");
+                              }}
+                              title="Iz biblioteke šablona"
+                            >
+                              📋
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.tplBtn}
+                              disabled={
+                                !it.name.trim() || saveTemplate.isPending
                               }
-                              const rect =
-                                e.currentTarget.getBoundingClientRect();
-                              setTplPickerCoords({
-                                top: rect.bottom,
-                                left: rect.right,
-                                width: rect.width,
-                              });
-                              setTplPickerForRow(i);
-                              setTplFilter("");
-                            }}
-                            title="Iz biblioteke šablona"
-                          >
-                            📋
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.tplBtn}
-                            disabled={!it.name.trim() || saveTemplate.isPending}
-                            onClick={() => saveTemplate.mutate(it)}
-                            title="Snimi ovu stavku u biblioteku za buduće korištenje"
-                          >
-                            💾
-                          </button>
-                        </div>
+                              onClick={() => saveTemplate.mutate(it)}
+                              title="Snimi ovu stavku u biblioteku za buduće korištenje"
+                            >
+                              💾
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td data-label="JM">
@@ -1309,6 +1476,7 @@ export default function InvoiceForm({
                         onChange={(e) =>
                           setItem(i, { quantity: e.target.value })
                         }
+                        onFocus={selectAllOnFocus}
                         inputMode="decimal"
                       />
                     </td>
@@ -1319,6 +1487,7 @@ export default function InvoiceForm({
                         onChange={(e) =>
                           setItem(i, { unitPrice: e.target.value })
                         }
+                        onFocus={selectAllOnFocus}
                         inputMode="decimal"
                       />
                     </td>
@@ -1329,6 +1498,7 @@ export default function InvoiceForm({
                         onChange={(e) =>
                           setItem(i, { discountPct: e.target.value })
                         }
+                        onFocus={selectAllOnFocus}
                         inputMode="decimal"
                       />
                     </td>
@@ -1340,6 +1510,7 @@ export default function InvoiceForm({
                           onChange={(e) =>
                             setItem(i, { vatPct: e.target.value })
                           }
+                          onFocus={selectAllOnFocus}
                           inputMode="decimal"
                         />
                       </td>
@@ -1589,6 +1760,155 @@ export default function InvoiceForm({
         }}
         onClose={() => setTplDeleteConfirm(null)}
       />
+
+      {/* PK Office: živa pretraga šifarnika ispod polja naziva stavke */}
+      {isPkOffice &&
+        nameDropRow !== null &&
+        nameDropCoords &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className={styles.tplDropdownPortal}
+            data-name-picker
+            style={{
+              position: "fixed",
+              top: nameDropCoords.top + 4,
+              left: Math.max(
+                8,
+                Math.min(
+                  nameDropCoords.left,
+                  window.innerWidth - Math.max(320, nameDropCoords.width) - 8,
+                ),
+              ),
+              width: Math.max(320, nameDropCoords.width),
+            }}
+          >
+            {nameMatches.artikli.length > 0 && (
+              <>
+                <div className={styles.tplGroupLabel}>Šifarnik artikala</div>
+                <ul className={styles.tplList}>
+                  {nameMatches.artikli.map((a, idx) => (
+                    <li
+                      key={`art-${a.id}`}
+                      className={styles.tplItem}
+                      style={
+                        nameDropHi === idx
+                          ? { background: "var(--sage-pale)" }
+                          : undefined
+                      }
+                    >
+                      <button
+                        type="button"
+                        className={styles.tplItemPick}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          pickNameOption(idx);
+                        }}
+                        title="Ubaci artikal iz šifarnika"
+                      >
+                        <span className={styles.tplItemName}>{a.naziv}</span>
+                        <span className={styles.tplItemMeta}>
+                          {a.sifra} · {a.jm.toLowerCase()}
+                          {a.tip === "USLUGA" ? " · usluga" : ""}
+                          {a.oslobodjenPdv ? " · bez PDV-a" : ""}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {nameMatches.sabloni.length > 0 && (
+              <>
+                <div className={styles.tplGroupLabel}>Šabloni stavki</div>
+                <ul className={styles.tplList}>
+                  {nameMatches.sabloni.map((tpl, si) => {
+                    const idx = nameMatches.artikli.length + si;
+                    return (
+                      <li
+                        key={`tpl-${tpl.id}`}
+                        className={styles.tplItem}
+                        style={
+                          nameDropHi === idx
+                            ? { background: "var(--sage-pale)" }
+                            : undefined
+                        }
+                      >
+                        <button
+                          type="button"
+                          className={styles.tplItemPick}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            pickNameOption(idx);
+                          }}
+                          title="Primijeni šablon (sa cijenom)"
+                        >
+                          <span className={styles.tplItemName}>{tpl.name}</span>
+                          <span className={styles.tplItemMeta}>
+                            {Number(tpl.unitPrice).toFixed(2)} {currencyLabel}{" "}
+                            · {tpl.unit || "kom"}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+            <ul className={styles.tplList}>
+              <li
+                className={styles.tplItem}
+                style={
+                  nameDropHi === nameDropCount - 1
+                    ? { background: "var(--sage-pale)" }
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  className={styles.tplItemPick}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pickNameOption(nameDropCount - 1);
+                  }}
+                  title="Snimi ukucani naziv kao novi artikal u šifarnik"
+                >
+                  <span className={styles.tplItemName}>
+                    + Dodaj &quot;
+                    {nameQuery.length > 34
+                      ? `${nameQuery.slice(0, 34)}…`
+                      : nameQuery}
+                    &quot; u šifarnik
+                  </span>
+                  <span className={styles.tplItemMeta}>
+                    novi artikal ili usluga, nudi se i ubuduće
+                  </span>
+                </button>
+              </li>
+            </ul>
+          </div>,
+          document.body,
+        )}
+
+      {/* PK Office: novi artikal u šifarnik direktno sa stavke fakture */}
+      {isPkOffice && (
+        <ArtikalModal
+          open={newArtikalForRow !== null}
+          orgId={lockedSellerOrgId}
+          artikal={null}
+          defaultNaziv={
+            newArtikalForRow !== null
+              ? (items[newArtikalForRow]?.name ?? "")
+              : ""
+          }
+          defaultTip="USLUGA"
+          onClose={() => setNewArtikalForRow(null)}
+          onSaved={(a) => {
+            if (newArtikalForRow !== null) applyArtikal(newArtikalForRow, a);
+            setNewArtikalForRow(null);
+          }}
+        />
+      )}
 
       {/* PK Office: novi partner direktno iz forme fakture */}
       {isPkOffice && (

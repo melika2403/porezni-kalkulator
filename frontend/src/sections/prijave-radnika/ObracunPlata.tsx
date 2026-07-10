@@ -1894,14 +1894,15 @@ function MonthlyPanel({
     for (const p of payrollByWorker.values()) if (p.imported) return true;
     return false;
   }, [payrollByWorker]);
-  const confirmImported = () =>
-    !monthHasImported ||
-    window.confirm(
-      "Ovaj mjesec sadrži uvezene plate iz ranijeg programa. Prijave su vjerovatno već predate drugdje. Sigurno želiš ponovo generisati ovaj dokument?",
-    );
+  // notify za payslipsEmailMutation feedback (uspjeh/skip/error rezime),
+  // confirm za upozorenje kod uvezenih plata (naš dijalog, ne window.confirm)
+  const { confirm: confirmDialog, notify } = useNotice();
 
-  // notify za payslipsEmailMutation feedback (uspjeh/skip/error rezime).
-  const { notify } = useNotice();
+  const confirmImported = async () =>
+    !monthHasImported ||
+    (await confirmDialog(
+      "Ovaj mjesec sadrži uvezene plate iz ranijeg programa. Prijave su vjerovatno već predate drugdje. Sigurno želiš ponovo generisati ovaj dokument?",
+    ));
 
   // Resync state kad se promijeni mjesec/godina ili kad se učitaju payroll-i
   // iz DB-a (npr. tek nakon prvog obračuna paymentDate može biti dostupan).
@@ -4135,8 +4136,8 @@ function MonthlyPanel({
             <button
               type="button"
               className={styles.btnGhost}
-              onClick={() => {
-                if (confirmImported()) obrazac2001Mutation.mutate();
+              onClick={async () => {
+                if (await confirmImported()) obrazac2001Mutation.mutate();
               }}
               disabled={obrazac2001Mutation.isPending || !organization || !canGenerate}
               title={canGenerate ? undefined : "Dostupno uz Pro pretplatu"}
@@ -4175,8 +4176,8 @@ function MonthlyPanel({
             <button
               type="button"
               className={styles.btnGhost}
-              onClick={() => {
-                if (confirmImported()) obrazac2001AMutation.mutate();
+              onClick={async () => {
+                if (await confirmImported()) obrazac2001AMutation.mutate();
               }}
               disabled={obrazac2001AMutation.isPending || !organization || !canGenerate}
               title={canGenerate ? undefined : "Dostupno uz Pro pretplatu"}
@@ -4222,8 +4223,8 @@ function MonthlyPanel({
               <button
                 type="button"
                 className={styles.btnTintSage}
-                onClick={() => {
-                  if (confirmImported()) mip1023Mutation.mutate();
+                onClick={async () => {
+                  if (await confirmImported()) mip1023Mutation.mutate();
                 }}
                 disabled={
                   mip1023Mutation.isPending ||
@@ -4262,8 +4263,8 @@ function MonthlyPanel({
               <button
                 type="button"
                 className={styles.btnTintSage}
-                onClick={() => {
-                  if (confirmImported()) mip1023XmlMutation.mutate();
+                onClick={async () => {
+                  if (await confirmImported()) mip1023XmlMutation.mutate();
                 }}
                 disabled={
                   mip1023XmlMutation.isPending ||

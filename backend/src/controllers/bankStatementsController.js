@@ -387,12 +387,49 @@ async function list(req, res) {
     byStatement.set(c.statementId, entry);
   }
 
+  // potvrđene stavke bez kategorije ne ulaze u KPR: upozorenje na kartici
+  const noCat = await BankTransaction.findAll({
+    where: { organizationId, status: "CONFIRMED", category: null },
+    attributes: [
+      "statementId",
+      [sequelize.fn("COUNT", sequelize.col("id")), "cnt"],
+    ],
+    group: ["statementId"],
+    raw: true,
+  });
+  const noCatByStatement = new Map(
+    noCat.map((c) => [c.statementId, Number(c.cnt)]),
+  );
+
+  // promet po izvodu (zbir priliva i odliva), za prikaz na listi bez otvaranja
+  const sums = await BankTransaction.findAll({
+    where: { organizationId },
+    attributes: [
+      "statementId",
+      "direction",
+      [sequelize.fn("SUM", sequelize.col("amount")), "total"],
+    ],
+    group: ["statementId", "direction"],
+    raw: true,
+  });
+  const sumByStatement = new Map();
+  for (const r of sums) {
+    const e = sumByStatement.get(r.statementId) || { in: 0, out: 0 };
+    if (r.direction === "IN") e.in = Number(r.total) || 0;
+    else e.out = Number(r.total) || 0;
+    sumByStatement.set(r.statementId, e);
+  }
+
   const data = statements.map((s) => {
     const entry = byStatement.get(s.id) || { total: 0, unmatched: 0 };
+    const sum = sumByStatement.get(s.id) || { in: 0, out: 0 };
     return {
       ...s.toJSON(),
       txCount: entry.total,
       unmatchedCount: entry.unmatched,
+      bezKategorijeCount: noCatByStatement.get(s.id) || 0,
+      totalIn: Math.round(sum.in * 100) / 100,
+      totalOut: Math.round(sum.out * 100) / 100,
     };
   });
   return res.json({ ok: true, data });
@@ -558,6 +595,12 @@ async function createManual(req, res) {
     const cents = Math.round(amount * 100);
     if (direction === "in") sumInCents += cents;
     else sumOutCents += cents;
+    // kategorija izabrana pri unosu (prijedlog programa ili ručni izbor);
+    // nevažeća/tuđeg smjera se ignoriše pa je popuni auto-prijedlog niže
+    const category =
+      t.category && isValidCategory(String(t.category), direction.toUpperCase())
+        ? String(t.category)
+        : null;
     transactions.push({
       date,
       description: String(t.description || "").trim() || null,
@@ -567,6 +610,7 @@ async function createManual(req, res) {
       amount: cents / 100,
       direction,
       balanceAfter: null,
+      category,
       // eksplicitno povezan partner sa fronta (validira se prije snimanja)
       partnerId: Number.isInteger(t.partnerId) ? t.partnerId : null,
     });
@@ -641,7 +685,8 @@ async function createManual(req, res) {
         statementId: statement.id,
         ...tx,
         direction: tx.direction === "in" ? "IN" : "OUT",
-        category: learnedSuggest(tx) ?? suggestCategory(tx),
+        // izbor sa fronta ima prednost, pa naučena pravila, pa seed heuristike
+        category: tx.category ?? learnedSuggest(tx) ?? suggestCategory(tx),
         // potvrđen izbor sa fronta ima prednost nad auto-matchom
         partnerId:
           tx.partnerId != null && orgPartnerIds.has(tx.partnerId)
@@ -668,17 +713,14 @@ async function createManual(req, res) {
   }
 
   // ručne stavke su odmah potvrđene → isplate partnerima zatvaraju
-  // njihove otvorene ulazne račune
-  const manualTxs = await BankTransaction.findAll({
-    where: {
-      statementId: created.id,
-      organizationId,
-      direction: "OUT",
-      partnerId: { [require("sequelize").Op.ne]: null },
-    },
+  // njihove otvorene ulazne račune, a stavke sa kategorijom uče pravila
+  // (isto kao potvrda uvezene stavke)
+  const savedTxs = await BankTransaction.findAll({
+    where: { statementId: created.id, organizationId },
   });
-  for (const tx of manualTxs) {
-    await maybeCloseUlazniRacun(tx);
+  for (const tx of savedTxs) {
+    if (tx.category) await learnFromTransaction(organizationId, tx.toJSON());
+    if (tx.direction === "OUT" && tx.partnerId) await maybeCloseUlazniRacun(tx);
   }
 
   return res.status(201).json({
@@ -757,7 +799,7 @@ async function listTransactions(req, res) {
       {
         model: BankStatement,
         as: "statement",
-        attributes: ["statementNumber", "bankName"],
+        attributes: ["id", "statementNumber", "bankName"],
       },
       {
         model: Invoice,
@@ -772,7 +814,33 @@ async function listTransactions(req, res) {
     limit,
     offset,
   });
-  return res.json({ ok: true, data: { items: rows, total: count } });
+
+  // sume za CIJELI filtrirani skup (ne samo stranicu): filteri kao izvještaj
+  const sums = await BankTransaction.findAll({
+    where,
+    attributes: [
+      "direction",
+      [sequelize.fn("SUM", sequelize.col("amount")), "total"],
+    ],
+    group: ["direction"],
+    raw: true,
+  });
+  let sumIn = 0;
+  let sumOut = 0;
+  for (const r of sums) {
+    if (r.direction === "IN") sumIn = Number(r.total) || 0;
+    else sumOut = Number(r.total) || 0;
+  }
+
+  return res.json({
+    ok: true,
+    data: {
+      items: rows,
+      total: count,
+      sumIn: Math.round(sumIn * 100) / 100,
+      sumOut: Math.round(sumOut * 100) / 100,
+    },
+  });
 }
 
 // GET /api/bank-statements/:orgId/summary?year=&month= — KPI za dashboard kartice
@@ -982,31 +1050,25 @@ async function obligations(req, res) {
   return res.json({ ok: true, data: { items } });
 }
 
-// PATCH /api/bank-statements/:orgId/transactions/:txId — status/kategorija
-async function updateTransaction(req, res) {
-  const organizationId = parseId(req.params.orgId);
-  const txId = parseId(req.params.txId);
-  if (!organizationId || !txId) {
-    return res.status(400).json({ ok: false, error: "INVALID_ID" });
-  }
-  const tx = await BankTransaction.findOne({
-    where: { id: txId, organizationId },
-  });
-  if (!tx) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
-
+// Zajednička primjena izmjene na stavku (koristi je pojedinačni PATCH i
+// bulk): validacija, auto-popuna kategorije pri potvrdi, učenje pravila,
+// sync sa fakturama i ulaznim računima. Vraća { error } ili { tx }.
+// opts.ruleSuggester: već učitan suggester (bulk ga učita jednom, da se
+// pravila ne skeniraju po svakoj stavci).
+async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
   const prevStatus = tx.status;
   const prevInvoiceId = tx.invoiceId;
 
-  const { status, category, invoiceId, partnerId } = req.body || {};
+  const { status, category, invoiceId, partnerId } = body || {};
   if (status != null) {
     if (!["UNMATCHED", "CONFIRMED", "IGNORED"].includes(status)) {
-      return res.status(400).json({ ok: false, error: "INVALID_STATUS" });
+      return { error: "INVALID_STATUS" };
     }
     tx.status = status;
   }
   if (category !== undefined) {
     if (category != null && !isValidCategory(String(category), tx.direction)) {
-      return res.status(400).json({ ok: false, error: "INVALID_CATEGORY" });
+      return { error: "INVALID_CATEGORY" };
     }
     tx.category = category ? String(category) : null;
   }
@@ -1019,7 +1081,7 @@ async function updateTransaction(req, res) {
         attributes: ["id"],
       });
       if (!inv) {
-        return res.status(400).json({ ok: false, error: "INVALID_INVOICE" });
+        return { error: "INVALID_INVOICE" };
       }
       tx.invoiceId = inv.id;
     }
@@ -1034,10 +1096,21 @@ async function updateTransaction(req, res) {
         attributes: ["id"],
       });
       if (!partner) {
-        return res.status(400).json({ ok: false, error: "INVALID_PARTNER" });
+        return { error: "INVALID_PARTNER" };
       }
       tx.partnerId = partner.id;
     }
+  }
+
+  // potvrda bez kategorije: pokušaj auto-popune (naučena pravila pa seed
+  // heuristike), osim kad je korisnik kategoriju u ovom pozivu eksplicitno
+  // obrisao. Bez kategorije stavka ne ulazi u KPR.
+  const explicitClear = category !== undefined && category == null;
+  if (tx.status === "CONFIRMED" && !tx.category && !explicitClear) {
+    const learned = opts.ruleSuggester ?? (await loadRuleSuggester(organizationId));
+    const plain = tx.get({ plain: true });
+    const auto = learned(plain) ?? suggestCategory(plain);
+    if (auto) tx.category = auto;
   }
   await tx.save();
 
@@ -1074,7 +1147,73 @@ async function updateTransaction(req, res) {
     await maybeReopenUlazniRacun(organizationId, racunId);
   }
 
-  return res.json({ ok: true, data: tx });
+  return { tx };
+}
+
+// PATCH /api/bank-statements/:orgId/transactions/:txId — status/kategorija
+async function updateTransaction(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  const txId = parseId(req.params.txId);
+  if (!organizationId || !txId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ID" });
+  }
+  const tx = await BankTransaction.findOne({
+    where: { id: txId, organizationId },
+  });
+  if (!tx) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+
+  const result = await applyTransactionPatch(organizationId, tx, req.body);
+  if (result.error) {
+    return res.status(400).json({ ok: false, error: result.error });
+  }
+  return res.json({ ok: true, data: result.tx });
+}
+
+// PATCH /api/bank-statements/:orgId/transactions/bulk — masovna izmjena
+// označenih stavki (samo status i/ili kategorija). Stavka kojoj izmjena ne
+// odgovara (npr. kategorija pogrešnog smjera) se preskače, ne ruši ostale.
+async function bulkUpdateTransactions(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map(Number))]
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .slice(0, 500)
+    : [];
+  if (ids.length === 0) {
+    return res.status(400).json({ ok: false, error: "NO_IDS" });
+  }
+  const patch = {};
+  if (req.body?.patch?.status !== undefined) patch.status = req.body.patch.status;
+  if (req.body?.patch?.category !== undefined) {
+    patch.category = req.body.patch.category;
+  }
+  if (Object.keys(patch).length === 0) {
+    return res.status(400).json({ ok: false, error: "NO_PATCH" });
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  // suggester učitaj JEDNOM (ne po stavci): bulk potvrda bez kategorije bi
+  // inače skenirala tabelu pravila za svaku stavku
+  const ruleSuggester = await loadRuleSuggester(organizationId);
+  for (const id of ids) {
+    const tx = await BankTransaction.findOne({
+      where: { id, organizationId },
+    });
+    if (!tx) {
+      skipped++;
+      continue;
+    }
+    const result = await applyTransactionPatch(organizationId, tx, patch, {
+      ruleSuggester,
+    });
+    if (result.error) skipped++;
+    else updated++;
+  }
+  return res.json({ ok: true, data: { updated, skipped } });
 }
 
 // DELETE /api/bank-statements/:orgId/statement/:statementId
@@ -1281,9 +1420,35 @@ async function bulkAnalyze(req, res) {
   }
 }
 
+// POST /api/bank-statements/:orgId/suggest-category — živi prijedlog KPR
+// kategorije pri ručnom unosu izvoda: naučena pravila organizacije imaju
+// prednost nad seed heuristikama. Ništa se ne snima.
+async function suggestKategorije(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const items = Array.isArray(req.body?.items)
+    ? req.body.items.slice(0, 100)
+    : [];
+  const learnedSuggest = await loadRuleSuggester(organizationId);
+  const data = items.map((it) => {
+    const tx = {
+      description: String(it?.description || ""),
+      counterpartyName: String(it?.counterpartyName || ""),
+      counterpartyAccount: String(it?.counterpartyAccount || ""),
+      direction:
+        String(it?.direction || "").toLowerCase() === "in" ? "IN" : "OUT",
+    };
+    return learnedSuggest(tx) ?? suggestCategory(tx);
+  });
+  return res.json({ ok: true, data });
+}
+
 module.exports = {
   upload,
   bulkAnalyze,
+  suggestKategorije,
   // reuse za prebijanja (kompenzacije/cesije) i druga bezgotovinska knjiženja
   markInvoicePaid,
   maybeRevertInvoice,
@@ -1297,5 +1462,6 @@ module.exports = {
   listTransactions,
   summary,
   updateTransaction,
+  bulkUpdateTransactions,
   removeStatement,
 };

@@ -198,11 +198,7 @@
       "Bash(perl -0pi -e 's/kantonalVrste = new Set\\\\\\(\\\\[\"zdrKanton\", \"nezapKanton\", \"porez\"\\\\]\\\\\\)/kantonalVrste = new Set\\([\"zdrKanton\", \"nezapKanton\", \"porez\", \"zdrRS\", \"nezapRS\"]\\)/g' src/controllers/payrollController.js)",
       "WebFetch(domain:chronos.ba)",
       "Bash(xargs echo \"ADD COLUMN unosa:\")",
-      "Bash(xargs echo \"destruktivnih \\(DROP/MODIFY/UPDATE/DELETE\\):\")"
-    ],
-    "additionalDirectories": [
-      "\\tmp"
-      "Bash(powershell -c \"Select-String -Path frontend/src/sections/fakture/InvoiceForm.tsx -Pattern '</form>|</div>\\\\s*\\\\\\)' | Select-Object -Last 6\")",
+      "Bash(xargs echo \"destruktivnih \\(DROP/MODIFY/UPDATE/DELETE\\):\")",
       "Bash(Get-ChildItem -Path backend -Recurse -ErrorAction SilentlyContinue)",
       "Bash(Select-Object -First 50 FullName)",
       "Bash(ConvertTo-Json)",
@@ -245,8 +241,10 @@
       "Bash(curl -s -o nul -w \"%{http_code}\" http://localhost:3000/app/dashboard)",
       "Bash(findstr :3000)",
       "Bash(curl -s http://localhost:3000/_next/static/css/app/layout.css)",
-      "Bash(findstr -i \"css styles tailwind\")",
-      "Bash(rm \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\dashboard.html\" \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\page.html\" \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\pk-office-built.css\" \"C:\\\\Users\\\\Korisnik\\\\Desktop\\\\Porezni kalkulator\\\\.claude\\\\globals-built.css\" 2>&1)"
+      "Bash(findstr -i \"css styles tailwind\")"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }

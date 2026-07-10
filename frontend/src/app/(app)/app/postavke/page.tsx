@@ -5,7 +5,9 @@ import { ProfilTab } from "src/components/postavke/ProfilTab";
 import { KorisniciTab } from "src/components/postavke/KorisniciTab";
 import { NotifikacijeTab } from "src/components/postavke/NotifikacijeTab";
 
-type TabId = "profil" | "korisnici" | "notifikacije";
+// "nova-organizacija" nije u chip listi: otvara se iz org switchera
+// ("Dodaj novi obrt") i renderuje ProfilTab u create modu.
+type TabId = "profil" | "korisnici" | "notifikacije" | "nova-organizacija";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "profil", label: "Profil obrta" },
@@ -14,7 +16,12 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 function isTabId(v: string | null): v is TabId {
-  return v === "profil" || v === "korisnici" || v === "notifikacije";
+  return (
+    v === "profil" ||
+    v === "korisnici" ||
+    v === "notifikacije" ||
+    v === "nova-organizacija"
+  );
 }
 
 export default function PostavkePage() {
@@ -46,11 +53,17 @@ export default function PostavkePage() {
             {tab.label}
           </button>
         ))}
+        {activeTab === "nova-organizacija" && (
+          <span className="px-4 py-2 text-[13px] font-medium rounded-md bg-brand-100 text-brand-700">
+            Novi obrt
+          </span>
+        )}
       </div>
 
       {activeTab === "profil" && <ProfilTab />}
       {activeTab === "korisnici" && <KorisniciTab />}
       {activeTab === "notifikacije" && <NotifikacijeTab />}
+      {activeTab === "nova-organizacija" && <ProfilTab createMode />}
     </div>
   );
 }

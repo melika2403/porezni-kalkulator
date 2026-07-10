@@ -1,7 +1,8 @@
 const { Op } = require("sequelize");
 const { OrganizationMember, User } = require("../models/index");
 
-const MEMBER_ROLES = ["ADMIN", "MEMBER"];
+// VIEWER = read-only pristup (npr. vlasnik obrta koji samo gleda svoje knjige)
+const MEMBER_ROLES = ["ADMIN", "MEMBER", "VIEWER"];
 
 async function assertOwner(orgId, userId) {
   return OrganizationMember.findOne({ where: { organizationId: orgId, userId, role: "OWNER" } });
@@ -37,7 +38,7 @@ async function add(req, res) {
 
   const { email, role } = req.body ?? {};
   if (!email?.trim()) return res.status(400).json({ ok: false, error: "Email je obavezan" });
-  if (!MEMBER_ROLES.includes(role)) return res.status(400).json({ ok: false, error: "Uloga mora biti ADMIN ili MEMBER" });
+  if (!MEMBER_ROLES.includes(role)) return res.status(400).json({ ok: false, error: "Uloga mora biti ADMIN, MEMBER ili VIEWER" });
 
   const targetUser = await User.findOne({
     where: { email: email.trim().toLowerCase() },
@@ -84,7 +85,7 @@ async function updateRole(req, res) {
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
   const { role } = req.body ?? {};
-  if (!MEMBER_ROLES.includes(role)) return res.status(400).json({ ok: false, error: "Uloga mora biti ADMIN ili MEMBER" });
+  if (!MEMBER_ROLES.includes(role)) return res.status(400).json({ ok: false, error: "Uloga mora biti ADMIN, MEMBER ili VIEWER" });
 
   const target = await OrganizationMember.findOne({ where: { organizationId: orgId, userId: targetUserId } });
   if (!target) return res.status(404).json({ ok: false, error: "Korisnik nije pronađen u organizaciji" });

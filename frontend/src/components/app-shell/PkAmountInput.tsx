@@ -16,6 +16,7 @@ export function PkAmountInput({
   title,
   ariaLabel,
   onKeyDown,
+  decimals = 2,
 }: {
   /** Display string, npr. "1.234,56" (može prazan/djelimičan). */
   value: string;
@@ -27,10 +28,12 @@ export function PkAmountInput({
   title?: string;
   ariaLabel?: string;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  /** Max broj decimala (default 2; npr. cijene u kalkulacijama 5). */
+  decimals?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const caretRef = useRef<number | null>(null);
-  const invalid = value.trim() !== "" && parseKm(value) == null;
+  const invalid = value.trim() !== "" && parseKm(value, decimals) == null;
 
   // Kursor nakon reformatiranja: prebroji cifre/zarez lijevo od kursora u
   // sirovom unosu, pa ga vrati iza istog broja tih znakova u maskiranom.
@@ -40,7 +43,7 @@ export function PkAmountInput({
     const significantBefore = raw
       .slice(0, sel)
       .replace(/[^\d,]/g, "").length;
-    const next = maskAmountTyping(raw);
+    const next = maskAmountTyping(raw, decimals);
     let pos = 0;
     let seen = 0;
     while (pos < next.length && seen < significantBefore) {
@@ -59,8 +62,10 @@ export function PkAmountInput({
   });
 
   function handleBlur() {
-    const n = parseKm(value);
-    if (n != null && formatKm(n) !== value) onChange(formatKm(n));
+    const n = parseKm(value, decimals);
+    if (n != null && formatKm(n, decimals) !== value) {
+      onChange(formatKm(n, decimals));
+    }
   }
 
   return (

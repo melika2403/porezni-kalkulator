@@ -42,9 +42,14 @@ const User = sequelize.define(
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     idCardNumber: { type: DataTypes.STRING(9), allowNull: true },
     trialUsedAt: { type: DataTypes.DATE, allowNull: true },
+    // PK Office trial (30 dana, nivo Office Tim): postoji datum = iskorišten;
+    // aktivan dok datum nije prošao. Odvojeno od PRO trial-a (trialUsedAt).
+    pkOfficeTrialEndsAt: { type: DataTypes.DATE, allowNull: true },
     // Korisnik se registrovao klikom na trial CTA -> trial se auto-aktivira pri
     // verifikaciji maila, i NE šaljemo mu "aktiviraj trial" welcome mail.
     wantsTrial: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // Isto, ali za PK Office trial CTA (postavlja pkOfficeTrialEndsAt).
+    wantsOfficeTrial: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     // UTM atribucija — odakle korisnik dolazi (capture pri registraciji).
     utmSource: { type: DataTypes.STRING(80), allowNull: true },
     utmCampaign: { type: DataTypes.STRING(120), allowNull: true },
@@ -82,7 +87,22 @@ const Subscription = sequelize.define(
     endDate: { type: DataTypes.DATEONLY, allowNull: false },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     // Plan i ciklus naplate pretplate (za evidenciju i ispravnu rolu).
-    plan: { type: DataTypes.ENUM("PRO", "BUSINESS"), allowNull: true },
+    // PAŽNJA: vrijednosti su LOWERCASE (legacy, planFromRole/subscriptions
+    // flow); office_* = PK Office paketi po broju obrta (uključuju sve iz
+    // business nivoa).
+    plan: {
+      type: DataTypes.ENUM(
+        "free",
+        "pro",
+        "business",
+        "office_2",
+        "office_10",
+        "office_25",
+        "office_50",
+      ),
+      allowNull: false,
+      defaultValue: "free",
+    },
     billingCycle: { type: DataTypes.ENUM("monthly", "yearly"), allowNull: true },
     // Kad je zadnji put poslan podsjetnik za obnovu (admin akcija).
     reminderSentAt: { type: DataTypes.DATE, allowNull: true },
@@ -106,6 +126,8 @@ const Organization = sequelize.define(
     taxNumber: { type: DataTypes.STRING(100), unique: true, allowNull: true },
     pdvNumber: { type: DataTypes.STRING(20), allowNull: true },
     isPdvObveznik: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // KPR prihod od pazara iz KP-1042 (dnevni promet) umjesto pologa sa izvoda
+    kprPazarIzKp: { type: DataTypes.BOOLEAN, defaultValue: false },
     jurisdiction: {
       type: DataTypes.ENUM("FBIH", "RS", "BD"),
       allowNull: true,
@@ -122,6 +144,17 @@ const Organization = sequelize.define(
     activityCode: { type: DataTypes.STRING(20), allowNull: true },
     activityName: { type: DataTypes.STRING(255), allowNull: true },
     isClientOrg: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // PK Office slot: obrt se eksplicitno aktivira u PK Office (limit po
+    // Office paketu). Deaktivacija oslobađa slot tek od NAREDNOG mjeseca
+    // (pkOfficeDisabledAt u tekućem mjesecu = slot i dalje zauzet), da se
+    // slotovi ne rotiraju. Podaci se deaktivacijom NE brišu.
+    pkOfficeEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    pkOfficeActivatedAt: { type: DataTypes.DATE, allowNull: true },
+    pkOfficeDisabledAt: { type: DataTypes.DATE, allowNull: true },
     bankAccount: { type: DataTypes.STRING(25), allowNull: true },
     // Svi žiro računi organizacije (JSON lista stringova, samo cifre).
     // Prvi je GLAVNI i drži se sinhronizovan sa bankAccount (stari kod
@@ -617,7 +650,9 @@ const OrganizationMember = sequelize.define(
     organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     role: {
-      type: DataTypes.ENUM("OWNER", "ADMIN", "MEMBER"),
+      // VIEWER: read-only pristup (npr. vlasnik obrta koji samo gleda svoje
+      // knjige kod knjigovođe). Enum širenje radi ensureMemberRoleEnum u app.js.
+      type: DataTypes.ENUM("OWNER", "ADMIN", "MEMBER", "VIEWER"),
       defaultValue: "MEMBER",
     },
     joinedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
@@ -807,8 +842,18 @@ const Predracun = sequelize.define(
     year: { type: DataTypes.INTEGER, allowNull: false },
     sequence: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     fullNumber: { type: DataTypes.STRING(40), allowNull: false, unique: true },
-    // plan
-    plan: { type: DataTypes.ENUM("PRO", "BUSINESS"), allowNull: false },
+    // plan (OFFICE_* = PK Office paketi po broju obrta)
+    plan: {
+      type: DataTypes.ENUM(
+        "PRO",
+        "BUSINESS",
+        "OFFICE_2",
+        "OFFICE_10",
+        "OFFICE_25",
+        "OFFICE_50",
+      ),
+      allowNull: false,
+    },
     // ciklus naplate i period pretplate koji predračun pokriva
     billingCycle: {
       type: DataTypes.ENUM("monthly", "yearly"),
@@ -1499,6 +1544,52 @@ const PdvDodatak = sequelize.define(
   },
 );
 
+// Stanje PDV-a: knjiga knjiženja prema UINO (kao "Moja glavna knjiga" na
+// e-portalu). Zaduženja: obaveza po prijavi, povrat (isplaćena pretplata),
+// korekcije (kamate, kazne). Odobrenja: pretplata po prijavi, uplata banke.
+// saldo = Σ zaduženja − Σ odobrenja (> 0 dug, < 0 pretplata).
+const PdvKnjizenje = sequelize.define(
+  "PdvKnjizenje",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    // porezni period na koji se knjiženje odnosi ("2026-05"); null za
+    // korekcije koje ne pripadaju periodu
+    period: { type: DataTypes.STRING(7), allowNull: true },
+    vrsta: {
+      type: DataTypes.ENUM(
+        "OBAVEZA", // po PDV prijavi (polje 71 > 0)
+        "PRETPLATA", // po PDV prijavi (polje 71 < 0)
+        "UPLATA", // naša uplata UINO-u
+        "POVRAT", // UINO nam isplatio povrat (smanjuje pretplatu)
+        "KOREKCIJA", // ručno: kamate, kazne, ispravke (smjer nosi zaduzenje)
+      ),
+      allowNull: false,
+    },
+    // efekat na saldo: true povećava dug, false ga smanjuje
+    zaduzenje: { type: DataTypes.BOOLEAN, allowNull: false },
+    iznos: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+    opis: { type: DataTypes.STRING(255), allowNull: true },
+    // veza na stavku izvoda (uplata/povrat prepoznat sa izvoda)
+    transactionId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "pdv_knjizenja",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      { fields: ["organizationId", "period"] },
+      { fields: ["transactionId"] },
+    ],
+  },
+);
+
 // ── Prebijanja (kompenzacije i cesije) ───────────────────────────────────────
 // Knjiženje zatvaranja kupaca/dobavljača bez novca. Svako prebijanje kreira
 // svoj "izvod" (BankStatement bankId kompenzacija/cesija) čije CONFIRMED
@@ -1654,6 +1745,517 @@ const SupportMessage = sequelize.define(
     tableName: "support_messages",
     timestamps: true,
     indexes: [{ fields: ["ticketId"] }],
+  },
+);
+
+// Šifarnik artikala (robno knjigovodstvo): zajednički za kalkulacije, a
+// kasnije i lager listu. Namjerno minimalan.
+const Artikal = sequelize.define(
+  "Artikal",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // šifra unutar organizacije, string radi vodećih nula ("0001")
+    sifra: { type: DataTypes.STRING(20), allowNull: false },
+    naziv: { type: DataTypes.STRING(255), allowNull: false },
+    // ROBA ide u kalkulacije/lager; USLUGA samo na fakture (nema zaliha)
+    tip: { type: DataTypes.STRING(10), allowNull: false, defaultValue: "ROBA" },
+    jm: { type: DataTypes.STRING(10), allowNull: false, defaultValue: "KOM" },
+    barkod: { type: DataTypes.STRING(40), allowNull: true },
+    // artikal oslobođen PDV-a: bez ulaznog odbitka i bez PDV-a u MPC
+    oslobodjenPdv: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    aktivan: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  },
+  {
+    tableName: "artikli",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      {
+        name: "artikli_org_sifra",
+        unique: true,
+        fields: ["organizationId", "sifra"],
+      },
+    ],
+  },
+);
+
+// Maloprodajna kalkulacija (KCM): zaduženje maloprodaje po ulaznom računu
+// dobavljača. Svi obračunati iznosi se čuvaju snimljeni (snapshot), ne
+// izvode se ponovo iz šifarnika. Knjiži i ulazni račun u KUF (ulazniRacunId).
+const Kalkulacija = sequelize.define(
+  "Kalkulacija",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // redni broj unutar organizacije i godine (prikaz "N/26")
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    godina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    partnerId: { type: DataTypes.INTEGER, allowNull: false },
+    brojRacuna: { type: DataTypes.STRING(100), allowNull: false },
+    datumRacuna: { type: DataTypes.DATEONLY, allowNull: false },
+    // račun dobavljača bez PDV-a (dobavljač nije PDV obveznik)
+    bezPdv: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // ulazni račun kreiran iz kalkulacije (KUF/obaveze); može biti obrisan
+    ulazniRacunId: { type: DataTypes.INTEGER, allowNull: true },
+    napomena: { type: DataTypes.TEXT, allowNull: true },
+    // ── sume stavki (snapshot) ──
+    fakturnaVrijednost: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    zavisniTrosak: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    nabavnaVrijednost: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // ulazni (odbitni) PDV sa računa dobavljača; 0 za neobveznike/bezPdv
+    ulazniPdv: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // ukalkulisani izlazni PDV u maloprodajnoj vrijednosti
+    ukalkulisaniPdv: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    maloprodajnaVrijednost: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false,
+    },
+  },
+  {
+    tableName: "kalkulacije",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      {
+        name: "kalkulacije_org_god_broj",
+        unique: true,
+        fields: ["organizationId", "godina", "broj"],
+      },
+    ],
+  },
+);
+
+// Stavka kalkulacije: šifra/naziv/jm su snapshot artikla u trenutku unosa
+// (preimenovanje artikla ne mijenja stare kalkulacije). Sve kolone KCM
+// obrasca se čuvaju izračunate.
+const KalkulacijaStavka = sequelize.define(
+  "KalkulacijaStavka",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    kalkulacijaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    artikalId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    rbr: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    sifra: { type: DataTypes.STRING(20), allowNull: false },
+    naziv: { type: DataTypes.STRING(255), allowNull: false },
+    jm: { type: DataTypes.STRING(10), allowNull: false },
+    // ── unos ──
+    kolicina: { type: DataTypes.DECIMAL(14, 3), allowNull: false },
+    // fakturna cijena po j/m (za PDV obveznika bez PDV-a, inače sa PDV-om)
+    cijena: { type: DataTypes.DECIMAL(14, 5), allowNull: false },
+    rabatPct: { type: DataTypes.DECIMAL(7, 3), allowNull: false },
+    zavisniTrosakPct: { type: DataTypes.DECIMAL(7, 3), allowNull: false },
+    mpc: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // ── obračun (snapshot) ──
+    iznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    rabatIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    fakturnaVrijednost: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    zavisniTrosak: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    nabavniIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    nabavnaCijena: { type: DataTypes.DECIMAL(14, 5), allowNull: false },
+    marzaPct: { type: DataTypes.DECIMAL(10, 4), allowNull: false },
+    marzaIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // prodajna vrijednost bez PDV-a i ukalkulisani PDV (0 kad nema PDV-a)
+    vrijednostBezPdv: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    pdvStopa: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+    pdvIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // ulazni (odbitni) PDV na fakturnu vrijednost stavke
+    ulazniPdvIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    maloprodajniIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+  },
+  {
+    tableName: "kalkulacija_stavke",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["kalkulacijaId"] },
+      { fields: ["artikalId"] },
+    ],
+  },
+);
+
+// Popis (inventura) maloprodaje: JEDINO razduženje lagera (nema kase po
+// artiklima). Stavke su snapshot knjigovodstvenog stanja na datum popisa;
+// proknjižen popis primjenjuje deltu (popisano - knjigovodstveno) na lager.
+const Popis = sequelize.define(
+  "Popis",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    godina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    status: {
+      type: DataTypes.ENUM("DRAFT", "PROKNJIZEN"),
+      allowNull: false,
+      defaultValue: "DRAFT",
+    },
+    napomena: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    tableName: "popisi",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      {
+        name: "popisi_org_god_broj",
+        unique: true,
+        fields: ["organizationId", "godina", "broj"],
+      },
+    ],
+  },
+);
+
+const PopisStavka = sequelize.define(
+  "PopisStavka",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    popisId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    artikalId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // snapshot artikla u trenutku popisa
+    sifra: { type: DataTypes.STRING(20), allowNull: false },
+    naziv: { type: DataTypes.STRING(255), allowNull: false },
+    jm: { type: DataTypes.STRING(10), allowNull: false },
+    mpc: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // prosječna nabavna cijena iz kalkulacija (za obračun popisa)
+    nabavnaCijena: { type: DataTypes.DECIMAL(14, 5), allowNull: false },
+    pdvStopa: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+    // knjigovodstveno stanje na datum popisa (snapshot pri kreiranju)
+    knjigKolicina: { type: DataTypes.DECIMAL(14, 3), allowNull: false },
+    // uneseno brojanjem; 0 dok se ne unese
+    popisKolicina: {
+      type: DataTypes.DECIMAL(14, 3),
+      allowNull: false,
+      defaultValue: 0,
+    },
+  },
+  {
+    tableName: "popis_stavke",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["popisId"] }, { fields: ["artikalId"] }],
+  },
+);
+
+// Nivelacija (zapisnik o promjeni cijena): prebacuje količinu artikla sa
+// stare MPC na novu; u TKM ide razlika vrijednosti (čl. 17. Pravilnika).
+const Nivelacija = sequelize.define(
+  "Nivelacija",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    godina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    napomena: { type: DataTypes.TEXT, allowNull: true },
+    vrijednostStara: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    vrijednostNova: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    razlika: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+  },
+  {
+    tableName: "nivelacije",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      {
+        name: "nivelacije_org_god_broj",
+        unique: true,
+        fields: ["organizationId", "godina", "broj"],
+      },
+    ],
+  },
+);
+
+const NivelacijaStavka = sequelize.define(
+  "NivelacijaStavka",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    nivelacijaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    artikalId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    sifra: { type: DataTypes.STRING(20), allowNull: false },
+    naziv: { type: DataTypes.STRING(255), allowNull: false },
+    jm: { type: DataTypes.STRING(10), allowNull: false },
+    kolicina: { type: DataTypes.DECIMAL(14, 3), allowNull: false },
+    staraMpc: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    novaMpc: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    vrijednostStara: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    vrijednostNova: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    razlika: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+  },
+  {
+    tableName: "nivelacija_stavke",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["nivelacijaId"] }, { fields: ["artikalId"] }],
+  },
+);
+
+// Razduženje lagera mimo popisa: POVRAT dobavljaču (formira knjižnu
+// obavijest u KUF) ili OTPIS (kalo, rastur, kvar, lom). U TKM ide negativno
+// zaduženje po maloprodajnoj vrijednosti (čl. 17. Pravilnika).
+const Razduzenje = sequelize.define(
+  "Razduzenje",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    tip: { type: DataTypes.ENUM("POVRAT", "OTPIS"), allowNull: false },
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    godina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    partnerId: { type: DataTypes.INTEGER, allowNull: true },
+    razlog: { type: DataTypes.STRING(255), allowNull: true },
+    // knjižna obavijest kreirana iz povrata (KUF); null za otpis
+    ulazniRacunId: { type: DataTypes.INTEGER, allowNull: true },
+    maloprodajnaVrijednost: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false,
+    },
+    nabavnaVrijednost: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    pdvIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+  },
+  {
+    tableName: "razduzenja",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      {
+        name: "razduzenja_org_tip_god_broj",
+        unique: true,
+        fields: ["organizationId", "tip", "godina", "broj"],
+      },
+    ],
+  },
+);
+
+const RazduzenjeStavka = sequelize.define(
+  "RazduzenjeStavka",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    razduzenjeId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    artikalId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    sifra: { type: DataTypes.STRING(20), allowNull: false },
+    naziv: { type: DataTypes.STRING(255), allowNull: false },
+    jm: { type: DataTypes.STRING(10), allowNull: false },
+    mpc: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    kolicina: { type: DataTypes.DECIMAL(14, 3), allowNull: false },
+    nabavnaCijena: { type: DataTypes.DECIMAL(14, 5), allowNull: false },
+    pdvStopa: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+    maloprodajniIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    nabavniIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    pdvIznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+  },
+  {
+    tableName: "razduzenje_stavke",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["razduzenjeId"] }, { fields: ["artikalId"] }],
+  },
+);
+
+// Ručno uneseno početno stanje TKM-a za godinu (vrijednost robe na 01.01.),
+// za obrte koji u PK Office ulaze sa već zaduženom radnjom. Prikazuje se kao
+// poseban red na vrhu knjige, uz eventualni automatski prenos salda.
+const TkmPocetnoStanje = sequelize.define(
+  "TkmPocetnoStanje",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    godina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    iznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    napomena: { type: DataTypes.STRING(255), allowNull: true },
+  },
+  {
+    tableName: "tkm_pocetna_stanja",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      {
+        name: "tkm_pocetno_org_godina",
+        unique: true,
+        fields: ["organizationId", "godina"],
+      },
+    ],
+  },
+);
+
+// Razduženje TKM-a po pazaru: ODVOJENO od KIF-a (dnevni unos ne ide u PDV
+// evidencije; mjesečno KIF knjiženje pazara upisuje red ovdje samo ako se
+// izričito označi). TKM čita isključivo ovu tabelu za pazar.
+const TkmPazar = sequelize.define(
+  "TkmPazar",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    iznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    opis: { type: DataTypes.STRING(120), allowNull: true },
+  },
+  {
+    tableName: "tkm_pazari",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["organizationId", "datum"] }],
+  },
+);
+
+// Blagajna (Uredba o uslovima i načinu plaćanja gotovim novcem, Sl. novine
+// FBiH 48/15 i 82/15): nalozi za naplatu i isplatu; blagajnički dnevnik se
+// IZVODI iz naloga (donos + promet + saldo po danu).
+const BlagajnaNalog = sequelize.define(
+  "BlagajnaNalog",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    tip: { type: DataTypes.ENUM("NAPLATA", "ISPLATA"), allowNull: false },
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    godina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    iznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // uplatilac odnosno primalac gotovine
+    lice: { type: DataTypes.STRING(160), allowNull: false },
+    // osnov/svrha (polog pazara, otkup od poljoprivrednika, akontacija...)
+    osnov: { type: DataTypes.STRING(255), allowNull: false },
+    napomena: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    tableName: "blagajna_nalozi",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      {
+        name: "blagajna_org_tip_god_broj",
+        unique: true,
+        fields: ["organizationId", "tip", "godina", "broj"],
+      },
+    ],
+  },
+);
+
+// Putni nalog (službeno putovanje): dnevnice po Pravilniku o primjeni
+// Zakona o porezu na dohodak (neoporezivo 25 KM; >12h = 1 dnevnica,
+// 8-12h = 0,5) + stvarni troškovi prevoza/smještaja uz priložene račune.
+const PutniNalog = sequelize.define(
+  "PutniNalog",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    godina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    // datum izdavanja naloga
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    workerId: { type: DataTypes.INTEGER, allowNull: true },
+    // snapshot imena (radnik/vlasnik ili ručni unos)
+    radnikIme: { type: DataTypes.STRING(160), allowNull: false },
+    relacija: { type: DataTypes.STRING(255), allowNull: false },
+    svrha: { type: DataTypes.STRING(255), allowNull: false },
+    prevoznoSredstvo: { type: DataTypes.STRING(160), allowNull: true },
+    polazakDatum: { type: DataTypes.DATEONLY, allowNull: false },
+    polazakVrijeme: { type: DataTypes.STRING(5), allowNull: true },
+    povratakDatum: { type: DataTypes.DATEONLY, allowNull: false },
+    povratakVrijeme: { type: DataTypes.STRING(5), allowNull: true },
+    dnevnicaIznos: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 25,
+    },
+    brojDnevnica: { type: DataTypes.DECIMAL(6, 2), allowNull: false },
+    akontacija: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    troskoviPrevoza: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    troskoviSmjestaja: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    ostaliTroskovi: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    ostaloOpis: { type: DataTypes.STRING(255), allowNull: true },
+    izvjestaj: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    tableName: "putni_nalozi",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId", "datum"] },
+      {
+        name: "putni_org_god_broj",
+        unique: true,
+        fields: ["organizationId", "godina", "broj"],
+      },
+    ],
   },
 );
 
@@ -1838,6 +2440,87 @@ BankTransaction.belongsTo(UlazniRacun, {
   as: "ulazniRacun",
 });
 
+Organization.hasMany(Artikal, { foreignKey: "organizationId", as: "artikli" });
+Artikal.belongsTo(Organization, { foreignKey: "organizationId" });
+Organization.hasMany(Kalkulacija, {
+  foreignKey: "organizationId",
+  as: "kalkulacije",
+});
+Kalkulacija.belongsTo(Organization, { foreignKey: "organizationId" });
+Kalkulacija.belongsTo(Partner, {
+  foreignKey: "partnerId",
+  as: "partner",
+  constraints: false,
+});
+Kalkulacija.belongsTo(UlazniRacun, {
+  foreignKey: "ulazniRacunId",
+  as: "ulazniRacun",
+  constraints: false,
+});
+Kalkulacija.hasMany(KalkulacijaStavka, {
+  foreignKey: "kalkulacijaId",
+  as: "stavke",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+KalkulacijaStavka.belongsTo(Kalkulacija, { foreignKey: "kalkulacijaId" });
+KalkulacijaStavka.belongsTo(Artikal, {
+  foreignKey: "artikalId",
+  as: "artikal",
+  constraints: false,
+});
+
+Organization.hasMany(Popis, { foreignKey: "organizationId", as: "popisi" });
+Popis.belongsTo(Organization, { foreignKey: "organizationId" });
+Popis.hasMany(PopisStavka, {
+  foreignKey: "popisId",
+  as: "stavke",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+PopisStavka.belongsTo(Popis, { foreignKey: "popisId" });
+PopisStavka.belongsTo(Artikal, {
+  foreignKey: "artikalId",
+  as: "artikal",
+  constraints: false,
+});
+
+Organization.hasMany(Nivelacija, {
+  foreignKey: "organizationId",
+  as: "nivelacije",
+});
+Nivelacija.belongsTo(Organization, { foreignKey: "organizationId" });
+Nivelacija.hasMany(NivelacijaStavka, {
+  foreignKey: "nivelacijaId",
+  as: "stavke",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+NivelacijaStavka.belongsTo(Nivelacija, { foreignKey: "nivelacijaId" });
+
+Organization.hasMany(Razduzenje, {
+  foreignKey: "organizationId",
+  as: "razduzenja",
+});
+Razduzenje.belongsTo(Organization, { foreignKey: "organizationId" });
+Razduzenje.belongsTo(Partner, {
+  foreignKey: "partnerId",
+  as: "partner",
+  constraints: false,
+});
+Razduzenje.belongsTo(UlazniRacun, {
+  foreignKey: "ulazniRacunId",
+  as: "ulazniRacun",
+  constraints: false,
+});
+Razduzenje.hasMany(RazduzenjeStavka, {
+  foreignKey: "razduzenjeId",
+  as: "stavke",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+RazduzenjeStavka.belongsTo(Razduzenje, { foreignKey: "razduzenjeId" });
+
 // Support (live chat) associations
 User.hasMany(SupportTicket, { foreignKey: "userId", as: "supportTickets" });
 SupportTicket.belongsTo(User, { foreignKey: "userId", as: "user" });
@@ -1901,7 +2584,21 @@ module.exports = {
   Partner,
   UlazniRacun,
   PdvDodatak,
+  PdvKnjizenje,
   Prebijanje,
+  Artikal,
+  Kalkulacija,
+  KalkulacijaStavka,
+  Popis,
+  PopisStavka,
+  Nivelacija,
+  NivelacijaStavka,
+  Razduzenje,
+  RazduzenjeStavka,
+  TkmPocetnoStanje,
+  TkmPazar,
+  BlagajnaNalog,
+  PutniNalog,
   SupportTicket,
   SupportMessage,
   Announcement,

@@ -19,9 +19,11 @@ export default function Register() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextUrl = safeNext(searchParams.get("next"));
-  // Registracija pokrenuta sa trial CTA (next vodi na /pretplate?trial=auto) ->
-  // backend će trial auto-aktivirati pri verifikaciji maila.
-  const wantsTrial = nextUrl.includes("trial=auto");
+  // Registracija pokrenuta sa trial CTA (next vodi na /pretplate?trial=auto,
+  // odnosno ?officeTrial=auto za PK Office) -> backend će odgovarajući trial
+  // auto-aktivirati pri verifikaciji maila.
+  const wantsOfficeTrial = nextUrl.includes("officeTrial=auto");
+  const wantsTrial = nextUrl.includes("trial=auto") && !wantsOfficeTrial;
 
   // Ako je korisnik već ulogovan (npr. nakon verifikacije maila pa povratak
   // na /registracija), preusmjeri ga na ?next= ili početnu.
@@ -88,6 +90,7 @@ export default function Register() {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       wantsTrial,
+      wantsOfficeTrial,
       ...getUtmForRegister(),
     });
   };

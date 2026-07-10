@@ -10,17 +10,20 @@ import {
   useUpdateMemberRole,
 } from "src/hooks/useOrganizationSettings";
 import type { OrgMember } from "src/api/profile";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 
 const ROLE_LABEL: Record<OrgMember["role"], string> = {
   OWNER: "Vlasnik",
   ADMIN: "Admin",
   MEMBER: "Član",
+  VIEWER: "Uvid",
 };
 
 const ROLE_BADGE: Record<OrgMember["role"], string> = {
   OWNER: "bg-brand-600 text-white",
   ADMIN: "bg-info-bg text-info",
   MEMBER: "bg-cream-200 text-text-secondary",
+  VIEWER: "bg-warning-bg text-warning",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -41,6 +44,8 @@ export function KorisniciTab() {
   const removeMember = useRemoveMember(orgId ?? 0);
 
   const [inviteOpen, setInviteOpen] = useState(false);
+  // član koji čeka potvrdu uklanjanja (PK modal umjesto window.confirm)
+  const [zaUklanjanje, setZaUklanjanje] = useState<OrgMember | null>(null);
 
   if (me.isLoading || members.isLoading) {
     return <div className="text-[13px] text-text-secondary">Učitavanje...</div>;
@@ -112,7 +117,7 @@ export function KorisniciTab() {
                       onChange={(e) =>
                         updateRole.mutate({
                           userId: m.userId,
-                          role: e.target.value as "ADMIN" | "MEMBER",
+                          role: e.target.value as "ADMIN" | "MEMBER" | "VIEWER",
                         })
                       }
                       disabled={updateRole.isPending}
@@ -120,18 +125,11 @@ export function KorisniciTab() {
                     >
                       <option value="ADMIN">Admin</option>
                       <option value="MEMBER">Član</option>
+                      <option value="VIEWER">Uvid (samo pregled)</option>
                     </select>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Ukloniti ${m.user.firstName} ${m.user.lastName}?`,
-                          )
-                        ) {
-                          removeMember.mutate(m.userId);
-                        }
-                      }}
+                      onClick={() => setZaUklanjanje(m)}
                       disabled={removeMember.isPending}
                       className="p-1.5 hover:bg-danger-bg text-text-tertiary hover:text-danger rounded-lg disabled:opacity-50"
                       title="Ukloni člana"
@@ -162,6 +160,33 @@ export function KorisniciTab() {
           isPending={addMember.isPending}
         />
       )}
+
+      {/* potvrda uklanjanja člana (PK modal umjesto window.confirm) */}
+      <ConfirmModal
+        open={zaUklanjanje != null}
+        onClose={() => setZaUklanjanje(null)}
+        title="Ukloni člana"
+        message={
+          zaUklanjanje && (
+            <>
+              Ukloniti{" "}
+              <strong className="text-text-primary">
+                {zaUklanjanje.user.firstName} {zaUklanjanje.user.lastName}
+              </strong>{" "}
+              iz obrta? Gubi pristup odmah, a možete ga ponovo pozvati kad
+              zatreba.
+            </>
+          )
+        }
+        confirmLabel="Da, ukloni"
+        busy={removeMember.isPending}
+        onConfirm={() => {
+          if (!zaUklanjanje) return;
+          removeMember.mutate(zaUklanjanje.userId, {
+            onSuccess: () => setZaUklanjanje(null),
+          });
+        }}
+      />
     </div>
   );
 }
@@ -172,11 +197,11 @@ function InviteModal({
   isPending,
 }: {
   onClose: () => void;
-  onInvite: (email: string, role: "ADMIN" | "MEMBER") => Promise<string | null>;
+  onInvite: (email: string, role: "ADMIN" | "MEMBER" | "VIEWER") => Promise<string | null>;
   isPending: boolean;
 }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
+  const [role, setRole] = useState<"ADMIN" | "MEMBER" | "VIEWER">("MEMBER");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -240,11 +265,12 @@ function InviteModal({
               </span>
               <select
                 value={role}
-                onChange={(e) => setRole(e.target.value as "ADMIN" | "MEMBER")}
+                onChange={(e) => setRole(e.target.value as "ADMIN" | "MEMBER" | "VIEWER")}
                 className="w-full px-3 py-2 text-[13px] bg-cream-100 border border-cream-300 rounded-lg text-text-primary focus:outline-none focus:border-brand-600"
               >
                 <option value="MEMBER">Član, pristup samo svojim alatima</option>
                 <option value="ADMIN">Admin, može mijenjati postavke obrta</option>
+                <option value="VIEWER">Uvid, samo pregled bez izmjena</option>
               </select>
             </label>
             {error && (

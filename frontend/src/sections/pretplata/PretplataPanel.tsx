@@ -18,6 +18,8 @@ import {
   useSubscriptionInvoices,
 } from "src/hooks/useSubscription";
 import { useProfile } from "src/hooks/useProfile";
+import { usePkOfficePristup } from "src/hooks/usePkOfficeMe";
+import { PK_OFFICE_DASHBOARD_URL } from "src/lib/pkOfficeUrl";
 import { unwrap } from "src/api/auth";
 import { getMyStats } from "src/api/profile";
 import { formatBAM, formatDate } from "src/lib/format";
@@ -51,7 +53,28 @@ const PLAN_LABELS: Record<Subscription["plan"], string> = {
   free: "Besplatan",
   pro: "Pro",
   business: "Business",
+  office_2: "PK Office Start (do 2 obrta)",
+  office_10: "PK Office Tim (do 10 obrta)",
+  office_25: "PK Office Agencija (do 25 obrta)",
+  office_50: "PK Office Agencija+ (do 50 obrta)",
 };
+
+// office paket → plan predračuna za obnovu
+const OFFICE_TO_PREDRACUN: Partial<Record<Subscription["plan"], PredracunPlan>> =
+  {
+    office_2: "OFFICE_2",
+    office_10: "OFFICE_10",
+    office_25: "OFFICE_25",
+    office_50: "OFFICE_50",
+  };
+
+// label plana sa predračuna (PRO/BUSINESS/OFFICE_*, historijski zapisi)
+function invoicePlanLabel(plan: string): string {
+  const key = String(plan || "").toLowerCase();
+  if (key === "business") return "Business";
+  if (key === "pro") return "Pro";
+  return PLAN_LABELS[key as Subscription["plan"]] ?? plan;
+}
 
 // ── Datumski helperi (ISO stringovi, poređenje leksički) ────────────────────
 
@@ -94,6 +117,9 @@ export function PretplataPanel() {
   const subQuery = useSubscription();
   const invoicesQuery = useSubscriptionInvoices(1, 50);
   const profileQuery = useProfile();
+  // PK Office probni period se ne vodi kao pretplata (nema plaćenog plana),
+  // pa se čita sa office pristupa i prikazuje kao posebna sekcija
+  const officeQuery = usePkOfficePristup();
   const statsQuery = useQuery({
     queryKey: ["pk-office", "my-stats"],
     queryFn: () => unwrap(getMyStats()),
@@ -154,8 +180,53 @@ export function PretplataPanel() {
     0,
   );
 
+  // PK Office trial: aktivan probni period bez plaćenog office paketa
+  const office = officeQuery.data;
+  const officeTrialEnds =
+    office?.trial && office.trialEndsAt
+      ? String(office.trialEndsAt).slice(0, 10)
+      : null;
+  const officeTrialDana = officeTrialEnds ? daysUntil(officeTrialEnds) : null;
+  const officeTrialAktivan = officeTrialDana !== null && officeTrialDana >= 0;
+
   return (
     <div className="space-y-6">
+      {/* PK Office probni period */}
+      {officeTrialAktivan && officeTrialEnds && (
+        <section className="bg-info-bg/40 border border-info/30 rounded-xl p-5">
+          <h2 className="text-[14px] leading-5 font-semibold text-text-primary mb-2">
+            PK Office probni period je aktivan
+          </h2>
+          <p className="text-[13px] leading-6 text-text-secondary">
+            Proba uključuje sve PK Office funkcije za do 10 obrta i vrijedi do{" "}
+            <strong className="text-text-primary">
+              {formatDate(officeTrialEnds)}
+            </strong>{" "}
+            {officeTrialDana === 0 ? "(ističe danas)" : `(još ${officeTrialDana} dana)`}
+            . Sve što uneseš tokom probe (obrti, izvodi, fakture, plate) ostaje
+            sačuvano i poslije, pa uplatom paketa nastavljaš tačno gdje si stao.
+          </p>
+          <p className="text-[13px] leading-6 text-text-secondary mt-2">
+            Za nastavak bez prekida zatraži predračun za PK Office paket po
+            broju obrta; nakon evidentirane uplate paket se aktivira na ovom
+            računu.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Link
+              href="/pretplate#pk-office"
+              className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-[13.5px] font-medium transition-colors shadow-[0_4px_14px_-4px_rgba(58,92,66,0.4)]"
+            >
+              Zatraži predračun za PK Office
+            </Link>
+            <a
+              href={PK_OFFICE_DASHBOARD_URL}
+              className="px-5 py-2.5 rounded-full border border-brand-600/40 bg-white/60 text-brand-700 text-[13.5px] font-medium hover:bg-brand-600/10 hover:border-brand-600 transition-colors"
+            >
+              Otvori PK Office →
+            </a>
+          </div>
+        </section>
+      )}
       {/* KPI red */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard
@@ -279,7 +350,11 @@ export function PretplataPanel() {
 
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/pretplate?upgrade=true"
+            href={
+              sub.plan.startsWith("office")
+                ? "/pretplate#pk-office"
+                : "/pretplate?upgrade=true"
+            }
             className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-[13.5px] font-medium transition-colors shadow-[0_4px_14px_-4px_rgba(58,92,66,0.4)]"
           >
             {sub.plan === "free" ? "Nadogradi plan" : "Promijeni plan"}
@@ -443,7 +518,7 @@ export function PretplataPanel() {
                       {formatDate(inv.invoiceDate)}
                     </td>
                     <td className="py-3 text-text-primary whitespace-nowrap">
-                      {inv.plan === "BUSINESS" ? "Business" : "Pro"}{" "}
+                      {invoicePlanLabel(inv.plan)}{" "}
                       <span className="text-text-tertiary">
                         · {inv.billingCycle === "monthly" ? "mjesečno" : "godišnje"}
                       </span>
@@ -513,7 +588,7 @@ export function PretplataPanel() {
                       {inv.invoiceNumber}
                     </td>
                     <td className="py-3 text-text-primary whitespace-nowrap">
-                      {inv.plan === "BUSINESS" ? "Business" : "Pro"}{" "}
+                      {invoicePlanLabel(inv.plan)}{" "}
                       <span className="text-text-tertiary">
                         · {inv.billingCycle === "monthly" ? "mjesečno" : "godišnje"}
                       </span>
@@ -565,8 +640,10 @@ function RenewalSection({
     null,
   );
 
-  const plan: PredracunPlan = sub.plan === "business" ? "BUSINESS" : "PRO";
-  const planLabel = plan === "BUSINESS" ? "Business" : "Pro";
+  const plan: PredracunPlan =
+    OFFICE_TO_PREDRACUN[sub.plan] ??
+    (sub.plan === "business" ? "BUSINESS" : "PRO");
+  const planLabel = PLAN_LABELS[sub.plan] ?? "Pro";
   const cycleLabel = cycle === "monthly" ? "mjesečna" : "godišnja";
 
   // Kontinuitet: novi period počinje dan nakon isteka tekuće pretplate.
@@ -678,7 +755,11 @@ function RenewalSection({
               {gen.isPending ? "Generišem..." : "Generiši predračun za obnovu"}
             </button>
             <Link
-              href={`/pretplate?plan=${plan}&cycle=${cycle}`}
+              href={
+                plan.startsWith("OFFICE")
+                  ? "/pretplate#pk-office"
+                  : `/pretplate?plan=${plan}&cycle=${cycle}`
+              }
               className="text-[13px] font-medium text-brand-700 hover:text-brand-600"
             >
               Želim drugi plan ili ciklus

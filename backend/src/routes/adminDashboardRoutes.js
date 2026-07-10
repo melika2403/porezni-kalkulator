@@ -5,6 +5,7 @@ const invoices = require("../controllers/invoicesController");
 const forms = require("../controllers/formsController");
 const entities = require("../controllers/adminEntitiesController");
 const detail = require("../controllers/adminDetailController");
+const subscriptions = require("../controllers/subscriptionsController");
 const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
@@ -37,6 +38,14 @@ router.delete("/clients/:id", requireAuth, requireRole("ADMIN"), entities.delete
 
 // Poziv korisniku da aktivira besplatni trial (mail).
 router.post("/users/:id/trial-invite", requireAuth, requireRole("ADMIN"), entities.sendTrialInvite);
+
+// Sve pretplate (paketi, periodi, office slotovi) — admin lista.
+router.get(
+  "/subscriptions",
+  requireAuth,
+  requireRole("ADMIN"),
+  subscriptions.adminList,
+);
 
 // Obnove pretplata + podsjetnici.
 router.get("/renewals", requireAuth, requireRole("ADMIN"), renewals.listExpiring);
