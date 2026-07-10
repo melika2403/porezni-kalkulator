@@ -122,6 +122,70 @@ export function deletePartner(orgId: number, partnerId: number) {
   });
 }
 
+// ── grupni uvoz partnera (Com_Soft XML/CSV) ──
+export type UvozPartneraResult = {
+  ukupno: number;
+  dodano: number;
+  /** uvezeni bez ID broja (JIB): treba ih dopuniti prije KUF/KIF upotrebe */
+  bezIdBroja: number;
+  vezanoTransakcija: number;
+  preskocenoUkupno: number;
+  /** lista je ograničena server-side (max 300 stavki) */
+  preskoceno: { sifra: string; naziv: string; razlog: string }[];
+};
+
+export function uvozPartnera(
+  orgId: number,
+  partneri: {
+    sifra?: string;
+    naziv: string;
+    jib?: string;
+    pdvBroj?: string;
+    adresa?: string;
+    mjesto?: string;
+    telefon?: string;
+    email?: string;
+    racuni?: string[];
+  }[],
+) {
+  return jsonRequest<UvozPartneraResult>(`/api/partners/${orgId}/uvoz`, {
+    method: "POST",
+    body: JSON.stringify({ partneri }),
+  });
+}
+
+// ── Ukupni promet kupaca/dobavljača (izvještaj) ──────────────────────────────
+export type PrometType = "kupac" | "dobavljac" | "svi";
+
+export type PrometRow = {
+  id: number;
+  code: number | null;
+  name: string;
+  /** type kupac/dobavljac */
+  duguje?: number;
+  potrazuje?: number;
+  saldo?: number;
+  /** type svi: saldo kupca (fakture - uplate) i dobavljača (računi - plaćanja) */
+  njihovDug?: number;
+  nasDug?: number;
+  razlika?: number;
+};
+
+export function prometPartnera(
+  orgId: number,
+  params: { type: PrometType; from?: string; to?: string },
+) {
+  const sp = new URLSearchParams({ type: params.type });
+  if (params.from) sp.set("from", params.from);
+  if (params.to) sp.set("to", params.to);
+  return jsonRequest<{
+    type: PrometType;
+    from: string;
+    to: string;
+    rows: PrometRow[];
+  }>(`/api/partners/${orgId}/promet?${sp.toString()}`, { method: "GET" });
+}
+
 // ── Ulazni računi (fakture dobavljača) ──────────────────────────────────────
 
 export type UlazniRacunStatus = "OTVOREN" | "PLACEN";

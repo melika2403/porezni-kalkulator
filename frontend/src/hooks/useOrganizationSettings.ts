@@ -43,7 +43,7 @@ export function useOrganizationMembers(orgId: number | null | undefined) {
 export function useAddMember(orgId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { email: string; role: "ADMIN" | "MEMBER" }) =>
+    mutationFn: (payload: { email: string; role: "ADMIN" | "MEMBER" | "VIEWER" }) =>
       unwrap(addMember(orgId, payload)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["organization", "members", orgId] });
@@ -59,7 +59,7 @@ export function useUpdateMemberRole(orgId: number) {
       role,
     }: {
       userId: number;
-      role: "ADMIN" | "MEMBER";
+      role: "ADMIN" | "MEMBER" | "VIEWER";
     }) => unwrap(updateMemberRole(orgId, userId, role)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["organization", "members", orgId] });

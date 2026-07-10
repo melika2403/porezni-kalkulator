@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import {
   IconArrowLeft,
   IconArrowDownLeft,
   IconArrowUpRight,
   IconChecks,
   IconLoader2,
+  IconPencil,
   IconTrash,
 } from "@tabler/icons-react";
 import { formatBAM, formatDate } from "src/lib/format";
@@ -26,11 +32,17 @@ import {
 } from "src/sections/bankovni-izvodi/TransactionModal";
 import { parseWarnings, type BankTransaction } from "src/api/bankStatements";
 import { categoryDisplayLabel } from "src/lib/bankCategories";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 
 export default function IzvodDetaljPage() {
   const params = useParams<{ statementId: string }>();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const statementId = Number(params.statementId) || null;
+  // ?bezKategorije=1 (klik na žuti badge sa liste): prikaži samo stavke
+  // bez KPR kategorije, sa napomenom i dugmetom za povratak na sve
+  const samoBezKategorije = searchParams.get("bezKategorije") === "1";
 
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
@@ -41,8 +53,12 @@ export default function IzvodDetaljPage() {
   const deleteStatement = useDeleteBankStatement(orgId);
   const updateTx = useUpdateBankTransaction(orgId);
   const [selected, setSelected] = useState<BankTransaction | null>(null);
+  const [potvrdaBrisanja, setPotvrdaBrisanja] = useState(false);
 
   const transactions = statement?.transactions ?? [];
+  const visibleTransactions = samoBezKategorije
+    ? transactions.filter((t) => !t.category)
+    : transactions;
   const unmatched = transactions.filter((t) => t.status === "UNMATCHED").length;
   const totalIn = transactions
     .filter((t) => t.direction === "IN")
@@ -58,13 +74,7 @@ export default function IzvodDetaljPage() {
 
   function handleDelete() {
     if (!statement) return;
-    const sure = window.confirm(
-      `Obrisati izvod br. ${statement.statementNumber ?? "?"} i svih ${transactions.length} stavki? Ovo se ne može poništiti.`,
-    );
-    if (!sure) return;
-    deleteStatement.mutate(statement.id, {
-      onSuccess: () => router.push("/app/bankovni-izvodi"),
-    });
+    setPotvrdaBrisanja(true);
   }
 
   return (
@@ -91,8 +101,10 @@ export default function IzvodDetaljPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="font-serif-display text-[24px] leading-tight text-text-primary">
-                  {statement.bankName ?? "Banka"} · Izvod br.{" "}
-                  {statement.statementNumber ?? "?"}
+                  {statement.bankName ?? "Banka"} ·{" "}
+                  {statement.statementNumber
+                    ? `Izvod br. ${statement.statementNumber}`
+                    : "Ručni izvod"}
                 </h1>
                 <p className="text-[13px] text-text-tertiary mt-1">
                   {statement.statementDate
@@ -187,14 +199,33 @@ export default function IzvodDetaljPage() {
           <div className="rounded-xl bg-cream-100 border border-cream-300">
             <div className="pt-4 px-4 pb-3">
               <h2 className="font-serif-display text-[19px] leading-tight text-text-primary">
-                Stavke ({transactions.length})
+                Stavke (
+                {samoBezKategorije
+                  ? `${visibleTransactions.length} od ${transactions.length}`
+                  : transactions.length}
+                )
               </h2>
               <p className="text-[13px] italic text-text-tertiary mt-0.5">
                 Klik na stavku otvara detalje. Potvrđene stavke idu u knjiženje.
               </p>
+              {samoBezKategorije && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-warning-bg text-warning text-[12.5px] leading-5 px-3 py-2">
+                  <span>
+                    Prikazane su samo stavke bez KPR kategorije: dodijeli im
+                    kategoriju da uđu u knjigu.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => router.replace(pathname)}
+                    className="px-2.5 py-0.5 rounded-full border border-warning/40 font-medium hover:bg-warning/10 transition-colors"
+                  >
+                    Prikaži sve stavke
+                  </button>
+                </div>
+              )}
             </div>
             <ul>
-              {transactions.map((t, i) => {
+              {visibleTransactions.map((t, i) => {
                 const isIn = t.direction === "IN";
                 const isReview = t.status === "UNMATCHED";
                 return (
@@ -203,7 +234,7 @@ export default function IzvodDetaljPage() {
                     onClick={() => setSelected(t)}
                     className={[
                       "grid grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[40px_minmax(0,1fr)_auto_120px] items-center gap-x-3 gap-y-2 px-4 py-[14px] min-h-[64px] cursor-pointer hover:bg-[rgba(15,26,18,0.025)] transition-colors",
-                      i < transactions.length - 1
+                      i < visibleTransactions.length - 1
                         ? "border-b border-cream-300/70"
                         : "",
                     ].join(" ")}
@@ -262,7 +293,7 @@ export default function IzvodDetaljPage() {
                         {isIn ? "+" : "−"}
                         {formatBAM(Number(t.amount))}
                       </span>
-                      <div className="flex items-center justify-end sm:w-full">
+                      <div className="flex items-center justify-end gap-2 sm:w-full">
                         {isReview && (
                           <button
                             type="button"
@@ -279,6 +310,20 @@ export default function IzvodDetaljPage() {
                             Potvrdi
                           </button>
                         )}
+                        {/* vidljiva potvrda da je stavka editabilna (isto
+                            što i klik na red: otvara modal za uređivanje) */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelected(t);
+                          }}
+                          title="Uredi stavku: kategorija, partner, status, povezivanje"
+                          className="inline-flex items-center gap-1 px-3 py-[5px] rounded-lg border border-cream-300 text-text-secondary text-[12px] font-medium hover:border-brand-600 hover:text-brand-600 transition-colors whitespace-nowrap shrink-0"
+                        >
+                          <IconPencil size={13} />
+                          Uredi
+                        </button>
                       </div>
                     </div>
                   </li>
@@ -293,6 +338,35 @@ export default function IzvodDetaljPage() {
         orgId={orgId}
         tx={selectedFresh}
         onClose={() => setSelected(null)}
+      />
+
+      {/* potvrda brisanja izvoda (PK modal umjesto browserskog dijaloga) */}
+      <ConfirmModal
+        open={potvrdaBrisanja}
+        onClose={() => setPotvrdaBrisanja(false)}
+        title="Obriši izvod"
+        message={
+          statement && (
+            <>
+              Obrisati{" "}
+              <strong className="text-text-primary">
+                {statement.statementNumber
+                  ? `izvod br. ${statement.statementNumber}`
+                  : "ručni izvod"}
+              </strong>{" "}
+              i svih {transactions.length} stavki? Ovo se ne može poništiti, a
+              povezane fakture i ulazni računi se vraćaju u otvoreno stanje.
+            </>
+          )
+        }
+        confirmLabel="Da, obriši izvod"
+        busy={deleteStatement.isPending}
+        onConfirm={() => {
+          if (!statement) return;
+          deleteStatement.mutate(statement.id, {
+            onSuccess: () => router.push("/app/bankovni-izvodi"),
+          });
+        }}
       />
     </div>
   );

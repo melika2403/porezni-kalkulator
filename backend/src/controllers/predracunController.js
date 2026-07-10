@@ -15,6 +15,7 @@ const {
   calcAmounts,
   formatBroj,
 } = require("../utils/predracunPdf");
+const { isKnownPlan, ALL_PLANS } = require("../config/pricing");
 const { sendPredracunEmail } = require("../utils/mailer");
 
 const isStr = (v) => typeof v === "string" && v.trim().length > 0;
@@ -23,7 +24,9 @@ function validate(body) {
   const errors = [];
   if (!body || typeof body !== "object") errors.push("Nedostaje tijelo zahtjeva.");
   const plan = String(body?.plan || "").toUpperCase();
-  if (plan !== "PRO" && plan !== "BUSINESS") errors.push("Plan mora biti PRO ili BUSINESS.");
+  if (!isKnownPlan(plan)) {
+    errors.push(`Plan mora biti jedan od: ${ALL_PLANS.join(", ")}.`);
+  }
   // billingCycle: "monthly" | "yearly" (default yearly za back-compat).
   const billingCycle = String(body?.billingCycle || "yearly").toLowerCase() === "monthly"
     ? "monthly"
@@ -194,7 +197,7 @@ async function list(req, res) {
     const offset = (page - 1) * limit;
 
     const where = {};
-    if (plan === "PRO" || plan === "BUSINESS") where.plan = plan;
+    if (isKnownPlan(plan)) where.plan = plan;
     if (["ISSUED", "PAID", "CANCELLED"].includes(status)) where.status = status;
     if (q) {
       where[Op.or] = [

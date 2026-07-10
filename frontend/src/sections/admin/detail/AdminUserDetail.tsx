@@ -12,6 +12,24 @@ const TYPE_LABEL: Record<string, string> = {
   BUSINESS: "Obrt",
 };
 
+const ROLE_LABEL: Record<string, string> = {
+  USER: "Korisnik",
+  PRO: "Pro",
+  BUSINESS: "Business",
+  ADMIN: "Admin",
+};
+
+// plan pretplate uklj. office pakete (u bazi lowercase office_2..office_50)
+const PLAN_LABEL: Record<string, string> = {
+  free: "Besplatan",
+  pro: "Pro",
+  business: "Business",
+  office_2: "Office Start (do 2 obrta)",
+  office_10: "Office Tim (do 10 obrta)",
+  office_25: "Office Agencija (do 25 obrta)",
+  office_50: "Office Agencija+ (do 50 obrta)",
+};
+
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "–";
   const d = String(iso).slice(0, 10).split("-");
@@ -115,7 +133,7 @@ export default function AdminUserDetail({ userId }: { userId: number }) {
               label="Adresa"
               value={[u.address, u.city].filter(Boolean).join(", ")}
             />
-            <Info label="Uloga" value={u.role} />
+            <Info label="Uloga" value={ROLE_LABEL[u.role] ?? u.role} />
             <Info label="Registracija" value={fmtDate(u.createdAt)} />
             <Info
               label="Trial iskorišten"
@@ -135,7 +153,12 @@ export default function AdminUserDetail({ userId }: { userId: number }) {
         <div className={styles.card}>
           {sub ? (
             <div className={styles.infoGrid}>
-              <Info label="Plan" value={sub.plan} />
+              <Info
+                label="Plan"
+                value={
+                  PLAN_LABEL[String(sub.plan ?? "").toLowerCase()] ?? sub.plan
+                }
+              />
               <Info
                 label="Ciklus"
                 value={

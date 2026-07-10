@@ -11,12 +11,16 @@ import {
   IconFileInvoice,
   IconAddressBook,
   IconBook2,
+  IconCalculator,
+  IconCash,
   IconReceiptTax,
+  IconRoute,
   IconFileText,
   IconUsers,
   IconCoins,
   IconCreditCard,
   IconSettings,
+  IconStack2,
   IconArrowLeft,
   IconBriefcase,
 } from "@tabler/icons-react";
@@ -67,6 +71,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: IconArrowsExchange,
       },
       { href: "/app/fakture", label: "Fakture", icon: IconFileInvoice },
+      { href: "/app/blagajna", label: "Blagajna", icon: IconCash },
       { href: "/app/partneri", label: "Partneri", icon: IconAddressBook },
     ],
   },
@@ -79,10 +84,26 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Roba",
+    items: [
+      {
+        href: "/app/kalkulacije",
+        label: "Kalkulacije",
+        icon: IconCalculator,
+      },
+      {
+        href: "/app/lager",
+        label: "Lager lista",
+        icon: IconStack2,
+      },
+    ],
+  },
+  {
     label: "Zaposlenici",
     items: [
       { href: "/app/zaposlenici", label: "Zaposlenici", icon: IconUsers },
       { href: "/app/obracuni-plata", label: "Obračuni plata", icon: IconCoins },
+      { href: "/app/putni-nalozi", label: "Putni nalozi", icon: IconRoute },
     ],
   },
   {

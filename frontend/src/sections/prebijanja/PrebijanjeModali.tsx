@@ -238,6 +238,7 @@ export function KompenzacijaModal({
   const [rashodKat, setRashodKat] = useState<RashodKategorija>("OSTALI_RASHODI");
   const [napomena, setNapomena] = useState("");
   const { mut, result, error } = useKnjizenje(orgId);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const sumIn = invoices
     .filter((s) => inv.selected.has(s.id))
@@ -331,22 +332,44 @@ export function KompenzacijaModal({
           >
             Zatvori
           </button>
-          <button
-            type="button"
-            onClick={() => book(false)}
-            disabled={!canBook}
-            className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
-          >
-            Proknjiži
-          </button>
-          <button
-            type="button"
-            onClick={() => book(true)}
-            disabled={!canBook}
-            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {mut.isPending ? "Knjižim…" : "Proknjiži i preuzmi PDF"}
-          </button>
+          {result ? (
+            // PDF ostaje dostupan i poslije knjiženja (a uvijek i u listi
+            // "Kompenzacije i cesije" kroz PDF dugme na redu)
+            <button
+              type="button"
+              disabled={pdfBusy}
+              onClick={async () => {
+                setPdfBusy(true);
+                try {
+                  await pdfPrijedlog(result);
+                } finally {
+                  setPdfBusy(false);
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {pdfBusy ? "Generišem…" : "Preuzmi PDF"}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => book(false)}
+                disabled={!canBook}
+                className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+              >
+                Proknjiži
+              </button>
+              <button
+                type="button"
+                onClick={() => book(true)}
+                disabled={!canBook}
+                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {mut.isPending ? "Knjižim…" : "Proknjiži i preuzmi PDF"}
+              </button>
+            </>
+          )}
         </>
       }
     >
@@ -531,6 +554,7 @@ export function CesijaModal({
   const [rashodKat, setRashodKat] = useState<RashodKategorija>("OSTALI_RASHODI");
   const [napomena, setNapomena] = useState("");
   const { mut, result, error } = useKnjizenje(orgId);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const sumIn = invoices
     .filter((s) => inv.selected.has(s.id))
@@ -620,22 +644,44 @@ export function CesijaModal({
           >
             Zatvori
           </button>
-          <button
-            type="button"
-            onClick={() => book(false)}
-            disabled={!canBook}
-            className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
-          >
-            Proknjiži
-          </button>
-          <button
-            type="button"
-            onClick={() => book(true)}
-            disabled={!canBook}
-            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {mut.isPending ? "Knjižim…" : "Proknjiži i preuzmi ugovor"}
-          </button>
+          {result ? (
+            // ugovor ostaje dostupan i poslije knjiženja (a uvijek i u listi
+            // "Kompenzacije i cesije" kroz PDF dugme na redu)
+            <button
+              type="button"
+              disabled={pdfBusy}
+              onClick={async () => {
+                setPdfBusy(true);
+                try {
+                  await pdfUgovor(result);
+                } finally {
+                  setPdfBusy(false);
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {pdfBusy ? "Generišem…" : "Preuzmi ugovor (PDF)"}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => book(false)}
+                disabled={!canBook}
+                className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+              >
+                Proknjiži
+              </button>
+              <button
+                type="button"
+                onClick={() => book(true)}
+                disabled={!canBook}
+                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {mut.isPending ? "Knjižim…" : "Proknjiži i preuzmi ugovor"}
+              </button>
+            </>
+          )}
         </>
       }
     >

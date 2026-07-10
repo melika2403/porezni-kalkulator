@@ -522,6 +522,159 @@ async function remove(req, res) {
   return res.json({ ok: true, data: null });
 }
 
+// POST /api/partners/:orgId/uvoz — grupni uvoz partnera (Com_Soft XML/CSV,
+// parsiran na frontendu). Duplikati se PRESKAČU: prvo po ID broju (JIB), pa
+// po labavo normalizovanom nazivu; odgovor vraća šta je preskočeno i zašto.
+// JIB kod uvoza NIJE obavezan (istorijski šifarnici ga često nemaju), pa se
+// takvi partneri uvoze bez ID broja i broje posebno (bezIdBroja).
+const UVOZ_MAX_PRESKOCENO = 300;
+
+async function uvozPartnera(req, res) {
+  try {
+    const organizationId = parseId(req.params.orgId);
+    if (!organizationId) {
+      return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+    }
+    const stavke = Array.isArray(req.body?.partneri) ? req.body.partneri : [];
+    if (stavke.length === 0) {
+      return res.status(400).json({ ok: false, error: "EMPTY" });
+    }
+    if (stavke.length > 50000) {
+      return res.status(400).json({ ok: false, error: "TOO_MANY" });
+    }
+
+    const postojeci = await Partner.findAll({
+      where: { organizationId },
+      attributes: ["name", "jib"],
+      raw: true,
+    });
+    const poJibu = new Map();
+    const poNazivu = new Map();
+    for (const p of postojeci) {
+      if (p.jib) poJibu.set(p.jib, p.name);
+      const n = normalizeName(p.name);
+      if (n) poNazivu.set(n, p.name);
+    }
+
+    const preskoceno = [];
+    let preskocenoUkupno = 0;
+    const skip = (sifra, naziv, razlog) => {
+      preskocenoUkupno++;
+      if (preskoceno.length < UVOZ_MAX_PRESKOCENO) {
+        preskoceno.push({ sifra, naziv, razlog });
+      }
+    };
+
+    let code = await nextPartnerCode(organizationId);
+    let bezIdBroja = 0;
+    const zaUnos = [];
+    for (const s of stavke) {
+      const sifra = String(s?.sifra || "").trim();
+      const name = String(s?.naziv || "").trim().slice(0, 255);
+      if (!name) {
+        skip(sifra, "", "nema naziv");
+        continue;
+      }
+      const jib = normalizeDigits(s?.jib);
+      const validJib = jib.length === 13 ? jib : null;
+      const norm = normalizeName(name);
+      if (validJib && poJibu.has(validJib)) {
+        skip(sifra, name, `ID broj već postoji (${poJibu.get(validJib)})`);
+        continue;
+      }
+      if (norm && poNazivu.has(norm)) {
+        const isti = poNazivu.get(norm);
+        skip(
+          sifra,
+          name,
+          isti === name ? "naziv već postoji" : `naziv već postoji (${isti})`,
+        );
+        continue;
+      }
+      // upiši u mape odmah: duplikati unutar samog fajla se isto preskaču
+      if (validJib) poJibu.set(validJib, name);
+      if (norm) poNazivu.set(norm, name);
+      if (!validJib) bezIdBroja++;
+      const pdv = normalizeDigits(s?.pdvBroj);
+      zaUnos.push({
+        organizationId,
+        code: code++,
+        name,
+        jib: validJib,
+        pdvBroj: pdv.length === 12 ? pdv : null,
+        address: String(s?.adresa || "").trim().slice(0, 255) || null,
+        city: String(s?.mjesto || "").trim().slice(0, 120) || null,
+        email: String(s?.email || "").trim().slice(0, 255) || null,
+        phone: String(s?.telefon || "").trim().slice(0, 64) || null,
+        accounts: cleanAccounts(s?.racuni),
+        isKupac: false,
+        isDobavljac: false,
+        note: null,
+      });
+    }
+
+    const created = [];
+    for (let i = 0; i < zaUnos.length; i += 500) {
+      // eslint-disable-next-line no-await-in-loop
+      const chunk = await Partner.bulkCreate(zaUnos.slice(i, i + 500));
+      created.push(...chunk);
+    }
+
+    // jedan prolaz vezanja postojećih nevezanih transakcija na nove partnere
+    // (po žiro računu pa po labavom nazivu), umjesto relinka po partneru
+    let vezano = 0;
+    if (created.length > 0) {
+      const byAccount = new Map();
+      const byName = new Map();
+      for (const p of created) {
+        for (const a of Array.isArray(p.accounts) ? p.accounts : []) {
+          byAccount.set(normalizeDigits(a), p.id);
+        }
+        const n = normalizeName(p.name);
+        if (n && !byName.has(n)) byName.set(n, p.id);
+      }
+      const slobodne = await BankTransaction.findAll({
+        where: { organizationId, partnerId: null },
+        attributes: ["id", "counterpartyAccount", "counterpartyName"],
+        raw: true,
+      });
+      const poPartneru = new Map();
+      for (const tx of slobodne) {
+        const pid =
+          byAccount.get(normalizeDigits(tx.counterpartyAccount)) ??
+          byName.get(normalizeName(tx.counterpartyName)) ??
+          null;
+        if (pid == null) continue;
+        if (!poPartneru.has(pid)) poPartneru.set(pid, []);
+        poPartneru.get(pid).push(tx.id);
+      }
+      for (const [partnerId, ids] of poPartneru) {
+        // eslint-disable-next-line no-await-in-loop
+        await BankTransaction.update(
+          { partnerId },
+          { where: { id: { [Op.in]: ids } } },
+        );
+        vezano += ids.length;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        ukupno: stavke.length,
+        dodano: created.length,
+        bezIdBroja,
+        vezanoTransakcija: vezano,
+        preskocenoUkupno,
+        preskoceno,
+      },
+    });
+  } catch (err) {
+    console.error("partneri uvoz error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 // ─── Ulazni računi (fakture dobavljača) ─────────────────────────────────────
 
 const toCents = (v) => Math.round(Number(v) * 100);
@@ -856,6 +1009,168 @@ async function removeUlazniRacun(req, res) {
   return res.json({ ok: true, data: null });
 }
 
+// ─── Ukupni promet kupaca/dobavljača ────────────────────────────────────────
+
+// GET /api/partners/:orgId/promet?type=kupac|dobavljac|svi&from=&to=
+// Zbirni izvještaj po partneru za period; ista logika kao kartica partnera
+// (kupac: fakture duguju, uplate i odobrenja potražuju; dobavljač: njegovi
+// računi potražuju, naša plaćanja duguju), pa se izvještaj i kartica slažu.
+// type=svi: obje strane odjednom, partner koji je i kupac i dobavljač je u
+// JEDNOM redu (njihovDug = saldo kupca, nasDug = saldo dobavljača).
+async function promet(req, res) {
+  try {
+    const organizationId = parseId(req.params.orgId);
+    if (!organizationId) {
+      return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+    }
+    const type = ["kupac", "dobavljac", "svi"].includes(req.query.type)
+      ? req.query.type
+      : "dobavljac";
+    const wantKupac = type !== "dobavljac";
+    const wantDobavljac = type !== "kupac";
+    const from = parseIsoDate(req.query.from) || "1900-01-01";
+    const to =
+      parseIsoDate(req.query.to) || new Date().toISOString().slice(0, 10);
+
+    const partners = await Partner.findAll({
+      where: { organizationId },
+      attributes: ["id", "code", "name", "jib"],
+      raw: true,
+    });
+    // partnerId → { kDuguje, kPotrazuje (kupac), dDuguje, dPotrazuje (dob.) }
+    const acc = new Map();
+    const bump = (pid, key, val) => {
+      if (!acc.has(pid)) {
+        acc.set(pid, { kDuguje: 0, kPotrazuje: 0, dDuguje: 0, dPotrazuje: 0 });
+      }
+      acc.get(pid)[key] += val;
+    };
+
+    if (wantKupac) {
+      // fakture se vežu po JIB-u pa po labavom nazivu kupca (kao kartica)
+      const byJib = new Map();
+      const byName = new Map();
+      for (const p of partners) {
+        const j = normalizeDigits(p.jib);
+        if (j && !byJib.has(j)) byJib.set(j, p.id);
+        const n = normalizeName(p.name);
+        if (n && !byName.has(n)) byName.set(n, p.id);
+      }
+      const invoices = await Invoice.findAll({
+        where: {
+          organizationId,
+          type: "INVOICE",
+          status: { [Op.in]: ["ISSUED", "PAID"] },
+          issueDate: { [Op.gte]: from, [Op.lte]: to },
+        },
+        attributes: ["buyerName", "buyerIdNumber", "grossTotal", "docType"],
+        raw: true,
+      });
+      for (const inv of invoices) {
+        const pid =
+          byJib.get(normalizeDigits(inv.buyerIdNumber)) ??
+          byName.get(normalizeName(inv.buyerName)) ??
+          null;
+        if (pid == null) continue;
+        const doc = inv.docType || "STANDARD";
+        const odobrenje =
+          doc === "STORNO_AVANSNE" || doc === "KNJIZNA_OBAVIJEST";
+        bump(pid, odobrenje ? "kPotrazuje" : "kDuguje", Number(inv.grossTotal) || 0);
+      }
+    }
+    if (wantDobavljac) {
+      const racuni = await UlazniRacun.findAll({
+        where: {
+          organizationId,
+          datumRacuna: { [Op.gte]: from, [Op.lte]: to },
+        },
+        attributes: ["partnerId", "iznos", "samoEvidencija"],
+        raw: true,
+      });
+      for (const r of racuni) {
+        // samo PDV evidencija (uvoz/JCI) ne stvara obavezu prema dobavljaču
+        if (r.samoEvidencija) continue;
+        bump(r.partnerId, "dPotrazuje", Number(r.iznos) || 0);
+      }
+    }
+
+    const txWhere = {
+      organizationId,
+      partnerId: { [Op.not]: null },
+      status: "CONFIRMED",
+      date: { [Op.gte]: from, [Op.lte]: to },
+    };
+    if (type !== "svi") {
+      txWhere.direction = type === "kupac" ? "IN" : "OUT";
+    }
+    const txs = await BankTransaction.findAll({
+      where: txWhere,
+      attributes: ["partnerId", "amount", "direction"],
+      raw: true,
+    });
+    for (const t of txs) {
+      // uplata kupca potražuje na kupčevoj strani, naše plaćanje duguje
+      // na dobavljačkoj
+      bump(
+        t.partnerId,
+        t.direction === "IN" ? "kPotrazuje" : "dDuguje",
+        Number(t.amount) || 0,
+      );
+    }
+
+    const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const rows = partners
+      .filter((p) => acc.has(p.id))
+      .map((p) => {
+        const a = acc.get(p.id);
+        if (type === "svi") {
+          const njihovDug = r2(a.kDuguje - a.kPotrazuje);
+          const nasDug = r2(a.dPotrazuje - a.dDuguje);
+          return {
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            njihovDug,
+            nasDug,
+            razlika: r2(njihovDug - nasDug),
+            aktivan:
+              a.kDuguje !== 0 ||
+              a.kPotrazuje !== 0 ||
+              a.dDuguje !== 0 ||
+              a.dPotrazuje !== 0,
+          };
+        }
+        const duguje = type === "kupac" ? a.kDuguje : a.dDuguje;
+        const potrazuje = type === "kupac" ? a.kPotrazuje : a.dPotrazuje;
+        return {
+          id: p.id,
+          code: p.code,
+          name: p.name,
+          duguje: r2(duguje),
+          potrazuje: r2(potrazuje),
+          saldo: r2(duguje - potrazuje),
+          aktivan: duguje !== 0 || potrazuje !== 0,
+        };
+      })
+      .filter((r) => r.aktivan)
+      .map(({ aktivan, ...r }) => r)
+      .sort((a, b) =>
+        a.code != null && b.code != null
+          ? a.code - b.code
+          : a.code != null
+            ? -1
+            : b.code != null
+              ? 1
+              : a.name.localeCompare(b.name, "bs"),
+      );
+
+    return res.json({ ok: true, data: { type, from, to, rows } });
+  } catch (err) {
+    console.error("partneri promet error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 // ─── Kartica partnera ───────────────────────────────────────────────────────
 
 // GET /api/partners/:orgId/:partnerId/kartica — sve o partneru na jednom
@@ -1139,6 +1454,8 @@ module.exports = {
   create,
   update,
   remove,
+  uvozPartnera,
+  promet,
   listUlazniRacuni,
   createUlazniRacun,
   updateUlazniRacun,
@@ -1148,4 +1465,5 @@ module.exports = {
   karticaEmail,
   loadPartnerMatcher,
   normalizeDigits,
+  tryMatchExistingPayment,
 };

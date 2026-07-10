@@ -61,12 +61,16 @@ export default function Navbar() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // "?" uz PK Office dugme: mali popover sa najjačim funkcijama
+  const [pkInfoOpen, setPkInfoOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const pkInfoRef = useRef<HTMLSpanElement>(null);
 
   // Close menus on route change or outside click
   useEffect(() => {
     setMenuOpen(false);
     setMobileOpen(false);
+    setPkInfoOpen(false);
   }, [pathname]);
 
   // Zaključaj scroll body-ja dok je mobile drawer otvoren
@@ -95,6 +99,24 @@ export default function Navbar() {
       document.removeEventListener('keydown', onEsc);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!pkInfoOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (pkInfoRef.current && !pkInfoRef.current.contains(e.target as Node)) {
+        setPkInfoOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPkInfoOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [pkInfoOpen]);
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['me'],
@@ -214,6 +236,18 @@ export default function Navbar() {
                   </ul>
                 </div>
               ))}
+              <Link
+                href="/pk-office"
+                className={styles.megaOfficeBanner}
+                onClick={() => setMenuOpen(false)}
+              >
+                <span className={styles.megaOfficeTag}>PK Office</span>
+                <span className={styles.megaOfficeText}>
+                  Kompletno knjigovodstvo obrta: KUF/KIF, PDV prijava, fakture,
+                  bankovni izvodi, blagajna, lager
+                </span>
+                <span className={styles.megaOfficeCta}>Saznaj više →</span>
+              </Link>
             </div>
           )}
         </div>
@@ -319,29 +353,148 @@ export default function Navbar() {
                   <path d="M5 12h14M13 5l7 7-7 7" />
                 </svg>
               </a>
-              <Link
-                href="/pk-office"
-                title="Šta je PK Office?"
-                aria-label="Šta je PK Office?"
+              <span
+                ref={pkInfoRef}
                 className={styles.hideOnMobile}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 24,
-                  height: 24,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  border: "1px solid #d4cfc4",
-                  color: "#7a8a7d",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  textDecoration: "none",
-                  flexShrink: 0,
-                }}
+                style={{ position: "relative", display: "inline-flex" }}
               >
-                ?
-              </Link>
+                <button
+                  type="button"
+                  title="Šta je PK Office?"
+                  aria-label="Šta je PK Office?"
+                  aria-expanded={pkInfoOpen}
+                  onClick={() => setPkInfoOpen((v) => !v)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: pkInfoOpen ? "#c8622a" : "#fff",
+                    border: pkInfoOpen
+                      ? "1px solid #c8622a"
+                      : "1px solid #d4cfc4",
+                    color: pkInfoOpen ? "#fff" : "#7a8a7d",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  ?
+                </button>
+                {pkInfoOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 10px)",
+                      right: 0,
+                      width: 320,
+                      background: "#fff",
+                      border: "1px solid #d4cfc4",
+                      borderRadius: 14,
+                      boxShadow: "0 18px 44px -14px rgba(15,26,18,0.3)",
+                      padding: "16px 18px",
+                      zIndex: 200,
+                      textAlign: "left",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "#c8622a",
+                        marginBottom: 6,
+                      }}
+                    >
+                      PK Office
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 14.5,
+                        fontWeight: 600,
+                        color: "#0f1a12",
+                        marginBottom: 10,
+                      }}
+                    >
+                      Kompletno knjigovodstvo obrta, u browseru.
+                    </div>
+                    <ul
+                      style={{
+                        listStyle: "none",
+                        margin: "0 0 12px",
+                        padding: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      {[
+                        "Grupni uvoz izvoda: svi obrti odjednom",
+                        "Automatsko knjiženje: KPR, KUF i KIF se pune sami",
+                        "Plate, MIP-1023 i svi porezni obrasci",
+                        "PDV prijava, e-KUF/e-KIF, roba i blagajna",
+                      ].map((f) => (
+                        <li
+                          key={f}
+                          style={{
+                            fontSize: 13,
+                            lineHeight: 1.45,
+                            color: "#3d4a40",
+                            display: "flex",
+                            gap: 7,
+                          }}
+                        >
+                          <span style={{ color: "#c8622a", flexShrink: 0 }}>
+                            ✓
+                          </span>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Link
+                        href="/pk-office"
+                        onClick={() => setPkInfoOpen(false)}
+                        style={{
+                          flex: 1,
+                          textAlign: "center",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          border: "1px solid #d4cfc4",
+                          color: "#0f1a12",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Saznaj više
+                      </Link>
+                      <Link
+                        href="/pretplate#pk-office"
+                        onClick={() => setPkInfoOpen(false)}
+                        style={{
+                          flex: 1,
+                          textAlign: "center",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: "#c8622a",
+                          color: "#fff",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Cjenovnik
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </span>
               </span>
             )}
             <Link href="/profil" className={`${styles.userChip} ${styles.hideOnMobile}`} title="Moj profil">
@@ -504,6 +657,19 @@ export default function Navbar() {
                 </ul>
               </div>
             ))}
+
+            <Link
+              href="/pk-office"
+              className={styles.mobileOfficeBanner}
+              onClick={() => setMobileOpen(false)}
+            >
+              <span className={styles.megaOfficeTag}>PK Office</span>
+              <span className={styles.mobileOfficeText}>
+                Kompletno knjigovodstvo obrta: KUF/KIF, PDV, fakture, izvodi,
+                blagajna, lager
+              </span>
+              <span className={styles.megaOfficeCta}>Saznaj više →</span>
+            </Link>
 
             <div className={styles.mobileGroup}>
               <div className={styles.mobileGroupTitle}>Reference i blog</div>

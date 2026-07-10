@@ -34,7 +34,8 @@ export type InvoiceDocType =
   | "AVANSNA"
   | "STORNO_AVANSNE"
   | "KNJIZNA_OBAVIJEST"
-  | "PAZAR";
+  | "PAZAR"
+  | "PDV_EVIDENCIJA";
 
 export const DOC_TYPE_LABEL: Record<InvoiceDocType, string> = {
   STANDARD: "Faktura",
@@ -42,6 +43,7 @@ export const DOC_TYPE_LABEL: Record<InvoiceDocType, string> = {
   STORNO_AVANSNE: "Storno avans",
   KNJIZNA_OBAVIJEST: "Knjižna obavijest",
   PAZAR: "Pazar",
+  PDV_EVIDENCIJA: "PDV evidencija",
 };
 
 export type InvoiceItem = {
@@ -297,14 +299,38 @@ export function stornoAvansneFakture(
  */
 export function proknjiziPazar(body: {
   organizationId: number;
-  month: number;
-  year: number;
+  month?: number;
+  year?: number;
+  /** dnevni unos pazara: ISO datum umjesto month/year */
+  datum?: string;
   /** bruto pazar sa PDV-om */
   iznos: number;
   brojDokumenta?: string;
   note?: string;
+  /** upiši isti iznos i u TKM (trgovačka knjiga na malo) */
+  uTkm?: boolean;
 }) {
   return request<Invoice>("/api/invoices/pazar", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Direktno "samo PDV" knjiženje u KIF (ogledalo KUF opcije "samo PDV
+ * evidencija"): osnovica i ukupno 0, samo izlazni PDV. Glavni slučaj je
+ * posebna šema u građevinarstvu (čl. 40).
+ */
+export function proknjiziKifPdv(body: {
+  organizationId: number;
+  partnerId: number;
+  /** ISO datum knjiženja (kad je PDV uplaćen) */
+  datum: string;
+  pdvIznos: number;
+  brojDokumenta: string;
+  note?: string;
+}) {
+  return request<Invoice>("/api/invoices/kif-pdv", {
     method: "POST",
     body: JSON.stringify(body),
   });

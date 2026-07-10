@@ -216,6 +216,48 @@
   line-height: 1.4;
 }
 
+/* ── PK Office banner (puna širina na dnu mega menija) ── */
+.megaOfficeBanner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 0.25rem;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: #14241b;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.megaOfficeBanner:hover {
+  background: #1c3126;
+}
+
+.megaOfficeTag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e08a52;
+  white-space: nowrap;
+}
+
+.megaOfficeText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.megaOfficeCta {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #e08a52;
+  white-space: nowrap;
+}
+
 @media (max-width: 1100px) {
   .megaMenu {
     grid-template-columns: repeat(2, minmax(200px, 1fr));
@@ -237,6 +279,35 @@
     max-height: 70vh;
     overflow-y: auto;
   }
+
+  .megaOfficeBanner {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+
+  .megaOfficeText {
+    flex-basis: 100%;
+  }
+}
+
+/* PK Office banner u mobile draweru */
+.mobileOfficeBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0.75rem 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: #14241b;
+  text-decoration: none;
+}
+
+.mobileOfficeText {
+  flex-basis: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .btnGhost {

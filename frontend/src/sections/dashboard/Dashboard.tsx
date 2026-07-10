@@ -10,6 +10,7 @@ import {
   IconWallet,
   IconCoins,
   IconArrowRight,
+  IconInbox,
 } from "@tabler/icons-react";
 import { formatBAM, formatDate } from "src/lib/format";
 import { usePkOfficeMe, usePayrollStatus } from "src/hooks/usePkOfficeMe";
@@ -93,6 +94,9 @@ export default function Dashboard() {
   const pendingCount = obligations.filter((o) => !o.done).length;
   const doneCount = obligations.length - pendingCount;
 
+  // grupni uvoz izvoda vrijedi istaći samo kad korisnik vodi više obrta
+  const imaViseObrta = (data?.organizations?.length ?? 0) > 1;
+
   const activePayroll = activeOrg
     ? [...(payrollData?.own ?? []), ...(payrollData?.clients ?? [])].find(
         (o) => o.id === activeOrg.id,
@@ -127,6 +131,34 @@ export default function Dashboard() {
           )}
         </div>
       </header>
+
+      {/* Grupni uvoz izvoda: kartica samo za korisnike sa više obrta */}
+      {imaViseObrta && (
+        <div className="rounded-xl border border-brand-600/25 bg-brand-100/50 px-5 py-4 mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-[240px] flex-1">
+            <span className="w-10 h-10 rounded-lg bg-brand-600 text-white inline-flex items-center justify-center shrink-0">
+              <IconInbox size={20} />
+            </span>
+            <div>
+              <div className="text-[14.5px] font-medium text-text-primary">
+                Grupni uvoz izvoda za sve obrte
+              </div>
+              <p className="text-[12.5px] leading-5 text-text-tertiary max-w-[520px]">
+                Ubacite PDF izvode svih obrta odjednom: svaki izvod se sam
+                prepozna po žiro računu, rasporedi na svoj obrt i preskoči ako
+                je već uvezen.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/app/inbox?tab=izvodi"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity shrink-0"
+          >
+            Otvori grupni uvoz
+            <IconArrowRight size={15} />
+          </Link>
+        </div>
+      )}
 
       <div className={styles.topGrid}>
         <div className={styles.balanceCard}>

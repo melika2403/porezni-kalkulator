@@ -77,6 +77,25 @@ const PAKET_CLASS: Record<FinanceClient["role"], string> = {
   ADMIN: "paketAdmin",
 };
 
+// office paketi ne diraju rolu (korisnik ostaje USER): badge iz plana
+const OFFICE_LABELS: Record<string, string> = {
+  office_2: "Office Start",
+  office_10: "Office Tim",
+  office_25: "Office Agencija",
+  office_50: "Office Agencija+",
+};
+
+function paketBadge(u: FinanceClient): { label: string; cls: string } {
+  const plan = String(u.plan ?? "").toLowerCase();
+  if (OFFICE_LABELS[plan]) {
+    return { label: OFFICE_LABELS[plan], cls: "paketBusiness" };
+  }
+  return {
+    label: PAKET_LABELS[u.role] ?? u.role,
+    cls: PAKET_CLASS[u.role] ?? "paketUser",
+  };
+}
+
 function todayInputDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -344,6 +363,8 @@ function ClientRow({ row, year }: { row: FinancePaymentRow; year: number }) {
     return null;
   }, [row.months]);
 
+  const paket = paketBadge(row.user);
+
   return (
     <tr>
       <td className={styles.stickyCol}>
@@ -352,10 +373,10 @@ function ClientRow({ row, year }: { row: FinancePaymentRow; year: number }) {
         <div className={styles.clientSub}>
           <span
             className={`${styles.paketBadge} ${
-              styles[PAKET_CLASS[row.user.role] as keyof typeof styles] ?? ""
+              styles[paket.cls as keyof typeof styles] ?? ""
             }`}
           >
-            {PAKET_LABELS[row.user.role] ?? row.user.role}
+            {paket.label}
           </span>
           {!row.user.subscriptionActive && (
             <span className={styles.paketInactive}>neaktivna</span>

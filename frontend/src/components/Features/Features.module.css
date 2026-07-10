@@ -164,6 +164,114 @@
   }
 }
 
+/* ── PK Office traka (tamno zelena, terracotta akcent, kao na cjenovniku) ── */
+.officeBanner {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-top: 2.5rem;
+  background: #14241b;
+  border-radius: var(--radius-lg);
+  padding: 2rem 2.5rem;
+  color: #fff;
+}
+
+.officeBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.officeTag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e08a52;
+  margin-bottom: 0.5rem;
+}
+
+.officeTitle {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.45rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
+  color: #fff;
+}
+
+.officeDesc {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.78);
+  max-width: 620px;
+  margin: 0;
+}
+
+.officeCta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  flex-shrink: 0;
+}
+
+.officeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 999px;
+  background: var(--accent, #c8622a);
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.officeButton:hover {
+  background: #d97438;
+  transform: translateY(-1px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+}
+
+.officeButton:hover .startArrow {
+  transform: translate(4px, -1px);
+}
+
+.officeGhostLink {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  padding-bottom: 1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.officeGhostLink:hover {
+  color: #fff;
+  border-color: #fff;
+}
+
+.officeNote {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 780px) {
+  .officeBanner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding: 1.75rem 1.5rem;
+  }
+  .officeCta {
+    align-items: flex-start;
+  }
+}
+
 .cell {
   position: relative;
   display: flex;

@@ -1,5 +1,5 @@
 import styles from "./PkOfficeTeaser.module.css";
-import { PK_OFFICE_DASHBOARD_URL as APP_URL } from "src/lib/pkOfficeUrl";
+import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 
 // Inline ikone (marketing server komponenta, bez icon-lib zavisnosti), u duhu
 // tabler ikona iz PK Office sidebara.
@@ -114,7 +114,7 @@ export default function PkOfficeTeaser() {
                   </svg>
                 </span>
                 <span className={styles.brandWordmark}>PK Office</span>
-                <span className={styles.soon}>Dolazi uskoro</span>
+                <span className={styles.soon}>Novo</span>
               </div>
               <h2 id="pk-office-teaser-title" className={styles.h2}>
                 Kompletno vođenje obrta na jednom mjestu
@@ -129,11 +129,12 @@ export default function PkOfficeTeaser() {
                 Manje ručnog posla, manje grešaka, sve na jednom mjestu i spremno
                 za poreznu upravu.
               </p>
-              <a href={APP_URL} className={styles.cta}>
-                Zaviri u PK Office →
-              </a>
+              <OfficeTrialLink className={styles.cta}>
+                Isprobaj 30 dana besplatno →
+              </OfficeTrialLink>
               <p className={styles.note}>
-                U pripremi. Rani pristup za postojeće pretplatnike.
+                Bez kartice i bez obaveze. Besplatna migracija podataka iz
+                starog programa.
               </p>
             </div>
 

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   bankStatementsSummary,
+  bulkUpdateBankTransactions,
   confirmAllStatement,
   createManualStatement,
   deleteBankStatement,
@@ -147,6 +148,25 @@ export function useUpdateBankTransaction(orgId: number | null) {
       // potvrda može označiti fakturu naplaćenom
       qc.invalidateQueries({ queryKey: ["pk-invoices", orgId] });
       // (od)vezivanje partnera mijenja kartice, statistike i prijedloge
+      qc.invalidateQueries({ queryKey: ["partners", orgId] });
+    },
+  });
+}
+
+// Masovna izmjena označenih stavki (potvrda / dodjela kategorije).
+export function useBulkUpdateBankTransactions(orgId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      ids,
+      patch,
+    }: {
+      ids: number[];
+      patch: { status?: TxStatus; category?: string | null };
+    }) => unwrap(bulkUpdateBankTransactions(orgId as number, ids, patch)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bank-statements", orgId] });
+      qc.invalidateQueries({ queryKey: ["pk-invoices", orgId] });
       qc.invalidateQueries({ queryKey: ["partners", orgId] });
     },
   });

@@ -6,9 +6,11 @@ import { UserDropdown } from "./UserDropdown";
 
 // Puni TopBar (54px) preko cijele širine: brand lijevo, UserDropdown desno.
 // Ispod ~900px prikazuje hamburger koji otvara sidebar drawer.
+// sticky: i kad stranica skrola cijelim body-jem (mali/nizak prozor, mobilni),
+// traka ostaje na vrhu umjesto da nestane i ostavi prazninu.
 export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   return (
-    <header className="h-[54px] shrink-0 border-b border-cream-300 bg-cream-100 px-5 flex items-center gap-3">
+    <header className="sticky top-0 z-40 h-[54px] shrink-0 border-b border-cream-300 bg-cream-100 px-5 flex items-center gap-3">
       <button
         type="button"
         onClick={onMenuClick}

@@ -420,6 +420,35 @@ async function list(req, res) {
     byStatement.set(tx.statementId, arr);
   }
 
+  // Puni iznosi i oznake izvornih dokumenata: tx.amount je ALOCIRANI
+  // (djelimični) iznos za KPR, ali PDF prijedloga kompenzacije prikazuje
+  // CIJELE dokumente (nikad dio računa), razlika ide u "nekompenzirani
+  // ostatak uplatiti na žiro račun". Zato uz stavku vraćamo i pun iznos.
+  const invIds = [...new Set(txs.map((t) => t.invoiceId).filter(Boolean))];
+  const racIds = [...new Set(txs.map((t) => t.ulazniRacunId).filter(Boolean))];
+  const invMap = new Map(
+    invIds.length
+      ? (
+          await Invoice.findAll({
+            where: { id: { [Op.in]: invIds }, organizationId },
+            attributes: ["id", "fullNumber", "grossTotal"],
+            raw: true,
+          })
+        ).map((i) => [i.id, i])
+      : [],
+  );
+  const racMap = new Map(
+    racIds.length
+      ? (
+          await UlazniRacun.findAll({
+            where: { id: { [Op.in]: racIds }, organizationId },
+            attributes: ["id", "brojRacuna", "iznos"],
+            raw: true,
+          })
+        ).map((r) => [r.id, r])
+      : [],
+  );
+
   return res.json({
     ok: true,
     data: rows.map((r) => ({
@@ -434,11 +463,23 @@ async function list(req, res) {
       cesionar: r.cesionar
         ? { id: r.cesionar.id, name: r.cesionar.name }
         : null,
-      stavke: (byStatement.get(r.statementId) || []).map((tx) => ({
-        description: tx.description,
-        amount: tx.amount,
-        direction: tx.direction,
-      })),
+      stavke: (byStatement.get(r.statementId) || []).map((tx) => {
+        const inv = tx.invoiceId ? invMap.get(tx.invoiceId) : null;
+        const rac = tx.ulazniRacunId ? racMap.get(tx.ulazniRacunId) : null;
+        return {
+          description: tx.description,
+          amount: tx.amount,
+          direction: tx.direction,
+          // za PDF: oznaka i PUN iznos dokumenta (dokument može biti obrisan
+          // naknadno, tada null pa front pada nazad na alocirani iznos)
+          oznaka: inv
+            ? `Faktura ${inv.fullNumber || inv.id}`
+            : rac
+              ? `Račun ${rac.brojRacuna || rac.id}`
+              : null,
+          punIznos: inv ? inv.grossTotal : rac ? rac.iznos : null,
+        };
+      }),
     })),
   });
 }

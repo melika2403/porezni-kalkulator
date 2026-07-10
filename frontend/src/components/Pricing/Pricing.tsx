@@ -3,8 +3,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./Pricing.module.css";
 import ComingSoonModal from "../ComingSoonModal/ComingSoonModal";
+import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 import {
   PLAN_PRICING,
+  OFFICE_PLANS,
   annualSavings,
   formatKm,
   type BillingCycle,
@@ -194,6 +196,76 @@ export default function Pricing() {
                 </button>
               </div>
             ))}
+          </div>
+
+          {/* PK Office: kompletno knjigovodstvo obrta, cijena po broju obrta */}
+          <div className={styles.officeBanner}>
+            <div>
+              <span className={styles.officeBadge}>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#fff",
+                  }}
+                />
+                PK Office
+              </span>
+              <h3 className={styles.officeTitle}>
+                Kompletno knjigovodstvo obrta. Cijena po broju obrta.
+              </h3>
+              <p className={styles.officeText}>
+                <strong>Office Start</strong> daje sve funkcije za do 2 obrta,
+                a paketi <strong>Tim i veći</strong> uz PK Office uključuju i{" "}
+                <strong>kompletan Business bez ograničenja</strong>. Biraš
+                samo koliko obrta vodiš.
+              </p>
+              <ul className={styles.officeList}>
+                <li>Grupni uvoz izvoda: svi obrti odjednom</li>
+                <li>Automatsko knjiženje: KPR, KUF i KIF se pune sami</li>
+                <li>Plate i MIP, PDV prijava i e-evidencije, roba, blagajna</li>
+                <li>30 dana besplatne probe i besplatna migracija podataka</li>
+              </ul>
+              <div className={styles.officeCtaRow}>
+                <OfficeTrialLink className={styles.officeCta}>
+                  <span className={styles.officeCtaInner}>
+                    <span>Isprobaj 30 dana besplatno →</span>
+                    <span className={styles.officeCtaSub}>
+                      Odmah otvara PK Office
+                    </span>
+                  </span>
+                </OfficeTrialLink>
+                <button
+                  type="button"
+                  className={styles.officeGhost}
+                  onClick={() => router.push("/pretplate#pk-office")}
+                >
+                  <span className={styles.officeCtaInner}>
+                    <span>Izračunaj svoju cijenu</span>
+                    <span className={styles.officeCtaSub}>
+                      Cjenovnik pretplata po broju obrta
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div className={styles.officeTiers}>
+              {OFFICE_PLANS.map((p) => (
+                <div key={p.id} className={styles.officeTier}>
+                  <div className={styles.officeTierName}>{p.naziv}</div>
+                  <div className={styles.officeTierObrta}>
+                    do {p.maxObrta} obrta
+                  </div>
+                  <div className={styles.officeTierPrice}>
+                    {formatKm(PLAN_PRICING[p.id][cycle])} KM
+                    <span>
+                      {cycle === "monthly" ? "mjesečno" : "godišnje"} + PDV
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

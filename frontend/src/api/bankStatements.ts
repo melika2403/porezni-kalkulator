@@ -48,6 +48,11 @@ export type BankStatementInfo = {
   createdAt: string;
   txCount: number;
   unmatchedCount: number;
+  /** potvrđene stavke bez KPR kategorije (ne ulaze u KPR dok se ne kategorišu) */
+  bezKategorijeCount: number;
+  /** zbir priliva / odliva izvoda (KM), za prikaz na listi */
+  totalIn?: number;
+  totalOut?: number;
 };
 
 /** Normalizuj warnings JSON kolonu u niz stringova. */
@@ -66,7 +71,7 @@ export function parseWarnings(w: string[] | string | null | undefined): string[]
 
 export type BankStatementDetail = Omit<
   BankStatementInfo,
-  "txCount" | "unmatchedCount"
+  "txCount" | "unmatchedCount" | "bezKategorijeCount"
 > & {
   transactions: BankTransaction[];
 };
@@ -174,6 +179,8 @@ export type ManualTransactionInput = {
   partnerId?: number;
   amount: number;
   direction: "in" | "out";
+  /** KPR kategorija izabrana pri unosu (prijedlog programa ili ručni izbor) */
+  category?: string;
 };
 
 export type ManualStatementPayload = {
@@ -209,6 +216,20 @@ export async function createManualStatement(
   }
 }
 
+export type SuggestCategoryItem = {
+  description: string;
+  counterpartyName?: string;
+  direction: "in" | "out";
+};
+
+/** Živi prijedlog KPR kategorije pri ručnom unosu (naučena pravila + seed). */
+export function suggestCategories(orgId: number, items: SuggestCategoryItem[]) {
+  return jsonRequest<(string | null)[]>(
+    `/api/bank-statements/${orgId}/suggest-category`,
+    { method: "POST", body: JSON.stringify({ items }) },
+  );
+}
+
 export function listBankStatements(orgId: number) {
   return jsonRequest<BankStatementInfo[]>(`/api/bank-statements/${orgId}`, {
     method: "GET",
@@ -237,7 +258,11 @@ export function deleteBankStatement(orgId: number, statementId: number) {
 }
 
 export type BankTransactionWithStatement = BankTransaction & {
-  statement?: { statementNumber: string | null; bankName: string | null } | null;
+  statement?: {
+    id?: number;
+    statementNumber: string | null;
+    bankName: string | null;
+  } | null;
 };
 
 export type TxSearchQuery = {
@@ -252,6 +277,14 @@ export type TxSearchQuery = {
   offset?: number;
 };
 
+export type TxSearchResult = {
+  items: BankTransactionWithStatement[];
+  total: number;
+  /** sume za CIJELI filtrirani skup (ne samo stranicu) */
+  sumIn: number;
+  sumOut: number;
+};
+
 export function searchBankTransactions(orgId: number, query: TxSearchQuery) {
   const sp = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -259,9 +292,23 @@ export function searchBankTransactions(orgId: number, query: TxSearchQuery) {
       sp.set(key, String(value));
     }
   }
-  return jsonRequest<{ items: BankTransactionWithStatement[]; total: number }>(
+  return jsonRequest<TxSearchResult>(
     `/api/bank-statements/${orgId}/transactions?${sp.toString()}`,
     { method: "GET" },
+  );
+}
+
+/** Masovna izmjena označenih stavki (status i/ili kategorija).
+ *  Stavke kojima izmjena ne odgovara (kategorija pogrešnog smjera) se
+ *  preskaču i vraćaju u `skipped`. */
+export function bulkUpdateBankTransactions(
+  orgId: number,
+  ids: number[],
+  patch: { status?: TxStatus; category?: string | null },
+) {
+  return jsonRequest<{ updated: number; skipped: number }>(
+    `/api/bank-statements/${orgId}/transactions/bulk`,
+    { method: "PATCH", body: JSON.stringify({ ids, patch }) },
   );
 }
 

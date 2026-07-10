@@ -14,6 +14,8 @@ import { PkSelect } from "src/components/app-shell/PkSelect";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { useKpr } from "src/hooks/useBankStatements";
+import { ZbirniObracunModal } from "src/sections/kpr/ZbirniObracun";
+import { KnjigaPrometa } from "src/sections/kpr/KnjigaPrometa";
 import type { KprCols } from "src/api/bankStatements";
 
 const PRIHOD_COLS: Array<{ key: keyof KprCols; n: number; label: string }> = [
@@ -63,6 +65,10 @@ export default function KprPage() {
   const [fromStr, setFromStr] = useState(`01.01.${currentYear}.`);
   const [toStr, setToStr] = useState(`31.12.${currentYear}.`);
   const [exporting, setExporting] = useState(false);
+  // zbirni obračun (informativni pregled poslovanja za period)
+  const [zbirniOpen, setZbirniOpen] = useState(false);
+  // KPR-1041 ili Knjiga prometa KP-1042 (sestrinske knjige istog pravilnika)
+  const [tab, setTab] = useState<"kpr" | "kp">("kpr");
 
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
@@ -118,6 +124,7 @@ export default function KprPage() {
             Princip blagajne: prihod na datum naplate, rashod na datum plaćanja.
           </p>
         </div>
+        {tab === "kpr" && (
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-[13px] text-text-secondary cursor-pointer select-none mr-1">
             <input
@@ -154,6 +161,14 @@ export default function KprPage() {
           )}
           <button
             type="button"
+            onClick={() => setZbirniOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors"
+            title="Informativni pregled poslovanja za period (za banku/klijenta)"
+          >
+            Zbirni obračun
+          </button>
+          <button
+            type="button"
             disabled={!data || data.rows.length === 0 || exporting}
             onClick={exportPdf}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
@@ -166,7 +181,42 @@ export default function KprPage() {
             Preuzmi KPR-1041 (PDF)
           </button>
         </div>
+        )}
       </div>
+
+      {/* tabovi: KPR-1041 / Knjiga prometa */}
+      <div className="inline-flex items-center gap-1 p-1 rounded-full border border-cream-300 bg-cream-100 mb-6 flex-wrap">
+        {(
+          [
+            ["kpr", "KPR-1041"],
+            ["kp", "Knjiga prometa (KP-1042)"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={[
+              "px-4 py-1.5 text-[13px] font-medium rounded-full transition-colors whitespace-nowrap",
+              tab === id
+                ? "bg-brand-600 text-white shadow-sm"
+                : "text-text-secondary hover:text-text-primary hover:bg-cream-200",
+            ].join(" ")}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <ZbirniObracunModal
+        orgId={orgId}
+        open={zbirniOpen}
+        onClose={() => setZbirniOpen(false)}
+      />
+
+      {tab === "kp" && <KnjigaPrometa orgId={orgId} />}
+      {tab === "kpr" && (
+      <>
 
       {/* Knjiga */}
       <div className="rounded-xl bg-cream-100 border border-cream-300">
@@ -281,6 +331,8 @@ export default function KprPage() {
         izvode od početka godine (ili od otvaranja obrta). Banke drže arhivu
         izvoda u e-bankingu.
       </p>
+      </>
+      )}
     </div>
   );
 }

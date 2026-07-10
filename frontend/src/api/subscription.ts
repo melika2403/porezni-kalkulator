@@ -22,6 +22,12 @@ async function request<T>(
 }
 
 export type PlanKey = "free" | "pro" | "business";
+/** PK Office paketi: dodjeljuju se kroz admin/predračun, ne kroz change-plan */
+export type OfficePlanKey =
+  | "office_2"
+  | "office_10"
+  | "office_25"
+  | "office_50";
 export type SubscriptionStatus =
   | "active"
   | "cancelled"
@@ -54,7 +60,7 @@ export type SubscriptionUsage = {
 
 export type Subscription = {
   id: number;
-  plan: PlanKey;
+  plan: PlanKey | OfficePlanKey;
   status: SubscriptionStatus;
   isTrial: boolean;
   billingCycle: BillingCycle | null;
@@ -75,7 +81,8 @@ export type SubscriptionInvoice = {
   status: "paid" | "pending" | "failed" | "refunded";
   invoiceDate: string;
   dueDate: string;
-  plan: "PRO" | "BUSINESS";
+  /** PRO | BUSINESS | OFFICE_2 | OFFICE_10 | OFFICE_25 | OFFICE_50 */
+  plan: string;
   billingCycle: BillingCycle;
   /** Period pretplate koji predračun pokriva (YYYY-MM-DD). */
   periodStart: string | null;
