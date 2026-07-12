@@ -8,6 +8,7 @@ import { UpustvoDrawer } from "./UpustvoDrawer";
 import { TrialBanner } from "./TrialBanner";
 import { usePkOfficePristup } from "src/hooks/usePkOfficeMe";
 import { PkOfficeUpsell } from "src/sections/dashboard/PkOfficeUpsell";
+import { PkOfficePrekoLimita } from "src/sections/dashboard/PkOfficePrekoLimita";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -19,6 +20,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Dok flag nije uključen, pristup.enforced je false i sve radi kao prije.
   const { data: pristup } = usePkOfficePristup();
   const zakljucano = Boolean(pristup?.enforced && !pristup.hasOffice);
+  // Prekoračenje: paket manji od broja aktivnih obrta (downgrade). Backend
+  // blokira module (PREKO_LIMITA_PAKETA), ovdje umjesto sadržaja ide ekran
+  // za deaktivaciju viška obrta.
+  const prekoLimita = Boolean(
+    pristup?.enforced && pristup.hasOffice && pristup.prekoLimita,
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-cream-50 text-text-primary">
@@ -31,6 +38,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 min-w-0 overflow-y-scroll overflow-x-hidden [scrollbar-gutter:stable]">
           {zakljucano ? (
             <PkOfficeUpsell />
+          ) : prekoLimita ? (
+            <PkOfficePrekoLimita />
           ) : (
             <>
               <TrialBanner />

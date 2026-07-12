@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
-const { OrganizationMember } = require("../models/index");
-const { getOrgOwnerRole } = require("../services/tierService");
+const { OrganizationMember, User } = require("../models/index");
+const {
+  getOrgOwnerRole,
+  hasAccessibleTier,
+} = require("../services/tierService");
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -22,7 +25,8 @@ function getTokenFromRequest(req) {
   return null;
 }
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
+  let userId;
   try {
     const token = getTokenFromRequest(req);
     if (!token) {
@@ -32,17 +36,29 @@ function requireAuth(req, res, next) {
     const secret = getJwtSecret();
     const payload = jwt.verify(token, secret);
 
-    const userId = Number(payload.sub);
-    const role = typeof payload.role === "string" ? payload.role : undefined;
-
+    userId = Number(payload.sub);
     if (!Number.isInteger(userId) || userId <= 0) {
       return res.status(401).json({ ok: false, error: "INVALID_TOKEN" });
     }
-
-    req.user = { id: userId, role };
-    next();
   } catch {
     return res.status(401).json({ ok: false, error: "INVALID_TOKEN" });
+  }
+
+  // Rola se čita iz BAZE, ne iz token payloada: token je samo dokaz
+  // identiteta (sub). Remember-me token traje godinama, pa bi rola iz
+  // tokena nadživjela demote/downgrade/brisanje korisnika; ovako promjena
+  // role važi odmah na svim rutama. DB greška je 500, ne 401: ne odjavljuj
+  // korisnika zbog prolaznog problema sa bazom.
+  try {
+    const user = await User.findByPk(userId, { attributes: ["id", "role"] });
+    if (!user) {
+      return res.status(401).json({ ok: false, error: "INVALID_TOKEN" });
+    }
+    req.user = { id: userId, role: user.role };
+    next();
+  } catch (err) {
+    console.error("requireAuth role lookup error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
   }
 }
 
@@ -156,7 +172,14 @@ function requireOfficeOrg() {
       if (!org) {
         return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
       }
-      if (org.type === "BUSINESS" && !org.pkOfficeEnabled) {
+      // PK Office radi samo sa obrtima (BUSINESS): d.o.o. (COMPANY) se ne
+      // nudi u switcheru, a bez ovog odbijanja bi se kroz direktne API
+      // pozive office moduli koristili na COMPANY organizacijama BEZ
+      // trošenja slota (paketi se naplaćuju po broju obrta).
+      if (org.type !== "BUSINESS") {
+        return res.status(403).json({ ok: false, error: "ORG_NIJE_OBRT" });
+      }
+      if (!org.pkOfficeEnabled) {
         return res
           .status(403)
           .json({ ok: false, error: "ORG_NIJE_U_PK_OFFICE" });
@@ -179,6 +202,27 @@ function requireOfficeOrg() {
           .status(403)
           .json({ ok: false, error: "NEMA_OFFICE_PRISTUPA" });
       }
+      // Limit paketa se provjerava na VLASNIKU obrta (obrt troši vlasnikov
+      // slot, ne pozivaočev): kad paket postane manji od broja aktivnih
+      // obrta (downgrade, istek triala pa manji paket), moduli su blokirani
+      // dok vlasnik ne deaktivira višak obrta. Blokiraju se SVI obrti, ne
+      // implicitno izabranih prvih N: izbor koje obrte zadržati je svjesna
+      // odluka vlasnika (ekran prekoračenja u PK Office).
+      const ownerMembership = await OrganizationMember.findOne({
+        where: { organizationId: orgId, role: "OWNER" },
+        attributes: ["userId"],
+        raw: true,
+      });
+      const ownerId = ownerMembership?.userId;
+      const ownerAccess =
+        !ownerId || ownerId === req.user.id
+          ? access
+          : await getOfficeAccess(ownerId);
+      if (ownerAccess.prekoLimita) {
+        return res
+          .status(403)
+          .json({ ok: false, error: "PREKO_LIMITA_PAKETA" });
+      }
       return next();
     } catch (err) {
       console.error("requireOfficeOrg error:", err);
@@ -187,23 +231,53 @@ function requireOfficeOrg() {
   };
 }
 
+/**
+ * Plan gate za DIJELJENE module (plate, fakture, partneri): akcije koje
+ * kreiraju/mijenjaju/generišu traže da korisnik dostiže nivo IGDJE, kroz
+ * vlastitu efektivnu rolu (office paket diže na BUSINESS) ili kroz vlasnika
+ * bilo koje organizacije čiji je član. Ogledalo frontend useMaxAccessibleTier
+ * gate-a: blokira samo ono što ni UI ne nudi (korisnike bez plana igdje).
+ * ČITANJE se ne gate-uje: poslije isteka plana podaci ostaju read-only.
+ * Org-specifična provjera (rute sa :orgId) i dalje ide kroz requireOwnerTier.
+ */
+function requirePlanTier(minimumTier) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+      }
+      if (req.user.role === "ADMIN") return next();
+      const ok = await hasAccessibleTier(req.user.id, minimumTier);
+      if (!ok) {
+        return res.status(403).json({ ok: false, error: "FORBIDDEN_PLAN" });
+      }
+      return next();
+    } catch (err) {
+      console.error("requirePlanTier error:", err);
+      return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+    }
+  };
+}
+
 // Postavi req.user ako validan token postoji; NE odbija ako ga nema.
 // Koristi se za rute koje rade i za anonimne (npr. tracking aktivnosti).
-function optionalAuth(req, _res, next) {
+// Rola iz baze kao i kod requireAuth; nepostojeći korisnik ili DB greška
+// → tretiraj kao anonimnog.
+async function optionalAuth(req, _res, next) {
   try {
     const token = getTokenFromRequest(req);
     if (token) {
       const payload = jwt.verify(token, getJwtSecret());
       const userId = Number(payload.sub);
       if (Number.isInteger(userId) && userId > 0) {
-        req.user = {
-          id: userId,
-          role: typeof payload.role === "string" ? payload.role : undefined,
-        };
+        const user = await User.findByPk(userId, {
+          attributes: ["id", "role"],
+        });
+        if (user) req.user = { id: userId, role: user.role };
       }
     }
   } catch {
-    // nevažeći token → tretiraj kao anonimnog
+    // nevažeći token / greška → tretiraj kao anonimnog
   }
   next();
 }
@@ -215,4 +289,5 @@ module.exports = {
   requireOrgRole,
   requireOwnerTier,
   requireOfficeOrg,
+  requirePlanTier,
 };

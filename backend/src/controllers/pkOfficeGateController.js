@@ -109,6 +109,8 @@ async function getOfficeAccess(userId) {
       trial: false,
       trialEndsAt: null,
       trialIskoristen: false,
+      aktivnihObrta: 0,
+      prekoLimita: false,
     };
   }
   const user = await User.findByPk(userId);
@@ -122,6 +124,11 @@ async function getOfficeAccess(userId) {
     trial: false,
     trialEndsAt: null,
     trialIskoristen: Boolean(user?.pkOfficeTrialEndsAt),
+    // prekoLimita: paket dozvoljava manje obrta nego što ih je aktivno
+    // (downgrade). requireOfficeOrg tada blokira module dok se broj aktivnih
+    // ne spusti na limit (provjera ide na VLASNIKA obrta, ne pozivaoca).
+    aktivnihObrta: 0,
+    prekoLimita: false,
   };
   if (!user) return nista;
   // administratori platforme uvijek imaju pristup (podrška/held desk)
@@ -141,6 +148,7 @@ async function getOfficeAccess(userId) {
     const info = officePlanInfo(sub.plan);
     const vrijedi = !sub.endDate || new Date(sub.endDate) >= danas;
     if (info && vrijedi) {
+      const aktivnih = await brojAktivnihObrta(userId);
       return {
         ...nista,
         hasOffice: true,
@@ -149,6 +157,8 @@ async function getOfficeAccess(userId) {
         planNaziv: info.label,
         maxObrta: info.maxObrta,
         trial: Boolean(sub.isTrial),
+        aktivnihObrta: aktivnih,
+        prekoLimita: info.maxObrta != null && aktivnih > info.maxObrta,
       };
     }
   }
@@ -157,15 +167,20 @@ async function getOfficeAccess(userId) {
     new Date(user.pkOfficeTrialEndsAt) >= new Date()
   ) {
     const info = officePlanInfo(TRIAL_PLAN_KEY);
+    const maxObrta = info?.maxObrta ?? 10;
+    const aktivnih = await brojAktivnihObrta(userId);
     return {
       ...nista,
       hasOffice: true,
       scope: "vlastiti",
       plan: TRIAL_PLAN_KEY.toLowerCase(),
       planNaziv: "Probni period",
-      maxObrta: info?.maxObrta ?? 10,
+      maxObrta,
       trial: true,
       trialEndsAt: user.pkOfficeTrialEndsAt,
+      aktivnihObrta: aktivnih,
+      // moguće samo ako je veći paket istekao a trial još traje
+      prekoLimita: aktivnih > maxObrta,
     };
   }
 
@@ -181,6 +196,26 @@ async function getOfficeAccess(userId) {
     };
   }
   return nista;
+}
+
+/**
+ * Broj obrta korisnika trenutno AKTIVNIH u PK Office (samo pkOfficeEnabled,
+ * BEZ anti-rotacije). Osnova za prekoLimita: paket manji od broja aktivnih
+ * obrta (downgrade, istek triala pa manji paket). Namjerno ne koristi
+ * zauzimaSlot, da deaktivacija u prekoračenju odmah smanji broj i tako
+ * omogući izlazak iz blokade bez čekanja narednog mjeseca.
+ */
+async function brojAktivnihObrta(userId) {
+  const memberships = await OrganizationMember.findAll({
+    where: { userId, role: { [Op.in]: ["OWNER", "ADMIN"] } },
+    attributes: ["organizationId"],
+    raw: true,
+  });
+  const ids = memberships.map((m) => m.organizationId);
+  if (ids.length === 0) return 0;
+  return Organization.count({
+    where: { id: { [Op.in]: ids }, type: "BUSINESS", pkOfficeEnabled: true },
+  });
 }
 
 /** Organizacije (obrti) kojima korisnik upravlja (OWNER/ADMIN). */
@@ -356,9 +391,14 @@ async function deaktiviraj(req, res) {
     if (!org.pkOfficeEnabled) {
       return res.json({ ok: true, data: orgJson(org, access.trial) });
     }
+    // U prekoračenju (paket manji od broja aktivnih obrta) deaktivacija
+    // oslobađa slot ODMAH (pkOfficeDisabledAt se ne postavlja): bez toga
+    // korisnik ne bi mogao sići na limit do narednog mjeseca i ostao bi
+    // blokiran. Anti-rotacija ostaje za normalno stanje: smanjivanje broja
+    // aktivnih obrta nije rotiranje slotova.
     await org.update({
       pkOfficeEnabled: false,
-      pkOfficeDisabledAt: new Date(),
+      pkOfficeDisabledAt: access.prekoLimita ? null : new Date(),
     });
     return res.json({ ok: true, data: orgJson(org, access.trial) });
   } catch (err) {

@@ -1,5 +1,6 @@
 const organizationRepository = require("../repositories/organizationRepository");
 const { getPlan, planFromRole } = require("../config/plans");
+const { freshRole } = require("../services/tierService");
 const { getOfficeAccess } = require("./pkOfficeGateController");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 const {
@@ -494,7 +495,9 @@ async function listWithPayrollStatus(req, res) {
 
 async function create(req, res) {
   const { ownerData, ...orgBody } = req.body ?? {};
-  const userRole = req.user.role;
+  // Svježa rola (lijeni istek pretplate): istekli BUSINESS ne smije značiti
+  // neograničeno kreiranje organizacija kroz direktne API pozive.
+  const userRole = await freshRole(req.user);
   // Limiti po planu (USER=free, PRO=pro, BUSINESS/ADMIN=business). -1 = neograničeno.
   const planLimits = getPlan(planFromRole(userRole)).limits;
 

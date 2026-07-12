@@ -193,9 +193,11 @@ export default function PkOfficeSlotPanel() {
             <div className="px-4 py-2.5 border-t border-cream-300 text-[11.5px] leading-5 text-text-tertiary">
               Deaktivacija ne briše podatke obrta: knjige ostaju sačuvane i
               vraćaju se ponovnom aktivacijom.{" "}
-              {pristup.trial
-                ? "U probnom periodu deaktivacija odmah oslobađa slot."
-                : "Slot deaktiviranog obrta se oslobađa od narednog mjeseca."}
+              {pristup.prekoLimita
+                ? "Dok je aktivno više obrta nego što paket dozvoljava, deaktivacija odmah oslobađa slot."
+                : pristup.trial
+                  ? "U probnom periodu deaktivacija odmah oslobađa slot."
+                  : "Slot deaktiviranog obrta se oslobađa od narednog mjeseca."}
               {error && (
                 <span className="block text-accent-500 mt-1">{error}</span>
               )}
