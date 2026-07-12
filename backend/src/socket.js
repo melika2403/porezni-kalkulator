@@ -48,7 +48,7 @@ function parseCookies(header) {
   return out;
 }
 
-function getUserFromHandshake(socket) {
+async function getUserFromHandshake(socket) {
   const secret = process.env.JWT_SECRET;
   if (!secret) return null;
   const cookies = parseCookies(socket.handshake.headers?.cookie);
@@ -59,7 +59,12 @@ function getUserFromHandshake(socket) {
     const payload = jwt.verify(token, secret);
     const id = Number(payload.sub);
     if (!Number.isInteger(id) || id <= 0) return null;
-    return { id, role: typeof payload.role === "string" ? payload.role : "USER" };
+    // Rola iz BAZE, ne iz token payloada (isto pravilo kao requireAuth):
+    // stari token bivšeg admina ne smije ući u "admins" sobu podrške.
+    const { User } = require("./models/index");
+    const user = await User.findByPk(id, { attributes: ["id", "role"] });
+    if (!user) return null;
+    return { id, role: user.role };
   } catch {
     return null;
   }
@@ -126,8 +131,8 @@ function initSocket(server) {
     },
   });
 
-  io.use((socket, next) => {
-    const user = getUserFromHandshake(socket);
+  io.use(async (socket, next) => {
+    const user = await getUserFromHandshake(socket);
     if (!user) return next(new Error("UNAUTHENTICATED"));
     socket.data.user = user;
     next();

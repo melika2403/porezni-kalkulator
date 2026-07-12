@@ -48,13 +48,39 @@ async function officeUserIds(userIds) {
 }
 
 /**
- * Efektivna rola za marketing funkcije: users.role, s tim da aktivan PK
- * Office paket/trial diže USER/PRO na BUSINESS. Rola u bazi se NE mijenja,
- * office pristup je činjenica pretplate, ne role.
+ * Rola korisnika NAKON provjere isteka pretplate (lijeni istek, isto pravilo
+ * kao na /me, ali na svakom mjestu koje odlučuje o pristupu): PRO/BUSINESS
+ * čija je AKTIVNA pretplata prošla endDate se gasi (isActive=false) i rola
+ * se spušta na USER, pa izbjegavanje /me ne čuva stara prava kroz direktne
+ * API pozive. Rola bez pretplate (ručna dodjela) ili sa već ugašenom
+ * pretplatom se NE dira, identično ponašanju /me.
+ */
+async function freshRole(userLike) {
+  const role = userLike?.role ?? null;
+  if (role !== "PRO" && role !== "BUSINESS") return role;
+  const id = userLike?.id;
+  if (!id) return role;
+  const sub = await Subscription.findOne({ where: { userId: id } });
+  if (!sub || !sub.isActive || !sub.endDate) return role;
+  const end = new Date(sub.endDate);
+  end.setHours(23, 59, 59, 999);
+  if (end.getTime() >= Date.now()) return role;
+  await Subscription.update({ isActive: false }, { where: { userId: id } });
+  await User.update({ role: "USER" }, { where: { id } });
+  return "USER";
+}
+
+/**
+ * Efektivna rola za marketing funkcije: users.role (nakon provjere isteka
+ * pretplate), s tim da aktivan PK Office paket/trial diže USER/PRO na
+ * BUSINESS. Rola u bazi se NE mijenja zbog office paketa, office pristup je
+ * činjenica pretplate, ne role.
  */
 async function getEffectiveRole(userLike) {
-  const role = userLike?.role ?? null;
-  if (role === "ADMIN" || role === "BUSINESS") return role;
+  let role = userLike?.role ?? null;
+  if (role === "ADMIN") return role;
+  role = await freshRole(userLike);
+  if (role === "BUSINESS") return role;
   const id = userLike?.id;
   if (!id) return role;
   const office = await officeUserIds([id]);
@@ -83,10 +109,80 @@ function tierAtLeast(actualTier, minimumTier) {
   return a >= m;
 }
 
+/**
+ * Da li korisnik dostiže traženi plan nivo IGDJE: vlastita efektivna rola,
+ * ili efektivna rola VLASNIKA bilo koje organizacije u kojoj je član (npr.
+ * free knjigovođa u obrtu BUSINESS/office vlasnika). Server-side ekvivalent
+ * frontend useMaxAccessibleTier (page-level gate): backend guard dijeljenih
+ * modula (plate, fakture, partneri) propušta tačno ono što i UI nudi.
+ */
+async function hasAccessibleTier(userId, minimumTier) {
+  const user = await User.findByPk(userId, { attributes: ["id", "role"] });
+  if (!user) return false;
+  if (user.role === "ADMIN") return true;
+  const own = await getEffectiveRole(user);
+  if (tierAtLeast(own, minimumTier)) return true;
+
+  const memberships = await OrganizationMember.findAll({
+    where: { userId },
+    attributes: ["organizationId"],
+    raw: true,
+  });
+  const orgIds = memberships.map((m) => m.organizationId);
+  if (orgIds.length === 0) return false;
+
+  const owners = await OrganizationMember.findAll({
+    where: {
+      organizationId: { [Op.in]: orgIds },
+      role: "OWNER",
+      userId: { [Op.ne]: userId },
+    },
+    include: [{ model: User, as: "user", attributes: ["id", "role"] }],
+  });
+  const ownerUsers = owners.map((o) => o.user).filter(Boolean);
+  // Istekle pretplate vlasnika: AKTIVNA pretplata sa prošlim endDate znači
+  // da PRO/BUSINESS rola vlasnika više ne važi za nasljeđivanje. Batch,
+  // bez upisa: degradaciju u bazi upisuje freshRole kad se sam vlasnik
+  // negdje provjeri, tuđi zahtjev ne treba pisati po drugim korisnicima.
+  const placeniIds = ownerUsers
+    .filter((o) => o.role === "PRO" || o.role === "BUSINESS")
+    .map((o) => o.id);
+  const istekli = new Set();
+  if (placeniIds.length > 0) {
+    const subs = await Subscription.findAll({
+      where: { userId: { [Op.in]: placeniIds }, isActive: true },
+      attributes: ["userId", "endDate"],
+      raw: true,
+    });
+    const sad = Date.now();
+    for (const s of subs) {
+      if (!s.endDate) continue;
+      const end = new Date(s.endDate);
+      end.setHours(23, 59, 59, 999);
+      if (end.getTime() < sad) istekli.add(s.userId);
+    }
+  }
+  for (const o of ownerUsers) {
+    if (istekli.has(o.id)) continue;
+    // vlasnik ADMIN se za tier organizacije računa kao BUSINESS
+    const rola = o.role === "ADMIN" ? "BUSINESS" : o.role;
+    if (tierAtLeast(rola, minimumTier)) return true;
+  }
+  // office paket/trial vlasnika diže njegov nivo na BUSINESS
+  const kandidati = ownerUsers.filter(
+    (o) => o.role === "USER" || o.role === "PRO",
+  );
+  if (kandidati.length === 0) return false;
+  const office = await officeUserIds(kandidati.map((o) => o.id));
+  return kandidati.some((o) => office.has(o.id));
+}
+
 module.exports = {
   getOrgOwnerRole,
   getEffectiveRole,
+  freshRole,
   officeUserIds,
   tierAtLeast,
+  hasAccessibleTier,
   TIER_RANK,
 };
