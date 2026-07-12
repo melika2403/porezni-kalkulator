@@ -14,6 +14,13 @@ export type LagerRow = {
   kolicina: number;
   /** kolicina × mpc */
   vrijednost: number;
+  /** prosječna nabavna iz kalkulacija */
+  nabavnaCijena: number;
+  /** kolicina × nabavnaCijena */
+  nabavnaVrijednost: number;
+  oslobodjenPdv: boolean;
+  /** datum zadnje kalkulacije za artikal+MPC (null = samo popis/nivelacija) */
+  zadnjiUlaz: string | null;
 };
 
 export type PopisStatus = "DRAFT" | "PROKNJIZEN";
@@ -27,6 +34,8 @@ export type Popis = {
   datum: string;
   status: PopisStatus;
   napomena: string | null;
+  /** popis nastao uvozom početnog stanja lagera */
+  pocetnoStanje: boolean;
   stavkeCount: number;
 };
 
@@ -306,6 +315,34 @@ export function createPopis(
   payload: { datum: string; napomena?: string },
 ) {
   return jsonRequest<Popis>(`/api/lager/${orgId}/popisi`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ── uvoz početnog stanja lagera (DRAFT popis sa pocetnoStanje flagom) ──
+export type UvozLagerStavka = {
+  sifra: string;
+  kolicina: number;
+  mpc: number;
+  nabavnaCijena?: number;
+};
+
+export type UvozLagerResult = {
+  popis: Popis;
+  dodano: number;
+  /** duplih šifra+MPC redova čije su količine sabrane */
+  spojeno: number;
+  preskocenoUkupno: number;
+  /** lista je ograničena server-side (max 300) */
+  preskoceno: { sifra: string; razlog: string }[];
+};
+
+export function uvozPocetnogStanja(
+  orgId: number,
+  payload: { datum: string; napomena?: string; stavke: UvozLagerStavka[] },
+) {
+  return jsonRequest<UvozLagerResult>(`/api/lager/${orgId}/popisi/uvoz`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

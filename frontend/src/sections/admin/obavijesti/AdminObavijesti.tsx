@@ -5,6 +5,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  IconInfoCircle,
+  IconAlertTriangle,
+  IconCircleCheck,
+  IconSpeakerphone,
+  IconPlus,
+  IconPower,
+  IconTrash,
+} from "@tabler/icons-react";
+import {
   adminListAnnouncements,
   createAnnouncement,
   updateAnnouncement,
@@ -13,6 +22,9 @@ import {
   type Audience,
   type AnnouncementType,
 } from "src/api/announcements";
+import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
+import { formatDate } from "src/lib/format";
 import styles from "./AdminObavijesti.module.css";
 
 const AUDIENCE_LABELS: Record<Audience, string> = {
@@ -41,6 +53,23 @@ function badgeClass(t: AnnouncementType): string {
     : t === "SUCCESS"
       ? styles.badgeSuccess
       : styles.badgeInfo;
+}
+// ikona u obojenoj pločici uz naslov (isti jezik kao KPI kartice na dashboardu)
+function typeIcon(t: AnnouncementType) {
+  return t === "WARNING" ? (
+    <IconAlertTriangle size={19} />
+  ) : t === "SUCCESS" ? (
+    <IconCircleCheck size={19} />
+  ) : (
+    <IconInfoCircle size={19} />
+  );
+}
+function iconTileClass(t: AnnouncementType): string {
+  return t === "WARNING"
+    ? styles.iconWarning
+    : t === "SUCCESS"
+      ? styles.iconSuccess
+      : styles.iconInfo;
 }
 
 export default function AdminObavijesti() {
@@ -137,17 +166,7 @@ export default function AdminObavijesti() {
           className={styles.newBtn}
           onClick={() => setOpen(true)}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          >
-            <path d="M8 3v10M3 8h10" />
-          </svg>
+          <IconPlus size={16} />
           Nova obavijest
         </button>
       </div>
@@ -156,17 +175,7 @@ export default function AdminObavijesti() {
       {items.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon} aria-hidden="true">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 11l18-5v12L3 14v-3z" />
-              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
-            </svg>
+            <IconSpeakerphone size={24} />
           </div>
           <div className={styles.emptyTitle}>Još nema objavljenih obavijesti</div>
           <div className={styles.emptyText}>
@@ -177,17 +186,7 @@ export default function AdminObavijesti() {
             className={styles.newBtn}
             onClick={() => setOpen(true)}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            >
-              <path d="M8 3v10M3 8h10" />
-            </svg>
+            <IconPlus size={16} />
             Nova obavijest
           </button>
         </div>
@@ -198,41 +197,55 @@ export default function AdminObavijesti() {
               key={a.id}
               className={`${styles.item} ${typeClass(a.type)} ${a.active ? "" : styles.itemInactive}`}
             >
-              <div className={styles.itemHead}>
-                <span className={styles.itemTitle}>{a.title}</span>
-                <div className={styles.actions}>
-                  <button
-                    type="button"
-                    className={styles.linkBtn}
-                    onClick={() => toggleActive(a)}
-                  >
-                    {a.active ? "Deaktiviraj" : "Aktiviraj"}
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.linkBtn} ${styles.dangerBtn}`}
-                    onClick={() => remove(a.id)}
-                  >
-                    Obriši
-                  </button>
-                </div>
-              </div>
-              <div className={styles.itemBody}>{a.body}</div>
-              <div className={styles.tags}>
-                <span className={`${styles.badge} ${badgeClass(a.type)}`}>
-                  {TYPE_LABELS[a.type]}
+              <div className={styles.itemRow}>
+                <span
+                  className={`${styles.itemIcon} ${iconTileClass(a.type)}`}
+                  aria-hidden="true"
+                >
+                  {typeIcon(a.type)}
                 </span>
-                <span className={styles.tag}>{AUDIENCE_LABELS[a.audience]}</span>
-                {!a.active && (
-                  <span className={`${styles.tag} ${styles.tagInactive}`}>
-                    Neaktivna
-                  </span>
-                )}
-                {a.expiresAt && (
-                  <span className={styles.tag}>
-                    Ističe {new Date(a.expiresAt).toLocaleDateString("bs-BA")}
-                  </span>
-                )}
+                <div className={styles.itemMain}>
+                  <div className={styles.itemHead}>
+                    <span className={styles.itemTitle}>{a.title}</span>
+                    <div className={styles.actions}>
+                      <button
+                        type="button"
+                        className={styles.ghostBtn}
+                        onClick={() => toggleActive(a)}
+                      >
+                        <IconPower size={13} />
+                        {a.active ? "Deaktiviraj" : "Aktiviraj"}
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.ghostBtn} ${styles.dangerBtn}`}
+                        onClick={() => remove(a.id)}
+                      >
+                        <IconTrash size={13} />
+                        Obriši
+                      </button>
+                    </div>
+                  </div>
+                  <div className={styles.itemBody}>{a.body}</div>
+                  <div className={styles.tags}>
+                    <span className={`${styles.badge} ${badgeClass(a.type)}`}>
+                      {TYPE_LABELS[a.type]}
+                    </span>
+                    <span className={styles.tag}>
+                      {AUDIENCE_LABELS[a.audience]}
+                    </span>
+                    {!a.active && (
+                      <span className={`${styles.tag} ${styles.tagInactive}`}>
+                        Neaktivna
+                      </span>
+                    )}
+                    {a.expiresAt && (
+                      <span className={styles.tag}>
+                        Ističe {formatDate(a.expiresAt)}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
@@ -292,45 +305,48 @@ export default function AdminObavijesti() {
                 <div className={styles.row2}>
                   <div className={styles.field}>
                     <label className={styles.label}>Publika</label>
-                    <select
-                      className={styles.select}
+                    <StyledSelect
+                      ariaLabel="Publika"
                       value={audience}
-                      onChange={(e) => setAudience(e.target.value as Audience)}
-                    >
-                      {(Object.keys(AUDIENCE_LABELS) as Audience[]).map((a) => (
-                        <option key={a} value={a}>
-                          {AUDIENCE_LABELS[a]}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => setAudience(String(v) as Audience)}
+                      groups={[
+                        {
+                          options: (
+                            Object.keys(AUDIENCE_LABELS) as Audience[]
+                          ).map((a) => ({
+                            value: a,
+                            label: AUDIENCE_LABELS[a],
+                          })),
+                        },
+                      ]}
+                    />
                   </div>
                   <div className={styles.field}>
                     <label className={styles.label}>Tip</label>
-                    <select
-                      className={styles.select}
+                    <StyledSelect
+                      ariaLabel="Tip obavijesti"
                       value={type}
-                      onChange={(e) =>
-                        setType(e.target.value as AnnouncementType)
-                      }
-                    >
-                      {(Object.keys(TYPE_LABELS) as AnnouncementType[]).map(
-                        (t) => (
-                          <option key={t} value={t}>
-                            {TYPE_LABELS[t]}
-                          </option>
-                        ),
-                      )}
-                    </select>
+                      onChange={(v) => setType(String(v) as AnnouncementType)}
+                      groups={[
+                        {
+                          options: (
+                            Object.keys(TYPE_LABELS) as AnnouncementType[]
+                          ).map((t) => ({
+                            value: t,
+                            label: TYPE_LABELS[t],
+                          })),
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
 
                 <div className={styles.field}>
                   <label className={styles.label}>Ističe (opciono)</label>
-                  <input
-                    type="date"
-                    className={styles.input}
+                  <DateInput
                     value={expiresAt}
-                    onChange={(e) => setExpiresAt(e.target.value)}
+                    onValueChange={setExpiresAt}
+                    className={styles.input}
                   />
                 </div>
               </div>

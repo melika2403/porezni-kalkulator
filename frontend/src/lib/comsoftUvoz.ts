@@ -87,14 +87,18 @@ function parseCsv(text: string): string[][] {
 }
 
 /** Nađi indeks kolone po dijelu naziva zaglavlja (bez kvačica, mala slova). */
-function headerIndex(header: string[], ...needles: string[]): number {
-  const norm = header.map((h) =>
+function normHeaders(header: string[]): string[] {
+  return header.map((h) =>
     h
       .toLowerCase()
       .normalize("NFD")
       .replace(/[̀-ͯ]/g, "")
       .replace(/đ/g, "d"),
   );
+}
+
+function headerIndex(header: string[], ...needles: string[]): number {
+  const norm = normHeaders(header);
   for (const needle of needles) {
     const i = norm.findIndex((h) => h.includes(needle));
     if (i >= 0) return i;
@@ -186,6 +190,73 @@ function parseArtikliCsv(text: string): UvozArtikal[] {
     oslobodjenPdv: iStopa >= 0 ? csvNum(r[iStopa]) === 0 : false,
     aktivan: iAktivan >= 0 ? csvBool(r[iAktivan]) : true,
   }));
+}
+
+// ── lager lista (uvoz početnog stanja zaliha) ────────────────────────────────
+
+export type UvozLagerRed = {
+  sifra: string;
+  kolicina: number;
+  mpc: number;
+  nabavnaCijena?: number;
+};
+
+/** Broj koji podnosi i BA format ("1.234,56") i tehnički ("1234.56"). */
+function lagerNum(v: string | undefined): number | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  let n: number;
+  if (s.includes(",")) {
+    // zarez = decimalni separator, tačke su hiljade
+    n = Number(s.replace(/\./g, "").replace(",", "."));
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    // BA cijeli broj sa hiljadnim separatorom bez decimala: "1.500" -> 1500,
+    // "1.234.567" -> 1234567 (bez ovoga bi Number("1.500") dao 1.5)
+    n = Number(s.replace(/\./g, ""));
+  } else {
+    // tehnički decimalni ("1234.56") ili prost cijeli broj ("1500")
+    n = Number(s);
+  }
+  return Number.isFinite(n) ? n : null;
+}
+
+/** CSV lager liste: obavezne kolone Šifra, Količina i MPC (ili Cijena);
+ *  opciono Nabavna cijena. Com_Soft izvoz (Windows-1250, ";") ili vlastiti
+ *  fajl sa istim zaglavljem. */
+export async function parseLagerFile(file: File): Promise<UvozLagerRed[]> {
+  const text = await readText(file);
+  if (isXml(text)) {
+    throw new Error(
+      "Za uvoz lagera pošaljite CSV fajl (XML izvoz lagera još nije podržan).",
+    );
+  }
+  const rows = parseCsv(text);
+  if (rows.length < 2) throw new Error("CSV fajl je prazan.");
+  const header = rows[0];
+  const iSifra = headerIndex(header, "sifra");
+  const iKolicina = headerIndex(header, "kolicina", "stanje", "kol");
+  // MPC: prvo eksplicitne (mpc/maloprodajna/prodajna); generička "cijena" NE
+  // smije uhvatiti "Nabavna cijena" (inače se nabavna uveze kao maloprodajna)
+  let iMpc = headerIndex(header, "mpc", "maloprodajna", "prodajna");
+  if (iMpc < 0) {
+    const norm = normHeaders(header);
+    iMpc = norm.findIndex((h) => h.includes("cijena") && !h.includes("nabavna"));
+  }
+  if (iSifra < 0 || iKolicina < 0 || iMpc < 0) {
+    throw new Error(
+      'CSV zaglavlje nije prepoznato (očekujem kolone "Šifra", "Količina" i "MPC").',
+    );
+  }
+  const iNabavna = headerIndex(header, "nabavna");
+  return rows.slice(1).map((r) => {
+    const nabavna = iNabavna >= 0 ? lagerNum(r[iNabavna]) : null;
+    return {
+      sifra: (r[iSifra] ?? "").trim(),
+      kolicina: lagerNum(r[iKolicina]) ?? NaN,
+      mpc: lagerNum(r[iMpc]) ?? NaN,
+      nabavnaCijena: nabavna != null && nabavna > 0 ? nabavna : undefined,
+    };
+  });
 }
 
 // ── poslovni partneri ────────────────────────────────────────────────────────

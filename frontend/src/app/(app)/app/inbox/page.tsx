@@ -5,6 +5,7 @@
 // - "Poruke": napomene, upozorenja i chat sa administracijom
 import { useSearchParams, useRouter } from "next/navigation";
 import { UvozIzvodaTab } from "src/sections/inbox/UvozIzvodaTab";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { PorukeTab } from "src/sections/inbox/PorukeTab";
 import { PodrskaTab } from "src/sections/inbox/PodrskaTab";
 import { useSupportUnread } from "src/api/support";
@@ -38,12 +39,15 @@ export default function InboxPage() {
   return (
     <div className="px-8 py-8 lg:px-12 lg:py-10 max-w-[1200px] mx-auto">
       <div className="mb-6">
-        <h1 className="font-serif-display text-[clamp(2rem,3.5vw,2.8rem)] leading-[1.05] tracking-[-0.02em] text-text-primary">
-          Inbox
-          <span className="text-brand-600" style={{ fontStyle: "italic" }}>
-            .
-          </span>
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="font-serif-display text-[clamp(2rem,3.5vw,2.8rem)] leading-[1.05] tracking-[-0.02em] text-text-primary">
+            Inbox
+            <span className="text-brand-600" style={{ fontStyle: "italic" }}>
+              .
+            </span>
+          </h1>
+          <HelpButton slug="inbox" />
+        </div>
         <p className="text-[14px] leading-6 text-text-tertiary mt-2 max-w-xl">
           Prijem izvoda za sve vaše obrte, obavijesti i poruke na jednom
           mjestu.

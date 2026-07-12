@@ -29,7 +29,7 @@ router.post(
   "/bulk/analyze",
   requireAuth,
   (req, res, next) => {
-    pdfUpload.array("files", 20)(req, res, (err) => {
+    pdfUpload.array("files", 50)(req, res, (err) => {
       if (err) {
         const code =
           err.message === "INVALID_FILE_TYPE" ? "INVALID_FILE_TYPE" : "UPLOAD_ERROR";

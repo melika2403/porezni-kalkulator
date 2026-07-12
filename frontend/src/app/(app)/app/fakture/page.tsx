@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   IconFileInvoice,
   IconDownload,
@@ -16,10 +17,13 @@ import {
   IconReceipt,
   IconTrash,
   IconRotate,
+  IconPencil,
+  IconRepeat,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatBAM, formatDate } from "src/lib/format";
 import { PkSelect } from "src/components/app-shell/PkSelect";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { Modal } from "src/components/app-shell/Modal";
 import RowActionsMenu from "src/components/RowActionsMenu/RowActionsMenu";
@@ -35,6 +39,7 @@ import {
 } from "src/hooks/usePartners";
 import {
   convertProformaToInvoice,
+  deleteInvoice,
   downloadInvoicePdf,
   emailInvoice,
   patchInvoice,
@@ -50,6 +55,7 @@ import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
 import { InvoicePreviewModal } from "src/sections/fakture/InvoicePreviewModal";
+import { PripremljeniRacuniModal } from "src/sections/fakture/PripremljeniRacuniModal";
 import {
   PartnerFormModal,
   EMPTY_PARTNER_FORM,
@@ -81,13 +87,33 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "prebijanja", label: "Kompenzacije i cesije" },
 ];
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+// lokalni datum (ne UTC): toISOString bi nakon lokalne ponoći dao jučer
+const todayIso = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 
 function invoiceLate(inv: Invoice): boolean {
   return inv.status === "ISSUED" && !!inv.dueDate && inv.dueDate < todayIso();
 }
+// izvedeni status naplate (FIFO sa izvoda) ima prednost nad zapamćenim
+function racunEffStatus(r: UlazniRacun): string {
+  return r.paymentStatus ?? r.status;
+}
+// koliko još treba platiti (preostalo iz FIFO, fallback pun iznos ako otvoren)
+function racunPreostalo(r: UlazniRacun): number {
+  if (r.preostalo != null) return r.preostalo;
+  const st = racunEffStatus(r);
+  return st === "PLACEN" || st === "KREDIT" ? 0 : Number(r.iznos);
+}
 function racunLate(r: UlazniRacun): boolean {
-  return r.status === "OTVOREN" && !!r.rokPlacanja && r.rokPlacanja < todayIso();
+  const st = racunEffStatus(r);
+  return (
+    (st === "OTVOREN" || st === "DJELIMICNO") &&
+    !!r.rokPlacanja &&
+    r.rokPlacanja < todayIso()
+  );
 }
 
 // "rok 06.08.2026. (za 27 d)" ili "(kasni 3 d)": broj dana uz rok
@@ -182,10 +208,26 @@ function RacunBadge({ r }: { r: UlazniRacun }) {
       </span>
     );
   }
-  if (r.status === "PLACEN") {
+  const st = racunEffStatus(r);
+  if (st === "PLACEN") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium bg-success-bg text-success shrink-0">
         <IconCircleCheck size={11} /> plaćen
+      </span>
+    );
+  }
+  if (st === "DJELIMICNO") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium bg-info-bg text-info shrink-0"
+        title={
+          r.preostalo != null
+            ? `Preostalo za platiti: ${formatBAM(r.preostalo)}`
+            : undefined
+        }
+      >
+        djelimično
+        {r.preostalo != null ? ` · ostalo ${formatBAM(r.preostalo)}` : ""}
       </span>
     );
   }
@@ -276,12 +318,16 @@ function InvoiceRow({
   downloading,
   markPending,
   onMarkPaid,
+  onUnmarkPaid,
   onPdf,
   onOpen,
   onConvert,
   onStorno,
   onKnjizna,
   onCopy,
+  onEdit,
+  onDelete,
+  onCancel,
   onEmail,
   uplataPrijedlog,
 }: {
@@ -290,12 +336,16 @@ function InvoiceRow({
   downloading: number | null;
   markPending: boolean;
   onMarkPaid: (inv: Invoice) => void;
+  onUnmarkPaid: (inv: Invoice) => void;
   onPdf: (inv: Invoice) => void;
   onOpen: (inv: Invoice) => void;
   onConvert: (inv: Invoice) => void;
   onStorno: (inv: Invoice) => void;
   onKnjizna: (inv: Invoice) => void;
   onCopy: (inv: Invoice) => void;
+  onEdit: (inv: Invoice) => void;
+  onDelete: (inv: Invoice) => void;
+  onCancel: (inv: Invoice) => void;
   onEmail?: (inv: Invoice, podsjetnik: boolean) => void;
   /** nepovezan priliv istog iznosa na izvodu: prijedlog naplate */
   uplataPrijedlog?: { statementId: number; broj: string | null } | null;
@@ -304,6 +354,21 @@ function InvoiceRow({
   const sign = kifSign(inv);
   const isProforma = inv.type === "PROFORMA";
   const menuItems = [
+    // puni edit: samo nenaplaćena standardna faktura/predračun koji nije
+    // pretvoren (backend dodatno odbija ako ima knjižnu obavijest)
+    ...(inv.docType === "STANDARD" &&
+    (inv.status === "ISSUED" || inv.status === "DRAFT") &&
+    !inv.convertedToInvoiceId
+      ? [
+          {
+            kind: "item" as const,
+            key: "edit",
+            label: "Uredi",
+            icon: <IconPencil size={14} />,
+            onClick: () => onEdit(inv),
+          },
+        ]
+      : []),
     // kopija: samo standardne fakture/predračuni (avans/storno/KO ne)
     ...(inv.docType === "STANDARD"
       ? [
@@ -375,6 +440,35 @@ function InvoiceRow({
             label: "Pošalji podsjetnik za plaćanje",
             icon: <IconMail size={14} />,
             onClick: () => onEmail(inv, true),
+          },
+        ]
+      : []),
+    // storniranje standardne fakture: status CANCELLED, broj ostaje (bez
+    // rupe u numeraciji), izlazi iz KIF-a, PDV prijave i kartice kupca
+    ...(inv.docType === "STANDARD" &&
+    (inv.status === "ISSUED" || inv.status === "DRAFT") &&
+    !inv.convertedToInvoiceId
+      ? [
+          {
+            kind: "item" as const,
+            key: "cancel",
+            label: "Storniraj",
+            onClick: () => onCancel(inv),
+          },
+        ]
+      : []),
+    // brisanje: samo nenaplaćena standardna faktura/predračun koji nije
+    // pretvoren (upozorenje na prazninu u numeraciji je u modalu potvrde)
+    ...(inv.docType === "STANDARD" &&
+    (inv.status === "ISSUED" || inv.status === "DRAFT") &&
+    !inv.convertedToInvoiceId
+      ? [
+          {
+            kind: "item" as const,
+            key: "delete",
+            label: "Obriši",
+            icon: <IconTrash size={14} />,
+            onClick: () => onDelete(inv),
           },
         ]
       : []),
@@ -457,6 +551,17 @@ function InvoiceRow({
             Naplaćena
           </button>
         )}
+        {inv.status === "PAID" && inv.docType === "STANDARD" && (
+          <button
+            type="button"
+            disabled={markPending}
+            onClick={() => onUnmarkPaid(inv)}
+            title="Vrati u nenaplaćeno (poništi ručnu oznaku naplate)"
+            className="px-3 py-[5px] rounded-lg border border-cream-300 text-text-tertiary text-[12px] font-medium hover:bg-cream-200 transition-colors whitespace-nowrap disabled:opacity-50"
+          >
+            Nenaplaćena
+          </button>
+        )}
         <button
           type="button"
           disabled={downloading === inv.id}
@@ -476,6 +581,38 @@ function InvoiceRow({
       </div>
     </li>
   );
+}
+
+// sortiranje liste ulaznih računa po izboru korisnika
+function sortRacuni(list: UlazniRacun[], key: string): UlazniRacun[] {
+  const arr = [...list];
+  const dat = (r: UlazniRacun) => (r.datumRacuna ?? "").slice(0, 10);
+  const rok = (r: UlazniRacun) => (r.rokPlacanja ?? "").slice(0, 10);
+  switch (key) {
+    case "datum-asc":
+      return arr.sort((a, b) => dat(a).localeCompare(dat(b)));
+    case "rok-asc":
+      // prazni rokovi na kraj, inače najbliži/istekli prvi
+      return arr.sort((a, b) => {
+        const ra = rok(a);
+        const rb = rok(b);
+        if (!ra && !rb) return 0;
+        if (!ra) return 1;
+        if (!rb) return -1;
+        return ra.localeCompare(rb);
+      });
+    case "iznos-desc":
+      return arr.sort((a, b) => Number(b.iznos) - Number(a.iznos));
+    case "iznos-asc":
+      return arr.sort((a, b) => Number(a.iznos) - Number(b.iznos));
+    case "dobavljac":
+      return arr.sort((a, b) =>
+        (a.partner?.name ?? "").localeCompare(b.partner?.name ?? ""),
+      );
+    case "datum-desc":
+    default:
+      return arr.sort((a, b) => dat(b).localeCompare(dat(a)));
+  }
 }
 
 function RacunRow({
@@ -519,7 +656,10 @@ function RacunRow({
             `račun ${r.brojRacuna}`,
             formatDate(r.datumRacuna),
             r.rokPlacanja
-              ? rokSaDanima(r.rokPlacanja, r.status === "OTVOREN" && !r.samoEvidencija)
+              ? rokSaDanima(
+                  r.rokPlacanja,
+                  racunPreostalo(r) > 0 && !r.samoEvidencija,
+                )
               : null,
             r.pdvIznos ? `PDV ${formatBAM(Number(r.pdvIznos))}` : null,
             r.paidAt ? `plaćen ${formatDate(r.paidAt)}` : null,
@@ -535,7 +675,9 @@ function RacunRow({
         className="flex items-center gap-1.5"
         onClick={(e) => e.stopPropagation()}
       >
-        {r.status === "OTVOREN" && (
+        {(racunEffStatus(r) === "OTVOREN" ||
+          racunEffStatus(r) === "DJELIMICNO") &&
+          !r.samoEvidencija && (
           <button
             type="button"
             disabled={updatePending}
@@ -585,6 +727,8 @@ function RacunRow({
 }
 
 export default function FakturePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
   const orgId = activeOrg?.id ?? null;
@@ -592,8 +736,26 @@ export default function FakturePage() {
   const [tab, setTab] = useState<TabId>("izlazne");
   const [statusFilter, setStatusFilter] = useState("");
   const [ulazFilter, setUlazFilter] = useState("");
+  const [racunSort, setRacunSort] = useState("datum-desc");
   // pretraga + partner + period (klijentski, nad već učitanim listama)
   const [q, setQ] = useState("");
+  // ?q= iz linka (npr. red kartice partnera vodi na konkretnu fakturu)
+  useEffect(() => {
+    const initQ = searchParams.get("q");
+    if (initQ) setQ(initQ);
+    const initTab = searchParams.get("tab");
+    if (initTab && TABS.some((t) => t.id === initTab)) {
+      setTab(initTab as TabId);
+    }
+  }, [searchParams]);
+  // ?status= iz linka (KPI "Otvorene fakture" na Početnoj); reagira i na
+  // promjenu query stringa bez remounta (drugi ulaz dok si već ovdje)
+  useEffect(() => {
+    const s = searchParams.get("status");
+    if (!s) return;
+    const t = setTimeout(() => setStatusFilter(s), 0);
+    return () => clearTimeout(t);
+  }, [searchParams]);
   const [partnerFilter, setPartnerFilter] = useState<number | null>(null);
   const [fromStr, setFromStr] = useState("");
   const [toStr, setToStr] = useState("");
@@ -605,6 +767,13 @@ export default function FakturePage() {
   const [downloading, setDownloading] = useState<number | null>(null);
   const [deleteRacunTarget, setDeleteRacunTarget] =
     useState<UlazniRacun | null>(null);
+  // brisanje izlazne fakture (samo nenaplaćene, uz upozorenje na numeraciju)
+  const [deleteInvoiceTarget, setDeleteInvoiceTarget] =
+    useState<Invoice | null>(null);
+  // storniranje standardne fakture (status CANCELLED, broj ostaje)
+  const [cancelTarget, setCancelTarget] = useState<Invoice | null>(null);
+  // pripremljeni (ponavljajući) računi
+  const [preparedOpen, setPreparedOpen] = useState(false);
   // knjiženje ulaznog računa + "+ Novi partner" iz njega
   const [racunModalOpen, setRacunModalOpen] = useState(false);
   const [racunPreselect, setRacunPreselect] = useState<number | null>(null);
@@ -651,10 +820,41 @@ export default function FakturePage() {
       qc.invalidateQueries({ queryKey: ["pk-invoices", orgId] });
     },
   });
+  // vraćanje naplaćene fakture u nenaplaćeno (poništi ručnu oznaku)
+  const unmarkPaid = useMutation({
+    mutationFn: (inv: Invoice) =>
+      unwrap(patchInvoice(inv.id, { status: "ISSUED", paidAt: null })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pk-invoices", orgId] });
+    },
+    onError: (e) => {
+      const code = (e as Error).message;
+      window.alert(
+        code === "IMA_VEZANU_UPLATU"
+          ? "Faktura je zatvorena uplatom sa bankovnog izvoda. Prvo ukloni vezu s tom uplatom na izvodu, pa je onda vrati u nenaplaćeno."
+          : "Nije moguće vratiti fakturu u nenaplaćeno.",
+      );
+    },
+  });
   const invalidateInvoices = () => {
     qc.invalidateQueries({ queryKey: ["pk-invoices"] });
     qc.invalidateQueries({ queryKey: ["invoices"] });
   };
+  const deleteInvoiceMut = useMutation({
+    mutationFn: (inv: Invoice) => unwrap(deleteInvoice(inv.id)),
+    onSuccess: () => {
+      invalidateInvoices();
+      setDeleteInvoiceTarget(null);
+    },
+  });
+  const cancelInvoice = useMutation({
+    mutationFn: (inv: Invoice) =>
+      unwrap(patchInvoice(inv.id, { status: "CANCELLED" })),
+    onSuccess: () => {
+      invalidateInvoices();
+      setCancelTarget(null);
+    },
+  });
   const convert = useMutation({
     mutationFn: (inv: Invoice) => unwrap(convertProformaToInvoice(inv.id)),
     onSuccess: () => {
@@ -679,8 +879,11 @@ export default function FakturePage() {
     (s, i) => s + Number(i.grossTotal),
     0,
   );
-  const openRacuni = allRacuni.filter((r) => r.status === "OTVOREN");
-  const openPayable = openRacuni.reduce((s, r) => s + Number(r.iznos), 0);
+  const openRacuni = allRacuni.filter((r) => {
+    const st = racunEffStatus(r);
+    return st === "OTVOREN" || st === "DJELIMICNO";
+  });
+  const openPayable = openRacuni.reduce((s, r) => s + racunPreostalo(r), 0);
   const lateInvoicesList = openInvoices.filter(invoiceLate);
   const lateRacuniList = openRacuni.filter(racunLate);
   const lateInvoices = lateInvoicesList.length;
@@ -690,7 +893,7 @@ export default function FakturePage() {
     (s, i) => s + Number(i.grossTotal),
     0,
   );
-  const latePayable = lateRacuniList.reduce((s, r) => s + Number(r.iznos), 0);
+  const latePayable = lateRacuniList.reduce((s, r) => s + racunPreostalo(r), 0);
   const currentYear = String(new Date().getFullYear());
   // izlazni PDV: samo fakture (ne predračuni); storno/KO umanjuju (predznak)
   const pdvOut = allInvoices
@@ -781,13 +984,20 @@ export default function FakturePage() {
         ? allInvoices.filter((i) => i.status === statusFilter)
         : allInvoices
   ).filter(invoiceMatches);
-  const visibleRacuni = (
-    ulazFilter === "OTVOREN" || ulazFilter === "PLACEN"
-      ? allRacuni.filter((r) => r.status === ulazFilter)
-      : ulazFilter === "KASNI"
-        ? allRacuni.filter(racunLate)
-        : allRacuni
-  ).filter(racunMatches);
+  const visibleRacuni = sortRacuni(
+    (ulazFilter === "OTVOREN"
+      ? allRacuni.filter((r) => {
+          const st = racunEffStatus(r);
+          return st === "OTVOREN" || st === "DJELIMICNO";
+        })
+      : ulazFilter === "PLACEN"
+        ? allRacuni.filter((r) => racunEffStatus(r) === "PLACEN")
+        : ulazFilter === "KASNI"
+          ? allRacuni.filter(racunLate)
+          : allRacuni
+    ).filter(racunMatches),
+    racunSort,
+  );
 
   // sume za filtrirano (po tabu), da lista radi i kao brzi izvještaj
   const invSume = useMemo(() => {
@@ -808,9 +1018,12 @@ export default function FakturePage() {
     let placeno = 0;
     let otvoreno = 0;
     for (const r of visibleRacuni) {
-      ukupno += Number(r.iznos);
-      if (r.status === "PLACEN") placeno += Number(r.iznos);
-      if (r.status === "OTVOREN") otvoreno += Number(r.iznos);
+      const iznos = Number(r.iznos);
+      ukupno += iznos;
+      // placeno = dio koji je pokriven (iznos - preostalo), otvoreno = preostalo
+      const preostalo = racunPreostalo(r);
+      placeno += iznos - preostalo;
+      otvoreno += preostalo;
     }
     return { ukupno, placeno, otvoreno };
   }, [visibleRacuni]);
@@ -1029,7 +1242,8 @@ export default function FakturePage() {
   return (
     <div className="px-6 py-6 max-w-[1280px] mx-auto">
       {/* Zaglavlje */}
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+      <div className="relative flex flex-wrap items-end justify-between gap-3 mb-6">
+        <HelpButton slug="fakture" className="absolute top-0 right-0" />
         <div>
           <div className="inline-flex items-center gap-[7px] px-[11px] py-1 rounded-full bg-brand-100 text-brand-700 text-[12px] font-medium mb-3">
             <span className="w-[7px] h-[7px] rounded-full bg-brand-600" />
@@ -1045,6 +1259,15 @@ export default function FakturePage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPreparedOpen(true)}
+            title="Ponavljajuće/pripremljene fakture za stalne klijente"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-cream-300 text-text-secondary text-[13px] font-medium hover:border-brand-600/50 hover:text-brand-600 transition-colors"
+          >
+            <IconRepeat size={16} />
+            Pripremljeni računi
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -1127,8 +1350,9 @@ export default function FakturePage() {
         )}
       </div>
 
-      {/* Tabovi + filter (segmented pilula kao na ostatku PK Office-a) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+      {/* Tabovi (pilula); filteri idu u zaseban red ispod da se traka tabova
+          ne pomjera pri promjeni taba */}
+      <div className="mb-4">
         <div className="inline-flex items-center gap-1 p-1 rounded-full border border-cream-300 bg-cream-100 flex-wrap">
           {TABS.map((t) => (
             <button
@@ -1156,7 +1380,7 @@ export default function FakturePage() {
             </button>
           ))}
         </div>
-        <div>
+        <div className="flex flex-wrap items-center gap-2 mt-2.5 empty:hidden">
           {tab === "izlazne" && (
             <PkSelect
               ariaLabel="Status faktura"
@@ -1182,6 +1406,21 @@ export default function FakturePage() {
                 { value: "OTVOREN", label: "Otvoreni" },
                 { value: "KASNI", label: "Kasne sa plaćanjem" },
                 { value: "PLACEN", label: "Plaćeni" },
+              ]}
+            />
+          )}
+          {tab === "ulazne" && (
+            <PkSelect
+              ariaLabel="Sortiraj ulazne račune"
+              value={racunSort}
+              onChange={(v) => setRacunSort(String(v ?? "datum-desc"))}
+              options={[
+                { value: "datum-desc", label: "Datum: najnoviji" },
+                { value: "datum-asc", label: "Datum: najstariji" },
+                { value: "rok-asc", label: "Rok: prvo dospjeli" },
+                { value: "iznos-desc", label: "Iznos: najveći" },
+                { value: "iznos-asc", label: "Iznos: najmanji" },
+                { value: "dobavljac", label: "Dobavljač: A-Z" },
               ]}
             />
           )}
@@ -1420,14 +1659,18 @@ export default function FakturePage() {
                   inv={inv}
                   last={i === visibleInvoices.length - 1}
                   downloading={downloading}
-                  markPending={markPaid.isPending}
+                  markPending={markPaid.isPending || unmarkPaid.isPending}
                   onMarkPaid={(x) => markPaid.mutate(x)}
+                  onUnmarkPaid={(x) => unmarkPaid.mutate(x)}
                   onPdf={handlePdf}
                   onOpen={(x) => setPreviewId(x.id)}
                   onConvert={setConvertTarget}
                   onStorno={setStornoTarget}
+                  onCancel={setCancelTarget}
                   onKnjizna={setKoTarget}
                   onCopy={setCopyTarget}
+                  onEdit={(x) => router.push(`/app/fakture/nova?uredi=${x.id}`)}
+                  onDelete={setDeleteInvoiceTarget}
                   onEmail={(x, podsjetnik) =>
                     setEmailTarget({ inv: x, podsjetnik })
                   }
@@ -1462,14 +1705,18 @@ export default function FakturePage() {
                       inv={row.inv}
                       last={i === ledger.length - 1}
                       downloading={downloading}
-                      markPending={markPaid.isPending}
+                      markPending={markPaid.isPending || unmarkPaid.isPending}
                       onMarkPaid={(x) => markPaid.mutate(x)}
+                      onUnmarkPaid={(x) => unmarkPaid.mutate(x)}
                       onPdf={handlePdf}
                       onOpen={(x) => setPreviewId(x.id)}
                       onConvert={setConvertTarget}
                       onStorno={setStornoTarget}
+                  onCancel={setCancelTarget}
                       onKnjizna={setKoTarget}
                       onCopy={setCopyTarget}
+                  onEdit={(x) => router.push(`/app/fakture/nova?uredi=${x.id}`)}
+                  onDelete={setDeleteInvoiceTarget}
                       onEmail={(x, podsjetnik) =>
                         setEmailTarget({ inv: x, podsjetnik })
                       }
@@ -1506,6 +1753,95 @@ export default function FakturePage() {
           </ul>
         )}
       </div>
+
+      {/* Potvrda brisanja izlazne fakture (samo nenaplaćene) */}
+      <Modal
+        open={deleteInvoiceTarget != null}
+        onClose={() => setDeleteInvoiceTarget(null)}
+        title="Brisanje izlazne fakture"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteInvoiceTarget(null)}
+              className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              disabled={deleteInvoiceMut.isPending}
+              onClick={() => {
+                if (!deleteInvoiceTarget) return;
+                deleteInvoiceMut.mutate(deleteInvoiceTarget);
+              }}
+              className="px-4 py-2 rounded-lg bg-accent-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              Obriši fakturu
+            </button>
+          </>
+        }
+      >
+        <p className="text-[13px] leading-6 text-text-secondary">
+          Obrisati fakturu{" "}
+          <span className="font-semibold text-text-primary">
+            {deleteInvoiceTarget?.fullNumber}
+          </span>
+          ? Brisanje ostavlja prazninu u numeraciji (npr. F-0001, pa F-0003) i
+          uklanja fakturu iz KIF-a, PDV prijave i sa kartice kupca. Za ispravku
+          je bolje koristiti storno ili knjižnu obavijest. Ovo se ne može
+          poništiti.
+        </p>
+      </Modal>
+
+      <PripremljeniRacuniModal
+        open={preparedOpen}
+        onClose={() => setPreparedOpen(false)}
+        orgId={orgId}
+        partners={partners ?? []}
+        isPdvObveznik={Boolean(fullOrg?.isPdvObveznik)}
+        onInvoiced={invalidateInvoices}
+      />
+
+      {/* Potvrda storniranja standardne fakture */}
+      <Modal
+        open={cancelTarget != null}
+        onClose={() => setCancelTarget(null)}
+        title="Storniranje fakture"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setCancelTarget(null)}
+              className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              disabled={cancelInvoice.isPending}
+              onClick={() => {
+                if (!cancelTarget) return;
+                cancelInvoice.mutate(cancelTarget);
+              }}
+              className="px-4 py-2 rounded-lg bg-accent-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              Storniraj fakturu
+            </button>
+          </>
+        }
+      >
+        <p className="text-[13px] leading-6 text-text-secondary">
+          Stornirati fakturu{" "}
+          <span className="font-semibold text-text-primary">
+            {cancelTarget?.fullNumber}
+          </span>
+          ? Faktura se poništava (status Stornirana), broj ostaje isti bez
+          praznine u numeraciji, a faktura izlazi iz KIF-a, PDV prijave i sa
+          kartice kupca. Za razliku od brisanja, dokument ostaje evidentiran
+          kao storniran.
+        </p>
+      </Modal>
 
       {/* Potvrda brisanja ulaznog računa */}
       <Modal
@@ -1546,7 +1882,8 @@ export default function FakturePage() {
           <span className="font-semibold text-text-primary">
             {deleteRacunTarget?.partner?.name ?? ""}
           </span>
-          ? Transakcije sa izvoda ostaju netaknute.
+          ? Račun se uklanja iz KUF-a i sa kartice dobavljača. Transakcije sa
+          izvoda ostaju netaknute.
         </p>
       </Modal>
 

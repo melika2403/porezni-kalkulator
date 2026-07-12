@@ -4,26 +4,36 @@
 // žiro računu prepozna kojem obrtu pripada koji izvod, provjeri duplikate i
 // upozorenja, a knjiži se tek na potvrdu (po izvodu ili sve spremne odjednom).
 // Analiza ništa ne snima; knjiženje ide postojećim per-org upload endpointom.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   IconCloudUpload,
   IconBuildingBank,
   IconChecklist,
+  IconChecks,
+  IconAlertTriangle,
   IconLoader2,
   IconChevronDown,
   IconChevronUp,
   IconX,
   IconFileTypePdf,
+  IconArrowRight,
 } from "@tabler/icons-react";
 import {
   bulkAnalyzeStatements,
   uploadBankStatement,
+  confirmAllStatement,
   type BulkFileResult,
 } from "src/api/bankStatements";
 import { PkSelect } from "src/components/app-shell/PkSelect";
+import { Modal } from "src/components/app-shell/Modal";
+import { IzvodDetalj } from "src/sections/bankovni-izvodi/IzvodDetalj";
 import { formatKm } from "src/lib/amountInput";
+import { mnozina } from "src/lib/format";
 import { isoToDisplay } from "src/lib/dateInput";
+
+// koliko PDF-ova stane u jednu turu (isti limit i na backend ruti bulk/analyze)
+const MAX_FAJLOVA = 50;
 
 const STEPS = [
   {
@@ -33,8 +43,8 @@ const STEPS = [
   },
   {
     icon: IconBuildingBank,
-    title: "2. Pokreni knjiženje",
-    desc: "Program po žiro računu prepozna kojem obrtu pripada koji izvod i provjeri duplikate po broju izvoda.",
+    title: "2. Prepoznavanje izvoda",
+    desc: "Program po žiro računu prepozna kojem obrtu pripada koji izvod i provjeri duplikate po broju izvoda. Ništa se još ne knjiži.",
   },
   {
     icon: IconChecklist,
@@ -71,6 +81,9 @@ type Row = {
   bookedStatementId?: number;
   bookedWarnings?: string[];
   bookError?: string;
+  /** stavke izvoda potvrđene za KPR (dugme na redu ili idempotentni re-klik) */
+  stavkePotvrdjene?: boolean;
+  confirmingStavke?: boolean;
   expanded: boolean;
 };
 
@@ -93,18 +106,65 @@ function fmtDate(iso: string | null | undefined) {
   return isoToDisplay(String(iso).slice(0, 10)) || "–";
 }
 
+// "5 fajlova nije dodano" sa pravilnom množinom
+function viskaPoruka(n: number): string {
+  const rijec = mnozina(
+    n,
+    "fajl nije dodan",
+    "fajla nisu dodana",
+    "fajlova nije dodano",
+  );
+  return `Maksimalno ${MAX_FAJLOVA} fajlova odjednom: ${n} ${rijec}. Ubacite ih u sljedećoj turi.`;
+}
+
+// State preživi odlazak sa stranice (module singleton, živi dok je kartica
+// browsera otvorena): redovi, organizacije i pending fajlovi ostaju dok
+// korisnik sam ne klikne "Ukloni završene". Bez ovoga bi svaka navigacija
+// (npr. na drugi tab pa nazad) obrisala cijeli prikaz ture.
+const trajniState: {
+  rows: Row[] | null;
+  organizations: { id: number; name: string }[];
+  pending: File[];
+  uid: number;
+} = { rows: null, organizations: [], pending: [], uid: 0 };
+
 export function UvozIzvodaTab() {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [pending, setPending] = useState<File[]>([]);
+  const [pending, setPending] = useState<File[]>(() => trajniState.pending);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const uidRef = useRef(0);
+  const [limitInfo, setLimitInfo] = useState<string | null>(null);
+  const [rows, setRows] = useState<Row[] | null>(() => trajniState.rows);
+  const uidRef = useRef(trajniState.uid);
   const [organizations, setOrganizations] = useState<
     { id: number; name: string }[]
-  >([]);
+  >(() => trajniState.organizations);
+  // sinhronizacija u module store (samo upis, ne setState: nema re-rendera)
+  useEffect(() => {
+    trajniState.rows = rows;
+    trajniState.uid = uidRef.current;
+  }, [rows]);
+  useEffect(() => {
+    trajniState.organizations = organizations;
+  }, [organizations]);
+  useEffect(() => {
+    trajniState.pending = pending;
+  }, [pending]);
+  // pop-up detalj izvoda: radi za bilo koji obrt bez prebacivanja aktivnog
+  // obrta i bez napuštanja Inboxa (lista ispod ostaje netaknuta). orgName ide
+  // u naslov popup-a da je jasno čiji se izvod pregleda.
+  const [detalj, setDetalj] = useState<{
+    orgId: number;
+    statementId: number;
+    orgName: string | null;
+  } | null>(null);
+  // progres sekvencijalnog "Proknjiži sve spremne" (Knjižim 3/7...)
+  const [bulkProgress, setBulkProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   const orgOptions = useMemo(
     () => [
@@ -117,17 +177,18 @@ export function UvozIzvodaTab() {
   function addFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
     setAnalyzeError(null);
-    setPending((prev) => {
-      const next = [...prev];
-      for (const f of Array.from(list)) {
-        if (f.type !== "application/pdf") continue;
-        // isti fajl (ime + veličina) ne dodajemo dvaput
-        if (!next.some((p) => p.name === f.name && p.size === f.size)) {
-          next.push(f);
-        }
+    const next = [...pending];
+    for (const f of Array.from(list)) {
+      if (f.type !== "application/pdf") continue;
+      // isti fajl (ime + veličina) ne dodajemo dvaput
+      if (!next.some((p) => p.name === f.name && p.size === f.size)) {
+        next.push(f);
       }
-      return next.slice(0, 20);
-    });
+    }
+    // višak preko limita se NE odbacuje tiho: korisnik dobije poruku
+    const visak = next.length - MAX_FAJLOVA;
+    setLimitInfo(visak > 0 ? viskaPoruka(visak) : null);
+    setPending(next.slice(0, MAX_FAJLOVA));
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -188,7 +249,21 @@ export function UvozIzvodaTab() {
       });
       queryClient.invalidateQueries({ queryKey: ["bank-statements", orgId] });
     } else if (res.error === "DUPLICATE_STATEMENT") {
-      patchRow(row.uid, { status: "duplicate" });
+      // upiši org (za "kod: ...") i id postojećeg izvoda (za "Pogledaj
+      // postojeći izvod"): ovaj put dolazi kroz knjiženje, ne kroz analizu,
+      // pa result još nema te podatke
+      patchRow(row.uid, {
+        status: "duplicate",
+        result: {
+          ...row.result,
+          org:
+            row.result.org ??
+            organizations.find((o) => o.id === orgId) ??
+            null,
+          existingStatementId:
+            row.result.existingStatementId ?? res.statementId ?? undefined,
+        },
+      });
     } else {
       patchRow(row.uid, {
         status: row.result.status,
@@ -198,17 +273,132 @@ export function UvozIzvodaTab() {
     }
   }
 
+  // spreman za grupno knjiženje: automatski prepoznat bez upozorenja ILI
+  // ručno dodijeljen obrtu. Izvodi sa upozorenjima ("review") NISU uključeni:
+  // upozorenja traže svjesnu potvrdu po izvodu ("Proknjiži uz upozorenja").
+  function spremanZaGrupno(r: Row) {
+    return (
+      r.status === "ready" ||
+      ((r.status === "unrecognized" || r.status === "conflict") &&
+        r.assignedOrgId != null)
+    );
+  }
+
   async function bookAllReady() {
     if (!rows) return;
     // snapshot spremnih redova; knjiži se po uid-u pa reordering ne smeta
-    const ready = rows.filter((r) => r.status === "ready");
-    for (const row of ready) {
-      // sekvencijalno, da kontinuitet salda vidi prethodno uknjižene izvode
-      await bookRow(row);
+    const ready = rows.filter(spremanZaGrupno);
+    setBulkProgress({ done: 0, total: ready.length });
+    try {
+      for (let i = 0; i < ready.length; i++) {
+        setBulkProgress({ done: i, total: ready.length });
+        // sekvencijalno, da kontinuitet salda vidi prethodno uknjižene izvode
+        await bookRow(ready[i]);
+      }
+    } finally {
+      setBulkProgress(null);
     }
   }
 
-  const readyCount = rows?.filter((r) => r.status === "ready").length ?? 0;
+  // otvori proknjiženi izvod u pop-upu (potvrda stavki, kategorije, uredi)
+  function otvoriIzvod(row: Row) {
+    const orgId = row.result.org?.id ?? row.assignedOrgId;
+    if (!orgId || row.bookedStatementId == null) return;
+    setDetalj({
+      orgId,
+      statementId: row.bookedStatementId,
+      orgName:
+        row.result.org?.name ??
+        organizations.find((o) => o.id === orgId)?.name ??
+        null,
+    });
+  }
+
+  // potvrdi sve stavke izvoda za KPR direktno sa reda: isto kao "Potvrdi sve"
+  // u pregledu izvoda (stavke bez kategorije ostaju van KPR-a dok je ne dobiju)
+  async function potvrdiSveStavke(row: Row) {
+    const orgId = row.result.org?.id ?? row.assignedOrgId;
+    if (!orgId || row.bookedStatementId == null || row.confirmingStavke) return;
+    patchRow(row.uid, { confirmingStavke: true });
+    const res = await confirmAllStatement(orgId, row.bookedStatementId);
+    if (res.ok) {
+      patchRow(row.uid, { confirmingStavke: false, stavkePotvrdjene: true });
+      queryClient.invalidateQueries({ queryKey: ["bank-statements", orgId] });
+    } else {
+      patchRow(row.uid, {
+        confirmingStavke: false,
+        bookError: `Greška pri potvrdi stavki (${res.error}).`,
+      });
+    }
+  }
+
+  // "Potvrdi sve izvode": potvrdi stavke SVIH proknjiženih izvoda sa
+  // nepotvrđenim stavkama, sekvencijalno sa progresom (kao grupno knjiženje)
+  const [confirmProgress, setConfirmProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  async function potvrdiSveIzvode() {
+    if (!rows) return;
+    const target = rows.filter(
+      (r) =>
+        r.status === "booked" &&
+        !r.stavkePotvrdjene &&
+        r.bookedStatementId != null,
+    );
+    setConfirmProgress({ done: 0, total: target.length });
+    try {
+      for (let i = 0; i < target.length; i++) {
+        setConfirmProgress({ done: i, total: target.length });
+        await potvrdiSveStavke(target[i]);
+      }
+    } finally {
+      setConfirmProgress(null);
+    }
+  }
+
+  // ukloni proknjižene i duplikate (lista poslije par tura naraste)
+  function ukloniZavrsene() {
+    setRows((prev) => {
+      const ostali = (prev ?? []).filter(
+        (r) => r.status !== "booked" && r.status !== "duplicate",
+      );
+      return ostali.length ? ostali : null;
+    });
+  }
+
+  const readyCount = rows?.filter(spremanZaGrupno).length ?? 0;
+  const zavrsenihCount =
+    rows?.filter((r) => r.status === "booked" || r.status === "duplicate")
+      .length ?? 0;
+  // proknjiženi izvodi čije stavke još čekaju potvrdu za KPR
+  const zaPotvrduCount =
+    rows?.filter(
+      (r) =>
+        r.status === "booked" &&
+        !r.stavkePotvrdjene &&
+        r.bookedStatementId != null,
+    ).length ?? 0;
+
+  // redovi koji traže akciju idu na vrh, proknjiženi tonu na dno; unutar
+  // istog statusa ostaje redoslijed batcha (sort je stabilan)
+  const STATUS_ORDER: Record<RowStatus, number> = {
+    unrecognized: 0,
+    conflict: 0,
+    review: 1,
+    ready: 2,
+    booking: 2,
+    error: 3,
+    duplicate: 4,
+    booked: 5,
+  };
+  const sortedRows = rows
+    ? [...rows].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
+    : null;
+  const brojPoStatusu = new Map<RowStatus, number>();
+  for (const r of rows ?? []) {
+    brojPoStatusu.set(r.status, (brojPoStatusu.get(r.status) ?? 0) + 1);
+  }
 
   return (
     <div className="space-y-4">
@@ -274,14 +464,22 @@ export function UvozIzvodaTab() {
           {analyzing ? "Čitam izvode..." : "Učitaj izvode za sve obrte"}
         </div>
         <div className="text-[12.5px] text-text-tertiary mt-1.5">
-          Prevuci PDF-ove ili klikni za odabir (do 20 fajlova odjednom)
+          Prevuci PDF-ove ili klikni za odabir (do {MAX_FAJLOVA} fajlova
+          odjednom)
         </div>
         <div className="text-[11px] text-text-tertiary mt-2.5">
           UniCredit · Raiffeisen · Sparkasse · KIB · BBI · MF · Ziraat
         </div>
       </div>
 
-      {/* Odabrani fajlovi + Pokreni knjiženje */}
+      {/* višak preko limita nije tiho odbačen: reci koliko nije stalo */}
+      {limitInfo && (
+        <div className="rounded-lg border border-warning/40 bg-warning-bg px-4 py-3 text-[13px] text-warning">
+          {limitInfo}
+        </div>
+      )}
+
+      {/* Odabrani fajlovi + prepoznavanje */}
       {pending.length > 0 && (
         <div className="rounded-xl border border-cream-300 bg-cream-100 p-4">
           <div className="text-[11.5px] font-semibold uppercase tracking-wider text-text-tertiary mb-2.5">
@@ -315,7 +513,7 @@ export function UvozIzvodaTab() {
               disabled={analyzing || anyBooking}
               className="px-5 py-2.5 rounded-lg bg-brand-600 text-white text-[13.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {analyzing ? "Analiziram..." : "Pokreni knjiženje"}
+              {analyzing ? "Prepoznajem..." : "Prepoznaj izvode"}
             </button>
             <span className="text-[12px] text-text-tertiary">
               Ništa se ne knjiži bez vaše potvrde.
@@ -333,23 +531,75 @@ export function UvozIzvodaTab() {
       {/* Rezultati */}
       {rows && rows.length > 0 && (
         <div className="rounded-xl border border-cream-300 bg-cream-100 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-cream-300">
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-cream-300">
             <span className="text-[11.5px] font-semibold uppercase tracking-wider text-text-tertiary">
               Izvodi ({rows.length})
             </span>
-            {readyCount > 0 && (
-              <button
-                type="button"
-                onClick={bookAllReady}
-                disabled={anyBooking}
-                className="px-4 py-1.5 rounded-lg bg-brand-600 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                Proknjiži sve spremne ({readyCount})
-              </button>
-            )}
+            {/* rezime po statusima: brzi pregled kad je fajlova puno */}
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.keys(STATUS_BADGE) as RowStatus[])
+                .filter((s) => (brojPoStatusu.get(s) ?? 0) > 0)
+                .map((s) => (
+                  <span
+                    key={s}
+                    className={`inline-flex px-2 py-0.5 rounded-full text-[10.5px] font-semibold tracking-[0.04em] ${STATUS_BADGE[s].cls}`}
+                  >
+                    {brojPoStatusu.get(s)} {STATUS_BADGE[s].label}
+                  </span>
+                ))}
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              {zavrsenihCount > 0 && !anyBooking && (
+                <button
+                  type="button"
+                  onClick={ukloniZavrsene}
+                  className="px-3 py-1.5 rounded-lg border border-cream-300 text-[12.5px] font-medium text-text-secondary hover:bg-cream-200 transition-colors"
+                >
+                  Ukloni završene ({zavrsenihCount})
+                </button>
+              )}
+              {readyCount > 0 && (
+                <button
+                  type="button"
+                  onClick={bookAllReady}
+                  disabled={anyBooking || bulkProgress != null}
+                  className="px-4 py-1.5 rounded-lg bg-brand-600 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {bulkProgress
+                    ? `Knjižim ${bulkProgress.done + 1}/${bulkProgress.total}...`
+                    : `Proknjiži sve spremne (${readyCount})`}
+                </button>
+              )}
+              {zaPotvrduCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void potvrdiSveIzvode()}
+                  disabled={
+                    anyBooking ||
+                    bulkProgress != null ||
+                    confirmProgress != null
+                  }
+                  title="Potvrdi stavke svih proknjiženih izvoda za KPR odjednom (stavke bez kategorije ne ulaze dok je ne dobiju)"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-brand-600 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {confirmProgress ? (
+                    <>
+                      <IconLoader2 size={15} className="animate-spin" />
+                      Potvrđujem {confirmProgress.done + 1}/
+                      {confirmProgress.total}...
+                    </>
+                  ) : (
+                    <>
+                      <IconChecks size={15} />
+                      Potvrdi sve izvode ({zaPotvrduCount})
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
-          {rows.map((row) => {
+          {sortedRows!.map((row) => {
             const badge = STATUS_BADGE[row.status];
             const r = row.result;
             const canPick =
@@ -374,7 +624,9 @@ export function UvozIzvodaTab() {
                   >
                     {badge.label}
                   </span>
-                  <span className="text-[13px] font-medium text-text-primary">
+                  {/* naziv obrta istaknut: knjigovođa u listi za više obrta
+                      mora odmah vidjeti čiji izvod gleda */}
+                  <span className="text-[15px] font-semibold text-text-primary">
                     {r.org?.name ??
                       (row.assignedOrgId != null
                         ? organizations.find((o) => o.id === row.assignedOrgId)
@@ -399,14 +651,17 @@ export function UvozIzvodaTab() {
                       <button
                         type="button"
                         onClick={() => patchRow(row.uid, { expanded: !row.expanded })}
-                        className="inline-flex items-center gap-1 text-brand-700 hover:underline"
+                        title={
+                          row.expanded ? "Sakrij stavke" : "Prikaži stavke"
+                        }
+                        className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-full border border-cream-300 text-brand-600 text-[12px] font-medium hover:bg-brand-100 hover:border-brand-600/40 transition-colors"
                       >
                         {r.transactionCount}{" "}
-                        {r.transactionCount === 1 ? "stavka" : "stavki"}
+                        {mnozina(r.transactionCount, "stavka", "stavke", "stavki")}
                         {row.expanded ? (
-                          <IconChevronUp size={13} />
+                          <IconChevronUp size={14} />
                         ) : (
-                          <IconChevronDown size={13} />
+                          <IconChevronDown size={14} />
                         )}
                       </button>
                     )}
@@ -444,20 +699,113 @@ export function UvozIzvodaTab() {
                     </ul>
                   )}
 
-                {/* Poruke nakon knjiženja */}
+                {/* Poruke nakon knjiženja: uz broj upozorenja odmah stoji i
+                    njihov tekst, da se ne mora otvarati izvod da se vidi
+                    šta program javlja */}
+                {row.status === "booked" &&
+                  (row.bookedWarnings?.length ?? 0) > 0 && (
+                    <ul className="mt-1.5 space-y-0.5">
+                      {row.bookedWarnings!.map((w) => (
+                        <li key={w} className="text-[12.5px] text-warning">
+                          {w}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 {row.status === "booked" && (
-                  <p className="text-[12.5px] text-success mt-1.5">
-                    Proknjižen{row.bookedWarnings?.length
-                      ? ` uz ${row.bookedWarnings.length} upozorenja`
-                      : ""}
-                    . Stavke pregledajte u Bankovnim izvodima tog obrta.
-                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <p className="text-[12.5px] text-success">
+                      Proknjižen
+                      {row.bookedWarnings?.length
+                        ? ` uz ${row.bookedWarnings.length} ${mnozina(
+                            row.bookedWarnings.length,
+                            "upozorenje",
+                            "upozorenja",
+                            "upozorenja",
+                          )} (iznad)`
+                        : ""}
+                      .
+                    </p>
+                    {/* stavke idu u KPR tek potvrdom: bez ovoga bi korisnik
+                        pomislio da je "proknjižen" znači i KPR */}
+                    {row.stavkePotvrdjene ? (
+                      <span className="text-[12.5px] text-success inline-flex items-center gap-1">
+                        <IconChecks size={14} /> Sve stavke potvrđene za KPR.
+                      </span>
+                    ) : (
+                      typeof r.transactionCount === "number" &&
+                      r.transactionCount > 0 && (
+                        <span className="text-[12.5px] text-warning font-medium inline-flex items-center gap-1">
+                          <IconAlertTriangle size={14} />
+                          {r.transactionCount}{" "}
+                          {mnozina(
+                            r.transactionCount,
+                            "stavka čeka",
+                            "stavke čekaju",
+                            "stavki čeka",
+                          )}{" "}
+                          potvrdu da uđe u KPR
+                        </span>
+                      )
+                    )}
+                    {!row.stavkePotvrdjene && row.bookedStatementId != null && (
+                      <button
+                        type="button"
+                        disabled={row.confirmingStavke || anyBooking}
+                        onClick={() => void potvrdiSveStavke(row)}
+                        title="Potvrdi sve stavke izvoda odjednom (stavke bez kategorije ne ulaze u KPR dok je ne dobiju)"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-600 text-white text-[12px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {row.confirmingStavke ? (
+                          <IconLoader2 size={14} className="animate-spin" />
+                        ) : (
+                          <IconChecks size={14} />
+                        )}
+                        Potvrdi sve stavke
+                      </button>
+                    )}
+                    {row.bookedStatementId != null && (
+                      <button
+                        type="button"
+                        onClick={() => otvoriIzvod(row)}
+                        className="group inline-flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-full bg-info-bg text-info border border-info/30 text-[12px] font-medium hover:bg-[#c9ddee] transition-colors"
+                      >
+                        Otvori izvod i pregledaj stavke
+                        <IconArrowRight
+                          size={14}
+                          className="transition-transform group-hover:translate-x-0.5"
+                        />
+                      </button>
+                    )}
+                  </div>
                 )}
                 {row.status === "duplicate" && (
-                  <p className="text-[12.5px] text-text-tertiary mt-1.5">
-                    Ovaj izvod je već učitan{r.org ? ` kod: ${r.org.name}` : ""}
-                    , preskočen je da se ne duplira.
-                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <p className="text-[12.5px] text-text-tertiary">
+                      Ovaj izvod je već učitan
+                      {r.org ? ` kod: ${r.org.name}` : ""}, preskočen je da se
+                      ne duplira.
+                    </p>
+                    {r.org != null && r.existingStatementId != null && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDetalj({
+                            orgId: r.org!.id,
+                            statementId: r.existingStatementId!,
+                            orgName: r.org!.name,
+                          })
+                        }
+                        className="group inline-flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-full bg-info-bg text-info border border-info/30 text-[12px] font-medium hover:bg-[#c9ddee] transition-colors"
+                      >
+                        Pogledaj postojeći izvod
+                        <IconArrowRight
+                          size={14}
+                          className="transition-transform group-hover:translate-x-0.5"
+                        />
+                      </button>
+                    )}
+                  </div>
                 )}
                 {row.bookError && (
                   <p className="text-[12.5px] text-danger mt-1.5">
@@ -545,6 +893,27 @@ export function UvozIzvodaTab() {
         dodijelite ga ručno: program pamti račun pa ga sljedeći put prepoznaje
         sam.
       </p>
+
+      {/* pop-up detalj izvoda: ista komponenta kao stranica izvoda, radi za
+          bilo koji obrt (hookovi primaju orgId izvoda, ne aktivni obrt) */}
+      {detalj != null && (
+        <Modal
+          open
+          onClose={() => setDetalj(null)}
+          title={
+            detalj.orgName
+              ? `Pregled izvoda · ${detalj.orgName}`
+              : "Pregled izvoda"
+          }
+          maxWidthClass="max-w-[1100px]"
+        >
+          <IzvodDetalj
+            orgId={detalj.orgId}
+            statementId={detalj.statementId}
+            onDeleted={() => setDetalj(null)}
+          />
+        </Modal>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const support = require("./services/supportService");
+const notifikacije = require("./services/notificationsService");
 
 let io = null;
 
@@ -162,13 +163,21 @@ function initSocket(server) {
     });
 
     // Otvaranje razgovora: pristup + join + označi pročitanim + vrati poruke.
+    // Čitanje se markira po PERSPEKTIVI, ne po roli iz JWT-a: vlasnik tiketa
+    // čita korisničku stranu (i admin može biti vlasnik svog tiketa!), admin
+    // admin stranu. Inače adminu koji otvori vlastiti chat unread nikad ne padne.
     socket.on("ticket:join", async (payload, ack) => {
       try {
         const ticketId = Number(payload?.ticketId);
         const ticket = await support.getTicket(ticketId);
         if (!support.hasAccess(ticket, user)) throw new Error("FORBIDDEN");
         socket.join(`ticket:${ticketId}`);
-        await support.markRead({ ticketId, role: user.role });
+        if (Number(ticket.userId) === Number(user.id)) {
+          await support.markRead({ ticketId, role: "USER" });
+        }
+        if (user.role === "ADMIN") {
+          await support.markRead({ ticketId, role: "ADMIN" });
+        }
         const messages = await support.getMessages(ticketId);
         if (typeof ack === "function") ack({ ok: true, messages });
         // Čitanje mijenja unread → osvježi badge/listu.
@@ -189,6 +198,11 @@ function initSocket(server) {
         const ticketId = Number(payload?.ticketId);
         const ticket = await support.getTicket(ticketId);
         if (!support.hasAccess(ticket, user)) throw new Error("FORBIDDEN");
+        // Zatvoren razgovor: korisnik ne može odgovarati (čita samo); poruka
+        // admina na zatvoren tiket ga ponovo otvara (addMessage to radi).
+        if (ticket.status === "ZATVOREN" && user.role !== "ADMIN") {
+          throw new Error("TICKET_CLOSED");
+        }
         const { message } = await support.addMessage({
           ticketId,
           senderId: user.id,
@@ -196,6 +210,31 @@ function initSocket(server) {
           body: payload?.body,
         });
         io.to(`ticket:${ticketId}`).emit("message:new", { message });
+        // Strane koje razgovor trenutno gledaju odmah su "pročitale" novu
+        // poruku — bez ovoga unread raste i dok je druga strana u chatu.
+        const room = io.sockets.adapter.rooms.get(`ticket:${ticketId}`);
+        if (room) {
+          let adminInRoom = false;
+          let ownerInRoom = false;
+          for (const sid of room) {
+            const u = io.sockets.sockets.get(sid)?.data?.user;
+            if (!u) continue;
+            if (u.role === "ADMIN") adminInRoom = true;
+            if (Number(u.id) === Number(ticket.userId)) ownerInRoom = true;
+          }
+          if (adminInRoom) await support.markRead({ ticketId, role: "ADMIN" });
+          if (ownerInRoom) await support.markRead({ ticketId, role: "USER" });
+        }
+        // admin odgovorio a vlasnik tiketa nije online → email obavijest
+        // (fire-and-forget: email nikad ne smije usporiti/srušiti slanje)
+        if (user.role === "ADMIN") {
+          const ownerOnline = connections.has(Number(ticket.userId));
+          notifikacije
+            .podrskaOfflineEmail({ ticket, ownerOnline })
+            .catch((e) =>
+              console.warn("podrska email:", e?.message || e),
+            );
+        }
         if (typeof ack === "function") ack({ ok: true, message });
         await broadcastTicket(ticketId);
       } catch (e) {
@@ -204,12 +243,18 @@ function initSocket(server) {
     });
 
     // Označi razgovor pročitanim (npr. kad korisnik skroluje/fokusira nit).
+    // Ista logika perspektive kao kod ticket:join.
     socket.on("ticket:read", async (payload, ack) => {
       try {
         const ticketId = Number(payload?.ticketId);
         const ticket = await support.getTicket(ticketId);
         if (!support.hasAccess(ticket, user)) throw new Error("FORBIDDEN");
-        await support.markRead({ ticketId, role: user.role });
+        if (Number(ticket.userId) === Number(user.id)) {
+          await support.markRead({ ticketId, role: "USER" });
+        }
+        if (user.role === "ADMIN") {
+          await support.markRead({ ticketId, role: "ADMIN" });
+        }
         if (typeof ack === "function") ack({ ok: true });
         await broadcastTicket(ticketId);
       } catch (e) {
@@ -225,6 +270,23 @@ function initSocket(server) {
         await support.setStatus({ ticketId, status: payload?.status });
         if (typeof ack === "function") ack({ ok: true });
         await broadcastTicket(ticketId);
+      } catch (e) {
+        if (typeof ack === "function") ack({ ok: false, error: e?.message || "ERROR" });
+      }
+    });
+
+    // Admin trajno briše razgovor (sa porukama). Obje strane odmah uklanjaju
+    // tiket iz liste (ticket:deleted) i osvježavaju unread brojeve.
+    socket.on("ticket:delete", async (payload, ack) => {
+      try {
+        if (user.role !== "ADMIN") throw new Error("FORBIDDEN");
+        const ticketId = Number(payload?.ticketId);
+        const { userId } = await support.deleteTicket(ticketId);
+        io.to("admins").emit("ticket:deleted", { ticketId });
+        io.to(`user:${userId}`).emit("ticket:deleted", { ticketId });
+        if (typeof ack === "function") ack({ ok: true });
+        await emitUnreadToUser(userId);
+        await emitUnreadToAdmins();
       } catch (e) {
         if (typeof ack === "function") ack({ ok: false, error: e?.message || "ERROR" });
       }

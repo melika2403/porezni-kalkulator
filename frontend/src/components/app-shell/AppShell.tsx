@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { PrviObrtModal } from "./PrviObrtModal";
+import { UpustvoDrawer } from "./UpustvoDrawer";
 import { TrialBanner } from "./TrialBanner";
 import { usePkOfficePristup } from "src/hooks/usePkOfficeMe";
 import { PkOfficeUpsell } from "src/sections/dashboard/PkOfficeUpsell";
@@ -24,7 +25,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar onMenuClick={() => setDrawerOpen(true)} />
       <div className="flex flex-1 min-h-0 min-[900px]:h-[calc(100vh-54px)]">
         <Sidebar open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+        {/* overflow-y-scroll (umjesto auto): scrollbar traka je uvijek tu,
+            pa se sadržaj ne pomjera lijevo-desno kad promjena taba/stranice
+            produži ili skrati sadržaj */}
+        <main className="flex-1 min-w-0 overflow-y-scroll overflow-x-hidden [scrollbar-gutter:stable]">
           {zakljucano ? (
             <PkOfficeUpsell />
           ) : (
@@ -38,6 +42,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* korisnik sa pristupom a bez ijednog obrta: dobrodošlica sa pozivom
           da doda prvi obrt (sam se ne prikazuje čim obrt postoji) */}
       <PrviObrtModal />
+      {/* Kontekstualno upustvo (klizni panel zdesna), otvara ga HelpButton */}
+      <UpustvoDrawer />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // Obavijesti: korisnički feed (admin obavijesti + status pretplate) i admin CRUD.
 import { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { type ApiResponse } from "src/api/auth";
 import { getBackendUrl } from "src/utils/backendUrl";
 
@@ -26,11 +27,39 @@ export type SubscriptionNotice = {
   plan: "PRO" | "BUSINESS" | null;
 } | null;
 
+// sistemska notifikacija (rokovi, izvodi, plate...) za konkretnog korisnika
+export type SystemNotification = {
+  id: number;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  organizationId: number | null;
+  createdAt: string;
+  read: boolean;
+};
+
 export type MyNotifications = {
   announcements: Announcement[];
+  sistemske: SystemNotification[];
   unread: number;
   subscription: SubscriptionNotice;
 };
+
+// ── Postavke notifikacija ────────────────────────────────────────────────────
+// org-vezane (po članu obrta) + korisničke (podrška, važe za sve obrte)
+export type OrgNotifPrefs = {
+  doprinosiDeadline: boolean;
+  pdvDeadline: boolean;
+  plateReminder: boolean;
+  godisnjiRokovi: boolean;
+  digest: boolean;
+  inApp: boolean;
+};
+export type UserNotifPrefs = {
+  podrskaEmail: boolean;
+};
+export type NotifPrefs = { org: OrgNotifPrefs; user: UserNotifPrefs };
 
 export type AdminAnnouncement = {
   id: number;
@@ -70,6 +99,23 @@ export function getMyNotifications() {
 
 export function markNotificationsRead() {
   return request<{ ok: boolean }>("/api/announcements/read", { method: "POST" });
+}
+
+export function getNotifPrefs(organizationId: number) {
+  return request<NotifPrefs>(
+    `/api/announcements/prefs?organizationId=${organizationId}`,
+  );
+}
+
+export function putNotifPrefs(payload: {
+  organizationId: number;
+  org?: Partial<OrgNotifPrefs>;
+  user?: Partial<UserNotifPrefs>;
+}) {
+  return request<NotifPrefs>("/api/announcements/prefs", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -128,4 +174,20 @@ export function useNotificationsUnread() {
   }, [refresh]);
 
   return { unread, setUnread, refresh };
+}
+
+// Broj nepročitanih obavijesti kroz react-query: dijeljeni keš za sidebar
+// badge; PorukeTab invalidira ["notifications-unread"] kad označi pročitano.
+// Obavijesti nemaju socket push (za razliku od podrške), pa lagano pollamo da
+// se novoobjavljena obavijest pojavi na badge-u i bez osvježavanja stranice.
+export function useNotificationsUnreadQuery() {
+  return useQuery({
+    queryKey: ["notifications-unread"],
+    queryFn: async () => {
+      const res = await getMyNotifications();
+      return res.ok ? res.data.unread : 0;
+    },
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
 }

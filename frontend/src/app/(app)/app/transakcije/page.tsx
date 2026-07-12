@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   IconArrowDownLeft,
   IconArrowUpRight,
@@ -12,6 +12,7 @@ import {
   IconDownload,
   IconChecks,
 } from "@tabler/icons-react";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { formatBAM, formatDate } from "src/lib/format";
 import { parseDateInput } from "src/lib/dateInput";
 import { PkSelect } from "src/components/app-shell/PkSelect";
@@ -66,6 +67,7 @@ function periodRange(kind: "mjesec" | "prosli" | "godina"): [string, string] {
 
 export default function TransakcijePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
   const orgId = activeOrg?.id ?? null;
@@ -91,6 +93,19 @@ export default function TransakcijePage() {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  // ?status= / ?direction= iz linka (KPI kartice na Početnoj). Reagira i na
+  // promjenu query stringa bez remounta (npr. drugi KPI dok si već ovdje).
+  useEffect(() => {
+    const s = searchParams.get("status");
+    const d = searchParams.get("direction");
+    if (!s && !d) return;
+    const t = setTimeout(() => {
+      if (s) setStatus(s);
+      if (d) setDirection(d);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [searchParams]);
 
   // novi filter resetuje paginaciju i selekciju (reset tokom rendera)
   const filtersKey = JSON.stringify([
@@ -273,9 +288,12 @@ export default function TransakcijePage() {
           <span className="w-[7px] h-[7px] rounded-full bg-brand-600" />
           Finansije
         </div>
-        <h1 className="font-serif-display text-[28px] leading-tight text-text-primary mb-[5px]">
-          Transakcije.
-        </h1>
+        <div className="flex items-center gap-4 mb-[5px]">
+          <h1 className="font-serif-display text-[28px] leading-tight text-text-primary">
+            Transakcije.
+          </h1>
+          <HelpButton slug="transakcije" />
+        </div>
         <p className="text-[13px] leading-6 text-text-tertiary max-w-[470px]">
           Sve stavke sa svih izvoda na jednom mjestu. Pretraga po opisu,
           protivstrani, referenci ili iznosu.
@@ -534,7 +552,7 @@ export default function TransakcijePage() {
                     <div
                       onClick={() => setSelected(t)}
                       className={[
-                        "grid grid-cols-[24px_40px_minmax(0,1fr)] sm:grid-cols-[24px_40px_minmax(0,1fr)_auto_120px] items-center gap-x-3 gap-y-2 px-4 py-[13px] min-h-[60px] cursor-pointer hover:bg-[rgba(15,26,18,0.025)] transition-colors",
+                        "grid grid-cols-[24px_40px_minmax(0,1fr)] sm:grid-cols-[24px_40px_minmax(0,1fr)_auto_minmax(120px,max-content)] items-center gap-x-3 gap-y-2 px-4 py-[13px] min-h-[60px] cursor-pointer hover:bg-[rgba(15,26,18,0.025)] transition-colors",
                         i < items.length - 1
                           ? "border-b border-cream-300/70"
                           : "",

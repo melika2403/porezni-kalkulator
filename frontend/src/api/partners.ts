@@ -259,6 +259,12 @@ export type UlazniRacun = {
   status: UlazniRacunStatus;
   paidAt: string | null;
   note: string | null;
+  /** račun nastao iz kalkulacije: KLC oznaka, npr. "1/26" (kartica partnera) */
+  kalkulacijaOznaka?: string | null;
+  /** izvedeni status naplate (FIFO od potvrđenih plaćanja sa izvoda) */
+  paymentStatus?: "OTVOREN" | "DJELIMICNO" | "PLACEN" | "KREDIT";
+  preostalo?: number;
+  placeno?: number;
   partner?: {
     id: number;
     name: string;
@@ -360,6 +366,10 @@ export type KarticaInvoice = {
   status: string;
   /** STANDARD | AVANSNA | STORNO_AVANSNE | KNJIZNA_OBAVIJEST (predznak iz vrste) */
   docType: string | null;
+  /** izvedeni status naplate (FIFO od potvrđenih uplata sa izvoda) */
+  paymentStatus?: "OTVOREN" | "DJELIMICNO" | "PLACEN" | "KREDIT";
+  preostalo?: number;
+  placeno?: number;
 };
 
 export type KarticaData = {
@@ -372,6 +382,9 @@ export type KarticaData = {
     totalOut: number;
     openInvoicesTotal: number;
     openPayablesTotal: number;
+    /** dio otvorenog duga koji je prošao rok plaćanja */
+    openInvoicesLate: number;
+    openPayablesLate: number;
   };
 };
 
@@ -413,6 +426,89 @@ export async function downloadKarticaPdf(
   } catch {
     return { ok: false, error: "NETWORK_ERROR" };
   }
+}
+
+/** IOS: izvod otvorenih stavki na dan (prazno = danas). */
+export async function downloadIosPdf(
+  orgId: number,
+  partnerId: number,
+  type: KarticaType,
+  naDan?: string | null,
+): Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; error: string }> {
+  try {
+    const sp = new URLSearchParams({ type });
+    if (naDan) sp.set("naDan", naDan);
+    const res = await fetch(
+      `${BACKEND_URL}/api/partners/${orgId}/${partnerId}/ios.pdf?${sp.toString()}`,
+      { method: "GET", credentials: "include" },
+    );
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      return { ok: false, error: json?.error ?? `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") ?? "";
+    const m = cd.match(/filename="([^"]+)"/);
+    return { ok: true, blob, filename: m?.[1] ?? "IOS.pdf" };
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
+/** Pošalji IOS na email partnera. */
+export function emailIos(
+  orgId: number,
+  partnerId: number,
+  type: KarticaType,
+  naDan?: string | null,
+) {
+  return jsonRequest<{ sentTo: string }>(
+    `/api/partners/${orgId}/${partnerId}/ios/email`,
+    {
+      method: "POST",
+      body: JSON.stringify({ type, naDan: naDan || undefined }),
+    },
+  );
+}
+
+/** Opomena kupcu (nivo 1 = opomena, 2 = pred utuženje): PDF dospjelog duga. */
+export async function downloadOpomenaPdf(
+  orgId: number,
+  partnerId: number,
+  nivo: 1 | 2,
+): Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/partners/${orgId}/${partnerId}/opomena.pdf?nivo=${nivo}`,
+      { method: "GET", credentials: "include" },
+    );
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      return { ok: false, error: json?.error ?? `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") ?? "";
+    const m = cd.match(/filename="([^"]+)"/);
+    return { ok: true, blob, filename: m?.[1] ?? "Opomena.pdf" };
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
+/** Pošalji opomenu na email partnera. */
+export function emailOpomena(orgId: number, partnerId: number, nivo: 1 | 2) {
+  return jsonRequest<{ sentTo: string }>(
+    `/api/partners/${orgId}/${partnerId}/opomena/email`,
+    { method: "POST", body: JSON.stringify({ nivo }) },
+  );
+}
+
+/** Spoji partnera (source) u drugog (target): promet prelazi, source se briše. */
+export function mergePartner(orgId: number, sourceId: number, targetId: number) {
+  return jsonRequest<{ targetId: number }>(
+    `/api/partners/${orgId}/${sourceId}/merge`,
+    { method: "POST", body: JSON.stringify({ targetId }) },
+  );
 }
 
 /** Pošalji karticu prometa na email partnera. */

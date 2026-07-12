@@ -22,6 +22,7 @@ export function PkDateInput({
   disabled,
   title,
   ariaLabel,
+  selectOnFocus,
 }: {
   /** Display string, npr. "11.06.2026." (može prazan/djelimičan). */
   value: string;
@@ -34,6 +35,8 @@ export function PkDateInput({
   disabled?: boolean;
   title?: string;
   ariaLabel?: string;
+  /** selektuj sav tekst na fokus (lakše prepisivanje datuma) */
+  selectOnFocus?: boolean;
 }) {
   const pickerRef = useRef<HTMLInputElement>(null);
   const iso = parseDateInput(value) ?? "";
@@ -51,6 +54,7 @@ export function PkDateInput({
       <input
         value={value}
         onChange={(e) => handleType(e.target.value)}
+        onFocus={selectOnFocus ? (e) => e.currentTarget.select() : undefined}
         placeholder={placeholder}
         inputMode="numeric"
         disabled={disabled}

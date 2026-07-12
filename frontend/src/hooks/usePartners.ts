@@ -9,6 +9,7 @@ import {
   getPartnerKartica,
   listPartners,
   listUlazniRacuni,
+  mergePartner,
   partnerSuggestions,
   updatePartner,
   updateUlazniRacun,
@@ -62,6 +63,20 @@ export function useUpdatePartner(orgId: number | null) {
       partnerId: number;
       payload: PartnerPayload;
     }) => unwrap(updatePartner(orgId as number, partnerId, payload)),
+    onSuccess: invalidate,
+  });
+}
+
+export function useMergePartner(orgId: number | null) {
+  const invalidate = useInvalidatePartners(orgId);
+  return useMutation({
+    mutationFn: ({
+      sourceId,
+      targetId,
+    }: {
+      sourceId: number;
+      targetId: number;
+    }) => unwrap(mergePartner(orgId as number, sourceId, targetId)),
     onSuccess: invalidate,
   });
 }

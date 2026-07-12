@@ -15,6 +15,9 @@ const write = [requireAuth, requireOrgRole("OWNER", "ADMIN"), officeGate];
 
 router.get("/:orgId", read, ctrl.list);
 router.post("/:orgId", write, ctrl.create);
+// "maksimum" prije /:id da se ne protumači kao id naloga
+router.put("/:orgId/maksimum", write, ctrl.setMaksimum);
+router.put("/:orgId/:id", write, ctrl.update);
 router.delete("/:orgId/:id", write, ctrl.remove);
 
 module.exports = router;

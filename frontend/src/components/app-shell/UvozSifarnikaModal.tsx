@@ -12,6 +12,7 @@ import {
   IconLoader2,
 } from "@tabler/icons-react";
 import { Modal } from "./Modal";
+import { mnozina } from "src/lib/format";
 
 export type UvozRezultat = {
   dodano: number;
@@ -132,8 +133,9 @@ export function UvozSifarnikaModal<T>({
         {rows && !rezultat && (
           <div className="rounded-lg bg-cream-200 px-3 py-2.5 text-[13px] text-text-primary">
             U fajlu je pronađeno <strong>{rows.length}</strong>{" "}
-            {rows.length === 1 ? "stavka" : "stavki"}. Postojeće stavke se ne
-            mijenjaju: sve što već postoji biće preskočeno uz obrazloženje.
+            {mnozina(rows.length, "stavka", "stavke", "stavki")}. Postojeće
+            stavke se ne mijenjaju: sve što već postoji biće preskočeno uz
+            obrazloženje.
           </div>
         )}
 
@@ -143,7 +145,7 @@ export function UvozSifarnikaModal<T>({
               <IconCheck size={15} className="shrink-0 mt-0.5" />
               <span>
                 Uvezeno <strong>{rezultat.dodano}</strong>{" "}
-                {rezultat.dodano === 1 ? "stavka" : "stavki"}
+                {mnozina(rezultat.dodano, "stavka", "stavke", "stavki")}
                 {rezultat.preskocenoUkupno > 0 && (
                   <>
                     , preskočeno <strong>{rezultat.preskocenoUkupno}</strong>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { IconLoader2, IconPlus, IconX } from "@tabler/icons-react";
 import { Modal } from "src/components/app-shell/Modal";
 import { bankNameFromAccount, formatBankAccount } from "src/lib/bankCodes";
@@ -93,11 +93,15 @@ export function PartnerFormModal({
 
   const [form, setForm] = useState<PartnerFormState | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
+  // seed forme pri promjeni `initial` (render-adjust umjesto efekta)
+  const [seededInitial, setSeededInitial] = useState<
+    PartnerFormState | null | undefined
+  >(undefined);
+  if (seededInitial !== initial) {
+    setSeededInitial(initial);
     setForm(initial ? { ...initial, accounts: [...initial.accounts] } : null);
     setError(null);
-  }, [initial]);
+  }
 
   function setAccount(idx: number, value: string) {
     if (!form) return;
@@ -203,9 +207,15 @@ export function PartnerFormModal({
               <input
                 className={inputCls}
                 value={form.jib}
-                onChange={(e) => setForm({ ...form, jib: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    jib: e.target.value.replace(/\D/g, "").slice(0, 13),
+                  })
+                }
                 placeholder="13 cifara"
                 inputMode="numeric"
+                maxLength={13}
               />
             </div>
             <div>
@@ -213,9 +223,15 @@ export function PartnerFormModal({
               <input
                 className={inputCls}
                 value={form.pdvBroj}
-                onChange={(e) => setForm({ ...form, pdvBroj: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    pdvBroj: e.target.value.replace(/\D/g, "").slice(0, 12),
+                  })
+                }
                 placeholder="12 cifara"
                 inputMode="numeric"
+                maxLength={12}
               />
               <p className="text-[11px] text-text-tertiary mt-1">
                 Ako se upiše, partner se vodi kao PDV obveznik (bitno za

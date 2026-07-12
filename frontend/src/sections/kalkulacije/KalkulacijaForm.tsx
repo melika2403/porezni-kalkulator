@@ -5,12 +5,14 @@
 // obračunom, Enter/Dodaj ubaci stavku i vrati fokus na artikal pa se roba
 // kuca red za redom. Marža i MPC su dvosmjerni: upiši jedno, drugo se
 // izračuna. Tab "Obračun kalkulacije" prikazuje sve kolone KCM obrasca.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
+  IconAlertTriangle,
   IconCheck,
+  IconHistory,
   IconLoader2,
   IconPencil,
   IconPlus,
@@ -33,7 +35,14 @@ import {
   useCreateKalkulacija,
   useUpdateKalkulacija,
 } from "src/hooks/useKalkulacije";
-import { getKalkulacija, type KalkulacijaDetail } from "src/api/kalkulacije";
+import {
+  getKalkulacija,
+  getZadnjaStavka,
+  type Artikal,
+  type KalkulacijaDetail,
+} from "src/api/kalkulacije";
+import { getLager } from "src/api/lager";
+import { ArtikalKarticaModal } from "src/sections/lager/ArtikalKarticaModal";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { formatBAM } from "src/lib/format";
@@ -123,6 +132,8 @@ export function KalkulacijaForm({
   const [datum, setDatum] = useState(
     initial && !kopija ? isoToDisplay(initial.datum) : todayFormatted(),
   );
+  // dok datum kalkulacije nije ručno mijenjan, prati datum računa
+  const [datumTouched, setDatumTouched] = useState(Boolean(initial && !kopija));
   const [bezPdv, setBezPdv] = useState(initial?.bezPdv ?? false);
   const [napomena, setNapomena] = useState(
     kopija ? "" : (initial?.napomena ?? ""),
@@ -163,6 +174,55 @@ export function KalkulacijaForm({
   const [noviArtikal, setNoviArtikal] = useState(false);
   const artikalInputRef = useRef<HTMLInputElement>(null);
   const kolicinaWrapRef = useRef<HTMLDivElement>(null);
+  // Enter tok kroz polja: artikal → količina → cijena → rabat → zavisni →
+  // marža → MPC → Enter doda stavku i vrati na artikal
+  const cijenaWrapRef = useRef<HTMLDivElement>(null);
+  const rabatWrapRef = useRef<HTMLDivElement>(null);
+  const zavisniWrapRef = useRef<HTMLDivElement>(null);
+  const marzaWrapRef = useRef<HTMLDivElement>(null);
+  const mpcWrapRef = useRef<HTMLDivElement>(null);
+
+  // kontrola: ukupan iznos sa fakture dobavljača (opciono polje)
+  const [kontrolaS, setKontrolaS] = useState("");
+  // ulazni PDV kako piše na računu (opciono, samo obveznik): pregazi
+  // obračunatih 17% po stavkama; pri uređivanju se prepozna po razlici
+  // između snimljenog totala i zbira stavki
+  const [ulazniPdvS, setUlazniPdvS] = useState(() => {
+    if (!initial || kopija) return "";
+    const izracunati =
+      Math.round(
+        (initial.stavke ?? []).reduce((a, s) => a + s.ulazniPdvIznos, 0) * 100,
+      ) / 100;
+    return Math.abs(initial.ulazniPdv - izracunati) >= 0.005
+      ? formatKm(initial.ulazniPdv)
+      : "";
+  });
+  // neobveznik: unesene cijene su veleprodajne (bez PDV-a), pa se odmah
+  // uvećaju za 17% jer PDV nije odbitan nego ulazi u nabavnu cijenu
+  const [dodajPdvNaCijenu, setDodajPdvNaCijenu] = useState(false);
+  const [pdvNaCijenuInfo, setPdvNaCijenuInfo] = useState<string | null>(null);
+  // konvertuje se samo ručno ukucana cijena (ne predpopunjena/uređivana,
+  // one su već sa PDV-om) i samo jednom po unosu
+  const cijenaKucanaRef = useRef(false);
+  const pdvNaCijenuKljuc = `pk-kalk-pdv-na-cijenu-${orgId}`;
+  useEffect(() => {
+    if (fullOrg && !fullOrg.isPdvObveznik) {
+      setDodajPdvNaCijenu(localStorage.getItem(pdvNaCijenuKljuc) === "1");
+    }
+  }, [fullOrg, pdvNaCijenuKljuc]);
+  function promijeniDodajPdv(v: boolean) {
+    setDodajPdvNaCijenu(v);
+    localStorage.setItem(pdvNaCijenuKljuc, v ? "1" : "0");
+  }
+  // zavisni troškovi na nivou kalkulacije (KM), raspodjela na sve stavke
+  const [zavisniKmS, setZavisniKmS] = useState("");
+  const [zavisniInfo, setZavisniInfo] = useState<string | null>(null);
+  // kartica prometa / uređivanje izabranog artikla
+  const [karticaArtikalId, setKarticaArtikalId] = useState<number | null>(null);
+  const [editArtikalOpen, setEditArtikalOpen] = useState(false);
+  // info o predpopuni iz zadnje stavke artikla
+  const [predpopunaInfo, setPredpopunaInfo] = useState<string | null>(null);
+  const predpopunaZaRef = useRef<number | null>(null);
 
   // inline uređivanje stavke direktno u tabeli (ne vraća se u panel)
   type RowDraft = {
@@ -272,6 +332,8 @@ export function KalkulacijaForm({
       })),
     [rows, orgObveznik, bezPdvRacun],
   );
+  // stavke sa maržom u minusu: MPC ne pokriva nabavnu cijenu (upozorenje)
+  const minusStavke = obracuni.filter((x) => x.o.marzaIznos < 0);
   const sume = useMemo(() => {
     const s = (f: (o: ReturnType<typeof computeStavka>) => number) =>
       obracuni.reduce((a, x) => a + f(x.o), 0);
@@ -289,14 +351,157 @@ export function KalkulacijaForm({
     };
   }, [obracuni]);
 
+  const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  const r5 = (n: number) => Math.round((n + Number.EPSILON) * 1e5) / 1e5;
+
+  // efektivni ulazni PDV: iznos sa računa ako je unesen, inače obračunatih
+  // 17% po stavkama (razlika nastaje zaokruživanjem kod dobavljača)
+  const ulazniPdvRucni =
+    orgObveznik && !bezPdv && ulazniPdvS.trim() !== ""
+      ? parseKm(ulazniPdvS)
+      : null;
+  const pdvSaRacuna = ulazniPdvRucni != null && ulazniPdvRucni >= 0;
+  const efektivniUlazniPdv = pdvSaRacuna
+    ? r2(ulazniPdvRucni)
+    : sume.ulazniPdv;
+
+  // kontrola: razlika između fakture dobavljača i unesenih stavki
+  const kontrolaIznos = parseKm(kontrolaS);
+  const kontrolaRazlika =
+    kontrolaIznos != null && kontrolaIznos > 0
+      ? r2(sume.fakturna + efektivniUlazniPdv - kontrolaIznos)
+      : null;
+
+  // trenutno stanje lagera po artiklu (za upozorenje o drugoj MPC)
+  const lagerQ = useQuery({
+    queryKey: ["lager", orgId],
+    queryFn: () => unwrap(getLager(orgId)),
+  });
+  const lagerByArtikal = useMemo(() => {
+    const m = new Map<number, { mpc: number; kolicina: number }[]>();
+    for (const r of lagerQ.data?.rows ?? []) {
+      if (r.kolicina <= 0) continue;
+      const arr = m.get(r.artikalId) ?? [];
+      arr.push({ mpc: r.mpc, kolicina: r.kolicina });
+      m.set(r.artikalId, arr);
+    }
+    return m;
+  }, [lagerQ.data]);
+
+  // upozorenje: unesena MPC se razlikuje od MPC postojeće robe na lageru
+  // (nova MPC pravi ODVOJENU lager stavku; promjena cijene ide nivelacijom)
+  const lagerNapomena = useMemo(() => {
+    if (!artikal) return null;
+    const postoji = lagerByArtikal.get(artikal.id) ?? [];
+    if (postoji.length === 0) return null;
+    const mpc = parseKm(mpcS);
+    if (mpc == null || mpc <= 0) return null;
+    if (postoji.some((p) => Math.abs(p.mpc - mpc) < 0.005)) return null;
+    const lista = postoji
+      .map((p) => `${kol(p.kolicina)} ${artikal.jm} po ${formatKm(p.mpc)} KM`)
+      .join(", ");
+    return `Na lageru već ima: ${lista}. Nova MPC pravi odvojenu lager stavku; za promjenu cijene postojeće robe koristite nivelaciju (Lager → Nivelacije).`;
+  }, [artikal, lagerByArtikal, mpcS]);
+
+  // predpopuna panela iz zadnje stavke istog artikla (količina, cijena,
+  // rabat, zavisni, MPC kao na zadnjem prometu); samo u prazan panel
+  async function predpopuniIzZadnje(a: Artikal) {
+    if (kolicinaS || cijenaS || mpcS) return;
+    predpopunaZaRef.current = a.id;
+    const r = await getZadnjaStavka(orgId, a.id);
+    // korisnik je u međuvremenu promijenio izbor ili počeo kucati
+    if (!r.ok || !r.data || predpopunaZaRef.current !== a.id) return;
+    const s = r.data;
+    setKolicinaS(formatKm(s.kolicina, 3));
+    setCijenaS(formatKm(s.cijena, 5));
+    cijenaKucanaRef.current = false;
+    setRabatS(s.rabatPct ? formatKm(s.rabatPct) : "");
+    setZavisniS(s.zavisniTrosakPct ? formatKm(s.zavisniTrosakPct) : "");
+    setMpcS(formatKm(s.mpc));
+    anchorRef.current = "mpc";
+    const stopa = orgObveznik && !a.oslobodjenPdv ? PDV_STOPA : 0;
+    const nab =
+      s.cijena * (1 - s.rabatPct / 100) * (1 + s.zavisniTrosakPct / 100);
+    if (nab > 0) setMarzaS(formatKm(marzaIzMpc(nab, s.mpc, stopa)));
+    setPredpopunaInfo(
+      `Predpopunjeno iz kalkulacije ${s.oznaka} (${isoToDisplay(String(s.datum).slice(0, 10))}); izmijenite po potrebi.`,
+    );
+    // predpopuna stiže NAKON što je fokus već na količini, pa upis nove
+    // vrijednosti poništi označavanje: označi ponovo da Enter/kucanje radi
+    fokusNaKolicinu();
+  }
+
+  // zavisni troškovi kalkulacije (KM) → jednak % na svaku stavku
+  // (raspodjela proporcionalna fakturnoj vrijednosti)
+  function rasporediZavisne() {
+    setZavisniInfo(null);
+    const km = parseKm(zavisniKmS);
+    if (km == null || km <= 0) {
+      return setZavisniInfo("Unesite iznos zavisnih troškova.");
+    }
+    if (rows.length === 0 || sume.fakturna <= 0) {
+      return setZavisniInfo("Prvo dodajte stavke.");
+    }
+    const pct4 = Math.round((km / sume.fakturna) * 100 * 10000) / 10000;
+    setRows((prev) => prev.map((r) => ({ ...r, zavisniTrosakPct: pct4 })));
+    setZavisniInfo(
+      `Raspoređeno ${formatBAM(km)} kao ${formatKm(pct4, 4)}% na svaku stavku (postojeći zavisni % je zamijenjen).`,
+    );
+  }
+
   function fokusNaArtikal() {
     setTimeout(() => artikalInputRef.current?.focus(), 0);
   }
 
-  function fokusNaKolicinu() {
+  // fokus + označi postojeću vrijednost: Enter je preskače, kucanje je
+  // odmah piše preko (bez ručnog označavanja)
+  function fokusiraj(wrap: React.RefObject<HTMLDivElement | null>) {
     setTimeout(() => {
-      kolicinaWrapRef.current?.querySelector("input")?.focus();
+      const el = wrap.current?.querySelector("input");
+      el?.focus();
+      el?.select();
     }, 0);
+  }
+
+  function fokusNaKolicinu() {
+    fokusiraj(kolicinaWrapRef);
+  }
+
+  // Enter u polju: fokus na sljedeće; na MPC-u dodaje stavku
+  function enterNa(
+    next: React.RefObject<HTMLDivElement | null> | "dodaj",
+  ): React.KeyboardEventHandler<HTMLInputElement> {
+    return (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (next === "dodaj") dodajStavku();
+      else fokusiraj(next);
+    };
+  }
+
+  // Enter u gornjem zaglavlju: prebaci na sljedeće polje (a na kraju na unos
+  // artikla). Preskače dobavljač-select (data-enterskip) i checkbox.
+  function topEnter(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== "Enter") return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== "INPUT") return;
+    if (target.closest("[data-enterskip]")) return;
+    e.preventDefault();
+    const inputs = Array.from(
+      e.currentTarget.querySelectorAll<HTMLInputElement>(
+        'input:not([type="hidden"]):not([type="checkbox"])',
+      ),
+    ).filter(
+      (el) => !el.disabled && el.tabIndex !== -1 && !el.closest("[data-enterskip]"),
+    );
+    const next = inputs[inputs.indexOf(target as HTMLInputElement) + 1];
+    if (next) {
+      next.focus();
+      next.select();
+    } else {
+      artikalInputRef.current?.focus();
+      artikalInputRef.current?.select();
+    }
   }
 
   function ocistiPanel() {
@@ -308,13 +513,49 @@ export function KalkulacijaForm({
     setMarzaS("");
     setMpcS("");
     setPanelError(null);
+    setPredpopunaInfo(null);
+    setPdvNaCijenuInfo(null);
+    predpopunaZaRef.current = null;
+    cijenaKucanaRef.current = false;
+  }
+
+  // neobveznik sa uključenom opcijom: ručno ukucana cijena je bez PDV-a,
+  // vidljivo se uveća za 17% u samom polju (PDV nije odbitan pa ulazi u
+  // nabavnu cijenu); vraća novi display string jer setState ne stigne
+  // prije parsiranja u dodajStavku
+  function primijeniPdvNaCijenu(): string | null {
+    if (orgObveznik || !dodajPdvNaCijenu || !cijenaKucanaRef.current) {
+      return null;
+    }
+    const c = parseKm(cijenaS, 5);
+    if (c == null || c <= 0) return null;
+    const novaS = formatKm(r5(c * 1.17), 5);
+    cijenaKucanaRef.current = false;
+    setCijenaS(novaS);
+    syncPar({ cijena: novaS });
+    setPdvNaCijenuInfo(
+      `Cijena ${formatKm(c, 5)} + PDV 17% = ${novaS} (PDV za neobveznika nije odbitan pa ulazi u nabavnu cijenu).`,
+    );
+    return novaS;
   }
 
   function dodajStavku() {
     setPanelError(null);
+    // ako je Enter na cijeni preskočen (klik mišem dalje), konvertuj sad
+    const konvertovana = primijeniPdvNaCijenu();
     const kolicina = parseKm(kolicinaS, 3);
-    const cijena = parseKm(cijenaS, 5);
-    const mpc = parseKm(mpcS);
+    const cijena = parseKm(konvertovana ?? cijenaS, 5);
+    // MPC iz svježe (konvertovane) nabavne, ne iz mpcS koji je setMpcS tek
+    // zakazao: kod sidra "marža" + "dodaj PDV na cijenu" mpcS je stara vrijednost
+    // (stale closure) pa bi se snimila kriva marža. Za sidro "mpc" ostaje uneseni.
+    const nabFinal = nabavnaCijenaIz(konvertovana ?? cijenaS, rabatS, zavisniS);
+    let mpc: number | null;
+    if (anchorRef.current === "marza") {
+      const m = parseKm(marzaS);
+      mpc = m != null && nabFinal > 0 ? mpcIzMarze(nabFinal, m, panelStopa) : parseKm(mpcS);
+    } else {
+      mpc = parseKm(mpcS);
+    }
     if (!artikal) return setPanelError("Izaberite artikal.");
     if (kolicina == null || kolicina <= 0) {
       return setPanelError("Unesite količinu.");
@@ -422,13 +663,6 @@ export function KalkulacijaForm({
     setRowEdit(null);
   }
 
-  const enterDodaje: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      dodajStavku();
-    }
-  };
-
   async function spremi(preuzmiPdf: boolean) {
     setSaveError(null);
     const datumIso = parseDateInput(datum);
@@ -442,6 +676,19 @@ export function KalkulacijaForm({
     if (rows.length === 0) {
       return setSaveError("Dodajte bar jednu stavku.");
     }
+    if (orgObveznik && !bezPdv && ulazniPdvS.trim() !== "") {
+      const v = parseKm(ulazniPdvS);
+      if (v == null || v < 0) {
+        return setSaveError("Unesite ispravan ulazni PDV sa računa.");
+      }
+      // PDV je 17% neto; dozvoli blagi rastez (do 25%) za zaokruživanje, ali
+      // uhvati greške reda veličine (upisan neto ili bruto umjesto PDV-a)
+      if (v > sume.fakturna * 0.25 + 0.005) {
+        return setSaveError(
+          "Ulazni PDV sa računa djeluje previsoko (PDV je 17% fakturne vrijednosti); provjerite iznos.",
+        );
+      }
+    }
     setSaving(preuzmiPdf ? "pdf" : "spremi");
     try {
       const payload = {
@@ -451,6 +698,7 @@ export function KalkulacijaForm({
         datumRacuna: datumRacunaIso,
         bezPdv,
         napomena: napomena.trim(),
+        ulazniPdv: pdvSaRacuna ? efektivniUlazniPdv : undefined,
         stavke: rows.map((r) => ({
           artikalId: r.artikalId,
           kolicina: r.kolicina,
@@ -491,9 +739,12 @@ export function KalkulacijaForm({
   return (
     <div className="space-y-4">
       {/* ── zaglavlje ── */}
-      <div className="rounded-xl border border-cream-300 bg-cream-100 p-4">
+      <div
+        className="rounded-xl border border-cream-300 bg-cream-100 p-4"
+        onKeyDown={topEnter}
+      >
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-          <div className="col-span-2">
+          <div className="col-span-2" data-enterskip>
             <label className={labelCls}>Dobavljač</label>
             <div className="flex items-center gap-2">
               <PkSelect
@@ -526,7 +777,11 @@ export function KalkulacijaForm({
             <label className={labelCls}>Datum računa</label>
             <PkDateInput
               value={datumRacuna}
-              onChange={setDatumRacuna}
+              onChange={(v) => {
+                setDatumRacuna(v);
+                if (!datumTouched) setDatum(v);
+              }}
+              selectOnFocus
               ariaLabel="Datum računa"
               className="w-full"
               inputClassName="bg-cream-50"
@@ -536,10 +791,29 @@ export function KalkulacijaForm({
             <label className={labelCls}>Datum kalkulacije</label>
             <PkDateInput
               value={datum}
-              onChange={setDatum}
+              onChange={(v) => {
+                setDatum(v);
+                setDatumTouched(true);
+              }}
+              selectOnFocus
               ariaLabel="Datum kalkulacije"
               className="w-full"
               inputClassName="bg-cream-50"
+            />
+          </div>
+          <div>
+            <label
+              className={labelCls}
+              title="Opciono: ukupan iznos sa fakture dobavljača. Dok kucate stavke, forma javlja razliku prema unesenom, pa se odmah vidi da li je faktura prekucana tačno."
+            >
+              Iznos računa (kontrola)
+            </label>
+            <PkAmountInput
+              value={kontrolaS}
+              onChange={setKontrolaS}
+              ariaLabel="Kontrolni iznos računa"
+              className="bg-cream-50"
+              placeholder="opciono"
             />
           </div>
           <div className="col-span-2 lg:col-span-3">
@@ -551,7 +825,25 @@ export function KalkulacijaForm({
             />
           </div>
           {orgObveznik && (
-            <div className="col-span-2 lg:col-span-1 flex items-end pb-2">
+            <div>
+              <label
+                className={labelCls}
+                title="Opciono: odbitni PDV kako piše na računu dobavljača. Ako se zbog zaokruživanja razlikuje od obračunatih 17%, u KUF i iznos računa ide ovaj iznos. Prazno: obračunatih 17%."
+              >
+                Ulazni PDV sa računa
+              </label>
+              <PkAmountInput
+                value={ulazniPdvS}
+                onChange={setUlazniPdvS}
+                ariaLabel="Ulazni PDV sa računa"
+                className="bg-cream-50"
+                placeholder="Ulazni PDV"
+                disabled={bezPdv}
+              />
+            </div>
+          )}
+          {orgObveznik && (
+            <div className="col-span-2 lg:col-span-2 flex items-end pb-2">
               <label className="flex items-center gap-2 text-[12.5px] text-text-primary cursor-pointer">
                 <input
                   type="checkbox"
@@ -563,25 +855,98 @@ export function KalkulacijaForm({
               </label>
             </div>
           )}
+          {!orgObveznik && (
+            <div className="col-span-2 lg:col-span-3 flex items-end">
+              <label
+                className="flex items-start gap-2 text-[12.5px] text-text-primary cursor-pointer"
+                title="Obrt nije u PDV sistemu, pa ulazni PDV nije odbitan nego je dio nabavne cijene. Uz ovu opciju kucate veleprodajne cijene direktno sa računa, bez ručnog množenja sa 1,17."
+              >
+                <input
+                  type="checkbox"
+                  checked={dodajPdvNaCijenu}
+                  onChange={(e) => promijeniDodajPdv(e.target.checked)}
+                  className="accent-brand-600 mt-0.5"
+                />
+                <span>
+                  Automatski dodaj PDV na cijenu (x 1,17)
+                  <span className="block text-[11px] leading-4 text-text-tertiary font-normal">
+                    Za račune sa veleprodajnim cijenama (bez PDV-a): unesena
+                    cijena se odmah uveća za 17%, jer PDV za neobveznika nije
+                    odbitan nego ulazi u nabavnu cijenu.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ── kontrolne sume: iznos računa se poredi sa računom dobavljača ── */}
-      <div className="rounded-xl border border-cream-300 bg-cream-100 px-4 py-3 flex flex-wrap gap-x-8 gap-y-2">
+      <div className="rounded-xl border border-cream-300 bg-cream-100 px-4 py-3 flex flex-wrap items-end gap-x-8 gap-y-2">
         <SumaItem label="Fakturna vrijednost" value={sume.fakturna} />
         {orgObveznik && !bezPdv && (
-          <SumaItem label="Ulazni PDV" value={sume.ulazniPdv} />
+          <SumaItem
+            label={pdvSaRacuna ? "Ulazni PDV (sa računa)" : "Ulazni PDV"}
+            value={efektivniUlazniPdv}
+          />
         )}
         <SumaItem
           label="Ukupan iznos računa"
-          value={sume.fakturna + sume.ulazniPdv}
+          value={sume.fakturna + efektivniUlazniPdv}
           highlight
         />
+        {kontrolaRazlika != null && (
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary">
+              Kontrola računa
+            </div>
+            <div
+              className={[
+                "text-[14px] tabular-nums font-semibold",
+                Math.abs(kontrolaRazlika) < 0.005
+                  ? "text-success"
+                  : "text-accent-500",
+              ].join(" ")}
+            >
+              {Math.abs(kontrolaRazlika) < 0.005
+                ? "slaže se (0,00)"
+                : `razlika ${formatBAM(kontrolaRazlika)}`}
+            </div>
+          </div>
+        )}
         <SumaItem label="Nabavna vrijednost" value={sume.nabavna} />
         {orgObveznik && (
           <SumaItem label="Ukalkulisani PDV" value={sume.pdv} />
         )}
         <SumaItem label="Maloprodajna vrijednost" value={sume.maloprodajna} bold />
+        {/* zavisni troškovi sa posebne fakture: raspodjela na sve stavke */}
+        <div className="ml-auto flex items-end gap-2">
+          <div className="w-[130px]">
+            <label
+              className={labelCls}
+              title="Prevoz, špedicija i sl. (npr. sa posebne fakture): iznos se rasporedi na SVE stavke proporcionalno fakturnoj vrijednosti, kao jednak zavisni %"
+            >
+              Zavisni troškovi (KM)
+            </label>
+            <PkAmountInput
+              value={zavisniKmS}
+              onChange={setZavisniKmS}
+              ariaLabel="Zavisni troškovi kalkulacije"
+              className="bg-cream-50"
+              placeholder="0,00"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={rasporediZavisne}
+            className="px-3 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors whitespace-nowrap"
+          >
+            Rasporedi
+          </button>
+        </div>
+        {zavisniInfo && (
+          <p className="w-full text-[12px] text-text-tertiary">{zavisniInfo}</p>
+        )}
       </div>
 
       {/* ── pod-tabovi: unos / obračun ── */}
@@ -619,11 +984,34 @@ export function KalkulacijaForm({
                   <ArtikalCombobox
                     artikli={artikliZaIzbor}
                     value={artikal}
-                    onSelect={(a) => setArtikalId(a?.id ?? null)}
+                    onSelect={(a) => {
+                      setArtikalId(a?.id ?? null);
+                      setPredpopunaInfo(null);
+                      predpopunaZaRef.current = null;
+                      if (a) void predpopuniIzZadnje(a);
+                    }}
                     onPicked={fokusNaKolicinu}
                     inputRef={artikalInputRef}
                     autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={() => setKarticaArtikalId(artikal?.id ?? null)}
+                    disabled={!artikal}
+                    title="Kartica artikla: promet (ulazi, popisi) i stanje"
+                    className="shrink-0 p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-brand-600 hover:border-brand-600/50 transition-colors disabled:opacity-40"
+                  >
+                    <IconHistory size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditArtikalOpen(true)}
+                    disabled={!artikal}
+                    title="Uredi artikal (naziv, J/M, barkod...)"
+                    className="shrink-0 p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-brand-600 hover:border-brand-600/50 transition-colors disabled:opacity-40"
+                  >
+                    <IconPencil size={15} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => setNoviArtikal(true)}
@@ -642,29 +1030,35 @@ export function KalkulacijaForm({
                   placeholder="0"
                   ariaLabel="Količina"
                   className="bg-cream-50"
-                  onKeyDown={enterDodaje}
+                  onKeyDown={enterNa(cijenaWrapRef)}
                 />
               </div>
-              <div>
+              <div ref={cijenaWrapRef}>
                 <label className={labelCls}>Cijena</label>
                 <PkAmountInput
                   value={cijenaS}
                   onChange={(v) => {
+                    cijenaKucanaRef.current = true;
                     setCijenaS(v);
                     syncPar({ cijena: v });
                   }}
                   decimals={5}
                   ariaLabel="Fakturna cijena"
                   className="bg-cream-50"
-                  onKeyDown={enterDodaje}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") primijeniPdvNaCijenu();
+                    enterNa(rabatWrapRef)(e);
+                  }}
                   title={
                     orgObveznik
                       ? "Fakturna cijena bez PDV-a"
-                      : "Fakturna cijena (sa PDV-om ako ga račun ima)"
+                      : dodajPdvNaCijenu
+                        ? "Unesite cijenu bez PDV-a: automatski se uveća za 17%"
+                        : "Fakturna cijena (sa PDV-om ako ga račun ima)"
                   }
                 />
               </div>
-              <div>
+              <div ref={rabatWrapRef}>
                 <label className={labelCls}>Rabat %</label>
                 <PkAmountInput
                   value={rabatS}
@@ -675,10 +1069,10 @@ export function KalkulacijaForm({
                   placeholder="0"
                   ariaLabel="Rabat"
                   className="bg-cream-50"
-                  onKeyDown={enterDodaje}
+                  onKeyDown={enterNa(zavisniWrapRef)}
                 />
               </div>
-              <div>
+              <div ref={zavisniWrapRef}>
                 <label className={labelCls}>Zav. trošak %</label>
                 <PkAmountInput
                   value={zavisniS}
@@ -689,11 +1083,11 @@ export function KalkulacijaForm({
                   placeholder="0"
                   ariaLabel="Zavisni trošak"
                   className="bg-cream-50"
-                  onKeyDown={enterDodaje}
+                  onKeyDown={enterNa(marzaWrapRef)}
                   title="Prevoz, carina i sl., % na fakturnu vrijednost stavke"
                 />
               </div>
-              <div>
+              <div ref={marzaWrapRef}>
                 <label className={labelCls}>Marža %</label>
                 <PkAmountInput
                   value={marzaS}
@@ -701,17 +1095,17 @@ export function KalkulacijaForm({
                   placeholder="0"
                   ariaLabel="Marža"
                   className="bg-cream-50"
-                  onKeyDown={enterDodaje}
+                  onKeyDown={enterNa(mpcWrapRef)}
                 />
               </div>
-              <div>
+              <div ref={mpcWrapRef}>
                 <label className={labelCls}>MPC</label>
                 <PkAmountInput
                   value={mpcS}
                   onChange={onMpc}
                   ariaLabel="Maloprodajna cijena"
                   className="bg-cream-50 font-medium"
-                  onKeyDown={enterDodaje}
+                  onKeyDown={enterNa("dodaj")}
                 />
               </div>
             </div>
@@ -746,6 +1140,32 @@ export function KalkulacijaForm({
             </div>
             {panelError && (
               <p className="text-[12.5px] text-accent-500 mt-2">{panelError}</p>
+            )}
+            {predpopunaInfo && (
+              <p className="text-[12px] text-brand-700 mt-2">
+                {predpopunaInfo}
+              </p>
+            )}
+            {pdvNaCijenuInfo && (
+              <p className="text-[12px] text-brand-700 mt-2">
+                {pdvNaCijenuInfo}
+              </p>
+            )}
+            {lagerNapomena && (
+              <p className="rounded-lg bg-warning-bg text-warning text-[12px] leading-5 px-3 py-2 mt-2">
+                {lagerNapomena}
+              </p>
+            )}
+            {panelObracun && panelObracun.marzaIznos < 0 && (
+              <p className="rounded-lg bg-warning-bg text-warning text-[12px] leading-5 px-3 py-2 mt-2 flex items-start gap-2">
+                <IconAlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>
+                  <strong>Marža je u minusu ({pct(panelObracun.marzaPct)})</strong>
+                  : MPC ne pokriva nabavnu cijenu ({cij(panelObracun.nabavnaCijena)}
+                  {panelStopa > 0 ? " bez PDV-a" : ""}), prodaja bi bila ispod
+                  nabavke. Provjerite cijenu, rabat ili MPC.
+                </span>
+              </p>
             )}
           </div>
 
@@ -920,7 +1340,23 @@ export function KalkulacijaForm({
                       <td className={tdNum}>{cij(row.cijena)}</td>
                       <td className={tdNum}>{pct(row.rabatPct)}</td>
                       <td className={tdNum}>{pct(row.zavisniTrosakPct)}</td>
-                      <td className={tdNum}>{pct(o.marzaPct)}</td>
+                      <td
+                        className={`${tdNum} ${o.marzaIznos < 0 ? "text-accent-500 font-semibold" : ""}`}
+                        title={
+                          o.marzaIznos < 0
+                            ? "Marža u minusu: MPC ne pokriva nabavnu cijenu"
+                            : undefined
+                        }
+                      >
+                        {o.marzaIznos < 0 && (
+                          <IconAlertTriangle
+                            size={13}
+                            className="inline -mt-0.5 mr-1"
+                            aria-hidden
+                          />
+                        )}
+                        {pct(o.marzaPct)}
+                      </td>
                       <td className={`${tdNum} font-medium`}>
                         {formatKm(row.mpc)}
                       </td>
@@ -955,6 +1391,22 @@ export function KalkulacijaForm({
                 })}
               </tbody>
             </table>
+            {minusStavke.length > 0 && (
+              <div className="m-3 rounded-lg bg-warning-bg text-warning text-[12.5px] leading-5 px-3 py-2.5 flex items-start gap-2">
+                <IconAlertTriangle size={17} className="shrink-0 mt-0.5" />
+                <span>
+                  <strong>Marža u minusu</strong> (prodaja ispod nabavne
+                  cijene) kod:{" "}
+                  {minusStavke
+                    .map(
+                      ({ row, o }) =>
+                        `${row.sifra} ${row.naziv} (${pct(o.marzaPct)})`,
+                    )
+                    .join(", ")}
+                  . Provjerite cijenu, rabat ili MPC prije spremanja.
+                </span>
+              </div>
+            )}
             {rowError && (
               <p className="text-[12.5px] text-accent-500 px-3 py-2">
                 {rowError}
@@ -1017,8 +1469,28 @@ export function KalkulacijaForm({
                   <td className={tdNum}>{formatKm(o.zavisniTrosak)}</td>
                   <td className={tdNum}>{formatKm(o.nabavniIznos)}</td>
                   <td className={tdNum}>{cij(o.nabavnaCijena)}</td>
-                  <td className={tdNum}>{pct(o.marzaPct)}</td>
-                  <td className={tdNum}>{formatKm(o.marzaIznos)}</td>
+                  <td
+                    className={`${tdNum} ${o.marzaIznos < 0 ? "text-accent-500 font-semibold" : ""}`}
+                    title={
+                      o.marzaIznos < 0
+                        ? "Marža u minusu: MPC ne pokriva nabavnu cijenu"
+                        : undefined
+                    }
+                  >
+                    {o.marzaIznos < 0 && (
+                      <IconAlertTriangle
+                        size={13}
+                        className="inline -mt-0.5 mr-1"
+                        aria-hidden
+                      />
+                    )}
+                    {pct(o.marzaPct)}
+                  </td>
+                  <td
+                    className={`${tdNum} ${o.marzaIznos < 0 ? "text-accent-500 font-semibold" : ""}`}
+                  >
+                    {formatKm(o.marzaIznos)}
+                  </td>
                   <td className={tdNum}>{formatKm(o.vrijednostBezPdv)}</td>
                   <td className={tdNum}>{formatKm(o.pdvIznos)}</td>
                   <td className={`${tdNum} font-medium`}>
@@ -1123,6 +1595,20 @@ export function KalkulacijaForm({
           setArtikalId(a.id);
           fokusNaKolicinu();
         }}
+      />
+      {/* uređivanje izabranog artikla direktno iz unosa */}
+      <ArtikalModal
+        open={editArtikalOpen && artikal != null}
+        orgId={orgId}
+        artikal={artikal}
+        onClose={() => setEditArtikalOpen(false)}
+        onSaved={() => setEditArtikalOpen(false)}
+      />
+      {/* kartica prometa artikla (ista kao na lageru) */}
+      <ArtikalKarticaModal
+        orgId={orgId}
+        artikalId={karticaArtikalId}
+        onClose={() => setKarticaArtikalId(null)}
       />
     </div>
   );

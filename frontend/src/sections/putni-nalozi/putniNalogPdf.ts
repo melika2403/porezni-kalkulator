@@ -131,6 +131,13 @@ export async function downloadPutniNalogPdf(
     `${n.brojDnevnica.toLocaleString("de-DE")} x ${km(n.dnevnicaIznos)} KM = ${km(n.ukupnoDnevnice)} KM`,
     180,
   );
+  if (n.kmNaknada > 0 && n.predjeniKm != null && n.kmStopa != null) {
+    red(
+      "Upotreba vlastitog vozila:",
+      `${n.predjeniKm.toLocaleString("de-DE")} km x ${n.kmStopa.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} KM = ${km(n.kmNaknada)} KM`,
+      180,
+    );
+  }
   red("Troškovi prevoza:", `${km(n.troskoviPrevoza)} KM`, 180);
   red("Troškovi smještaja:", `${km(n.troskoviSmjestaja)} KM`, 180);
   red(

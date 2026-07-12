@@ -57,6 +57,9 @@ const User = sequelize.define(
     // ono što korisnik prepravi u odnosu na default; vrijedi za sve njegove
     // organizacije. Oblik: { <stavka>: { d: "XXX-XXXX", p: "XXX-XXXX" }, ... }.
     postingAccounts: { type: DataTypes.JSON, allowNull: true },
+    // Notifikacije koje NISU vezane za obrt (npr. email kad podrška odgovori);
+    // org-vezane postavke su na OrganizationMember.notifPrefs.
+    notifPrefs: { type: DataTypes.JSON, allowNull: true },
     // Agencijska opcija: kantonalne stavke (zdravstvo, nezaposlenost, porez na
     // dohodak) objediniti u jedan nalog po KANTONU (šifra opštine = sjedište
     // poslodavca), umjesto po opštini radnika. Vrijedi za sve org-e korisnika.
@@ -128,6 +131,10 @@ const Organization = sequelize.define(
     isPdvObveznik: { type: DataTypes.BOOLEAN, defaultValue: false },
     // KPR prihod od pazara iz KP-1042 (dnevni promet) umjesto pologa sa izvoda
     kprPazarIzKp: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // Blagajnički maksimum utvrđen internom odlukom (Uredba o uslovima i
+    // načinu plaćanja gotovim novcem, Sl. novine FBiH 48/15 i 82/15);
+    // null = nije utvrđen, upozorenje na blagajni se ne prikazuje
+    blagajnickiMaksimum: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
     jurisdiction: {
       type: DataTypes.ENUM("FBIH", "RS", "BD"),
       allowNull: true,
@@ -656,6 +663,9 @@ const OrganizationMember = sequelize.define(
       defaultValue: "MEMBER",
     },
     joinedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    // Postavke notifikacija ZA OVOG ČLANA u OVOM obrtu (svako podešava svoje).
+    // Čuva se samo odstupanje od defaulta; merge radi notificationsService.
+    notifPrefs: { type: DataTypes.JSON, allowNull: true },
   },
   { tableName: "organization_members", timestamps: false },
 );
@@ -710,6 +720,8 @@ const Form = sequelize.define(
         "AMS",
         "SIH",
         "JS3100",
+        "COK", // članarina obrtničkoj komori (Obrazac ČOK)
+        "ONS", // naknade za šume (Obrazac ONŠ, OKFŠ 0,07%)
       ),
       allowNull: false,
     },
@@ -1078,6 +1090,93 @@ const InvoiceItem = sequelize.define(
     charset: "utf8mb4",
     collate: "utf8mb4_unicode_ci",
     indexes: [{ fields: ["invoiceId"] }],
+  },
+);
+
+// ─── PREPARED INVOICE (pripremljeni/ponavljajući računi) ─────────────────────
+// Šablon fakture (kupac + stavke) sa frekvencijom; kad korisnik pokrene
+// "Fakturiši sve", od aktivnih se prave prave izlazne fakture. Nema fiskalnih
+// polja (broj/status/sekvenca) jer to nastaje tek pri fakturisanju.
+const PreparedInvoice = sequelize.define(
+  "PreparedInvoice",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // referenca na partnera iz šifarnika (opciono; kupac se ipak vodi snapshotom)
+    partnerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    frequency: {
+      type: DataTypes.ENUM("WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"),
+      allowNull: false,
+      defaultValue: "MONTHLY",
+    },
+    // uključen/isključen iz fakturisanja (checkbox)
+    active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+
+    applyVat: { type: DataTypes.BOOLEAN, defaultValue: true },
+    vrstaIsporuke: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "OPOREZIVA",
+    },
+    currency: {
+      type: DataTypes.ENUM("BAM", "EUR"),
+      defaultValue: "BAM",
+      allowNull: false,
+    },
+
+    // snapshot kupca (isto kao na fakturi)
+    buyerName: { type: DataTypes.STRING(255), allowNull: false },
+    buyerAddress: { type: DataTypes.STRING(255), allowNull: true },
+    buyerCity: { type: DataTypes.STRING(120), allowNull: true },
+    buyerPostalCode: { type: DataTypes.STRING(10), allowNull: true },
+    buyerPhone: { type: DataTypes.STRING(50), allowNull: true },
+    buyerEmail: { type: DataTypes.STRING(255), allowNull: true },
+    buyerIdNumber: { type: DataTypes.STRING(30), allowNull: true },
+    buyerVatNumber: { type: DataTypes.STRING(30), allowNull: true },
+
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    lastInvoicedAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    tableName: "prepared_invoices",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["organizationId"] },
+      { fields: ["organizationId", "frequency"] },
+    ],
+  },
+);
+
+const PreparedInvoiceItem = sequelize.define(
+  "PreparedInvoiceItem",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    preparedInvoiceId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    ordinal: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    name: { type: DataTypes.STRING(500), allowNull: false },
+    unit: { type: DataTypes.STRING(20), allowNull: true },
+    quantity: { type: DataTypes.DECIMAL(12, 3), allowNull: false, defaultValue: 1 },
+    unitPrice: { type: DataTypes.DECIMAL(12, 4), allowNull: false, defaultValue: 0 },
+    discountPct: { type: DataTypes.DECIMAL(6, 2), allowNull: false, defaultValue: 0 },
+    vatPct: { type: DataTypes.DECIMAL(6, 2), allowNull: false, defaultValue: 0 },
+  },
+  {
+    tableName: "prepared_invoice_items",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["preparedInvoiceId"] }],
   },
 );
 
@@ -1694,6 +1793,65 @@ const AnnouncementRead = sequelize.define(
   },
 );
 
+// ─── USER NOTIFICATION (sistemske in-app obavijesti) ─────────────────────────
+// Obavijesti koje generiše SISTEM za konkretnog korisnika (rokovi plaćanja,
+// izvod koji je učitao kolega...). Odvojene od admin Announcements-a; u
+// Inbox → Poruke i obavijesti se prikazuju zajedno.
+const UserNotification = sequelize.define(
+  "UserNotification",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // ROKOVI | PLATE | GODISNJI | DIGEST | IZVOD ...
+    type: { type: DataTypes.STRING(40), allowNull: false },
+    title: { type: DataTypes.STRING(255), allowNull: false },
+    body: { type: DataTypes.TEXT, allowNull: true },
+    // interni link ("/app/transakcije") za klik na karticu obavijesti
+    link: { type: DataTypes.STRING(255), allowNull: true },
+    readAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    tableName: "user_notifications",
+    timestamps: true,
+    indexes: [{ fields: ["userId", "readAt"] }, { fields: ["userId", "createdAt"] }],
+  },
+);
+
+// ─── NOTIFICATION LOG (dedup poslanih notifikacija) ──────────────────────────
+// Isti (userId, type, periodKey) se nikad ne šalje dvaput: dnevni job smije
+// pasti i ponoviti se (i backend se smije restartovati) bez duplog slanja.
+const NotificationLog = sequelize.define(
+  "NotificationLog",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    type: { type: DataTypes.STRING(40), allowNull: false },
+    // npr. "2026-07:d10" (rokovi), "t12:2026-07-11T..." (podrška po čitanju)
+    periodKey: { type: DataTypes.STRING(64), allowNull: false },
+    sentAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  },
+  {
+    tableName: "notification_log",
+    timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        fields: ["userId", "type", "periodKey"],
+        name: "notif_log_user_type_period",
+      },
+    ],
+  },
+);
+
 // ─── SUPPORT TICKET (live chat korisnik ↔ admin) ─────────────────────────────
 const SupportTicket = sequelize.define(
   "SupportTicket",
@@ -1913,6 +2071,13 @@ const Popis = sequelize.define(
       defaultValue: "DRAFT",
     },
     napomena: { type: DataTypes.TEXT, allowNull: true },
+    // popis nastao uvozom početnog stanja lagera (poseban TKM opis;
+    // osvježavanje mu ne dodaje nove redove iz snapshota)
+    pocetnoStanje: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
   },
   {
     tableName: "popisi",
@@ -2243,6 +2408,12 @@ const PutniNalog = sequelize.define(
     },
     ostaloOpis: { type: DataTypes.STRING(255), allowNull: true },
     izvjestaj: { type: DataTypes.TEXT, allowNull: true },
+    // naknada za upotrebu vlastitog vozila: pređeni km x KM po km
+    predjeniKm: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    kmStopa: { type: DataTypes.DECIMAL(6, 3), allowNull: true },
+    // evidencija isplate (datum; blagajnaNalogId kad je isplaćen iz blagajne)
+    isplacenoDatum: { type: DataTypes.DATEONLY, allowNull: true },
+    blagajnaNalogId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   },
   {
     tableName: "putni_nalozi",
@@ -2321,6 +2492,9 @@ Client.hasMany(Invoice, { foreignKey: "clientId", as: "invoices" });
 Invoice.belongsTo(Client, { foreignKey: "clientId", as: "client" });
 Invoice.hasMany(InvoiceItem, { foreignKey: "invoiceId", as: "items", onDelete: "CASCADE", hooks: true });
 InvoiceItem.belongsTo(Invoice, { foreignKey: "invoiceId" });
+PreparedInvoice.hasMany(PreparedInvoiceItem, { foreignKey: "preparedInvoiceId", as: "items", onDelete: "CASCADE", hooks: true });
+PreparedInvoiceItem.belongsTo(PreparedInvoice, { foreignKey: "preparedInvoiceId" });
+PreparedInvoice.belongsTo(Organization, { foreignKey: "organizationId", as: "organization" });
 User.hasMany(InvoiceItemTemplate, {
   foreignKey: "userId",
   as: "invoiceItemTemplates",
@@ -2538,6 +2712,13 @@ SupportMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
 
 // Announcements associations
 Announcement.belongsTo(User, { foreignKey: "createdById", as: "author" });
+User.hasMany(UserNotification, { foreignKey: "userId", as: "notifications" });
+UserNotification.belongsTo(User, { foreignKey: "userId", as: "user" });
+UserNotification.belongsTo(Organization, {
+  foreignKey: "organizationId",
+  as: "organization",
+});
+
 Announcement.hasMany(AnnouncementRead, {
   foreignKey: "announcementId",
   as: "reads",
@@ -2567,6 +2748,8 @@ module.exports = {
   KarticaMember,
   Invoice,
   InvoiceItem,
+  PreparedInvoice,
+  PreparedInvoiceItem,
   InvoiceCounter,
   ContractCounter,
   WorkerDocument,
@@ -2603,4 +2786,6 @@ module.exports = {
   SupportMessage,
   Announcement,
   AnnouncementRead,
+  UserNotification,
+  NotificationLog,
 };

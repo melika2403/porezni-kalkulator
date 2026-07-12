@@ -38,6 +38,8 @@ export const BANK_CATEGORIES: BankCategory[] = [
   { id: "POVRAT_POZAJMICE", label: "Povrat pozajmice vlasniku", direction: "OUT", inKpr: false, kprColumn: null },
   { id: "RATA_KREDITA", label: "Rata kredita (glavnica)", direction: "OUT", inKpr: false, kprColumn: null },
   { id: "OPREMA_STALNO_SREDSTVO", label: "Oprema / stalno sredstvo (ide u amortizaciju)", direction: "OUT", inKpr: false, kprColumn: null },
+  // godišnje knjiženje amortizacije iz PLDI registra (interni izvod na 31.12.)
+  { id: "AMORTIZACIJA", label: "Amortizacija (godišnji obračun)", direction: "OUT", inKpr: true, kprColumn: 19 },
   // oba smjera
   { id: "PRENOS_IZMEDJU_RACUNA", label: "Prenos između vlastitih računa", direction: "BOTH", inKpr: false, kprColumn: null },
   { id: "OSTALO_BEZ_KPR", label: "Ostalo (ne ide u KPR)", direction: "BOTH", inKpr: false, kprColumn: null },

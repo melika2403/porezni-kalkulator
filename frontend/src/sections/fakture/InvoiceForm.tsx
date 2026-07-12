@@ -25,6 +25,8 @@ import {
 } from "src/api/profile";
 import {
   createInvoice,
+  deleteInvoice,
+  updateInvoiceContent,
   downloadInvoicePdf,
   emailInvoice,
   getInvoice,
@@ -126,6 +128,8 @@ export default function InvoiceForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const duplicateFromId = searchParams.get("duplicateFrom");
+  // ?uredi=<id>: puni edit postojeće fakture (isti broj, ponovni obračun)
+  const editId = searchParams.get("uredi");
   // Faza 3B: pristup imamo ako vlastiti plan ili bilo koja moja org-a ima PRO+.
   // `role` zadržan jer ga koristi neka inline logika nizvodno (npr. limiti).
   const { role } = useRole();
@@ -133,6 +137,9 @@ export default function InvoiceForm({
   const isAllowed = hasAccessToTier("PRO");
   const { findByName: findCity } = useCityLookup();
   const [duplicateNotice, setDuplicateNotice] = useState<string | null>(null);
+  // id fakture koja se uređuje (null = kreiranje nove)
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [type, setType] = useState<InvoiceType>("INVOICE");
   const [applyVat, setApplyVat] = useState(true);
@@ -196,6 +203,21 @@ export default function InvoiceForm({
       vatNumber: p.pdvBroj ?? "",
     });
   }
+
+  // ?partner=<id> (dugme "Nova faktura" sa kartice partnera): predpopuni
+  // kupca čim se lista partnera učita, samo jednom
+  const partnerParam = searchParams.get("partner");
+  const [partnerParamApplied, setPartnerParamApplied] = useState(false);
+  useEffect(() => {
+    if (partnerParamApplied || !isPkOffice) return;
+    const id = Number(partnerParam);
+    if (!id || !partnersQ.data) return;
+    const preselect = partnersQ.data.find((x) => x.id === id);
+    if (preselect) fillBuyerFromPartner(preselect);
+    setPartnerParamApplied(true);
+    // fillBuyerFromPartner se re-kreira svaki render; guard je partnerParamApplied
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerParam, partnerParamApplied, isPkOffice, partnersQ.data]);
 
   const [sendEmail, setSendEmail] = useState(false);
   const [emailTo, setEmailTo] = useState("");
@@ -450,6 +472,7 @@ export default function InvoiceForm({
   // formu (kupac, stavke, napomena, podaci prodavca). Datum se postavlja na
   // danas; broj se generiše prilikom snimanja.
   const duplicateLoadedRef = useRef(false);
+  const editLoadedRef = useRef(false);
   useEffect(() => {
     if (!duplicateFromId) return;
     if (duplicateLoadedRef.current) return;
@@ -516,6 +539,73 @@ export default function InvoiceForm({
       );
     })();
   }, [duplicateFromId, isAllowed, lockedSellerOrgId]);
+
+  // Puni edit postojeće fakture: isti kao duplikat, ali zadržava broj i datume
+  // i uključuje edit mod (submit ide na update umjesto create).
+  useEffect(() => {
+    if (!editId) return;
+    if (editLoadedRef.current) return;
+    if (!isAllowed) return;
+    const id = Number(editId);
+    if (!Number.isInteger(id) || id <= 0) return;
+    editLoadedRef.current = true;
+    (async () => {
+      const res = await getInvoice(id);
+      if (!res.ok) {
+        setDuplicateNotice(`Greška pri učitavanju fakture: ${res.error}`);
+        return;
+      }
+      const inv = res.data;
+      setType(inv.type);
+      setApplyVat(inv.applyVat);
+      setVrstaIsporuke(inv.vrstaIsporuke ?? "OPOREZIVA");
+      setCurrency(inv.currency);
+      setIssueDate((inv.issueDate || "").slice(0, 10) || todayIso());
+      setDueDate((inv.dueDate || "").slice(0, 10) || plusDaysIso(30));
+      setNotes(inv.notes || "");
+      if (!lockedSellerOrgId) {
+        setSeller({
+          organizationId: inv.organizationId ?? null,
+          name: inv.sellerName || "",
+          address: inv.sellerAddress || "",
+          city: inv.sellerCity || "",
+          phone: inv.sellerPhone || "",
+          email: inv.sellerEmail || "",
+          taxNumber: inv.sellerTaxNumber || "",
+          vatNumber: inv.sellerVatNumber || "",
+          bankAccount: inv.sellerBankAccount || "",
+          logoUrl: inv.sellerLogoUrl || null,
+        });
+      }
+      setBuyer({
+        clientId: inv.clientId ?? null,
+        name: inv.buyerName || "",
+        address: inv.buyerAddress || "",
+        city: inv.buyerCity || "",
+        postalCode: inv.buyerPostalCode || "",
+        phone: inv.buyerPhone || "",
+        email: inv.buyerEmail || "",
+        idNumber: inv.buyerIdNumber || "",
+        vatNumber: inv.buyerVatNumber || "",
+      });
+      if (inv.items && inv.items.length > 0) {
+        setItems(
+          inv.items.map((it) => ({
+            name: it.name || "",
+            unit: it.unit || "kom",
+            quantity: String(it.quantity ?? "1"),
+            unitPrice: String(it.unitPrice ?? "0"),
+            discountPct: String(it.discountPct ?? "0"),
+            vatPct: String(it.vatPct ?? "17"),
+          })),
+        );
+      }
+      setEditingId(id);
+      setDuplicateNotice(
+        `Uređujete fakturu ${inv.fullNumber}. Broj ostaje isti, a izmjene mijenjaju iznose u KIF-u, PDV prijavi i na kartici kupca.`,
+      );
+    })();
+  }, [editId, isAllowed, lockedSellerOrgId]);
 
   function pickSellerOrg(org: Organization) {
     setSeller({
@@ -618,7 +708,8 @@ export default function InvoiceForm({
 
   // ── Submit ───────────────────────────────────────────────────────────
   const submit = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vars: { downloadPdf: boolean }) => {
+      void vars;
       const payload: CreateInvoicePayload = {
         type: isAvans ? "INVOICE" : type,
         ...(isAvans ? { docType: "AVANSNA" as const } : {}),
@@ -673,23 +764,29 @@ export default function InvoiceForm({
               vatPct: applyVat ? n(it.vatPct) : 0,
             })),
       };
-      return unwrap(createInvoice(payload));
+      return unwrap(
+        editingId != null
+          ? updateInvoiceContent(editingId, payload)
+          : createInvoice(payload),
+      );
     },
-    onSuccess: async (inv) => {
+    onSuccess: async (inv, vars) => {
       trackEvent(
         inv.type === "INVOICE" ? "FAKTURA_GENERATE" : "PREDRACUN_GENERATE",
         inv.type === "INVOICE" ? "Faktura" : "Predračun",
       );
-      try {
-        const base =
-          inv.type === "PROFORMA"
-            ? "Predracun"
-            : inv.docType === "AVANSNA"
-              ? "Avansna-faktura"
-              : "Faktura";
-        await downloadInvoicePdf(inv.id, `${base}-${inv.fullNumber}.pdf`);
-      } catch (e) {
-        console.warn("PDF download failed:", e);
+      if (vars.downloadPdf) {
+        try {
+          const base =
+            inv.type === "PROFORMA"
+              ? "Predracun"
+              : inv.docType === "AVANSNA"
+                ? "Avansna-faktura"
+                : "Faktura";
+          await downloadInvoicePdf(inv.id, `${base}-${inv.fullNumber}.pdf`);
+        } catch (e) {
+          console.warn("PDF download failed:", e);
+        }
       }
       if (sendEmail && emailTo.trim()) {
         try {
@@ -716,8 +813,17 @@ export default function InvoiceForm({
     },
   });
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const deleteMut = useMutation({
+    mutationFn: () => unwrap(deleteInvoice(editingId as number)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pk-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      router.push(returnTo);
+    },
+  });
+
+  function onSubmit(e: React.FormEvent | null, downloadPdf = true) {
+    e?.preventDefault();
     setSubmitErr(null);
     if (!seller.name.trim()) {
       setSubmitErr("Unesite naziv prodavca.");
@@ -753,7 +859,7 @@ export default function InvoiceForm({
       }
       setEmailErr(null);
     }
-    submit.mutate();
+    submit.mutate({ downloadPdf });
   }
 
   return (
@@ -1637,9 +1743,29 @@ export default function InvoiceForm({
         )}
 
         <div className={styles.actions}>
+          {editingId != null && (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              disabled={submit.isPending || deleteMut.isPending}
+              className="mr-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-accent-500 text-accent-500 text-[13px] font-medium hover:bg-accent-500/10 transition-colors disabled:opacity-50"
+            >
+              Obriši fakturu
+            </button>
+          )}
           <Link href={returnTo} className={`${styles.btn} ${styles.btnGhost}`}>
             Otkaži
           </Link>
+          {isAllowed && editingId != null && (
+            <button
+              type="button"
+              onClick={() => onSubmit(null, false)}
+              className={`${styles.btn} ${styles.btnGhost}`}
+              disabled={submit.isPending}
+            >
+              {submit.isPending ? "Snimam…" : "Sačuvaj izmjene"}
+            </button>
+          )}
           {isAllowed ? (
             <button
               type="submit"
@@ -1659,7 +1785,9 @@ export default function InvoiceForm({
                 ? sendEmail
                   ? "Šaljem…"
                   : "Snimam…"
-                : "Spremi i preuzmi PDF"}
+                : editingId != null
+                  ? "Sačuvaj izmjene i preuzmi PDF"
+                  : "Spremi i preuzmi PDF"}
             </button>
           ) : (
             <Link
@@ -1759,6 +1887,17 @@ export default function InvoiceForm({
           }
         }}
         onClose={() => setTplDeleteConfirm(null)}
+      />
+
+      <Modal
+        kind="confirm"
+        variant="danger"
+        open={confirmDelete}
+        title="Brisanje fakture"
+        message="Obrisati ovu fakturu? Brisanje ostavlja prazninu u numeraciji i uklanja je iz KIF-a, PDV prijave i sa kartice kupca. Ovo se ne može poništiti."
+        confirmLabel="Da, obriši fakturu"
+        onConfirm={() => deleteMut.mutate()}
+        onClose={() => setConfirmDelete(false)}
       />
 
       {/* PK Office: živa pretraga šifarnika ispod polja naziva stavke */}

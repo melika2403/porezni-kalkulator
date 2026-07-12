@@ -77,3 +77,42 @@ export function markAmortizacijaGenerated(
 export function getOrgYears() {
   return request<Record<string, number[]>>("/api/amortizacija/org-years");
 }
+
+// ── PK Office veza ───────────────────────────────────────────────────────────
+
+// Dodaj jedno stalno sredstvo u PLDI registar (sa knjiženja ulaznog računa).
+export function appendAsset(payload: {
+  organizationId: number;
+  godina: number;
+  naziv: string;
+  brojDokumenta?: string;
+  datumNabavke: string; // ISO
+  nabavnaVrijednost: number;
+  vijekTrajanja: number; // godine (1-40)
+}) {
+  return request<{ rows: number }>("/api/amortizacija/assets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Da li je godišnja amortizacija proknjižena u KPR (interni izvod AM-YYYY).
+export function getAmortKnjizenje(organizationId: number, godina: number) {
+  return request<{ knjizeno: boolean; iznos?: number | null; statementId?: number }>(
+    `/api/amortizacija/knjizenje?organizationId=${organizationId}&godina=${godina}`,
+  );
+}
+
+// Proknjiži godišnju amortizaciju u KPR (iznos računa frontend PLDI logikom;
+// datum = kraj perioda obračuna, default 31.12.).
+export function knjiziAmortizaciju(payload: {
+  organizationId: number;
+  godina: number;
+  iznos: number;
+  datum?: string;
+}) {
+  return request<{ statementId: number }>("/api/amortizacija/knjizenje", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

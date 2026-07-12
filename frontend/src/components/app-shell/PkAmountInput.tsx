@@ -40,10 +40,15 @@ export function PkAmountInput({
   function handleType(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.currentTarget.value;
     const sel = e.currentTarget.selectionStart ?? raw.length;
-    const significantBefore = raw
-      .slice(0, sel)
-      .replace(/[^\d,]/g, "").length;
+    const beforeCursor = raw.slice(0, sel);
+    let significantBefore = beforeCursor.replace(/[^\d,]/g, "").length;
     const next = maskAmountTyping(raw, decimals);
+    // maska umeta vodeću "0" kad je cijeli dio prazan a upisan zarez
+    // (",83" → "0,83"); pomjeri kursor iza umetnute nule da decimale idu tamo
+    const intBefore = beforeCursor.split(",")[0].replace(/\D/g, "");
+    if (intBefore === "" && beforeCursor.includes(",") && next.startsWith("0,")) {
+      significantBefore += 1;
+    }
     let pos = 0;
     let seen = 0;
     while (pos < next.length && seen < significantBefore) {

@@ -274,6 +274,16 @@ export function patchInvoice(
   });
 }
 
+// Puni edit sadržaja fakture/predračuna (kupac, stavke, iznosi) uz ponovni
+// obračun; fiskalni broj ostaje isti. Dozvoljeno samo za nenaplaćene standardne
+// dokumente (backend vraća 409 sa razlogom ako nije dozvoljeno).
+export function updateInvoiceContent(id: number, payload: CreateInvoicePayload) {
+  return request<Invoice>(`/api/invoices/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function deleteInvoice(id: number) {
   return request<null>(`/api/invoices/${id}`, { method: "DELETE" });
 }

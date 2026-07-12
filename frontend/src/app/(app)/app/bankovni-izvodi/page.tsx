@@ -18,8 +18,9 @@ import {
   IconChevronRight,
   IconTrash,
 } from "@tabler/icons-react";
-import { formatBAM, formatDate } from "src/lib/format";
+import { formatBAM, formatDate, mnozina } from "src/lib/format";
 import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import {
   useBankSummary,
@@ -275,9 +276,12 @@ export default function BankovniIzvodiPage() {
           <span className="w-[7px] h-[7px] rounded-full bg-brand-600" />
           Finansije
         </div>
-        <h1 className="font-serif-display text-[28px] leading-tight text-text-primary mb-[5px]">
-          Bankovni izvodi.
-        </h1>
+        <div className="flex items-center gap-4 mb-[5px]">
+          <h1 className="font-serif-display text-[28px] leading-tight text-text-primary">
+            Bankovni izvodi.
+          </h1>
+          <HelpButton slug="bankovni-izvodi" />
+        </div>
         <p className="text-[13px] leading-6 text-text-tertiary max-w-[470px]">
           Učitajte PDF izvod iz e-bankinga. Promet se provjerava prema saldu
           izvoda prije uvoza, pa u knjige ne može ući pogrešno pročitan red.
@@ -606,7 +610,7 @@ export default function BankovniIzvodiPage() {
                                     </div>
                                     <div className="text-[12.5px] text-text-tertiary truncate mt-0.5 tabular-nums">
                                       {s.txCount}{" "}
-                                      {s.txCount === 1 ? "stavka" : "stavki"}
+                                      {mnozina(s.txCount, "stavka", "stavke", "stavki")}
                                       {(s.totalIn ?? 0) > 0 && (
                                         <>
                                           {" "}·{" "}

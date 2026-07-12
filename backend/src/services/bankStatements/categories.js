@@ -163,6 +163,15 @@ const CATEGORIES = [
     kprColumn: null,
     pdvSplit: false,
   },
+  {
+    // godišnje knjiženje amortizacije iz PLDI registra (interni izvod
+    // AM-YYYY na 31.12.): nenovčani rashod, ide u KPR ostale rashode
+    id: "AMORTIZACIJA",
+    label: "Amortizacija (godišnji obračun)",
+    direction: "OUT",
+    kprColumn: 19,
+    pdvSplit: false,
+  },
   // ── OBA SMJERA ────────────────────────────────────────────────────────────
   {
     id: "PRENOS_IZMEDJU_RACUNA",

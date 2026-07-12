@@ -28,9 +28,12 @@ export default function UrediKalkulacijuPage({
       <div className="mb-6">
         <Link
           href="/app/kalkulacije"
-          className="inline-flex items-center gap-1.5 text-[13px] text-text-tertiary hover:text-text-primary transition-colors mb-3"
+          className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-info-bg text-info text-[13px] font-medium mb-4 transition-colors hover:brightness-95"
         >
-          <IconArrowLeft size={15} />
+          <IconArrowLeft
+            size={16}
+            className="transition-transform group-hover:-translate-x-0.5"
+          />
           Nazad na kalkulacije
         </Link>
         <h1 className="font-serif-display text-[clamp(1.8rem,3vw,2.4rem)] leading-[1.05] tracking-[-0.02em] text-text-primary">

@@ -28,6 +28,13 @@ export type PutniNalog = {
   ostaliTroskovi: number;
   ostaloOpis: string | null;
   izvjestaj: string | null;
+  /** naknada za upotrebu vlastitog vozila: km x stopa (posebna stavka) */
+  predjeniKm: number | null;
+  kmStopa: number | null;
+  kmNaknada: number;
+  /** evidencija isplate; blagajnaNalogId kad je isplaćen iz blagajne */
+  isplacenoDatum: string | null;
+  blagajnaNalogId: number | null;
   ukupnoDnevnice: number;
   ukupno: number;
   zaIsplatu: number;
@@ -52,6 +59,8 @@ export type PutniNalogPayload = {
   ostaliTroskovi?: number;
   ostaloOpis?: string;
   izvjestaj?: string;
+  predjeniKm?: number | null;
+  kmStopa?: number | null;
 };
 
 async function jsonRequest<T>(
@@ -95,6 +104,18 @@ export function updatePutniNalog(
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+/** Evidencija isplate naloga; datum null poništava oznaku. */
+export function oznaciIsplatu(
+  orgId: number,
+  id: number,
+  payload: { datum: string | null; blagajnaNalogId?: number | null },
+) {
+  return jsonRequest<PutniNalog>(
+    `/api/putni-nalozi/${orgId}/${id}/isplata`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
 }
 
 export function deletePutniNalog(orgId: number, id: number) {

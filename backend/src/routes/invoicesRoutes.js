@@ -12,6 +12,8 @@ router.post("/pazar", requireAuth, invoicesController.pazar);
 router.post("/kif-pdv", requireAuth, invoicesController.kifPdv);
 router.get("/:id", requireAuth, invoicesController.getById);
 router.patch("/:id", requireAuth, invoicesController.patch);
+// puni edit sadržaja fakture/predračuna (kupac, stavke, iznosi) uz ponovni obračun
+router.put("/:id", requireAuth, invoicesController.updateContent);
 router.delete("/:id", requireAuth, invoicesController.remove);
 router.get("/:id/pdf", requireAuth, invoicesController.pdf);
 router.post("/:id/email", requireAuth, invoicesController.emailToBuyer);

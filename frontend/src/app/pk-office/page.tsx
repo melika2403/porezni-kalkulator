@@ -6,7 +6,7 @@ const PAGE_URL = "https://www.poreznikalkulator.ba/pk-office";
 export const metadata: Metadata = {
   title: "PK Office, knjigovodstvo obrta",
   description:
-    "PK Office spaja bankovne izvode, automatsko knjiženje, obračun plata, KPR, PDV evidencije i porezne obrasce u jedan alat za obrte i knjigovođe u BiH.",
+    "PK Office spaja bankovne izvode, automatsko knjiženje, obračun plata sa listićima na email, evidencije radnika, KPR, PDV i porezne obrasce u jedan alat za obrte i knjigovođe u BiH.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     siteName: "Porezni Kalkulator BiH",
     title: "PK Office, knjigovodstvo obrta na jednom mjestu",
     description:
-      "Bankovni izvodi, automatsko knjiženje, obračun plata i porezni obrasci za obrte u BiH. Isprobaj 30 dana besplatno.",
+      "Bankovni izvodi, automatsko knjiženje, obračun plata, evidencije radnika i porezni obrasci za obrte u BiH. Isprobaj 30 dana besplatno.",
   },
 };
 

@@ -8,14 +8,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  IconArrowRight,
   IconDownload,
   IconInbox,
   IconLoader2,
   IconPencil,
+  IconSearch,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { formatBAM, formatDate } from "src/lib/format";
+import { formatBAM, formatDate, todayIso } from "src/lib/format";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { useOrgInvoices } from "src/hooks/useBankStatements";
@@ -77,7 +81,18 @@ const VRSTA_ISPORUKE_LABEL: Record<string, string> = {
   OSLOBODJENA: "oslobođena",
 };
 
-type TabId = "kuf" | "kif" | "prijava" | "dpdv" | "stanje";
+type TabId = "kuf" | "kif" | "prijava" | "dpdv" | "stanje" | "godina";
+
+// Rok predaje prijave i e-evidencija za mjesec M: 10. u NAREDNOM mjesecu;
+// ako 10. pada u subotu ili nedjelju, rok se pomjera na prvi radni dan.
+function rokPredaje(year: number, month: number): string {
+  const d = new Date(year, month, 10); // month je 1-based → 10. narednog mjeseca
+  if (d.getDay() === 6) d.setDate(d.getDate() + 2); // subota → ponedjeljak
+  else if (d.getDay() === 0) d.setDate(d.getDate() + 1); // nedjelja → ponedjeljak
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
 
 const thCls =
   "px-3 py-2.5 text-left text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary font-semibold whitespace-nowrap";
@@ -196,50 +211,62 @@ export default function PdvEvidencijePage() {
   const [fTip, setFTip] = useState("SVI");
   const [fVrsta, setFVrsta] = useState("SVE");
   const [fDok, setFDok] = useState("SVE");
-  const filterActive = fTip !== "SVI" || fVrsta !== "SVE" || fDok !== "SVE";
+  // pretraga: broj fakture, dobavljač/kupac ili iznos
+  const [q, setQ] = useState("");
+  const filterActive =
+    fTip !== "SVI" || fVrsta !== "SVE" || fDok !== "SVE" || q.trim() !== "";
   function resetFilters() {
     setFTip("SVI");
     setFVrsta("SVE");
     setFDok("SVE");
+    setQ("");
   }
 
-  const kufView = useMemo(
-    () =>
-      kufRows.filter(
-        (r) =>
-          (fTip === "SVI" || (r.tipDokumenta ?? "01") === fTip) &&
-          (fVrsta === "SVE" || (r.vrstaNabavke ?? "DOMACA") === fVrsta) &&
-          (fDok === "SVE" || (r.vrstaDokumenta ?? "REDOVNA") === fDok),
-      ),
-    [kufRows, fTip, fVrsta, fDok],
-  );
-  const kifView = useMemo(
-    () =>
-      kifRows.filter((i) => {
-        const tip =
-          i.kifTipDokumenta ??
-          (i.docType === "AVANSNA" || i.docType === "STORNO_AVANSNE"
-            ? "03"
-            : i.vrstaIsporuke === "IZVOZ"
-              ? "04"
-              : "01");
-        const dok =
-          i.kifVrstaDokumenta ??
-          (i.docType === "AVANSNA"
-            ? "AVANSNA"
-            : i.docType === "STORNO_AVANSNE"
-              ? "STORNO_AVANSNE"
-              : i.docType === "KNJIZNA_OBAVIJEST"
-                ? "KNJIZNA_OBAVIJEST"
-                : "REDOVNA");
-        return (
-          (fTip === "SVI" || tip === fTip) &&
-          (fVrsta === "SVE" || (i.vrstaIsporuke ?? "OPOREZIVA") === fVrsta) &&
-          (fDok === "SVE" || dok === fDok)
-        );
-      }),
-    [kifRows, fTip, fVrsta, fDok],
-  );
+  const kufView = useMemo(() => {
+    const nq = q.trim().toLowerCase();
+    const nqNum = nq.replace(",", ".");
+    return kufRows.filter(
+      (r) =>
+        (fTip === "SVI" || (r.tipDokumenta ?? "01") === fTip) &&
+        (fVrsta === "SVE" || (r.vrstaNabavke ?? "DOMACA") === fVrsta) &&
+        (fDok === "SVE" || (r.vrstaDokumenta ?? "REDOVNA") === fDok) &&
+        (!nq ||
+          r.brojRacuna.toLowerCase().includes(nq) ||
+          (r.partner?.name ?? "").toLowerCase().includes(nq) ||
+          (Number(r.iznos) || 0).toFixed(2).includes(nqNum)),
+    );
+  }, [kufRows, fTip, fVrsta, fDok, q]);
+  const kifView = useMemo(() => {
+    const nq = q.trim().toLowerCase();
+    const nqNum = nq.replace(",", ".");
+    return kifRows.filter((i) => {
+      const tip =
+        i.kifTipDokumenta ??
+        (i.docType === "AVANSNA" || i.docType === "STORNO_AVANSNE"
+          ? "03"
+          : i.vrstaIsporuke === "IZVOZ"
+            ? "04"
+            : "01");
+      const dok =
+        i.kifVrstaDokumenta ??
+        (i.docType === "AVANSNA"
+          ? "AVANSNA"
+          : i.docType === "STORNO_AVANSNE"
+            ? "STORNO_AVANSNE"
+            : i.docType === "KNJIZNA_OBAVIJEST"
+              ? "KNJIZNA_OBAVIJEST"
+              : "REDOVNA");
+      return (
+        (fTip === "SVI" || tip === fTip) &&
+        (fVrsta === "SVE" || (i.vrstaIsporuke ?? "OPOREZIVA") === fVrsta) &&
+        (fDok === "SVE" || dok === fDok) &&
+        (!nq ||
+          (i.fullNumber ?? "").toLowerCase().includes(nq) ||
+          (i.buyerName ?? "").toLowerCase().includes(nq) ||
+          (Number(i.grossTotal) || 0).toFixed(2).includes(nqNum))
+      );
+    });
+  }, [kifRows, fTip, fVrsta, fDok, q]);
 
   // totali tabele prate filter (izvještaj); sažetak za prijavu ide iz prijave
   const kufTotals = useMemo(() => {
@@ -426,10 +453,111 @@ export default function PdvEvidencijePage() {
     }
   }
 
+  // rok predaje za izabrani mjesec (10. narednog, vikend pomjera na radni dan)
+  const rok = rokPredaje(year, month);
+  const danasIso = todayIso();
+  const rokProsao = danasIso > rok && !periodKnjizen;
+
+  // kontrola: prethodni mjesec ima stavke u knjigama, a prijava mu nije
+  // proknjižena u Stanje PDV-a (zaboravljena prijava)
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const prevPeriod = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  const prosliNeproknjizen = useMemo(() => {
+    const imaKnjiga =
+      (racuni ?? []).some((r) =>
+        (r.datumPrijema ?? r.datumRacuna ?? "").startsWith(prevPeriod),
+      ) ||
+      (invoices ?? []).some(
+        (i) =>
+          (i.status === "ISSUED" || i.status === "PAID") &&
+          (i.issueDate ?? "").startsWith(prevPeriod),
+      );
+    if (!imaKnjiga) return false;
+    return !(stanje?.knjizenja ?? []).some(
+      (k) =>
+        k.period === prevPeriod &&
+        (k.vrsta === "OBAVEZA" || k.vrsta === "PRETPLATA"),
+    );
+  }, [racuni, invoices, stanje, prevPeriod]);
+
+  // godišnja rekapitulacija: prijava za svaki mjesec izabrane godine
+  const godina = useMemo(() => {
+    if (!fullOrg) return null;
+    const orgInfo = {
+      naziv: fullOrg.name,
+      adresa: fullOrg.address ?? "",
+      mjesto: fullOrg.city ?? "",
+      pdvBroj: fullOrg.pdvNumber ?? "",
+      jurisdiction: fullOrg.jurisdiction,
+    };
+    return Array.from({ length: 12 }, (_, idx) => {
+      const m = idx + 1;
+      const p = `${year}-${String(m).padStart(2, "0")}`;
+      const kufM = (racuni ?? []).filter((r) =>
+        (r.datumPrijema ?? r.datumRacuna ?? "").startsWith(p),
+      );
+      const kifM = (invoices ?? []).filter(
+        (i) =>
+          (i.status === "ISSUED" || i.status === "PAID") &&
+          (i.issueDate ?? "").startsWith(p),
+      );
+      const pr = computePdvPrijava(kifM, kufM, orgInfo, m, year);
+      const knjizen =
+        (stanje?.knjizenja ?? []).find(
+          (k) =>
+            k.period === p && (k.vrsta === "OBAVEZA" || k.vrsta === "PRETPLATA"),
+        ) ?? null;
+      return {
+        m,
+        stavki: kufM.length + kifM.length,
+        izlazni: pr.p51,
+        ulazni: pr.p61,
+        p71: pr.p71,
+        rok: rokPredaje(year, m),
+        knjizen,
+      };
+    });
+  }, [fullOrg, racuni, invoices, stanje, year]);
+
+  // D-PDV predpopuna: stavke koje se daju izvesti iz KUF/KIF za mjesec
+  const dpdvPrijedlog = useMemo(() => {
+    const p: Record<string, number> = {};
+    const add = (k: string, v: number) => {
+      if (v > 0.004) p[k] = Math.round(v * 100) / 100 + (p[k] ?? 0);
+    };
+    for (const i of kifMonthRows) {
+      const dok =
+        i.kifVrstaDokumenta ??
+        (i.docType === "KNJIZNA_OBAVIJEST" ? "KNJIZNA_OBAVIJEST" : "REDOVNA");
+      if (dok === "KNJIZNA_OBAVIJEST") {
+        add("iz9_bez", Number(i.netTotal) || 0);
+        add("iz9_pdv", Number(i.vatTotal) || 0);
+      }
+    }
+    for (const r of kufMonthRows) {
+      const pdv = Number(r.pdvIznos) || 0;
+      const osnovica = Math.max((Number(r.iznos) || 0) - pdv, 0);
+      if ((r.vrstaDokumenta ?? "REDOVNA") === "KNJIZNA_OBAVIJEST") {
+        add("ul8_bez", osnovica);
+        add("ul8_pdv", pdv);
+      }
+      if ((r.tipDokumenta ?? "01") === "05") {
+        add("ul6_bez", osnovica);
+        add("ul6_pdv", pdv);
+      }
+      if ((r.tipDokumenta ?? "01") === "08") {
+        add("ul7_pdv", pdv);
+      }
+    }
+    return p;
+  }, [kifMonthRows, kufMonthRows]);
+
   return (
     <div className="px-6 py-6 max-w-[1280px] mx-auto">
       {/* Zaglavlje */}
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+      <div className="relative flex flex-wrap items-end justify-between gap-3 mb-6">
+        <HelpButton slug="pdv" className="absolute top-0 right-0" />
         <div>
           <div className="inline-flex items-center gap-[7px] px-[11px] py-1 rounded-full bg-brand-100 text-brand-700 text-[12px] font-medium mb-3">
             <span className="w-[7px] h-[7px] rounded-full bg-brand-600" />
@@ -458,23 +586,6 @@ export default function PdvEvidencijePage() {
             }}
             options={MJESECI.map((m, i) => ({ value: i + 1, label: m }))}
           />
-          {(tab === "kuf" || tab === "kif") && (
-            <PkSelect
-              ariaLabel="Pregled do mjeseca"
-              value={monthTo > month ? monthTo : 0}
-              onChange={(v) => {
-                setMonthTo(Number(v));
-                setEErrors(null);
-              }}
-              options={[
-                { value: 0, label: "Jedan mjesec" },
-                ...MJESECI_DO.map((m, i) => ({
-                  value: i + 1,
-                  label: `do ${m}`,
-                })).filter((o) => o.value > month),
-              ]}
-            />
-          )}
           <PkSelect
             ariaLabel="Godina"
             value={year}
@@ -539,17 +650,51 @@ export default function PdvEvidencijePage() {
                 </span>
               )}
             </span>
-            {tab !== "stanje" && (
-              <button
-                type="button"
-                onClick={() => setTab("stanje")}
-                className="text-[12.5px] font-medium text-brand-700 hover:text-brand-600 underline underline-offset-2"
-              >
-                Otvori stanje
-              </button>
-            )}
+            {/* na tabu Stanje dugme je invisible (ne uklanja se), da baner
+                zadrži istu visinu i tabovi ne poskoče gore-dole */}
+            <button
+              type="button"
+              onClick={() => setTab("stanje")}
+              className={[
+                "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-brand-600 bg-cream-100/60 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors",
+                tab === "stanje" ? "invisible" : "",
+              ].join(" ")}
+            >
+              Otvori stanje
+              <IconArrowRight size={14} />
+            </button>
           </div>
         )}
+
+      {/* Rok predaje za izabrani mjesec (10. narednog; vikend → radni dan) */}
+      {fullOrg?.isPdvObveznik && (
+        <div
+          className={[
+            "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-2.5 mb-4 text-[13px]",
+            rokProsao
+              ? "bg-warning-bg border-warning/30"
+              : "bg-cream-100 border-cream-300",
+          ].join(" ")}
+        >
+          <span className="text-text-secondary">
+            Rok za prijavu i uplatu PDV-a za{" "}
+            {MJESECI[month - 1].toLowerCase()} {year}.:{" "}
+            <span className="font-semibold text-text-primary">
+              {formatDate(rok)}
+            </span>
+          </span>
+          {periodKnjizen ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11.5px] font-medium bg-success-bg text-success">
+              prijava proknjižena
+            </span>
+          ) : rokProsao ? (
+            <span className="text-[12.5px] font-medium text-warning">
+              Rok je prošao, a prijava za ovaj period nije proknjižena u
+              Stanje PDV-a.
+            </span>
+          ) : null}
+        </div>
+      )}
 
       {/* Tabovi (segmented pilula kao na ostatku PK Office-a) */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -561,6 +706,7 @@ export default function PdvEvidencijePage() {
               { id: "prijava" as TabId, label: "PDV prijava", count: null },
               { id: "dpdv" as TabId, label: "D-PDV", count: null },
               { id: "stanje" as TabId, label: "Stanje PDV-a", count: null },
+              { id: "godina" as TabId, label: "Godina", count: null },
             ] as { id: TabId; label: string; count: number | null }[]
           ).map((t) => (
             <button
@@ -594,88 +740,12 @@ export default function PdvEvidencijePage() {
             </button>
           ))}
         </div>
-        <span className="inline-flex items-center gap-3">
-          <span className="text-[12.5px] text-text-tertiary">
-            period {String(month).padStart(2, "0")}
-            {rangeTo && (tab === "kuf" || tab === "kif")
-              ? `-${String(rangeTo).padStart(2, "0")}`
-              : ""}
-            /{year}.
-          </span>
-          {(tab === "kuf" || tab === "kif") && (
-            <button
-              type="button"
-              onClick={async () => {
-                const org = fullOrg?.name ?? activeOrg?.name ?? "";
-                setExportingKnjiga(true);
-                try {
-                  // izvještaj prati aktivne filtere i raspon perioda
-                  if (tab === "kuf")
-                    await downloadKufPdf(kufView, org, month, year, rangeTo ?? undefined);
-                  else
-                    await downloadKifPdf(kifView, org, month, year, rangeTo ?? undefined);
-                } finally {
-                  setExportingKnjiga(false);
-                }
-              }}
-              disabled={
-                exportingKnjiga ||
-                (tab === "kuf" ? kufView.length === 0 : kifView.length === 0)
-              }
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
-            >
-              {exportingKnjiga ? (
-                <IconLoader2 size={14} className="animate-spin" />
-              ) : (
-                <IconDownload size={14} />
-              )}
-              Preuzmi izvještaj (PDF)
-            </button>
-          )}
-          {tab === "kif" && (
-            <button
-              type="button"
-              onClick={() => setPazarOpen(true)}
-              disabled={!fullOrg?.isPdvObveznik}
-              title="Zbirno knjiženje gotovinskog prometa za mjesec (PDV 17/117)"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
-            >
-              Proknjiži pazar
-            </button>
-          )}
-          {tab === "kif" && (
-            <button
-              type="button"
-              onClick={() => setKifPdvOpen(true)}
-              disabled={!fullOrg?.isPdvObveznik}
-              title="Red sa osnovicom 0 i samo izlaznim PDV-om (npr. posebna šema u građevinarstvu)"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
-            >
-              Knjiži samo PDV
-            </button>
-          )}
-          {(tab === "kuf" || tab === "kif") && (
-            <button
-              type="button"
-              onClick={exportEknjiga}
-              disabled={
-                !fullOrg ||
-                rangeTo != null ||
-                (tab === "kuf"
-                  ? kufMonthRows.length === 0
-                  : kifMonthRows.length === 0)
-              }
-              title={
-                rangeTo != null
-                  ? "e-evidencije se predaju mjesečno: izaberite jedan mjesec"
-                  : "CSV za predaju elektronskih evidencija na UINO e-portalu"
-              }
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
-            >
-              <IconDownload size={14} />
-              {tab === "kuf" ? "e-KUF (CSV)" : "e-KIF (CSV)"}
-            </button>
-          )}
+        <span className="text-[12.5px] text-text-tertiary">
+          period {String(month).padStart(2, "0")}
+          {rangeTo && (tab === "kuf" || tab === "kif")
+            ? `-${String(rangeTo).padStart(2, "0")}`
+            : ""}
+          /{year}.
         </span>
       </div>
 
@@ -698,7 +768,11 @@ export default function PdvEvidencijePage() {
         <div
           className={[
             "rounded-xl border px-5 py-4 mb-4 text-[13px] leading-6",
-            kontrole.drafts + kontrole.bezPdvSplita + kontrole.izvozBezJci > 0
+            kontrole.drafts +
+              kontrole.bezPdvSplita +
+              kontrole.izvozBezJci +
+              (prosliNeproknjizen ? 1 : 0) >
+            0
               ? "bg-warning-bg border-warning/30 text-text-secondary"
               : "bg-cream-100 border-cream-300 text-text-tertiary",
           ].join(" ")}
@@ -715,7 +789,10 @@ export default function PdvEvidencijePage() {
             {formatBAM(prijava.p61)}
           </span>{" "}
           (polje 61)
-          {kontrole.drafts + kontrole.bezPdvSplita + kontrole.izvozBezJci >
+          {kontrole.drafts +
+            kontrole.bezPdvSplita +
+            kontrole.izvozBezJci +
+            (prosliNeproknjizen ? 1 : 0) >
           0 ? (
             <ul className="list-disc pl-5 mt-1">
               {kontrole.drafts > 0 && (
@@ -745,6 +822,13 @@ export default function PdvEvidencijePage() {
                     : "izvozne fakture nemaju"}{" "}
                   broj JCI (e-KIF će tražiti; upisuje se kroz knjiženje u
                   KIF).
+                </li>
+              )}
+              {prosliNeproknjizen && (
+                <li>
+                  Prethodni mjesec ({MJESECI[prevMonth - 1].toLowerCase()}{" "}
+                  {prevYear}.) ima stavke u knjigama, a prijava mu NIJE
+                  proknjižena u Stanje PDV-a (moguće zaboravljena prijava).
                 </li>
               )}
             </ul>
@@ -820,8 +904,123 @@ export default function PdvEvidencijePage() {
           </div>
         ))}
 
+      {/* Godišnja rekapitulacija: prijava po mjesecima, klik otvara mjesec */}
+      {tab === "godina" && (
+        <div className="rounded-xl bg-cream-100 border border-cream-300 overflow-x-auto">
+          {!godina || loading ? (
+            <div className="px-4 py-12 text-center text-text-tertiary text-[13px]">
+              Učitavanje...
+            </div>
+          ) : (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-cream-300">
+                  <th className={thCls}>Mjesec</th>
+                  <th className={`${thCls} text-right`}>Stavki</th>
+                  <th className={`${thCls} text-right`}>Izlazni PDV (51)</th>
+                  <th className={`${thCls} text-right`}>Ulazni odbitni (61)</th>
+                  <th className={`${thCls} text-right`}>Polje 71</th>
+                  <th className={thCls}>Rok</th>
+                  <th className={thCls}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {godina.map((g) => {
+                  const kasni =
+                    !g.knjizen && g.stavki > 0 && danasIso > g.rok;
+                  return (
+                    <tr
+                      key={g.m}
+                      onClick={() => {
+                        setMonth(g.m);
+                        setMonthTo(0);
+                        setTab("prijava");
+                      }}
+                      title="Otvori PDV prijavu za ovaj mjesec"
+                      className="cursor-pointer hover:bg-cream-50/80 transition-colors border-b border-cream-300/60 last:border-b-0"
+                    >
+                      <td className={`${tdCls} font-medium`}>
+                        {MJESECI[g.m - 1]}
+                      </td>
+                      <td className={`${tdNum} text-text-tertiary`}>
+                        {g.stavki > 0 ? g.stavki : "–"}
+                      </td>
+                      <td className={tdNum}>
+                        {g.stavki > 0 ? formatBAM(g.izlazni) : "–"}
+                      </td>
+                      <td className={tdNum}>
+                        {g.stavki > 0 ? formatBAM(g.ulazni) : "–"}
+                      </td>
+                      <td
+                        className={`${tdNum} font-semibold ${
+                          g.stavki === 0
+                            ? "text-text-tertiary"
+                            : g.p71 > 0
+                              ? "text-accent-500"
+                              : g.p71 < 0
+                                ? "text-success"
+                                : ""
+                        }`}
+                      >
+                        {g.stavki > 0 ? formatBAM(g.p71) : "–"}
+                      </td>
+                      <td className={`${tdCls} text-text-tertiary`}>
+                        {formatDate(g.rok)}
+                      </td>
+                      <td className={tdCls}>
+                        {g.knjizen ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-success-bg text-success">
+                            proknjiženo (
+                            {g.knjizen.vrsta === "OBAVEZA"
+                              ? "obaveza"
+                              : "pretplata"}{" "}
+                            {formatBAM(g.knjizen.iznos)})
+                          </span>
+                        ) : kasni ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-warning-bg text-warning">
+                            nije proknjiženo
+                          </span>
+                        ) : g.stavki > 0 ? (
+                          <span className="text-[11.5px] text-text-tertiary">
+                            u toku
+                          </span>
+                        ) : (
+                          <span className="text-text-tertiary/50">–</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-cream-300 bg-cream-50/60">
+                  <td className={`${tdCls} font-semibold`}>
+                    Ukupno {year}.
+                  </td>
+                  <td className={`${tdNum} font-semibold`}>
+                    {godina.reduce((s, g) => s + g.stavki, 0)}
+                  </td>
+                  <td className={`${tdNum} font-semibold`}>
+                    {formatBAM(godina.reduce((s, g) => s + g.izlazni, 0))}
+                  </td>
+                  <td className={`${tdNum} font-semibold`}>
+                    {formatBAM(godina.reduce((s, g) => s + g.ulazni, 0))}
+                  </td>
+                  <td className={`${tdNum} font-semibold`}>
+                    {formatBAM(godina.reduce((s, g) => s + g.p71, 0))}
+                  </td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Stanje PDV-a (knjiga knjiženja prema UINO) */}
-      {tab === "stanje" && <StanjePdvTab orgId={orgId} />}
+      {tab === "stanje" && (
+        <StanjePdvTab orgId={orgId} orgName={fullOrg?.name ?? ""} />
+      )}
 
       {/* D-PDV: ručni unos dodatka uz prijavu */}
       {tab === "dpdv" && (
@@ -829,6 +1028,7 @@ export default function PdvEvidencijePage() {
           orgId={orgId}
           month={month}
           year={year}
+          prijedlog={dpdvPrijedlog}
           defaultDjelatnost={fullOrg?.activityCode ?? ""}
           djelatnostNaziv={fullOrg?.activityName ?? ""}
           org={
@@ -850,8 +1050,48 @@ export default function PdvEvidencijePage() {
 
       {(tab === "kuf" || tab === "kif") && (
         <>
-      {/* Filteri izvještaja (tabela i PDF; prijava i e-CSV idu iz cijele knjige) */}
+      {/* Toolbar: pretraga + filteri lijevo, akcije knjige desno.
+          Filteri važe za tabelu i PDF; prijava i e-CSV idu iz cijele knjige. */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative">
+          <IconSearch
+            size={14}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary"
+          />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={
+              tab === "kuf" ? "Broj, dobavljač, iznos..." : "Broj, kupac, iznos..."
+            }
+            className="w-[190px] rounded-lg border border-cream-300 bg-cream-100 pl-8 pr-7 py-1.5 text-[12.5px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600"
+          />
+          {q && (
+            <button
+              type="button"
+              aria-label="Očisti pretragu"
+              onClick={() => setQ("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-text-tertiary hover:text-text-primary"
+            >
+              <IconX size={13} />
+            </button>
+          )}
+        </div>
+        <PkSelect
+          ariaLabel="Pregled do mjeseca"
+          value={monthTo > month ? monthTo : 0}
+          onChange={(v) => {
+            setMonthTo(Number(v));
+            setEErrors(null);
+          }}
+          options={[
+            { value: 0, label: "Jedan mjesec" },
+            ...MJESECI_DO.map((m, i) => ({
+              value: i + 1,
+              label: `do ${m}`,
+            })).filter((o) => o.value > month),
+          ]}
+        />
         <PkSelect
           ariaLabel="Filter: tip dokumenta"
           value={fTip}
@@ -899,15 +1139,87 @@ export default function PdvEvidencijePage() {
             Poništi filtere
           </button>
         )}
-        {filterActive && (
-          <span className="text-[12px] text-text-tertiary ml-auto">
-            prikazano {tab === "kuf" ? kufView.length : kifView.length} od{" "}
-            {tab === "kuf" ? kufRows.length : kifRows.length} stavki · PDF
-            izvještaj prati filter, e-{tab === "kuf" ? "KUF" : "KIF"} uvijek
-            sadrži cijelu knjigu
-          </span>
-        )}
+        <span className="ml-auto inline-flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              const org = fullOrg?.name ?? activeOrg?.name ?? "";
+              setExportingKnjiga(true);
+              try {
+                // izvještaj prati aktivne filtere i raspon perioda
+                if (tab === "kuf")
+                  await downloadKufPdf(kufView, org, month, year, rangeTo ?? undefined);
+                else
+                  await downloadKifPdf(kifView, org, month, year, rangeTo ?? undefined);
+              } finally {
+                setExportingKnjiga(false);
+              }
+            }}
+            disabled={
+              exportingKnjiga ||
+              (tab === "kuf" ? kufView.length === 0 : kifView.length === 0)
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+          >
+            {exportingKnjiga ? (
+              <IconLoader2 size={14} className="animate-spin" />
+            ) : (
+              <IconDownload size={14} />
+            )}
+            Izvještaj (PDF)
+          </button>
+          {tab === "kif" && (
+            <button
+              type="button"
+              onClick={() => setPazarOpen(true)}
+              disabled={!fullOrg?.isPdvObveznik}
+              title="Zbirno knjiženje gotovinskog prometa za mjesec (PDV 17/117)"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+            >
+              Proknjiži pazar
+            </button>
+          )}
+          {tab === "kif" && (
+            <button
+              type="button"
+              onClick={() => setKifPdvOpen(true)}
+              disabled={!fullOrg?.isPdvObveznik}
+              title="Red sa osnovicom 0 i samo izlaznim PDV-om (npr. posebna šema u građevinarstvu)"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+            >
+              Knjiži samo PDV
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={exportEknjiga}
+            disabled={
+              !fullOrg ||
+              rangeTo != null ||
+              (tab === "kuf"
+                ? kufMonthRows.length === 0
+                : kifMonthRows.length === 0)
+            }
+            title={
+              rangeTo != null
+                ? "e-evidencije se predaju mjesečno: izaberite jedan mjesec"
+                : "CSV za predaju elektronskih evidencija na UINO e-portalu"
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+          >
+            <IconDownload size={14} />
+            {tab === "kuf" ? "e-KUF (CSV)" : "e-KIF (CSV)"}
+          </button>
+        </span>
       </div>
+      {filterActive && (
+        <p className="text-[12px] text-text-tertiary mb-3 -mt-1">
+          prikazano {tab === "kuf" ? kufView.length : kifView.length} od{" "}
+          {tab === "kuf" ? kufRows.length : kifRows.length} stavki · PDF
+          izvještaj prati filter, e-{tab === "kuf" ? "KUF" : "KIF"} uvijek
+          sadrži cijelu knjigu
+        </p>
+      )}
 
       {/* Knjiga */}
       <div className="rounded-xl bg-cream-100 border border-cream-300 overflow-hidden">
@@ -997,7 +1309,18 @@ export default function PdvEvidencijePage() {
                           : "–"}
                       </td>
                       <td className={`${tdCls} max-w-[220px] truncate`}>
-                        {r.partner?.name ?? "–"}
+                        {r.partner ? (
+                          <Link
+                            href={`/app/partneri/${r.partner.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Otvori karticu partnera"
+                            className="hover:underline hover:text-brand-700 transition-colors"
+                          >
+                            {r.partner.name}
+                          </Link>
+                        ) : (
+                          "–"
+                        )}
                       </td>
                       <td className={`${tdCls} text-text-tertiary`}>
                         {r.partner?.pdvBroj || r.partner?.jib || "–"}
@@ -1191,39 +1514,55 @@ export default function PdvEvidencijePage() {
         )}
       </div>
 
-      {/* Sažetak za PDV prijavu (mjesečni, iz cijele knjige; kod pregleda
-          raspona se skriva da se ne pomiješa sa totalima raspona) */}
+      {/* Sume za PDV prijavu u jednoj traci (mjesečne, iz cijele knjige;
+          kod pregleda raspona se skrivaju da se ne pomiješaju sa totalima) */}
       {prijava && !rangeTo && (kufRows.length > 0 || kifRows.length > 0) && (
-        <div className="rounded-xl bg-cream-100 border border-cream-300 px-5 py-4 mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-[13px]">
-          <span className="text-text-tertiary">
-            Izlazni PDV (KIF):{" "}
-            <span className="font-semibold text-text-primary tabular-nums">
+        <div className="rounded-xl border border-cream-300 bg-cream-100 px-5 py-3.5 mt-4 flex flex-wrap items-center gap-x-10 gap-y-2">
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary">
+              Izlazni PDV · KIF (51)
+            </div>
+            <div className="font-serif-display text-[19px] leading-tight tabular-nums text-text-primary">
               {formatBAM(prijava.p51)}
-            </span>
-          </span>
-          <span className="text-text-tertiary">
-            Ulazni odbitni PDV (KUF):{" "}
-            <span className="font-semibold text-text-primary tabular-nums">
+            </div>
+          </div>
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary">
+              Ulazni odbitni PDV · KUF (61)
+            </div>
+            <div className="font-serif-display text-[19px] leading-tight tabular-nums text-text-primary">
               {formatBAM(prijava.p61)}
-            </span>
-            {prijava.pdvNeodbitni > 0 && (
-              <span className="text-[11.5px]">
-                {" "}
-                (+ {formatBAM(prijava.pdvNeodbitni)} neodbitni)
-              </span>
-            )}
-          </span>
-          <span className="text-text-tertiary">
-            Polje 71 (obaveza / kredit):{" "}
-            <span
+              {prijava.pdvNeodbitni > 0 && (
+                <span className="font-sans text-[11.5px] text-text-tertiary ml-2">
+                  + {formatBAM(prijava.pdvNeodbitni)} neodbitni
+                </span>
+              )}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary">
+              Polje 71
+            </div>
+            <div
               className={[
-                "font-semibold tabular-nums",
-                prijava.p71 >= 0 ? "text-text-primary" : "text-success",
+                "font-serif-display text-[19px] leading-tight tabular-nums",
+                prijava.p71 > 0
+                  ? "text-accent-500"
+                  : prijava.p71 < 0
+                    ? "text-success"
+                    : "text-text-primary",
               ].join(" ")}
             >
               {formatBAM(prijava.p71)}
-            </span>
-          </span>
+              <span className="font-sans text-[11.5px] text-text-tertiary ml-2">
+                {prijava.p71 > 0
+                  ? "obaveza za uplatu"
+                  : prijava.p71 < 0
+                    ? "pretplata (kredit)"
+                    : "izmireno"}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 

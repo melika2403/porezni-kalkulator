@@ -81,6 +81,21 @@ export type Kalkulacija = {
   /** fakturna vrijednost + ulazni PDV = ukupan račun dobavljača */
   iznosRacuna: number;
   stavkeCount: number;
+  /** status ulaznog računa kalkulacije (badge plaćanja na listi) */
+  racunStatus: "OTVOREN" | "PLACEN" | null;
+  racunRok: string | null;
+};
+
+/** Zadnja stavka artikla sa neke kalkulacije (predpopuna novog unosa). */
+export type ZadnjaStavka = {
+  kolicina: number;
+  cijena: number;
+  rabatPct: number;
+  zavisniTrosakPct: number;
+  mpc: number;
+  datum: string;
+  /** broj kalkulacije, npr. "3/26" */
+  oznaka: string;
 };
 
 export type KalkulacijaDetail = Kalkulacija & { stavke: KalkulacijaStavka[] };
@@ -101,6 +116,9 @@ export type KalkulacijaPayload = {
   datumRacuna: string;
   bezPdv?: boolean;
   napomena?: string;
+  /** opciono (samo PDV obveznik): odbitni PDV kako piše na računu
+   *  dobavljača; pregazi obračunatih 17% u KUF-u i iznosu računa */
+  ulazniPdv?: number;
   stavke: StavkaPayload[];
 };
 
@@ -120,6 +138,13 @@ async function jsonRequest<T>(
   } catch {
     return { ok: false, error: "NETWORK_ERROR" };
   }
+}
+
+export function getZadnjaStavka(orgId: number, artikalId: number) {
+  return jsonRequest<ZadnjaStavka | null>(
+    `/api/kalkulacije/${orgId}/artikli/${artikalId}/zadnja-stavka`,
+    { method: "GET" },
+  );
 }
 
 // ── kalkulacije ──

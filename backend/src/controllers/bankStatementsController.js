@@ -27,6 +27,8 @@ const {
   learnFromTransaction,
 } = require("../services/bankStatements/rules");
 const { buildKpr } = require("../services/kpr");
+const { computeObligations } = require("../services/obligationsService");
+const { izvodUcitanEvent } = require("../services/notificationsService");
 const { loadPartnerMatcher } = require("./partnersController");
 
 function parseId(v) {
@@ -334,6 +336,16 @@ async function upload(req, res) {
   if (!ownerWarning) {
     await addAccountToOrgProfile(organizationId, result.account);
   }
+
+  // in-app obavijest ostalim članovima obrta (fire-and-forget, ne blokira)
+  izvodUcitanEvent({
+    organizationId,
+    uploadedById: req.user.id,
+    statement: {
+      statementNumber: result.statementNumber,
+      bankName: result.bankName,
+    },
+  });
 
   return res.status(201).json({
     ok: true,
@@ -971,83 +983,18 @@ async function kpr(req, res) {
   return res.json({ ok: true, data });
 }
 
-const MJESECI = [
-  "januar", "februar", "mart", "april", "maj", "juni",
-  "juli", "august", "septembar", "oktobar", "novembar", "decembar",
-];
-
 // GET /api/bank-statements/:orgId/obligations — predstojeće poreske obaveze
 // tekućeg mjeseca, sa statusom izvedenim iz potvrđenih stavki izvoda:
 // obaveza je "gotova" kad postoji potvrđena uplata te kategorije u mjesecu.
+// Logika živi u obligationsService (dijele je dashboard i email podsjetnici).
 async function obligations(req, res) {
   const organizationId = parseId(req.params.orgId);
   if (!organizationId) {
     return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
   }
-  const org = await Organization.findByPk(organizationId, {
-    attributes: ["id", "isPdvObveznik"],
-  });
-  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
-
-  const { Op } = require("sequelize");
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1; // 1-12
-  const mm = String(month).padStart(2, "0");
-  const lastDay = new Date(year, month, 0).getDate();
-  const monthStart = `${year}-${mm}-01`;
-  const monthEnd = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
-  const prevName = MJESECI[(month + 10) % 12];
-
-  // potvrđene uplate po kategoriji u tekućem mjesecu
-  const paidRows = await BankTransaction.findAll({
-    where: {
-      organizationId,
-      status: "CONFIRMED",
-      direction: "OUT",
-      category: {
-        [Op.in]: ["DOPRINOSI_PODUZETNIKA", "POREZ_DOHODAK_VLASNIKA", "PDV_UIO"],
-      },
-      date: { [Op.gte]: monthStart, [Op.lte]: monthEnd },
-    },
-    attributes: ["category"],
-    group: ["category"],
-    raw: true,
-  });
-  const paid = new Set(paidRows.map((r) => r.category));
-
-  // rokovi za prethodni mjesec: doprinosi/porez/PDV do 10. u tekućem
-  const due10 = `${year}-${mm}-10`;
-  const items = [
-    {
-      id: "doprinosi",
-      title: `Akontacija doprinosa za ${prevName}`,
-      due: due10,
-      done: paid.has("DOPRINOSI_PODUZETNIKA"),
-    },
-    {
-      id: "porez",
-      title: `Akontacija poreza na dohodak za ${prevName}`,
-      due: due10,
-      done: paid.has("POREZ_DOHODAK_VLASNIKA"),
-    },
-  ];
-  if (org.isPdvObveznik) {
-    items.push({
-      id: "pdv",
-      title: `PDV prijava i uplata za ${prevName}`,
-      due: due10,
-      done: paid.has("PDV_UIO"),
-    });
-  }
-
-  const today = `${year}-${mm}-${String(now.getDate()).padStart(2, "0")}`;
-  for (const item of items) {
-    item.overdue = !item.done && item.due < today;
-  }
-  items.sort((a, b) => Number(a.done) - Number(b.done) || a.due.localeCompare(b.due));
-
-  return res.json({ ok: true, data: { items } });
+  const data = await computeObligations(organizationId);
+  if (!data) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+  return res.json({ ok: true, data });
 }
 
 // Zajednička primjena izmjene na stavku (koristi je pojedinačni PATCH i
@@ -1293,7 +1240,9 @@ async function bulkAnalyze(req, res) {
     }
 
     // organizacije u kojima korisnik smije uvoziti izvode (isti uslov kao
-    // requireOrgRole na per-org uploadu)
+    // requireOrgRole na per-org uploadu). PK Office radi SAMO sa obrtima
+    // (type BUSINESS): bez filtera bi se u ručnoj dodjeli nudile i d.o.o.
+    // firme, a izvod firme bi se po žiro računu i automatski prepoznao.
     const memberships = await OrganizationMember.findAll({
       where: { userId: req.user.id, role: { [Op.in]: ["OWNER", "ADMIN"] } },
       include: [
@@ -1301,6 +1250,7 @@ async function bulkAnalyze(req, res) {
           model: Organization,
           as: "organization",
           attributes: ["id", "name", "bankAccount", "bankAccounts"],
+          where: { type: "BUSINESS" },
         },
       ],
     });

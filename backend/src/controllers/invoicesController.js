@@ -9,6 +9,7 @@ const {
   Client,
   Partner,
   TkmPazar,
+  BankTransaction,
 } = require("../models/index");
 const {
   generateInvoicePdf,
@@ -175,6 +176,103 @@ function validateCreate(body) {
   });
 
   return { errors, type, docType };
+}
+
+// Zajednička jezgra kreiranja fakture (broj, obračun, upis stavki) unutar date
+// transakcije. Koristi je i batch iz pripremljenih računa. Prodavac/kupac su
+// gotovi snapshoti, bez pristupne logike (pozivalac je već autorizovao).
+async function createInvoiceRecord(
+  {
+    organizationId,
+    userId,
+    type = "INVOICE",
+    docType = "STANDARD",
+    issueDate,
+    dueDate = null,
+    applyVat = true,
+    vrstaIsporuke = "OPOREZIVA",
+    currency = "BAM",
+    clientId = null,
+    seller = {},
+    buyer = {},
+    items = [],
+    notes = null,
+  },
+  t,
+) {
+  const year = new Date(issueDate).getFullYear();
+  const series = seriesFor(type, docType);
+  const seq = await nextSequence({ organizationId, userId }, year, series, t);
+  const fullNumber = formatInvoiceNumber(seq, year, type, docType);
+
+  const computedItems = items.map((it) => ({ input: it, computed: computeItem(it, applyVat) }));
+  const totals = computeTotals(items, applyVat);
+
+  const invoice = await Invoice.create(
+    {
+      userId,
+      organizationId,
+      clientId,
+      type,
+      docType,
+      year,
+      sequence: seq,
+      fullNumber,
+      issueDate,
+      dueDate: docType === "AVANSNA" ? null : dueDate,
+      applyVat,
+      vrstaIsporuke,
+      currency,
+      status: docType === "AVANSNA" ? "PAID" : "ISSUED",
+      paidAt: docType === "AVANSNA" ? issueDate : null,
+      sellerName: trimOrNull(seller.name),
+      sellerAddress: trimOrNull(seller.address),
+      sellerCity: trimOrNull(seller.city),
+      sellerPhone: trimOrNull(seller.phone),
+      sellerEmail: trimOrNull(seller.email),
+      sellerTaxNumber: trimOrNull(seller.taxNumber),
+      sellerVatNumber: trimOrNull(seller.vatNumber),
+      sellerBankAccount: trimOrNull(seller.bankAccount),
+      sellerLogoUrl: trimOrNull(seller.logoUrl),
+      buyerName: trimOrNull(buyer.name),
+      buyerAddress: trimOrNull(buyer.address),
+      buyerCity: trimOrNull(buyer.city),
+      buyerPostalCode: trimOrNull(buyer.postalCode),
+      buyerPhone: trimOrNull(buyer.phone),
+      buyerEmail: trimOrNull(buyer.email),
+      buyerIdNumber: trimOrNull(buyer.idNumber),
+      buyerVatNumber: trimOrNull(buyer.vatNumber),
+      netTotal: totals.netTotal,
+      discountTotal: totals.discountTotal,
+      vatTotal: totals.vatTotal,
+      grossTotal: totals.grossTotal,
+      notes: trimOrNull(notes),
+    },
+    { transaction: t },
+  );
+
+  let ord = 1;
+  for (const { input, computed } of computedItems) {
+    await InvoiceItem.create(
+      {
+        invoiceId: invoice.id,
+        ordinal: ord++,
+        name: trimOrNull(input.name),
+        unit: trimOrNull(input.unit),
+        quantity: Number(input.quantity || 0),
+        unitPrice: Number(input.unitPrice || 0),
+        discountPct: Number(input.discountPct || 0),
+        vatPct: applyVat ? Number(input.vatPct || 0) : 0,
+        netLine: computed.netLine,
+        discountLine: computed.discountLine,
+        vatLine: computed.vatLine,
+        grossLine: computed.grossLine,
+      },
+      { transaction: t },
+    );
+  }
+
+  return invoice;
 }
 
 // ── LIST ───────────────────────────────────────────────────────────────────
@@ -618,6 +716,23 @@ async function patch(req, res) {
     if (!["DRAFT", "ISSUED", "PAID", "CANCELLED"].includes(status)) {
       return res.status(400).json({ ok: false, error: "Neispravan status" });
     }
+    // "Nenaplaćena" (PAID -> ISSUED/DRAFT) je undo za ručno označavanje. Ako je
+    // faktura zatvorena vezanom potvrđenom uplatom sa izvoda, njeno vraćanje bi
+    // desinhronizovalo karticu kupca (uplata izuzeta iz FIFO pool-a, a faktura
+    // više nije PAID -> preostalo skače na pun iznos). Blokiraj uz uputu.
+    if (inv.status === "PAID" && status !== "PAID" && status !== "CANCELLED") {
+      const linked = await BankTransaction.count({
+        where: { invoiceId: inv.id, status: "CONFIRMED" },
+      });
+      if (linked > 0) {
+        return res.status(409).json({
+          ok: false,
+          error: "IMA_VEZANU_UPLATU",
+          message:
+            "Faktura je zatvorena uplatom sa izvoda. Prvo ukloni vezu s uplatom na bankovnom izvodu, pa je onda vrati u nenaplaćeno.",
+        });
+      }
+    }
     updates.status = status;
     if (status === "PAID" && !inv.paidAt && !paidAt) {
       updates.paidAt = new Date();
@@ -671,6 +786,138 @@ async function patch(req, res) {
     include: [{ model: InvoiceItem, as: "items" }],
   });
   res.status(200).json({ ok: true, data: publicInvoice(fresh) });
+}
+
+// ── PUT (puni edit sadržaja) ─────────────────────────────────────────────────
+// Puni edit izlazne fakture/predračuna: kupac, stavke, datumi i iznosi se
+// mijenjaju uz PONOVNI obračun, a fiskalni identitet (broj, sequence, godina,
+// tip, docType, status, prodavac) ostaje isti. Dozvoljeno samo dok dokument
+// nije naplaćen/storniran, nije specijalni tip (avansna/storno/KO/PDV
+// evidencija), predračun nije pretvoren i nema vezanu knjižnu obavijest.
+async function updateContent(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Invalid id" });
+
+  const inv = await Invoice.findOne({ where: { id } });
+  if (!inv) return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  if (!(await userCanAccessInvoice(inv, req.user.id, req.user.role))) {
+    return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
+  }
+
+  // Zaštite (uređivanje fiskalnog dokumenta)
+  if (inv.docType !== "STANDARD") {
+    return res.status(409).json({ ok: false, error: "NEEDITABILAN_TIP" });
+  }
+  if (inv.status === "PAID") return res.status(409).json({ ok: false, error: "NAPLACENA" });
+  if (inv.status === "CANCELLED") return res.status(409).json({ ok: false, error: "STORNIRANA" });
+  if (inv.type === "PROFORMA") {
+    const child = await Invoice.findOne({
+      where: { convertedFromProformaId: inv.id },
+      attributes: ["id"],
+    });
+    if (child) return res.status(409).json({ ok: false, error: "PRETVOREN" });
+  }
+  const ko = await Invoice.findOne({
+    where: { linkedInvoiceId: inv.id, docType: "KNJIZNA_OBAVIJEST" },
+    attributes: ["id"],
+  });
+  if (ko) return res.status(409).json({ ok: false, error: "IMA_KNJIZNU" });
+
+  const { errors } = validateCreate({ ...req.body, type: inv.type, docType: "STANDARD" });
+  if (errors.length) return res.status(400).json({ ok: false, error: errors.join(" ") });
+
+  const body = req.body;
+  const buyer = body.buyer || {};
+  const items = body.items;
+  const applyVat = body.applyVat !== false;
+  const currency = body.currency === "EUR" ? "EUR" : "BAM";
+  const vrstaIsporuke = ["OPOREZIVA", "IZVOZ", "OSLOBODJENA"].includes(body.vrstaIsporuke)
+    ? body.vrstaIsporuke
+    : "OPOREZIVA";
+  const issueDate = body.issueDate ? new Date(body.issueDate) : new Date(inv.issueDate);
+  const dueDate = body.dueDate
+    ? new Date(body.dueDate)
+    : inv.dueDate
+      ? new Date(inv.dueDate)
+      : null;
+
+  // Broj/sekvenca fakture pripada godini serije (inv.year, upisan u fullNumber).
+  // Pomjeranje datuma u drugu godinu bi ostavilo faktetu u tuđem periodu sa
+  // brojem iz stare serije (rupa u numeraciji KIF/PDV). Zabrani promjenu godine.
+  const novaGodina = Number(
+    String(body.issueDate || inv.issueDate).slice(0, 4),
+  );
+  if (inv.year && novaGodina && novaGodina !== Number(inv.year)) {
+    return res.status(400).json({
+      ok: false,
+      error: "GODINA_SE_NE_PODUDARA",
+      message: `Datum izdavanja mora ostati u ${inv.year}. godini jer broj fakture pripada toj seriji. Za drugu godinu storniraj ovu i izdaj novu fakturu.`,
+    });
+  }
+
+  try {
+    const result = await sequelize.transaction(async (t) => {
+      const computedItems = items.map((it) => ({ input: it, computed: computeItem(it, applyVat) }));
+      const totals = computeTotals(items, applyVat);
+
+      await inv.update(
+        {
+          applyVat,
+          vrstaIsporuke,
+          currency,
+          issueDate,
+          dueDate,
+          buyerName: trimOrNull(buyer.name),
+          buyerAddress: trimOrNull(buyer.address),
+          buyerCity: trimOrNull(buyer.city),
+          buyerPostalCode: trimOrNull(buyer.postalCode),
+          buyerPhone: trimOrNull(buyer.phone),
+          buyerEmail: trimOrNull(buyer.email),
+          buyerIdNumber: trimOrNull(buyer.idNumber),
+          buyerVatNumber: trimOrNull(buyer.vatNumber),
+          netTotal: totals.netTotal,
+          discountTotal: totals.discountTotal,
+          vatTotal: totals.vatTotal,
+          grossTotal: totals.grossTotal,
+          notes: trimOrNull(body.notes),
+        },
+        { transaction: t },
+      );
+
+      await InvoiceItem.destroy({ where: { invoiceId: inv.id }, transaction: t });
+      let ord = 1;
+      for (const { input, computed } of computedItems) {
+        await InvoiceItem.create(
+          {
+            invoiceId: inv.id,
+            ordinal: ord++,
+            name: trimOrNull(input.name),
+            unit: trimOrNull(input.unit),
+            quantity: Number(input.quantity || 0),
+            unitPrice: Number(input.unitPrice || 0),
+            discountPct: Number(input.discountPct || 0),
+            vatPct: applyVat ? Number(input.vatPct || 0) : 0,
+            netLine: computed.netLine,
+            discountLine: computed.discountLine,
+            vatLine: computed.vatLine,
+            grossLine: computed.grossLine,
+          },
+          { transaction: t },
+        );
+      }
+
+      return Invoice.findOne({
+        where: { id: inv.id },
+        include: [{ model: InvoiceItem, as: "items" }],
+        transaction: t,
+      });
+    });
+
+    res.status(200).json({ ok: true, data: publicInvoice(result) });
+  } catch (e) {
+    console.error("invoice updateContent error:", e);
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
 }
 
 // ── DELETE ─────────────────────────────────────────────────────────────────
@@ -1406,4 +1653,4 @@ async function kifPdv(req, res) {
   }
 }
 
-module.exports = { list, adminList, getById, create, patch, remove, pdf, emailToBuyer, convertProforma, stornoAvans, knjiznaObavijest, pazar, kifPdv };
+module.exports = { list, adminList, getById, create, patch, updateContent, remove, pdf, emailToBuyer, convertProforma, stornoAvans, knjiznaObavijest, pazar, kifPdv, createInvoiceRecord };

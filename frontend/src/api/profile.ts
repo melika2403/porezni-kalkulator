@@ -871,7 +871,9 @@ export type FormType =
   | "SIH"
   | "PLDI"
   | "AMS"
-  | "JS3100";
+  | "JS3100"
+  | "COK"    // članarina obrtničkoj komori (Obrazac ČOK)
+  | "ONS";   // naknade za šume (Obrazac ONŠ, OKFŠ 0,07%)
 export type FormStatus = "DRAFT" | "GENERATED" | "SUBMITTED" | "ARCHIVED";
 
 export type FormRecord = {

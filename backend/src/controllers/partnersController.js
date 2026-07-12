@@ -6,15 +6,28 @@
 // snimanja partnera) i buduće (kod upload-a izvoda).
 const { Op, fn, col } = require("sequelize");
 const {
+  sequelize,
   Partner,
   BankTransaction,
   BankStatement,
   Invoice,
   Organization,
   UlazniRacun,
+  Prebijanje,
+  Kalkulacija,
+  Razduzenje,
 } = require("../models");
-const { buildKarticaPdf } = require("../utils/karticaPdf");
-const { sendKarticaEmail } = require("../utils/mailer");
+const {
+  buildKarticaPdf,
+  buildIosPdf,
+  buildOpomenaPdf,
+} = require("../utils/karticaPdf");
+const { allocateFifo } = require("../utils/paymentAllocation");
+const {
+  sendKarticaEmail,
+  sendIosEmail,
+  sendOpomenaEmail,
+} = require("../utils/mailer");
 
 function parseId(value) {
   const id = Number(value);
@@ -684,6 +697,14 @@ function parseIsoDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 }
 
+// Današnji datum u LOKALNOJ zoni ("YYYY-MM-DD"). toISOString() vraća UTC pa u
+// ranojutarnjim satima (UTC+1/+2) da jučerašnji dan i pomjeri "kasni" bucket.
+function todayLocalIso() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** Novi/ponovo otvoren račun pokušava naći već potvrđenu isplatu partnera
  *  (retroaktivno: izvod je stigao prije nego što je račun proknjižen). */
 async function tryMatchExistingPayment(racun) {
@@ -780,9 +801,8 @@ async function listUlazniRacuni(req, res) {
   const where = { organizationId };
   const partnerId = parseId(req.query.partnerId);
   if (partnerId) where.partnerId = partnerId;
-  if (req.query.status === "OTVOREN" || req.query.status === "PLACEN") {
-    where.status = req.query.status;
-  }
+  // status se NE filtrira u upitu: FIFO status naplate treba sve račune
+  // partnera; klijent filtrira po izvedenom statusu
   const racuni = await UlazniRacun.findAll({
     where,
     // jib/pdvBroj/code/city trebaju KUF-u (PDV evidencije, izvještaj, e-KUF)
@@ -795,7 +815,64 @@ async function listUlazniRacuni(req, res) {
     ],
     order: [["datumRacuna", "DESC"], ["id", "DESC"]],
   });
-  return res.json({ ok: true, data: racuni });
+
+  // ── Izvedeni status naplate (FIFO) po partneru ──
+  const isKredit = (r) =>
+    r.vrstaDokumenta === "KNJIZNA_OBAVIJEST" ||
+    r.vrstaDokumenta === "STORNO_AVANSNE";
+  const byPartner = new Map();
+  for (const r of racuni) {
+    if (r.partnerId == null) continue;
+    if (!byPartner.has(r.partnerId)) byPartner.set(r.partnerId, []);
+    byPartner.get(r.partnerId).push(r);
+  }
+  const partnerIds = [...byPartner.keys()];
+  const paidRows = partnerIds.length
+    ? await BankTransaction.findAll({
+        where: {
+          organizationId,
+          direction: "OUT",
+          status: "CONFIRMED",
+          partnerId: { [Op.in]: partnerIds },
+          // uplata koja je već zatvorila konkretan račun (ulazniRacunId) ga je
+          // označila PLACEN; ne ide ponovo u FIFO pool (izbjegava duplu naplatu)
+          ulazniRacunId: null,
+        },
+        attributes: ["partnerId", [fn("SUM", col("amount")), "paid"]],
+        group: ["partnerId"],
+        raw: true,
+      })
+    : [];
+  const paidByPartner = new Map(
+    paidRows.map((x) => [x.partnerId, Number(x.paid) || 0]),
+  );
+  const alloc = new Map();
+  for (const [pid, list] of byPartner) {
+    const kreditSum = list
+      .filter(isKredit)
+      .reduce((s, r) => s + (Number(r.iznos) || 0), 0);
+    const a = allocateFifo(
+      list.map((r) => ({
+        id: r.id,
+        iznos: Number(r.iznos) || 0,
+        datum: String(r.datumRacuna).slice(0, 10),
+        manualPlacen: r.status === "PLACEN",
+        // samoEvidencija (uvoz/JCI) nije obaveza prema dobavljaču, van FIFO-a
+        kredit: isKredit(r) || Boolean(r.samoEvidencija),
+      })),
+      (paidByPartner.get(pid) || 0) + kreditSum,
+    );
+    for (const [id, v] of a) alloc.set(id, v);
+  }
+  const data = racuni.map((r) => ({
+    ...r.toJSON(),
+    placeno: alloc.get(r.id)?.placeno ?? 0,
+    preostalo: alloc.get(r.id)?.preostalo ?? (Number(r.iznos) || 0),
+    paymentStatus:
+      alloc.get(r.id)?.status ??
+      (r.status === "PLACEN" ? "PLACEN" : "OTVOREN"),
+  }));
+  return res.json({ ok: true, data });
 }
 
 // POST /api/partners/:orgId/ulazni-racuni
@@ -1013,8 +1090,9 @@ async function removeUlazniRacun(req, res) {
 
 // GET /api/partners/:orgId/promet?type=kupac|dobavljac|svi&from=&to=
 // Zbirni izvještaj po partneru za period; ista logika kao kartica partnera
-// (kupac: fakture duguju, uplate i odobrenja potražuju; dobavljač: njegovi
-// računi potražuju, naša plaćanja duguju), pa se izvještaj i kartica slažu.
+// (kupac: fakture duguju, uplate potražuju; dobavljač: njegovi računi
+// potražuju, naša plaćanja duguju; odobrenja tipa knjižna obavijest / storno
+// ostaju na strani svog računa U MINUSU), pa se izvještaj i kartica slažu.
 // type=svi: obje strane odjednom, partner koji je i kupac i dobavljač je u
 // JEDNOM redu (njihovDug = saldo kupca, nasDug = saldo dobavljača).
 async function promet(req, res) {
@@ -1072,10 +1150,16 @@ async function promet(req, res) {
           byName.get(normalizeName(inv.buyerName)) ??
           null;
         if (pid == null) continue;
+        // odobrenja (storno avansa, knjižna obavijest) ostaju na dugovnoj
+        // strani kupca, u minusu (ista konvencija kao kartica)
         const doc = inv.docType || "STANDARD";
         const odobrenje =
           doc === "STORNO_AVANSNE" || doc === "KNJIZNA_OBAVIJEST";
-        bump(pid, odobrenje ? "kPotrazuje" : "kDuguje", Number(inv.grossTotal) || 0);
+        bump(
+          pid,
+          "kDuguje",
+          (odobrenje ? -1 : 1) * (Number(inv.grossTotal) || 0),
+        );
       }
     }
     if (wantDobavljac) {
@@ -1084,13 +1168,21 @@ async function promet(req, res) {
           organizationId,
           datumRacuna: { [Op.gte]: from, [Op.lte]: to },
         },
-        attributes: ["partnerId", "iznos", "samoEvidencija"],
+        attributes: ["partnerId", "iznos", "samoEvidencija", "vrstaDokumenta"],
         raw: true,
       });
       for (const r of racuni) {
         // samo PDV evidencija (uvoz/JCI) ne stvara obavezu prema dobavljaču
         if (r.samoEvidencija) continue;
-        bump(r.partnerId, "dPotrazuje", Number(r.iznos) || 0);
+        // knjižna obavijest / storno dobavljača: potražna strana u minusu
+        const vd = r.vrstaDokumenta || "REDOVNA";
+        const odobrenje =
+          vd === "KNJIZNA_OBAVIJEST" || vd === "STORNO_AVANSNE";
+        bump(
+          r.partnerId,
+          "dPotrazuje",
+          (odobrenje ? -1 : 1) * (Number(r.iznos) || 0),
+        );
       }
     }
 
@@ -1232,6 +1324,12 @@ async function kartica(req, res) {
     order: [["datumRacuna", "DESC"], ["id", "DESC"]],
   });
 
+  // računi nastali iz kalkulacija nose KLC oznaku (npr. "KLC 1/26")
+  const klcByRacun = await klcMapa(
+    organizationId,
+    ulazniRacuni.map((r) => r.id),
+  );
+
   let totalIn = 0;
   let totalOut = 0;
   for (const t of transactions) {
@@ -1239,12 +1337,84 @@ async function kartica(req, res) {
     if (t.direction === "IN") totalIn += Number(t.amount) || 0;
     else totalOut += Number(t.amount) || 0;
   }
-  const openInvoicesTotal = invoices
-    .filter((i) => i.status === "ISSUED")
-    .reduce((s, i) => s + (Number(i.grossTotal) || 0), 0);
-  const openPayablesTotal = ulazniRacuni
-    .filter((r) => r.status === "OTVOREN")
+  // ── Izvedeni status naplate (FIFO): potvrđena plaćanja se rasporede na
+  // otvorene dokumente po datumu; ručni "plaćen"/"naplaćena" je override ──
+  const racunKredit = (r) =>
+    r.vrstaDokumenta === "KNJIZNA_OBAVIJEST" ||
+    r.vrstaDokumenta === "STORNO_AVANSNE";
+  const invKredit = (i) =>
+    i.docType === "KNJIZNA_OBAVIJEST" || i.docType === "STORNO_AVANSNE";
+  // krediti (KO/storno) umanjuju dug pa idu u pool kao plaćanje
+  const racunKreditSum = ulazniRacuni
+    .filter(racunKredit)
     .reduce((s, r) => s + (Number(r.iznos) || 0), 0);
+  // kupci: samo izdane/plaćene fakture su potraživanje (CANCELLED/DRAFT ne)
+  const chargeableInvoices = invoices.filter(
+    (i) => i.status === "ISSUED" || i.status === "PAID",
+  );
+  const invKreditSum = chargeableInvoices
+    .filter(invKredit)
+    .reduce((s, i) => s + (Number(i.grossTotal) || 0), 0);
+  // kupci: uplata vezana za konkretnu fakturu ju je već zatvorila (ne u pool)
+  const unlinkedIn = transactions
+    .filter(
+      (t) => t.status === "CONFIRMED" && t.direction === "IN" && !t.invoiceId,
+    )
+    .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  // dobavljači: plaćanje koje je već zatvorilo konkretan račun (ulazniRacunId)
+  // je taj račun označilo PLACEN (manualPlacen); ne smije ponovo u pool, inače
+  // se ista uplata broji dvaput i sljedeći otvoren račun ispadne lažno plaćen
+  const unlinkedOut = transactions
+    .filter(
+      (t) =>
+        t.status === "CONFIRMED" && t.direction === "OUT" && !t.ulazniRacunId,
+    )
+    .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  const racunAlloc = allocateFifo(
+    ulazniRacuni.map((r) => ({
+      id: r.id,
+      iznos: Number(r.iznos) || 0,
+      datum: String(r.datumRacuna).slice(0, 10),
+      manualPlacen: r.status === "PLACEN",
+      // samoEvidencija (uvoz/JCI) nije obaveza prema dobavljaču, van FIFO-a
+      kredit: racunKredit(r) || Boolean(r.samoEvidencija),
+    })),
+    unlinkedOut + racunKreditSum,
+  );
+  const invAlloc = allocateFifo(
+    chargeableInvoices.map((i) => ({
+      id: i.id,
+      iznos: Number(i.grossTotal) || 0,
+      datum: String(i.issueDate).slice(0, 10),
+      manualPlacen: i.status === "PAID",
+      kredit: invKredit(i),
+    })),
+    unlinkedIn + invKreditSum,
+  );
+
+  const danas = todayLocalIso();
+  const openPayablesTotal = ulazniRacuni.reduce(
+    (s, r) => s + (racunAlloc.get(r.id)?.preostalo || 0),
+    0,
+  );
+  const openInvoicesTotal = chargeableInvoices.reduce(
+    (s, i) => s + (invAlloc.get(i.id)?.preostalo || 0),
+    0,
+  );
+  const openPayablesLate = ulazniRacuni.reduce(
+    (s, r) =>
+      r.rokPlacanja && String(r.rokPlacanja).slice(0, 10) < danas
+        ? s + (racunAlloc.get(r.id)?.preostalo || 0)
+        : s,
+    0,
+  );
+  const openInvoicesLate = chargeableInvoices.reduce(
+    (s, i) =>
+      i.dueDate && String(i.dueDate).slice(0, 10) < danas
+        ? s + (invAlloc.get(i.id)?.preostalo || 0)
+        : s,
+    0,
+  );
 
   return res.json({
     ok: true,
@@ -1254,9 +1424,27 @@ async function kartica(req, res) {
         accounts: Array.isArray(partner.accounts) ? partner.accounts : [],
       },
       transactions,
-      invoices,
-      ulazniRacuni,
-      totals: { totalIn, totalOut, openInvoicesTotal, openPayablesTotal },
+      invoices: invoices.map((i) => ({
+        ...(typeof i.toJSON === "function" ? i.toJSON() : i),
+        placeno: invAlloc.get(i.id)?.placeno ?? 0,
+        preostalo: invAlloc.get(i.id)?.preostalo ?? (Number(i.grossTotal) || 0),
+        paymentStatus: invAlloc.get(i.id)?.status ?? "OTVOREN",
+      })),
+      ulazniRacuni: ulazniRacuni.map((r) => ({
+        ...r.toJSON(),
+        kalkulacijaOznaka: klcByRacun.get(r.id) ?? null,
+        placeno: racunAlloc.get(r.id)?.placeno ?? 0,
+        preostalo: racunAlloc.get(r.id)?.preostalo ?? (Number(r.iznos) || 0),
+        paymentStatus: racunAlloc.get(r.id)?.status ?? "OTVOREN",
+      })),
+      totals: {
+        totalIn,
+        totalOut,
+        openInvoicesTotal,
+        openPayablesTotal,
+        openInvoicesLate,
+        openPayablesLate,
+      },
     },
   });
 }
@@ -1267,6 +1455,26 @@ const fmtDateHr = (iso) => {
   const [y, m, d] = String(iso).slice(0, 10).split("-");
   return `${d}.${m}.${y}.`;
 };
+
+/** Mapa ulazniRacunId → KLC oznaka ("1/26") za račune nastale iz
+ *  kalkulacija, da se na partneru vidi da je račun kalkulacija. */
+async function klcMapa(organizationId, racunIds) {
+  if (!racunIds.length) return new Map();
+  const kalkulacije = await Kalkulacija.findAll({
+    where: {
+      organizationId,
+      ulazniRacunId: { [Op.in]: racunIds },
+    },
+    attributes: ["ulazniRacunId", "broj", "godina"],
+    raw: true,
+  });
+  return new Map(
+    kalkulacije.map((k) => [
+      k.ulazniRacunId,
+      `${k.broj}/${String(k.godina).slice(-2)}`,
+    ]),
+  );
+}
 
 /** Hronološki redovi kartice: kupac (fakture duguju, uplate potražuju) ili
  *  dobavljač (njegovi računi potražuju, naša plaćanja duguju, MEGGLE stil). */
@@ -1282,7 +1490,7 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
         status: { [Op.in]: ["ISSUED", "PAID"] },
         issueDate: { [Op.gte]: from, [Op.lte]: to },
       },
-      attributes: ["fullNumber", "buyerName", "buyerIdNumber", "issueDate", "grossTotal", "docType"],
+      attributes: ["fullNumber", "buyerName", "buyerIdNumber", "issueDate", "dueDate", "grossTotal", "docType"],
       raw: true,
     });
     for (const inv of invoices) {
@@ -1290,7 +1498,8 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
         (pJib && normalizeDigits(inv.buyerIdNumber) === pJib) ||
         normalizeName(inv.buyerName) === pName;
       if (!matches) continue;
-      // storno avansne i knjižna obavijest UMANJUJU dug kupca (potražuje)
+      // storno avansne i knjižna obavijest ostaju na DUGOVNOJ strani kao i
+      // račun na koji se vežu, samo u minusu (knjigovodstvena konvencija)
       const doc = inv.docType || "STANDARD";
       const odobrenje = doc === "STORNO_AVANSNE" || doc === "KNJIZNA_OBAVIJEST";
       const label =
@@ -1304,9 +1513,10 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
       const gross = Number(inv.grossTotal) || 0;
       rows.push({
         date: String(inv.issueDate).slice(0, 10),
+        dospijece: inv.dueDate ? String(inv.dueDate).slice(0, 10) : null,
         label,
-        duguje: odobrenje ? 0 : gross,
-        potrazuje: odobrenje ? gross : 0,
+        duguje: odobrenje ? -gross : gross,
+        potrazuje: 0,
       });
     }
   } else {
@@ -1318,14 +1528,33 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
       },
       raw: true,
     });
+    const klc = await klcMapa(
+      organizationId,
+      racuni.map((r) => r.id),
+    );
     for (const r of racuni) {
       // samo PDV evidencija (uvoz/JCI) ne stvara obavezu prema dobavljaču
       if (r.samoEvidencija) continue;
+      // knjižna obavijest / storno dobavljača: POTRAŽNA strana u minusu
+      // (vezana je za račun, pa ostaje na istoj strani kao i on)
+      const vd = r.vrstaDokumenta || "REDOVNA";
+      const odobrenje = vd === "KNJIZNA_OBAVIJEST" || vd === "STORNO_AVANSNE";
+      const oznaka = klc.get(r.id);
+      const base = oznaka
+        ? `KLC ${oznaka} · Račun ${r.brojRacuna}`
+        : `Račun ${r.brojRacuna}`;
+      const iznos = Number(r.iznos) || 0;
       rows.push({
         date: String(r.datumRacuna).slice(0, 10),
-        label: `Račun ${r.brojRacuna}`,
+        label:
+          vd === "KNJIZNA_OBAVIJEST"
+            ? `Knjižna obavijest ${r.brojRacuna}`
+            : vd === "STORNO_AVANSNE"
+              ? `Storno avansa ${r.brojRacuna}`
+              : base,
+        dospijece: r.rokPlacanja ? String(r.rokPlacanja).slice(0, 10) : null,
         duguje: 0,
-        potrazuje: Number(r.iznos) || 0,
+        potrazuje: odobrenje ? -iznos : iznos,
       });
     }
   }
@@ -1352,6 +1581,7 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
       : "";
     rows.push({
       date: String(t.date).slice(0, 10),
+      dospijece: null,
       label: type === "kupac" ? `Uplata${izvod}` : `Plaćanje${izvod}`,
       duguje: type === "kupac" ? 0 : Number(t.amount) || 0,
       potrazuje: type === "kupac" ? Number(t.amount) || 0 : 0,
@@ -1448,6 +1678,355 @@ async function karticaEmail(req, res) {
   return res.json({ ok: true, data: { sentTo: to } });
 }
 
+// ─── IOS: izvod otvorenih stavki ────────────────────────────────────────────
+
+// Otvorene stavke na dan: kupac = naše otvorene fakture prema partneru,
+// dobavljac = naši otvoreni ulazni računi. Stavka je "otvorena na dan" ako
+// je izdana do tog dana i nije plaćena, ili je plaćena NAKON tog dana.
+async function buildIosRows(organizationId, partner, type, naDan) {
+  const rows = [];
+  if (type === "kupac") {
+    const pJib = normalizeDigits(partner.jib);
+    const pName = normalizeName(partner.name);
+    const invoices = await Invoice.findAll({
+      where: {
+        organizationId,
+        type: "INVOICE",
+        status: { [Op.in]: ["ISSUED", "PAID"] },
+        issueDate: { [Op.lte]: naDan },
+      },
+      attributes: [
+        "fullNumber", "buyerName", "buyerIdNumber", "issueDate",
+        "dueDate", "paidAt", "grossTotal", "status", "docType",
+      ],
+      raw: true,
+    });
+    for (const inv of invoices) {
+      const matches =
+        (pJib && normalizeDigits(inv.buyerIdNumber) === pJib) ||
+        normalizeName(inv.buyerName) === pName;
+      if (!matches) continue;
+      const otvorena =
+        inv.status === "ISSUED" ||
+        (inv.paidAt && String(inv.paidAt).slice(0, 10) > naDan);
+      if (!otvorena) continue;
+      const doc = inv.docType || "STANDARD";
+      // odobrenja (storno avansa, knjižna obavijest) umanjuju potraživanje
+      const odobrenje = doc === "STORNO_AVANSNE" || doc === "KNJIZNA_OBAVIJEST";
+      const prefix =
+        doc === "AVANSNA"
+          ? "Avansna faktura"
+          : doc === "STORNO_AVANSNE"
+            ? "Storno avans"
+            : doc === "KNJIZNA_OBAVIJEST"
+              ? "Knjižna obavijest"
+              : "Faktura";
+      rows.push({
+        broj: `${prefix} ${inv.fullNumber}`,
+        datum: String(inv.issueDate).slice(0, 10),
+        valuta: inv.dueDate ? String(inv.dueDate).slice(0, 10) : null,
+        iznos: (odobrenje ? -1 : 1) * (Number(inv.grossTotal) || 0),
+      });
+    }
+  } else {
+    const racuni = await UlazniRacun.findAll({
+      where: {
+        organizationId,
+        partnerId: partner.id,
+        datumRacuna: { [Op.lte]: naDan },
+      },
+      raw: true,
+    });
+    for (const r of racuni) {
+      // samo PDV evidencija (uvoz/JCI) ne stvara obavezu prema dobavljaču
+      if (r.samoEvidencija) continue;
+      const otvoren =
+        r.status === "OTVOREN" ||
+        (r.paidAt && String(r.paidAt).slice(0, 10) > naDan);
+      if (!otvoren) continue;
+      // knjižna obavijest / storno dobavljača umanjuju obavezu (minus)
+      const vd = r.vrstaDokumenta || "REDOVNA";
+      const odobrenje = vd === "KNJIZNA_OBAVIJEST" || vd === "STORNO_AVANSNE";
+      const prefix =
+        vd === "KNJIZNA_OBAVIJEST"
+          ? "Knjižna obavijest"
+          : vd === "STORNO_AVANSNE"
+            ? "Storno avansa"
+            : "Račun";
+      rows.push({
+        broj: `${prefix} ${r.brojRacuna}`,
+        datum: String(r.datumRacuna).slice(0, 10),
+        valuta: r.rokPlacanja ? String(r.rokPlacanja).slice(0, 10) : null,
+        iznos: (odobrenje ? -1 : 1) * (Number(r.iznos) || 0),
+      });
+    }
+  }
+  rows.sort((a, b) => a.datum.localeCompare(b.datum));
+  return rows;
+}
+
+async function loadIosContext(req) {
+  const organizationId = parseId(req.params.orgId);
+  const partnerId = parseId(req.params.partnerId);
+  if (!organizationId || !partnerId) return { error: "INVALID_ID", status: 400 };
+  const partner = await Partner.findOne({
+    where: { id: partnerId, organizationId },
+  });
+  if (!partner) return { error: "PARTNER_NOT_FOUND", status: 404 };
+  const org = await Organization.findByPk(organizationId, {
+    attributes: ["id", "name", "address", "city", "taxNumber"],
+  });
+
+  const q = req.method === "POST" ? req.body || {} : req.query;
+  const type = q.type === "kupac" ? "kupac" : "dobavljac";
+  const naDan = parseIsoDate(q.naDan) || new Date().toISOString().slice(0, 10);
+
+  const rows = await buildIosRows(organizationId, partner, type, naDan);
+  const pdf = await buildIosPdf({
+    org: {
+      name: org.name,
+      address: org.address,
+      city: org.city,
+      jib: org.taxNumber || "",
+    },
+    partner: partner.toJSON(),
+    type,
+    naDan,
+    rows,
+  });
+  const filename = `IOS_${String(partner.code || partner.id).padStart(4, "0")}_${naDan}.pdf`;
+  return { partner, org, type, naDan, pdf, filename };
+}
+
+// GET /api/partners/:orgId/:partnerId/ios.pdf?type=kupac|dobavljac&naDan=
+async function iosPdfDownload(req, res) {
+  const ctx = await loadIosContext(req);
+  if (ctx.error) {
+    return res.status(ctx.status).json({ ok: false, error: ctx.error });
+  }
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${ctx.filename}"`,
+  );
+  return res.send(ctx.pdf);
+}
+
+// POST /api/partners/:orgId/:partnerId/ios/email {type, naDan}
+async function iosEmail(req, res) {
+  const ctx = await loadIosContext(req);
+  if (ctx.error) {
+    return res.status(ctx.status).json({ ok: false, error: ctx.error });
+  }
+  const to = String(ctx.partner.email || "").trim();
+  if (!to) {
+    return res.status(400).json({ ok: false, error: "NO_EMAIL" });
+  }
+  try {
+    await sendIosEmail({
+      to,
+      partnerName: ctx.partner.name,
+      orgName: ctx.org.name,
+      naDanLabel: fmtDateHr(ctx.naDan),
+      pdfBuffer: ctx.pdf,
+      filename: ctx.filename,
+    });
+  } catch (e) {
+    console.error("ios email error:", e.message);
+    return res.status(502).json({ ok: false, error: "EMAIL_FAILED" });
+  }
+  return res.json({ ok: true, data: { sentTo: to } });
+}
+
+// ─── Opomena kupcu (dospjeli neplaćeni računi) ──────────────────────────────
+
+// Redovi opomene: dospjele otvorene fakture (valuta prošla), plus odobrenja
+// (KO/storno, negativni) da ukupan dug bude fer. Reuse IOS logike.
+async function buildOpomenaContext(req) {
+  const organizationId = parseId(req.params.orgId);
+  const partnerId = parseId(req.params.partnerId);
+  if (!organizationId || !partnerId) return { error: "INVALID_ID", status: 400 };
+  const partner = await Partner.findOne({
+    where: { id: partnerId, organizationId },
+  });
+  if (!partner) return { error: "PARTNER_NOT_FOUND", status: 404 };
+  const org = await Organization.findByPk(organizationId, {
+    attributes: ["id", "name", "address", "city", "taxNumber", "bankAccount"],
+  });
+
+  const q = req.method === "POST" ? req.body || {} : req.query;
+  const nivo = Number(q.nivo) === 2 ? 2 : 1;
+  const danas = todayLocalIso();
+
+  const sve = await buildIosRows(organizationId, partner, "kupac", danas);
+  const rows = sve.filter(
+    (r) => (r.valuta && String(r.valuta).slice(0, 10) < danas) || r.iznos < 0,
+  );
+  const dug = rows.reduce((s, r) => s + (r.iznos || 0), 0);
+  if (!rows.some((r) => r.iznos > 0) || dug <= 0) {
+    return { error: "NEMA_DOSPJELOG_DUGA", status: 400 };
+  }
+
+  const pdf = await buildOpomenaPdf({
+    org: {
+      name: org.name,
+      address: org.address,
+      city: org.city,
+      jib: org.taxNumber || "",
+      bankAccount: org.bankAccount || "",
+    },
+    partner: partner.toJSON(),
+    naDan: danas,
+    rok: 8,
+    nivo,
+    rows,
+  });
+  const filename = `Opomena${nivo === 2 ? "-pred-utuzenje" : ""}_${String(
+    partner.code || partner.id,
+  ).padStart(4, "0")}_${danas}.pdf`;
+  return { partner, org, nivo, danas, dug, pdf, filename };
+}
+
+// GET /api/partners/:orgId/:partnerId/opomena.pdf?nivo=1|2
+async function opomenaPdfDownload(req, res) {
+  const ctx = await buildOpomenaContext(req);
+  if (ctx.error) {
+    return res.status(ctx.status).json({ ok: false, error: ctx.error });
+  }
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${ctx.filename}"`,
+  );
+  return res.send(ctx.pdf);
+}
+
+// POST /api/partners/:orgId/:partnerId/opomena/email { nivo }
+async function opomenaEmail(req, res) {
+  const ctx = await buildOpomenaContext(req);
+  if (ctx.error) {
+    return res.status(ctx.status).json({ ok: false, error: ctx.error });
+  }
+  const to = String(ctx.partner.email || "").trim();
+  if (!to) {
+    return res.status(400).json({ ok: false, error: "NO_EMAIL" });
+  }
+  try {
+    await sendOpomenaEmail({
+      to,
+      partnerName: ctx.partner.name,
+      orgName: ctx.org.name,
+      nivo: ctx.nivo,
+      dug: ctx.dug,
+      pdfBuffer: ctx.pdf,
+      filename: ctx.filename,
+    });
+  } catch (e) {
+    console.error("opomena email error:", e.message);
+    return res.status(502).json({ ok: false, error: "EMAIL_FAILED" });
+  }
+  return res.json({ ok: true, data: { sentTo: to } });
+}
+
+// ─── Spajanje duplikata ─────────────────────────────────────────────────────
+
+// POST /api/partners/:orgId/:partnerId/merge { targetId }
+// Sav promet izvornog partnera (transakcije, ulazni računi, prebijanja,
+// kalkulacije, razduženja) prelazi na ciljnog, prazna polja ciljnog se
+// popune iz izvornog, žiro računi se uniraju, izvorni partner se briše.
+// Izlazne fakture se vežu po JIB-u/nazivu kupca: fakture izvornika se
+// prevežu na ciljni identitet (naziv + JIB) da ostanu na spojenom partneru.
+async function merge(req, res) {
+  try {
+    const organizationId = parseId(req.params.orgId);
+    const sourceId = parseId(req.params.partnerId);
+    const targetId = parseId((req.body || {}).targetId);
+    if (!organizationId || !sourceId || !targetId) {
+      return res.status(400).json({ ok: false, error: "INVALID_ID" });
+    }
+    if (sourceId === targetId) {
+      return res.status(400).json({ ok: false, error: "SAME_PARTNER" });
+    }
+    const source = await Partner.findOne({
+      where: { id: sourceId, organizationId },
+    });
+    const target = await Partner.findOne({
+      where: { id: targetId, organizationId },
+    });
+    if (!source || !target) {
+      return res.status(404).json({ ok: false, error: "PARTNER_NOT_FOUND" });
+    }
+
+    await sequelize.transaction(async (t) => {
+      const w = { where: { organizationId, partnerId: sourceId }, transaction: t };
+      await BankTransaction.update({ partnerId: targetId }, w);
+      await UlazniRacun.update({ partnerId: targetId }, w);
+      await Prebijanje.update({ partnerId: targetId }, w);
+      await Prebijanje.update(
+        { cesusPartnerId: targetId },
+        { where: { organizationId, cesusPartnerId: sourceId }, transaction: t },
+      );
+      await Prebijanje.update(
+        { cesionarPartnerId: targetId },
+        { where: { organizationId, cesionarPartnerId: sourceId }, transaction: t },
+      );
+      await Kalkulacija.update({ partnerId: targetId }, w);
+      await Razduzenje.update({ partnerId: targetId }, w);
+
+      const fill = {};
+      for (const k of ["jib", "pdvBroj", "address", "city", "email", "phone", "note"]) {
+        if (!target[k] && source[k]) fill[k] = source[k];
+      }
+      fill.accounts = Array.from(
+        new Set([
+          ...(Array.isArray(target.accounts) ? target.accounts : []),
+          ...(Array.isArray(source.accounts) ? source.accounts : []),
+        ]),
+      );
+      if (source.isKupac && !target.isKupac) fill.isKupac = true;
+      if (source.isDobavljac && !target.isDobavljac) fill.isDobavljac = true;
+      await target.update(fill, { transaction: t });
+
+      // Izlazne fakture se ne vežu po partnerId nego po JIB-u/nazivu kupca.
+      // Da izvornikove fakture ostanu na spojenom partneru i kad ciljni ima
+      // svoj (drugačiji) JIB, prepišemo im kupca na kanonski ciljni identitet.
+      // Bez ovoga bi nakon brisanja izvornika te fakture ostale bez partnera.
+      const srcJib = normalizeDigits(source.jib);
+      const srcName = normalizeName(source.name);
+      const tgtJib = target.jib || null; // fill je možda upravo kopirao source.jib
+      if (srcJib || srcName) {
+        const invoices = await Invoice.findAll({
+          where: { organizationId, type: "INVOICE" },
+          attributes: ["id", "buyerName", "buyerIdNumber"],
+          transaction: t,
+        });
+        for (const inv of invoices) {
+          const matchSrc =
+            (srcJib && normalizeDigits(inv.buyerIdNumber) === srcJib) ||
+            (srcName && normalizeName(inv.buyerName) === srcName);
+          if (!matchSrc) continue;
+          // već pogađa ciljni identitet (isti JIB ili naziv) → ne diraj
+          const matchTgt =
+            (tgtJib && normalizeDigits(inv.buyerIdNumber) === tgtJib) ||
+            normalizeName(inv.buyerName) === normalizeName(target.name);
+          if (matchTgt) continue;
+          await inv.update(
+            { buyerName: target.name, buyerIdNumber: tgtJib },
+            { transaction: t },
+          );
+        }
+      }
+
+      await source.destroy({ transaction: t });
+    });
+
+    return res.json({ ok: true, data: { targetId } });
+  } catch (err) {
+    console.error("partner merge error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 module.exports = {
   list,
   suggestions,
@@ -1463,6 +2042,11 @@ module.exports = {
   kartica,
   karticaPdfDownload,
   karticaEmail,
+  iosPdfDownload,
+  iosEmail,
+  opomenaPdfDownload,
+  opomenaEmail,
+  merge,
   loadPartnerMatcher,
   normalizeDigits,
   tryMatchExistingPayment,

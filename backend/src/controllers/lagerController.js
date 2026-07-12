@@ -43,7 +43,8 @@ async function computeLager(organizationId, datum) {
   const [ulazi] = await sequelize.query(
     `SELECT ks.artikalId, ks.mpc,
             SUM(ks.kolicina) AS ulaz,
-            SUM(ks.nabavniIznos) AS nabavniIznos
+            SUM(ks.nabavniIznos) AS nabavniIznos,
+            MAX(k.datum) AS zadnjiUlaz
      FROM kalkulacija_stavke ks
      JOIN kalkulacije k ON k.id = ks.kalkulacijaId
      WHERE k.organizationId = ? AND k.datum <= ?
@@ -88,6 +89,7 @@ async function computeLager(organizationId, datum) {
       mpc: Number(u.mpc),
       kolicina: r3(ulaz),
       nabavnaCijena: ulaz > 0 ? r5(Number(u.nabavniIznos) / ulaz) : 0,
+      zadnjiUlaz: u.zadnjiUlaz || null,
     });
   }
   const bump = (artikalId, mpc, delta) => {
@@ -153,6 +155,12 @@ async function lager(req, res) {
           mpc: r.mpc,
           kolicina: r.kolicina,
           vrijednost: Math.round(r.kolicina * r.mpc * 100) / 100,
+          // prosječna nabavna iz kalkulacija (vrijednost zalihe i RUC)
+          nabavnaCijena: r.nabavnaCijena,
+          nabavnaVrijednost:
+            Math.round(r.kolicina * r.nabavnaCijena * 100) / 100,
+          oslobodjenPdv: Boolean(a?.oslobodjenPdv),
+          zadnjiUlaz: r.zadnjiUlaz ?? null,
         };
       })
       .sort(
@@ -339,7 +347,7 @@ async function tkmEvents(organizationId, from, to) {
     { replacements: [organizationId, from, to] },
   );
   const [popisi] = await sequelize.query(
-    `SELECT p.datum, p.broj, p.godina,
+    `SELECT p.datum, p.broj, p.godina, p.pocetnoStanje,
             SUM(CASE WHEN ps.popisKolicina > ps.knjigKolicina
                 THEN (ps.popisKolicina - ps.knjigKolicina) * ps.mpc
                 ELSE 0 END) AS visak,
@@ -350,7 +358,7 @@ async function tkmEvents(organizationId, from, to) {
      JOIN popis_stavke ps ON ps.popisId = p.id
      WHERE p.organizationId = ? AND p.status = 'PROKNJIZEN'
        AND p.datum >= ? AND p.datum <= ?
-     GROUP BY p.id, p.datum, p.broj, p.godina
+     GROUP BY p.id, p.datum, p.broj, p.godina, p.pocetnoStanje
      ORDER BY p.datum ASC, p.id ASC`,
     { replacements: [organizationId, from, to] },
   );
@@ -385,7 +393,9 @@ async function tkmEvents(organizationId, from, to) {
     if (visak > 0) {
       events.push({
         datum: p.datum,
-        opis: `Popis ${oznaka}, višak po popisnoj listi`,
+        opis: p.pocetnoStanje
+          ? `Početno stanje zaliha po popisu ${oznaka}`
+          : `Popis ${oznaka}, višak po popisnoj listi`,
         zaduzenje: visak,
         razduzenje: 0,
       });
@@ -527,6 +537,7 @@ function popisJson(p, stavkeCount) {
     datum: p.datum,
     status: p.status,
     napomena: p.napomena,
+    pocetnoStanje: Boolean(p.pocetnoStanje),
     stavkeCount,
   };
 }
@@ -646,6 +657,164 @@ async function createPopis(req, res) {
   }
 }
 
+// POST /api/lager/:orgId/popisi/uvoz: uvoz početnog stanja lagera.
+// Kreira DRAFT popis (pocetnoStanje) SAMO sa uvezenim redovima:
+// knjigovodstvena količina se čita sa lagera na datum (obično 0), popisana
+// je uvezena, pa proknjižavanje postavlja stanje tačno na uvezeno i NE dira
+// ostalu robu (za razliku od običnog popisa koji nosi cijeli snapshot).
+const UVOZ_LAGER_MAX_PRESKOCENO = 300;
+
+async function uvozPocetnogStanja(req, res) {
+  try {
+    const organizationId = parseId(req.params.orgId);
+    if (!organizationId) {
+      return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+    }
+    const datum = parseIsoDate(req.body?.datum);
+    if (!datum) {
+      return res.status(400).json({ ok: false, error: "DATUM_INVALID" });
+    }
+    const napomena = String(req.body?.napomena || "").trim() || null;
+    const rawStavke = Array.isArray(req.body?.stavke) ? req.body.stavke : [];
+    if (rawStavke.length === 0) {
+      return res.status(400).json({ ok: false, error: "EMPTY" });
+    }
+    if (rawStavke.length > 50000) {
+      return res.status(400).json({ ok: false, error: "TOO_MANY" });
+    }
+
+    const artikli = await Artikal.findAll({
+      where: { organizationId },
+      raw: true,
+    });
+    const artikalBySifra = new Map(
+      artikli.map((a) => [String(a.sifra).toLowerCase(), a]),
+    );
+    const org = await Organization.findByPk(organizationId);
+    const orgObveznik = Boolean(org?.isPdvObveznik);
+    const lagerMap = await computeLager(organizationId, datum);
+
+    const preskoceno = [];
+    let preskocenoUkupno = 0;
+    const skip = (sifra, razlog) => {
+      preskocenoUkupno++;
+      if (preskoceno.length < UVOZ_LAGER_MAX_PRESKOCENO) {
+        preskoceno.push({ sifra, razlog });
+      }
+    };
+
+    // ista šifra + MPC više puta u fajlu: količine se sabiraju
+    const poKljucu = new Map();
+    let spojeno = 0;
+    for (const s of rawStavke) {
+      const sifra = String(s?.sifra || "").trim();
+      if (!sifra) {
+        skip("", "nema šifru");
+        continue;
+      }
+      const artikal = artikalBySifra.get(sifra.toLowerCase());
+      if (!artikal) {
+        skip(sifra, "nema u šifarniku artikala");
+        continue;
+      }
+      if (artikal.tip === "USLUGA") {
+        skip(sifra, "usluga (nema zalihe)");
+        continue;
+      }
+      const kolicina = Number(s?.kolicina);
+      if (!Number.isFinite(kolicina) || kolicina <= 0) {
+        skip(sifra, "neispravna količina");
+        continue;
+      }
+      const mpc = Math.round(Number(s?.mpc) * 100) / 100;
+      if (!Number.isFinite(mpc) || mpc <= 0) {
+        skip(sifra, "neispravna MPC");
+        continue;
+      }
+      const k = key(artikal.id, mpc);
+      const existing = poKljucu.get(k);
+      if (existing) {
+        existing.popisKolicina = r3(existing.popisKolicina + kolicina);
+        spojeno++;
+        continue;
+      }
+      const nabavna = Number(s?.nabavnaCijena);
+      const uLageru = lagerMap.get(k);
+      poKljucu.set(k, {
+        artikalId: artikal.id,
+        sifra: artikal.sifra,
+        naziv: artikal.naziv,
+        jm: artikal.jm,
+        mpc,
+        nabavnaCijena:
+          Number.isFinite(nabavna) && nabavna > 0
+            ? r5(nabavna)
+            : (uLageru?.nabavnaCijena ?? 0),
+        pdvStopa: orgObveznik && !artikal.oslobodjenPdv ? 17 : 0,
+        knjigKolicina: uLageru ? uLageru.kolicina : 0,
+        popisKolicina: r3(kolicina),
+      });
+    }
+
+    const stavke = [...poKljucu.values()].sort(
+      (x, y) => x.sifra.localeCompare(y.sifra, "bs") || x.mpc - y.mpc,
+    );
+    if (stavke.length === 0) {
+      return res.status(400).json({ ok: false, error: "NO_VALID_ROWS" });
+    }
+
+    const godina = Number(datum.slice(0, 4));
+    let created = null;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        created = await sequelize.transaction(async (t) => {
+          const broj = await nextBroj(organizationId, godina, t);
+          const p = await Popis.create(
+            {
+              organizationId,
+              broj,
+              godina,
+              datum,
+              napomena: napomena || "Početno stanje lagera (uvoz)",
+              pocetnoStanje: true,
+            },
+            { transaction: t },
+          );
+          for (let i = 0; i < stavke.length; i += 500) {
+            // eslint-disable-next-line no-await-in-loop
+            await PopisStavka.bulkCreate(
+              stavke.slice(i, i + 500).map((s) => ({ ...s, popisId: p.id })),
+              { transaction: t },
+            );
+          }
+          return p;
+        });
+        break;
+      } catch (e) {
+        if (e.name === "SequelizeUniqueConstraintError" && attempt < 3) {
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    return res.status(201).json({
+      ok: true,
+      data: {
+        popis: popisJson(created, stavke.length),
+        dodano: stavke.length,
+        spojeno,
+        preskocenoUkupno,
+        preskoceno,
+      },
+    });
+  } catch (err) {
+    console.error("uvoz pocetnog stanja error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 // GET /api/lager/:orgId/popisi/:id
 async function getPopis(req, res) {
   const organizationId = parseId(req.params.orgId);
@@ -737,6 +906,9 @@ async function refreshStavke(p, t) {
       await st.update({ knjigKolicina: 0 }, { transaction: t });
     }
   }
+  // popis početnog stanja sadrži SAMO uvezene redove: dodavanje snapshot
+  // redova sa popisKolicina 0 bi pri proknjižavanju otpisalo svu ostalu robu
+  if (p.pocetnoStanje) return;
   const toAdd = fresh.filter((s) => !seen.has(key(s.artikalId, s.mpc)));
   if (toAdd.length) {
     await PopisStavka.bulkCreate(
@@ -1395,6 +1567,7 @@ module.exports = {
   removeRazduzenje,
   listPopisi,
   createPopis,
+  uvozPocetnogStanja,
   getPopis,
   updatePopis,
   refreshPopis,

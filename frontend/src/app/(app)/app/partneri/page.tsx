@@ -15,17 +15,22 @@ import {
   IconX,
   IconFileUpload,
   IconReportAnalytics,
+  IconArrowsExchange,
+  IconDownload,
+  IconLoader2,
 } from "@tabler/icons-react";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatBAM, formatDate } from "src/lib/format";
 import { bankNameFromAccount, formatBankAccount } from "src/lib/bankCodes";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import {
   useDeletePartner,
+  useMergePartner,
   usePartners,
   usePartnerSuggestions,
 } from "src/hooks/usePartners";
-import { uvozPartnera, type Partner } from "src/api/partners";
+import { createPartner, uvozPartnera, type Partner } from "src/api/partners";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { parsePartneriFile } from "src/lib/comsoftUvoz";
@@ -50,6 +55,47 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "dobavljaci", label: "Dobavljači" },
   { id: "svi", label: "Svi aktivni" },
   { id: "imenik", label: "Imenik" },
+];
+
+// sortiranje radi na svim tabovima; dug = otvorene stavke (njihov/naš)
+type SortId =
+  | "aktivnost"
+  | "promet-desc"
+  | "naziv-az"
+  | "naziv-za"
+  | "sifra-asc"
+  | "sifra-desc"
+  | "njihov-dug-desc"
+  | "njihov-dug-asc"
+  | "nas-dug-desc"
+  | "nas-dug-asc";
+
+const SORT_GROUPS = [
+  {
+    label: "Aktivnost",
+    options: [
+      { value: "aktivnost", label: "Najnovije prvo" },
+      { value: "promet-desc", label: "Najveći promet" },
+    ],
+  },
+  {
+    label: "Naziv i šifra",
+    options: [
+      { value: "naziv-az", label: "Naziv A-Ž" },
+      { value: "naziv-za", label: "Naziv Ž-A" },
+      { value: "sifra-asc", label: "Šifra rastuće" },
+      { value: "sifra-desc", label: "Šifra opadajuće" },
+    ],
+  },
+  {
+    label: "Dug",
+    options: [
+      { value: "njihov-dug-desc", label: "Njihov dug: najveći prvo" },
+      { value: "njihov-dug-asc", label: "Njihov dug: najmanji prvo" },
+      { value: "nas-dug-desc", label: "Naš dug: najveći prvo" },
+      { value: "nas-dug-asc", label: "Naš dug: najmanji prvo" },
+    ],
+  },
 ];
 
 // tip partnera se ne bira ručno nego izvodi iz poslovanja
@@ -137,9 +183,9 @@ export default function PartneriPage() {
 
   const [tab, setTab] = useState<TabId>("svi");
   const [q, setQ] = useState("");
-  const [sort, setSort] = useState<"aktivnost" | "naziv" | "sifra">(
-    "aktivnost",
-  );
+  const [sort, setSort] = useState<SortId>("aktivnost");
+  // klik na KPI karticu duga filtrira listu na dužnike te strane
+  const [dugFilter, setDugFilter] = useState<null | "njihov" | "nas">(null);
   const [deleteTarget, setDeleteTarget] = useState<Partner | null>(null);
   const [formInitial, setFormInitial] = useState<PartnerFormState | null>(null);
   // globalno knjiženje ulaznog računa (izbor dobavljača u modalu)
@@ -149,6 +195,13 @@ export default function PartneriPage() {
   const [returnToRacun, setReturnToRacun] = useState(false);
   const [uvozOpen, setUvozOpen] = useState(false);
   const [prometOpen, setPrometOpen] = useState(false);
+  // spajanje duplikata: izvorni partner + izbor ciljnog
+  const [mergeSource, setMergeSource] = useState<Partner | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
+  const mergeM = useMergePartner(orgId);
+  // grupno dodavanje svih prijedloga
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkInfo, setBulkInfo] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data: fullOrg } = useQuery({
@@ -162,23 +215,63 @@ export default function PartneriPage() {
   const deletePartner = useDeletePartner(orgId);
 
   const visible = useMemo(() => {
-    // sortiranje: najnovija aktivnost (default), abecedno ili po šifri
+    // sortiranje: aktivnost/promet, naziv, šifra ili otvoreni dug (obje strane)
     const cmp = (a: Partner, b: Partner): number => {
-      if (sort === "naziv") return a.name.localeCompare(b.name, "bs");
-      if (sort === "sifra") {
-        const ca = a.code ?? Number.MAX_SAFE_INTEGER;
-        const cb = b.code ?? Number.MAX_SAFE_INTEGER;
-        return ca - cb || a.name.localeCompare(b.name, "bs");
+      const byName = a.name.localeCompare(b.name, "bs");
+      switch (sort) {
+        case "naziv-az":
+          return byName;
+        case "naziv-za":
+          return -byName;
+        case "sifra-asc": {
+          const ca = a.code ?? Number.MAX_SAFE_INTEGER;
+          const cb = b.code ?? Number.MAX_SAFE_INTEGER;
+          return ca - cb || byName;
+        }
+        case "sifra-desc": {
+          const ca = a.code ?? -1;
+          const cb = b.code ?? -1;
+          return cb - ca || byName;
+        }
+        case "njihov-dug-desc":
+          return (
+            b.stats.openInvoicesTotal - a.stats.openInvoicesTotal || byName
+          );
+        case "njihov-dug-asc":
+          return (
+            a.stats.openInvoicesTotal - b.stats.openInvoicesTotal || byName
+          );
+        case "nas-dug-desc":
+          return (
+            b.stats.openPayablesTotal - a.stats.openPayablesTotal || byName
+          );
+        case "nas-dug-asc":
+          return (
+            a.stats.openPayablesTotal - b.stats.openPayablesTotal || byName
+          );
+        case "promet-desc":
+          return (
+            b.stats.totalIn +
+              b.stats.totalOut -
+              (a.stats.totalIn + a.stats.totalOut) || byName
+          );
+        default: {
+          const da = a.stats.lastDate ?? "";
+          const db = b.stats.lastDate ?? "";
+          return db.localeCompare(da) || byName;
+        }
       }
-      const da = a.stats.lastDate ?? "";
-      const db = b.stats.lastDate ?? "";
-      return db.localeCompare(da) || a.name.localeCompare(b.name, "bs");
     };
     const all = [...(partners ?? [])].sort(cmp);
     let base = all;
     if (tab === "kupci") base = all.filter(isKupac);
     else if (tab === "dobavljaci") base = all.filter(isDobavljac);
     else if (tab === "svi") base = all.filter(isAktivan);
+    if (dugFilter === "njihov") {
+      base = base.filter((p) => p.stats.openInvoicesTotal > 0);
+    } else if (dugFilter === "nas") {
+      base = base.filter((p) => p.stats.openPayablesTotal > 0);
+    }
 
     const query = q.trim();
     if (!query) return base;
@@ -206,7 +299,26 @@ export default function PartneriPage() {
         looseText(p.name).includes(nq) ||
         looseText(p.city ?? "").includes(nq),
     );
-  }, [partners, tab, q, sort]);
+  }, [partners, tab, q, sort, dugFilter]);
+
+  // KPI: ukupni otvoreni dugovi preko svih partnera
+  const dugSume = useMemo(() => {
+    let njihov = 0;
+    let njihovCnt = 0;
+    let nas = 0;
+    let nasCnt = 0;
+    for (const p of partners ?? []) {
+      if (p.stats.openInvoicesTotal > 0) {
+        njihov += p.stats.openInvoicesTotal;
+        njihovCnt += 1;
+      }
+      if (p.stats.openPayablesTotal > 0) {
+        nas += p.stats.openPayablesTotal;
+        nasCnt += 1;
+      }
+    }
+    return { njihov, njihovCnt, nas, nasCnt };
+  }, [partners]);
 
   // brojači po tabu (za navbar)
   const tabCounts = useMemo(() => {
@@ -229,11 +341,86 @@ export default function PartneriPage() {
     ? suggestionList
     : suggestionList.slice(0, 4);
 
+  // grupno dodavanje svih prijedloga (podaci koje već imamo sa izvoda/faktura)
+  async function dodajSvePrijedloge() {
+    if (!orgId || bulkBusy || suggestionList.length === 0) return;
+    setBulkBusy(true);
+    setBulkInfo(null);
+    let dodano = 0;
+    let preskoceno = 0;
+    for (const s of suggestionList) {
+      const r = await createPartner(orgId, {
+        name: s.name,
+        jib: s.jib ?? undefined,
+        address: s.address ?? undefined,
+        city: s.city ?? undefined,
+        email: s.email ?? undefined,
+        accounts: s.account ? [s.account] : [],
+        isKupac: s.isKupac,
+        isDobavljac: s.isDobavljac,
+      });
+      if (r.ok) dodano += 1;
+      else preskoceno += 1;
+    }
+    qc.invalidateQueries({ queryKey: ["partners", orgId] });
+    qc.invalidateQueries({ queryKey: ["bank-statements", orgId] });
+    setBulkInfo(
+      preskoceno === 0
+        ? `Dodano ${dodano} ${dodano === 1 ? "partner" : "partnera"}.`
+        : `Dodano ${dodano}, preskočeno ${preskoceno}.`,
+    );
+    setBulkBusy(false);
+  }
+
+  // izvoz imenika u CSV (Excel): izvozi se ono što je trenutno filtrirano
+  function izvozCsv() {
+    const esc = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const num = (n: number) => n.toFixed(2).replace(".", ",");
+    const header = [
+      "Šifra", "Naziv", "JIB", "PDV broj", "Adresa", "Grad", "Email",
+      "Telefon", "Žiro računi", "Promet (KM)", "Njihov dug (KM)",
+      "Naš dug (KM)", "Zadnja aktivnost", "Napomena",
+    ];
+    const lines = visible.map((p) => [
+      p.code != null ? String(p.code).padStart(4, "0") : "",
+      p.name,
+      p.jib ?? "",
+      p.pdvBroj ?? "",
+      p.address ?? "",
+      p.city ?? "",
+      p.email ?? "",
+      p.phone ?? "",
+      p.accounts.join(" "),
+      num(p.stats.totalIn + p.stats.totalOut),
+      num(p.stats.openInvoicesTotal),
+      num(p.stats.openPayablesTotal),
+      p.stats.lastDate ? formatDate(p.stats.lastDate) : "",
+      p.note ?? "",
+    ]);
+    // BOM da Excel ispravno pročita UTF-8 (č, ć, š...)
+    const csv =
+      "\uFEFF" +
+      [header, ...lines].map((r) => r.map(esc).join(";")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Partneri_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
 
   return (
     <div className="px-6 py-6 max-w-[1280px] mx-auto">
       {/* Zaglavlje */}
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+      <div className="relative flex flex-wrap items-end justify-between gap-3 mb-5">
+        <HelpButton slug="partneri" className="absolute top-0 right-0" />
         <div>
           <div className="inline-flex items-center gap-[7px] px-[11px] py-1 rounded-full bg-brand-100 text-brand-700 text-[12px] font-medium mb-3">
             <span className="w-[7px] h-[7px] rounded-full bg-brand-600" />
@@ -266,6 +453,16 @@ export default function PartneriPage() {
           </button>
           <button
             type="button"
+            onClick={izvozCsv}
+            disabled={visible.length === 0}
+            title="Izvoz trenutno filtrirane liste u CSV (Excel): podaci, promet i dugovi"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-cream-300 text-text-primary text-[13px] font-medium hover:bg-cream-200 transition-colors disabled:opacity-50"
+          >
+            <IconDownload size={16} />
+            Izvoz (CSV)
+          </button>
+          <button
+            type="button"
             onClick={() => {
               setRacunPreselect(null);
               setRacunModalOpen(true);
@@ -289,12 +486,33 @@ export default function PartneriPage() {
       {/* Prijedlozi iz podataka */}
       {suggestionList.length > 0 && (
         <div className="rounded-xl bg-cream-100 border border-cream-300 mb-5 overflow-hidden">
-          <div className="flex items-center gap-1.5 text-[12px] font-medium text-brand-700 px-4 pt-3 pb-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-brand-700 px-4 pt-3 pb-2">
             <IconSparkles size={14} />
             Pronađeni u vašim izvodima i fakturama
             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-700 text-[11px] tabular-nums">
               {suggestionList.length}
             </span>
+            {bulkInfo && (
+              <span className="text-[11.5px] text-text-tertiary font-normal">
+                {bulkInfo}
+              </span>
+            )}
+            {suggestionList.length > 1 && (
+              <button
+                type="button"
+                onClick={dodajSvePrijedloge}
+                disabled={bulkBusy}
+                title="Dodaj sve pronađene partnere odjednom, sa podacima koje već imamo"
+                className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-600 text-brand-600 text-[12px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+              >
+                {bulkBusy ? (
+                  <IconLoader2 size={13} className="animate-spin" />
+                ) : (
+                  <IconPlus size={13} />
+                )}
+                Dodaj sve ({suggestionList.length})
+              </button>
+            )}
           </div>
           <ul>
             {visibleSuggestions.map((s, i) => {
@@ -354,6 +572,75 @@ export default function PartneriPage() {
         </div>
       )}
 
+      {/* KPI: otvoreni dugovi; klik filtrira listu na dužnike te strane */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+        <button
+          type="button"
+          onClick={() => {
+            const nov = dugFilter === "njihov" ? null : "njihov";
+            setDugFilter(nov);
+            if (nov) setSort("njihov-dug-desc");
+          }}
+          title="Prikaži samo partnere koji nam duguju (otvorene fakture)"
+          className={[
+            "text-left bg-cream-100 border rounded-xl p-[18px] transition-colors",
+            dugFilter === "njihov"
+              ? "border-brand-600 ring-1 ring-brand-600"
+              : "border-cream-300 hover:border-brand-600/50",
+          ].join(" ")}
+        >
+          <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+            Njihov dug (potraživanja)
+          </div>
+          <div className="font-serif-display text-[22px] leading-none tabular-nums text-success">
+            {dugSume.njihov > 0 ? formatBAM(dugSume.njihov) : "–"}
+          </div>
+          <div className="text-[11.5px] text-text-tertiary mt-1.5">
+            {dugSume.njihovCnt > 0
+              ? `${dugSume.njihovCnt} ${dugSume.njihovCnt === 1 ? "partner duguje" : "partnera duguje"}`
+              : "niko ne duguje"}
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const nov = dugFilter === "nas" ? null : "nas";
+            setDugFilter(nov);
+            if (nov) setSort("nas-dug-desc");
+          }}
+          title="Prikaži samo dobavljače kojima dugujemo (otvoreni ulazni računi)"
+          className={[
+            "text-left bg-cream-100 border rounded-xl p-[18px] transition-colors",
+            dugFilter === "nas"
+              ? "border-brand-600 ring-1 ring-brand-600"
+              : "border-cream-300 hover:border-brand-600/50",
+          ].join(" ")}
+        >
+          <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+            Naš dug (obaveze)
+          </div>
+          <div className="font-serif-display text-[22px] leading-none tabular-nums text-warning">
+            {dugSume.nas > 0 ? formatBAM(dugSume.nas) : "–"}
+          </div>
+          <div className="text-[11.5px] text-text-tertiary mt-1.5">
+            {dugSume.nasCnt > 0
+              ? `${dugSume.nasCnt} ${dugSume.nasCnt === 1 ? "dobavljaču dugujemo" : "dobavljača čeka plaćanje"}`
+              : "nema otvorenih računa"}
+          </div>
+        </button>
+        <div className="bg-cream-100 border border-cream-300 rounded-xl p-[18px]">
+          <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+            Aktivni partneri
+          </div>
+          <div className="font-serif-display text-[22px] leading-none tabular-nums text-text-primary">
+            {tabCounts.svi}
+          </div>
+          <div className="text-[11.5px] text-text-tertiary mt-1.5">
+            ukupno {tabCounts.imenik} u imeniku
+          </div>
+        </div>
+      </div>
+
       {/* Tabovi + pretraga (segmented pilula kao na ostatku PK Office-a) */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="inline-flex items-center gap-1 p-1 rounded-full border border-cream-300 bg-cream-100 flex-wrap">
@@ -384,17 +671,22 @@ export default function PartneriPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          {dugFilter != null && (
+            <button
+              type="button"
+              onClick={() => setDugFilter(null)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-100 text-brand-700 text-[12px] font-medium hover:bg-brand-100/70 transition-colors"
+              title="Ukloni filter duga"
+            >
+              {dugFilter === "njihov" ? "Samo dužnici" : "Samo naše obaveze"}
+              <IconX size={13} />
+            </button>
+          )}
           <PkSelect
             ariaLabel="Sortiranje"
             value={sort}
-            onChange={(v) =>
-              setSort(String(v ?? "aktivnost") as typeof sort)
-            }
-            options={[
-              { value: "aktivnost", label: "Najnovije prvo" },
-              { value: "naziv", label: "Abecedno" },
-              { value: "sifra", label: "Po šifri" },
-            ]}
+            onChange={(v) => setSort(String(v ?? "aktivnost") as SortId)}
+            groups={SORT_GROUPS}
           />
           <div className="relative">
             <IconSearch
@@ -465,7 +757,17 @@ export default function PartneriPage() {
                     "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-[13px] cursor-pointer hover:bg-cream-50/60 transition-colors",
                     i < visible.length - 1 ? "border-b border-cream-300/70" : "",
                   ].join(" ")}
-                  onClick={() => router.push(`/app/partneri/${p.id}`)}
+                  onClick={() =>
+                    router.push(
+                      `/app/partneri/${p.id}${
+                        tab === "kupci"
+                          ? "?tip=kupac"
+                          : tab === "dobavljaci"
+                            ? "?tip=dobavljac"
+                            : ""
+                      }`,
+                    )
+                  }
                 >
                   <span
                     className={[
@@ -611,6 +913,17 @@ export default function PartneriPage() {
                         },
                         {
                           kind: "item",
+                          key: "merge",
+                          label: "Spoji sa drugim partnerom",
+                          icon: <IconArrowsExchange size={14} />,
+                          onClick: () => {
+                            mergeM.reset(); // očisti grešku prethodnog pokušaja
+                            setMergeTargetId(null);
+                            setMergeSource(p);
+                          },
+                        },
+                        {
+                          kind: "item",
                           key: "delete",
                           label: "Obriši partnera",
                           icon: <IconTrash size={14} />,
@@ -714,6 +1027,94 @@ export default function PartneriPage() {
           ? Transakcije, izvodi i fakture ostaju netaknuti, skida se samo
           veza sa karticom ovog partnera.
         </p>
+      </Modal>
+
+      {/* Spajanje duplikata */}
+      <Modal
+        open={mergeSource != null}
+        onClose={() => setMergeSource(null)}
+        title="Spajanje duplikata"
+      >
+        {mergeSource && (
+          <div className="space-y-3">
+            <p className="text-[13px] leading-6 text-text-secondary">
+              Sav promet partnera{" "}
+              <span className="font-semibold text-text-primary">
+                {mergeSource.name}
+              </span>{" "}
+              (transakcije sa izvoda, ulazni računi, prebijanja, kalkulacije)
+              prelazi na partnera kojeg izaberete. Žiro računi i podaci se
+              spajaju, a{" "}
+              <span className="font-semibold text-text-primary">
+                {mergeSource.name}
+              </span>{" "}
+              se briše. Radnja je nepovratna.
+            </p>
+            <div>
+              <label className="block text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                Spoji u partnera
+              </label>
+              <PkSelect
+                ariaLabel="Ciljni partner"
+                value={mergeTargetId != null ? String(mergeTargetId) : ""}
+                onChange={(v) => setMergeTargetId(v ? Number(v) : null)}
+                searchable
+                placeholder="Izaberi partnera"
+                options={[
+                  { value: "", label: "Izaberi partnera" },
+                  ...(partners ?? [])
+                    .filter((x) => x.id !== mergeSource.id)
+                    .sort((a, b) => a.name.localeCompare(b.name, "bs"))
+                    .map((x) => ({
+                      value: String(x.id),
+                      label: `${
+                        x.code != null
+                          ? `${String(x.code).padStart(4, "0")} · `
+                          : ""
+                      }${x.name}`,
+                    })),
+                ]}
+                wrapStyle={{ width: "100%" }}
+              />
+            </div>
+            {mergeM.isError && (
+              <p className="text-[12.5px] text-accent-500">
+                Spajanje nije uspjelo, pokušajte ponovo.
+              </p>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setMergeSource(null)}
+                className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+              >
+                Odustani
+              </button>
+              <button
+                type="button"
+                disabled={mergeTargetId == null || mergeM.isPending}
+                onClick={async () => {
+                  if (!mergeSource || mergeTargetId == null) return;
+                  try {
+                    await mergeM.mutateAsync({
+                      sourceId: mergeSource.id,
+                      targetId: mergeTargetId,
+                    });
+                    setMergeSource(null);
+                  } catch {
+                    // greška ostaje prikazana u modalu (mergeM.isError)
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-500 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {mergeM.isPending && (
+                  <IconLoader2 size={15} className="animate-spin" />
+                )}
+                Spoji i obriši
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Globalno knjiženje ulaznog računa */}

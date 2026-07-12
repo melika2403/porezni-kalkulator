@@ -1,0 +1,35 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 26, 18, 0.4);
+  animation: upustvoFadeIn 0.2s ease;
+}
+
+.panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  animation: upustvoSlideIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes upustvoFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes upustvoSlideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

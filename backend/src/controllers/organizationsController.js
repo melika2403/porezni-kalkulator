@@ -8,6 +8,7 @@ const {
   UserPreference,
   Worker,
   Payroll,
+  BankStatement,
 } = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
 
@@ -433,6 +434,20 @@ async function listWithPayrollStatus(req, res) {
     payrollsByOrg.set(p.organizationId, cur);
   }
 
+  // Zadnji učitani izvod po org (pregled obrta na PK Office početnoj).
+  const lastStatementByOrg = new Map();
+  const statements = await BankStatement.findAll({
+    where: { organizationId: orgIds },
+    attributes: ["organizationId", "statementDate"],
+  });
+  for (const s of statements) {
+    if (!s.statementDate) continue;
+    const cur = lastStatementByOrg.get(s.organizationId);
+    if (!cur || s.statementDate > cur) {
+      lastStatementByOrg.set(s.organizationId, s.statementDate);
+    }
+  }
+
   const enrich = (orgs) =>
     orgs.map((o) => {
       const workerCount = workersByOrg.get(o.id) || 0;
@@ -462,6 +477,7 @@ async function listWithPayrollStatus(req, res) {
         payrollIsplaceno: stats.isplaceno,
         payrollStatus,
         mipDownloadedAt: stats.mipDownloadedAt,
+        lastStatementDate: lastStatementByOrg.get(o.id) || null,
       };
     });
 

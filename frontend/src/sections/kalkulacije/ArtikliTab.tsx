@@ -21,9 +21,12 @@ import {
   useUpdateArtikal,
 } from "src/hooks/useKalkulacije";
 import { uvozArtikala, type Artikal } from "src/api/kalkulacije";
+import { getLager } from "src/api/lager";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
+import { formatKm } from "src/lib/amountInput";
 import { downloadTablePdf } from "src/sections/lager/robaPdf";
+import { ArtikalKarticaModal } from "src/sections/lager/ArtikalKarticaModal";
 import { parseArtikliFile } from "src/lib/comsoftUvoz";
 import { ArtikalModal } from "./ArtikalModal";
 
@@ -44,7 +47,27 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
   const [uUpotrebi, setUUpotrebi] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [uvozOpen, setUvozOpen] = useState(false);
+  const [sakrijNeaktivne, setSakrijNeaktivne] = useState(false);
+  // klik na red otvara karticu artikla (promet + stanje, kao na lageru)
+  const [karticaId, setKarticaId] = useState<number | null>(null);
   const qc = useQueryClient();
+
+  // stanje i MPC sa lager liste (roba po artiklu može imati više MPC redova)
+  const { data: lager } = useQuery({
+    queryKey: ["lager", orgId],
+    queryFn: () => unwrap(getLager(orgId as number)),
+    enabled: orgId != null,
+  });
+  const lagerByArtikal = useMemo(() => {
+    const m = new Map<number, { stanje: number; mpc: number[] }>();
+    for (const r of lager?.rows ?? []) {
+      const cur = m.get(r.artikalId) ?? { stanje: 0, mpc: [] };
+      cur.stanje += r.kolicina;
+      if (r.kolicina > 0 && !cur.mpc.includes(r.mpc)) cur.mpc.push(r.mpc);
+      m.set(r.artikalId, cur);
+    }
+    return m;
+  }, [lager]);
 
   // puni podaci obrta za zaglavlje PDF-a (isti cache key kao na lageru)
   const { data: fullOrg } = useQuery({
@@ -55,7 +78,8 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const all = artikli ?? [];
+    let all = artikli ?? [];
+    if (sakrijNeaktivne) all = all.filter((a) => a.aktivan);
     if (!q) return all;
     return all.filter(
       (a) =>
@@ -63,7 +87,45 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
         a.sifra.toLowerCase().includes(q) ||
         (a.barkod ?? "").toLowerCase().includes(q),
     );
-  }, [artikli, search]);
+  }, [artikli, search, sakrijNeaktivne]);
+
+  // CSV izvoz šifarnika (Excel: BOM + ";"), prati aktivnu pretragu/filter
+  function izvozCsv() {
+    const esc = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = [
+      "Šifra", "Naziv", "Vrsta", "J/M", "Bar kod", "PDV", "Status",
+      "Stanje (lager)", "MPC (lager)",
+    ];
+    const lines = rows.map((a) => {
+      const lg = lagerByArtikal.get(a.id);
+      return [
+        a.sifra,
+        a.naziv,
+        a.tip === "USLUGA" ? "usluga" : "roba",
+        a.jm,
+        a.barkod ?? "",
+        a.oslobodjenPdv ? "oslobođen" : "17%",
+        a.aktivan ? "aktivan" : "neaktivan",
+        lg ? String(lg.stanje).replace(".", ",") : "0",
+        lg ? lg.mpc.map((m) => formatKm(m)).join(" / ") : "",
+      ];
+    });
+    const csv =
+      "\uFEFF" +
+      [header, ...lines].map((r) => r.map(esc).join(";")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Sifarnik-artikala-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   async function potvrdiBrisanje() {
     if (!brisi) return;
@@ -151,6 +213,15 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
           placeholder="Pretraži po nazivu, šifri ili bar kodu"
           className="w-full max-w-[340px] rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600"
         />
+        <label className="flex items-center gap-2 text-[12.5px] text-text-secondary cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={sakrijNeaktivne}
+            onChange={(e) => setSakrijNeaktivne(e.target.checked)}
+            className="w-4 h-4 accent-[#3a5c42]"
+          />
+          Sakrij neaktivne
+        </label>
         <button
           type="button"
           onClick={() => setUvozOpen(true)}
@@ -158,6 +229,16 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
         >
           <IconFileUpload size={15} />
           Uvoz
+        </button>
+        <button
+          type="button"
+          onClick={izvozCsv}
+          disabled={rows.length === 0}
+          title="Izvoz šifarnika u CSV (Excel), sa stanjem i MPC sa lagera"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-cream-300 text-[13px] font-medium text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+        >
+          <IconDownload size={15} />
+          Izvoz (CSV)
         </button>
         <button
           type="button"
@@ -194,6 +275,12 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
               <th className={thCls}>J/M</th>
               <th className={thCls}>Bar kod</th>
               <th className={thCls}>PDV</th>
+              <th className={`${thCls} text-right`} title="Sa lager liste">
+                Stanje
+              </th>
+              <th className={`${thCls} text-right`} title="MPC sa lager liste">
+                MPC
+              </th>
               <th className={thCls}>Status</th>
               <th className={`${thCls} text-right`}>Akcije</th>
             </tr>
@@ -201,7 +288,7 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
           <tbody>
             {isLoading && (
               <tr>
-                <td className={tdCls} colSpan={7}>
+                <td className={tdCls} colSpan={9}>
                   Učitavanje...
                 </td>
               </tr>
@@ -210,7 +297,7 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
               <tr>
                 <td
                   className="px-3 py-8 text-center text-[13px] text-text-tertiary"
-                  colSpan={7}
+                  colSpan={9}
                 >
                   {search
                     ? "Nema artikala za traženi pojam."
@@ -221,7 +308,9 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
             {rows.map((a) => (
               <tr
                 key={a.id}
-                className={`border-b border-cream-300 last:border-b-0 ${a.aktivan ? "" : "opacity-55"}`}
+                onClick={() => setKarticaId(a.id)}
+                title="Otvori karticu artikla (promet i stanje)"
+                className={`border-b border-cream-300 last:border-b-0 cursor-pointer hover:bg-cream-50/80 transition-colors ${a.aktivan ? "" : "opacity-55"}`}
               >
                 <td className={`${tdCls} tabular-nums`}>{a.sifra}</td>
                 <td className={tdCls}>
@@ -243,6 +332,22 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
                     "17%"
                   )}
                 </td>
+                <td className={`${tdCls} text-right tabular-nums`}>
+                  {a.tip === "USLUGA"
+                    ? "–"
+                    : (lagerByArtikal.get(a.id)?.stanje ?? 0).toLocaleString(
+                        "de-DE",
+                        { maximumFractionDigits: 3 },
+                      )}
+                </td>
+                <td className={`${tdCls} text-right tabular-nums`}>
+                  {(() => {
+                    const mpc = lagerByArtikal.get(a.id)?.mpc ?? [];
+                    return mpc.length > 0
+                      ? mpc.map((m) => formatKm(m)).join(" / ")
+                      : "–";
+                  })()}
+                </td>
                 <td className={tdCls}>
                   {a.aktivan ? (
                     <span className="inline-block px-2 py-0.5 rounded-[20px] bg-success-bg text-success text-[11px] font-medium">
@@ -251,12 +356,13 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
                   ) : (
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         updateM.mutate({
                           id: a.id,
                           payload: { aktivan: true },
-                        })
-                      }
+                        });
+                      }}
                       className="inline-block px-2 py-0.5 rounded-[20px] bg-cream-200 text-text-secondary text-[11px] font-medium hover:bg-cream-300 transition-colors"
                       title="Klik za ponovnu aktivaciju"
                     >
@@ -267,7 +373,8 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
                 <td className={`${tdCls} text-right`}>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setEdit(a);
                       setModalOpen(true);
                     }}
@@ -278,7 +385,8 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setUUpotrebi(false);
                       setBrisi(a);
                     }}
@@ -299,6 +407,13 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
         orgId={orgId}
         artikal={edit}
         onClose={() => setModalOpen(false)}
+      />
+
+      {/* kartica artikla: promet i stanje, ista kao na lageru */}
+      <ArtikalKarticaModal
+        orgId={orgId}
+        artikalId={karticaId}
+        onClose={() => setKarticaId(null)}
       />
 
       <UvozSifarnikaModal

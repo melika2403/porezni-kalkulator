@@ -124,9 +124,9 @@ const OFFICE_HERO_FEATURES: OfficeFeature[] = [
 ];
 
 const OFFICE_FEATURES: OfficeFeature[] = [
-  { icon: IconCoins, title: "Obračun plata", desc: "Plate, listići, uplatnice, MIP-1023 i 2001/2002" },
+  { icon: IconCoins, title: "Obračun plata", desc: "Plate, listići na email, uplatnice, MIP-1023, 2001/2002, nalog za knjiženje i doprinosi vlasnika" },
   { icon: IconReceiptTax, title: "PDV evidencije", desc: "KUF/KIF, PDV prijava, e-KUF/e-KIF, D-PDV" },
-  { icon: IconFileText, title: "KPR i obrasci", desc: "Knjiga prihoda i rashoda, SPR i GPD iz knjiga" },
+  { icon: IconFileText, title: "KPR i obrasci", desc: "Knjiga prihoda i rashoda; SPR, GPD, ČOK i ONŠ iz knjiga" },
   { icon: IconFileInvoice, title: "Fakture i partneri", desc: "Fakture, kartice kupaca i dobavljača, kompenzacije" },
   { icon: IconPackage, title: "Roba", desc: "Kalkulacije (KCM), lager lista, popis i TKM" },
   { icon: IconBuildingBank, title: "Blagajna i putni nalozi", desc: "Nalozi, dnevnik i dnevnice po pravilima" },
@@ -731,7 +731,15 @@ export default function Pretplate() {
           {OFFICE_PLANS.map((p) => {
             const isActive = selected === p.id;
             const cijena = PLAN_PRICING[p.id][cycle];
-            const poObrtu = PLAN_PRICING[p.id].monthly / p.maxObrta;
+            // efektivna mjesečna cijena po obrtu, zaokružena na cijeli KM:
+            // kod godišnjeg paketa (2 mjeseca gratis) godišnja cijena se
+            // dijeli na 12 mjeseci, pa ispadne niža nego kod mjesečnog
+            // (npr. 5 umjesto 6 KM po obrtu)
+            const poObrtu = Math.round(
+              cycle === "yearly"
+                ? PLAN_PRICING[p.id].yearly / 12 / p.maxObrta
+                : PLAN_PRICING[p.id].monthly / p.maxObrta,
+            );
             return (
               <button
                 key={p.id}
@@ -760,7 +768,7 @@ export default function Pretplate() {
                   </div>
                 )}
                 <div className={styles.officePerObrt}>
-                  već od {fmt(poObrtu)} KM po obrtu mjesečno
+                  već od {poObrtu} KM po obrtu mjesečno
                 </div>
                 <div className={styles.divider} />
                 <ul className={styles.features}>
@@ -770,7 +778,12 @@ export default function Pretplate() {
                   ) : (
                     <li>Kompletan Business: neograničeni klijenti</li>
                   )}
-                  <li>30 dana besplatne probe</li>
+                  {(p.id === "OFFICE_25" || p.id === "OFFICE_50") && (
+                    <li>Prioritetna podrška na live chatu</li>
+                  )}
+                  {/* Trial je fiksno Office Tim nivo (10 obrta), pa se 30 dana
+                      probe nudi samo na tom paketu, ne na svima */}
+                  {p.id === "OFFICE_10" && <li>30 dana besplatne probe</li>}
                 </ul>
                 <div className={styles.selectIndicator}>
                   {isActive ? (
