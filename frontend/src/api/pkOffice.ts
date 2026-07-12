@@ -106,6 +106,11 @@ export type PkOfficePristup = {
   trial: boolean;
   trialEndsAt: string | null;
   trialIskoristen: boolean;
+  /** broj obrta trenutno aktivnih u PK Office (scope "vlastiti") */
+  aktivnihObrta: number;
+  /** paket manji od broja aktivnih obrta (downgrade): moduli su blokirani
+      dok se višak obrta ne deaktivira; deaktivacija tada odmah oslobađa slot */
+  prekoLimita: boolean;
   /** max null = bez limita (npr. admin) */
   slotovi: { zauzeto: number; max: number | null } | null;
   organizations: {
