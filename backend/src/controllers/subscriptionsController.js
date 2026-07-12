@@ -508,55 +508,6 @@ async function invoicePdf(req, res) {
   }
 }
 
-async function changePlan(req, res) {
-  const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
-
-  const { plan, billing_cycle, billingCycle } = req.body ?? {};
-  const cycle = billingCycle || billing_cycle;
-
-  if (!["free", "pro", "business"].includes(plan)) {
-    return res.status(400).json({ ok: false, error: "INVALID_PLAN" });
-  }
-  if (cycle && !["monthly", "yearly"].includes(cycle)) {
-    return res.status(400).json({ ok: false, error: "INVALID_BILLING_CYCLE" });
-  }
-
-  const user = await userRepository.getUserById(userId);
-  if (!user) return res.status(404).json({ ok: false, error: "User not found" });
-
-  // aktivan office paket se ne mijenja samostalno kroz change-plan (pregazio
-  // bi office_* plan); promjena ide kroz admina ili novi predračun
-  const existingSub = await Subscription.findOne({ where: { userId } });
-  if (
-    existingSub &&
-    existingSub.isActive &&
-    String(existingSub.plan || "").toLowerCase().startsWith("office") &&
-    (!existingSub.endDate || new Date(existingSub.endDate) >= new Date())
-  ) {
-    return res.status(409).json({ ok: false, error: "OFFICE_PLAN_ACTIVE" });
-  }
-
-  const newRole = plan === "pro" ? "PRO" : plan === "business" ? "BUSINESS" : "USER";
-  await userRepository.updateUserById(userId, { role: newRole });
-
-  const sub = await ensureSubscription(userId, newRole);
-  sub.plan = plan;
-  sub.status = "active";
-  sub.cancelAtPeriodEnd = false;
-  sub.cancelledAt = null;
-  if (cycle) sub.billingCycle = cycle;
-  sub.isActive = true;
-  await sub.save();
-
-  // Reissue JWT s novom rolom
-  setAuthCookieWithRole(res, userId, newRole);
-
-  const planConfig = getPlan(plan);
-  const usage = await computeUsage(userId);
-  return res.json({ ok: true, data: buildSubscriptionResponse(sub, planConfig, usage) });
-}
-
 async function cancelCurrent(req, res) {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
@@ -604,7 +555,6 @@ module.exports = {
   listPlans,
   listInvoices,
   invoicePdf,
-  changePlan,
   cancelCurrent,
   reactivateCurrent,
 };

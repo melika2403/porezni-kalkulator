@@ -27,7 +27,6 @@ currentRouter.get("/", requireAuth, subscriptionsController.getCurrent);
 currentRouter.get("/plans", requireAuth, subscriptionsController.listPlans);
 currentRouter.get("/invoices", requireAuth, subscriptionsController.listInvoices);
 currentRouter.get("/invoices/:id/pdf", requireAuth, subscriptionsController.invoicePdf);
-currentRouter.post("/change-plan", requireAuth, subscriptionsController.changePlan);
 currentRouter.post("/cancel", requireAuth, subscriptionsController.cancelCurrent);
 currentRouter.post("/reactivate", requireAuth, subscriptionsController.reactivateCurrent);
 

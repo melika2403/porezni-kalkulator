@@ -4,13 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
 import {
   cancelSubscription,
-  changePlan,
   getInvoices,
   getPlans,
   getSubscription,
   reactivateSubscription,
-  type BillingCycle,
-  type PlanKey,
 } from "src/api/subscription";
 
 export function useSubscription() {
@@ -32,18 +29,6 @@ export function useSubscriptionInvoices(page = 1, limit = 20) {
   return useQuery({
     queryKey: ["subscription", "invoices", page, limit],
     queryFn: () => unwrap(getInvoices(page, limit)),
-  });
-}
-
-export function useChangePlan() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: { plan: PlanKey; billingCycle?: BillingCycle }) =>
-      unwrap(changePlan(payload)),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["subscription"] });
-      qc.invalidateQueries({ queryKey: ["pk-office", "me"] });
-    },
   });
 }
 
