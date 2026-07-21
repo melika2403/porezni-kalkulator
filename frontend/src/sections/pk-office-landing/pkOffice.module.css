@@ -372,6 +372,35 @@
   margin: 0;
 }
 
+/* Široka kartica preko cijelog reda (Migracija): horizontalni raspored,
+   ikona lijevo, naslov + opis desno. Popunjava zadnji red grida. */
+.featWide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.1rem;
+  align-items: center;
+}
+.featWide .featIcon {
+  grid-row: 1 / span 2;
+  margin-bottom: 0;
+}
+.featWide .featName {
+  margin: 0 0 0.2rem;
+}
+
+
+/* sitna napomena ispod grida funkcija (fiskalne kase) */
+.featNapomena {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 720px;
+  margin: 0.85rem auto 0;
+  text-align: center;
+}
+
+
 /* ── Najava pretplate (teaser, bez cijene) ── */
 .plan {
   max-width: 1080px;

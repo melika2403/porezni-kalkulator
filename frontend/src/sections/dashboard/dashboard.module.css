@@ -271,10 +271,10 @@
   margin-bottom: 1.5rem;
 }
 
-.metricIconSuccess { background: #d8ebe1; color: #2d6e54; }
+.metricIconSuccess { background: var(--color-success-bg, #d8ebe1); color: var(--color-success, #2d6e54); }
 .metricIconNeutral { background: var(--paper); color: var(--mid); }
-.metricIconInfo    { background: #d8e6f1; color: #1f5a8c; }
-.metricIconWarning { background: #f2dec0; color: #8a4f10; }
+.metricIconInfo    { background: var(--color-info-bg, #d8e6f1); color: var(--color-info, #1f5a8c); }
+.metricIconWarning { background: var(--color-warning-bg, #f2dec0); color: var(--color-warning, #8a4f10); }
 
 .metricLabel {
   font-size: 11px;

@@ -456,6 +456,15 @@
   margin-bottom: 2px;
 }
 
+/* sitna napomena ispod grida funkcija (fiskalne kase i sl.) */
+.officeNapomena {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--mid);
+  max-width: 720px;
+  margin: 0.75rem 0 1.5rem;
+}
+
 /* kontakt kartica za 50+ obrta: isti jezik kao hero kartice funkcija */
 .officeContact {
   margin-top: 14px;

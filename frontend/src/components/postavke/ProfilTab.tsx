@@ -41,7 +41,7 @@ import { aktivirajObrtUPkOffice } from "src/api/pkOffice";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
-import { parseDateInput } from "src/lib/dateInput";
+import { parseDateInput, isoToDisplay } from "src/lib/dateInput";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import { PkAmountInput } from "src/components/app-shell/PkAmountInput";
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
@@ -79,6 +79,10 @@ type FormState = {
   taxCategory: string;
   isPdvObveznik: boolean;
   pdvNumber: string;
+  /** Ulazak u sistem PDV-a, display "DD.MM.GGGG."; prazno = oduvijek. */
+  pdvObveznikOd: string;
+  /** Izlazak iz sistema PDV-a, display; prazno = nije izašao / nikad bio. */
+  pdvObveznikDo: string;
   address: string;
   city: string;
   email: string;
@@ -99,6 +103,8 @@ const EMPTY: FormState = {
   taxCategory: "",
   isPdvObveznik: false,
   pdvNumber: "",
+  pdvObveznikOd: "",
+  pdvObveznikDo: "",
   address: "",
   city: "",
   email: "",
@@ -160,6 +166,8 @@ export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
         taxCategory: o.taxCategory ?? "",
         isPdvObveznik: !!o.isPdvObveznik,
         pdvNumber: o.pdvNumber ?? "",
+        pdvObveznikOd: o.pdvObveznikOd ? isoToDisplay(o.pdvObveznikOd) : "",
+        pdvObveznikDo: o.pdvObveznikDo ? isoToDisplay(o.pdvObveznikDo) : "",
         address: o.address ?? "",
         city: o.city ?? "",
         email: o.email ?? "",
@@ -192,6 +200,32 @@ export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
     }
     if (!activeOrgId) return;
 
+    // PDV datumi: upisan tekst mora biti validan datum, inače bi se
+    // parseDateInput(null) tiho snimio kao "bez granice" i obrisao datum.
+    const pdvOdIso = form.pdvObveznikOd.trim()
+      ? parseDateInput(form.pdvObveznikOd)
+      : null;
+    if (form.pdvObveznikOd.trim() && !pdvOdIso) {
+      setError('Neispravan datum "U sistemu PDV-a od" (format DD.MM.GGGG.)');
+      return;
+    }
+    const pdvDoIso =
+      !form.isPdvObveznik && form.pdvObveznikDo.trim()
+        ? parseDateInput(form.pdvObveznikDo)
+        : null;
+    if (
+      !form.isPdvObveznik &&
+      form.pdvObveznikDo.trim() &&
+      !pdvDoIso
+    ) {
+      setError('Neispravan datum "Izašao iz sistema PDV-a" (format DD.MM.GGGG.)');
+      return;
+    }
+    if (pdvOdIso && pdvDoIso && pdvDoIso <= pdvOdIso) {
+      setError("Datum izlaska iz PDV-a mora biti poslije datuma ulaska.");
+      return;
+    }
+
     const payload: OrgSettingsPayload = {
       name: form.name.trim(),
       // entitet se u PK Office-u ne bira: sjedište obrta je u FBiH
@@ -209,6 +243,9 @@ export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
         : {}),
       isPdvObveznik: form.isPdvObveznik,
       pdvNumber: form.isPdvObveznik ? form.pdvNumber.trim() : "",
+      // datumi ulaska/izlaska iz PDV-a: prazno = null (bez granice)
+      pdvObveznikOd: pdvOdIso,
+      pdvObveznikDo: pdvDoIso,
       address: form.address.trim(),
       city: form.city.trim(),
       email: form.email.trim(),
@@ -670,7 +707,7 @@ export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
               onClick={() =>
                 handleChange("bankAccounts", [...form.bankAccounts, ""])
               }
-              className="self-start inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-700 hover:text-brand-600"
+              className="self-start inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-dashed border-brand-600/50 text-[13px] font-medium text-brand-700 bg-brand-50/40 hover:bg-brand-100 hover:border-brand-600 transition-colors"
             >
               <IconPlus size={15} />
               Dodaj račun
@@ -758,6 +795,54 @@ export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
               />
             </Field>
           )}
+          {/* Datumi ulaska/izlaska iz sistema PDV-a (prelaz usred godine).
+              U create modu se ne prikazuju: postavljaju se nakon kreiranja. */}
+          {!createMode && form.isPdvObveznik && (
+            <Field label="U sistemu PDV-a od">
+              <div className="max-w-xs">
+                <PkDateInput
+                  value={form.pdvObveznikOd}
+                  onChange={(v) => handleChange("pdvObveznikOd", v)}
+                  disabled={!canEdit}
+                  ariaLabel="U sistemu PDV-a od"
+                />
+              </div>
+              <p className="text-[11.5px] text-text-tertiary mt-1">
+                Ostavite prazno ako je obrt u sistemu PDV-a cijelu godinu.
+                Datum upišite samo kod ulaska u PDV usred godine: od tada se
+                PDV izdvaja u knjigama, raniji mjeseci ostaju bez PDV-a.
+              </p>
+            </Field>
+          )}
+          {!createMode && !form.isPdvObveznik && (
+            <Field label="Izašao iz sistema PDV-a">
+              <div className="max-w-xs">
+                <PkDateInput
+                  value={form.pdvObveznikDo}
+                  onChange={(v) => handleChange("pdvObveznikDo", v)}
+                  disabled={!canEdit}
+                  ariaLabel="Izašao iz sistema PDV-a"
+                />
+              </div>
+              <p className="text-[11.5px] text-text-tertiary mt-1">
+                Ostavite prazno ako obrt nikad nije bio PDV obveznik. Datum
+                upišite samo ako je obrt izašao iz sistema PDV-a usred godine:
+                do tog datuma se PDV izdvaja u knjigama, poslije ne.
+              </p>
+            </Field>
+          )}
+          <p className="text-[12px] leading-5 text-text-tertiary">
+            Ova oznaka mijenja kako obrt radi u cijelom programu. Ako je obrt u
+            sistemu PDV-a, fakture se izdaju sa obračunatim PDV-om, vode se
+            KUF i KIF, a PDV prijava, D-PDV obrazac i e-KUF/e-KIF izvještaji za
+            UINO se pripremaju iz knjiženja. Ako nije, PDV se ne obračunava na
+            fakturama i tih evidencija nema. Zato je bitno da stanje ovdje tačno
+            odgovara stvarnom statusu obrta. Kod ulaska ili izlaska iz PDV-a
+            usred godine upišite i datum: KPR tada izdvaja PDV samo za period u
+            sistemu, a naplate i plaćanja vezana za fakture knjiže se po PDV-u
+            sa same fakture (naplata stare fakture bez PDV-a ostaje bez PDV-a i
+            poslije ulaska u sistem).
+          </p>
         </div>
       </SectionCard>
 

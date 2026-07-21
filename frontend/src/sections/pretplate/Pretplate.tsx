@@ -861,6 +861,13 @@ export default function Pretplate() {
             );
           })}
         </div>
+        {/* Sitna napomena o fiskalizaciji, da očekivanja budu jasna prije kupovine */}
+        <p className={styles.officeNapomena}>
+          Napomena: PK Office nema integraciju sa fiskalnim kasama i ne
+          povezuje se sa fiskalnim uređajem na računaru. Fiskalni računi se
+          izdaju na kasi kao i do sada, a dnevni promet (pazar) se u program
+          unosi ili povlači sa izvoda.
+        </p>
         <div className={styles.officeContact}>
           <span className={styles.officeContactIcon}>
             <IconBuildingBank size={22} />

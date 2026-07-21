@@ -8,6 +8,7 @@ import { calcRow } from "src/sections/amortizacija/Amortizacija";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillSprTemplate, type SprData } from "src/sections/spr/fillSpr";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
@@ -600,11 +601,12 @@ export default function SprForm() {
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Brzi odabir godine</label>
-            <select
-              className={styles.fieldInput}
+            <StyledSelect
+              ariaLabel="Brzi odabir godine"
+              wrapStyle={{ width: "100%" }}
               value=""
-              onChange={(e) => {
-                const yr = e.target.value;
+              onChange={(v) => {
+                const yr = String(v ?? "");
                 if (!yr) return;
                 setBusiness((s) => ({
                   ...s,
@@ -612,12 +614,18 @@ export default function SprForm() {
                   periodTo: `${yr}-12-31`,
                 }));
               }}
-            >
-              <option value="">– Odaberi godinu –</option>
-              {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i).map((yr) => (
-                <option key={yr} value={String(yr)}>{yr}.</option>
-              ))}
-            </select>
+              groups={[
+                {
+                  options: [
+                    { value: "", label: "– Odaberi godinu –" },
+                    ...Array.from(
+                      { length: 8 },
+                      (_, i) => new Date().getFullYear() - i,
+                    ).map((yr) => ({ value: String(yr), label: `${yr}.` })),
+                  ],
+                },
+              ]}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) Period od</label>

@@ -56,6 +56,11 @@ const STATUS_PK_CLASS: Record<OrgPayrollStatus, string> = {
   isplaceno: "bg-success-bg text-success",
 };
 
+// Bulk preuzimanje specifikacija 2001/2002: koje obrasce i kojim redoslijedom
+// u spojenom PDF-u. "2001" uvijek uključuje i 2001-A (RS radnici).
+type ObrasciFilter = "2001" | "2002" | "oba";
+type ObrasciOrder = "po_org" | "prvo_2002" | "prvo_2001";
+
 type TypeFilter = "svi" | "COMPANY" | "BUSINESS";
 type SortKey =
   | "naziv"
@@ -119,6 +124,16 @@ export default function Organizacije() {
       error?: string;
     }>
   >([]);
+  // Bulk preuzimanje obrazaca 2001/2002: modal + izbor + progress.
+  const [obrasciModalOpen, setObrasciModalOpen] = useState(false);
+  const [obrasciFilter, setObrasciFilter] = useState<ObrasciFilter>("oba");
+  const [obrasciOrder, setObrasciOrder] = useState<ObrasciOrder>("po_org");
+  const [obrasciRunning, setObrasciRunning] = useState(false);
+  const [obrasciProgress, setObrasciProgress] = useState<{
+    current: number;
+    total: number;
+    name: string;
+  } | null>(null);
 
   const statusQuery = useQuery({
     queryKey: ["organizationsPayrollStatus", year, month],
@@ -342,6 +357,210 @@ export default function Organizacije() {
         `Obračunato ${totalCalculated}, preskočeno ${totalSkipped}, grešaka ${totalErrors}`,
         "warning",
       );
+    }
+  };
+
+  // ── Bulk preuzimanje obrazaca 2001/2002 ───────────────────────────────────
+  // Org-e sa obračunatim (ili isplaćenim) platama za odabrani mjesec, abecedno.
+  const obrasciCandidates = allOrgs
+    .filter(
+      (o) =>
+        o.payrollStatus === "obracunato" || o.payrollStatus === "isplaceno",
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, "bs"));
+
+  const runBulkObrasci = async () => {
+    setObrasciRunning(true);
+    setObrasciProgress(null);
+    try {
+      // Lazy-load builderi + fill template-i + API klijenti da ne uvećavamo
+      // bundle za korisnike koji ne koriste ovu akciju.
+      const [
+        spec,
+        { fillObrazac2001Template },
+        { fillObrazac2001ATemplate },
+        { fillObrazac2002Template },
+        { getWorkers },
+        { listPayrolls },
+        { PDFDocument },
+      ] = await Promise.all([
+        import("src/sections/prijave-radnika/obrasciSpecifikacije"),
+        import("src/sections/prijave-radnika/fillObrazac2001"),
+        import("src/sections/prijave-radnika/fillObrazac2001A"),
+        import("src/sections/prijave-radnika/fillObrazac2002"),
+        import("src/api/profile"),
+        import("src/api/payroll"),
+        import("pdf-lib"),
+      ]);
+      const want2001 = obrasciFilter !== "2002";
+      const want2002 = obrasciFilter !== "2001";
+      type Item = {
+        orgIdx: number;
+        kind: "2002" | "2001" | "2001A";
+        bytes: Uint8Array;
+      };
+      const items: Item[] = [];
+      const problems: string[] = [];
+      const mm = String(month).padStart(2, "0");
+      const lastDay = new Date(year, month, 0).getDate();
+      const defaultPaymentDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+
+      for (let i = 0; i < obrasciCandidates.length; i++) {
+        const o = obrasciCandidates[i];
+        setObrasciProgress({
+          current: i + 1,
+          total: obrasciCandidates.length,
+          name: o.name,
+        });
+        try {
+          const [wRes, pRes] = await Promise.all([
+            getWorkers(o.id),
+            listPayrolls(o.id, year, month),
+          ]);
+          if (!wRes.ok || !pRes.ok) {
+            problems.push(`${o.name}: greška pri učitavanju podataka`);
+            continue;
+          }
+          const workers = wRes.data;
+          const payrolls = pRes.data;
+          const payrollByWorker = new Map(payrolls.map((p) => [p.workerId, p]));
+          const { radniciFbih, radniciRs, vlasnici2002 } =
+            spec.splitWorkersForObrasce(o, workers, year, month);
+          // Broj zaposlenih za 2002 = aktivni radnici + vlasnik u mjesecu
+          // (isto kao pojedinačna stranica: radnici.length + vlasnici.length).
+          // NE workers.length (cijeli roster sa odjavljenima), da bulk i
+          // pojedinačni 2002 daju identično polje "broj zaposlenih".
+          const brojZaposlenih2002 =
+            radniciFbih.length + radniciRs.length + vlasnici2002.length;
+          // Datum isplate: snapshot iz payroll-a mjeseca, inače zadnji dan
+          // (isti default kao stranica obračuna).
+          const paymentDate =
+            payrolls.find((p) => p.paymentDate)?.paymentDate ??
+            defaultPaymentDate;
+
+          if (want2002) {
+            for (const v of vlasnici2002) {
+              const p = payrollByWorker.get(v.id);
+              if (!p) continue;
+              if (!o.taxRegime) {
+                problems.push(
+                  `${o.name}: 2002 preskočen, nije postavljen režim oporezivanja`,
+                );
+                continue;
+              }
+              const bytes = await fillObrazac2002Template(
+                spec.build2002Data({
+                  organization: o,
+                  vlasnik: v,
+                  payroll: p,
+                  allWorkersCount: brojZaposlenih2002,
+                  year,
+                  month,
+                }),
+              );
+              items.push({ orgIdx: i, kind: "2002", bytes });
+            }
+          }
+          if (want2001) {
+            if (radniciFbih.some((w) => payrollByWorker.has(w.id))) {
+              const bytes = await fillObrazac2001Template(
+                spec.build2001Data({
+                  organization: o,
+                  radniciFbih,
+                  payrollByWorker,
+                  year,
+                  month,
+                  paymentDate,
+                }),
+              );
+              items.push({ orgIdx: i, kind: "2001", bytes });
+            }
+            if (radniciRs.some((w) => payrollByWorker.has(w.id))) {
+              const bytes = await fillObrazac2001ATemplate(
+                spec.build2001AData({
+                  organization: o,
+                  radniciRs,
+                  payrollByWorker,
+                  year,
+                  month,
+                  paymentDate,
+                }),
+              );
+              items.push({ orgIdx: i, kind: "2001A", bytes });
+            }
+          }
+        } catch (e) {
+          problems.push(`${o.name}: ${(e as Error).message ?? "greška"}`);
+        }
+      }
+
+      if (items.length === 0) {
+        notify("Nijedan obrazac nije generisan za odabrani mjesec.", "warning");
+        return;
+      }
+
+      // Redoslijed: unutar org-e uvijek 2002 → 2001 → 2001-A; grupisanje po
+      // izboru korisnika (po organizaciji / prvo svi 2002 / prvo svi 2001).
+      const kindRank: Record<Item["kind"], number> = {
+        "2002": 0,
+        "2001": 1,
+        "2001A": 2,
+      };
+      const groupRank = (it: Item) =>
+        obrasciOrder === "prvo_2002"
+          ? it.kind === "2002"
+            ? 0
+            : 1
+          : obrasciOrder === "prvo_2001"
+            ? it.kind === "2002"
+              ? 1
+              : 0
+            : 0;
+      items.sort(
+        (a, b) =>
+          groupRank(a) - groupRank(b) ||
+          a.orgIdx - b.orgIdx ||
+          kindRank[a.kind] - kindRank[b.kind],
+      );
+
+      // Merge u jedan PDF za štampu.
+      const finalDoc = await PDFDocument.create();
+      for (const it of items) {
+        const src = await PDFDocument.load(it.bytes);
+        const pages = await finalDoc.copyPages(src, src.getPageIndices());
+        for (const p of pages) finalDoc.addPage(p);
+      }
+      const finalBytes = await finalDoc.save();
+      const blob = new Blob([new Uint8Array(finalBytes)], {
+        type: "application/pdf",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const namePart =
+        obrasciFilter === "2001"
+          ? "2001"
+          : obrasciFilter === "2002"
+            ? "2002"
+            : "2001-2002";
+      a.download = `Obrasci-${namePart}-${year}-${mm}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setObrasciModalOpen(false);
+      if (problems.length === 0) {
+        notify(
+          `Preuzeto ${items.length} obrazaca za ${obrasciCandidates.length} org.`,
+          "success",
+        );
+      } else {
+        notify(
+          `Preuzeto ${items.length} obrazaca, upozorenja: ${problems.join("; ")}`,
+          "warning",
+        );
+      }
+    } finally {
+      setObrasciRunning(false);
+      setObrasciProgress(null);
     }
   };
 
@@ -580,38 +799,96 @@ export default function Organizacije() {
         </div>
       )}
 
-      {/* Bulk akcije: glavna akcija lijevo (Obračunaj sve plate, ispunjen
-          sage style), utility akcije desno (Export, Označi isplaćene). */}
+      {/* Bulk akcije: lijevo mjesečni tok rada (Obračunaj sve plate → Preuzmi
+          2001/2002 → Označi isplaćene), desno sporedni utility (Export CSV). */}
       {hasAnyOrg && (
         <div className={styles.bulkBar}>
-          <button
-            type="button"
-            className={`${styles.btnBulk} ${styles.btnBulkPrimary}`}
-            onClick={() => setBulkCalcConfirmOpen(true)}
-            disabled={bulkCalcCandidates.length === 0 || bulkCalcRunning}
-            title={
-              bulkCalcCandidates.length === 0
-                ? "Sve org. su već obračunate ili nemaju radnika"
-                : `Obračunaj plate za ${bulkCalcCandidates.length} org.`
-            }
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              width="14"
-              height="14"
-              aria-hidden="true"
+          {/* Lijevo: mjesečni tok rada u prirodnom redoslijedu
+              (obračunaj → preuzmi obrasce → označi isplaćeno). */}
+          <div className={styles.bulkBarLeft}>
+            <button
+              type="button"
+              className={`${styles.btnBulk} ${styles.btnBulkPrimary}`}
+              onClick={() => setBulkCalcConfirmOpen(true)}
+              disabled={bulkCalcCandidates.length === 0 || bulkCalcRunning}
+              title={
+                bulkCalcCandidates.length === 0
+                  ? "Sve org. su već obračunate ili nemaju radnika"
+                  : `Obračunaj plate za ${bulkCalcCandidates.length} org.`
+              }
             >
-              <path d="M14 4h6v6" />
-              <path d="M10 14L20 4" />
-              <path d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" />
-            </svg>
-            Obračunaj sve plate ({bulkCalcCandidates.length})
-          </button>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <path d="M14 4h6v6" />
+                <path d="M10 14L20 4" />
+                <path d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" />
+              </svg>
+              Obračunaj sve plate ({bulkCalcCandidates.length})
+            </button>
+            <button
+              type="button"
+              className={`${styles.btnBulk} ${styles.btnBulkInfo}`}
+              onClick={() => setObrasciModalOpen(true)}
+              disabled={obrasciCandidates.length === 0 || obrasciRunning}
+              title={
+                obrasciCandidates.length === 0
+                  ? "Nema org. sa obračunatim platama za odabrani mjesec"
+                  : `Preuzmi specifikacije 2001/2002 za ${obrasciCandidates.length} org. u jednom PDF-u`
+              }
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+              </svg>
+              Preuzmi 2001/2002 ({obrasciCandidates.length})
+            </button>
+            <button
+              type="button"
+              className={styles.btnBulk}
+              onClick={() => setBulkConfirmOpen(true)}
+              disabled={bulkMarkPaidCandidates.length === 0 || bulkRunning}
+              title={
+                bulkMarkPaidCandidates.length === 0
+                  ? "Nema obračunatih org. spremnih za označavanje"
+                  : `Označi ${bulkMarkPaidCandidates.length} obračunatih org. kao isplaćeno`
+              }
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Označi isplaćene ({bulkMarkPaidCandidates.length})
+            </button>
+          </div>
+          {/* Desno: sporedni utility (rijetko korišten). */}
           <div className={styles.bulkBarRight}>
             <button
               type="button"
@@ -637,32 +914,215 @@ export default function Organizacije() {
               </svg>
               Export CSV
             </button>
-            <button
-              type="button"
-              className={styles.btnBulk}
-              onClick={() => setBulkConfirmOpen(true)}
-              disabled={bulkMarkPaidCandidates.length === 0 || bulkRunning}
-              title={
-                bulkMarkPaidCandidates.length === 0
-                  ? "Nema obračunatih org. spremnih za označavanje"
-                  : `Označi ${bulkMarkPaidCandidates.length} org. kao isplaćeno`
-              }
+          </div>
+        </div>
+      )}
+
+      {/* Bulk obrasci 2001/2002 modal */}
+      {obrasciModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 26, 18, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+          onClick={() => !obrasciRunning && setObrasciModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              maxWidth: 520,
+              width: "100%",
+              padding: "1.5rem",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+              // Na niskim ekranima modal ne smije ispasti van viewporta:
+              // ograniči visinu i skrolaj unutar kutije.
+              maxHeight: "calc(100vh - 2rem)",
+              overflowY: "auto",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 0.7rem",
+                fontSize: "1.1rem",
+                color: "#0f1a12",
+              }}
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                width="14"
-                height="14"
-                aria-hidden="true"
+              Preuzmi obrasce 2001/2002
+            </h3>
+            <p
+              style={{
+                margin: "0 0 1.1rem",
+                fontSize: 14,
+                lineHeight: 1.6,
+                color: "#3a3a3a",
+              }}
+            >
+              Specifikacije za <strong>{obrasciCandidates.length}</strong> org.
+              sa obračunatim platama za{" "}
+              <strong>
+                {MONTHS[month - 1]} {year}
+              </strong>
+              , spojene u jedan PDF za štampu. Obrazac 2001-A (radnici sa
+              prebivalištem u RS) generiše se automatski uz 2001.
+            </p>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: "#0f1a12",
+                  marginBottom: "0.4rem",
+                }}
               >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              Označi sve obračunate kao isplaćene ({bulkMarkPaidCandidates.length})
-            </button>
+                Obrasci
+              </div>
+              {(
+                [
+                  { v: "oba", label: "Oba (2002 i 2001/2001-A)" },
+                  { v: "2001", label: "Samo 2001 (i 2001-A)" },
+                  { v: "2002", label: "Samo 2002 (vlasnici obrta)" },
+                ] as const
+              ).map((opt) => (
+                <label
+                  key={opt.v}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    fontSize: 13.5,
+                    color: "#3a3a3a",
+                    padding: "0.2rem 0",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="obrasciFilter"
+                    checked={obrasciFilter === opt.v}
+                    onChange={() => setObrasciFilter(opt.v)}
+                    disabled={obrasciRunning}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+
+            {obrasciFilter === "oba" && (
+              <div style={{ marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: "#0f1a12",
+                    marginBottom: "0.4rem",
+                  }}
+                >
+                  Redoslijed u PDF-u
+                </div>
+                {(
+                  [
+                    {
+                      v: "po_org",
+                      label: "Po organizaciji (2002 pa 2001 iste org-e)",
+                    },
+                    { v: "prvo_2002", label: "Prvo svi 2002, pa svi 2001" },
+                    { v: "prvo_2001", label: "Prvo svi 2001, pa svi 2002" },
+                  ] as const
+                ).map((opt) => (
+                  <label
+                    key={opt.v}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.45rem",
+                      fontSize: 13.5,
+                      color: "#3a3a3a",
+                      padding: "0.2rem 0",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="obrasciOrder"
+                      checked={obrasciOrder === opt.v}
+                      onChange={() => setObrasciOrder(opt.v)}
+                      disabled={obrasciRunning}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {obrasciProgress && (
+              <p
+                style={{
+                  margin: "0 0 1rem",
+                  fontSize: 13,
+                  color: "#3a5c42",
+                  fontWeight: 500,
+                }}
+              >
+                Generišem {obrasciProgress.current}/{obrasciProgress.total}:{" "}
+                {obrasciProgress.name}…
+              </p>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.6rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setObrasciModalOpen(false)}
+                disabled={obrasciRunning}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "1px solid #d4cfc4",
+                  background: "#fff",
+                  color: "#0f1a12",
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  cursor: obrasciRunning ? "default" : "pointer",
+                }}
+              >
+                Otkaži
+              </button>
+              <button
+                type="button"
+                onClick={() => void runBulkObrasci()}
+                disabled={obrasciRunning || obrasciCandidates.length === 0}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#3a5c42",
+                  color: "#fff",
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  cursor: obrasciRunning ? "default" : "pointer",
+                  opacity: obrasciRunning ? 0.7 : 1,
+                }}
+              >
+                {obrasciRunning ? "Generišem…" : "Preuzmi PDF"}
+              </button>
+            </div>
           </div>
         </div>
       )}

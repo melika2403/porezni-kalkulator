@@ -50,6 +50,7 @@
 
 /* Dark mode override-i (koristi ih samo /app; marketing nema dark) */
 .dark {
+  --color-brand-50: #1e2620;
   --color-cream-50: #0e110e;
   --color-cream-100: #181b18;
   --color-cream-200: #232723;

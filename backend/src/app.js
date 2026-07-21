@@ -145,6 +145,18 @@ async function ensureColumns() {
     },
     {
       table: "organizations",
+      column: "pdvObveznikOd",
+      // ulazak u sistem PDV-a usred godine; null = obveznik oduvijek
+      ddl: "ALTER TABLE organizations ADD COLUMN pdvObveznikOd DATE NULL",
+    },
+    {
+      table: "organizations",
+      column: "pdvObveznikDo",
+      // izlazak iz sistema PDV-a; null = nije izašao
+      ddl: "ALTER TABLE organizations ADD COLUMN pdvObveznikDo DATE NULL",
+    },
+    {
+      table: "organizations",
       column: "bankAccounts",
       ddl: "ALTER TABLE organizations ADD COLUMN bankAccounts JSON NULL",
     },

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "src/sections/ugovor-o-djelu/uod.module.css";
 import uorStyles from "./uor.module.css";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
 import { useRole } from "src/hooks/useRole";
@@ -940,11 +941,10 @@ function UgovorORaduApp() {
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Tip ugovora</span>
-                <select
-                  className={styles.input}
+                <StyledSelect
                   value={tipUgovora}
-                  onChange={(e) => {
-                    const t = e.target.value as TipUgovora;
+                  onChange={(v) => {
+                    const t = String(v ?? "") as TipUgovora;
                     setTipUgovora(t);
                     if (t === "odredjeno" && !datumIstekaIso) {
                       const end = computeEndIso(
@@ -955,52 +955,63 @@ function UgovorORaduApp() {
                       if (end) setDatumIstekaIso(end);
                     }
                   }}
-                >
-                  <option value="neodredjeno">Neodređeno vrijeme</option>
-                  <option value="odredjeno">Određeno vrijeme</option>
-                </select>
+                  groups={[
+                    {
+                      options: [
+                        { value: "neodredjeno", label: "Neodređeno vrijeme" },
+                        { value: "odredjeno", label: "Određeno vrijeme" },
+                      ],
+                    },
+                  ]}
+                  ariaLabel="Tip ugovora"
+                  wrapStyle={{ width: "100%" }}
+                />
               </label>
               {tipUgovora === "odredjeno" && (
                 <>
                   <div className={styles.field}>
                     <span className={styles.fieldLabel}>Trajanje ugovora</span>
                     <div className={uorStyles.inlineFields}>
-                      <select
-                        className={styles.input}
-                        style={{ flex: "0 0 90px" }}
+                      <StyledSelect
                         value={trajanjeBroj}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
+                        onChange={(val) => {
+                          const v = Number(val);
                           setTrajanjeBroj(v);
                           const end = computeEndIso(datumPocetkaIso, v, trajanjeJedinica);
                           if (end) setDatumIstekaIso(end);
                         }}
-                      >
-                        {Array.from(
-                          { length: maxTrajanjeBroj(trajanjeJedinica) },
-                          (_, i) => i + 1,
-                        ).map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className={styles.input}
-                        style={{ flex: "1 1 auto" }}
+                        groups={[
+                          {
+                            options: Array.from(
+                              { length: maxTrajanjeBroj(trajanjeJedinica) },
+                              (_, i) => i + 1,
+                            ).map((n) => ({ value: n, label: String(n) })),
+                          },
+                        ]}
+                        ariaLabel="Broj (trajanje ugovora)"
+                        wrapStyle={{ flex: "0 0 90px" }}
+                      />
+                      <StyledSelect
                         value={trajanjeJedinica}
-                        onChange={(e) => {
-                          const j = e.target.value as TrajanjeJedinica;
+                        onChange={(v) => {
+                          const j = String(v ?? "") as TrajanjeJedinica;
                           setTrajanjeJedinica(j);
                           const capped = Math.min(trajanjeBroj, maxTrajanjeBroj(j));
                           if (capped !== trajanjeBroj) setTrajanjeBroj(capped);
                           const end = computeEndIso(datumPocetkaIso, capped, j);
                           if (end) setDatumIstekaIso(end);
                         }}
-                      >
-                        <option value="mjeseci">mjeseci</option>
-                        <option value="godine">godine</option>
-                      </select>
+                        groups={[
+                          {
+                            options: [
+                              { value: "mjeseci", label: "mjeseci" },
+                              { value: "godine", label: "godine" },
+                            ],
+                          },
+                        ]}
+                        ariaLabel="Jedinica (trajanje ugovora)"
+                        wrapStyle={{ flex: "1 1 auto" }}
+                      />
                     </div>
                     <p className={styles.hint}>
                       Zakon o radu FBiH dopušta ugovor na određeno do 3 godine
@@ -1049,17 +1060,20 @@ function UgovorORaduApp() {
                   {probniRadEnabled && (
                     <label className={styles.field} style={{ flex: "0 0 200px" }}>
                       <span className={styles.fieldLabel}>Trajanje (mjeseci)</span>
-                      <select
-                        className={styles.input}
+                      <StyledSelect
                         value={probniRadMjeseci}
-                        onChange={(e) => setProbniRadMjeseci(Number(e.target.value))}
-                      >
-                        {[1, 2, 3, 4, 5, 6].map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(v) => setProbniRadMjeseci(Number(v))}
+                        groups={[
+                          {
+                            options: [1, 2, 3, 4, 5, 6].map((m) => ({
+                              value: m,
+                              label: String(m),
+                            })),
+                          },
+                        ]}
+                        ariaLabel="Trajanje probnog rada (mjeseci)"
+                        wrapStyle={{ width: "100%" }}
+                      />
                     </label>
                   )}
                 </div>
@@ -1274,20 +1288,22 @@ function UgovorORaduApp() {
               </div>
               <label className={`${styles.field} ${styles.fieldFull}`}>
                 <span className={styles.fieldLabel}>Razlog otkaza</span>
-                <select
-                  className={styles.input}
+                <StyledSelect
                   value={razlogOtkazaId}
-                  onChange={(e) =>
-                    setRazlogOtkazaId(e.target.value as RazlogOtkazaId)
+                  onChange={(v) =>
+                    setRazlogOtkazaId(String(v ?? "") as RazlogOtkazaId)
                   }
-                >
-                  {RAZLOZI_OTKAZA.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.label}
-                      {r.clan ? `, ${r.clan}` : ""}
-                    </option>
-                  ))}
-                </select>
+                  groups={[
+                    {
+                      options: RAZLOZI_OTKAZA.map((r) => ({
+                        value: r.id,
+                        label: `${r.label}${r.clan ? `, ${r.clan}` : ""}`,
+                      })),
+                    },
+                  ]}
+                  ariaLabel="Razlog otkaza"
+                  wrapStyle={{ width: "100%" }}
+                />
                 {razlogOtkazaId !== "drugo" && razlogDef && (
                   <div
                     style={{

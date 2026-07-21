@@ -1,0 +1,78 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 2.25rem 1.5rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.text {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--mid);
+  line-height: 1.5;
+}
+
+.iconTile {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconTileError {
+  background: #f9e9e7;
+  color: #c0524a;
+}
+
+.compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--mid);
+  padding: 0.5rem 0.25rem;
+}
+
+.compact svg {
+  flex-shrink: 0;
+}
+
+.errorText {
+  color: #c0524a;
+}
+
+.spinner,
+.spinnerSm {
+  display: inline-block;
+  border-radius: 50%;
+  border: 2px solid var(--sage-pale);
+  border-top-color: var(--sage);
+  animation: loadstateSpin 0.7s linear infinite;
+}
+
+.spinner {
+  width: 26px;
+  height: 26px;
+}
+
+.spinnerSm {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+@keyframes loadstateSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

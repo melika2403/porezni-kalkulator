@@ -212,6 +212,17 @@ Stranica: Knjige i evidencije → KPR-1041.
 - Kolone 11-21 po službenom obrascu; PDV kolone (14, 20) vide samo PDV
   obveznici. Opis je kratak tip knjiženja ("Polog pazara", "Bankarska
   provizija"...), dokument je "Izvod N".
+- **Ulazak/izlazak iz sistema PDV-a usred godine**: u Postavkama obrta
+  uz prekidač "U sistemu PDV-a" postoje opcioni datumi "U sistemu PDV-a
+  od" (prazno = obveznik cijelu godinu, default) i "Izašao iz sistema
+  PDV-a" (prazno = nikad nije bio). Dok su datumi prazni, ponašanje je
+  identično starom (PDV split po trenutnom flagu). Sa upisanim datumom
+  KPR izdvaja PDV **po dokumentu**: naplata vezana za izlaznu fakturu
+  prati PDV sa fakture (naplata stare ne-PDV fakture nema PDV-a ni
+  poslije ulaska), plaćanje vezano za ulazni račun srazmjerno odbitnom
+  PDV-u sa računa (ako je obrt bio u PDV-u na datum računa), a nevezane
+  stavke i pazari po datumu transakcije u odnosu na PDV prozor
+  [od, do). Prošli mjeseci se ne mijenjaju retroaktivno.
 - **Preuzmi KPR-1041 (PDF)**: popunjava službeni obrazac, sve
   centrirano u ćelijama, JIB i JMB vlasnika u kućice, ime i adresa
   vlasnika (iz profila obrta, rola VLASNIK), paginacija sa Donos

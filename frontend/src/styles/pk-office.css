@@ -10,6 +10,29 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* Dark tema za MARKETING CSS varijable unutar /app.
+   Stariji dijelovi /app UI-ja (dashboard.module.css, StyledSelect kojeg
+   PkSelect wrapuje, RowActionsMenu, date/search inputi...) koriste marketing
+   varijable iz globals.css (--white, --ink, --paper...) koje nemaju dark
+   vrijednosti, pa bi u dark temi ostali svijetli (bijele kartice, nevidljiv
+   tekst). AppShell dodaje .pk-app na <body> dok je /app aktivan, čime su
+   pokriveni i portali (meniji, modali, dropdowni) koji vise direktno na body.
+   Vrijednosti su mapirane 1:1 na dark PK tokene iz pk-theme.css.
+   Marketing ostaje netaknut: tamo body nikad nema .pk-app, pa override ne
+   važi ni kad korisnikova .dark klasa (globalni ThemeProvider) stoji na html. */
+.dark body.pk-app {
+  --ink: #f5f2eb;        /* text-primary dark */
+  --paper: #0e110e;      /* cream-50 dark */
+  --white: #181b18;      /* cream-100 dark (kartice, meniji, inputi) */
+  --border: #2f342f;     /* cream-300 dark */
+  --mid: #888780;        /* text-tertiary dark */
+  --sage: #7ea185;       /* brand-600 dark */
+  --sage-light: #a8c1a4; /* brand-700 dark */
+  --sage-pale: #2d4633;  /* brand-100 dark */
+  --accent: #e08a52;     /* svjetliji terracotta za tamnu pozadinu */
+  --accent-pale: #3a2418;
+}
+
 /* Override marketing globals.css za /app/* rute.
    Marketing DM Sans/DM Serif Display fontovi su već loadovani u root layout-u
    kroz globals.css — samo ih ovdje aktiviramo na body. */

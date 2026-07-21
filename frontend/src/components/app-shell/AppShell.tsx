@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { PrviObrtModal } from "./PrviObrtModal";
@@ -12,6 +12,18 @@ import { PkOfficePrekoLimita } from "src/sections/dashboard/PkOfficePrekoLimita"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Dark tema: stariji dijelovi /app UI-ja (dashboard.module.css, StyledSelect,
+  // RowActionsMenu...) koriste marketing CSS varijable (--white, --ink,
+  // --paper...) koje nemaju dark vrijednosti pa ostaju svijetle. Klasa na
+  // <body> aktivira njihove dark override-e iz pk-office.css i pokriva i
+  // portale (meniji, modali) koji se renderuju direktno u body. Marketing
+  // stranice nikad nemaju ovu klasu, pa ih override ne dira ni kad je .dark
+  // klasa (globalni ThemeProvider) prisutna na <html>.
+  useEffect(() => {
+    document.body.classList.add("pk-app");
+    return () => document.body.classList.remove("pk-app");
+  }, []);
 
   // Naplata (PK_OFFICE_NAPLATA): korisnik bez Office paketa/probe umjesto
   // app sadržaja vidi upsell (pitch + mini cjenovnik + 30 dana probe).
