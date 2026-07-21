@@ -81,6 +81,8 @@ export type OrgWithPayrollStatus = {
   payrollIsplaceno: number;
   payrollStatus: PayrollStatus;
   mipDownloadedAt: string | null;
+  /** datum zadnjeg učitanog izvoda (za pregled obrta na Početnoj) */
+  lastStatementDate: string | null;
 };
 
 export type PayrollStatusResponse = {

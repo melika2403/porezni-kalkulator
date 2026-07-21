@@ -1,6 +1,16 @@
 const { OrganizationMember, Client, Form, FormVersion } = require("../models/index");
 
-const VALID_TYPES = ["AMS", "SPR", "ZO3", "GPD", "PLDI", "JS3100", "UOD"];
+const VALID_TYPES = [
+  "AMS",
+  "SPR",
+  "ZO3",
+  "GPD",
+  "PLDI",
+  "JS3100",
+  "UOD",
+  "COK", // članarina obrtničkoj komori (Obrazac ČOK)
+  "ONS", // naknade za šume (Obrazac ONŠ)
+];
 
 function parseYear(v) {
   const n = parseInt(v);

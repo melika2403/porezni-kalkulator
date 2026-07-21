@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import {
   IconArrowRight,
+  IconDownload,
   IconLoader2,
   IconPlus,
   IconTrash,
@@ -76,8 +77,16 @@ type ModalState = {
   transactionId: number | null;
 };
 
-export function StanjePdvTab({ orgId }: { orgId: number | null }) {
+export function StanjePdvTab({
+  orgId,
+  orgName = "",
+}: {
+  orgId: number | null;
+  /** naziv obrta za zaglavlje PDF izvještaja */
+  orgName?: string;
+}) {
   const { data, isLoading } = usePdvStanje(orgId);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const qc = useQueryClient();
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["pdv-stanje", orgId] });
@@ -257,14 +266,40 @@ export function StanjePdvTab({ orgId }: { orgId: number | null }) {
             Uporedivo sa &quot;Moja glavna knjiga&quot; na UINO e-portalu.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={otvoriNovo}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-        >
-          <IconPlus size={15} />
-          Novo knjiženje
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={pdfBusy || redovi.length === 0}
+            onClick={async () => {
+              if (pdfBusy || redovi.length === 0) return;
+              setPdfBusy(true);
+              try {
+                // pdf-lib se učitava tek na klik
+                const { downloadStanjePdvPdf } = await import("./stanjePdf");
+                await downloadStanjePdvPdf(redovi, orgName);
+              } finally {
+                setPdfBusy(false);
+              }
+            }}
+            title="Lista knjiženja sa saldom, za arhivu i usaglašavanje sa UINO karticom"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            {pdfBusy ? (
+              <IconLoader2 size={15} className="animate-spin" />
+            ) : (
+              <IconDownload size={15} />
+            )}
+            Izvještaj (PDF)
+          </button>
+          <button
+            type="button"
+            onClick={otvoriNovo}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+          >
+            <IconPlus size={15} />
+            Novo knjiženje
+          </button>
+        </div>
       </div>
 
       {/* prijedlozi sa izvoda */}

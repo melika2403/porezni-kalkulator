@@ -42,23 +42,34 @@ Posljednje ažuriranje: juni 2026.
 
 ## 3. Početna (dashboard)
 
-- Pozdrav sa punim datumom, imenom aktivne organizacije i badge-om
-  "Moj obrt" / "Klijent".
+- Pozdrav po dobu dana (Dobro jutro / Dobar dan / Dobro veče) sa punim
+  datumom, imenom aktivne organizacije i badge-om "Moj obrt" / "Klijent".
+- **Brze akcije** ispod zaglavlja: Učitaj izvod, Nova faktura,
+  Blagajnički nalog, Nova kalkulacija.
+- **Prvi koraci**: obrt koji još nema nijedan izvod dobije checklist
+  (dopuni podatke obrta, učitaj prvi izvod, dodaj radnike, izdaj prvu
+  fakturu) sa oznakama šta je već urađeno; nestaje čim se učita prvi
+  izvod.
 - **Trenutno stanje računa**: završno stanje sa zadnjeg učitanog izvoda;
-  za više banaka zbir zadnjih stanja po svakom računu.
+  za više banaka zbir zadnjih stanja po svakom računu. Ako je zadnji
+  izvod stariji od 30 dana, amber napomena da je stanje zastarjelo.
 - **Plate kartica**: status obračuna plata (obračunate/isplaćene/nisu) i
   da li je MIP-1023 XML preuzet, za protekli mjesec (od 25. u mjesecu
-  prelazi na tekući). Dugme vodi na Obračune plata.
-- **Potražuje / Duguje**: stvaran promet tekućeg mjeseca sa izvoda.
-- **Otvorene fakture**: broj izdanih nenaplaćenih faktura + ukupno
-  potraživanje.
-- **Nepovezane transakcije**: broj stavki koje čekaju pregled.
-- **Posljednje transakcije**: zadnje 4 stavke sa izvoda.
+  prelazi na tekući), plus broj radnika i neto suma mjeseca. Dugme vodi
+  na Obračune plata.
+- **KPI kartice su klikabilne**: Potražuje / Duguje vode na transakcije
+  filtrirane po smjeru, Otvorene fakture na izdane fakture, Nepovezane
+  transakcije na stavke koje čekaju pregled.
+- **Svi obrti** (samo kad korisnik vodi više obrta): red po obrtu sa
+  datumom zadnjeg izvoda (amber ako je star ili ga nema), statusom plata
+  i MIP oznakom za prikazani mjesec; klik na red mijenja aktivni obrt.
+- **Posljednje transakcije**: zadnje 4 stavke sa izvoda, uz kategoriju
+  knjiženja kao mali chip.
 - **Predstojeće obaveze**: rokovi za tekući mjesec (akontacija doprinosa,
   akontacija poreza na dohodak, PDV za obveznike; svi do 10. u mjesecu za
-  prethodni mjesec). Status "gotovo" se izvodi automatski: postoji
-  potvrđena uplata te kategorije na izvodu u tekućem mjesecu. Prošao rok
-  bez uplate = oznaka "kasni".
+  prethodni mjesec), neriješene prve po roku. Status "gotovo" se izvodi
+  automatski: postoji potvrđena uplata te kategorije na izvodu u tekućem
+  mjesecu. Prošao rok bez uplate = oznaka "kasni".
 
 ## 4. Bankovni izvodi: upload PDF-a
 
@@ -205,6 +216,21 @@ Stranica: Knjige i evidencije → KPR-1041.
   centrirano u ćelijama, JIB i JMB vlasnika u kućice, ime i adresa
   vlasnika (iz profila obrta, rola VLASNIK), paginacija sa Donos
   redom i kumulativnim "Ukupno za sve stranice - prenos".
+- **KPI traka**: Ukupni prihodi (15), Ukupni rashodi (21) i **Dohodak
+  (15 - 21)** za period, osnova za SPR i akontacije; uvijek puna
+  knjiga, filteri je ne diraju.
+- **Grupisanje po mjesecima**: podnaslov za svaki mjesec sa
+  međuzbirom (prihodi, rashodi, dohodak mjeseca); default prikaz je
+  cijela godina.
+- **Ekranski filteri**: chips Sve / Prihodi / Rashodi + kategorija
+  (sa brojem stavki); footer tada pokazuje "Ukupno (filtrirano)".
+  PDF uvijek štampa punu knjigu.
+- **Klik na red otvara izvor**: stavka sa izvoda vodi na taj izvod,
+  pazar iz KP-1042 prebacuje na tab Knjige prometa.
+- **"Sačini SPR"** u zaglavlju vodi na /app/obrasci (SPR-1053 se
+  popunjava automatski iz ove knjige).
+- Zaglavlje tabele je sticky (vidljivo pri skrolu duge knjige,
+  vertikalni skrol unutar kartice).
 - Napomena na stranici podsjeća da knjiga zahtijeva sve izvode od
   početka godine (ili otvaranja obrta).
 
@@ -327,8 +353,10 @@ Stranica: Finansije → Fakture.
   formi" otvara kompletnu formu predpopunjenu iz originala.
 - Iznosi u bazi su UVIJEK pozitivni; predznak (storno/KO = minus) se
   izvodi iz vrste dokumenta, dosljedno u listi, KIF-u, PDV prijavi,
-  e-KIF-u, PDF izvještaju i kartici partnera (tamo storno/KO idu u
-  potražuje). PDV razlika na KPI-u računa predznak i isključuje
+  e-KIF-u, PDF izvještaju i kartici partnera. Na kartici, zbirnom
+  izvještaju i IOS-u odobrenja OSTAJU na strani svog računa u minusu:
+  kod kupca na dugovnoj, kod dobavljača na potražnoj (i umanjuju
+  otvorene sume). PDV razlika na KPI-u računa predznak i isključuje
   predračune.
 - **Samo PDV evidencija (KUF)**: checkbox u knjiženju ulaznog računa za
   stavke koje pripadaju samo KUF-u, tipično uvoz (odbitni PDV sa JCI,
@@ -397,9 +425,26 @@ Stranica: Finansije → Partneri.
   ulaznih računa) i **Imenik** (svi uneseni partneri, i oni bez prometa,
   za pregled i uređivanje). U prva tri taba su samo partneri sa kojima
   se poslovalo.
-- Sortiranje liste: najnovija aktivnost (default), abecedno ili po
-  šifri. Rijetke akcije reda (knjiženje ulaznog računa, brisanje) su u
+- Sortiranje liste (radi na svim tabovima), grupisan dropdown: najnovija
+  aktivnost (default), najveći promet, naziv A-Ž / Ž-A, šifra rastuće /
+  opadajuće, njihov dug najveći / najmanji, naš dug najveći / najmanji.
+  Rijetke akcije reda (knjiženje ulaznog računa, spajanje, brisanje) su u
   overflow (tri tačke) meniju; brisanje traži potvrdu kroz modal.
+- **KPI traka**: "Njihov dug (potraživanja)" sa brojem dužnika, "Naš dug
+  (obaveze)" sa brojem dobavljača koji čekaju plaćanje i "Aktivni
+  partneri". Klik na karticu duga filtrira listu na dužnike te strane i
+  sortira po dugu (najveći prvo); ponovni klik ili pilula "Samo dužnici" /
+  "Samo naše obaveze" uklanja filter.
+- **Izvoz (CSV)**: dugme u zaglavlju izvozi trenutno filtriranu listu u
+  CSV za Excel (BOM + ";" separator): šifra, naziv, JIB, PDV broj,
+  adresa, kontakt, žiro računi, promet, njihov/naš dug, zadnja
+  aktivnost, napomena.
+- **Spajanje duplikata** ("Spoji sa drugim partnerom" u overflow meniju):
+  sav promet izvornog partnera (transakcije sa izvoda, ulazni računi,
+  prebijanja, kalkulacije, razduženja) prelazi na izabranog ciljnog,
+  žiro računi se uniraju, prazna polja ciljnog se popune iz izvornog
+  (uklj. JIB, pa vezanje faktura ostaje), izvorni se briše. Nepovratno,
+  traži potvrdu u modalu sa pretragom ciljnog partnera.
 - **Partner se može povezati i direktno sa izvoda**: u modalu stavke
   (detalj izvoda ili Transakcije) polje "Partner (kartica)" traži po
   nazivu/šifri/računu, "+ Novi partner" otvara formu sa prenesenom
@@ -415,7 +460,8 @@ Stranica: Finansije → Partneri.
   svaki novi izvod (PDF ili ručni) ih veže automatski pri učitavanju.
 - **Prijedlozi**: sistem nudi partnere pronađene u podacima, protustrane
   sa izvoda (sa brojem transakcija) i kupce sa faktura (sa JIB-om i
-  adresom). Klik na prijedlog otvara popunjenu formu. Uplate javnih
+  adresom). Klik na prijedlog otvara popunjenu formu, a **"Dodaj sve"**
+  doda sve pronađene odjednom (sa podacima koje već imamo). Uplate javnih
   prihoda (porezi, doprinosi) se ne nude kao partneri.
 - Statistika po partneru: ukupno naplaćeno/plaćeno (potvrđene stavke),
   broj transakcija, zadnja aktivnost, otvorene fakture (po JIB-u ili
@@ -450,9 +496,26 @@ Stranica: Finansije → Partneri.
 
 Klik na partnera otvara karticu (olovka u redu uređuje podatke):
 
-- Zaglavlje sa svim podacima (JIB, PDV, adresa, računi sa imenima banaka).
+- Zaglavlje sa svim podacima (JIB, PDV, adresa, računi sa imenima
+  banaka, telefon, email i interna napomena).
 - KPI: naplaćeno od partnera, plaćeno partneru, njihov dug (otvorene
-  fakture), naš dug (otvoreni ulazni računi).
+  fakture), naš dug (otvoreni ulazni računi). Kartice duga prikazuju i
+  **dospjelost**: "od toga kasni X KM" (stavke prošle roka plaćanja).
+- **IOS (izvod otvorenih stavki)**: red ispod kartice prometa, izbor
+  "na dan" (prazno = danas), "IOS kupca (PDF)" (naša potraživanja:
+  otvorene fakture), "IOS dobavljača (PDF)" (naše obaveze: otvoreni
+  ulazni računi) i "Pošalji IOS" na email partnera. Standardna forma:
+  povjerilac/dužnik blok, tabela stavki (dokument, datum, valuta,
+  iznos), UKUPNO, rok od 8 dana za ovjeren primjerak, blok "Potvrda
+  stanja" (slaže / ne slaže + primjedbe) i potpisi obje strane.
+  Stavka je "otvorena na dan" i ako je plaćena poslije tog dana
+  (rekonstrukcija stanja unazad); odobrenja (KO, storno avansa) ulaze
+  negativno.
+- **"Nova faktura"** u zaglavlju otvara formu fakture sa ovim partnerom
+  već izabranim kao kupcem (/app/fakture/nova?partner=ID).
+- **Klik na red web kartice prometa** otvara izvor knjiženja: uplata i
+  plaćanje vode na svoj izvod, faktura na listu faktura sa upisanom
+  pretragom tog broja (?q=); ulazni računi su sekcija na istoj stranici.
 - **Ulazni računi (knjiženje faktura dobavljača)**: "Proknjiži ulazni
   račun" sa brojem računa dobavljača, datumom, rokom plaćanja, iznosom i
   PDV iznosom (opciono). Status: otvoren / plaćen / kasni (rok prošao).
@@ -533,12 +596,34 @@ Stranica: Zaposlenici → Zaposlenici.
   Za PRIJAVLJENOG radnika potvrda nosi veliko crveno upozorenje
   (ispravan postupak je odjava), za odjavljene standardna potvrda.
 - Limiti plana isti kao na marketing strani (PRO 5 radnika, free 1).
+- **Status tabovi, pretraga i sortiranje**: pilule Prijavljeni /
+  Odjavljeni / Svi (sa brojevima; nacrti samo pod "Svi", default
+  Prijavljeni), pretraga po imenu, JMBG-u ili radnom mjestu, sortiranje
+  u oba smjera (prezime, datum prijave, plata); vlasnik je uvijek prvi
+  red. Podnaslov broji prijavljene sa ispravnom deklinacijom (1
+  prijavljen radnik / 3 prijavljena radnika / 5 prijavljenih radnika).
+- **Upozorenje na nepotpune podatke**: žuta ikonica uz ime kad radniku
+  fali nešto bitno za obračune i obrasce (JMBG, žiro račun, stručna
+  sprema; za vlasnika samo JMBG), stilizovani tooltip na hover kaže
+  šta tačno fali (šifra zanimanja namjerno NE izbacuje upozorenje,
+  odluka vlasnika).
+- **Spisak radnika PDF i CSV**: dugmad u traci filtera; izvoz prati
+  aktivne filtere (ime, radno mjesto, JMBG, prijava/odjava, status,
+  plata; CSV ima i grad).
+- **Karton radnika** (kebab meni, i za vlasnika kao "Karton
+  obračuna"): modal sa obračunima po mjesecima izabrane godine (bruto,
+  doprinosi iz osnovice, porez, neto, status obračuna, oznaka za
+  uvezene), zbir na dnu; godine od prijave radnika do tekuće. Backend:
+  GET /api/payroll sad prima opcioni month i workerId (bez month vraća
+  cijelu godinu).
 - Akcije po redu: vidljivo "Uredi" + kebab meni. U meniju radnika (ne
   vlasnika) je grupa "Kadrovski dokumenti": Ugovor o radu, Otkaz
   ugovora i Rješenja i odluke otvaraju postojeće marketing generatore
   u NOVOJ kartici, predpopunjene (?org= i ?worker= predizbor koji
-  generatori već podržavaju); app ostaje otvoren. Ispod je "Ostalo" sa
-  Obriši (uz potvrdu).
+  generatori već podržavaju); app ostaje otvoren. **Matična
+  evidencija** se otvara direktno u PK Office modalu (isti
+  EvidencijaModal kao na /organizacije, predizabran radnik). Ispod je
+  "Ostalo" sa Obriši (uz potvrdu).
 - Ista tabela i ista modal forma koriste se i na marketing stranicama
   /organizacija/:id i /aktivni-radnici (na aktivnim radnicima uz brze
   akcije: Ugovor i Uredi vidljivi, u meniju JS3100, Otkaz, Karton
@@ -557,11 +642,44 @@ Stranica: Zaposlenici → Obračuni plata.
 
 - Pregled obračuna po mjesecu (default: prethodni mjesec do 25. u
   tekućem): po radniku neto, status (nacrt / obračunato / isplaćeno),
-  topli obrok; KPI kartice: ukupno neto, doprinosi, porez, ukupan trošak.
+  topli obrok, plus drugi red sa **bruto, doprinosima iz plate i
+  porezom**; KPI kartice: ukupno neto, doprinosi, porez, ukupan trošak.
+  Klik na red radnika otvara **Karton radnika** (isti modal kao na
+  Zaposlenicima: obračuni po mjesecima godine). Godine u izborniku:
+  tekuća i 3 unazad.
 - Akcije za mjesec: **Sve platne liste (PDF)**, **MIP-1023 XML**
-  (preuzimanje se bilježi pa Početna zna da je MIP riješen),
-  **Označi mjesec isplaćenim**.
-- Platna lista po radniku (PDF) jednim klikom.
+  (preuzimanje se bilježi pa Početna zna da je MIP riješen), **Nalog za
+  knjiženje (PDF)** (konta po agencijskoj konvenciji), **Rekapitulacija
+  (PDF)** (tabela po radnicima: bruto, doprinosi iz i na, porez, neto,
+  naknade, ukupan trošak, sa sumama; vlasnik nije u njoj, on ima 2002),
+  **Pošalji listiće email-om** (uz potvrdu; bulk slanje svim radnicima,
+  bez email-a se preskaču i navedu u rezimeu) i **Označi mjesec
+  isplaćenim**.
+- **Datum isplate** (polje u traci akcija): upisuje se na sve obračune
+  mjeseca i koriste ga MIP XML, platne liste i uplatnice; prazno =
+  ukloni datum.
+- Platna lista po radniku (PDF) jednim klikom + **email pojedinačno**
+  (koverta uz red; onemogućena sa tooltipom ako radnik nema email).
+- **Upozorenje bez obračuna**: žuta traka kad je neki radnik po
+  datumima prijave/odjave bio prijavljen u izabranom mjesecu a nema
+  nijedan obračun (inače bi se propust vidio tek kad u MIP-u fali red).
+- **Godišnji pregled**: 12 mjeseci izabrane godine sa statusom
+  (prazno / nacrt / obračunato / isplaćeno), oznakom "uvezeno" (mjesec
+  sadrži uvezene plate) i "MIP ✓" kad je XML preuzet; klik na mjesec ga
+  otvara. Backend GET /api/payroll sad radi i bez month parametra
+  (cijela godina).
+- **Uvezi prethodne plate** (dugme u godišnjem pregledu): za klijenta
+  koji pređe na PK Office u toku godine, da godišnji GIP-1022 bude
+  kompletan. Grid radnici x 12 mjeseci: po ćeliji bruto, porezni
+  koeficijent po radniku, datum isplate po mjesecu (default zadnji dan),
+  "popuni udesno" kopira bruto kroz prazne mjesece. Backend iz bruta
+  računa doprinose/porez/neto BEZ minulog rada (POST /api/payroll/import).
+  ISTI modal (PK dizajn, UvozPlataPkModal) koristi i marketing stranica
+  obračuna, a podaci su isti Payroll zapisi pa je sinhronizacija
+  automatska. Mjeseci sa stvarnim obračunom su
+  zaključani; stvarni obračun preuzima uvezeni. Uvezeni obračun nosi
+  badge "uvezeno" u listi radnika, a MIP za takav mjesec traži potvrdu
+  (vjerovatno već predat iz starog programa).
 - Sam obračun (sati, bolovanja, izmjene) se radi na Poreznom Kalkulatoru
   ("Obračunaj plate"); status plata i MIP-a se vidi i na Početnoj.
 
@@ -743,6 +861,27 @@ knjizi" na UINO e-portalu (uporedivo 1:1).
   (period se pogodi kao prethodni mjesec od datuma stavke). Knjiženje se
   veže za stavku pa se ista uplata ne nudi ponovo; brisanjem knjiženja
   stavka se opet nudi.
+- **Rok predaje**: traka na vrhu pokazuje rok za izabrani mjesec (10. u
+  narednom mjesecu; subota/nedjelja pomjeraju na prvi radni dan). Zeleni
+  badge kad je prijava proknjižena; upozorenje kad je rok prošao a
+  prijava nije proknjižena u Stanje.
+- **Pretraga KUF/KIF**: broj fakture, dobavljač/kupac ili iznos, uz
+  postojeće filtere (tip/vrsta/dokument); toolbar drži filtere lijevo i
+  akcije knjige desno. Dobavljač u KUF redu je link na karticu partnera.
+- **KPI kartice** ispod knjige: Izlazni PDV (51), Ulazni odbitni (61) i
+  Polje 71 (obojeno: obaveza/pretplata/izmireno).
+- **Tab "Godina"**: rekapitulacija prijave po mjesecima (stavki, 51, 61,
+  polje 71, rok, status proknjiženosti; "nije proknjiženo" poslije roka
+  je istaknuto), red vodi na prijavu tog mjeseca, totali za godinu.
+- Kontrola prijave dodatno upozorava kad **prethodni mjesec** ima stavke
+  u knjigama a prijava mu nije proknjižena u Stanje (zaboravljena
+  prijava).
+- **D-PDV "Predloži iz knjiga"**: popuni polja izvediva iz KUF/KIF za
+  mjesec (izdate KO kupcima, primljene KO, usluge od inostranih lica tip
+  05, posebna šema tip 08) i **zalihe bez PDV-a sa lager liste** na
+  zadnji dan mjeseca (MPC / 1,17). Popunjeno se pregleda pa sačuva.
+- **Stanje PDV-a: Izvještaj (PDF)**: lista knjiženja sa tekućim saldom i
+  završnim stanjem, za arhivu i usaglašavanje sa UINO karticom.
 
 ## 16. Pretplata (tab u PK Office)
 
@@ -857,17 +996,23 @@ ne prikazuje). Launch naplate = uključiti flag.
 ## 17. Inbox (grupni uvoz izvoda, poruke, podrška)
 
 Stranica `/app/inbox` ima tri taba (segmented pilula navigacija):
-"Uvoz izvoda", "Poruke i obavijesti" i "Podrška (Live chat)". Poruke i
-Podrška su u izradi (odvojeno se rade); Uvoz izvoda je funkcionalan.
+"Uvoz izvoda", "Poruke i obavijesti" i "Podrška (Live chat)".
 
 **Uvoz izvoda** je agencijski alat za knjigovođe koje vode više obrta:
 jedino mjesto u PK Office koje ne zavisi od izabrane organizacije nego
 radi preko svih organizacija korisnika (gdje je OWNER/ADMIN).
 
-- **Tok**: prevučeš do 20 PDF izvoda odjednom (za različite obrte i
-  banke izmiješano) → "Pokreni knjiženje" → program parsira svaki
-  izvod, prepozna kojem obrtu pripada i prikaže listu → potvrda po
-  izvodu ili "Proknjiži sve spremne". Ništa se ne knjiži bez potvrde.
+- **Tok**: prevučeš do 50 PDF izvoda odjednom (za različite obrte i
+  banke izmiješano) → "Prepoznaj izvode" (ništa se još ne knjiži) →
+  program parsira svaki izvod, prepozna kojem obrtu pripada i prikaže
+  listu → potvrda po izvodu ili "Proknjiži sve spremne" (sa progresom
+  "Knjižim 3/7..."; obuhvata i ručno dodijeljene izvode, a izvode sa
+  upozorenjima namjerno NE: oni traže potvrdu po izvodu). Višak preko
+  50 fajlova se ne odbacuje tiho: stoji poruka koliko ih nije dodano.
+- **Lista preživi navigaciju**: stanje ture (redovi, statusi, fajlovi)
+  živi u module store-u dok je kartica browsera otvorena, pa odlazak na
+  drugu stranicu i povratak ne briše prikaz; čisti se tek klikom na
+  "Ukloni završene".
 - **Prepoznavanje obrta**: po žiro računu sa izvoda, uparenom sa
   računima organizacije (glavni račun + lista svih viđenih računa koja
   se automatski dopunjava pri svakom uvozu). Deterministično, bez
@@ -878,23 +1023,120 @@ radi preko svih organizacija korisnika (gdje je OWNER/ADMIN).
   preskače se), NIJE PREPOZNAT / VIŠE OBRTA (crveno: ručna dodjela
   obrta iz padajuće liste; program tada zapamti račun za ubuduće),
   GREŠKA (nepodržana banka, sken bez teksta, saldo se ne slaže).
+  Iznad liste je rezime po statusima, a redovi koji traže akciju
+  sortiraju se na vrh (proknjiženi tonu na dno). Dugme "Ukloni
+  završene" čisti proknjižene i duplikate iz liste.
 - **Pregled stavki**: svaki izvod u listi se može raširiti i vidjeti
   sve stavke (datum, protivstrana/opis, iznos) prije knjiženja.
 - **Knjiženje**: svaki potvrđeni izvod prolazi kroz isti uvoz kao na
   Bankovnim izvodima te organizacije (validacija salda, auto-match
-  faktura/partnera/kategorija, upozorenja), pa se stavke dalje
-  potvrđuju tamo.
+  faktura/partnera/kategorija, upozorenja).
+- **Pop-up detalj izvoda**: "Otvori izvod i pregledaj stavke" (i
+  "Pogledaj postojeći izvod" kod duplikata) otvara PUNI detalj izvoda u
+  pop-upu, bez prebacivanja aktivnog obrta i bez napuštanja Inboxa:
+  potvrda stavki (pojedinačno i "Potvrdi sve"), promjena kategorije,
+  uređivanje, brisanje. Naslov pop-upa nosi naziv obrta. Knjigovođa
+  tako u jednom prolazu kroz Inbox potvrdi stavke za sve obrte.
+  Komponenta je dijeljena (IzvodDetalj.tsx): stranica
+  /app/bankovni-izvodi/[id] je tanki omotač oko iste.
+- **KPR status na proknjiženom redu**: "proknjižen" znači da je izvod
+  učitan u bankovne izvode obrta; stavke ulaze u KPR tek potvrdom. Red
+  zato pokazuje žuto upozorenje "N stavki čeka potvrdu da uđe u KPR",
+  tekst eventualnih upozorenja sa knjiženja (kontinuitet salda, naziv
+  obrta nije na izvodu), i dugme **"Potvrdi sve stavke"** koje potvrdi
+  cijeli izvod direktno sa reda (isti endpoint kao "Potvrdi sve" u
+  pregledu; stavke bez kategorije ne ulaze u KPR dok je ne dobiju).
+  Nakon potvrde red pokazuje "Sve stavke potvrđene za KPR." U traci
+  iznad liste je i globalno **"Potvrdi sve izvode (N)"**: sekvencijalno
+  potvrdi stavke svih proknjiženih izvoda sa progresom
+  ("Potvrđujem 3/7...").
 - **Vidljivost**: korisnicima koji vode više od jednog obrta grupni
   uvoz se nudi i na Početnoj (istaknuta kartica sa dugmetom "Otvori
   grupni uvoz") i na stranici Bankovni izvodi (traka ispod polja za
   učitavanje); korisnici sa jednim obrtom te ulaze ne vide.
 
-## 18. Obrasci (SPR-1053 i GPD-1051 iz knjiga)
+**Poruke i obavijesti**: obavijesti koje admin objavi (info/upozorenje/
+uspjeh, sa publikom i rokom isteka) + automatska upozorenja o isteku
+pretplate. Ulaskom u tab se označe pročitanim; broj nepročitanih stoji
+na tabu i uz Inbox u sidebaru (zajedno sa porukama podrške).
+
+**Podrška (Live chat)**: razgovori sa administracijom u realnom vremenu
+(Socket.IO, historija preživi refresh). Više razgovora po korisniku,
+filteri Otvoreni/Zatvoreni/Svi (zatvoreni ostaju čitljivi kao arhiva),
+zatvoren razgovor je samo za čitanje dok ga admin ponovo ne otvori,
+datumski separatori u niti ("Danas"/"Juče"/datum), status "Tim je
+online". Admin strana (/admin/podrska) ima iste razgovore, zatvaranje,
+ponovno otvaranje i trajno brisanje razgovora. Ako korisnik nije online
+kad podrška odgovori, dobije email (isključivo u postavkama).
+
+### Sistemske notifikacije (email + in-app)
+
+Postavke na `/app/postavke?tab=notifikacije`: org-vezane podešava svaki
+član obrta za sebe (čuva se na članstvu), a "Odgovor podrške" važi za
+cijeli nalog. Default je SVE uključeno; svaka notifikacija je ili vezana
+za zakonski rok ili se šalje samo kad ima sadržaja.
+
+- **Rok doprinosa i poreza / PDV prijava**: email 7. i 10. u mjesecu u
+  08h, SAMO ako uplata te kategorije nije evidentirana na izvodu
+  (potvrđena stavka). PDV samo za obveznike.
+- **Plate i MIP**: 5. u mjesecu ako plate za prethodni mjesec nisu
+  obračunate; 12. ako jesu a MIP-1023 nije preuzet.
+- **Godišnji rokovi**: 20.01. za GIP-1022 (rok 31.01.) i 20.03. za
+  GPD/SPR (rok 31.03.; preskače obrte sa već spremljenim GPD-om).
+- **Sedmični pregled**: ponedjeljkom, nepovezane transakcije + dospjele
+  fakture + izvodi stariji od 30 dana; šalje se samo ako ima nečega.
+- **Istek pretplate**: automatski email 7 i 1 dan prije isteka.
+- **In-app**: iste stvari kao kartice u Inbox → Poruke i obavijesti
+  (klik vodi na stranicu), plus obavijest kad KOLEGA učita izvod za
+  zajednički obrt. Broj nepročitanih ulazi u badge na tabu i sidebaru.
+
+Pravila protiv spama: sve zbirno PO KORISNIKU (knjigovođa sa 30 obrta
+dobije jedan email sa listom obrta), dedup log garantuje da se isti
+podsjetnik nikad ne šalje dvaput (job je idempotentan i smije se
+ponoviti nakon restarta), a svaki email u footeru vodi na postavke
+notifikacija. Scheduler: jednom dnevno u 08h (interna provjera svakih
+10 min, bez vanjskih servisa).
+
+## 18. Obrasci (SPR-1053, GPD-1051, ČOK i ONŠ iz knjiga)
 
 Stranica `/app/obrasci`: priprema godišnjih poreznih obrazaca iz knjiga
 izabrane organizacije, uz izbor godine (default prethodna godina, jer se
 godišnji obrasci predaju za nju). Redoslijed je uvijek: prvo SPR, pa GPD
 (SPR je zvanično prilog godišnje prijave).
+
+### ČOK i ONŠ (kantonalne naknade, predaju se ručno u PU)
+
+Dvije kartice na `/app/obrasci`; obračun se sprema na profil (kartica
+odmah pokazuje "za uplatu X KM" bez otvaranja modala) i preuzima kao PDF
+za štampu i ovjeru. Kanton se izvodi iz sjedišta obrta (šifarnik općina
+KANTONI), sa ručnom promjenom; iz kantona idu naziv poreznog ureda
+(Bihać, Sarajevo, Tuzla...), komora i računi. Sve auto-vrijednosti su
+editabilne. Šifarnik: `src/sections/obrasci/kantonalni.ts`.
+
+- **Obrazac ČOK** (godišnja članarina obrtničkoj komori kantona):
+  osnovica NIJE promet nego osnovica za obračun doprinosa vlasnika
+  (r.br. 10 obrasca 2002) x broj mjeseci. Default se vuče iz vlasnikovih
+  obračuna doprinosa (najčešći mjesečni bruto + broj obračunatih
+  mjeseci), fallback režimska osnovica x 12. Stopa default 0,50%
+  (editabilna, skupština komore je mijenja godišnje). PDF replika
+  zvaničnog obrasca: zaglavlje PU FBiH sa kantonalnim uredom i
+  ispostavom, Dio 1 (JIB u kućicama, obrtnik, obrt, udruženje DA/NE),
+  Dio 2 (obračun sa "X x N" formatom osnovice), Dio 3 (izjava).
+  Podaci za uplatu: vrsta prihoda 722567; žiro računi komora poznati za
+  USK (1020220000053653) i KS (3387302220433691), ostali se dopunjuju u
+  KOMORA_RACUNI kad ih komore dostave.
+- **Obrazac ONŠ** (naknade za šume): naknada za općekorisne funkcije
+  šuma 0,07% od UKUPNO ostvarenog prihoda (osnovica = prihodi iz KPR-a
+  za period, dugme za ponovno povlačenje kad se period skrati), 100%
+  budžet kantona. Sekcija 1.a (7% od prihoda od drveta) ostaje prazna
+  za obične obrte. Evidencija uplata po kvartalima (ručno), obračun na
+  nivou perioda. PDF replika obrasca sa 11 kolona (AOP, stopa,
+  osnovica, kvartali, ukupno), A4 položeno kao original. Podaci za uplatu: budžet kantona (računi
+  iz payroll šifarnika), vrsta prihoda 722471, šifra općine sjedišta.
+- Backend: forms.type ENUM proširen sa COK/ONS (ensureFormTypeEnum),
+  VALID_TYPES u documentsController; spremljeni obrasci se listaju na
+  stranici kao SPR/GPD (preuzimanje regeneriše PDF iz snimljenih
+  podataka).
 
 - **SPR-1053, "Pripremi iz knjiga"**: otvara modal U APLIKACIJI sa
   povučenim ciframa. Obveznik i djelatnost iz organizacije i vlasnika;
@@ -1023,6 +1265,22 @@ kasnije veže lager lista.
   17%; ukalkulisani PDV = maloprodajna − maloprodajna/1,17; ulazni PDV =
   17% na fakturnu vrijednost (zavisni trošak nema ulaznog PDV-a). Obrt
   koji NIJE u PDV-u unosi cijene sa PDV-om i nema PDV kolona.
+- **Ulazni PDV sa računa** (opciono polje u zaglavlju, samo PDV
+  obveznik): odbitni PDV kako piše na računu dobavljača. Ako se zbog
+  zaokruživanja kod dobavljača razlikuje od obračunatih 17% po stavkama,
+  u KUF (odbitni PDV), iznos ulaznog računa i kontrolu iznosa ide iznos
+  sa računa; prazno polje znači obračunatih 17% (placeholder pokazuje
+  taj iznos). Traka suma tada nosi labelu "Ulazni PDV (sa računa)". Pri
+  uređivanju kalkulacije polje se predpopuni samo ako je iznos ranije
+  bio pregažen (razlika prema zbiru stavki).
+- **Automatski dodaj PDV na cijenu** (checkbox u zaglavlju, samo obrt
+  koji NIJE u PDV-u): računi obično nose veleprodajne cijene (bez
+  PDV-a), a za neobveznika PDV nije odbitan nego ulazi u nabavnu
+  cijenu. Uz uključenu opciju se kuca cijena direktno sa računa, a u
+  polju se na Enter (ili pri dodavanju stavke) vidljivo uveća za 17%
+  (x 1,17), uz info poruku sa računicom. Konvertuje se samo ručno
+  ukucana cijena, jednom: predpopuna iz zadnje stavke je već sa PDV-om
+  i ne dira se. Izbor opcije se pamti po obrtu (localStorage).
 - **KUF/obaveze automatski**: spremanje kalkulacije knjiži i ulazni
   račun dobavljača (broj/datum računa, fakturna vrijednost + ulazni
   PDV; zavisni troškovi NISU dio tog računa). Račun se vidi na
@@ -1039,6 +1297,42 @@ kasnije veže lager lista.
   (količine, cijene, rabati, marže, MPC). Broj računa i datumi se unose
   iznova (novi račun dobavljača), spremanjem nastaje nova kalkulacija sa
   svojim brojem i svojim ulaznim računom u KUF-u; original se ne dira.
+- **Enter tok kroz unos**: Enter vodi artikal → količina → cijena →
+  rabat → zavisni → marža → MPC; Enter na MPC-u dodaje stavku i vraća
+  fokus na artikal (unos bez miša, red za redom).
+- **Kontrola iznosa računa** (opciono polje u zaglavlju): upiše se
+  ukupan iznos sa fakture dobavljača, pa traka suma živo pokazuje
+  "slaže se (0,00)" (zeleno) ili razliku (crveno) prema unesenim
+  stavkama.
+- **Predpopuna iz zadnje stavke**: izbor artikla koji je već bio na
+  nekoj kalkulaciji odmah popuni količinu, cijenu, rabat, zavisni i MPC
+  kao na zadnjem prometu (uz info iz koje kalkulacije), pa se unos
+  ponavljajuće robe svede na Enter-Enter. Pored artikla su dugmad za
+  **karticu artikla** (promet i stanje, isti modal kao na lageru) i
+  **uređivanje artikla**.
+- **Upozorenje na drugu MPC**: ako artikal na lageru već ima stanje po
+  nekoj MPC a unosi se druga, žuta napomena javlja da nova MPC pravi
+  odvojenu lager stavku i upućuje na nivelaciju za promjenu cijene.
+- **Upozorenje na maržu u minusu** (MPC ne pokriva nabavnu cijenu):
+  žuta napomena već u panelu unosa dok se kuca, marža u redu stavke
+  crvena i podebljana sa ikonom upozorenja (i na tabu Obračun
+  kalkulacije), a ispod tabele stoji žuta traka sa spiskom svih stavki
+  u minusu. Spremanje se NE blokira (prodaja ispod nabavne zna biti
+  namjerna, npr. rasprodaja).
+- **Zavisni troškovi (KM)** na nivou kalkulacije: iznos (npr. prevoz sa
+  posebne fakture) se dugmetom "Rasporedi" raspodijeli na SVE stavke
+  proporcionalno fakturnoj vrijednosti (kao jednak zavisni %).
+- **Status plaćanja na listi**: kolona "Plaćanje" (plaćen / otvoren /
+  kasni po ulaznom računu kalkulacije), dobavljač je link na karticu
+  partnera. Na kartici partnera računi iz kalkulacija nose oznaku
+  **"KLC broj"** (npr. "KLC 1/26 · Račun 123"), i u listi računa i na
+  kartici prometa (web i PDF), pa se odmah zna da je račun kalkulacija.
+- **Šifarnik proširen**: kolone Stanje i MPC sa lager liste (usluge "–"),
+  klik na red otvara karticu artikla, checkbox "Sakrij neaktivne" i
+  **Izvoz (CSV)** za Excel (podaci + stanje + MPC).
+- **Marža tab**: brzi periodi (Ovaj mjesec, Prošli mjesec, Cijela
+  godina) i napomena da je marža ukalkulisana (iz kalkulacija), ne
+  realizovana prodaja.
 - Numeracija: redni broj po obrtu i godini (1/26, 2/26...), bez
   maloprodajnih objekata (jedan objekat po obrtu).
 
@@ -1058,11 +1352,39 @@ godine, klijent izbroji robu, unos količina, obračun).
   stanje + hronološki svi događaji (kalkulacije sa dobavljačem i
   cijenama, popisi, nivelacije, povrati, otpisi) sa tekućim stanjem,
   uređivanje artikla i **PDF ispis kartice**.
-- **Lager lista**: presjek "zaključno sa datumom" (radi i retroaktivno),
+- **Lager lista**: presjek "zaključno sa datumom" (radi i retroaktivno)
+  uz brze datume (Danas, Kraj prošlog mjeseca, 31.12. prošle godine),
   status pod-tabovi (Ima na lageru / Nema / Manjak / Sve), pretraga,
-  sortiranje po šifri ili nazivu, sume količine i maloprodajne
-  vrijednosti. **PDF prati aktivne filtere**: šta je na ekranu, to ide
-  na papir (naslov "LAGER LISTA na dan X", ispisani filteri, totali).
+  sortiranje u OBA smjera po šifri, nazivu, količini i vrijednosti,
+  kolona "Zadnji ulaz" (datum zadnje kalkulacije, otkriva stajaću robu),
+  footer sa brojem stavki I artikala (isti artikal sa dvije MPC = dva
+  reda). **PDF i CSV prate aktivne filtere**: šta je na ekranu, to ide
+  u fajl (naslov "LAGER LISTA na dan X", ispisani filteri, totali); CSV
+  za Excel uvijek nosi i nabavne kolone i zadnji ulaz.
+- **Traka vrijednosti zalihe** iznad tabele (za prikazane stavke):
+  maloprodajna vrijednost, vrijednost bez PDV-a (obveznik; isti broj
+  koji D-PDV predpopuna vuče za zalihe), nabavna vrijednost i
+  ukalkulisana marža (RUC). Nabavna je prosječna iz kalkulacija.
+- **Checkbox "Prikaži nabavne cijene"**: dodaje kolone nabavna cijena
+  i nabavna vrijednost u tabelu i PDF (interna verzija liste); default
+  isključeno pa obična lista ostaje čista.
+- **Manjak badge**: crveni broj na status tabu "Manjak" čim negdje
+  postoji negativno stanje (obično greška u knjiženju: fali kalkulacija
+  ili popis), vidljiv sa bilo kog status taba.
+- **Brza nivelacija iz reda**: ikona cijene u akcijama reda vodi na tab
+  Nivelacije sa već izabranim artiklom i starom MPC i predispunjenom
+  količinom (promjena cijene u dva klika).
+- **Uvoz početnog stanja lagera** (dugme na Lager listi): CSV sa
+  kolonama Šifra/Količina/MPC (opciono Nabavna cijena; podržan
+  Com_Soft izvoz, Windows-1250). Parsira se u browseru uz pregled (šta
+  se uvozi, šta se preskače i zašto; artikli se traže po šifri u
+  šifarniku), backend kreira DRAFT **popis početnog stanja** SAMO sa
+  uvezenim redovima (ne dira ostalu robu; "Osvježi stanje" mu ne dodaje
+  snapshot redove). Popis nosi badge "početno stanje", pregleda se i
+  proknjiži na tabu Popis: tek tada količine ulaze u lager, a TKM
+  dobije red "Početno stanje zaliha po popisu X". Upozorenje u modalu:
+  ručno vrijednosno početno stanje TKM-a za istu godinu treba ukloniti
+  da se ne dupla.
 - **Popis**: "Novi popis" snima knjigovodstveno stanje na datum (svi
   artikli sa prometom, i sa stanjem 0 radi viška). Unos izbrojanih
   količina direktno u tabeli (pretraga, nespremljeni unosi označeni),
@@ -1167,14 +1489,35 @@ naredni radni dan, blagajnički maksimum internom odlukom).
 
 - **Nalozi**: naplata (N-1/26...) i isplata (I-1/26...), numeracija po
   tipu i godini; datum, iznos, uplatilac/primalac, osnov, napomena.
-  Isplata je blokirana ako bi saldo blagajne otišao u minus.
+  Unos, uređivanje i brisanje su blokirani ako bi saldo blagajne na
+  kraju bilo kojeg dana otišao u minus (pokriva i unazad datirane
+  izmjene). Kod uređivanja tip i broj naloga ostaju, datum mora ostati
+  u istoj godini. Akcija "Kopiraj" otvara novi nalog predpopunjen
+  postojećim (današnji datum), za ponavljajuće unose tipa dnevni pazar.
+  Polja uplatilac/primalac i osnov nude prijedloge iz ranijih naloga.
 - **Dnevnik**: za izabrani dan: donos (saldo prethodnog dana), nalozi,
   promet naplata/isplata, saldo na kraju dana; redni broj dnevnika =
-  redni broj dana sa prometom u godini. Period od-do daje pregled i
-  saldo za raspon.
+  redni broj dana sa prometom u godini. Brzi periodi (Danas, Jučer,
+  Ovaj/Prošli mjesec). Višednevni period se grupiše po danima: svaki
+  dan ima svoj podnaslov sa brojem dnevnika, prometom, saldom dana i
+  dugmetom za PDF tog dnevnika.
 - **PDF**: pojedinačni nalog (sa iznosom slovima i potpisima blagajnik/
-  uplatilac-primalac/odgovorno lice) i blagajnički dnevnik za dan (sa
-  potpisima).
+  uplatilac-primalac/odgovorno lice), blagajnički dnevnik za dan (sa
+  potpisima) i "Dnevnici za period" (jedan PDF, stranica po danu sa
+  prometom, za štampu svih dnevnika na kraju mjeseca).
+- **Blagajnički maksimum**: iznos po obrtu
+  (organizations.blagajnickiMaksimum, interna odluka); uređuje se sa
+  blagajne (olovka u traci suma), upozorenje kad saldo pređe maksimum +
+  dugme "Položi pazar", i PDF "Odluka o visini blagajničkog maksimuma".
+- **Položi pazar**: brza akcija koja otvara nalog za isplatu
+  predpopunjen viškom iznad maksimuma (ili cijelim saldom ako maksimum
+  nije utvrđen) i osnovom "Polaganje pazara na transakcijski račun".
+- **Početno stanje**: dok prije izabranog perioda nema prometa, ponuđen
+  je unos početnog stanja (nalog za naplatu sa osnovom "Početno stanje
+  blagajne") za prelazak sa postojeće blagajne u toku godine.
+- Kod isplate preko 200 KM modal prikazuje napomenu o ograničenju
+  gotovinskih plaćanja robe/usluga (bez blokiranja, jer polaganje
+  pazara i plate nisu ograničeni).
 
 ## 23. Vlasnik obrta na obračunima (doprinosi + Obrazac 2002)
 
@@ -1200,15 +1543,38 @@ porezu na dohodak (neoporeziva dnevnica 25 KM; puna 24h = 1 dnevnica,
 preko 12h = 1, 8-12h = 0,5).
 
 - Forma: radnik/vlasnik iz liste ili ručni unos imena, relacija, svrha,
-  prevozno sredstvo, polazak/povratak (datum + vrijeme), dnevnica
-  (default 25 KM), broj dnevnica sa **prijedlogom iz trajanja puta**,
-  akontacija, troškovi prevoza/smještaja/ostalo, izvještaj sa puta.
-  Nalog se može dopuniti nakon puta (obračun troškova).
-- Numeracija po obrtu i godini; obračun: dnevnice + troškovi − akontacija
-  = za isplatu (ili za povrat u blagajnu).
+  prevozno sredstvo, polazak/povratak (datum + vrijeme sa maskom
+  HH:MM), dnevnica (default 25 KM), broj dnevnica sa prijedlogom iz
+  trajanja puta koji se **sam upisuje** dok korisnik ne ukuca svoj
+  broj, akontacija, troškovi prevoza/smještaja/ostalo, **vlastito
+  vozilo** (pređeni km x KM po km = naknada, posebna stavka obračuna),
+  izvještaj sa puta. Nalog se može dopuniti nakon puta.
+- **Predpopuna iz zadnjeg naloga radnika**: izbor radnika povuče
+  prevozno sredstvo, relaciju, svrhu i KM/km stopu sa njegovog zadnjeg
+  naloga (samo u prazna polja). **Kopiraj nalog** (ikona u redu): novi
+  nalog sa istim radnikom/relacijom/svrhom/prevozom i km stopom, novi
+  datumi i prazne dnevnice.
+- **Upozorenje na oporezivi dio**: dnevnica veća od 25 KM dobije žutu
+  napomenu da se razlika oporezuje kao plata.
+- Numeracija po obrtu i godini; obračun: dnevnice + vlastito vozilo +
+  troškovi − akontacija = za isplatu (ili za povrat u blagajnu).
+- **Evidencija isplate**: kolona "Isplata" (otvoren/isplaćen sa datumom
+  u tooltipu). Dugme isplate otvara modal: "Isplati iz blagajne"
+  (kreira blagajnički nalog isplate sa osnovom "Putni nalog X,
+  relacija" pa upiše oznaku sa vezom; poštuje guard minimalnog salda,
+  poruka ako nema gotovine) ili "Samo označi isplaćenim" (isplata preko
+  računa). Oznaka se može poništiti (blagajnički nalog se tada NE briše
+  automatski, upozorenje kaže da se ukloni na Blagajni). Backend: POST
+  /api/putni-nalozi/:orgId/:id/isplata; kolone predjeniKm, kmStopa,
+  isplacenoDatum, blagajnaNalogId (ensureColumns).
+- **Lista**: filter po radniku, pretraga (relacija/svrha/broj/ime),
+  footer sa sumama (dnevnice, ukupno, za isplatu). **Knjiga putnih
+  naloga (PDF)**: evidencija za godinu, prati filtere, sa kolonom
+  datuma isplate.
 - **PDF**: nalog (ko/kuda/zašto/čime/kada + potpis nalogodavca) +
-  obračun putnih troškova (za isplatu i slovima) + izvještaj + potpisi;
-  napomena da se prilažu računi.
+  obračun putnih troškova (sa stavkom "Upotreba vlastitog vozila: X km
+  x Y KM", za isplatu i slovima) + izvještaj + potpisi; napomena da se
+  prilažu računi.
 
 ## 25. Zbirni obračun uz KPR (pregled poslovanja)
 
@@ -1254,6 +1620,92 @@ ugostitelji...; trgovci koji vode TKM su izuzeti, što piše na tabu).
   (default): kao do sada, pazar u KPR ide iz pologa sa izvoda.
   Računovodstveno ispravnije uključeno: prihod na dan prometa, polog je
   samo prenos novca. Flag: organizations.kprPazarIzKp.
+
+## 27. Stalna sredstva, zaključak godine, opomene i arhiva
+
+### Stalna sredstva i amortizacija (dijeljeno sa /amortizacija)
+
+Nativna PK stranica `/app/stalna-sredstva` (sidebar → Knjige i
+evidencije): unos i pregled registra direktno u aplikaciji. Podaci su
+ISTI PLDI zapis (Form po obrtu i godini) koji koristi i marketing
+/amortizacija, pa je sinhronizacija automatska u oba smjera: šta se
+unese ovdje vidi se tamo i obrnuto.
+
+- Stranica: izbor godine, KPI (broj sredstava, nabavna, godišnja
+  amortizacija, vrijednost na kraju), tabela sa svim PLDI kolonama
+  (datum nabavke, br. dokumenta, nabavna, početna vrijednost, vijek,
+  stopa, mjeseci, amortizacija, kraj godine, prodaja/otpis; dijeljena
+  calcRow logika sa PLDI obrascem), modal za novo/izmjenu (uključuje
+  ručnu stopu i ručne mjesece), preuzimanje popunjenog obrasca
+  PLDI-1043 (prazna polja obveznika se za PDF dopune iz podataka obrta
+  i vlasnika) i knjiženje amortizacije u KPR.
+- **Ručni period obračuna**: za obrt otvoren/zatvoren u toku godine
+  (checkbox + od/do); amortizacija se računa za period, a knjiženje u
+  KPR ide na KRAJ PERIODA umjesto na 31.12. (backend prima datum).
+- **Prenos u sljedeću godinu**: ista logika kao marketing strana;
+  prenose se neprodana sredstva, nabavna ostaje ista, početna
+  vrijednost = vrijednost na kraju tekuće godine, ručne stope/mjeseci
+  se resetuju; postojaći podaci sljedeće godine se zamjenjuju uz
+  potvrdu.
+- Na knjiženju ulaznog računa checkbox **"Stalno sredstvo"** (naziv +
+  vijek trajanja sa stopom): uz knjiženje se sredstvo automatski doda u
+  PLDI registar godine (nabavna = iznos bez odbitnog PDV-a, početna KV =
+  nabavna, broj dokumenta = broj računa).
+- **Knjiženje godišnje amortizacije u KPR**: dugme na Zaključku godine;
+  kreira interni izvod AM-GGGG na 31.12. sa CONFIRMED stavkom kategorije
+  "Amortizacija (godišnji obračun)" (KPR kolona 19). Iznos se računa
+  istom logikom kao PLDI obrazac (calcRow). Duplo knjiženje je
+  blokirano (postojeći AM izvod → 409).
+
+### Zaključak godine (na /app/obrasci)
+
+Checklist zakonskih koraka za izabranu godinu, statusi iz knjiga:
+popis robe na 31.12. (proknjižen popis godine), obračun amortizacije
+(PLDI + iznos), amortizacija proknjižena u KPR (sa dugmetom), GIP-1022
+(rok 31.01.), SPR/GPD (rok 31.03., detekcija spremljenih), ČOK i ONŠ.
+
+### Arhiva godine (ZIP)
+
+Dugme na Zaključku godine: ZIP sa KPR-1041, KUF i KIF za cijelu godinu
+(PDF-ovi se grade client-side istim builderima kao na svojim
+stranicama). Za arhiviranje ili inspekciju.
+
+### Opomena kupcu (kartica partnera)
+
+Kad partner ima dospjeli dug preko roka, na kartici se pojavi red
+"Dospjeli dug X KM" sa izborom vrste (Opomena / Opomena pred utuženje),
+PDF i slanje emailom. Sadržaj po praksi: povjerilac/dužnik, tabela
+dospjelih računa (dokument, datum, valuta, iznos) sa odobrenjima u
+minusu, ukupan dug, rok 8 dana, račun za uplatu, upozorenje (nivo 2:
+zatezna kamata + sudski postupak), "zanemarite ako ste platili".
+
+## 28. Uputstva (kontekstualna pomoć po stranici)
+
+Uz naslov skoro svake stranice u /app stoji dugme **Uputstvo** (plavo,
+naglašeno). Klik otvara klizni panel zdesna sa uputstvom baš za tu stranicu;
+stranica ispod se ne pomjera. Panel se zatvara na X, Escape ili klik van njega.
+
+Sadržaj panela je isti obrazac za svaku temu: kratak uvod (čemu služi), sekcije
+"korak po korak", zeleni savjeti i amber upozorenja, te rasklopiva **Česta
+pitanja** (rubni slučajevi, npr. zašto stavka nije ušla u KPR). Namijenjeno
+klijentu/pripravniku koji vodi obrt, ne kao jedan veliki priručnik.
+
+Pokriveno je sve osim Pretplate i Postavki obrta (tu se nema šta objašnjavati).
+
+Na Početnoj dugme nosi label **"Kako početi"** i otvara vodič kroz redoslijed
+rada koji povezuje sve stranice (obrt → izvodi → KPR → fakture → plate → roba →
+PDV → godišnji obrasci), pa novi klijent ima jedan tok od praznog obrta do kraja
+godine.
+
+Uz tekstualne blokove tema podržava i **slike** (blok `{ t: "slika", src, opis }`);
+screenshotovi idu u `frontend/public/uputstva/` (konvencija u README tamo).
+
+Tehnički: dugme je `HelpButton` (dobije `slug`), panel `UpustvoDrawer` (montiran
+jednom u AppShell-u), povezani sitnim storom `src/lib/upustvo-store.ts`. Sadržaj
+je tipiziran po temi u `src/content/upustva/` (jedan fajl po ruti + registry u
+`index.ts`), bez markdown dependencyja. Nova stranica = novi fajl teme, red u
+registru i `HelpButton slug="..."` uz naslov. Izvor istine za tekst je ovaj
+dokument; panel je njegova uglađena, klijentu okrenuta verzija.
 
 ## Tehnička bilješka (za razvoj, ne za tutorijal)
 

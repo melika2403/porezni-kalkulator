@@ -166,7 +166,7 @@ export async function downloadKcmPdf(
 
   function newPage(first: boolean) {
     page = doc.addPage(A4L);
-    y = A4L[1] - M - 8;
+    y = A4L[1] - M - 4;
     if (first) {
       // obrt
       text(org.name, M, 11, true);
@@ -180,27 +180,28 @@ export async function downloadKcmPdf(
         text(`ID broj: ${org.taxNumber}`, M, 8.5);
         y -= 11;
       }
-      y -= 6;
+      y -= 3;
       // naslov
       const title = `MALOPRODAJNA KALKULACIJA - Obrazac KCM broj ${k.oznaka}`;
-      const tw = font.widthOfTextAtSize(title, 12);
-      text(title, (A4L[0] - tw) / 2, 12, true);
-      y -= 13;
+      const tw = font.widthOfTextAtSize(title, 15);
+      text(title, (A4L[0] - tw) / 2, 15, true);
+      y -= 16;
       const sub = `Datum zaduženja/kalkulacije: ${datum(k.datum)} godine`;
       const sw = font.widthOfTextAtSize(sub, 8.5);
       text(sub, (A4L[0] - sw) / 2, 8.5);
       y -= 18;
       // podaci računa
-      text(`Dobavljač: ${k.partner?.name ?? ""}`, M, 8.5);
+      text(`Dobavljač: ${k.partner?.name ?? ""}`, M, 10);
       text(`Broj računa: ${k.brojRacuna}`, A4L[0] - M - 220, 8.5);
-      y -= 11;
+      y -= 13;
       text(
         `Iznos ulaznog PDV-a: ${km(k.ulazniPdv)}    Ukupni iznos računa: ${km(k.iznosRacuna)}`,
         M,
-        8.5,
+        10,
+        true,
       );
       text(`Datum računa: ${datum(k.datumRacuna)}`, A4L[0] - M - 220, 8.5);
-      y -= 10;
+      y -= 12;
       // linija koja odvaja zaglavlje dokumenta od stavki
       page.drawLine({
         start: { x: M, y },

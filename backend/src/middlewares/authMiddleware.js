@@ -87,6 +87,18 @@ function pickOrgIdFromReq(req) {
     const n = Number(c);
     if (Number.isInteger(n) && n > 0) return n;
   }
+  // Fallback za rute bez org u putanji (org stiže u body/query, npr.
+  // /amortizacija). Params uvijek imaju prednost, pa ovo ne dira postojeće rute.
+  const bodyQuery = [
+    req.body?.organizationId,
+    req.body?.orgId,
+    req.query?.organizationId,
+    req.query?.orgId,
+  ];
+  for (const c of bodyQuery) {
+    const n = Number(c);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
   return null;
 }
 

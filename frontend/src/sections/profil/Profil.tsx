@@ -131,6 +131,8 @@ const FORM_TYPE_LABELS: Record<FormType, string> = {
   PLDI: "PLDI",
   AMS: "AMS",
   JS3100: "JS3100",
+  COK: "ČOK (komora)",
+  ONS: "ONŠ (šume)",
 };
 
 const STATUS_LABELS: Record<string, string> = {

@@ -7,6 +7,9 @@ const router = express.Router();
 // ── Korisnik ──────────────────────────────────────────────────────────────────
 router.get("/", requireAuth, c.getMine);
 router.post("/read", requireAuth, c.markRead);
+// postavke notifikacija (per član obrta + per korisnik)
+router.get("/prefs", requireAuth, c.getPrefs);
+router.put("/prefs", requireAuth, c.putPrefs);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.get("/admin", requireAuth, requireRole("ADMIN"), c.adminList);

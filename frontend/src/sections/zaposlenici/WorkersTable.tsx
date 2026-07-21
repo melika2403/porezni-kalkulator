@@ -5,7 +5,7 @@
 // kontejnera (vidi src/styles/pk-embed.css). Akcije po redu idu kroz
 // RowActionsMenu (vidljive primarne + kebab meni), po PK standardu.
 import type { ReactNode } from "react";
-import { IconCrown } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCrown } from "@tabler/icons-react";
 import RowActionsMenu, {
   type RowMenuItem,
   type RowPrimaryAction,
@@ -44,6 +44,18 @@ function initials(w: Worker) {
   return `${w.firstName[0] ?? ""}${w.lastName[0] ?? ""}`.toUpperCase();
 }
 
+// Podaci bez kojih obračuni i obrasci (MIP, prijava) zapinju. Dijele ga
+// PK Office Zaposlenici i Aktivni radnici, ista pravila (za warningFor).
+export function nedostajePodaci(w: Worker): string | null {
+  const fali: string[] = [];
+  if (!w.jmbg) fali.push("JMBG");
+  if (w.role === "RADNIK") {
+    if (!w.bankAccount) fali.push("žiro račun");
+    if (w.strucnaSpremaIdx == null) fali.push("stručna sprema");
+  }
+  return fali.length ? `Nedostaje: ${fali.join(", ")}` : null;
+}
+
 export type WorkerRowActions = {
   primary: RowPrimaryAction[];
   menu: RowMenuItem[];
@@ -54,6 +66,7 @@ export function WorkersTable({
   plataCell,
   actionsFor,
   onRowClick,
+  warningFor,
 }: {
   workers: Worker[];
   /** Sadržaj kolone Plata (app: osnovica vlasnika / neto; marketing isto). */
@@ -62,6 +75,8 @@ export function WorkersTable({
   actionsFor?: (w: Worker) => WorkerRowActions | null;
   /** Klik na red (obično otvara uređivanje). */
   onRowClick?: (w: Worker) => void;
+  /** Tekst upozorenja uz ime (npr. nepotpuni podaci); null = bez ikone. */
+  warningFor?: (w: Worker) => string | null;
 }) {
   const hasActions = !!actionsFor;
   return (
@@ -111,6 +126,23 @@ export function WorkersTable({
                             <IconCrown size={11} /> vlasnik
                           </span>
                         )}
+                        {(() => {
+                          const upozorenje = warningFor?.(w) ?? null;
+                          // stilizovani tooltip odmah na hover (native title
+                          // je spor); iznad ikone da ga ne odsiječe donja
+                          // ivica scroll kontejnera tabele
+                          return upozorenje ? (
+                            <span
+                              className="relative inline-flex shrink-0 text-warning cursor-help group/upozorenje"
+                              aria-label={upozorenje}
+                            >
+                              <IconAlertTriangle size={15} />
+                              <span className="pointer-events-none absolute left-0 bottom-full mb-1.5 z-20 hidden group-hover/upozorenje:block whitespace-nowrap rounded-lg bg-text-primary text-cream-50 text-[11.5px] leading-4 px-2.5 py-1.5 shadow-lg">
+                                {upozorenje}
+                              </span>
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="text-[11.5px] text-text-tertiary truncate max-w-[260px]">
                         {[w.position, w.city].filter(Boolean).join(" · ")}

@@ -159,14 +159,15 @@ function periodLabel(month: number, year: number, monthTo?: number) {
   };
 }
 
-export async function downloadKufPdf(
+// Vraća bajtove (koristi ih i download dugme i godišnja ZIP arhiva).
+export async function buildKufPdfBytes(
   rows: UlazniRacun[],
   org: string,
   month: number,
   year: number,
   /** pregled raspona: izvještaj za više mjeseci (do uključivo) */
   monthTo?: number,
-) {
+): Promise<{ bytes: Uint8Array; fileName: string }> {
   const period = periodLabel(month, year, monthTo);
   let ukupno = 0;
   let osnovicaSum = 0;
@@ -236,17 +237,35 @@ export async function downloadKufPdf(
     data,
     totals,
   );
-  downloadBytes(bytes, `KUF-${period.file}.pdf`);
+  return { bytes, fileName: `KUF-${period.file}.pdf` };
 }
 
-export async function downloadKifPdf(
+export async function downloadKufPdf(
+  rows: UlazniRacun[],
+  org: string,
+  month: number,
+  year: number,
+  monthTo?: number,
+) {
+  const { bytes, fileName } = await buildKufPdfBytes(
+    rows,
+    org,
+    month,
+    year,
+    monthTo,
+  );
+  downloadBytes(bytes, fileName);
+}
+
+// Vraća bajtove (koristi ih i download dugme i godišnja ZIP arhiva).
+export async function buildKifPdfBytes(
   rows: Invoice[],
   org: string,
   month: number,
   year: number,
   /** pregled raspona: izvještaj za više mjeseci (do uključivo) */
   monthTo?: number,
-) {
+): Promise<{ bytes: Uint8Array; fileName: string }> {
   const period = periodLabel(month, year, monthTo);
   let ukupno = 0;
   let osnovica = 0;
@@ -308,5 +327,22 @@ export async function downloadKifPdf(
     data,
     totals,
   );
-  downloadBytes(bytes, `KIF-${period.file}.pdf`);
+  return { bytes, fileName: `KIF-${period.file}.pdf` };
+}
+
+export async function downloadKifPdf(
+  rows: Invoice[],
+  org: string,
+  month: number,
+  year: number,
+  monthTo?: number,
+) {
+  const { bytes, fileName } = await buildKifPdfBytes(
+    rows,
+    org,
+    month,
+    year,
+    monthTo,
+  );
+  downloadBytes(bytes, fileName);
 }

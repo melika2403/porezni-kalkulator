@@ -28,6 +28,7 @@ const citiesRoutes = require("./routes/citiesRoutes");
 const predracunRoutes = require("./routes/predracunRoutes");
 const karticaMembersRoutes = require("./routes/karticaMembersRoutes");
 const invoicesRoutes = require("./routes/invoicesRoutes");
+const preparedInvoicesRoutes = require("./routes/preparedInvoicesRoutes");
 const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes");
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
@@ -45,6 +46,9 @@ const prebijanjaRoutes = require("./routes/prebijanjaRoutes");
 const supportRoutes = require("./routes/supportRoutes");
 const announcementsRoutes = require("./routes/announcementsRoutes");
 const { initSocket } = require("./socket");
+const {
+  startNotificationScheduler,
+} = require("./services/notificationScheduler");
 const kalkulacijeRoutes = require("./routes/kalkulacijeRoutes");
 const lagerRoutes = require("./routes/lagerRoutes");
 const blagajnaRoutes = require("./routes/blagajnaRoutes");
@@ -98,6 +102,7 @@ app.use("/api/cities", citiesRoutes);
 app.use("/api/predracun", predracunRoutes);
 app.use("/api/kartica-members", karticaMembersRoutes);
 app.use("/api/invoices", invoicesRoutes);
+app.use("/api/prepared-invoices", preparedInvoicesRoutes);
 app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
@@ -148,6 +153,50 @@ async function ensureColumns() {
       column: "kprPazarIzKp",
       // KPR prihod od pazara iz KP-1042 umjesto pologa sa izvoda
       ddl: "ALTER TABLE organizations ADD COLUMN kprPazarIzKp TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "organizations",
+      column: "blagajnickiMaksimum",
+      // blagajnički maksimum internom odlukom (Uredba, Sl. nov. FBiH 48/15 i 82/15)
+      ddl: "ALTER TABLE organizations ADD COLUMN blagajnickiMaksimum DECIMAL(12,2) NULL",
+    },
+    {
+      table: "popisi",
+      column: "pocetnoStanje",
+      // popis nastao uvozom početnog stanja lagera (poseban TKM opis)
+      ddl: "ALTER TABLE popisi ADD COLUMN pocetnoStanje TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    // ─── notifikacije: postavke po članu obrta i po korisniku ────────────────
+    {
+      table: "organization_members",
+      column: "notifPrefs",
+      ddl: "ALTER TABLE organization_members ADD COLUMN notifPrefs JSON NULL",
+    },
+    {
+      table: "users",
+      column: "notifPrefs",
+      ddl: "ALTER TABLE users ADD COLUMN notifPrefs JSON NULL",
+    },
+    // ─── putni nalozi: vlastito vozilo + evidencija isplate ──────────────────
+    {
+      table: "putni_nalozi",
+      column: "predjeniKm",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN predjeniKm DECIMAL(10,2) NULL",
+    },
+    {
+      table: "putni_nalozi",
+      column: "kmStopa",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN kmStopa DECIMAL(6,3) NULL",
+    },
+    {
+      table: "putni_nalozi",
+      column: "isplacenoDatum",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN isplacenoDatum DATE NULL",
+    },
+    {
+      table: "putni_nalozi",
+      column: "blagajnaNalogId",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN blagajnaNalogId INT UNSIGNED NULL",
     },
     // ─── PDV evidencije (KUF/KIF) ─────────────────────────────────────────────
     {
@@ -1107,6 +1156,26 @@ async function ensureWorkerDocTypeEnum() {
   );
 }
 
+// Idempotentno proširenje forms.type ENUM-a: ČOK (članarina obrtničkoj
+// komori) i ONŠ (naknade za šume) na /app/obrasci.
+async function ensureFormTypeEnum() {
+  const [tblRows] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'forms'",
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+
+  const [colRows] = await sequelize.query(
+    "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'forms' AND COLUMN_NAME = 'type'",
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  if (["COK", "ONS"].every((v) => colType.includes(`'${v}'`))) return;
+
+  console.log("Proširujem forms.type ENUM (COK, ONS)...");
+  await sequelize.query(
+    "ALTER TABLE forms MODIFY COLUMN type ENUM('GPD','SPR','ZO3','UGOVOR','UOD','PLDI','AMS','SIH','JS3100','COK','ONS') NOT NULL",
+  );
+}
+
 // Idempotentni backfill spola vlasnika (VLASNIK Worker) iz JMBG-a, da ga payroll
 // prepozna automatski (kao kod radnika). Cifre 10-12 < 500 = M, >= 500 = Z.
 // Samo za one bez spola; nakon prvog prolaza nema šta ažurirati.
@@ -1300,6 +1369,7 @@ sequelize
   .then(() => ensureMemberRoleEnum())
   .then(() => ensurePayrollDocTypeEnum())
   .then(() => ensureWorkerDocTypeEnum())
+  .then(() => ensureFormTypeEnum())
   .then(() => ensureActivityNamesFresh())
   .then(() => ensureOwnerSpolFromJmbg())
   .then(() => ensureUtf8Mb4())
@@ -1379,6 +1449,8 @@ sequelize
     // isti port sa Express aplikacijom.
     const server = http.createServer(app);
     initSocket(server);
+    // dnevne notifikacije (rokovi, plate, digest...): jednom dnevno u 08h
+    startNotificationScheduler();
     server.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}`);
     });

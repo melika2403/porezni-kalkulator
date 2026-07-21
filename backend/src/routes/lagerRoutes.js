@@ -16,6 +16,8 @@ const write = [requireAuth, requireOrgRole("OWNER", "ADMIN"), officeGate];
 // popisi (literal rute prije /:orgId)
 router.get("/:orgId/popisi", read, ctrl.listPopisi);
 router.post("/:orgId/popisi", write, ctrl.createPopis);
+// uvoz početnog stanja lagera (prije /:id da "uvoz" ne uleti u getPopis)
+router.post("/:orgId/popisi/uvoz", write, ctrl.uvozPocetnogStanja);
 router.get("/:orgId/popisi/:id", read, ctrl.getPopis);
 router.patch("/:orgId/popisi/:id", write, ctrl.updatePopis);
 router.post("/:orgId/popisi/:id/refresh", write, ctrl.refreshPopis);

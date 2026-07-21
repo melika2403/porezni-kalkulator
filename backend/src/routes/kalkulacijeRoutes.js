@@ -33,6 +33,14 @@ router.post(
   officeGate,
   ctrl.uvozArtikala,
 );
+// zadnja stavka artikla (predpopuna unosa), prije generičkog /artikli/:id
+router.get(
+  "/:orgId/artikli/:artikalId/zadnja-stavka",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
+  officeGate,
+  ctrl.zadnjaStavka,
+);
 router.patch(
   "/:orgId/artikli/:id",
   requireAuth,

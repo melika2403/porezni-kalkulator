@@ -139,13 +139,14 @@ export async function downloadNalogPdf(n: BlagajnaNalog, org: Organization) {
   );
 }
 
-/** Blagajnički dnevnik za jedan dan: donos, nalozi, promet, saldo, potpisi. */
-export async function downloadDnevnikPdf(
-  data: BlagajnaData,
-  org: Organization,
-) {
-  const doc = await PDFDocument.create();
-  const font = await loadFont(doc);
+/** Podaci jednog dnevničkog dana (podskup BlagajnaData, gradi se i klijentski). */
+export type DnevnikDan = Pick<
+  BlagajnaData,
+  "from" | "donos" | "naplate" | "isplate" | "saldo" | "dnevnikBroj" | "nalozi"
+>;
+
+/** Nacrta blagajnički dnevnik jednog dana u dokument (počinje novom stranom). */
+function drawDnevnik(doc: PDFDocument, font: PDFFont, data: DnevnikDan, org: Organization) {
   let page = doc.addPage(A4);
   let y = A4[1] - M - 10;
 
@@ -291,6 +292,144 @@ export async function downloadDnevnikPdf(
   };
   potpis("Blagajnik", M);
   potpis("Kontrolisao (odgovorno lice)", A4[0] - M - 150);
+}
 
+/** Blagajnički dnevnik za jedan dan: donos, nalozi, promet, saldo, potpisi. */
+export async function downloadDnevnikPdf(data: DnevnikDan, org: Organization) {
+  const doc = await PDFDocument.create();
+  const font = await loadFont(doc);
+  drawDnevnik(doc, font, data, org);
   download(await doc.save(), `Blagajnicki-dnevnik-${data.from}.pdf`);
+}
+
+/**
+ * Blagajnički dnevnici za period: jedan PDF, dnevnik svakog dana sa
+ * prometom počinje na svojoj strani (štampa svih dnevnika odjednom).
+ */
+export async function downloadDnevnikPeriodPdf(
+  dani: DnevnikDan[],
+  org: Organization,
+) {
+  if (dani.length === 0) return;
+  const doc = await PDFDocument.create();
+  const font = await loadFont(doc);
+  for (const dan of dani) drawDnevnik(doc, font, dan, org);
+  download(
+    await doc.save(),
+    `Blagajnicki-dnevnici-${dani[0].from}-${dani[dani.length - 1].from}.pdf`,
+  );
+}
+
+/**
+ * Odluka o visini blagajničkog maksimuma (interni akt po Uredbi o uslovima
+ * i načinu plaćanja gotovim novcem, Sl. novine FBiH 48/15 i 82/15).
+ */
+export async function downloadOdlukaMaksimumPdf(
+  org: Organization,
+  iznos: number,
+  datumIso: string,
+) {
+  const doc = await PDFDocument.create();
+  const font = await loadFont(doc);
+  const page = doc.addPage(A4);
+  let y = A4[1] - M - 10;
+
+  const text = (t: string, x: number, s: number, bold = false) => {
+    page.drawText(t, { x, y, size: s, font, color: INK });
+    if (bold) page.drawText(t, { x: x + 0.3, y, size: s, font, color: INK });
+  };
+  const centriran = (t: string, s: number, bold = false) => {
+    const w = font.widthOfTextAtSize(t, s);
+    text(t, (A4[0] - w) / 2, s, bold);
+  };
+  // prelomi pasus na širinu sadržaja
+  const pasus = (t: string, s = 10) => {
+    const maxW = A4[0] - 2 * M;
+    const rijeci = t.split(" ");
+    let red = "";
+    for (const r of rijeci) {
+      const probni = red ? `${red} ${r}` : r;
+      if (font.widthOfTextAtSize(probni, s) > maxW && red) {
+        text(red, M, s);
+        y -= 15;
+        red = r;
+      } else {
+        red = probni;
+      }
+    }
+    if (red) {
+      text(red, M, s);
+      y -= 15;
+    }
+  };
+
+  // zaglavlje obrta
+  text(org.name, M, 11, true);
+  y -= 13;
+  const adresa = [org.address, org.city].filter(Boolean).join(", ");
+  if (adresa) {
+    text(adresa, M, 8.5);
+    y -= 11;
+  }
+  if (org.taxNumber) {
+    text(`ID broj: ${org.taxNumber}`, M, 8.5);
+    y -= 11;
+  }
+  text(`Broj: ${datumIso.slice(0, 4)}-BM`, M, 8.5);
+  y -= 11;
+  text(`Datum: ${datumHr(datumIso)}`, M, 8.5);
+  y -= 30;
+
+  pasus(
+    "Na osnovu Uredbe o uslovima i načinu plaćanja gotovim novcem " +
+      '("Službene novine Federacije BiH", br. 48/15 i 82/15), donosim',
+  );
+  y -= 16;
+
+  centriran("O D L U K U", 14, true);
+  y -= 16;
+  centriran("o visini blagajničkog maksimuma", 11);
+  y -= 30;
+
+  centriran("Član 1.", 10, true);
+  y -= 16;
+  pasus(
+    `Utvrđuje se blagajnički maksimum u iznosu od ${km(iznos)} KM ` +
+      `(slovima: ${iznosUSlova(iznos)}).`,
+  );
+  y -= 16;
+
+  centriran("Član 2.", 10, true);
+  y -= 16;
+  pasus(
+    "Gotov novac naplaćen tokom dana iznad utvrđenog blagajničkog " +
+      "maksimuma polaže se na račun kod ovlaštene organizacije za platni " +
+      "promet isti, a najkasnije naredni radni dan.",
+  );
+  y -= 16;
+
+  centriran("Član 3.", 10, true);
+  y -= 16;
+  pasus("Ova odluka stupa na snagu danom donošenja.");
+  y -= 60;
+
+  // potpis desno
+  const potpisX = A4[0] - M - 160;
+  page.drawLine({
+    start: { x: potpisX, y },
+    end: { x: potpisX + 160, y },
+    thickness: 0.7,
+    color: INK,
+  });
+  const label = "Vlasnik / odgovorno lice";
+  const lw = font.widthOfTextAtSize(label, 8.5);
+  page.drawText(label, {
+    x: potpisX + (160 - lw) / 2,
+    y: y - 12,
+    size: 8.5,
+    font,
+    color: INK,
+  });
+
+  download(await doc.save(), `Odluka-blagajnicki-maksimum-${datumIso}.pdf`);
 }

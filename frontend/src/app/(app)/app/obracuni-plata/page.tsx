@@ -9,12 +9,18 @@ import {
   IconFileTypeXml,
   IconCircleCheck,
   IconAlertCircle,
+  IconAlertTriangle,
+  IconFileText,
   IconInbox,
   IconLoader2,
   IconCash,
+  IconMail,
+  IconTableImport,
 } from "@tabler/icons-react";
 import { formatBAM } from "src/lib/format";
 import { PkSelect } from "src/components/app-shell/PkSelect";
+import { HelpButton } from "src/components/app-shell/HelpButton";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { usePayrollStatus } from "src/hooks/usePkOfficeMe";
@@ -22,14 +28,23 @@ import {
   getMonthlySummary,
   generateWorkerPayslip,
   generateMonthlyPayslips,
+  generatePostingOrder,
+  emailWorkerPayslip,
+  emailMonthlyPayslipsBulk,
+  setPayrollPaymentDate,
   markMonthPaid,
   markMipDownloaded,
   listPayrolls,
+  listYearPayrolls,
   calculatePayroll,
   type PayrollStatus,
 } from "src/api/payroll";
 import { unwrap } from "src/api/auth";
-import { getOrganization } from "src/api/profile";
+import { getOrganization, type Worker } from "src/api/profile";
+import { isoToDisplay, parseDateInput } from "src/lib/dateInput";
+import { RadnikKartonModal } from "src/sections/zaposlenici/RadnikKartonModal";
+import { UvozPlataPkModal } from "src/sections/prijave-radnika/UvozPlataPkModal";
+import { datumHr, downloadTablePdf } from "src/sections/lager/robaPdf";
 
 const MARKETING_URL =
   process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
@@ -138,6 +153,14 @@ export default function ObracuniPlataPage() {
   const [busy, setBusy] = useState<string | null>(null);
   // poruka greške/upozorenja u PK modalu umjesto window.alert
   const [obavijest, setObavijest] = useState<string | null>(null);
+  // potvrda prije grupnog slanja listića email-om (vanjska akcija)
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+  // karton radnika (isti modal kao na Zaposlenicima)
+  const [kartonWorker, setKartonWorker] = useState<Worker | null>(null);
+  // uvoz prethodnih plata (klijent prešao u toku godine, za kompletan GIP)
+  const [uvozOpen, setUvozOpen] = useState(false);
+  // potvrda MIP-a kad mjesec sadrži uvezene plate (vjerovatno već predat)
+  const [mipUvozConfirm, setMipUvozConfirm] = useState(false);
 
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
@@ -170,15 +193,74 @@ export default function ObracuniPlataPage() {
     enabled: orgId != null,
   });
 
-  // obračun vlasnika za mjesec (doprinosi samostalne djelatnosti, 36% na
-  // fiksnu osnovicu); monthlySummary ga namjerno ne vraća u perWorker
+  // svi obračuni mjeseca: vlasnikov (doprinosi samostalne djelatnosti),
+  // detalji po radniku (bruto/doprinosi/porez), datum isplate, rekapitulacija
   const { data: mjesecniPayrolls } = useQuery({
     queryKey: ["pk-payrolls", orgId, year, month],
     queryFn: () => unwrap(listPayrolls(orgId as number, year, month)),
-    enabled: orgId != null && vlasnik != null,
+    enabled: orgId != null,
   });
   const vlasnikPayroll =
     (mjesecniPayrolls ?? []).find((p) => p.workerId === vlasnik?.id) ?? null;
+  const payrollByWorker = new Map(
+    (mjesecniPayrolls ?? []).map((p) => [p.workerId, p]),
+  );
+
+  // cijela godina za godišnji pregled (12 mjeseci sa statusima)
+  const { data: godisnjiPayrolls } = useQuery({
+    queryKey: ["pk-payrolls-year", orgId, year],
+    queryFn: () => unwrap(listYearPayrolls(orgId as number, year)),
+    enabled: orgId != null,
+  });
+
+  const workerById = new Map((workers ?? []).map((w) => [w.id, w]));
+
+  // datum isplate: postojeći sa obračuna mjeseca, resync na promjenu
+  // mjeseca/podataka (render-adjust umjesto effecta)
+  const postojeciDatumIsplate =
+    (mjesecniPayrolls ?? []).find((p) => p.paymentDate)?.paymentDate ?? null;
+  const [datumIsplateS, setDatumIsplateS] = useState("");
+  const [datumSyncKey, setDatumSyncKey] = useState("");
+  const datumKey = `${orgId}-${year}-${month}-${postojeciDatumIsplate ?? ""}-${mjesecniPayrolls ? 1 : 0}`;
+  if (datumSyncKey !== datumKey) {
+    setDatumSyncKey(datumKey);
+    setDatumIsplateS(
+      postojeciDatumIsplate ? isoToDisplay(postojeciDatumIsplate) : "",
+    );
+  }
+
+  const spremiDatum = useMutation({
+    mutationFn: (paymentDate: string | null) =>
+      unwrap(
+        setPayrollPaymentDate({
+          organizationId: orgId as number,
+          year,
+          month,
+          paymentDate,
+        }),
+      ),
+    onSuccess: (_, paymentDate) => {
+      qc.invalidateQueries({ queryKey: ["pk-payrolls", orgId] });
+      qc.invalidateQueries({ queryKey: ["pk-payrolls-year", orgId] });
+      qc.invalidateQueries({ queryKey: ["pk-payroll-summary", orgId] });
+      setObavijest(
+        paymentDate
+          ? "Datum isplate je upisan na sve obračune mjeseca: koristi se u MIP-u, platnim listama i uplatnicama."
+          : "Datum isplate je uklonjen sa obračuna mjeseca.",
+      );
+    },
+    onError: () => setObavijest("Greška pri spremanju datuma isplate."),
+  });
+
+  function sacuvajDatumIsplate() {
+    const unos = datumIsplateS.trim();
+    const iso = unos ? parseDateInput(unos) : null;
+    if (unos && !iso) {
+      setObavijest("Unesite ispravan datum isplate (DD.MM.GGGG.).");
+      return;
+    }
+    spremiDatum.mutate(iso);
+  }
 
   const obracunajVlasnika = useMutation({
     mutationFn: () =>
@@ -330,9 +412,14 @@ export default function ObracuniPlataPage() {
       unwrap(markMonthPaid({ organizationId: orgId as number, year, month })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pk-payroll-summary", orgId] });
+      qc.invalidateQueries({ queryKey: ["pk-payrolls", orgId] });
+      qc.invalidateQueries({ queryKey: ["pk-payrolls-year", orgId] });
       qc.invalidateQueries({ queryKey: ["pk-office", "payroll-status"] });
     },
   });
+
+  // mjesec sadrži uvezene plate iz ranijeg programa (MIP oprez)
+  const imaUvezenih = (mjesecniPayrolls ?? []).some((p) => p.imported);
 
   const rows = summary?.perWorker ?? [];
   const totals = summary?.totals ?? null;
@@ -341,6 +428,21 @@ export default function ObracuniPlataPage() {
   const anyObracunato = rows.some(
     (r) => r.status === "OBRACUNATO" || r.status === "ISPLACENO",
   );
+
+  // radnici koji su u izabranom mjesecu bili prijavljeni (po datumima
+  // prijave/odjave, ne trenutnom statusu) a nemaju nijedan obračun:
+  // klasičan propust koji se inače otkrije tek kad u MIP-u fali red
+  const zadnjiDan = new Date(year, month, 0).getDate();
+  const mjesecOd = `${year}-${String(month).padStart(2, "0")}-01`;
+  const mjesecDo = `${year}-${String(month).padStart(2, "0")}-${String(zadnjiDan).padStart(2, "0")}`;
+  const bezObracuna = (workers ?? []).filter((w) => {
+    if (w.role !== "RADNIK") return false;
+    const prijava = w.prijavaDate?.slice(0, 10) ?? null;
+    const odjava = w.odjavaDate?.slice(0, 10) ?? null;
+    if (!prijava || prijava > mjesecDo) return false;
+    if (odjava && odjava < mjesecOd) return false;
+    return !rows.some((r) => r.workerId === w.id);
+  });
 
   async function downloadPayslip(payrollId: number) {
     setBusy(`payslip-${payrollId}`);
@@ -401,6 +503,9 @@ export default function ObracuniPlataPage() {
       );
       markMipDownloaded({ organizationId: orgId, year, month }).then(() => {
         qc.invalidateQueries({ queryKey: ["pk-office", "payroll-status"] });
+        // godišnji pregled čita mipDownloadedAt iz ovog querija, da "MIP ✓"
+        // odmah osvježi u gridu (ne tek na sljedeću nepovezanu akciju)
+        qc.invalidateQueries({ queryKey: ["pk-payrolls-year", orgId] });
       });
     } catch (e) {
       setObavijest(
@@ -411,12 +516,137 @@ export default function ObracuniPlataPage() {
     }
   }
 
-  const years = [now.getFullYear(), now.getFullYear() - 1];
+  // nalog za knjiženje plate (konta agencijske konvencije, postojeći endpoint)
+  async function downloadNalog() {
+    if (orgId == null) return;
+    setBusy("nalog");
+    try {
+      const r = await generatePostingOrder(orgId, year, month);
+      if (r.ok) triggerBlobDownload(r.blob, r.filename);
+      else setObavijest(`Greška pri generisanju naloga: ${r.error}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // rekapitulacija mjeseca: tabela po radnicima sa sumama (vlasnik nije
+  // u njoj, on ima Obrazac 2002; brojevi prate KPI kartice)
+  async function downloadRekapitulacija() {
+    if (!fullOrg || !totals || rows.length === 0) return;
+    setBusy("rekap");
+    try {
+      const fmt = (n: number) =>
+        n.toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      const mm2 = String(month).padStart(2, "0");
+      await downloadTablePdf({
+        fileName: `Rekapitulacija-plata-${year}-${mm2}.pdf`,
+        org: fullOrg,
+        title: "REKAPITULACIJA PLATA",
+        subtitle: `za ${MJESECI[month - 1].toLowerCase()} ${year}. godine (na dan ${datumHr(new Date().toISOString().slice(0, 10))})`,
+        sections: [
+          {
+            cols: [
+              { label: "R.B.", w: 22 },
+              { label: "RADNIK", w: 105 },
+              { label: "BRUTO", w: 58, right: true },
+              { label: "DOPRINOSI IZ PLATE", w: 60, right: true },
+              { label: "DOPRINOSI NA PLATU", w: 60, right: true },
+              { label: "POREZ", w: 48, right: true },
+              { label: "NETO", w: 58, right: true },
+              { label: "NAKNADE", w: 54, right: true },
+              { label: "UKUPAN TROŠAK", w: 64, right: true },
+            ],
+            rows: rows.map((r, i) => {
+              const p = payrollByWorker.get(r.workerId);
+              const naknade =
+                r.mealAllowance + r.vacationBonus + r.travelExpense;
+              return [
+                `${i + 1}.`,
+                r.workerName,
+                fmt(p?.gross ?? 0),
+                fmt(p?.empTotal ?? 0),
+                fmt(p?.erpTotal ?? 0),
+                fmt(p?.incomeTax ?? 0),
+                fmt(r.net),
+                fmt(naknade),
+                fmt(p?.totalCost ?? 0),
+              ];
+            }),
+            totals: [
+              "",
+              `Ukupno (${rows.length})`,
+              fmt(totals.gross),
+              fmt(totals.empContrib),
+              fmt(totals.erpContrib),
+              fmt(totals.tax),
+              fmt(totals.net),
+              fmt(totals.meal + totals.vacation + totals.travel),
+              fmt(totals.totalCost),
+            ],
+          },
+        ],
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // platni listić email-om: pojedinačno i grupno (uz potvrdu)
+  async function posaljiListicEmail(payrollId: number, workerName: string) {
+    setBusy(`email-${payrollId}`);
+    try {
+      const r = await emailWorkerPayslip(payrollId);
+      if (r.ok) {
+        setObavijest(`Platni listić poslan: ${workerName} (${r.sentTo}).`);
+      } else if (r.error === "WORKER_NO_EMAIL") {
+        setObavijest(
+          `${workerName} nema upisan email. Dodajte ga na Zaposlenicima pa pokušajte ponovo.`,
+        );
+      } else {
+        setObavijest(`Greška pri slanju listića: ${r.error}`);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function posaljiSveEmail() {
+    if (orgId == null) return;
+    setBusy("email-bulk");
+    try {
+      const r = await emailMonthlyPayslipsBulk(orgId, year, month);
+      if (!r.ok) {
+        setObavijest(`Greška pri slanju listića: ${r.error}`);
+        return;
+      }
+      const dijelovi = [`Poslano listića: ${r.sent}.`];
+      if (r.skipped.length) {
+        dijelovi.push(
+          `Preskočeno (bez email-a): ${r.skipped.map((s) => s.name).join(", ")}.`,
+        );
+      }
+      if (r.failed.length) {
+        dijelovi.push(
+          `Neuspjelo: ${r.failed.map((s) => s.name).join(", ")}.`,
+        );
+      }
+      setObavijest(dijelovi.join(" "));
+    } finally {
+      setBusy(null);
+      setBulkEmailOpen(false);
+    }
+  }
+
+  const years = [0, 1, 2, 3].map((i) => now.getFullYear() - i);
 
   return (
     <div className="px-6 py-6 max-w-[1280px] mx-auto">
       {/* Zaglavlje */}
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+      <div className="relative flex flex-wrap items-end justify-between gap-3 mb-6">
+        <HelpButton slug="obracuni-plata" className="absolute top-0 right-0" />
         <div>
           <div className="inline-flex items-center gap-[7px] px-[11px] py-1 rounded-full bg-brand-100 text-brand-700 text-[12px] font-medium mb-3">
             <span className="w-[7px] h-[7px] rounded-full bg-brand-600" />
@@ -553,7 +783,9 @@ export default function ObracuniPlataPage() {
           <button
             type="button"
             disabled={busy != null || !anyObracunato}
-            onClick={downloadMip}
+            onClick={() =>
+              imaUvezenih ? setMipUvozConfirm(true) : void downloadMip()
+            }
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
           >
             {busy === "mip" ? (
@@ -563,12 +795,77 @@ export default function ObracuniPlataPage() {
             )}
             MIP-1023 XML
           </button>
+          <button
+            type="button"
+            disabled={busy != null || !anyObracunato}
+            onClick={downloadNalog}
+            title="Nalog za knjiženje plate (konta duguje/potražuje)"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            {busy === "nalog" ? (
+              <IconLoader2 size={15} className="animate-spin" />
+            ) : (
+              <IconFileText size={15} />
+            )}
+            Nalog za knjiženje
+          </button>
+          <button
+            type="button"
+            disabled={busy != null || !anyObracunato}
+            onClick={downloadRekapitulacija}
+            title="Tabela po radnicima (bruto, doprinosi, porez, neto, trošak) sa sumama"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            {busy === "rekap" ? (
+              <IconLoader2 size={15} className="animate-spin" />
+            ) : (
+              <IconDownload size={15} />
+            )}
+            Rekapitulacija (PDF)
+          </button>
+          <button
+            type="button"
+            disabled={busy != null || !anyObracunato}
+            onClick={() => setBulkEmailOpen(true)}
+            title="Pošalji platni listić svakom radniku na njegov email (radnici bez email-a se preskaču)"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            {busy === "email-bulk" ? (
+              <IconLoader2 size={15} className="animate-spin" />
+            ) : (
+              <IconMail size={15} />
+            )}
+            Pošalji listiće email-om
+          </button>
           {mipInfo?.mipDownloadedAt && (
             <span className="text-[12px] text-success inline-flex items-center gap-1">
               <IconCircleCheck size={13} /> MIP preuzet
             </span>
           )}
           <div className="flex-1" />
+          {/* datum isplate: ide u MIP, platne liste i uplatnice */}
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary"
+              title="Upisuje se na sve obračune mjeseca; koriste ga MIP XML, platne liste i uplatnice"
+            >
+              Datum isplate
+            </span>
+            <PkDateInput
+              value={datumIsplateS}
+              onChange={setDatumIsplateS}
+              ariaLabel="Datum isplate"
+              className="w-[136px]"
+            />
+            <button
+              type="button"
+              disabled={spremiDatum.isPending}
+              onClick={sacuvajDatumIsplate}
+              className="px-3 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+            >
+              {spremiDatum.isPending ? "..." : "Spremi"}
+            </button>
+          </div>
           {!allPaid && anyObracunato && (
             <button
               type="button"
@@ -589,6 +886,21 @@ export default function ObracuniPlataPage() {
               <IconCircleCheck size={15} /> sve plate isplaćene
             </span>
           )}
+        </div>
+      )}
+
+      {/* radnici prijavljeni u mjesecu a bez ijednog obračuna */}
+      {bezObracuna.length > 0 && (
+        <div className="rounded-xl bg-warning-bg text-warning border border-warning/30 px-4 py-3 mb-4 flex items-start gap-2 text-[12.5px] leading-5">
+          <IconAlertTriangle size={17} className="shrink-0 mt-0.5" />
+          <span>
+            <strong>Bez obračuna za {MJESECI[month - 1].toLowerCase()}:</strong>{" "}
+            {bezObracuna
+              .map((w) => `${w.firstName} ${w.lastName}`)
+              .join(", ")}
+            . Radnik prijavljen u ovom mjesecu bez obračuna neće ući u MIP ni
+            platne liste.
+          </span>
         </div>
       )}
 
@@ -613,59 +925,227 @@ export default function ObracuniPlataPage() {
           </div>
         ) : (
           <ul>
-            {rows.map((r, i) => (
-              <li
-                key={r.payrollId}
-                className={[
-                  "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-[13px]",
-                  i < rows.length - 1 ? "border-b border-cream-300/70" : "",
-                ].join(" ")}
-              >
-                <span className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 inline-flex items-center justify-center shrink-0">
-                  <IconCoins size={17} />
-                </span>
-                <div className="flex-1 min-w-[180px]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13.5px] font-medium text-text-primary">
-                      {r.workerName}
-                    </span>
-                    <PayrollBadge status={r.status} />
-                  </div>
-                  <div className="text-[11.5px] text-text-tertiary mt-0.5">
-                    {[
-                      r.bankAccount ? `račun ${r.bankAccount}` : "bez računa",
-                      r.mealAllowance > 0
-                        ? `topli obrok ${formatBAM(r.mealAllowance)}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                </div>
-                <span className="text-[13.5px] font-semibold tabular-nums text-text-primary whitespace-nowrap">
-                  {formatBAM(r.net)}
-                </span>
-                {/* vlasnik nema platni listić (doprinosi na osnovicu, ne plata) */}
-                {!vlasnikIds.has(r.workerId) && (
-                  <button
-                    type="button"
-                    disabled={busy != null || r.status === "DRAFT"}
-                    onClick={() => downloadPayslip(r.payrollId)}
-                    title="Platna lista (PDF)"
-                    className="p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-brand-600 hover:border-brand-600/50 transition-colors disabled:opacity-40"
-                  >
-                    {busy === `payslip-${r.payrollId}` ? (
-                      <IconLoader2 size={15} className="animate-spin" />
-                    ) : (
-                      <IconDownload size={15} />
+            {rows.map((r, i) => {
+              const p = payrollByWorker.get(r.workerId);
+              const worker = workerById.get(r.workerId) ?? null;
+              return (
+                <li
+                  key={r.payrollId}
+                  onClick={worker ? () => setKartonWorker(worker) : undefined}
+                  title={worker ? "Karton radnika (obračuni po mjesecima)" : undefined}
+                  className={[
+                    "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-[13px]",
+                    i < rows.length - 1 ? "border-b border-cream-300/70" : "",
+                    worker
+                      ? "cursor-pointer hover:bg-cream-50 transition-colors"
+                      : "",
+                  ].join(" ")}
+                >
+                  <span className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 inline-flex items-center justify-center shrink-0">
+                    <IconCoins size={17} />
+                  </span>
+                  <div className="flex-1 min-w-[180px]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13.5px] font-medium text-text-primary">
+                        {r.workerName}
+                      </span>
+                      <PayrollBadge status={r.status} />
+                      {p?.imported && (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium bg-cream-200 text-text-secondary shrink-0"
+                          title="Uvezena plata iz ranijeg programa (za GIP); stvarni obračun je preuzima"
+                        >
+                          uvezeno
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11.5px] text-text-tertiary mt-0.5">
+                      {[
+                        r.bankAccount ? `račun ${r.bankAccount}` : "bez računa",
+                        r.mealAllowance > 0
+                          ? `topli obrok ${formatBAM(r.mealAllowance)}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                    {p && (
+                      <div
+                        className="text-[11.5px] text-text-tertiary mt-0.5 tabular-nums"
+                        title="Doprinosi iz plate (na teret radnika)"
+                      >
+                        {`bruto ${formatBAM(p.gross)} · doprinosi ${formatBAM(p.empTotal)} · porez ${formatBAM(p.incomeTax)}`}
+                      </div>
                     )}
-                  </button>
-                )}
-              </li>
-            ))}
+                  </div>
+                  <span className="text-[13.5px] font-semibold tabular-nums text-text-primary whitespace-nowrap">
+                    {formatBAM(r.net)}
+                  </span>
+                  {/* vlasnik nema platni listić (doprinosi na osnovicu, ne plata) */}
+                  {!vlasnikIds.has(r.workerId) && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={
+                          busy != null ||
+                          r.status === "DRAFT" ||
+                          !worker?.email
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void posaljiListicEmail(r.payrollId, r.workerName);
+                        }}
+                        title={
+                          worker?.email
+                            ? `Pošalji platni listić na ${worker.email}`
+                            : "Radnik nema upisan email (dodajte ga na Zaposlenicima)"
+                        }
+                        className="p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-brand-600 hover:border-brand-600/50 transition-colors disabled:opacity-40"
+                      >
+                        {busy === `email-${r.payrollId}` ? (
+                          <IconLoader2 size={15} className="animate-spin" />
+                        ) : (
+                          <IconMail size={15} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy != null || r.status === "DRAFT"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void downloadPayslip(r.payrollId);
+                        }}
+                        title="Platna lista (PDF)"
+                        className="p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-brand-600 hover:border-brand-600/50 transition-colors disabled:opacity-40"
+                      >
+                        {busy === `payslip-${r.payrollId}` ? (
+                          <IconLoader2 size={15} className="animate-spin" />
+                        ) : (
+                          <IconDownload size={15} />
+                        )}
+                      </button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
+
+      {/* godišnji pregled: status svakog mjeseca izabrane godine */}
+      <div className="mt-4 rounded-xl bg-cream-100 border border-cream-300 px-4 py-3">
+        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+          <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary">
+            Pregled {year}. godine
+          </div>
+          <button
+            type="button"
+            onClick={() => setUvozOpen(true)}
+            title="Za prelazak u toku godine: ubaci plate iz ranijeg programa (bruto + koeficijent) da godišnji GIP bude kompletan"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-cream-300 text-brand-600 text-[12px] font-medium hover:bg-brand-100 transition-colors"
+          >
+            <IconTableImport size={14} />
+            Uvezi prethodne plate
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+          {MJESECI.map((naziv, i) => {
+            const m = i + 1;
+            const ps = (godisnjiPayrolls ?? []).filter((p) => p.month === m);
+            const mip = ps.some((p) => p.mipDownloadedAt);
+            const uvezeno = ps.some((p) => p.imported);
+            let label = "prazno";
+            let cls = "text-text-tertiary";
+            if (ps.length > 0) {
+              if (ps.every((p) => p.status === "ISPLACENO")) {
+                label = "isplaćeno";
+                cls = "text-success";
+              } else if (
+                ps.some(
+                  (p) =>
+                    p.status === "OBRACUNATO" || p.status === "ISPLACENO",
+                )
+              ) {
+                label = "obračunato";
+                cls = "text-info";
+              } else {
+                label = "nacrt";
+                cls = "text-warning";
+              }
+            }
+            const aktivan = m === month;
+            return (
+              <button
+                key={naziv}
+                type="button"
+                onClick={() => setMonth(m)}
+                title={`Otvori ${naziv.toLowerCase()} ${year}.`}
+                className={[
+                  "rounded-lg border px-2.5 py-2 text-left transition-colors",
+                  aktivan
+                    ? "border-brand-600 bg-brand-100/60"
+                    : "border-cream-300 bg-cream-50 hover:bg-cream-200",
+                ].join(" ")}
+              >
+                <div className="text-[12px] font-medium text-text-primary">
+                  {naziv}
+                </div>
+                <div className={`text-[11px] mt-0.5 font-medium ${cls}`}>
+                  {label}
+                  {uvezeno ? " · uvezeno" : ""}
+                  {mip ? " · MIP ✓" : ""}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* potvrda grupnog slanja listića (vanjska akcija, ide radnicima) */}
+      <ConfirmModal
+        open={bulkEmailOpen}
+        onClose={() => setBulkEmailOpen(false)}
+        onConfirm={() => void posaljiSveEmail()}
+        title="Slanje platnih listića"
+        danger={false}
+        busy={busy === "email-bulk"}
+        confirmLabel="Pošalji"
+        message={`Poslati platni listić za ${MJESECI[month - 1].toLowerCase()} ${year}. svakom radniku na njegov email? Radnici bez upisanog email-a se preskaču i biće navedeni u rezultatu.`}
+      />
+
+      {/* potvrda MIP-a za mjesec sa uvezenim platama iz ranijeg programa */}
+      <ConfirmModal
+        open={mipUvozConfirm}
+        onClose={() => setMipUvozConfirm(false)}
+        onConfirm={() => {
+          setMipUvozConfirm(false);
+          void downloadMip();
+        }}
+        title="Mjesec sadrži uvezene plate"
+        confirmLabel="Generiši MIP"
+        message={`Za ${MJESECI[month - 1].toLowerCase()} ${year}. postoje plate uvezene iz ranijeg programa: MIP za taj period je vjerovatno već predat iz starog programa. Svakako generisati MIP-1023 XML?`}
+      />
+
+      {/* uvoz prethodnih plata (isti podaci i backend kao na Poreznom) */}
+      {orgId != null && uvozOpen && (
+        <UvozPlataPkModal
+          orgId={orgId}
+          year={year}
+          radnici={workers ?? []}
+          isObrt={fullOrg?.type === "BUSINESS"}
+          onClose={() => setUvozOpen(false)}
+        />
+      )}
+
+      {/* karton radnika: obračuni po mjesecima (isti modal kao Zaposlenici) */}
+      {orgId != null && kartonWorker != null && (
+        <RadnikKartonModal
+          orgId={orgId}
+          worker={kartonWorker}
+          onClose={() => setKartonWorker(null)}
+        />
+      )}
 
       {/* obavijest/greška u PK modalu umjesto window.alert */}
       <ConfirmModal

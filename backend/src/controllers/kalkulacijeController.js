@@ -171,6 +171,29 @@ async function prepare(organizationId, body) {
     stavke.push({ ...out.value, rbr: i + 1 });
   }
 
+  const totals = sumStavke(stavke);
+
+  // ulazni PDV kako piše na računu dobavljača (opciono): zbog zaokruživanja
+  // dobavljača smije odstupati od obračunatih 17% po stavkama; u KUF
+  // (odbitni PDV) i u iznos ulaznog računa ide iznos sa računa
+  if (
+    orgObveznik &&
+    !bezPdvRacun &&
+    body.ulazniPdv !== undefined &&
+    body.ulazniPdv !== null &&
+    body.ulazniPdv !== ""
+  ) {
+    const v = Number(body.ulazniPdv);
+    // PDV je fiksnih 17% neto vrijednosti; dozvoljavamo blagi rastez (25%)
+    // za zaokruživanje i eventualne troškove, ali odbijamo greške reda
+    // veličine (npr. upisan neto ili bruto umjesto samog PDV-a)
+    const gornjaGranica = r2((totals.fakturnaVrijednost * (PDV_STOPA + 8)) / 100);
+    if (!Number.isFinite(v) || v < 0 || v > gornjaGranica) {
+      return { status: 400, error: "ULAZNI_PDV_INVALID" };
+    }
+    totals.ulazniPdv = r2(v);
+  }
+
   return {
     header: {
       datum,
@@ -183,7 +206,7 @@ async function prepare(organizationId, body) {
     partner,
     orgObveznik,
     stavke,
-    totals: sumStavke(stavke),
+    totals,
   };
 }
 
@@ -309,9 +332,65 @@ async function list(req, res) {
     counts.map((c) => [c.kalkulacijaId, Number(c.cnt)]),
   );
 
+  // status plaćanja ulaznog računa kalkulacije (za badge na listi)
+  const racunIds = rows.map((r) => r.ulazniRacunId).filter(Boolean);
+  const racuni = racunIds.length
+    ? await UlazniRacun.findAll({
+        where: { id: { [Op.in]: racunIds } },
+        attributes: ["id", "status", "rokPlacanja"],
+        raw: true,
+      })
+    : [];
+  const racunById = new Map(racuni.map((r) => [r.id, r]));
+
   return res.json({
     ok: true,
-    data: rows.map((k) => kalkulacijaJson(k, countById.get(k.id) ?? 0)),
+    data: rows.map((k) => {
+      const r = k.ulazniRacunId ? racunById.get(k.ulazniRacunId) : null;
+      return {
+        ...kalkulacijaJson(k, countById.get(k.id) ?? 0),
+        racunStatus: r ? r.status : null,
+        racunRok: r ? r.rokPlacanja : null,
+      };
+    }),
+  });
+}
+
+// GET /api/kalkulacije/:orgId/artikli/:artikalId/zadnja-stavka
+// Zadnja stavka artikla sa bilo koje kalkulacije: predpopuna novog unosa
+// (količina, cijena, rabat, zavisni, MPC kao na zadnjem prometu).
+async function zadnjaStavka(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  const artikalId = parseId(req.params.artikalId);
+  if (!organizationId || !artikalId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ID" });
+  }
+  const s = await KalkulacijaStavka.findOne({
+    where: { artikalId },
+    include: [
+      {
+        model: Kalkulacija,
+        attributes: ["id", "organizationId", "datum", "broj", "godina"],
+        where: { organizationId },
+      },
+    ],
+    order: [
+      [Kalkulacija, "datum", "DESC"],
+      ["id", "DESC"],
+    ],
+  });
+  if (!s || !s.Kalkulacija) return res.json({ ok: true, data: null });
+  return res.json({
+    ok: true,
+    data: {
+      kolicina: Number(s.kolicina),
+      cijena: Number(s.cijena),
+      rabatPct: Number(s.rabatPct),
+      zavisniTrosakPct: Number(s.zavisniTrosakPct),
+      mpc: Number(s.mpc),
+      datum: s.Kalkulacija.datum,
+      oznaka: `${s.Kalkulacija.broj}/${String(s.Kalkulacija.godina).slice(-2)}`,
+    },
   });
 }
 
@@ -934,6 +1013,7 @@ module.exports = {
   update,
   remove,
   marza,
+  zadnjaStavka,
   listArtikli,
   createArtikal,
   updateArtikal,

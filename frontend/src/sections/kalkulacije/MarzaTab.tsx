@@ -31,6 +31,25 @@ const pct = (n: number) =>
   `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+// brzi periodi za izvještaj (display "DD.MM.GGGG." format)
+function brziPeriodi(): { label: string; od: string; do: string }[] {
+  const d = new Date();
+  const fmt = (x: Date) =>
+    `${String(x.getDate()).padStart(2, "0")}.${String(x.getMonth() + 1).padStart(2, "0")}.${x.getFullYear()}.`;
+  const prviOvog = new Date(d.getFullYear(), d.getMonth(), 1);
+  const prviProslog = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  const zadnjiProslog = new Date(d.getFullYear(), d.getMonth(), 0);
+  return [
+    { label: "Ovaj mjesec", od: fmt(prviOvog), do: fmt(d) },
+    { label: "Prošli mjesec", od: fmt(prviProslog), do: fmt(zadnjiProslog) },
+    {
+      label: "Cijela godina",
+      od: `01.01.${d.getFullYear()}.`,
+      do: `31.12.${d.getFullYear()}.`,
+    },
+  ];
+}
+
 export function MarzaTab({ orgId }: { orgId: number | null }) {
   const godina = new Date().getFullYear();
   const [odS, setOdS] = useState(`01.01.${godina}.`);
@@ -152,6 +171,29 @@ export function MarzaTab({ orgId }: { orgId: number | null }) {
             className="w-[160px]"
           />
         </div>
+        <div className="flex gap-1.5 pb-[3px]">
+          {brziPeriodi().map((p) => {
+            const aktivan = odS === p.od && doS === p.do;
+            return (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => {
+                  setOdS(p.od);
+                  setDoS(p.do);
+                }}
+                className={[
+                  "px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors",
+                  aktivan
+                    ? "bg-brand-100 text-brand-700"
+                    : "border border-cream-300 text-text-secondary hover:border-brand-600 hover:text-brand-600",
+                ].join(" ")}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
         <div>
           <div className="text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
             Grupisanje
@@ -270,6 +312,11 @@ export function MarzaTab({ orgId }: { orgId: number | null }) {
           )}
         </table>
       </div>
+
+      <p className="text-[12px] text-text-tertiary mt-3 max-w-[720px]">
+        Napomena: ovo je ukalkulisana marža iz kalkulacija (razlika u cijeni
+        pri zaduženju robe), ne realizovana zarada od prodaje.
+      </p>
     </div>
   );
 }

@@ -8,11 +8,19 @@ import { useState } from "react";
 import {
   IconArrowRight,
   IconArrowsExchange,
+  IconBell,
+  IconBuildingBank,
+  IconBriefcase,
   IconCircleCheck,
   IconCoins,
+  IconFileInvoice,
+  IconFileText,
   IconInbox,
   IconLoader2,
+  IconPackage,
   IconReceiptTax,
+  IconTransfer,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePkOfficeMe, usePkOfficePristup } from "src/hooks/usePkOfficeMe";
@@ -43,6 +51,50 @@ const HERO = [
     icon: IconReceiptTax,
     title: "PDV komplet",
     desc: "KUF/KIF, PDV prijava, e-KUF/e-KIF CSV i D-PDV obrazac.",
+  },
+];
+
+// Ostatak kataloga (sve je u svakom paketu); iste formulacije kao cjenovnik
+const MORE = [
+  {
+    icon: IconFileText,
+    title: "KPR i porezni obrasci",
+    desc: "KPR se vodi sam, a SPR, GPD, ČOK i ONŠ se pripreme iz knjiga sa podacima za uplatu.",
+  },
+  {
+    icon: IconFileInvoice,
+    title: "Fakture i partneri",
+    desc: "Izdavanje faktura, kartice kupaca i dobavljača, kompenzacije i cesije.",
+  },
+  {
+    icon: IconPackage,
+    title: "Roba i maloprodaja",
+    desc: "Kalkulacije (KCM), lager lista, popis, nivelacije i trgovačka knjiga na malo.",
+  },
+  {
+    icon: IconBuildingBank,
+    title: "Blagajna i putni nalozi",
+    desc: "Blagajnički nalozi i dnevnik po uredbi, putni nalozi sa dnevnicama.",
+  },
+  {
+    icon: IconUsers,
+    title: "Radnici i evidencije",
+    desc: "Karton radnika po mjesecima, matična evidencija i spisak radnika u PDF/CSV.",
+  },
+  {
+    icon: IconBriefcase,
+    title: "Business funkcije uključene",
+    desc: "Ugovori, rješenja, radnici i tim; od paketa Tim neograničeni klijenti.",
+  },
+  {
+    icon: IconTransfer,
+    title: "Migracija iz starog programa",
+    desc: "Besplatan uvoz artikala, partnera i izvoda, bez ponovnog kucanja šifarnika.",
+  },
+  {
+    icon: IconBell,
+    title: "Rokovi i podsjetnici",
+    desc: "Automatski podsjetnici za plate, PDV, godišnje obaveze i pretplatu.",
   },
 ];
 
@@ -146,7 +198,7 @@ export function PkOfficeUpsell() {
           return (
             <div
               key={f.title}
-              className="flex items-start gap-3 rounded-xl border border-cream-300 bg-cream-100 px-4 py-3.5"
+              className="flex items-start gap-3 rounded-xl border border-cream-300 bg-cream-100 px-4 py-3.5 transition-colors hover:border-brand-600/30"
             >
               <span className="w-10 h-10 rounded-lg bg-brand-100 text-brand-700 inline-flex items-center justify-center shrink-0">
                 <Icon size={20} />
@@ -164,25 +216,57 @@ export function PkOfficeUpsell() {
         })}
       </div>
 
-      {/* mini cjenovnik */}
+      {/* ostatak kataloga: sve u svakom paketu */}
+      <div className="mb-10">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-px flex-1 bg-cream-300" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+            I sve ostalo, u svakom paketu
+          </span>
+          <div className="h-px flex-1 bg-cream-300" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {MORE.map((f) => {
+            const Icon = f.icon;
+            return (
+              <div
+                key={f.title}
+                className="flex items-start gap-3 rounded-xl border border-cream-300 bg-cream-100 px-4 py-3.5 transition-colors hover:border-brand-600/30"
+              >
+                <span className="w-10 h-10 rounded-lg bg-brand-100 text-brand-700 inline-flex items-center justify-center shrink-0">
+                  <Icon size={20} />
+                </span>
+                <div>
+                  <div className="text-[13.5px] font-semibold text-text-primary mb-0.5">
+                    {f.title}
+                  </div>
+                  <p className="text-[12.5px] leading-5 text-text-tertiary">
+                    {f.desc}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* mini cjenovnik: tamnozelene kartice, iste boje kao na cjenovniku */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {OFFICE_PLANS.map((p) => (
           <div
             key={p.id}
-            className="rounded-xl border border-cream-300 bg-cream-100 px-4 py-3.5 text-center"
+            className="rounded-xl border border-[#14241b] bg-[#14241b] px-4 py-4 text-center"
           >
-            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-accent-500 mb-0.5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#e08a52] mb-0.5">
               {p.naziv}
             </div>
-            <div className="text-[11.5px] text-text-tertiary mb-1.5">
+            <div className="text-[11.5px] text-white/70 mb-1.5">
               do {p.maxObrta} obrta
             </div>
-            <div className="font-serif-display text-[22px] leading-none text-text-primary">
+            <div className="font-serif-display text-[22px] leading-none text-white">
               {formatKm(PLAN_PRICING[p.id].monthly)} KM
             </div>
-            <div className="text-[11px] text-text-tertiary mt-1">
-              mjesečno + PDV
-            </div>
+            <div className="text-[11px] text-white/55 mt-1">mjesečno + PDV</div>
           </div>
         ))}
       </div>

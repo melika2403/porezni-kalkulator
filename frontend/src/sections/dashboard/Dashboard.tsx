@@ -1,25 +1,40 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   IconArrowDownLeft,
   IconArrowUpRight,
   IconFileInvoice,
   IconAlertCircle,
+  IconCalculator,
+  IconCashBanknote,
   IconCircleCheck,
+  IconCloudUpload,
   IconWallet,
   IconCoins,
   IconArrowRight,
   IconInbox,
 } from "@tabler/icons-react";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { formatBAM, formatDate } from "src/lib/format";
-import { usePkOfficeMe, usePayrollStatus } from "src/hooks/usePkOfficeMe";
+import {
+  usePkOfficeMe,
+  usePayrollStatus,
+  useActivateOrganization,
+  usePkOfficePristup,
+} from "src/hooks/usePkOfficeMe";
 import {
   useBankSummary,
   useBankTransactions,
   useObligations,
   useOrgInvoices,
 } from "src/hooks/useBankStatements";
+import { unwrap } from "src/api/auth";
+import { getMonthlySummary } from "src/api/payroll";
+import { getOrganization, getWorkers } from "src/api/profile";
+import { listInvoices } from "src/api/invoices";
+import { categoryLabel } from "src/lib/bankCategories";
 import type { PayrollStatus } from "src/api/pkOffice";
 import type { BankTransaction } from "src/api/bankStatements";
 import styles from "./dashboard.module.css";
@@ -75,12 +90,26 @@ export default function Dashboard() {
   const period = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
   const monthName = MONTHS[now.getMonth()].toLowerCase();
   const fullDate = `${DAYS[now.getDay()]}, ${now.getDate()}. ${monthName} ${now.getFullYear()}.`;
+  const hour = now.getHours();
+  const pozdrav =
+    hour < 10 ? "Dobro jutro" : hour < 18 ? "Dobar dan" : "Dobro veče";
 
   // prave cifre sa bankovnih izvoda
   const { data: bankSummary } = useBankSummary(orgId);
   const { data: lastTransactions } = useBankTransactions(orgId, 4);
   const balance = bankSummary?.balance ?? null;
   const balanceNeg = (balance?.total ?? 0) < 0;
+
+  // zadnji izvod stariji od 30 dana: stanje je vjerovatno zastarjelo
+  const zadnjiIzvod =
+    balance?.accounts
+      .map((a) => a.statementDate)
+      .filter((d): d is string => !!d)
+      .sort()
+      .at(-1) ?? null;
+  const izvodZastario =
+    zadnjiIzvod != null &&
+    (now.getTime() - new Date(zadnjiIzvod).getTime()) / 86400000 > 30;
 
   // otvorene fakture + predstojeće obaveze
   const { data: openInvoices } = useOrgInvoices(orgId, { status: "ISSUED" });
@@ -93,6 +122,10 @@ export default function Dashboard() {
   const obligations = obligationsData?.items ?? [];
   const pendingCount = obligations.filter((o) => !o.done).length;
   const doneCount = obligations.length - pendingCount;
+  // neriješene prve (po roku), završene na dno
+  const sortiraneObaveze = [...obligations].sort(
+    (a, b) => Number(a.done) - Number(b.done) || a.due.localeCompare(b.due),
+  );
 
   // grupni uvoz izvoda vrijedi istaći samo kad korisnik vodi više obrta
   const imaViseObrta = (data?.organizations?.length ?? 0) > 1;
@@ -106,14 +139,99 @@ export default function Dashboard() {
     ? PAYROLL_CHIP[activePayroll.payrollStatus]
     : undefined;
 
+  // broj radnika + neto suma na plate kartici (vlasnik obrta nije u perWorker)
+  const { data: plateSummary } = useQuery({
+    queryKey: ["pk-payroll-summary", orgId, payrollYear, payrollMonth],
+    queryFn: () =>
+      unwrap(getMonthlySummary(orgId as number, payrollYear, payrollMonth)),
+    enabled: orgId != null,
+  });
+
+  // Svi obrti za pregled knjigovođe (vlastiti pa klijentski). payroll-status
+  // vraća SVE organizacije (koristi ga i marketing /organizacije sa d.o.o.),
+  // a PK Office radi samo sa obrtima: filtriramo na listu iz /api/auth/me
+  // (samo BUSINESS) + slot filter, isto kao OrgSwitcher.
+  const { data: pristup } = usePkOfficePristup();
+  const slotMode = Boolean(pristup?.enforced && pristup?.hasOffice);
+  const enabledIds = new Set(
+    (pristup?.organizations ?? [])
+      .filter((o) => o.pkOfficeEnabled)
+      .map((o) => o.id),
+  );
+  const pkOrgIds = new Set((data?.organizations ?? []).map((o) => o.id));
+  const sviObrti = [
+    ...(payrollData?.own ?? []).map((o) => ({ ...o, klijent: false })),
+    ...(payrollData?.clients ?? []).map((o) => ({ ...o, klijent: true })),
+  ].filter((o) => pkOrgIds.has(o.id) && (!slotMode || enabledIds.has(o.id)));
+  const aktivirajObrt = useActivateOrganization();
+
+  // svjež obrt (još nema nijedan izvod): umjesto praznih kartica prvi koraci.
+  // balance zna biti null i kad su izvodi učitani bez završnog stanja, pa se
+  // oslanjamo na lastUpload (null tek kad nijedan izvod nije učitan).
+  const svjezObrt =
+    bankSummary !== undefined && balance == null && bankSummary.lastUpload == null;
+  const { data: fullOrg } = useQuery({
+    queryKey: ["pk-org", orgId],
+    queryFn: () => unwrap(getOrganization(orgId as number)),
+    enabled: orgId != null && svjezObrt,
+  });
+  const { data: radniciData } = useQuery({
+    queryKey: ["pk-workers", orgId],
+    queryFn: () => unwrap(getWorkers(orgId as number)),
+    enabled: orgId != null && svjezObrt,
+  });
+  // "izdana bar jedna faktura" gleda i naplaćene, ne samo otvorene (openCount
+  // broji ISSUED); relevantno samo za svjež obrt (gated)
+  const { data: sveFakture } = useQuery({
+    queryKey: ["pk-invoices", orgId, "all"],
+    queryFn: () =>
+      unwrap(listInvoices({ organizationId: orgId as number, type: "INVOICE" })),
+    enabled: orgId != null && svjezObrt,
+  });
+  const prviKoraci = [
+    {
+      key: "podaci",
+      label: "Dopuni podatke obrta",
+      desc: "JIB, djelatnost, žiro račun i PDV status idu na sve obrasce",
+      done: !!(fullOrg?.taxNumber && fullOrg?.activityCode && fullOrg?.bankAccount),
+      href: `/organizacija/${orgId}`,
+    },
+    {
+      key: "izvod",
+      label: "Učitaj prvi bankovni izvod",
+      desc: "PDF iz e-bankinga: knjiženje, KPR i stanje kreću odavde",
+      done: false,
+      href: "/app/bankovni-izvodi",
+    },
+    {
+      key: "radnici",
+      label: "Dodaj radnike (ako ih imaš)",
+      desc: "za obračun plata, MIP-1023 i evidencije",
+      done: (radniciData ?? []).some((w) => w.role === "RADNIK"),
+      href: "/app/zaposlenici",
+    },
+    {
+      key: "faktura",
+      label: "Izdaj prvu fakturu",
+      desc: "kupci, KIF i PDV se povlače automatski",
+      done: (sveFakture ?? []).some(
+        (i) => i.status === "ISSUED" || i.status === "PAID",
+      ),
+      href: "/app/fakture/nova",
+    },
+  ];
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div className={styles.periodBadge}>{period}</div>
-        <h1 className={styles.h1}>
-          {firstName ? `Dobar dan, ${firstName}` : "Dobar dan"}
-          <em>.</em>
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className={styles.h1}>
+            {firstName ? `${pozdrav}, ${firstName}` : pozdrav}
+            <em>.</em>
+          </h1>
+          <HelpButton slug="dashboard" label="Kako početi" />
+        </div>
         <div className={styles.headerMeta}>
           <span>{fullDate}</span>
           {activeOrg && (
@@ -131,6 +249,84 @@ export default function Dashboard() {
           )}
         </div>
       </header>
+
+      {/* Brze akcije: najčešće dnevne radnje, bez odlaska u sidebar */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        {[
+          {
+            href: "/app/bankovni-izvodi",
+            icon: <IconCloudUpload size={16} />,
+            label: "Učitaj izvod",
+          },
+          {
+            href: "/app/fakture/nova",
+            icon: <IconFileInvoice size={16} />,
+            label: "Nova faktura",
+          },
+          {
+            href: "/app/blagajna",
+            icon: <IconCashBanknote size={16} />,
+            label: "Blagajnički nalog",
+          },
+          {
+            href: "/app/kalkulacije/nova",
+            icon: <IconCalculator size={16} />,
+            label: "Nova kalkulacija",
+          },
+        ].map((a) => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-cream-300 bg-cream-100 text-[13px] font-medium text-text-primary hover:bg-cream-200 transition-colors"
+          >
+            <span className="text-brand-600">{a.icon}</span>
+            {a.label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Prvi koraci: obrt bez ijednog izvoda dobije checklist umjesto
+          praznih kartica */}
+      {svjezObrt && (
+        <section className="rounded-xl bg-cream-100 border border-cream-300 px-5 py-4 mb-5">
+          <h2 className="font-serif-display text-[18px] text-text-primary mb-0.5">
+            Prvi koraci
+          </h2>
+          <p className="text-[12.5px] text-text-tertiary mb-3">
+            Postavite obrt kroz par koraka; kartice ispod se pune same čim
+            stignu prvi podaci.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {prviKoraci.map((k) => (
+              <Link
+                key={k.key}
+                href={k.href}
+                className="flex items-start gap-2.5 rounded-lg border border-cream-300 bg-cream-50 hover:bg-cream-200 px-3 py-2.5 transition-colors"
+              >
+                {k.done ? (
+                  <IconCircleCheck size={18} className="text-success shrink-0 mt-px" />
+                ) : (
+                  <IconArrowRight size={18} className="text-brand-600 shrink-0 mt-px" />
+                )}
+                <span>
+                  <span
+                    className={`block text-[13px] font-medium ${
+                      k.done
+                        ? "line-through text-text-tertiary"
+                        : "text-text-primary"
+                    }`}
+                  >
+                    {k.label}
+                  </span>
+                  <span className="block text-[11.5px] text-text-tertiary">
+                    {k.desc}
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Grupni uvoz izvoda: kartica samo za korisnike sa više obrta */}
       {imaViseObrta && (
@@ -180,6 +376,13 @@ export default function Dashboard() {
                 : `zbir ${balance.accounts.length} računa, po zadnjim izvodima`
               : "učitajte prvi izvod da vidite stanje"}
           </p>
+          {izvodZastario && zadnjiIzvod && (
+            <p className="mt-2 text-[12px] text-warning flex items-center gap-1">
+              <IconAlertCircle size={13} className="shrink-0" />
+              Zadnji izvod je od {formatDate(zadnjiIzvod)}: učitajte novije
+              izvode za tačno stanje.
+            </p>
+          )}
         </div>
 
         <div className={styles.balanceCard}>
@@ -233,6 +436,16 @@ export default function Dashboard() {
                     : "nije preuzet"}
                 </span>
               </div>
+              {plateSummary && plateSummary.perWorker.length > 0 && (
+                <p className={styles.balanceMeta}>
+                  {plateSummary.perWorker.length}{" "}
+                  {plateSummary.perWorker.length % 10 === 1 &&
+                  plateSummary.perWorker.length % 100 !== 11
+                    ? "radnik"
+                    : "radnika"}{" "}
+                  · neto {formatBAM(plateSummary.totals.net)}
+                </p>
+              )}
               <Link
                 href="/app/obracuni-plata"
                 className={styles.payrollCardLink}
@@ -245,8 +458,13 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* KPI kartice vode na filtrirane liste */}
       <div className={styles.metricGrid}>
-        <div className={styles.metric}>
+        <Link
+          href="/app/transakcije?direction=IN"
+          className={styles.metric}
+          title="Prilivi ovog mjeseca na transakcijama"
+        >
           <div className={`${styles.metricIcon} ${styles.metricIconSuccess}`}>
             <IconArrowDownLeft size={22} />
           </div>
@@ -255,9 +473,13 @@ export default function Dashboard() {
             {formatBAM(bankSummary?.totalInThisMonth ?? 0)}
           </p>
           <p className={styles.metricDelta}>ovaj mjesec, sa izvoda</p>
-        </div>
+        </Link>
 
-        <div className={styles.metric}>
+        <Link
+          href="/app/transakcije?direction=OUT"
+          className={styles.metric}
+          title="Odlivi ovog mjeseca na transakcijama"
+        >
           <div className={`${styles.metricIcon} ${styles.metricIconNeutral}`}>
             <IconArrowUpRight size={22} />
           </div>
@@ -266,9 +488,13 @@ export default function Dashboard() {
             {formatBAM(bankSummary?.totalOutThisMonth ?? 0)}
           </p>
           <p className={styles.metricDelta}>ovaj mjesec, sa izvoda</p>
-        </div>
+        </Link>
 
-        <div className={styles.metric}>
+        <Link
+          href="/app/fakture?status=ISSUED"
+          className={styles.metric}
+          title="Otvorene (izdane) fakture"
+        >
           <div className={`${styles.metricIcon} ${styles.metricIconInfo}`}>
             <IconFileInvoice size={22} />
           </div>
@@ -277,9 +503,13 @@ export default function Dashboard() {
           <p className={styles.metricDelta}>
             {openCount > 0 ? `${formatBAM(openTotal)} ukupno` : "sve naplaćeno"}
           </p>
-        </div>
+        </Link>
 
-        <div className={styles.metric}>
+        <Link
+          href="/app/transakcije?status=UNMATCHED"
+          className={styles.metric}
+          title="Transakcije koje čekaju pregled"
+        >
           <div className={`${styles.metricIcon} ${styles.metricIconWarning}`}>
             <IconAlertCircle size={22} />
           </div>
@@ -292,8 +522,108 @@ export default function Dashboard() {
           >
             {(bankSummary?.unmatched ?? 0) > 0 ? "treba pregled" : "sve potvrđeno"}
           </p>
-        </div>
+        </Link>
       </div>
+
+      {/* Pregled svih obrta: knjigovođa odmah vidi gdje šta kasni */}
+      {sviObrti.length > 1 && (
+        <section className="rounded-xl bg-cream-100 border border-cream-300 px-5 py-4 mb-6">
+          <div className="flex items-baseline justify-between gap-3 mb-1.5 flex-wrap">
+            <h2 className="font-serif-display text-[18px] text-text-primary">
+              Svi obrti
+            </h2>
+            <p className="text-[12px] text-text-tertiary">
+              plate za {payrollMonthName} {payrollYear}. · klik mijenja aktivni
+              obrt
+            </p>
+          </div>
+          <div className="divide-y divide-cream-200">
+            {sviObrti.map((o) => {
+              const chip = PAYROLL_CHIP[o.payrollStatus];
+              const aktivan = o.id === orgId;
+              const izvodStar =
+                o.lastStatementDate != null &&
+                (now.getTime() - new Date(o.lastStatementDate).getTime()) /
+                  86400000 >
+                  30;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => {
+                    if (!aktivan) aktivirajObrt.mutate(o.id);
+                  }}
+                  className={`w-full flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-left ${
+                    aktivan ? "" : "cursor-pointer hover:bg-cream-50"
+                  }`}
+                  title={aktivan ? "Aktivni obrt" : "Postavi kao aktivni obrt"}
+                >
+                  <span className="flex items-center gap-2 min-w-[180px] flex-1">
+                    <span
+                      className={`text-[13px] font-medium ${
+                        aktivan ? "text-brand-700" : "text-text-primary"
+                      }`}
+                    >
+                      {o.name}
+                    </span>
+                    {o.klijent && (
+                      <span className="px-1.5 py-px rounded-full bg-info-bg text-info text-[10.5px] font-medium shrink-0">
+                        klijent
+                      </span>
+                    )}
+                    {aktivan && (
+                      <span className="px-1.5 py-px rounded-full bg-brand-100 text-brand-700 text-[10.5px] font-medium shrink-0">
+                        aktivni
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={`text-[12px] ${
+                      o.lastStatementDate && !izvodStar
+                        ? "text-text-tertiary"
+                        : "text-warning"
+                    }`}
+                  >
+                    {o.lastStatementDate
+                      ? `izvod ${formatDate(o.lastStatementDate)}`
+                      : "nema izvoda"}
+                  </span>
+                  {o.payrollStatus === "no_workers" ? (
+                    <span className="text-[12px] text-text-tertiary">
+                      bez radnika
+                    </span>
+                  ) : chip ? (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        chip.ok
+                          ? "bg-success-bg text-success"
+                          : "bg-warning-bg text-warning"
+                      }`}
+                    >
+                      {chip.ok ? (
+                        <IconCircleCheck size={12} />
+                      ) : (
+                        <IconAlertCircle size={12} />
+                      )}
+                      {chip.label}
+                    </span>
+                  ) : null}
+                  {o.payrollStatus !== "no_workers" &&
+                    (o.mipDownloadedAt ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-success-bg text-success">
+                        MIP ✓
+                      </span>
+                    ) : o.payrollStatus !== "none" ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-warning-bg text-warning">
+                        MIP nije preuzet
+                      </span>
+                    ) : null)}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <div className={styles.sectionGrid}>
         <section className={styles.section}>
@@ -303,7 +633,8 @@ export default function Dashboard() {
               <p className={styles.sectionSubtitle}>sa bankovnih izvoda</p>
             </div>
             <Link href="/app/bankovni-izvodi" className={styles.sectionLink}>
-              Sve →
+              Sve
+              <IconArrowRight size={14} />
             </Link>
           </header>
           <div className={styles.sectionBody}>
@@ -331,6 +662,17 @@ export default function Dashboard() {
                     <p className={styles.rowTitle}>{txDesc(t)}</p>
                     <p className={styles.rowMeta}>
                       {t.date ? formatDate(t.date) : "–"}
+                      {categoryLabel(t.category) && (
+                        <span
+                          className={`ml-1.5 inline-block px-1.5 py-px rounded-full text-[10.5px] font-medium align-middle ${
+                            isIn
+                              ? "bg-success-bg text-success"
+                              : "bg-cream-200 text-text-secondary"
+                          }`}
+                        >
+                          {categoryLabel(t.category)}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div
@@ -356,11 +698,12 @@ export default function Dashboard() {
               </p>
             </div>
             <Link href="/app/transakcije" className={styles.sectionLink}>
-              Sve →
+              Sve
+              <IconArrowRight size={14} />
             </Link>
           </header>
           <div className={styles.sectionBody}>
-            {obligations.map((o) => (
+            {sortiraneObaveze.map((o) => (
               <div key={o.id} className={styles.row}>
                 <span
                   className={`${styles.rowIcon} ${
@@ -375,10 +718,7 @@ export default function Dashboard() {
                 </span>
                 <div className={styles.rowMain}>
                   <p className={styles.rowTitle}>{o.title}</p>
-                  <p className={styles.rowMeta}>
-                    rok {formatDate(o.due)}
-                    {o.overdue ? " · prošao rok" : ""}
-                  </p>
+                  <p className={styles.rowMeta}>rok {formatDate(o.due)}</p>
                 </div>
                 <span
                   className={`${styles.rowStatus} ${

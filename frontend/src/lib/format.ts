@@ -91,6 +91,15 @@ export function orgInitials(name: string | null | undefined): string {
   return first(use[0]) + first(use[1]);
 }
 
+// Današnji datum u LOKALNOJ zoni kao "YYYY-MM-DD". new Date().toISOString()
+// vraća UTC, pa u zoni BiH (UTC+1/+2) neposredno nakon ponoći da jučerašnji dan
+// i pokvari poređenje rokova ("kasni"/"dospio"). Uvijek koristiti ovo.
+export function todayIso(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 export function formatDate(input: Date | string | null | undefined): string {
   if (!input) return "–";
   const d = typeof input === "string" ? new Date(input) : input;
@@ -98,6 +107,22 @@ export function formatDate(input: Date | string | null | undefined): string {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   return `${dd}.${mm}.${d.getFullYear()}.`;
+}
+
+// Množina po bosanskim pravilima: 1 stavka, 2-4 stavke, 5+ stavki; po zadnjoj
+// cifri (21 stavka, 32 stavke), ali 11-14 uvijek treći oblik (11 stavki).
+// mnozina(n, "stavka", "stavke", "stavki")
+export function mnozina(
+  n: number,
+  jedan: string,
+  dvaCetiri: string,
+  vise: string,
+): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return jedan;
+  if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return dvaCetiri;
+  return vise;
 }
 
 export function formatDateTime(input: Date | string | null | undefined): string {

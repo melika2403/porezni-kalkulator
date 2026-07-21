@@ -138,6 +138,16 @@ async function markRead({ ticketId, role }) {
   return ticket;
 }
 
+// Trajno briše razgovor sa svim porukama (CASCADE na asocijaciji). Vraća
+// userId vlasnika da socket sloj zna kome poslati ticket:deleted.
+async function deleteTicket(ticketId) {
+  const ticket = await SupportTicket.findByPk(ticketId);
+  if (!ticket) throw new Error("TICKET_NOT_FOUND");
+  const userId = ticket.userId;
+  await ticket.destroy();
+  return { userId };
+}
+
 async function setStatus({ ticketId, status }) {
   if (status !== "OTVOREN" && status !== "ZATVOREN") {
     throw new Error("INVALID_STATUS");
@@ -213,6 +223,7 @@ module.exports = {
   addMessage,
   markRead,
   setStatus,
+  deleteTicket,
   listUserTickets,
   listAdminTickets,
   totalUnread,

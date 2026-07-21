@@ -6,6 +6,7 @@ const {
   AnnouncementRead,
   Subscription,
   User,
+  UserNotification,
 } = require("../models/index");
 
 // Da li obavijest sa datom publikom cilja ovog korisnika.
@@ -54,8 +55,28 @@ async function listForUser(user) {
   const announcements = visible.map((a) =>
     serialize(a, (a.reads || []).length > 0),
   );
-  const unread = announcements.filter((a) => !a.read).length;
-  return { announcements, unread, subscription: computeNotice(sub) };
+
+  // sistemske notifikacije (rokovi, izvodi, plate...): zadnjih 50
+  const sistemskeRows = await UserNotification.findAll({
+    where: { userId: user.id },
+    order: [["createdAt", "DESC"]],
+    limit: 50,
+  });
+  const sistemske = sistemskeRows.map((n) => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    link: n.link,
+    organizationId: n.organizationId,
+    createdAt: n.createdAt,
+    read: Boolean(n.readAt),
+  }));
+
+  const unread =
+    announcements.filter((a) => !a.read).length +
+    sistemske.filter((n) => !n.read).length;
+  return { announcements, sistemske, unread, subscription: computeNotice(sub) };
 }
 
 // Status pretplate za in-app upozorenje. Vraća null ako nema aktivne pretplate.
@@ -91,6 +112,11 @@ async function markAllRead(user) {
       defaults: { announcementId: a.id, userId: user.id, readAt: now },
     });
   }
+  // i sistemske notifikacije (rokovi, izvodi...)
+  await UserNotification.update(
+    { readAt: now },
+    { where: { userId: user.id, readAt: null } },
+  );
   return { ok: true };
 }
 

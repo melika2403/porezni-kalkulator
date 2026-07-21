@@ -118,16 +118,6 @@ export function getInvoices(page = 1, limit = 20) {
   );
 }
 
-export function changePlan(payload: {
-  plan: PlanKey;
-  billingCycle?: BillingCycle;
-}) {
-  return request<Subscription>("/api/subscription/change-plan", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
 export function cancelSubscription() {
   return request<Subscription>("/api/subscription/cancel", { method: "POST" });
 }

@@ -3,7 +3,8 @@
 // Nivelacija cijena (zapisnik o promjeni cijena): prebacuje količinu artikla
 // sa stare MPC na novu na lageru; razlika vrijednosti automatski ulazi u TKM
 // (povećanje = zaduženje, smanjenje = storno). Zapisnik se štampa kao PDF.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   IconDownload,
@@ -63,6 +64,20 @@ export function NivelacijeTab({ orgId }: { orgId: number | null }) {
   const [novaOpen, setNovaOpen] = useState(false);
   const [brisi, setBrisi] = useState<Nivelacija | null>(null);
   const [pdfId, setPdfId] = useState<number | null>(null);
+  // brza nivelacija sa lager liste: ?artikal=&mpc= odmah otvara novu
+  // nivelaciju sa predizabranim artiklom i starom cijenom
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [prefillKey, setPrefillKey] = useState<string | null>(null);
+  useEffect(() => {
+    const a = searchParams.get("artikal");
+    const m = searchParams.get("mpc");
+    if (a && m) {
+      setPrefillKey(`${Number(a)}|${Number(m)}`);
+      setNovaOpen(true);
+      router.replace("/app/lager?tab=nivelacije");
+    }
+  }, [searchParams, router]);
 
   const { data: fullOrg } = useQuery({
     queryKey: ["pk-org", orgId],
@@ -224,7 +239,14 @@ export function NivelacijeTab({ orgId }: { orgId: number | null }) {
       </div>
 
       {novaOpen && orgId != null && (
-        <NovaNivelacijaModal orgId={orgId} onClose={() => setNovaOpen(false)} />
+        <NovaNivelacijaModal
+          orgId={orgId}
+          initialIzborKey={prefillKey}
+          onClose={() => {
+            setNovaOpen(false);
+            setPrefillKey(null);
+          }}
+        />
       )}
 
       <Modal
@@ -270,9 +292,12 @@ export function NivelacijeTab({ orgId }: { orgId: number | null }) {
 
 function NovaNivelacijaModal({
   orgId,
+  initialIzborKey,
   onClose,
 }: {
   orgId: number;
+  /** predizbor sa lager liste: "artikalId|mpc" */
+  initialIzborKey?: string | null;
   onClose: () => void;
 }) {
   const createM = useCreateNivelacija(orgId);
@@ -286,7 +311,9 @@ function NovaNivelacijaModal({
   // brisanje reda ne pogađa drugi red sa slučajno istim uid-om
   const uidRef = useRef(1);
   const [stavke, setStavke] = useState<NovaStavka[]>([]);
-  const [izborKey, setIzborKey] = useState("");
+  // predizbor sa lager liste odmah u izborKey; količina se dopuni ispod
+  // kad lager stigne (render-adjust, ne effect)
+  const [izborKey, setIzborKey] = useState(initialIzborKey ?? "");
   const [kolicinaS, setKolicinaS] = useState("");
   const [novaMpcS, setNovaMpcS] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -298,6 +325,20 @@ function NovaNivelacijaModal({
   const izabrani = lagerRows.find(
     (r) => `${r.artikalId}|${r.mpc}` === izborKey,
   );
+
+  // predizbor: kad lager stigne, jednom dopuni količinu izabranog reda
+  // (setState tokom rendera uz guard, po React "adjust state" obrascu)
+  const [kolicinaPredispunjena, setKolicinaPredispunjena] = useState(false);
+  if (
+    !kolicinaPredispunjena &&
+    initialIzborKey &&
+    izborKey === initialIzborKey &&
+    kolicinaS === "" &&
+    izabrani
+  ) {
+    setKolicinaPredispunjena(true);
+    setKolicinaS(kol(izabrani.kolicina));
+  }
 
   function dodaj() {
     setError(null);

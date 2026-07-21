@@ -128,6 +128,8 @@ export type UploadError = {
     | string;
   errorDetail?: string | null;
   validationErrors?: string[] | null;
+  /** uz DUPLICATE_STATEMENT: id već učitanog izvoda (za "Pogledaj postojeći") */
+  statementId?: number | null;
 };
 
 async function jsonRequest<T>(
@@ -356,6 +358,8 @@ export type KprRow = KprCols & {
   brojDokumenta: string;
   opis: string;
   kategorija: string;
+  /** izvod iz kojeg je stavka (klik na red ga otvara); null za KP-1042 */
+  statementId: number | null;
 };
 
 export type KprData = {

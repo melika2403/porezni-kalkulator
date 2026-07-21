@@ -38,7 +38,7 @@ function fmtDate(d) {
  * @param {object} input.partner  partner {name, code, jib, address, city}
  * @param {"kupac"|"dobavljac"} input.type
  * @param {{from: string, to: string}} input.period  ISO datumi
- * @param {Array<{date: string, label: string, duguje: number, potrazuje: number}>} input.rows
+ * @param {Array<{date: string, dospijece: string|null, label: string, duguje: number, potrazuje: number}>} input.rows
  *   hronološki redovi; saldo se računa kumulativno (duguje - potražuje)
  * @returns {Promise<Buffer>}
  */
@@ -54,14 +54,15 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
   const M = 42;
   const tableW = PAGE.w - 2 * M;
 
-  // kolone: rb 28, datum 62, opis flex, duguje 78, potražuje 78, saldo 84
+  // kolone: rb 24, datum 58, dospijeće 58, opis flex, duguje 74, potražuje 74, saldo 80
   const cols = [
-    { key: "rb", w: 28, align: "right", title: "Rb" },
-    { key: "date", w: 62, align: "left", title: "Datum" },
-    { key: "label", w: tableW - 28 - 62 - 78 - 78 - 84, align: "left", title: "Opis knjiženja" },
-    { key: "duguje", w: 78, align: "right", title: "Duguje" },
-    { key: "potrazuje", w: 78, align: "right", title: "Potražuje" },
-    { key: "saldo", w: 84, align: "right", title: "Saldo" },
+    { key: "rb", w: 24, align: "right", title: "Rb" },
+    { key: "date", w: 58, align: "left", title: "Datum" },
+    { key: "dospijece", w: 58, align: "left", title: "Dospijeće" },
+    { key: "label", w: tableW - 24 - 58 - 58 - 74 - 74 - 80, align: "left", title: "Opis knjiženja" },
+    { key: "duguje", w: 74, align: "right", title: "Duguje" },
+    { key: "potrazuje", w: 74, align: "right", title: "Potražuje" },
+    { key: "saldo", w: 80, align: "right", title: "Saldo" },
   ];
 
   const title =
@@ -192,7 +193,8 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
     const vals = {
       rb: `${idx + 1}.`,
       date: fmtDate(r.date),
-      label: truncate(r.label, reg, 8.5, cols[2].w - 8),
+      dospijece: fmtDate(r.dospijece),
+      label: truncate(r.label, reg, 8.5, cols[3].w - 8),
       duguje: r.duguje ? fmt2(r.duguje) : "",
       potrazuje: r.potrazuje ? fmt2(r.potrazuje) : "",
       saldo: fmt2(saldo),
@@ -220,6 +222,7 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
   const totals = {
     rb: "",
     date: "",
+    dospijece: "",
     label: "UKUPNO:",
     duguje: fmt2(sumDuguje),
     potrazuje: fmt2(sumPotrazuje),
@@ -261,4 +264,485 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
   return Buffer.from(bytes);
 }
 
-module.exports = { buildKarticaPdf };
+/**
+ * IOS: Izvod otvorenih stavki na dan. Standardna forma za usaglašavanje
+ * potraživanja i obaveza: povjerilac/dužnik blok, tabela otvorenih stavki
+ * (dokument, datum, valuta, iznos), rok od 8 dana za ovjeren primjerak,
+ * blok za potvrdu stanja primaoca i potpisi obje strane.
+ *
+ * @param {object} input
+ * @param {object} input.org      naša organizacija {name, address, city, jib}
+ * @param {object} input.partner  partner {name, code, jib, address, city}
+ * @param {"kupac"|"dobavljac"} input.type
+ *   kupac = naša potraživanja (mi povjerilac); dobavljac = naše obaveze
+ * @param {string} input.naDan    ISO datum stanja
+ * @param {Array<{broj: string, datum: string, valuta: string|null, iznos: number}>} input.rows
+ * @returns {Promise<Buffer>}
+ */
+async function buildIosPdf({ org, partner, type, naDan, rows }) {
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
+  const reg = await doc.embedFont(fs.readFileSync(FONT_REG), { subset: true });
+  const bold = await doc.embedFont(fs.readFileSync(FONT_BOLD), {
+    subset: true,
+  });
+
+  const PAGE = { w: 595.28, h: 841.89 };
+  const M = 48;
+  const tableW = PAGE.w - 2 * M;
+  let page = doc.addPage([PAGE.w, PAGE.h]);
+  let y = PAGE.h - M;
+
+  const draw = (text, x, yy, { font = reg, size = 9.5, color = INK, align = "left", width = 0 } = {}) => {
+    const t = String(text ?? "");
+    let tx = x;
+    if (align === "right") tx = x + width - font.widthOfTextAtSize(t, size);
+    else if (align === "center") tx = x + (width - font.widthOfTextAtSize(t, size)) / 2;
+    page.drawText(t, { x: tx, y: yy, size, font, color });
+  };
+  // pasus prelomljen na širinu tabele
+  const pasus = (text, { size = 9.5, lh = 14 } = {}) => {
+    const rijeci = String(text).split(" ");
+    let red = "";
+    for (const w of rijeci) {
+      const probni = red ? `${red} ${w}` : w;
+      if (reg.widthOfTextAtSize(probni, size) > tableW && red) {
+        draw(red, M, y, { size });
+        y -= lh;
+        red = w;
+      } else {
+        red = probni;
+      }
+    }
+    if (red) {
+      draw(red, M, y, { size });
+      y -= lh;
+    }
+  };
+  const hr = (yy, thickness = 0.6) =>
+    page.drawLine({
+      start: { x: M, y: yy },
+      end: { x: M + tableW, y: yy },
+      thickness,
+      color: LINE,
+    });
+
+  // povjerilac je onaj čija su potraživanja u izvodu
+  const povjerilac = type === "kupac" ? org : partner;
+  const duznik = type === "kupac" ? partner : org;
+  const strana = (label, s) => {
+    draw(label, M, y, { size: 8.5, color: MUTED });
+    y -= 13;
+    draw(s.name || "", M, y, { font: bold, size: 11 });
+    y -= 13;
+    const linija2 = [
+      [s.address, s.city].filter(Boolean).join(", "),
+      s.jib ? `JIB: ${s.jib}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    if (linija2) {
+      draw(linija2, M, y, { size: 9 });
+      y -= 13;
+    }
+    y -= 6;
+  };
+
+  strana("POVJERILAC (sastavio izvod):", povjerilac);
+  strana("DUŽNIK (primalac izvoda):", duznik);
+  y -= 8;
+
+  draw("IZVOD OTVORENIH STAVKI (IOS)", M, y, {
+    font: bold,
+    size: 15,
+    align: "center",
+    width: tableW,
+  });
+  y -= 17;
+  draw(`na dan ${fmtDate(naDan)}`, M, y, {
+    font: bold,
+    size: 10.5,
+    align: "center",
+    width: tableW,
+  });
+  y -= 24;
+
+  pasus(
+    "Radi usaglašavanja međusobnih potraživanja i obaveza, u skladu sa " +
+      "propisima o računovodstvu, dostavljamo vam pregled otvorenih " +
+      `(neizmirenih) stavki na dan ${fmtDate(naDan)}. Prema našim poslovnim ` +
+      "knjigama stanje je sljedeće:",
+  );
+  y -= 8;
+
+  // tabela: Rb, Dokument, Datum, Valuta, Iznos
+  const cols = [
+    { key: "rb", w: 30, align: "right", title: "Rb" },
+    { key: "broj", w: tableW - 30 - 78 - 78 - 92, align: "left", title: "Dokument" },
+    { key: "datum", w: 78, align: "left", title: "Datum" },
+    { key: "valuta", w: 78, align: "left", title: "Valuta" },
+    { key: "iznos", w: 92, align: "right", title: "Iznos (KM)" },
+  ];
+  const headH = 18;
+  page.drawRectangle({
+    x: M,
+    y: y - headH,
+    width: tableW,
+    height: headH,
+    color: rgb(0.93, 0.92, 0.89),
+  });
+  let cx = M;
+  for (const c of cols) {
+    draw(c.title, cx + 3, y - headH + 5.5, {
+      font: bold,
+      size: 8,
+      align: c.align,
+      width: c.w - 6,
+    });
+    cx += c.w;
+  }
+  y -= headH;
+  hr(y);
+
+  const rowH = 15;
+  let ukupno = 0;
+  rows.forEach((r, idx) => {
+    ukupno += r.iznos || 0;
+    let x = M;
+    const vals = {
+      rb: `${idx + 1}.`,
+      broj: r.broj,
+      datum: fmtDate(r.datum),
+      valuta: r.valuta ? fmtDate(r.valuta) : "",
+      iznos: fmt2(r.iznos),
+    };
+    for (const c of cols) {
+      let t = String(vals[c.key] ?? "");
+      while (t.length > 1 && reg.widthOfTextAtSize(t, 8.5) > c.w - 8) {
+        t = t.slice(0, -1);
+      }
+      draw(t, x + 3, y - rowH + 4.5, {
+        size: 8.5,
+        align: c.align,
+        width: c.w - 6,
+      });
+      x += c.w;
+    }
+    y -= rowH;
+    hr(y, 0.4);
+  });
+  if (rows.length === 0) {
+    draw("Nema otvorenih stavki.", M + 3, y - rowH + 4.5, {
+      size: 8.5,
+      color: MUTED,
+    });
+    y -= rowH;
+    hr(y, 0.4);
+  }
+  // UKUPNO
+  draw("UKUPNO OTVORENO:", M, y - rowH + 4.5, {
+    font: bold,
+    size: 9,
+    align: "right",
+    width: tableW - 92 - 6,
+  });
+  draw(fmt2(ukupno), M + tableW - 92, y - rowH + 4.5, {
+    font: bold,
+    size: 9,
+    align: "right",
+    width: 92 - 6,
+  });
+  y -= rowH;
+  hr(y, 0.9);
+  y -= 18;
+
+  pasus(
+    "Molimo da provjerite iskazano stanje i jedan ovjeren primjerak ovog " +
+      "izvoda vratite na našu adresu u roku od 8 dana od dana prijema. " +
+      "Ukoliko u navedenom roku ne primimo ovjeren primjerak niti vaše " +
+      "primjedbe, smatrat ćemo da ste saglasni sa iskazanim stanjem.",
+  );
+  y -= 16;
+
+  // potvrda stanja (popunjava primalac)
+  draw("POTVRDA STANJA (popunjava primalac izvoda)", M, y, {
+    font: bold,
+    size: 9.5,
+  });
+  y -= 16;
+  pasus(
+    `Potvrđujemo da se iskazano stanje na dan ${fmtDate(naDan)} u iznosu od ` +
+      `${fmt2(ukupno)} KM (zaokružiti):   SLAŽE   /   NE SLAŽE   sa našim ` +
+      "poslovnim knjigama.",
+  );
+  y -= 6;
+  draw("Primjedbe:", M, y, { size: 9.5 });
+  page.drawLine({
+    start: { x: M + 55, y: y - 2 },
+    end: { x: M + tableW, y: y - 2 },
+    thickness: 0.5,
+    color: LINE,
+  });
+  y -= 18;
+  page.drawLine({
+    start: { x: M, y: y - 2 },
+    end: { x: M + tableW, y: y - 2 },
+    thickness: 0.5,
+    color: LINE,
+  });
+  y -= 40;
+
+  // potpisi: za povjerioca i za dužnika
+  const potW = 190;
+  const potpis = (label, x) => {
+    page.drawLine({
+      start: { x, y },
+      end: { x: x + potW, y },
+      thickness: 0.7,
+      color: INK,
+    });
+    draw(label, x, y - 13, {
+      size: 8.5,
+      align: "center",
+      width: potW,
+      color: MUTED,
+    });
+  };
+  potpis("Za povjerioca (M.P. i potpis)", M);
+  potpis("Za dužnika (M.P. i potpis)", M + tableW - potW);
+
+  // footer
+  draw(
+    `IOS na dan ${fmtDate(naDan)} · ispis ${fmtDate(new Date().toISOString())} · poreznikalkulator.ba`,
+    M,
+    M - 18,
+    { size: 7.5, color: MUTED },
+  );
+
+  const bytes = await doc.save();
+  return Buffer.from(bytes);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Opomena kupcu za dospjele neplaćene račune. Sadržaj po uobičajenoj praksi:
+//  podaci povjerioca i dužnika, tabela dospjelih računa (dokument, datum,
+//  valuta, iznos), ukupan dug, rok za plaćanje, račun za uplatu, upozorenje
+//  (nivo 2 = pred utuženje: kamata + sudski postupak), "zanemarite ako ste
+//  platili" i potpis. Nema zakonski propisan obrazac; forma prati IOS stil.
+// ─────────────────────────────────────────────────────────────────────────────
+async function buildOpomenaPdf({ org, partner, naDan, rok = 8, nivo = 1, rows }) {
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
+  const reg = await doc.embedFont(fs.readFileSync(FONT_REG), { subset: true });
+  const bold = await doc.embedFont(fs.readFileSync(FONT_BOLD), {
+    subset: true,
+  });
+
+  const PAGE = { w: 595.28, h: 841.89 };
+  const M = 48;
+  const tableW = PAGE.w - 2 * M;
+  const page = doc.addPage([PAGE.w, PAGE.h]);
+  let y = PAGE.h - M;
+
+  const draw = (text, x, yy, { font = reg, size = 9.5, color = INK, align = "left", width = 0 } = {}) => {
+    const t = String(text ?? "");
+    let tx = x;
+    if (align === "right") tx = x + width - font.widthOfTextAtSize(t, size);
+    else if (align === "center") tx = x + (width - font.widthOfTextAtSize(t, size)) / 2;
+    page.drawText(t, { x: tx, y: yy, size, font, color });
+  };
+  const pasus = (text, { size = 9.5, lh = 14, font = reg } = {}) => {
+    const rijeci = String(text).split(" ");
+    let red = "";
+    for (const w of rijeci) {
+      const probni = red ? `${red} ${w}` : w;
+      if (font.widthOfTextAtSize(probni, size) > tableW && red) {
+        draw(red, M, y, { size, font });
+        y -= lh;
+        red = w;
+      } else {
+        red = probni;
+      }
+    }
+    if (red) {
+      draw(red, M, y, { size, font });
+      y -= lh;
+    }
+  };
+  const hr = (yy, thickness = 0.6) =>
+    page.drawLine({
+      start: { x: M, y: yy },
+      end: { x: M + tableW, y: yy },
+      thickness,
+      color: LINE,
+    });
+
+  const strana = (label, s) => {
+    draw(label, M, y, { size: 8.5, color: MUTED });
+    y -= 13;
+    draw(s.name || "", M, y, { font: bold, size: 11 });
+    y -= 13;
+    const linija2 = [
+      [s.address, s.city].filter(Boolean).join(", "),
+      s.jib ? `JIB: ${s.jib}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    if (linija2) {
+      draw(linija2, M, y, { size: 9 });
+      y -= 13;
+    }
+    y -= 6;
+  };
+
+  strana("POVJERILAC:", org);
+  strana("DUŽNIK:", partner);
+  y -= 8;
+
+  const naslov = nivo === 2 ? "OPOMENA PRED UTUŽENJE" : "OPOMENA";
+  draw(naslov, M, y, { font: bold, size: 15, align: "center", width: tableW });
+  y -= 17;
+  draw(`za dospjele neizmirene obaveze na dan ${fmtDate(naDan)}`, M, y, {
+    font: bold,
+    size: 10.5,
+    align: "center",
+    width: tableW,
+  });
+  y -= 24;
+
+  pasus(
+    "Uvidom u naše poslovne knjige utvrdili smo da prema nama imate " +
+      "dospjele, a neizmirene obaveze po sljedećim računima:",
+  );
+  y -= 8;
+
+  // tabela: Rb, Dokument, Datum, Valuta, Iznos (isti stil kao IOS)
+  const cols = [
+    { key: "rb", w: 30, align: "right", title: "Rb" },
+    { key: "broj", w: tableW - 30 - 78 - 78 - 92, align: "left", title: "Dokument" },
+    { key: "datum", w: 78, align: "left", title: "Datum" },
+    { key: "valuta", w: 78, align: "left", title: "Valuta" },
+    { key: "iznos", w: 92, align: "right", title: "Iznos (KM)" },
+  ];
+  const headH = 18;
+  page.drawRectangle({
+    x: M,
+    y: y - headH,
+    width: tableW,
+    height: headH,
+    color: rgb(0.93, 0.92, 0.89),
+  });
+  let cx = M;
+  for (const c of cols) {
+    draw(c.title, cx + 3, y - headH + 5.5, {
+      font: bold,
+      size: 8,
+      align: c.align,
+      width: c.w - 6,
+    });
+    cx += c.w;
+  }
+  y -= headH;
+  hr(y);
+
+  const rowH = 15;
+  let ukupno = 0;
+  rows.forEach((r, idx) => {
+    ukupno += r.iznos || 0;
+    let x = M;
+    const vals = {
+      rb: `${idx + 1}.`,
+      broj: r.broj,
+      datum: fmtDate(r.datum),
+      valuta: r.valuta ? fmtDate(r.valuta) : "",
+      iznos: fmt2(r.iznos),
+    };
+    for (const c of cols) {
+      let t = String(vals[c.key] ?? "");
+      while (t.length > 1 && reg.widthOfTextAtSize(t, 8.5) > c.w - 8) {
+        t = t.slice(0, -1);
+      }
+      draw(t, x + 3, y - rowH + 4.5, {
+        size: 8.5,
+        align: c.align,
+        width: c.w - 6,
+      });
+      x += c.w;
+    }
+    y -= rowH;
+    hr(y, 0.4);
+  });
+  draw("UKUPAN DUG:", M, y - rowH + 4.5, {
+    font: bold,
+    size: 9,
+    align: "right",
+    width: tableW - 92 - 6,
+  });
+  draw(fmt2(ukupno), M + tableW - 92, y - rowH + 4.5, {
+    font: bold,
+    size: 9,
+    align: "right",
+    width: 92 - 6,
+  });
+  y -= rowH;
+  hr(y, 0.9);
+  y -= 18;
+
+  pasus(
+    `Molimo da ukupan iznos od ${fmt2(ukupno)} KM uplatite u roku od ${rok} ` +
+      `dana od dana prijema ove opomene` +
+      (org.bankAccount
+        ? `, na naš transakcijski račun ${org.bankAccount}`
+        : "") +
+      `, uz poziv na broj računa iz tabele.`,
+  );
+  y -= 6;
+  if (nivo === 2) {
+    pasus(
+      "Ukoliko obaveze ne izmirite u navedenom roku, bit ćemo prinuđeni " +
+        "potraživanje ostvariti sudskim putem, uz obračun zakonske zatezne " +
+        "kamate i troškova postupka, bez ponovnog upozorenja.",
+      { font: bold },
+    );
+  } else {
+    pasus(
+      "Na dospjele obaveze zadržavamo pravo obračuna zakonske zatezne " +
+        "kamate. Za dogovor oko plaćanja ili reklamaciju slobodno nas " +
+        "kontaktirajte.",
+    );
+  }
+  y -= 6;
+  pasus(
+    "Ako ste navedene obaveze izmirili u međuvremenu, molimo da ovu " +
+      "opomenu smatrate bespredmetnom.",
+    { size: 8.5 },
+  );
+  y -= 34;
+
+  // potpis desno
+  const potW = 190;
+  page.drawLine({
+    start: { x: M + tableW - potW, y },
+    end: { x: M + tableW, y },
+    thickness: 0.7,
+    color: INK,
+  });
+  draw(`Za ${org.name || "povjerioca"} (M.P. i potpis)`, M + tableW - potW, y - 13, {
+    size: 8.5,
+    align: "center",
+    width: potW,
+    color: MUTED,
+  });
+
+  draw(
+    `${naslov.charAt(0)}${naslov.slice(1).toLowerCase()} · ispis ${fmtDate(new Date().toISOString())} · poreznikalkulator.ba`,
+    M,
+    M - 18,
+    { size: 7.5, color: MUTED },
+  );
+
+  const bytes = await doc.save();
+  return Buffer.from(bytes);
+}
+
+module.exports = { buildKarticaPdf, buildIosPdf, buildOpomenaPdf };

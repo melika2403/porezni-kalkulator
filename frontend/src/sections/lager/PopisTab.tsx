@@ -197,6 +197,11 @@ function PopisiLista({
               >
                 <td className={`${tdCls} font-medium tabular-nums`}>
                   {p.oznaka}
+                  {p.pocetnoStanje && (
+                    <span className="ml-1.5 inline-block px-2 py-0.5 rounded-[20px] bg-info-bg text-info text-[11px] font-medium align-middle">
+                      početno stanje
+                    </span>
+                  )}
                 </td>
                 <td className={tdCls}>{formatDate(p.datum)}</td>
                 <td className={tdCls}>

@@ -436,7 +436,8 @@ export default function Navbar() {
                       {[
                         "Grupni uvoz izvoda: svi obrti odjednom",
                         "Automatsko knjiženje: KPR, KUF i KIF se pune sami",
-                        "Plate, MIP-1023 i svi porezni obrasci",
+                        "Plate: listići na email, MIP-1023 i svi obrasci",
+                        "Fakture, partneri i kartice kupaca",
                         "PDV prijava, e-KUF/e-KIF, roba i blagajna",
                       ].map((f) => (
                         <li

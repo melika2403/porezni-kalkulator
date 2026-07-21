@@ -85,6 +85,30 @@ export function r2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
+// Dopuni PRAZNA polja obveznika iz podataka organizacije (firm-level: JIB,
+// naziv, djelatnost) i vlasnika (person-level: JMB, ime, adresa). Snimljene
+// vrijednosti imaju prednost. Registri kreirani iz PK Office-a (nativna
+// stranica, knjiženje ulaznog računa) imaju prazan obveznik blok, pa se bez
+// ovoga zaglavlje obrasca prikaže prazno.
+function mergeObveznikSaOrg(p: ObveznikData, org: Organization): ObveznikData {
+  const owner = org.owner;
+  return {
+    ...p,
+    jmb: p.jmb || owner?.jmbg || "",
+    imeIPrezime:
+      p.imeIPrezime ||
+      [owner?.firstName, owner?.lastName].filter(Boolean).join(" "),
+    adresa: p.adresa || owner?.address || "",
+    grad: p.grad || owner?.city || "",
+    jib: p.jib || org.taxNumber || "",
+    naziv: p.naziv || org.name || "",
+    adresaDjelatnosti: p.adresaDjelatnosti || org.address || "",
+    gradDjelatnosti: p.gradDjelatnosti || org.city || "",
+    vrstaSifra: p.vrstaSifra || org.activityCode || "",
+    vrstaNaziv: p.vrstaNaziv || org.activityName || "",
+  };
+}
+
 // crypto.randomUUID() is only available in secure contexts (HTTPS or localhost).
 // On LAN-IP dev (http://192.168.x.x) it's undefined — fall back to a sufficient
 // local-id generator (used only as React key / row id, not security-sensitive).
@@ -416,6 +440,26 @@ function AmortizacijaApp() {
     () => allOrgs.find((o) => o.id === selectedOrgId) ?? null,
     [allOrgs, selectedOrgId],
   );
+  // Ref za applyLoadedData (deps []) da učitani podaci odmah prođu kroz
+  // mergeObveznikSaOrg bez re-kreiranja callback-a.
+  const activeOrgRef = useRef<Organization | null>(null);
+  useEffect(() => {
+    activeOrgRef.current = activeOrg;
+  }, [activeOrg]);
+  // Ako lista organizacija stigne POSLIJE učitanih podataka (prvi load),
+  // naknadno dopuni prazna polja. Jednom po org-i, da ne vraća vrijednost
+  // u polje koje korisnik namjerno obriše.
+  const prefillOrgIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!activeOrg) return;
+    if (prefillOrgIdRef.current === activeOrg.id) return;
+    prefillOrgIdRef.current = activeOrg.id;
+    setObveznik((p) => mergeObveznikSaOrg(p, activeOrg));
+  }, [activeOrg]);
+  // Skup već-prefill-ovanih (org, godina) kombinacija: prefill iz org podataka
+  // radimo SAMO na prvom učitavanju svake org+godine. Povratak na već viđenu
+  // godinu ne smije vratiti polje koje je korisnik u međuvremenu obrisao.
+  const loadedKeysRef = useRef<Set<string>>(new Set());
 
   /* ── Dirty tracking ── */
   const markDirty = useCallback(() => {
@@ -449,7 +493,7 @@ function AmortizacijaApp() {
     (data: { obveznik?: ObveznikData; rows?: AssetRow[] }) => {
       if (!data?.obveznik) return;
       isLoadingRef.current = true;
-      setObveznik({
+      const loaded: ObveznikData = {
         jmb: data.obveznik.jmb ?? "",
         imeIPrezime: data.obveznik.imeIPrezime ?? "",
         adresa: data.obveznik.adresa ?? "",
@@ -464,7 +508,15 @@ function AmortizacijaApp() {
         manualPeriod: data.obveznik.manualPeriod ?? false,
         periodOd: data.obveznik.periodOd ?? "",
         periodDo: data.obveznik.periodDo ?? "",
-      });
+      };
+      const org = activeOrgRef.current;
+      // prefill iz org podataka samo na prvom učitavanju ove org+godine;
+      // naknadni load (npr. povratak na godinu) poštuje snimljene (i namjerno
+      // obrisane) vrijednosti
+      const key = org ? `${org.id}:${loaded.godina}` : "";
+      const prviLoad = key !== "" && !loadedKeysRef.current.has(key);
+      if (key !== "") loadedKeysRef.current.add(key);
+      setObveznik(org && prviLoad ? mergeObveznikSaOrg(loaded, org) : loaded);
       setRows(
         (data.rows ?? []).map((r) => ({
           id: genId(),
@@ -987,31 +1039,13 @@ function AmortizacijaApp() {
       if (orgId !== null) {
         const org = allOrgs.find((o) => o.id === orgId);
         if (org) {
-          // Auto-popuna obveznika iz Organization podataka. PLDI obveznik blok
-          // ima i firm-level (JIB, naziv djelatnosti) i person-level (JMB,
-          // ime, adresa) polja. Firm popunjavamo iz Organization; person iz
-          // owner-a (ako postoji).
+          // Auto-popuna obveznika iz Organization + owner podataka (obveznik
+          // je upravo resetovan pa su sva polja prazna).
           isLoadingRef.current = true;
-          setObveznik((p) => ({
-            ...p,
-            jib: org.taxNumber ?? p.jib,
-            naziv: org.name ?? p.naziv,
-            adresaDjelatnosti: org.address ?? p.adresaDjelatnosti,
-            gradDjelatnosti: org.city ?? p.gradDjelatnosti,
-            vrstaSifra: org.activityCode ?? p.vrstaSifra,
-            vrstaNaziv: org.activityName ?? p.vrstaNaziv,
-            ...(org.owner
-              ? {
-                  jmb: org.owner.jmbg ?? p.jmb,
-                  imeIPrezime:
-                    [org.owner.firstName, org.owner.lastName]
-                      .filter(Boolean)
-                      .join(" ") || p.imeIPrezime,
-                  adresa: org.owner.address ?? p.adresa,
-                  grad: org.owner.city ?? p.grad,
-                }
-              : {}),
-          }));
+          setObveznik((p) => mergeObveznikSaOrg(p, org));
+          // označi da je ova org već prefill-ovana da per-org effect ne
+          // odradi isti (idempotentan) merge još jednom
+          prefillOrgIdRef.current = orgId;
           setTimeout(() => { isLoadingRef.current = false; }, 0);
         }
       }

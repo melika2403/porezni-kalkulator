@@ -16,6 +16,8 @@ import {
   IconPackage,
   IconTransfer,
   IconArrowRight,
+  IconSend,
+  IconUsers,
 } from "@tabler/icons-react";
 import { LandingCta } from "./LandingCta";
 import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
@@ -35,7 +37,12 @@ const FEATURES = [
   {
     icon: IconCoins,
     name: "Obračun plata",
-    desc: "Mjesečni obračun, platni listići, uplatnice i MIP-1023 XML i 2001/2002 obrasci na par klikova.",
+    desc: "Obračun, listići na email radnicima, uplatnice, MIP-1023 XML, 2001/2002, nalog za knjiženje, rekapitulacija i doprinosi vlasnika sa Obrascem 2002.",
+  },
+  {
+    icon: IconUsers,
+    name: "Radnici i evidencije",
+    desc: "Karton radnika po mjesecima, zakonska matična evidencija, spisak radnika u PDF/CSV i upozorenja na nepotpune podatke.",
   },
   {
     icon: IconReceiptTax,
@@ -45,7 +52,7 @@ const FEATURES = [
   {
     icon: IconFileText,
     name: "KPR i porezni obrasci",
-    desc: "Knjiga prihoda i rashoda se vodi sama, SPR i GPD se pripreme iz knjiga na kraju godine.",
+    desc: "Knjiga prihoda i rashoda se vodi sama, a SPR, GPD, ČOK i ONŠ se pripreme iz knjiga, sa podacima za uplatu.",
   },
   {
     icon: IconFileInvoice,
@@ -66,6 +73,42 @@ const FEATURES = [
     icon: IconTransfer,
     name: "Migracija iz starog programa",
     desc: "Besplatan uvoz artikala, partnera i izvoda: pređi bez ponovnog kucanja šifarnika.",
+  },
+];
+
+// Mock podaci za preview prozor obračuna plata (primjer, kao i dashboard)
+const PLATE_ROWS = [
+  {
+    ini: "AH",
+    ime: "Amila Hodžić",
+    chip: "Isplaćeno · listić poslan na email",
+    amt: "1.418,60 KM",
+    bg: "#d6e8d9",
+    fg: "#2d4633",
+  },
+  {
+    ini: "EK",
+    ime: "Emir Kovač",
+    chip: "Isplaćeno · listić poslan na email",
+    amt: "1.156,30 KM",
+    bg: "#d6e8d9",
+    fg: "#2d4633",
+  },
+  {
+    ini: "SB",
+    ime: "Selma Burić",
+    chip: "Obračunato",
+    amt: "1.270,30 KM",
+    bg: "#f7e9df",
+    fg: "#c8622a",
+  },
+  {
+    ini: "VL",
+    ime: "Vlasnik obrta",
+    chip: "Doprinosi vlasnika · Obrazac 2002",
+    amt: "612,30 KM",
+    bg: "#ede8db",
+    fg: "#5b6a5e",
   },
 ];
 
@@ -268,6 +311,116 @@ export default function PkOfficeLanding() {
         </div>
       </section>
 
+      {/* Preview: obračun plata */}
+      <section className={styles.previewWrap}>
+        <div className={styles.window}>
+          <div className={styles.windowBar}>
+            <span className={styles.dot} style={{ background: "#e06c5a" }} />
+            <span className={styles.dot} style={{ background: "#e3b341" }} />
+            <span className={styles.dot} style={{ background: "#5aa86f" }} />
+            <span className={styles.windowUrl}>
+              app.poreznikalkulator.ba/obracuni-plata
+            </span>
+          </div>
+          <div className={styles.windowBody}>
+            <p className={styles.greet}>Obračuni plata.</p>
+            <p className={styles.greetSub}>
+              juni 2026. · Demo obrt · 3 radnika i vlasnik
+            </p>
+
+            <div className={styles.kpiGrid}>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#d6e8d9", color: "#3a5c42" }}
+                >
+                  <IconCoins size={17} />
+                </span>
+                <p className={styles.kpiLabel}>Neto za isplatu</p>
+                <p className={styles.kpiValue}>3.845,20</p>
+              </div>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#ede8db", color: "#7a8a7d" }}
+                >
+                  <IconReceiptTax size={17} />
+                </span>
+                <p className={styles.kpiLabel}>Doprinosi i porez</p>
+                <p className={styles.kpiValue}>2.731,45</p>
+              </div>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#d6e8d9", color: "#3a5c42" }}
+                >
+                  <IconSend size={17} />
+                </span>
+                <p className={styles.kpiLabel}>Listići na email</p>
+                <p className={styles.kpiValue}>3 / 3</p>
+              </div>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#d6e8d9", color: "#2d6e54" }}
+                >
+                  <IconCircleCheck size={17} />
+                </span>
+                <p className={styles.kpiLabel}>MIP-1023</p>
+                <p className={styles.kpiValue}>Preuzet</p>
+              </div>
+            </div>
+
+            <div className={styles.rows}>
+              <div className={styles.rowsHead}>Obračun za juni 2026.</div>
+              {PLATE_ROWS.map((r) => (
+                <div key={r.ime} className={styles.row}>
+                  <span
+                    className={`${styles.rowIcon} ${styles.rowInitials}`}
+                    style={{ background: r.bg, color: r.fg }}
+                  >
+                    {r.ini}
+                  </span>
+                  <div className={styles.rowMain}>
+                    <p className={styles.rowTitle}>{r.ime}</p>
+                    <span
+                      className={styles.catChip}
+                      style={{ background: r.bg, color: r.fg }}
+                    >
+                      {r.chip}
+                    </span>
+                  </div>
+                  <span className={styles.rowAmt}>{r.amt}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className={styles.docRow}>
+              <span className={`${styles.docChip} ${styles.docChipPrimary}`}>
+                <IconSend size={14} />
+                Pošalji listiće email-om
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                MIP-1023 XML
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                Nalog za knjiženje
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                Rekapitulacija (PDF)
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                Uplatnice
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Funkcionalnosti */}
       <section className={styles.features}>
         <h2 className={styles.featuresTitle}>Šta PK Office radi</h2>
@@ -324,6 +477,8 @@ export default function PkOfficeLanding() {
             {[
               ["Grupni uvoz izvoda", "svi obrti odjednom, sami se rasporede"],
               ["Automatsko knjiženje", "KPR, KUF i KIF se pune sami"],
+              ["Doprinosi vlasnika obrta", "obračun i Obrazac 2002 svaki mjesec"],
+              ["Listići na email", "svaki radnik dobije svoj listić jednim klikom"],
               ["30 dana besplatne probe", "bez kartice i bez obaveze"],
               ["Besplatna migracija", "uvoz artikala, partnera i izvoda"],
             ].map(([title, desc]) => (

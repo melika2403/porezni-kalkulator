@@ -4,10 +4,22 @@
 // prodavac/kupac, stavke i totali. Za PDV obveznike nudi i uređivanje
 // KIF klasifikacija (tip/vrsta dokumenta, krajnja potrošnja).
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { IconFileTypePdf, IconPencil, IconUserEdit } from "@tabler/icons-react";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  IconFileTypePdf,
+  IconPencil,
+  IconTrash,
+  IconUserEdit,
+} from "@tabler/icons-react";
 import { Modal } from "src/components/app-shell/Modal";
-import { DOC_TYPE_LABEL, getInvoice, type Invoice } from "src/api/invoices";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
+import {
+  DOC_TYPE_LABEL,
+  deleteInvoice,
+  getInvoice,
+  type Invoice,
+} from "src/api/invoices";
 import { unwrap } from "src/api/auth";
 import { formatBAM, formatDate } from "src/lib/format";
 import { KifKnjizenjeModal } from "src/sections/pdv/KifKnjizenjeModal";
@@ -45,7 +57,19 @@ export function InvoicePreviewModal({
   /** kad je zadan: ikonica na kartici kupca otvara matične podatke partnera */
   orgId?: number | null;
 }) {
+  const router = useRouter();
+  const qc = useQueryClient();
   const [kifEdit, setKifEdit] = useState<Invoice | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => unwrap(deleteInvoice(id)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pk-invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setConfirmDelete(false);
+      onClose();
+    },
+  });
 
   const { data: inv, isLoading } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
@@ -118,6 +142,19 @@ export function InvoicePreviewModal({
                   <IconPencil size={15} /> Knjiženje u KIF
                 </button>
               )}
+              {inv.docType === "STANDARD" &&
+                (inv.status === "ISSUED" || inv.status === "DRAFT") &&
+                !inv.convertedToInvoiceId && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(true)}
+                    title="Obriši fakturu"
+                    aria-label="Obriši fakturu"
+                    className="inline-flex items-center justify-center p-2 rounded-lg border border-accent-500 text-accent-500 hover:bg-accent-500/10 transition-colors"
+                  >
+                    <IconTrash size={16} />
+                  </button>
+                )}
               {onOpenPdf && (
                 <button
                   type="button"
@@ -127,6 +164,20 @@ export function InvoicePreviewModal({
                   <IconFileTypePdf size={15} /> PDF
                 </button>
               )}
+              {inv.docType === "STANDARD" &&
+                (inv.status === "ISSUED" || inv.status === "DRAFT") &&
+                !inv.convertedToInvoiceId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      router.push(`/app/fakture/nova?uredi=${inv.id}`);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors"
+                  >
+                    <IconPencil size={15} /> Uredi
+                  </button>
+                )}
               <button
                 type="button"
                 onClick={onClose}
@@ -342,6 +393,25 @@ export function InvoicePreviewModal({
         orgId={orgId}
         initial={editPartner}
         onClose={() => setEditPartner(null)}
+      />
+      <ConfirmModal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Brisanje izlazne fakture"
+        message={
+          inv ? (
+            <>
+              Obrisati fakturu{" "}
+              <strong className="text-text-primary">{inv.fullNumber}</strong>?
+              Brisanje ostavlja prazninu u numeraciji i uklanja fakturu iz
+              KIF-a, PDV prijave i sa kartice kupca. Za ispravke je bolji Uredi
+              ili knjižna obavijest. Ovo se ne može poništiti.
+            </>
+          ) : null
+        }
+        confirmLabel="Da, obriši fakturu"
+        busy={deleteMut.isPending}
+        onConfirm={() => inv && deleteMut.mutate(inv.id)}
       />
     </>
   );

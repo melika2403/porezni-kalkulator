@@ -6,6 +6,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { LagerTab } from "src/sections/lager/LagerTab";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { PopisTab } from "src/sections/lager/PopisTab";
 import { NivelacijeTab } from "src/sections/lager/NivelacijeTab";
 import { RazduzenjaTab } from "src/sections/lager/RazduzenjaTab";
@@ -44,12 +45,15 @@ export default function LagerPage() {
   return (
     <div className="px-8 py-8 lg:px-12 lg:py-10">
       <div className="mb-6">
-        <h1 className="font-serif-display text-[clamp(2rem,3.5vw,2.8rem)] leading-[1.05] tracking-[-0.02em] text-text-primary">
-          Lager lista
-          <span className="text-brand-600" style={{ fontStyle: "italic" }}>
-            .
-          </span>
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="font-serif-display text-[clamp(2rem,3.5vw,2.8rem)] leading-[1.05] tracking-[-0.02em] text-text-primary">
+            Lager lista
+            <span className="text-brand-600" style={{ fontStyle: "italic" }}>
+              .
+            </span>
+          </h1>
+          <HelpButton slug="lager" />
+        </div>
         <p className="text-[14px] leading-6 text-text-tertiary mt-2 max-w-xl">
           Stanje zaliha po artiklu i cijeni, izvedeno iz kalkulacija i
           proknjiženih popisa. Popis svodi lager na stvarno izbrojano stanje.

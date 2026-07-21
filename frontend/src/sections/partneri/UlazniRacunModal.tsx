@@ -29,6 +29,7 @@ import {
 import { formatBAM } from "src/lib/format";
 import { isoToDisplay, parseDateInput, todayFormatted } from "src/lib/dateInput";
 import { formatKm, parseKm } from "src/lib/amountInput";
+import { appendAsset } from "src/api/amortizacija";
 
 type PartnerOption = { id: number; name: string; code?: number | null };
 
@@ -86,6 +87,10 @@ export function UlazniRacunModal({
   const [kpIznos, setKpIznos] = useState("");
   const [samoEvidencija, setSamoEvidencija] = useState(false);
   const [note, setNote] = useState("");
+  // stalno sredstvo: uz knjiženje se dodaje i u PLDI registar amortizacije
+  const [stalnoSredstvo, setStalnoSredstvo] = useState(false);
+  const [ssNaziv, setSsNaziv] = useState("");
+  const [ssVijek, setSsVijek] = useState("5");
   const [error, setError] = useState<string | null>(null);
   // matični podaci dobavljača (ikonica pored naziva otvara uređivanje)
   const { data: allPartners } = usePartners(open ? orgId : null);
@@ -161,6 +166,9 @@ export function UlazniRacunModal({
     setKpIznos("");
     setSamoEvidencija(false);
     setNote("");
+    setStalnoSredstvo(false);
+    setSsNaziv("");
+    setSsVijek("5");
     setError(null);
   }, [open, fixedPartner?.id, preselectPartnerId, editRacun?.id]);
 
@@ -288,8 +296,36 @@ export function UlazniRacunModal({
       // uvijek poslati (i prazno), da se u izmjeni napomena može obrisati
       note: note.trim(),
     };
+    // stalno sredstvo traži naziv (za PLDI registar amortizacije)
+    if (!isEdit && stalnoSredstvo && !samoEvidencija && !ssNaziv.trim()) {
+      setError("Upišite naziv stalnog sredstva.");
+      return;
+    }
     const opts = {
-      onSuccess: onClose,
+      onSuccess: async () => {
+        // uz knjiženje dodaj sredstvo u PLDI registar (best-effort: račun je
+        // već proknjižen, pa se modal zatvara i ako dodavanje ne uspije;
+        // sredstvo se tada doda ručno na /amortizacija)
+        if (!isEdit && stalnoSredstvo && !samoEvidencija && orgId) {
+          // nabavna vrijednost sredstva = iznos bez odbitnog PDV-a
+          const nabavna =
+            Math.round(
+              ((iznosFinal ?? 0) - (hasPdv && pdvNum ? pdvNum : 0)) * 100,
+            ) / 100;
+          if (nabavna > 0) {
+            await appendAsset({
+              organizationId: orgId,
+              godina: Number(datum.slice(0, 4)),
+              naziv: ssNaziv.trim(),
+              brojDokumenta: brojRacuna.trim(),
+              datumNabavke: datum,
+              nabavnaVrijednost: nabavna,
+              vijekTrajanja: Number(ssVijek) || 5,
+            });
+          }
+        }
+        onClose();
+      },
       onError: () => setError("Greška pri snimanju, pokušajte ponovo."),
     };
     if (isEdit && editRacun) {
@@ -662,6 +698,54 @@ export function UlazniRacunModal({
                 </span>
               </label>
             </div>
+          </div>
+        )}
+
+        {/* Stalno sredstvo: uz knjiženje ide i u PLDI registar amortizacije */}
+        {!isEdit && !samoEvidencija && (
+          <div className="rounded-lg border border-cream-300 bg-cream-50 px-3 py-2.5 space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={stalnoSredstvo}
+                onChange={(e) => setStalnoSredstvo(e.target.checked)}
+                className="mt-0.5 accent-[#3a5c42]"
+              />
+              <span className="text-[13px] text-text-primary">
+                Stalno sredstvo (oprema, vozilo, mašina...)
+                <span className="block text-[11.5px] text-text-tertiary">
+                  Dodaje se u registar stalnih sredstava (amortizacija);
+                  godišnja amortizacija se knjiži u KPR na zaključku godine.
+                </span>
+              </span>
+            </label>
+            {stalnoSredstvo && (
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px] gap-2">
+                <div>
+                  <label className={labelCls}>Naziv sredstva *</label>
+                  <input
+                    className={inputCls}
+                    value={ssNaziv}
+                    onChange={(e) => setSsNaziv(e.target.value)}
+                    placeholder="npr. Laptop Lenovo T14"
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Vijek trajanja</label>
+                  <PkSelect
+                    ariaLabel="Vijek trajanja"
+                    value={ssVijek}
+                    onChange={(v) => setSsVijek(String(v || "5"))}
+                    options={[1, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 25, 33, 40].map(
+                      (g) => ({
+                        value: String(g),
+                        label: `${g} ${g === 1 ? "godina" : g < 5 ? "godine" : "godina"} (${Math.round((100 / g) * 100) / 100}%)`,
+                      }),
+                    )}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

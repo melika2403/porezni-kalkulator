@@ -135,10 +135,13 @@ export function TransactionModal({
                 type="button"
                 disabled={updateTx.isPending}
                 onClick={() =>
-                  updateTx.mutate({
-                    txId: tx.id,
-                    patch: { status: "CONFIRMED" },
-                  })
+                  updateTx.mutate(
+                    {
+                      txId: tx.id,
+                      patch: { status: "CONFIRMED" },
+                    },
+                    { onSuccess: () => onClose() },
+                  )
                 }
                 className="px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
               >

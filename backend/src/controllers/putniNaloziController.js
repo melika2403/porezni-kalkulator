@@ -27,8 +27,15 @@ function vrijeme(v) {
 
 function nalogJson(n) {
   const dnevnice = r2(Number(n.brojDnevnica) * Number(n.dnevnicaIznos));
+  // naknada za upotrebu vlastitog vozila (posebna stavka, ne miješa se sa
+  // troškovima prevoza po računima)
+  const kmNaknada =
+    n.predjeniKm != null && n.kmStopa != null
+      ? r2(Number(n.predjeniKm) * Number(n.kmStopa))
+      : 0;
   const ukupno = r2(
     dnevnice +
+      kmNaknada +
       Number(n.troskoviPrevoza) +
       Number(n.troskoviSmjestaja) +
       Number(n.ostaliTroskovi),
@@ -56,6 +63,11 @@ function nalogJson(n) {
     ostaliTroskovi: Number(n.ostaliTroskovi),
     ostaloOpis: n.ostaloOpis,
     izvjestaj: n.izvjestaj,
+    predjeniKm: n.predjeniKm != null ? Number(n.predjeniKm) : null,
+    kmStopa: n.kmStopa != null ? Number(n.kmStopa) : null,
+    kmNaknada,
+    isplacenoDatum: n.isplacenoDatum ?? null,
+    blagajnaNalogId: n.blagajnaNalogId ?? null,
     ukupnoDnevnice: dnevnice,
     ukupno,
     zaIsplatu: r2(ukupno - Number(n.akontacija)),
@@ -99,6 +111,14 @@ function payloadFromBody(body) {
       ostaliTroskovi: amt(body.ostaliTroskovi),
       ostaloOpis: String(body.ostaloOpis || "").trim().slice(0, 255) || null,
       izvjestaj: String(body.izvjestaj || "").trim() || null,
+      predjeniKm: (() => {
+        const v = Number(body.predjeniKm);
+        return Number.isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : null;
+      })(),
+      kmStopa: (() => {
+        const v = Number(body.kmStopa);
+        return Number.isFinite(v) && v > 0 ? Math.round(v * 1000) / 1000 : null;
+      })(),
     },
   };
 }
@@ -185,6 +205,38 @@ async function update(req, res) {
   }
 }
 
+// POST /api/putni-nalozi/:orgId/:id/isplata { datum, blagajnaNalogId? }
+// Evidencija isplate naloga; datum: null poništava oznaku (i vezu na
+// blagajnički nalog). Sam blagajnički nalog se kreira posebno kroz
+// blagajna API (frontend orkestracija, čuva guard minimalnog salda).
+async function oznaciIsplatu(req, res) {
+  try {
+    const organizationId = parseId(req.params.orgId);
+    const id = parseId(req.params.id);
+    if (!organizationId || !id) {
+      return res.status(400).json({ ok: false, error: "INVALID_ID" });
+    }
+    const nalog = await PutniNalog.findOne({ where: { id, organizationId } });
+    if (!nalog) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+    if (req.body?.datum === null) {
+      await nalog.update({ isplacenoDatum: null, blagajnaNalogId: null });
+      return res.json({ ok: true, data: nalogJson(nalog) });
+    }
+    const datum = parseIsoDate(req.body?.datum);
+    if (!datum) {
+      return res.status(400).json({ ok: false, error: "DATUM_INVALID" });
+    }
+    await nalog.update({
+      isplacenoDatum: datum,
+      blagajnaNalogId: parseId(req.body?.blagajnaNalogId),
+    });
+    return res.json({ ok: true, data: nalogJson(nalog) });
+  } catch (err) {
+    console.error("putni nalog isplata error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 // DELETE /api/putni-nalozi/:orgId/:id
 async function remove(req, res) {
   const organizationId = parseId(req.params.orgId);
@@ -198,4 +250,4 @@ async function remove(req, res) {
   return res.json({ ok: true });
 }
 
-module.exports = { list, create, update, remove };
+module.exports = { list, create, update, remove, oznaciIsplatu };

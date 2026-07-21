@@ -860,15 +860,18 @@ function computePayrollSnapshot(input) {
   };
 }
 
-// ── GET /api/payroll?organizationId=X&year=Y&month=M ────────────────────────
+// ── GET /api/payroll?organizationId=X&year=Y[&month=M][&workerId=W] ─────────
+// month je opcion: bez njega vraća cijelu godinu (karton radnika po
+// mjesecima); workerId sužava na jednog radnika.
 async function list(req, res) {
   const organizationId = parseId(req.query.organizationId);
   const year = parseId(req.query.year);
   const month = parseId(req.query.month);
-  if (!organizationId || !year || !month) {
+  const workerId = parseId(req.query.workerId);
+  if (!organizationId || !year) {
     return res
       .status(400)
-      .json({ ok: false, error: "Missing organizationId/year/month" });
+      .json({ ok: false, error: "Missing organizationId/year" });
   }
 
   const org = await assertOrgAccess(organizationId, req.user.id);
@@ -880,9 +883,12 @@ async function list(req, res) {
     attributes: ["id"],
   });
   const validWorkerIds = new Set(existingWorkers.map((w) => w.id));
+  const where = { organizationId, year };
+  if (month) where.month = month;
+  if (workerId) where.workerId = workerId;
   const rawPayrolls = await Payroll.findAll({
-    where: { organizationId, year, month },
-    order: [["workerId", "ASC"]],
+    where,
+    order: [["month", "ASC"], ["workerId", "ASC"]],
   });
   const payrolls = rawPayrolls.filter((p) => validWorkerIds.has(p.workerId));
 

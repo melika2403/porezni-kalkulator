@@ -136,6 +136,8 @@ async function buildKpr(organizationId, from, to) {
       // kratak opis tipa knjiženja (ne ime organizacije)
       opis: cat.kprOpis || cat.label,
       kategorija: tx.category,
+      // izvor knjiženja, za klik na red u web knjizi
+      statementId: tx.statementId || null,
       ...centsToKm(cols),
     });
   }
@@ -160,6 +162,7 @@ async function buildKpr(organizationId, from, to) {
         brojDokumenta: "KP-1042",
         opis: p.opis || "Dnevni promet (pazar)",
         kategorija: "PAZAR",
+        statementId: null,
         ...centsToKm(cols),
       });
     }

@@ -6,10 +6,16 @@
 // kolonama "Bez PDV-a" i "PDV" tamo gdje obrazac to traži.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCircleCheck, IconDownload, IconLoader2 } from "@tabler/icons-react";
+import {
+  IconCircleCheck,
+  IconDownload,
+  IconLoader2,
+  IconSparkles,
+} from "@tabler/icons-react";
 import { PkAmountInput } from "src/components/app-shell/PkAmountInput";
 import { formatKm, parseKm } from "src/lib/amountInput";
 import { getPdvDodatak, upsertPdvDodatak, type PdvDodatak } from "src/api/pdv";
+import { getLager } from "src/api/lager";
 import { unwrap } from "src/api/auth";
 import { downloadDpdvXls } from "./dpdvExcel";
 
@@ -145,6 +151,7 @@ export function DPdvForm({
   defaultDjelatnost,
   djelatnostNaziv,
   org,
+  prijedlog,
 }: {
   orgId: number | null;
   month: number;
@@ -154,6 +161,8 @@ export function DPdvForm({
   djelatnostNaziv: string;
   /** podaci obrta za zaglavlje zvaničnog obrasca */
   org: DPdvOrgInfo | null;
+  /** predpopuna izvedena iz KUF/KIF za mjesec (KO, usluge iz inostranstva...) */
+  prijedlog?: Record<string, number>;
 }) {
   const { data, isSuccess } = useQuery({
     queryKey: ["pdv-dodatak", orgId, year, month],
@@ -179,6 +188,7 @@ export function DPdvForm({
       defaultDjelatnost={defaultDjelatnost}
       djelatnostNaziv={djelatnostNaziv}
       org={org}
+      prijedlog={prijedlog}
     />
   );
 }
@@ -191,6 +201,7 @@ function DPdvFormInner({
   defaultDjelatnost,
   djelatnostNaziv,
   org,
+  prijedlog,
 }: {
   orgId: number;
   month: number;
@@ -199,6 +210,7 @@ function DPdvFormInner({
   defaultDjelatnost: string;
   djelatnostNaziv: string;
   org: DPdvOrgInfo | null;
+  prijedlog?: Record<string, number>;
 }) {
   const qc = useQueryClient();
   const [djelatnost, setDjelatnost] = useState(
@@ -245,6 +257,52 @@ function DPdvFormInner({
   function set(key: string, v: string) {
     setValues((s) => ({ ...s, [key]: v }));
     setSavedAt(null);
+  }
+
+  // Predpopuna iz knjiga: KO izdate/primljene, usluge iz inostranstva,
+  // posebna šema (iz KUF/KIF za mjesec) + zalihe bez PDV-a sa lager liste
+  // na zadnji dan mjeseca (MPC / 1,17). Popunjeno se pregleda pa snima.
+  const [predlazem, setPredlazem] = useState(false);
+  const [prijedlogInfo, setPrijedlogInfo] = useState<string | null>(null);
+  async function predloziIzKnjiga() {
+    if (predlazem) return;
+    setPredlazem(true);
+    setPrijedlogInfo(null);
+    try {
+      const nova: Values = {};
+      for (const [k, v] of Object.entries(prijedlog ?? {})) {
+        if (v > 0) nova[k] = formatKm(v);
+      }
+      // zalihe: lager na zadnji dan mjeseca, MPC vrijednost bez 17% PDV-a
+      const zadnjiDan = `${year}-${String(month).padStart(2, "0")}-${String(
+        new Date(year, month, 0).getDate(),
+      ).padStart(2, "0")}`;
+      const lager = await getLager(orgId, zadnjiDan);
+      if (lager.ok) {
+        const mpcUkupno = lager.data.rows.reduce(
+          (s, r) => s + (Number(r.vrijednost) || 0),
+          0,
+        );
+        const bezPdv = Math.round((mpcUkupno / 1.17) * 100) / 100;
+        if (bezPdv > 0) nova[ZALIHE_KEY] = formatKm(bezPdv);
+      }
+      const brojPolja = Object.keys(nova).length;
+      if (brojPolja === 0) {
+        setPrijedlogInfo(
+          "Nema stavki za predložiti iz knjiga za ovaj mjesec.",
+        );
+        return;
+      }
+      setValues((s) => ({ ...s, ...nova }));
+      setSavedAt(null);
+      setPrijedlogInfo(
+        `Popunjeno ${brojPolja} ${brojPolja === 1 ? "polje" : "polja"} iz knjiga${
+          nova[ZALIHE_KEY] ? " (zalihe: lager bez 17% PDV-a)" : ""
+        }. Pregledajte pa sačuvajte.`,
+      );
+    } finally {
+      setPredlazem(false);
+    }
   }
 
   // Preuzimanje popunjenog zvaničnog obrasca: prvo snimi unos, pa generiše
@@ -303,6 +361,25 @@ function DPdvFormInner({
           period {String(month).padStart(2, "0")}/{year}. · unos se čuva po
           mjesecu
         </span>
+        <button
+          type="button"
+          onClick={predloziIzKnjiga}
+          disabled={predlazem}
+          title="Popuni polja koja se daju izvesti: izdate/primljene knjižne obavijesti, usluge iz inostranstva (tip 05), posebna šema (tip 08) i zalihe sa lager liste (bez 17% PDV-a)"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+        >
+          {predlazem ? (
+            <IconLoader2 size={14} className="animate-spin" />
+          ) : (
+            <IconSparkles size={14} />
+          )}
+          Predloži iz knjiga
+        </button>
+        {prijedlogInfo && (
+          <span className="w-full text-[12px] text-text-tertiary">
+            {prijedlogInfo}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">

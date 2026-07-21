@@ -21,7 +21,16 @@ async function request<T>(
   }
 }
 
-export type DocumentType = "AMS" | "SPR" | "ZO3" | "GPD" | "PLDI" | "JS3100" | "UOD";
+export type DocumentType =
+  | "AMS"
+  | "SPR"
+  | "ZO3"
+  | "GPD"
+  | "PLDI"
+  | "JS3100"
+  | "UOD"
+  | "COK" // članarina obrtničkoj komori (Obrazac ČOK)
+  | "ONS"; // naknade za šume (Obrazac ONŠ)
 
 export type SavedDocument<T = unknown> = {
   id: number;

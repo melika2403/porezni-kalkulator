@@ -4,23 +4,25 @@
 // subscription.endDate) + obavijesti koje admin objavi za korisnike. Otvaranjem
 // taba nepročitane obavijesti se označe pročitanim.
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { IconMessageCircle, IconAlertTriangle, IconInfoCircle, IconCircleCheck } from "@tabler/icons-react";
+import {
+  IconMessageCircle,
+  IconAlertTriangle,
+  IconInfoCircle,
+  IconCircleCheck,
+  IconBell,
+} from "@tabler/icons-react";
 import {
   getMyNotifications,
   markNotificationsRead,
   type Announcement,
   type SubscriptionNotice,
+  type SystemNotification,
 } from "src/api/announcements";
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("bs-BA", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
+// formatDate umjesto toLocaleDateString: browser bez bs locale podataka pada
+// na root locale i ispiše "2026-07-11" umjesto DD.MM.GGGG.
+import { formatDate } from "src/lib/format";
 
 // Boja i ikona callouta po tipu obavijesti.
 const TYPE_STYLES: Record<
@@ -45,11 +47,11 @@ function SubscriptionCallout({ sub }: { sub: SubscriptionNotice }) {
   if (sub.state === "EXPIRING") {
     const d = sub.daysLeft;
     const suffix = d === 1 ? "dan" : d < 5 ? "dana" : "dana";
-    text = `Vaša pretplata ističe za ${d} ${suffix} (${fmtDate(sub.endDate)}).`;
+    text = `Vaša pretplata ističe za ${d} ${suffix} (${formatDate(sub.endDate)}).`;
   } else if (sub.state === "TODAY") {
     text = "Vaša pretplata ističe danas.";
   } else {
-    text = `Vaša pretplata je istekla (${fmtDate(sub.endDate)}).`;
+    text = `Vaša pretplata je istekla (${formatDate(sub.endDate)}).`;
   }
 
   const danger = sub.state === "EXPIRED";
@@ -83,8 +85,10 @@ function SubscriptionCallout({ sub }: { sub: SubscriptionNotice }) {
 
 export function PorukeTab({ onMarkedRead }: { onMarkedRead?: () => void }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [sistemske, setSistemske] = useState<SystemNotification[]>([]);
   const [sub, setSub] = useState<SubscriptionNotice>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let alive = true;
@@ -92,13 +96,19 @@ export function PorukeTab({ onMarkedRead }: { onMarkedRead?: () => void }) {
       if (!alive) return;
       if (res.ok) {
         setAnnouncements(res.data.announcements);
+        setSistemske(res.data.sistemske ?? []);
         setSub(res.data.subscription);
         // Označi pročitanim ako ima nepročitanih, pa lokalno očisti badge.
         if (res.data.unread > 0) {
           markNotificationsRead().then(() => {
             if (!alive) return;
             setAnnouncements((prev) => prev.map((a) => ({ ...a, read: true })));
+            setSistemske((prev) => prev.map((n) => ({ ...n, read: true })));
             onMarkedRead?.();
+            // badge na sidebaru čita ovaj keš
+            queryClient.invalidateQueries({
+              queryKey: ["notifications-unread"],
+            });
           });
         }
       }
@@ -107,9 +117,12 @@ export function PorukeTab({ onMarkedRead }: { onMarkedRead?: () => void }) {
     return () => {
       alive = false;
     };
-  }, [onMarkedRead]);
+  }, [onMarkedRead, queryClient]);
 
-  const hasContent = announcements.length > 0 || (sub && sub.state !== "OK");
+  const hasContent =
+    announcements.length > 0 ||
+    sistemske.length > 0 ||
+    (sub && sub.state !== "OK");
 
   if (loading) {
     return (
@@ -139,6 +152,49 @@ export function PorukeTab({ onMarkedRead }: { onMarkedRead?: () => void }) {
     <div className="flex flex-col gap-3">
       <SubscriptionCallout sub={sub} />
 
+      {/* sistemske notifikacije (rokovi, izvodi, plate...): klik vodi na
+          odgovarajuću stranicu */}
+      {sistemske.map((n) => {
+        const inner = (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex w-7 h-7 rounded-lg bg-brand-100 text-brand-700 items-center justify-center shrink-0">
+                <IconBell size={15} />
+              </span>
+              <span className="text-[14px] font-medium text-text-primary flex-1 min-w-0">
+                {n.title}
+              </span>
+              {!n.read && (
+                <span className="w-2 h-2 rounded-full bg-brand-600 shrink-0" />
+              )}
+              <span className="text-[11.5px] text-text-tertiary shrink-0">
+                {formatDate(n.createdAt)}
+              </span>
+            </div>
+            {n.body && (
+              <p className="text-[13px] leading-6 text-text-secondary mt-1.5 whitespace-pre-wrap">
+                {n.body}
+              </p>
+            )}
+          </>
+        );
+        const cls =
+          "rounded-xl border border-cream-300 border-l-[3px] border-l-brand-600 bg-cream-100 px-4 py-3.5 block";
+        return n.link ? (
+          <Link
+            key={`s-${n.id}`}
+            href={n.link}
+            className={`${cls} hover:bg-cream-50 transition-colors`}
+          >
+            {inner}
+          </Link>
+        ) : (
+          <div key={`s-${n.id}`} className={cls}>
+            {inner}
+          </div>
+        );
+      })}
+
       {announcements.map((a) => {
         const s = TYPE_STYLES[a.type] || TYPE_STYLES.INFO;
         return (
@@ -155,7 +211,7 @@ export function PorukeTab({ onMarkedRead }: { onMarkedRead?: () => void }) {
                 <span className="w-2 h-2 rounded-full bg-brand-600 shrink-0" />
               )}
               <span className="text-[11.5px] text-text-tertiary shrink-0">
-                {fmtDate(a.publishedAt)}
+                {formatDate(a.publishedAt)}
               </span>
             </div>
             <p className="text-[13px] leading-6 text-text-secondary mt-1.5 whitespace-pre-wrap">

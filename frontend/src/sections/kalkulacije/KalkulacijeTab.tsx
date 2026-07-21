@@ -5,6 +5,7 @@
 // (/app/kalkulacije/nova odnosno /[id]).
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   IconCopy,
@@ -22,7 +23,7 @@ import { usePartners } from "src/hooks/usePartners";
 import { getKalkulacija, type Kalkulacija } from "src/api/kalkulacije";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
-import { formatBAM, formatDate } from "src/lib/format";
+import { formatBAM, formatDate, todayIso } from "src/lib/format";
 import { parseDateInput } from "src/lib/dateInput";
 import { downloadKcmPdf } from "./kcmPdf";
 
@@ -31,7 +32,33 @@ const thCls =
 const tdCls = "px-3 py-2.5 text-[12.5px] text-text-primary whitespace-nowrap";
 const tdNum = `${tdCls} text-right tabular-nums`;
 
+/** Status plaćanja ulaznog računa kalkulacije: plaćen / otvoren / kasni. */
+function RacunStatusBadge({ k }: { k: Kalkulacija }) {
+  if (!k.racunStatus) return <span className="text-text-tertiary/50">–</span>;
+  if (k.racunStatus === "PLACEN") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-success-bg text-success">
+        plaćen
+      </span>
+    );
+  }
+  const danas = todayIso();
+  if (k.racunRok && String(k.racunRok).slice(0, 10) < danas) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent-bg text-accent-500">
+        kasni
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-warning-bg text-warning">
+      otvoren
+    </span>
+  );
+}
+
 export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
+  const router = useRouter();
   const currentYear = new Date().getFullYear();
   // filteri: godina, period od-do, dobavljač, tekst pretraga
   const [godina, setGodina] = useState<string>(String(currentYear));
@@ -208,6 +235,7 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
               <th className={thCls}>Datum</th>
               <th className={thCls}>Dobavljač</th>
               <th className={thCls}>Broj računa</th>
+              <th className={thCls}>Plaćanje</th>
               <th className={`${thCls} text-right`}>Stavki</th>
               <th className={`${thCls} text-right`}>Iznos računa</th>
               <th className={`${thCls} text-right`}>Maloprodajni iznos</th>
@@ -217,7 +245,7 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
           <tbody>
             {isLoading && (
               <tr>
-                <td className={tdCls} colSpan={8}>
+                <td className={tdCls} colSpan={9}>
                   Učitavanje...
                 </td>
               </tr>
@@ -226,7 +254,7 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
               <tr>
                 <td
                   className="px-3 py-8 text-center text-[13px] text-text-tertiary"
-                  colSpan={8}
+                  colSpan={9}
                 >
                   Nema kalkulacija za izabrane filtere. Kliknite &quot;Nova
                   kalkulacija&quot; za novo zaduženje maloprodaje.
@@ -236,14 +264,32 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
             {rows.map((k) => (
               <tr
                 key={k.id}
-                className="border-b border-cream-300 last:border-b-0 hover:bg-cream-50 transition-colors"
+                onClick={() => router.push(`/app/kalkulacije/${k.id}`)}
+                title="Otvori kalkulaciju"
+                className="border-b border-cream-300 last:border-b-0 cursor-pointer hover:bg-cream-50 transition-colors"
               >
                 <td className={`${tdCls} font-medium tabular-nums`}>
                   {k.oznaka}
                 </td>
                 <td className={tdCls}>{formatDate(k.datum)}</td>
-                <td className={tdCls}>{k.partner?.name ?? "–"}</td>
+                <td className={tdCls}>
+                  {k.partner ? (
+                    <Link
+                      href={`/app/partneri/${k.partner.id}`}
+                      title="Otvori karticu partnera"
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:underline hover:text-brand-700 transition-colors"
+                    >
+                      {k.partner.name}
+                    </Link>
+                  ) : (
+                    "–"
+                  )}
+                </td>
                 <td className={`${tdCls} tabular-nums`}>{k.brojRacuna}</td>
+                <td className={tdCls}>
+                  <RacunStatusBadge k={k} />
+                </td>
                 <td className={tdNum}>{k.stavkeCount}</td>
                 <td className={tdNum}>{formatBAM(k.iznosRacuna)}</td>
                 <td className={`${tdNum} font-medium`}>
@@ -253,7 +299,10 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
                   <div className="flex items-center justify-end gap-0.5">
                     <button
                       type="button"
-                      onClick={() => preuzmiPdf(k)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        preuzmiPdf(k);
+                      }}
                       disabled={pdfId != null}
                       className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
                       title="Preuzmi PDF (KCM obrazac)"
@@ -266,6 +315,7 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
                     </button>
                     <Link
                       href={`/app/kalkulacije/${k.id}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-cream-200 transition-colors"
                       title="Uredi"
                     >
@@ -273,6 +323,7 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
                     </Link>
                     <Link
                       href={`/app/kalkulacije/nova?kopiraj=${k.id}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-cream-200 transition-colors"
                       title="Kopiraj u novu kalkulaciju"
                     >
@@ -280,7 +331,8 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
                     </Link>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setBrisiError(null);
                         setBrisi(k);
                       }}
@@ -297,7 +349,7 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
           {rows.length > 0 && (
             <tfoot>
               <tr className="border-t border-cream-300 bg-cream-50">
-                <td className={`${tdCls} font-medium`} colSpan={5}>
+                <td className={`${tdCls} font-medium`} colSpan={6}>
                   Ukupno ({rows.length})
                 </td>
                 <td className={`${tdNum} font-medium`}>

@@ -28,6 +28,7 @@ import {
   generateWorkerPayslip,
   getMonthlySummary,
   listPayrolls,
+  markMipDownloaded,
   markMonthPaid,
   patchPayroll,
   savePayrollInputs,
@@ -106,7 +107,7 @@ import {
   type Obrazac2002Data,
   type VrstaSamostalne2002,
 } from "./fillObrazac2002";
-import UvozPlataModal from "./UvozPlataModal";
+import { UvozPlataPkModal } from "./UvozPlataPkModal";
 import PostingAccountsModal from "./PostingAccountsModal";
 import styles from "./obracunPlata.module.css";
 import js3Styles from "./js3100.module.css";
@@ -1263,8 +1264,10 @@ function ObracunPlataApp() {
         />
       )}
 
+      {/* isti PK Office modal kao na /app/obracuni-plata (odluka vlasnika:
+          isti dizajn na obje strane; .pk-scope na Modal-u nosi PK stil) */}
       {uvozOpen && orgId !== null && (
-        <UvozPlataModal
+        <UvozPlataPkModal
           orgId={orgId}
           year={year}
           radnici={radnici}
@@ -1893,6 +1896,24 @@ function MonthlyPanel({
   const monthHasImported = useMemo(() => {
     for (const p of payrollByWorker.values()) if (p.imported) return true;
     return false;
+  }, [payrollByWorker]);
+
+  // Radnici aktivni u mjesecu bez obračuna, dok mjesec ima bar jedan obračun:
+  // klasičan propust koji se inače otkrije tek kad u MIP-u fali red.
+  const bezObracuna = useMemo(() => {
+    if (payrollByWorker.size === 0) return [];
+    return radnici.filter((w) => {
+      const p = payrollByWorker.get(w.id);
+      return !p || !(Number(p.gross) > 0);
+    });
+  }, [radnici, payrollByWorker]);
+
+  // MIP-1023 XML za ovaj mjesec već preuzet? (oznaka uz PUFBiH grupu)
+  const mipPreuzetAt = useMemo(() => {
+    for (const p of payrollByWorker.values()) {
+      if (p.mipDownloadedAt) return p.mipDownloadedAt;
+    }
+    return null;
   }, [payrollByWorker]);
   // notify za payslipsEmailMutation feedback (uspjeh/skip/error rezime),
   // confirm za upozorenje kod uvezenih plata (naš dijalog, ne window.confirm)
@@ -2806,6 +2827,13 @@ function MonthlyPanel({
     },
     onSuccess: ({ blob, filename }) => {
       triggerBlobDownload(blob, filename);
+      // XML se generiše client-side pa backend sam ne vidi download; oznaka
+      // "MIP preuzet" se čita iz payrolls.mipDownloadedAt.
+      markMipDownloaded({ organizationId: orgId, year, month }).then(() => {
+        queryClient.invalidateQueries({
+          queryKey: ["payrolls", orgId, year, month],
+        });
+      });
     },
   });
 
@@ -3369,6 +3397,30 @@ function MonthlyPanel({
             maxWidth: 980,
           }}
         >
+          {/* Radnici bez obračuna dok mjesec ima druge obračune: bez ovoga se
+              propust otkrije tek kad u MIP-u fali red */}
+          {bezObracuna.length > 0 && (
+            <div
+              style={{
+                padding: "0.7rem 1rem",
+                borderRadius: 8,
+                border: "1px solid #f0d9a8",
+                background: "#fdf6e3",
+                color: "#7a5b13",
+                fontSize: "0.88rem",
+                lineHeight: 1.5,
+              }}
+            >
+              <strong>
+                Bez obračuna za {MONTHS[month - 1].toLowerCase()}:
+              </strong>{" "}
+              {bezObracuna
+                .map((w) => `${w.firstName} ${w.lastName}`.trim())
+                .join(", ")}
+              . Radnici bez obračuna ne ulaze u MIP-1023, platne listiće ni
+              uplatnice.
+            </div>
+          )}
           {/* GRUPA 1, Za isplatu plata (banka) */}
           <div
             style={{
@@ -4115,14 +4167,43 @@ function MonthlyPanel({
           >
             <div
               style={{
-                fontSize: "0.78rem",
-                fontWeight: 600,
-                color: "var(--mid, #6c6862)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                flexWrap: "wrap",
               }}
             >
-              Za poreznu upravu (PUFBiH)
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
+                  color: "var(--mid, #6c6862)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Za poreznu upravu (PUFBiH)
+              </div>
+              {mipPreuzetAt && (
+                <span
+                  title={`MIP-1023 XML preuzet ${(() => {
+                    const [y, mo, d] = mipPreuzetAt.slice(0, 10).split("-");
+                    return `${d}.${mo}.${y}.`;
+                  })()}`}
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: "#2d6e54",
+                    background: "#e3efe7",
+                    border: "1px solid #bcd9c6",
+                    borderRadius: 999,
+                    padding: "0.15rem 0.6rem",
+                  }}
+                >
+                  MIP preuzet ✓
+                </span>
+              )}
             </div>
             <div
               style={{
@@ -5933,7 +6014,7 @@ function PayrollModal({
               </div>
               <p className={styles.note}>
                 Doprinosi se obračunavaju na stvarnu bruto platu. Konačni
-                izračun se snima u snapshot pri klikanju "Obračunaj".
+                izračun se snima u snapshot pri klikanju &quot;Obračunaj&quot;.
               </p>
             </div>
           )}

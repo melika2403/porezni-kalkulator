@@ -88,6 +88,40 @@ router.post(
   planGate,
   ctrl.karticaEmail,
 );
+// IOS: izvod otvorenih stavki na dan (usaglašavanje potraživanja/obaveza)
+router.get(
+  "/:orgId/:partnerId/ios.pdf",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
+  ctrl.iosPdfDownload,
+);
+router.post(
+  "/:orgId/:partnerId/ios/email",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  ctrl.iosEmail,
+);
+// opomena kupcu za dospjele neplaćene račune (nivo 1 = opomena,
+// nivo 2 = pred utuženje)
+router.get(
+  "/:orgId/:partnerId/opomena.pdf",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
+  ctrl.opomenaPdfDownload,
+);
+router.post(
+  "/:orgId/:partnerId/opomena/email",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  ctrl.opomenaEmail,
+);
+// spajanje duplikata: sav promet izvornog prelazi na ciljnog partnera
+router.post(
+  "/:orgId/:partnerId/merge",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  ctrl.merge,
+);
 router.post(
   "/:orgId",
   requireAuth,

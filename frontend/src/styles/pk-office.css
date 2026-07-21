@@ -3,6 +3,13 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Prostor za scrollbar je uvijek rezervisan i kad skrola cijeli prozor
+   (mali/nizak viewport), da se sadržaj ne pomjera lijevo-desno kad
+   promjena taba/stranice produži ili skrati sadržaj. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* Override marketing globals.css za /app/* rute.
    Marketing DM Sans/DM Serif Display fontovi su već loadovani u root layout-u
    kroz globals.css — samo ih ovdje aktiviramo na body. */

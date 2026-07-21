@@ -6,6 +6,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { KalkulacijeTab } from "src/sections/kalkulacije/KalkulacijeTab";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { ArtikliTab } from "src/sections/kalkulacije/ArtikliTab";
 import { MarzaTab } from "src/sections/kalkulacije/MarzaTab";
 
@@ -31,12 +32,15 @@ export default function KalkulacijePage() {
   return (
     <div className="px-8 py-8 lg:px-12 lg:py-10 max-w-[1200px] mx-auto">
       <div className="mb-6">
-        <h1 className="font-serif-display text-[clamp(2rem,3.5vw,2.8rem)] leading-[1.05] tracking-[-0.02em] text-text-primary">
-          Kalkulacije
-          <span className="text-brand-600" style={{ fontStyle: "italic" }}>
-            .
-          </span>
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="font-serif-display text-[clamp(2rem,3.5vw,2.8rem)] leading-[1.05] tracking-[-0.02em] text-text-primary">
+            Kalkulacije
+            <span className="text-brand-600" style={{ fontStyle: "italic" }}>
+              .
+            </span>
+          </h1>
+          <HelpButton slug="kalkulacije" />
+        </div>
         <p className="text-[14px] leading-6 text-text-tertiary mt-2 max-w-xl">
           Maloprodajne kalkulacije (KCM obrazac) i šifarnik artikala. Svaka
           kalkulacija automatski knjiži ulazni račun dobavljača u obaveze i

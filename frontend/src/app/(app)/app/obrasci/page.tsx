@@ -10,10 +10,13 @@ import {
   IconFileInvoice,
   IconArrowRight,
   IconAlertTriangle,
+  IconBuildingStore,
   IconDownload,
   IconTrash,
+  IconTrees,
   IconArrowForwardUp,
 } from "@tabler/icons-react";
+import { HelpButton } from "src/components/app-shell/HelpButton";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import { getForms, getOrganization, type FormRecord } from "src/api/profile";
@@ -24,7 +27,19 @@ import { fillGpdTemplate, type GpdData } from "src/sections/gpd/fillGpd";
 import { formatKm } from "src/lib/amountInput";
 import { SprModal } from "src/sections/obrasci/SprModal";
 import { GpdModal } from "src/sections/obrasci/GpdModal";
+import { CokModal, type CokSaved } from "src/sections/obrasci/CokModal";
+import { OnsModal, type OnsSaved } from "src/sections/obrasci/OnsModal";
+import { ZakljucakGodine } from "src/sections/obrasci/ZakljucakGodine";
+import { buildCokPdf } from "src/sections/obrasci/cokPdf";
+import { buildOnsPdf } from "src/sections/obrasci/onsPdf";
 import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
+
+const FORM_LABELS: Record<string, string> = {
+  SPR: "SPR-1053",
+  GPD: "GPD-1051",
+  COK: "Obrazac ČOK",
+  ONS: "Obrazac ONŠ",
+};
 
 const MONTHS = [
   "Januar",
@@ -75,6 +90,8 @@ export default function ObrasciPage() {
   const [year, setYear] = useState(Math.max(currentYear, FIRST_YEAR));
   const [sprOpen, setSprOpen] = useState(false);
   const [gpdOpen, setGpdOpen] = useState(false);
+  const [cokOpen, setCokOpen] = useState(false);
+  const [onsOpen, setOnsOpen] = useState(false);
   const yearOptions = Array.from(
     { length: Math.max(currentYear + 1 - FIRST_YEAR + 1, 2) },
     (_, i) => currentYear + 1 - i,
@@ -192,6 +209,33 @@ export default function ObrasciPage() {
   );
   const pausalni = orgQ.data?.taxRegime === "PAUSALNI";
 
+  const latestForYear = (type: "COK" | "ONS") =>
+    (formsQ.data ?? [])
+      .filter(
+        (f) =>
+          f.type === type && f.year === year && f.organization?.id === orgId,
+      )
+      .sort((a, b) => b.id - a.id)[0];
+  const cokForm = latestForYear("COK");
+  const onsForm = latestForYear("ONS");
+
+  // Rezime "za uplatu" na karticama: iz spremljenih ČOK/ONŠ obrazaca za
+  // izabranu godinu (da se iznos vidi bez otvaranja modala)
+  const naknadeQ = useQuery({
+    queryKey: ["obrasci-naknade", orgId, year, cokForm?.id, onsForm?.id],
+    enabled: cokForm != null || onsForm != null,
+    queryFn: async () => {
+      const [cokDoc, onsDoc] = await Promise.all([
+        cokForm ? getDocument<CokSaved>(cokForm.id) : null,
+        onsForm ? getDocument<OnsSaved>(onsForm.id) : null,
+      ]);
+      return {
+        cok: cokDoc?.ok ? cokDoc.data.data : null,
+        ons: onsDoc?.ok ? onsDoc.data.data : null,
+      };
+    },
+  });
+
   // Spremljeni obrasci: SVE godine (podaci iz ranijih godina trebaju kod
   // izrade novih, npr. gubitak i akontacije)
   const savedDocs = formsQ.data ?? [];
@@ -203,6 +247,12 @@ export default function ObrasciPage() {
       (f) => f.type === "GPD" && (f.organization?.id === orgId || !f.organization),
     )
     .sort((a, b) => b.year - a.year || b.id - a.id);
+  const cokDocs = savedDocs
+    .filter((f) => f.type === "COK" && f.organization?.id === orgId)
+    .sort((a, b) => b.year - a.year || b.id - a.id);
+  const onsDocs = savedDocs
+    .filter((f) => f.type === "ONS" && f.organization?.id === orgId)
+    .sort((a, b) => b.year - a.year || b.id - a.id);
 
   const [busyDocId, setBusyDocId] = useState<number | null>(null);
 
@@ -210,13 +260,26 @@ export default function ObrasciPage() {
     if (busyDocId != null) return;
     setBusyDocId(f.id);
     try {
-      const doc = await getDocument<SprData | GpdData>(f.id);
+      const doc = await getDocument<SprData | GpdData | CokSaved | OnsSaved>(
+        f.id,
+      );
       if (!doc.ok || !doc.data.data) return;
+      const d = doc.data.data;
       const bytes =
         f.type === "SPR"
-          ? await fillSprTemplate(doc.data.data as SprData)
-          : await fillGpdTemplate(doc.data.data as GpdData);
-      triggerDownload(bytes, `${f.type}-${f.type === "SPR" ? "1053" : "1051"}_${f.year}.pdf`);
+          ? await fillSprTemplate(d as SprData)
+          : f.type === "GPD"
+            ? await fillGpdTemplate(d as GpdData)
+            : f.type === "COK"
+              ? await buildCokPdf(d as CokSaved)
+              : await buildOnsPdf(d as OnsSaved);
+      const fileBase =
+        f.type === "SPR"
+          ? "SPR-1053"
+          : f.type === "GPD"
+            ? "GPD-1051"
+            : f.type;
+      triggerDownload(bytes, `${fileBase}_${f.year}.pdf`);
     } finally {
       setBusyDocId(null);
     }
@@ -268,9 +331,12 @@ export default function ObrasciPage() {
           <span className="w-[7px] h-[7px] rounded-full bg-brand-600" />
           Godišnji obrasci
         </div>
-        <h1 className="font-serif-display text-[28px] leading-tight text-text-primary mb-[5px]">
-          Obrasci.
-        </h1>
+        <div className="flex items-center gap-4 mb-[5px]">
+          <h1 className="font-serif-display text-[28px] leading-tight text-text-primary">
+            Obrasci.
+          </h1>
+          <HelpButton slug="obrasci" />
+        </div>
         <p className="text-[13px] leading-6 text-text-tertiary max-w-[520px]">
           Priprema SPR-1053 i GPD-1051 iz knjiga: prihodi i rashodi iz KPR-a,
           amortizacija iz PLDI, akontacije sa izvoda. Redoslijed: prvo SPR,
@@ -366,6 +432,89 @@ export default function ObrasciPage() {
         </div>
       </div>
 
+      {/* ČOK i ONŠ: kantonalne naknade koje se predaju ručno u PU */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="rounded-xl border border-cream-300 bg-cream-100 p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <span className="inline-flex w-10 h-10 rounded-lg bg-brand-100 text-brand-700 items-center justify-center">
+              <IconBuildingStore size={20} />
+            </span>
+            {savedBadge(cokForm != null)}
+          </div>
+          <div className="text-[15px] font-medium text-text-primary">
+            Obrazac ČOK
+          </div>
+          <p className="text-[12.5px] leading-5 text-text-tertiary mt-1 mb-2">
+            Godišnja članarina obrtničkoj komori kantona (0,50%). Osnovica se
+            vuče iz obračuna doprinosa vlasnika (r.br. 10 obrasca 2002) za{" "}
+            {year}. godinu; predaje se isprintan i ovjeren u PU.
+          </p>
+          {naknadeQ.data?.cok && (
+            <p className="text-[12.5px] font-medium text-text-primary mb-3">
+              Članarina {formatKm(naknadeQ.data.cok.clanarina)} KM ·{" "}
+              {naknadeQ.data.cok.razlika > 0 ? (
+                <>
+                  za uplatu{" "}
+                  <span className="text-accent-500">
+                    {formatKm(naknadeQ.data.cok.razlika)} KM
+                  </span>
+                </>
+              ) : (
+                <span className="text-success">uplaćeno u cijelosti</span>
+              )}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => setCokOpen(true)}
+            disabled={orgId == null}
+            className="mt-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-brand-600 text-brand-700 text-[13px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            Pripremi obračun <IconArrowRight size={15} />
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-cream-300 bg-cream-100 p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <span className="inline-flex w-10 h-10 rounded-lg bg-success-bg text-success items-center justify-center">
+              <IconTrees size={20} />
+            </span>
+            {savedBadge(onsForm != null)}
+          </div>
+          <div className="text-[15px] font-medium text-text-primary">
+            Obrazac ONŠ (šume)
+          </div>
+          <p className="text-[12.5px] leading-5 text-text-tertiary mt-1 mb-2">
+            Naknada za općekorisne funkcije šuma: 0,07% od ukupnog prihoda
+            (iz KPR-a), 100% budžetu kantona. Predaje se isprintan i ovjeren
+            u PU.
+          </p>
+          {naknadeQ.data?.ons && (
+            <p className="text-[12.5px] font-medium text-text-primary mb-3">
+              Naknada {formatKm(naknadeQ.data.ons.naknada)} KM ·{" "}
+              {naknadeQ.data.ons.razlika > 0 ? (
+                <>
+                  za uplatu{" "}
+                  <span className="text-accent-500">
+                    {formatKm(naknadeQ.data.ons.razlika)} KM
+                  </span>
+                </>
+              ) : (
+                <span className="text-success">uplaćeno u cijelosti</span>
+              )}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => setOnsOpen(true)}
+            disabled={orgId == null}
+            className="mt-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-brand-600 text-brand-700 text-[13px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            Pripremi obračun <IconArrowRight size={15} />
+          </button>
+        </div>
+      </div>
+
       {sprOpen && orgId != null && (
         <SprModal
           key={`spr-${orgId}-${year}`}
@@ -374,12 +523,43 @@ export default function ObrasciPage() {
           onClose={() => setSprOpen(false)}
         />
       )}
+      {cokOpen && orgId != null && (
+        <CokModal
+          key={`cok-${orgId}-${year}-${cokForm?.id ?? 0}`}
+          orgId={orgId}
+          year={year}
+          savedFormId={cokForm?.id ?? null}
+          onClose={() => setCokOpen(false)}
+        />
+      )}
+      {onsOpen && orgId != null && (
+        <OnsModal
+          key={`ons-${orgId}-${year}-${onsForm?.id ?? 0}`}
+          orgId={orgId}
+          year={year}
+          savedFormId={onsForm?.id ?? null}
+          onClose={() => setOnsOpen(false)}
+        />
+      )}
       {gpdOpen && orgId != null && (
         <GpdModal
           key={`gpd-${orgId}-${year}`}
           orgId={orgId}
           year={year}
           onClose={() => setGpdOpen(false)}
+        />
+      )}
+
+      {/* Zaključak godine: checklist zakonskih koraka + knjiženje amortizacije */}
+      {orgId != null && (
+        <ZakljucakGodine
+          orgId={orgId}
+          orgName={orgQ.data?.name ?? ""}
+          year={year}
+          sprSaved={sprSaved}
+          gpdSaved={gpdSaved}
+          cokSaved={cokForm != null}
+          onsSaved={onsForm != null}
         />
       )}
 
@@ -474,6 +654,20 @@ export default function ObrasciPage() {
           onDownload={downloadDoc}
           onDelete={removeDoc}
         />
+        <SavedDocsCard
+          title="Spremljeni ČOK"
+          docs={cokDocs}
+          busyDocId={busyDocId}
+          onDownload={downloadDoc}
+          onDelete={removeDoc}
+        />
+        <SavedDocsCard
+          title="Spremljeni ONŠ (šume)"
+          docs={onsDocs}
+          busyDocId={busyDocId}
+          onDownload={downloadDoc}
+          onDelete={removeDoc}
+        />
       </div>
 
       <ConfirmModal
@@ -485,7 +679,7 @@ export default function ObrasciPage() {
             <>
               Obrisati spremljeni{" "}
               <strong className="text-text-primary">
-                {docZaBrisanje.type === "SPR" ? "SPR-1053" : "GPD-1051"} za{" "}
+                {FORM_LABELS[docZaBrisanje.type] ?? docZaBrisanje.type} za{" "}
                 {docZaBrisanje.year}. godinu
               </strong>
               ? Ovo se ne može poništiti.

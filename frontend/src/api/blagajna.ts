@@ -31,6 +31,13 @@ export type BlagajnaData = {
   saldo: number;
   /** redni broj dnevnika u godini (broj dana sa prometom do from) */
   dnevnikBroj: number;
+  /** broj dana sa prometom u godini PRIJE from (za numeraciju po danima) */
+  dnevnikBrojPrije: number;
+  /** blagajnički maksimum utvrđen internom odlukom, null = nije utvrđen */
+  maksimum: number | null;
+  /** najskorije korištena lica/osnovi, za autocomplete pri unosu */
+  prijedloziLice: string[];
+  prijedloziOsnov: string[];
   nalozi: BlagajnaNalog[];
 };
 
@@ -76,8 +83,32 @@ export function createBlagajnaNalog(
   });
 }
 
+export function updateBlagajnaNalog(
+  orgId: number,
+  id: number,
+  payload: {
+    datum: string;
+    iznos: number;
+    lice: string;
+    osnov: string;
+    napomena?: string;
+  },
+) {
+  return jsonRequest<BlagajnaNalog>(`/api/blagajna/${orgId}/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function deleteBlagajnaNalog(orgId: number, id: number) {
   return jsonRequest<null>(`/api/blagajna/${orgId}/${id}`, {
     method: "DELETE",
   });
+}
+
+export function setBlagajnaMaksimum(orgId: number, iznos: number | null) {
+  return jsonRequest<{ maksimum: number | null }>(
+    `/api/blagajna/${orgId}/maksimum`,
+    { method: "PUT", body: JSON.stringify({ iznos }) },
+  );
 }

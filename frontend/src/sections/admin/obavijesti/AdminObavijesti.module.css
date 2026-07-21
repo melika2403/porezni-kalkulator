@@ -1,5 +1,20 @@
+/* okvir stranice kao ostale admin sekcije (obnove, korisnici...) */
 .wrap {
-  padding: 1.75rem 2rem;
+  padding: 2.5rem 2rem 4rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .header {
@@ -11,7 +26,7 @@
 }
 .title {
   font-family: "DM Serif Display", serif;
-  font-size: 1.9rem;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
   letter-spacing: -0.02em;
   color: var(--ink);
   line-height: 1.05;
@@ -56,8 +71,8 @@
   background: white;
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
-  border-radius: 12px;
-  padding: 1rem 1.15rem;
+  border-radius: var(--radius-lg);
+  padding: 1.05rem 1.2rem;
   transition: box-shadow 0.15s;
 }
 .item:hover {
@@ -70,42 +85,78 @@
   border-left-color: #c9922b;
 }
 .itemSuccess {
-  border-left-color: #3a7d44;
+  border-left-color: var(--sage);
 }
 .itemInactive {
   opacity: 0.6;
+}
+.itemRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+/* ikona u obojenoj pločici, isti jezik kao KPI kartice na dashboardu */
+.itemIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.iconInfo {
+  background: #e7f0fa;
+  color: #2f6bb0;
+}
+.iconWarning {
+  background: #fbf1dc;
+  color: #9a6c14;
+}
+.iconSuccess {
+  background: var(--sage-pale);
+  color: var(--sage);
+}
+.itemMain {
+  flex: 1;
+  min-width: 0;
 }
 .itemHead {
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 .itemTitle {
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--ink);
 }
 .itemBody {
-  font-size: 13px;
-  color: var(--ink);
-  margin-top: 5px;
+  font-size: 13.5px;
+  color: var(--mid);
+  margin-top: 4px;
   white-space: pre-wrap;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 .tags {
   display: flex;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 12px;
   align-items: center;
   flex-wrap: wrap;
 }
+/* caps pilule kao orgBadge na Korisnicima */
 .tag {
-  font-size: 11px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--mid);
   background: var(--paper);
   border: 1px solid var(--border);
-  padding: 2px 9px;
+  padding: 3px 9px;
   border-radius: 999px;
 }
 .tagInactive {
@@ -114,9 +165,11 @@
   border-color: #f0dcc0;
 }
 .badge {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 2px 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid transparent;
 }
@@ -131,29 +184,39 @@
   border-color: #f2e2c0;
 }
 .badgeSuccess {
-  color: #2d6b38;
-  background: #e5f2e8;
-  border-color: #cde6d3;
+  color: var(--sage);
+  background: var(--sage-pale);
+  border-color: color-mix(in srgb, var(--sage) 25%, transparent);
 }
 .actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
 }
-.linkBtn {
-  border: none;
-  background: transparent;
+/* prava dugmad umjesto golih tekst linkova */
+.ghostBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  background: white;
   color: var(--mid);
-  font-size: 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 11px;
+  border-radius: 999px;
   cursor: pointer;
-  padding: 2px 4px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.linkBtn:hover {
-  color: var(--sage);
-  text-decoration: underline;
+.ghostBtn:hover {
+  color: var(--ink);
+  background: var(--paper);
 }
 .dangerBtn:hover {
   color: #b0361f;
+  border-color: #e8c5bd;
+  background: #fdf2ef;
 }
 
 /* ── Prazno stanje ──────────────────────────────────────────────────────────── */
@@ -303,8 +366,8 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1.1rem 1.4rem;
-  background: #f5f2eb;
-  border-bottom: 1px solid #e3ddd0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
 }
 .modalTitle {
   font-size: 1.1rem;
@@ -336,8 +399,8 @@
   justify-content: flex-end;
   gap: 0.6rem;
   padding: 0.9rem 1.4rem;
-  background: #faf8f3;
-  border-top: 1px solid #e3ddd0;
+  background: var(--paper);
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 640px) {

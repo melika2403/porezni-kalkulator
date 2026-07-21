@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   IconBuilding,
+  IconCoins,
   IconFileText,
   IconClipboardList,
   IconId,
@@ -27,8 +28,12 @@ import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegis
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
-import { WorkersTable } from "src/sections/zaposlenici/WorkersTable";
+import {
+  WorkersTable,
+  nedostajePodaci,
+} from "src/sections/zaposlenici/WorkersTable";
 import { DeleteWorkerModal } from "src/sections/zaposlenici/DeleteWorkerModal";
+import { RadnikKartonModal } from "src/sections/zaposlenici/RadnikKartonModal";
 import styles from "./aktivniRadnici.module.css";
 // PK Office tokeni + utility klase za .pk-scope blokove (tabela + modali).
 import "src/styles/pk-embed.css";
@@ -128,6 +133,8 @@ export default function AktivniRadnici() {
     worker: Worker | null;
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Worker | null>(null);
+  // Karton obračuna: plate radnika po mjesecima (isti modal kao PK Office)
+  const [kartonWorker, setKartonWorker] = useState<Worker | null>(null);
   const router = useRouter();
 
   const orgsQuery = useQuery({
@@ -335,6 +342,7 @@ export default function AktivniRadnici() {
                 workers={filtered}
                 plataCell={(w) => <PlataCell w={w} isObrt={isObrt} />}
                 onRowClick={(w) => router.push(`/aktivni-radnici/${w.id}`)}
+                warningFor={nedostajePodaci}
                 actionsFor={(w) => ({
                   primary: [
                     {
@@ -389,6 +397,14 @@ export default function AktivniRadnici() {
                       icon: <IconId size={14} />,
                       href: `/aktivni-radnici/${w.id}`,
                     },
+                    {
+                      kind: "item" as const,
+                      key: "karton-obracuna",
+                      label: "Karton obračuna",
+                      sub: "plate po mjesecima",
+                      icon: <IconCoins size={14} />,
+                      onClick: () => setKartonWorker(w),
+                    },
                     // Vlasnik se ne briše, akcija se i ne nudi.
                     ...(canCreateWorker && w.role !== "VLASNIK"
                       ? [
@@ -428,6 +444,15 @@ export default function AktivniRadnici() {
           worker={deleteTarget}
           onClose={() => setDeleteTarget(null)}
         />
+      )}
+      {orgId && kartonWorker && (
+        <div className="pk-scope">
+          <RadnikKartonModal
+            orgId={orgId}
+            worker={kartonWorker}
+            onClose={() => setKartonWorker(null)}
+          />
+        </div>
       )}
     </main>
     </>
