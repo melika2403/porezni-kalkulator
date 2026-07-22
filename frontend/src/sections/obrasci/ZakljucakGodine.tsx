@@ -25,9 +25,7 @@ import { listUlazniRacuni } from "src/api/partners";
 import { listInvoices } from "src/api/invoices";
 import { calcRow } from "src/sections/amortizacija/Amortizacija";
 import { formatBAM } from "src/lib/format";
-
-const MARKETING_URL =
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+import { MARKETING_URL } from "src/lib/pkOfficeUrl";
 
 type Status = "done" | "todo" | "info";
 

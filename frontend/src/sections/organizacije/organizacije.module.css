@@ -2,7 +2,11 @@
   padding: calc(64px + 1.5rem) 2rem 5rem;
   max-width: 1380px;
   margin: 0 auto;
-  animation: fadeUp 0.5s ease both;
+  /* Bez fill-mode "both": inače bi zadržani transform: translateY(0) iz fadeUp
+     napravio .page containing blockom za position:fixed potomke, pa bi se modali
+     (npr. "Preuzmi 2001/2002") centrirali unutar cijele visoke stranice umjesto
+     unutar viewporta i tražili bi skrolanje do sredine. */
+  animation: fadeUp 0.5s ease;
 }
 
 @keyframes fadeUp {

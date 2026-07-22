@@ -45,9 +45,7 @@ import { isoToDisplay, parseDateInput } from "src/lib/dateInput";
 import { RadnikKartonModal } from "src/sections/zaposlenici/RadnikKartonModal";
 import { UvozPlataPkModal } from "src/sections/prijave-radnika/UvozPlataPkModal";
 import { datumHr, downloadTablePdf } from "src/sections/lager/robaPdf";
-
-const MARKETING_URL =
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+import { MARKETING_URL } from "src/lib/pkOfficeUrl";
 
 const MJESECI = [
   "Januar", "Februar", "Mart", "April", "Maj", "Juni",

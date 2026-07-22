@@ -1240,6 +1240,30 @@ async function ensureActivityNamesFresh() {
   }
 }
 
+// Backfill: obrti kreirani na marketing dijelu unesu samo PDV broj (pdvNumber)
+// ali ne i isPdvObveznik flag (marketing forma nema toggle), pa ih PK Office
+// nije prepoznavao kao PDV obveznike (default flag = false). Jednom označi sve
+// org-e s upisanim PDV brojem kao obveznike. Datumi pdvObveznikOd/Do se ne
+// diraju (ostaju null → obveznik za cijelu godinu). Idempotentno: brza kapija
+// preskoči kad više nema takvih redova.
+async function ensurePdvObveznikFromPdvNumber() {
+  const [pending] = await sequelize.query(
+    `SELECT 1 FROM organizations
+     WHERE isPdvObveznik = 0 AND pdvNumber IS NOT NULL AND pdvNumber != ''
+     LIMIT 1`,
+  );
+  if (!pending || pending.length === 0) return;
+
+  const [res] = await sequelize.query(
+    `UPDATE organizations SET isPdvObveznik = 1
+     WHERE isPdvObveznik = 0 AND pdvNumber IS NOT NULL AND pdvNumber != ''`,
+  );
+  const n = res?.affectedRows ?? 0;
+  if (n > 0) {
+    console.log(`Označeno ${n} obrta kao PDV obveznike (iz upisanog PDV broja).`);
+  }
+}
+
 // Backfill: računi sa VEĆ učitanih izvoda u organizations.bankAccounts.
 // Auto-upis novog računa u profil radi tek od uvođenja liste računa; ovo
 // jednom pokupi račune sa ranijih izvoda. Idempotentno: kad je lista već
@@ -1383,6 +1407,7 @@ sequelize
   .then(() => ensureWorkerDocTypeEnum())
   .then(() => ensureFormTypeEnum())
   .then(() => ensureActivityNamesFresh())
+  .then(() => ensurePdvObveznikFromPdvNumber())
   .then(() => ensureOwnerSpolFromJmbg())
   .then(() => ensureUtf8Mb4())
   .then(() =>

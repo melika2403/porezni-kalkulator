@@ -150,6 +150,15 @@ function validateOrgData(body, requireName = true) {
     data.isPdvObveznik = Boolean(body.isPdvObveznik);
   }
 
+  // Auto-prepoznavanje: obrt s upisanim PDV brojem JE PDV obveznik. Marketing
+  // forma šalje samo pdvNumber (nema toggle), pa ga PK Office inače ne bi
+  // prepoznao i vodio bi ga kao neobveznika. Ako poziv eksplicitno šalje
+  // isPdvObveznik (npr. PK Office postavke), poštuje se ta vrijednost; inače se
+  // izvodi iz PDV broja. Bez pdvObveznikOd/Do → vrijedi za cijelu godinu.
+  if (body.isPdvObveznik === undefined && data.pdvNumber) {
+    data.isPdvObveznik = true;
+  }
+
   // Datumi ulaska/izlaska iz sistema PDV-a (prelazni period usred godine).
   // Prazno/null = bez granice (obveznik oduvijek, odnosno nije izašao).
   for (const f of ["pdvObveznikOd", "pdvObveznikDo"]) {
