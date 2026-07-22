@@ -30,15 +30,13 @@ import { DeleteWorkerModal } from "src/sections/zaposlenici/DeleteWorkerModal";
 import { RadnikKartonModal } from "src/sections/zaposlenici/RadnikKartonModal";
 import EvidencijaModal from "src/sections/organizacije/EvidencijaModal";
 import { datumHr, downloadTablePdf } from "src/sections/lager/robaPdf";
-
-const PRO_WORKERS_LIMIT = 5;
-const USER_WORKERS_LIMIT = 1;
-
 // Kadrovski dokumenti (ugovor, otkaz, rješenja) se generišu na marketing
 // strani: generatori već podržavaju ?org= i ?worker= predizbor, pa ih
 // otvaramo predpopunjene u novoj kartici (app ostaje otvoren).
-const MARKETING_URL =
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+import { MARKETING_URL } from "src/lib/pkOfficeUrl";
+
+const PRO_WORKERS_LIMIT = 5;
+const USER_WORKERS_LIMIT = 1;
 
 function salaryLabel(w: Worker): string {
   if (w.salaryType === "BRUTO" && w.salaryBruto != null) {

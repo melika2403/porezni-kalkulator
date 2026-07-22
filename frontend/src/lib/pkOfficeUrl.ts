@@ -19,5 +19,8 @@ export const PK_OFFICE_DASHBOARD_URL = `${APP_ORIGIN}/app/dashboard`;
 // marketing na drugoj subdomeni (www), a i u dev-u klijentska navigacija iz
 // /app u marketing ostavi pogrešne stilove (bijela stranica).
 export const MARKETING_URL = (
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000"
+  process.env.NEXT_PUBLIC_MARKETING_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://www.poreznikalkulator.ba"
+    : "http://localhost:3000")
 ).replace(/\/+$/, "");

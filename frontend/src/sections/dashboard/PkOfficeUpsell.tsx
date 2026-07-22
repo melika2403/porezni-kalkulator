@@ -27,9 +27,7 @@ import { usePkOfficeMe, usePkOfficePristup } from "src/hooks/usePkOfficeMe";
 import { startPkOfficeTrial } from "src/api/pkOffice";
 import { unwrap } from "src/api/auth";
 import { OFFICE_PLANS, PLAN_PRICING, formatKm } from "src/data/pricing";
-
-const MARKETING_URL =
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+import { MARKETING_URL } from "src/lib/pkOfficeUrl";
 
 const HERO = [
   {

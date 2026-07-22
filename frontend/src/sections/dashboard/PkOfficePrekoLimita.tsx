@@ -8,9 +8,7 @@
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { usePkOfficePristup } from "src/hooks/usePkOfficeMe";
 import PkOfficeSlotPanel from "src/sections/organizacije/PkOfficeSlotPanel";
-
-const MARKETING_URL =
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+import { MARKETING_URL } from "src/lib/pkOfficeUrl";
 
 export function PkOfficePrekoLimita() {
   const { data: pristup } = usePkOfficePristup();

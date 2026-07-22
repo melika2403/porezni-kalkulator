@@ -31,9 +31,7 @@ import { useBankSummary } from "src/hooks/useBankStatements";
 import { useSupportUnread } from "src/api/support";
 import { useNotificationsUnreadQuery } from "src/api/announcements";
 import styles from "./Sidebar.module.css";
-
-const MARKETING_URL =
-  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+import { MARKETING_URL } from "src/lib/pkOfficeUrl";
 
 // Stabilan no-op subscribe za useSyncExternalStore (hydrated flag).
 const emptySubscribe = () => () => {};
