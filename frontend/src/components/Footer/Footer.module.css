@@ -1,15 +1,14 @@
 .footer {
   border-top: 1px solid var(--border);
-  padding: 3rem 2.5rem 2rem;
+  padding: 3.5rem 2.5rem 2rem;
 }
 
-/* ── Top row ── */
+/* ── Top: brand + kolone linkova ── */
 .top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 2rem;
-  margin-bottom: 2.5rem;
+  display: grid;
+  grid-template-columns: 1.5fr repeat(3, 1fr);
+  gap: 2.5rem 2rem;
+  margin-bottom: 3rem;
 }
 
 /* ── Brand block ── */
@@ -17,26 +16,28 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding-right: 1.5rem;
 }
 
 .logo {
   font-family: 'DM Serif Display', serif;
-  font-size: 17px;
+  font-size: 18px;
   color: var(--ink);
 }
 
 .tagline {
   font-size: 13px;
   color: var(--mid);
-  font-weight: 300;
+  line-height: 1.55;
   margin: 0;
+  max-width: 260px;
 }
 
 /* ── Social icons ── */
 .social {
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.75rem;
+  margin-top: 0.9rem;
 }
 
 .socialLink {
@@ -45,7 +46,7 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--paper);
   color: var(--mid);
@@ -58,57 +59,92 @@
 }
 
 .socialLink:hover {
-  color: var(--ink);
-  border-color: var(--ink);
-  background: var(--white);
+  color: var(--sage);
+  border-color: var(--sage);
+  background: var(--sage-pale);
 }
 
-/* ── Nav links ── */
-.links {
+/* ── Kolone linkova ── */
+.colTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 0.9rem;
+}
+
+.colList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  align-items: flex-end;
+  gap: 0.55rem;
 }
 
-.links a {
+.colList a {
   font-size: 13px;
   color: var(--mid);
   text-decoration: none;
   transition: color 0.15s;
 }
 
-.links a:hover {
-  color: var(--ink);
+.colList a:hover {
+  color: var(--sage);
 }
 
 /* ── Bottom row ── */
 .bottom {
   border-top: 1px solid var(--border);
   padding-top: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .copy {
   font-size: 12px;
   color: var(--mid);
-  opacity: 0.6;
+}
+
+.legal {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.legal a {
+  font-size: 12px;
+  color: var(--mid);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.legal a:hover {
+  color: var(--ink);
 }
 
 /* ── Responsive ── */
+@media (max-width: 960px) {
+  .top {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .brand {
+    grid-column: 1 / -1;
+    padding-right: 0;
+  }
+}
+
 @media (max-width: 560px) {
   .footer {
     padding: 2.5rem 1.25rem 1.5rem;
   }
 
   .top {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     gap: 2rem;
-  }
-
-  .links {
-    align-items: flex-start;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.75rem 1.5rem;
   }
 }

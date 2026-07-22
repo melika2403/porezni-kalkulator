@@ -105,7 +105,7 @@
   background: var(--sage);
   color: #fff;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 10px;
   text-decoration: none;
   transition: opacity 0.15s, transform 0.15s;
 }

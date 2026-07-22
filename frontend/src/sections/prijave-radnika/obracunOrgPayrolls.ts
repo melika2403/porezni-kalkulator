@@ -17,6 +17,7 @@ import { getOsnovica } from "src/utils/obrtniciFbih";
 import {
   computeProRateFactor,
   computeWorkerGrossBase,
+  countSihtericaSickDays,
   countSihtericaWorkDays,
   standardMinutesForMonth,
   standardWorkDaysForMonth,
@@ -127,6 +128,7 @@ export async function obracunOrgPayrolls(input: {
   );
   const sihMinutesByWorker = new Map<number, number>();
   const sihWorkDaysByWorker = new Map<number, number>();
+  const sihSickDaysByWorker = new Map<number, number>();
   // Radnici koji UOPĆE imaju popunjenu šihtericu (bez obzira na broj dana
   // prisustva). Razlikuje "nema šihterice" (→ pun mjesec za obrok) od "ima
   // šihtericu, 0 dana prisustva" (cijeli mjesec odsutan → 0 dana za obrok).
@@ -140,10 +142,13 @@ export async function obracunOrgPayrolls(input: {
       r.data.days.some((d) => d != null)
     ) {
       workersWithSihterica.add(w.id);
-      const mins = sumSihtericaMinutes(r.data.days);
-      if (mins > 0) sihMinutesByWorker.set(w.id, mins);
+      // Suma po ISTOJ semantici kao šihterica (vremena + plaćene šifre
+      // odsustva po meta postavkama) — cijeli payload {days, meta}.
+      const mins = sumSihtericaMinutes(r.data, year, month);
+      sihMinutesByWorker.set(w.id, mins);
       // Postavi i kad je 0 (radnik cijeli mjesec odsutan) da obrok padne na 0.
       sihWorkDaysByWorker.set(w.id, countSihtericaWorkDays(r.data.days));
+      sihSickDaysByWorker.set(w.id, countSihtericaSickDays(r.data));
     }
   });
   const defaultWorkDays = standardWorkDaysForMonth(year, month);
@@ -182,6 +187,12 @@ export async function obracunOrgPayrolls(input: {
     // backend ih sam koristi kao fallback (vidi `pick` u calculate), pa
     // ne diramo. Šaljemo defaults samo kad pravimo NOVI payroll.
     const isNewPayroll = !existingPayroll;
+    // Dani bolovanja (šifra 9.3 iz šihterice) — samo za NOVI obračun, da se
+    // ne pregazi ručna korekcija na postojećem. Polje je 1–42 (na teret
+    // poslodavca), pa se kapira na 42.
+    const sickDaysDefault = isNewPayroll
+      ? Math.min(sihSickDaysByWorker.get(w.id) ?? 0, 42)
+      : 0;
     // Dani prisustva: iz šihterice ako postoji (može biti 0). BEZ šihterice se
     // za mid-month radnika koriste radni dani PERIODA prijave (puni × proRate),
     // da se i topli obrok i putni srazmjerno umanje i bez popunjene šihterice.
@@ -243,6 +254,7 @@ export async function obracunOrgPayrolls(input: {
           ...(workedMinutesDefault !== undefined
             ? { workedMinutes: workedMinutesDefault }
             : {}),
+          ...(sickDaysDefault > 0 ? { sickDays: sickDaysDefault } : {}),
           ...(mealDefault !== null ? { mealAllowance: mealDefault } : {}),
           ...(vacationDefault !== null && vacationDefault > 0
             ? { vacationBonus: vacationDefault }

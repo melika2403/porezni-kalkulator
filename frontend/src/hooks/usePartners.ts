@@ -8,6 +8,8 @@ import {
   deleteUlazniRacun,
   getPartnerKartica,
   listPartners,
+  listUlazniRacuni,
+  mergePartner,
   partnerSuggestions,
   updatePartner,
   updateUlazniRacun,
@@ -65,6 +67,20 @@ export function useUpdatePartner(orgId: number | null) {
   });
 }
 
+export function useMergePartner(orgId: number | null) {
+  const invalidate = useInvalidatePartners(orgId);
+  return useMutation({
+    mutationFn: ({
+      sourceId,
+      targetId,
+    }: {
+      sourceId: number;
+      targetId: number;
+    }) => unwrap(mergePartner(orgId as number, sourceId, targetId)),
+    onSuccess: invalidate,
+  });
+}
+
 export function useDeletePartner(orgId: number | null) {
   const invalidate = useInvalidatePartners(orgId);
   return useMutation({
@@ -83,6 +99,14 @@ export function usePartnerKartica(
     queryFn: () =>
       unwrap(getPartnerKartica(orgId as number, partnerId as number)),
     enabled: orgId != null && partnerId != null,
+  });
+}
+
+export function useUlazniRacuni(orgId: number | null) {
+  return useQuery({
+    queryKey: ["partners", orgId, "ulazni-racuni"],
+    queryFn: () => unwrap(listUlazniRacuni(orgId as number)),
+    enabled: orgId != null,
   });
 }
 

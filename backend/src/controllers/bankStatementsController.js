@@ -2,16 +2,23 @@
 // Upload: PDF → parser (per-bank) → validacija salda → snimi izvod +
 // transakcije. Izvod koji ne prođe validaciju se NE snima.
 
+const { Op } = require("sequelize");
 const {
   sequelize,
   BankStatement,
   BankTransaction,
   Organization,
+  OrganizationMember,
   Invoice,
   UlazniRacun,
+  Partner,
 } = require("../models/index");
 const { loadInvoiceMatcher } = require("../services/bankStatements/invoiceMatch");
-const { bankNameFromAccount } = require("../services/bankStatements/bankCodes");
+const {
+  bankNameFromAccount,
+  formatAccountDashed,
+  normalizeAccountDigits,
+} = require("../services/bankStatements/bankCodes");
 const { parseBankStatement } = require("../services/bankStatements");
 const { suggestCategory } = require("../services/bankStatements/categorize");
 const { isValidCategory } = require("../services/bankStatements/categories");
@@ -20,6 +27,8 @@ const {
   learnFromTransaction,
 } = require("../services/bankStatements/rules");
 const { buildKpr } = require("../services/kpr");
+const { computeObligations } = require("../services/obligationsService");
+const { izvodUcitanEvent } = require("../services/notificationsService");
 const { loadPartnerMatcher } = require("./partnersController");
 
 function parseId(v) {
@@ -114,6 +123,100 @@ async function continuityWarnings(organizationId, parsed) {
   return warnings;
 }
 
+// Novi žiro račun viđen na izvodu se automatski dopisuje u profil
+// organizacije (bankAccounts lista; glavni račun se ne mijenja).
+async function addAccountToOrgProfile(organizationId, account) {
+  const digits = String(account || "").replace(/\D+/g, "");
+  if (digits.length < 8) return;
+  const org = await Organization.findByPk(organizationId, {
+    attributes: ["id", "bankAccount", "bankAccounts"],
+  });
+  if (!org) return;
+  let list = org.bankAccounts;
+  if (typeof list === "string") {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = null;
+    }
+  }
+  if (!Array.isArray(list)) list = [];
+  const mainDigits = String(org.bankAccount || "").replace(/\D+/g, "");
+  // lista kreće od glavnog računa iz profila (ako lista još ne postoji)
+  if (list.length === 0 && mainDigits) list = [mainDigits];
+  const normalized = list.map((a) => String(a || "").replace(/\D+/g, "")).filter(Boolean);
+  if (normalized.includes(digits)) return;
+  const next = [...normalized, digits];
+  await Organization.update(
+    // org bez glavnog računa: prvi viđeni postaje glavni (dashed, kao svugdje)
+    {
+      bankAccounts: next,
+      bankAccount: org.bankAccount || formatAccountDashed(digits),
+    },
+    { where: { id: organizationId } },
+  );
+}
+
+// Duplikat izvoda: isti datum + isti broj izvoda + isti račun, s tim da se
+// račun poredi po ciframa (ručni unos zna imati crtice/razmake ili račun iz
+// profila) a broj izvoda numerički ("07" == "7"). Ako neka strana nema račun
+// (stariji ručni unosi), broj izvoda + datum je dovoljan signal.
+async function findDuplicateStatement(organizationId, parsed) {
+  if (!parsed.statementNumber || !parsed.statementDate) return null;
+  const numNorm = Number(parsed.statementNumber)
+    ? String(Number(parsed.statementNumber))
+    : String(parsed.statementNumber).trim();
+  const accDigits = normalizeAccountDigits(parsed.account);
+
+  const candidates = await BankStatement.findAll({
+    where: { organizationId, statementDate: parsed.statementDate },
+    attributes: ["id", "account", "statementNumber"],
+    raw: true,
+  });
+  for (const c of candidates) {
+    const cNum = Number(c.statementNumber)
+      ? String(Number(c.statementNumber))
+      : String(c.statementNumber || "").trim();
+    if (!cNum || cNum !== numNorm) continue;
+    const cAcc = normalizeAccountDigits(c.account);
+    // dva računa iste org-e mogu imati isti broj izvoda istog dana:
+    // poznata i različita oba računa = NIJE duplikat
+    if (cAcc && accDigits && cAcc !== accDigits) continue;
+    return c;
+  }
+  return null;
+}
+
+// Upozorenje (ne blokada) kad se na izvodu ne prepoznaje naziv organizacije,
+// npr. učitan je izvod druge firme. Traže se karakteristične riječi naziva
+// u kompletnom tekstu izvoda; generičke riječi (OBRT, DOO, VL...) se preskaču.
+const GENERIC_NAME_TOKENS = new Set([
+  "OBRT", "OBRTA", "DOO", "DD", "VL", "SZR", "SUR", "STR", "TR", "UG",
+  "PZU", "ZU", "JU", "GRADEVINSKI", "USLUZNI", "TRGOVINSKI", "ZANATSKI",
+  "UGOSTITELJSKI", "SAMOSTALNA", "DJELATNOST", "RADNJA",
+]);
+function normalizeStatementText(s) {
+  return String(s || "")
+    .toUpperCase()
+    .replace(/Đ/g, "D")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/g, " ");
+}
+function ownerMismatchWarning(orgName, allText) {
+  const tokens = normalizeStatementText(orgName)
+    .split(" ")
+    .filter((t) => t.length >= 4 && !GENERIC_NAME_TOKENS.has(t));
+  if (tokens.length === 0 || !allText) return null;
+  // Poklapanje po CIJELOJ riječi (ne substring): naziv "MARK" se ne smije
+  // poklopiti sa "MARKET" na tuđem izvodu i tako potisnuti upozorenje.
+  const textWords = new Set(
+    normalizeStatementText(allText).split(" ").filter(Boolean),
+  );
+  if (tokens.some((t) => textWords.has(t))) return null;
+  return `Na izvodu nije pronađen naziv organizacije "${orgName}". Provjerite da li izvod pripada ovom obrtu (možda je učitan izvod druge firme).`;
+}
+
 // POST /api/bank-statements/:orgId/upload  (multipart, polje "file")
 async function upload(req, res) {
   const organizationId = parseId(req.params.orgId);
@@ -138,22 +241,14 @@ async function upload(req, res) {
   }
 
   // duplikat: isti račun + broj izvoda + datum za ovu organizaciju
-  if (result.statementNumber && result.account) {
-    const existing = await BankStatement.findOne({
-      where: {
-        organizationId,
-        account: result.account,
-        statementNumber: result.statementNumber,
-        statementDate: result.statementDate,
-      },
+  // (normalizovano, hvata i ranije ručno unesene izvode)
+  const existing = await findDuplicateStatement(organizationId, result);
+  if (existing) {
+    return res.status(409).json({
+      ok: false,
+      error: "DUPLICATE_STATEMENT",
+      statementId: existing.id,
     });
-    if (existing) {
-      return res.status(409).json({
-        ok: false,
-        error: "DUPLICATE_STATEMENT",
-        statementId: existing.id,
-      });
-    }
   }
 
   // naučena pravila organizacije imaju prednost nad seed pravilima
@@ -163,13 +258,22 @@ async function upload(req, res) {
   // poslovni partneri: po žiro računu, pa po nazivu protivstrane
   const matchPartner = await loadPartnerMatcher(organizationId);
 
+  // izvod druge firme? upozorenje, ne blokada
+  const orgRow = await Organization.findByPk(organizationId, {
+    attributes: ["id", "name"],
+  });
+  const ownerWarning = ownerMismatchWarning(orgRow?.name, result.allText);
+
   // kontinuitet salda prema postojećim izvodima istog računa
   const allWarnings = [
     ...(result.warnings || []),
     ...(await continuityWarnings(organizationId, result)),
+    ...(ownerWarning ? [ownerWarning] : []),
   ];
 
-  const created = await sequelize.transaction(async (t) => {
+  let created;
+  try {
+    created = await sequelize.transaction(async (t) => {
     const statement = await BankStatement.create(
       {
         organizationId,
@@ -212,6 +316,35 @@ async function upload(req, res) {
       { transaction: t },
     );
     return statement;
+    });
+  } catch (e) {
+    // istovremeni upload istog izvoda: unique index (org+broj+datum+račun)
+    // uhvati duplikat koji je promakao pred-provjeri (check-then-insert race)
+    if (e && e.name === "SequelizeUniqueConstraintError") {
+      const dup = await findDuplicateStatement(organizationId, result);
+      return res.status(409).json({
+        ok: false,
+        error: "DUPLICATE_STATEMENT",
+        statementId: dup ? dup.id : null,
+      });
+    }
+    throw e;
+  }
+
+  // novi račun sa izvoda ide u profil organizacije (preskačemo kad izvod
+  // možda ne pripada ovoj firmi, da tuđi račun ne završi u profilu)
+  if (!ownerWarning) {
+    await addAccountToOrgProfile(organizationId, result.account);
+  }
+
+  // in-app obavijest ostalim članovima obrta (fire-and-forget, ne blokira)
+  izvodUcitanEvent({
+    organizationId,
+    uploadedById: req.user.id,
+    statement: {
+      statementNumber: result.statementNumber,
+      bankName: result.bankName,
+    },
   });
 
   return res.status(201).json({
@@ -266,12 +399,49 @@ async function list(req, res) {
     byStatement.set(c.statementId, entry);
   }
 
+  // potvrđene stavke bez kategorije ne ulaze u KPR: upozorenje na kartici
+  const noCat = await BankTransaction.findAll({
+    where: { organizationId, status: "CONFIRMED", category: null },
+    attributes: [
+      "statementId",
+      [sequelize.fn("COUNT", sequelize.col("id")), "cnt"],
+    ],
+    group: ["statementId"],
+    raw: true,
+  });
+  const noCatByStatement = new Map(
+    noCat.map((c) => [c.statementId, Number(c.cnt)]),
+  );
+
+  // promet po izvodu (zbir priliva i odliva), za prikaz na listi bez otvaranja
+  const sums = await BankTransaction.findAll({
+    where: { organizationId },
+    attributes: [
+      "statementId",
+      "direction",
+      [sequelize.fn("SUM", sequelize.col("amount")), "total"],
+    ],
+    group: ["statementId", "direction"],
+    raw: true,
+  });
+  const sumByStatement = new Map();
+  for (const r of sums) {
+    const e = sumByStatement.get(r.statementId) || { in: 0, out: 0 };
+    if (r.direction === "IN") e.in = Number(r.total) || 0;
+    else e.out = Number(r.total) || 0;
+    sumByStatement.set(r.statementId, e);
+  }
+
   const data = statements.map((s) => {
     const entry = byStatement.get(s.id) || { total: 0, unmatched: 0 };
+    const sum = sumByStatement.get(s.id) || { in: 0, out: 0 };
     return {
       ...s.toJSON(),
       txCount: entry.total,
       unmatchedCount: entry.unmatched,
+      bezKategorijeCount: noCatByStatement.get(s.id) || 0,
+      totalIn: Math.round(sum.in * 100) / 100,
+      totalOut: Math.round(sum.out * 100) / 100,
     };
   });
   return res.json({ ok: true, data });
@@ -437,6 +607,12 @@ async function createManual(req, res) {
     const cents = Math.round(amount * 100);
     if (direction === "in") sumInCents += cents;
     else sumOutCents += cents;
+    // kategorija izabrana pri unosu (prijedlog programa ili ručni izbor);
+    // nevažeća/tuđeg smjera se ignoriše pa je popuni auto-prijedlog niže
+    const category =
+      t.category && isValidCategory(String(t.category), direction.toUpperCase())
+        ? String(t.category)
+        : null;
     transactions.push({
       date,
       description: String(t.description || "").trim() || null,
@@ -446,6 +622,9 @@ async function createManual(req, res) {
       amount: cents / 100,
       direction,
       balanceAfter: null,
+      category,
+      // eksplicitno povezan partner sa fronta (validira se prije snimanja)
+      partnerId: Number.isInteger(t.partnerId) ? t.partnerId : null,
     });
   }
 
@@ -482,7 +661,19 @@ async function createManual(req, res) {
 
   const learnedSuggest = await loadRuleSuggester(organizationId);
   const matchPartner = await loadPartnerMatcher(organizationId);
-  const created = await sequelize.transaction(async (t) => {
+  // partnerId sa fronta smije pokazivati samo na partnera ove organizacije
+  const orgPartnerIds = new Set(
+    (
+      await Partner.findAll({
+        where: { organizationId },
+        attributes: ["id"],
+        raw: true,
+      })
+    ).map((p) => p.id),
+  );
+  let created;
+  try {
+    created = await sequelize.transaction(async (t) => {
     const statement = await BankStatement.create(
       {
         organizationId,
@@ -506,28 +697,42 @@ async function createManual(req, res) {
         statementId: statement.id,
         ...tx,
         direction: tx.direction === "in" ? "IN" : "OUT",
-        category: learnedSuggest(tx) ?? suggestCategory(tx),
-        partnerId: matchPartner(tx),
+        // izbor sa fronta ima prednost, pa naučena pravila, pa seed heuristike
+        category: tx.category ?? learnedSuggest(tx) ?? suggestCategory(tx),
+        // potvrđen izbor sa fronta ima prednost nad auto-matchom
+        partnerId:
+          tx.partnerId != null && orgPartnerIds.has(tx.partnerId)
+            ? tx.partnerId
+            : matchPartner(tx),
         // ručni unos je korisnik već pregledao stavku po stavku → odmah potvrđeno
         status: "CONFIRMED",
       })),
       { transaction: t },
     );
     return statement;
-  });
+    });
+  } catch (e) {
+    // izvod sa istim brojem/datumom/računom je već unesen (unique index)
+    if (e && e.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({ ok: false, error: "DUPLICATE_STATEMENT" });
+    }
+    throw e;
+  }
+
+  // ručno unesen novi račun ide u profil organizacije
+  if (accountInput) {
+    await addAccountToOrgProfile(organizationId, accountInput);
+  }
 
   // ručne stavke su odmah potvrđene → isplate partnerima zatvaraju
-  // njihove otvorene ulazne račune
-  const manualTxs = await BankTransaction.findAll({
-    where: {
-      statementId: created.id,
-      organizationId,
-      direction: "OUT",
-      partnerId: { [require("sequelize").Op.ne]: null },
-    },
+  // njihove otvorene ulazne račune, a stavke sa kategorijom uče pravila
+  // (isto kao potvrda uvezene stavke)
+  const savedTxs = await BankTransaction.findAll({
+    where: { statementId: created.id, organizationId },
   });
-  for (const tx of manualTxs) {
-    await maybeCloseUlazniRacun(tx);
+  for (const tx of savedTxs) {
+    if (tx.category) await learnFromTransaction(organizationId, tx.toJSON());
+    if (tx.direction === "OUT" && tx.partnerId) await maybeCloseUlazniRacun(tx);
   }
 
   return res.status(201).json({
@@ -606,7 +811,7 @@ async function listTransactions(req, res) {
       {
         model: BankStatement,
         as: "statement",
-        attributes: ["statementNumber", "bankName"],
+        attributes: ["id", "statementNumber", "bankName"],
       },
       {
         model: Invoice,
@@ -621,7 +826,33 @@ async function listTransactions(req, res) {
     limit,
     offset,
   });
-  return res.json({ ok: true, data: { items: rows, total: count } });
+
+  // sume za CIJELI filtrirani skup (ne samo stranicu): filteri kao izvještaj
+  const sums = await BankTransaction.findAll({
+    where,
+    attributes: [
+      "direction",
+      [sequelize.fn("SUM", sequelize.col("amount")), "total"],
+    ],
+    group: ["direction"],
+    raw: true,
+  });
+  let sumIn = 0;
+  let sumOut = 0;
+  for (const r of sums) {
+    if (r.direction === "IN") sumIn = Number(r.total) || 0;
+    else sumOut = Number(r.total) || 0;
+  }
+
+  return res.json({
+    ok: true,
+    data: {
+      items: rows,
+      total: count,
+      sumIn: Math.round(sumIn * 100) / 100,
+      sumOut: Math.round(sumOut * 100) / 100,
+    },
+  });
 }
 
 // GET /api/bank-statements/:orgId/summary?year=&month= — KPI za dashboard kartice
@@ -752,110 +983,39 @@ async function kpr(req, res) {
   return res.json({ ok: true, data });
 }
 
-const MJESECI = [
-  "januar", "februar", "mart", "april", "maj", "juni",
-  "juli", "august", "septembar", "oktobar", "novembar", "decembar",
-];
-
 // GET /api/bank-statements/:orgId/obligations — predstojeće poreske obaveze
 // tekućeg mjeseca, sa statusom izvedenim iz potvrđenih stavki izvoda:
 // obaveza je "gotova" kad postoji potvrđena uplata te kategorije u mjesecu.
+// Logika živi u obligationsService (dijele je dashboard i email podsjetnici).
 async function obligations(req, res) {
   const organizationId = parseId(req.params.orgId);
   if (!organizationId) {
     return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
   }
-  const org = await Organization.findByPk(organizationId, {
-    attributes: ["id", "isPdvObveznik"],
-  });
-  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
-
-  const { Op } = require("sequelize");
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1; // 1-12
-  const mm = String(month).padStart(2, "0");
-  const lastDay = new Date(year, month, 0).getDate();
-  const monthStart = `${year}-${mm}-01`;
-  const monthEnd = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
-  const prevName = MJESECI[(month + 10) % 12];
-
-  // potvrđene uplate po kategoriji u tekućem mjesecu
-  const paidRows = await BankTransaction.findAll({
-    where: {
-      organizationId,
-      status: "CONFIRMED",
-      direction: "OUT",
-      category: {
-        [Op.in]: ["DOPRINOSI_PODUZETNIKA", "POREZ_DOHODAK_VLASNIKA", "PDV_UIO"],
-      },
-      date: { [Op.gte]: monthStart, [Op.lte]: monthEnd },
-    },
-    attributes: ["category"],
-    group: ["category"],
-    raw: true,
-  });
-  const paid = new Set(paidRows.map((r) => r.category));
-
-  // rokovi za prethodni mjesec: doprinosi/porez/PDV do 10. u tekućem
-  const due10 = `${year}-${mm}-10`;
-  const items = [
-    {
-      id: "doprinosi",
-      title: `Akontacija doprinosa za ${prevName}`,
-      due: due10,
-      done: paid.has("DOPRINOSI_PODUZETNIKA"),
-    },
-    {
-      id: "porez",
-      title: `Akontacija poreza na dohodak za ${prevName}`,
-      due: due10,
-      done: paid.has("POREZ_DOHODAK_VLASNIKA"),
-    },
-  ];
-  if (org.isPdvObveznik) {
-    items.push({
-      id: "pdv",
-      title: `PDV prijava i uplata za ${prevName}`,
-      due: due10,
-      done: paid.has("PDV_UIO"),
-    });
-  }
-
-  const today = `${year}-${mm}-${String(now.getDate()).padStart(2, "0")}`;
-  for (const item of items) {
-    item.overdue = !item.done && item.due < today;
-  }
-  items.sort((a, b) => Number(a.done) - Number(b.done) || a.due.localeCompare(b.due));
-
-  return res.json({ ok: true, data: { items } });
+  const data = await computeObligations(organizationId);
+  if (!data) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+  return res.json({ ok: true, data });
 }
 
-// PATCH /api/bank-statements/:orgId/transactions/:txId — status/kategorija
-async function updateTransaction(req, res) {
-  const organizationId = parseId(req.params.orgId);
-  const txId = parseId(req.params.txId);
-  if (!organizationId || !txId) {
-    return res.status(400).json({ ok: false, error: "INVALID_ID" });
-  }
-  const tx = await BankTransaction.findOne({
-    where: { id: txId, organizationId },
-  });
-  if (!tx) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
-
+// Zajednička primjena izmjene na stavku (koristi je pojedinačni PATCH i
+// bulk): validacija, auto-popuna kategorije pri potvrdi, učenje pravila,
+// sync sa fakturama i ulaznim računima. Vraća { error } ili { tx }.
+// opts.ruleSuggester: već učitan suggester (bulk ga učita jednom, da se
+// pravila ne skeniraju po svakoj stavci).
+async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
   const prevStatus = tx.status;
   const prevInvoiceId = tx.invoiceId;
 
-  const { status, category, invoiceId } = req.body || {};
+  const { status, category, invoiceId, partnerId } = body || {};
   if (status != null) {
     if (!["UNMATCHED", "CONFIRMED", "IGNORED"].includes(status)) {
-      return res.status(400).json({ ok: false, error: "INVALID_STATUS" });
+      return { error: "INVALID_STATUS" };
     }
     tx.status = status;
   }
   if (category !== undefined) {
     if (category != null && !isValidCategory(String(category), tx.direction)) {
-      return res.status(400).json({ ok: false, error: "INVALID_CATEGORY" });
+      return { error: "INVALID_CATEGORY" };
     }
     tx.category = category ? String(category) : null;
   }
@@ -868,10 +1028,36 @@ async function updateTransaction(req, res) {
         attributes: ["id"],
       });
       if (!inv) {
-        return res.status(400).json({ ok: false, error: "INVALID_INVOICE" });
+        return { error: "INVALID_INVOICE" };
       }
       tx.invoiceId = inv.id;
     }
+  }
+  // ručno (od)vezivanje partnera: stavka ide na / silazi sa njegove kartice
+  if (partnerId !== undefined) {
+    if (partnerId == null) {
+      tx.partnerId = null;
+    } else {
+      const partner = await Partner.findOne({
+        where: { id: Number(partnerId), organizationId },
+        attributes: ["id"],
+      });
+      if (!partner) {
+        return { error: "INVALID_PARTNER" };
+      }
+      tx.partnerId = partner.id;
+    }
+  }
+
+  // potvrda bez kategorije: pokušaj auto-popune (naučena pravila pa seed
+  // heuristike), osim kad je korisnik kategoriju u ovom pozivu eksplicitno
+  // obrisao. Bez kategorije stavka ne ulazi u KPR.
+  const explicitClear = category !== undefined && category == null;
+  if (tx.status === "CONFIRMED" && !tx.category && !explicitClear) {
+    const learned = opts.ruleSuggester ?? (await loadRuleSuggester(organizationId));
+    const plain = tx.get({ plain: true });
+    const auto = learned(plain) ?? suggestCategory(plain);
+    if (auto) tx.category = auto;
   }
   await tx.save();
 
@@ -908,7 +1094,73 @@ async function updateTransaction(req, res) {
     await maybeReopenUlazniRacun(organizationId, racunId);
   }
 
-  return res.json({ ok: true, data: tx });
+  return { tx };
+}
+
+// PATCH /api/bank-statements/:orgId/transactions/:txId — status/kategorija
+async function updateTransaction(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  const txId = parseId(req.params.txId);
+  if (!organizationId || !txId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ID" });
+  }
+  const tx = await BankTransaction.findOne({
+    where: { id: txId, organizationId },
+  });
+  if (!tx) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+
+  const result = await applyTransactionPatch(organizationId, tx, req.body);
+  if (result.error) {
+    return res.status(400).json({ ok: false, error: result.error });
+  }
+  return res.json({ ok: true, data: result.tx });
+}
+
+// PATCH /api/bank-statements/:orgId/transactions/bulk — masovna izmjena
+// označenih stavki (samo status i/ili kategorija). Stavka kojoj izmjena ne
+// odgovara (npr. kategorija pogrešnog smjera) se preskače, ne ruši ostale.
+async function bulkUpdateTransactions(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map(Number))]
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .slice(0, 500)
+    : [];
+  if (ids.length === 0) {
+    return res.status(400).json({ ok: false, error: "NO_IDS" });
+  }
+  const patch = {};
+  if (req.body?.patch?.status !== undefined) patch.status = req.body.patch.status;
+  if (req.body?.patch?.category !== undefined) {
+    patch.category = req.body.patch.category;
+  }
+  if (Object.keys(patch).length === 0) {
+    return res.status(400).json({ ok: false, error: "NO_PATCH" });
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  // suggester učitaj JEDNOM (ne po stavci): bulk potvrda bez kategorije bi
+  // inače skenirala tabelu pravila za svaku stavku
+  const ruleSuggester = await loadRuleSuggester(organizationId);
+  for (const id of ids) {
+    const tx = await BankTransaction.findOne({
+      where: { id, organizationId },
+    });
+    if (!tx) {
+      skipped++;
+      continue;
+    }
+    const result = await applyTransactionPatch(organizationId, tx, patch, {
+      ruleSuggester,
+    });
+    if (result.error) skipped++;
+    else updated++;
+  }
+  return res.json({ ok: true, data: { updated, skipped } });
 }
 
 // DELETE /api/bank-statements/:orgId/statement/:statementId
@@ -923,6 +1175,19 @@ async function removeStatement(req, res) {
   });
   if (!statement) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
 
+  // Potvrđene stavke izvoda su mogle držati fakture "naplaćenim" i ulazne
+  // račune "plaćenim": pokupi veze PRIJE brisanja, pa poslije vrati statuse
+  // (revert helperi sami provjere da li dokument drži neka druga uplata).
+  const linked = await BankTransaction.findAll({
+    where: { statementId, organizationId, status: "CONFIRMED" },
+    attributes: ["invoiceId", "ulazniRacunId"],
+    raw: true,
+  });
+  const invoiceIds = [...new Set(linked.map((x) => x.invoiceId).filter(Boolean))];
+  const racunIds = [
+    ...new Set(linked.map((x) => x.ulazniRacunId).filter(Boolean)),
+  ];
+
   await sequelize.transaction(async (t) => {
     await BankTransaction.destroy({
       where: { statementId, organizationId },
@@ -930,11 +1195,214 @@ async function removeStatement(req, res) {
     });
     await statement.destroy({ transaction: t });
   });
+
+  for (const invoiceId of invoiceIds) {
+    await maybeRevertInvoice(organizationId, invoiceId);
+  }
+  for (const racunId of racunIds) {
+    await maybeReopenUlazniRacun(organizationId, racunId);
+  }
   return res.json({ ok: true });
+}
+
+// ── Grupni uvoz (Inbox) ──────────────────────────────────────────────────────
+// POST /api/bank-statements/bulk/analyze (multipart, polje "files", do 20 PDF)
+// Analiza BEZ snimanja: za svaki fajl parsiraj izvod, prepoznaj organizaciju
+// po žiro računu (bankAccounts lista + glavni račun), provjeri duplikat i
+// upozorenja. Knjiženje potom ide postojećim per-org upload endpointom, pa
+// sva logika snimanja/povezivanja ostaje na jednom mjestu.
+
+function orgAccountsDigits(org) {
+  let list = org.bankAccounts;
+  if (typeof list === "string") {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = null;
+    }
+  }
+  if (!Array.isArray(list)) list = [];
+  const all = [...list, org.bankAccount];
+  return [
+    ...new Set(
+      all
+        .map((a) => normalizeAccountDigits(a))
+        .filter((d) => d && d.length >= 8),
+    ),
+  ];
+}
+
+async function bulkAnalyze(req, res) {
+  try {
+    const files = req.files || [];
+    if (files.length === 0) {
+      return res.status(400).json({ ok: false, error: "NO_FILES" });
+    }
+
+    // organizacije u kojima korisnik smije uvoziti izvode (isti uslov kao
+    // requireOrgRole na per-org uploadu). PK Office radi SAMO sa obrtima
+    // (type BUSINESS): bez filtera bi se u ručnoj dodjeli nudile i d.o.o.
+    // firme, a izvod firme bi se po žiro računu i automatski prepoznao.
+    const memberships = await OrganizationMember.findAll({
+      where: { userId: req.user.id, role: { [Op.in]: ["OWNER", "ADMIN"] } },
+      include: [
+        {
+          model: Organization,
+          as: "organization",
+          attributes: ["id", "name", "bankAccount", "bankAccounts"],
+          where: { type: "BUSINESS" },
+        },
+      ],
+    });
+    const orgs = memberships.map((m) => m.organization).filter(Boolean);
+    const accountToOrgs = new Map();
+    for (const org of orgs) {
+      for (const digits of orgAccountsDigits(org)) {
+        const arr = accountToOrgs.get(digits) || [];
+        arr.push(org);
+        accountToOrgs.set(digits, arr);
+      }
+    }
+
+    const items = [];
+    for (const file of files) {
+      const base = { fileName: file.originalname };
+
+      let parsed;
+      try {
+        parsed = await parseBankStatement(file.buffer);
+      } catch {
+        items.push({ ...base, status: "error", error: "PARSE_ERROR" });
+        continue;
+      }
+      if (!parsed.ok) {
+        items.push({
+          ...base,
+          status: "error",
+          error: parsed.error,
+          errorDetail: parsed.errorDetail || null,
+          bankName: parsed.bankName || null,
+          validationErrors: parsed.validation ? parsed.validation.errors : null,
+        });
+        continue;
+      }
+
+      const digits = normalizeAccountDigits(parsed.account);
+      const info = {
+        ...base,
+        bankName: parsed.bankName,
+        account: digits ? formatAccountDashed(digits) : null,
+        statementNumber: parsed.statementNumber,
+        statementDate: parsed.statementDate,
+        transactionCount: parsed.transactions.length,
+        totalIn: parsed.validation.computed.totalIn,
+        totalOut: parsed.validation.computed.totalOut,
+        openingBalance: parsed.openingBalance,
+        closingBalance: parsed.closingBalance,
+        transactions: parsed.transactions.map((tx) => ({
+          date: tx.date,
+          description: tx.description || null,
+          amount: tx.amount,
+          direction: tx.direction === "in" ? "IN" : "OUT",
+          counterpartyName: tx.counterpartyName || null,
+        })),
+      };
+
+      const matches = (digits && accountToOrgs.get(digits)) || [];
+      if (matches.length === 0) {
+        // nijedan obrt nema ovaj račun: ručna dodjela na frontendu
+        items.push({ ...info, status: "unrecognized", org: null });
+        continue;
+      }
+      if (matches.length > 1) {
+        // isti račun kod više organizacija (greška u podacima): ručni izbor
+        items.push({
+          ...info,
+          status: "conflict",
+          org: null,
+          candidateOrgIds: matches.map((o) => o.id),
+        });
+        continue;
+      }
+
+      const org = matches[0];
+      const orgInfo = { id: org.id, name: org.name };
+
+      // duplikat: ista provjera kao na per-org uploadu (normalizovano,
+      // hvata i PDF-om i ručno učitane izvode)
+      const existingDup = await findDuplicateStatement(org.id, parsed);
+      if (existingDup) {
+        items.push({
+          ...info,
+          status: "duplicate",
+          org: orgInfo,
+          existingStatementId: existingDup.id,
+        });
+        continue;
+      }
+
+      const ownerWarning = ownerMismatchWarning(org.name, parsed.allText);
+      const warnings = [
+        ...(parsed.warnings || []),
+        ...(await continuityWarnings(org.id, parsed)),
+        ...(ownerWarning ? [ownerWarning] : []),
+      ];
+      items.push({
+        ...info,
+        status: warnings.length ? "review" : "ready",
+        org: orgInfo,
+        warnings,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        files: items,
+        organizations: orgs
+          .map((o) => ({ id: o.id, name: o.name }))
+          .sort((a, b) => a.name.localeCompare(b.name, "bs")),
+      },
+    });
+  } catch (err) {
+    console.error("bulkAnalyze error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
+// POST /api/bank-statements/:orgId/suggest-category — živi prijedlog KPR
+// kategorije pri ručnom unosu izvoda: naučena pravila organizacije imaju
+// prednost nad seed heuristikama. Ništa se ne snima.
+async function suggestKategorije(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const items = Array.isArray(req.body?.items)
+    ? req.body.items.slice(0, 100)
+    : [];
+  const learnedSuggest = await loadRuleSuggester(organizationId);
+  const data = items.map((it) => {
+    const tx = {
+      description: String(it?.description || ""),
+      counterpartyName: String(it?.counterpartyName || ""),
+      counterpartyAccount: String(it?.counterpartyAccount || ""),
+      direction:
+        String(it?.direction || "").toLowerCase() === "in" ? "IN" : "OUT",
+    };
+    return learnedSuggest(tx) ?? suggestCategory(tx);
+  });
+  return res.json({ ok: true, data });
 }
 
 module.exports = {
   upload,
+  bulkAnalyze,
+  suggestKategorije,
+  // reuse za prebijanja (kompenzacije/cesije) i druga bezgotovinska knjiženja
+  markInvoicePaid,
+  maybeRevertInvoice,
+  maybeReopenUlazniRacun,
   list,
   getStatement,
   confirmAll,
@@ -944,5 +1412,6 @@ module.exports = {
   listTransactions,
   summary,
   updateTransaction,
+  bulkUpdateTransactions,
   removeStatement,
 };

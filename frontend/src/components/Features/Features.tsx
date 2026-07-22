@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import styles from "./Features.module.css";
-import ComingSoonModal from "../ComingSoonModal/ComingSoonModal";
+import { useMe } from "src/hooks/useMe";
 
 type Badge = "free" | "reg" | "pro" | "business";
 
@@ -14,8 +13,6 @@ interface Feature {
   iconColor: "sage" | "accent" | "dark";
   icon: React.ReactNode;
   dest: string;
-  soon?: boolean;
-  featured?: boolean;
 }
 
 const BADGE_LABELS: Record<Badge, string> = {
@@ -25,8 +22,8 @@ const BADGE_LABELS: Record<Badge, string> = {
   business: "Business pretplata",
 };
 
-const FEATURES: Feature[] = [
-  // ── Free ────────────────────────────────────────────
+// ── Besplatni alati (bez registracije, amortizacija uz besplatan račun) ──────
+const FREE_TOOLS: Feature[] = [
   {
     title: "SPR-1053 obrazac",
     desc: "Automatska izrada obrasca za porez na dohodak iz samostalne djelatnosti. Unesite podatke, preuzmite popunjeni obrazac.",
@@ -99,7 +96,6 @@ const FEATURES: Feature[] = [
     ),
     dest: "/ugovor-o-pozajmici",
   },
-  // ── Free (continued) ─────────────────────────────────
   {
     title: "AMS-1035 generator",
     desc: "Automatska izrada AMS-1035 obrasca i uplatnica za prijavu poreza na uplate iz inostranstva. Unesite podatke o uplati i preuzmite popunjeni obrazac. Preuzmite gotove uplatnice za banku.",
@@ -121,7 +117,6 @@ const FEATURES: Feature[] = [
     ),
     dest: "/ams",
   },
-  // ── Registration ─────────────────────────────────────
   {
     title: "Stalna sredstva i amortizacija",
     desc: "Evidencija stalnih sredstava s automatskim obračunom amortizacije kroz godine. Historija i pregled po godinama.",
@@ -143,28 +138,10 @@ const FEATURES: Feature[] = [
     ),
     dest: "/amortizacija",
   },
-  {
-    title: "Plate i prijave radnika",
-    desc: "Mjesečni obračun plata i doprinosa. Platni listići, uplatnice, obrasci 2001/2002 i JS3100 prijave radnika kod PUFBiH.",
-    badge: "pro",
-    iconColor: "accent",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      >
-        <circle cx="9" cy="7" r="4" />
-        <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-        <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
-      </svg>
-    ),
-    dest: "/prijave-radnika",
-    soon: false,
-    featured: true,
-  },
+];
+
+// ── Pro pretplata (flagship "Plate i prijave radnika" je izdvojen iznad) ─────
+const PRO_TOOLS: Feature[] = [
   {
     title: "Šihterica: evidencija radnog vremena",
     desc: "Unos i pregled radnog vremena po zaposlenima. Automatski obračun sati, prekovremenih i slobodnih dana.",
@@ -183,25 +160,6 @@ const FEATURES: Feature[] = [
       </svg>
     ),
     dest: "/sihterica",
-  },
-  // ── Business ─────────────────────────────────────────
-  {
-    title: "Generator članskih kartica",
-    desc: "Kreirajte profesionalne članske kartice sa QR kodom za svoju organizaciju (Pro) ili klijente (Business). Format kreditne kartice, spremno za štampanje ili pokazivanje na mobitelu.",
-    badge: "pro",
-    iconColor: "accent",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      >
-        <rect x="2" y="6" width="20" height="13" rx="2" />
-        <path d="M2 10h20M6 15h4" />
-      </svg>
-    ),
-    dest: "/clanske-kartice",
   },
   {
     title: "Fakture i predračuni",
@@ -222,6 +180,28 @@ const FEATURES: Feature[] = [
     ),
     dest: "/fakture",
   },
+  {
+    title: "Generator članskih kartica",
+    desc: "Kreirajte profesionalne članske kartice sa QR kodom za svoju organizaciju (Pro) ili klijente (Business). Format kreditne kartice, spremno za štampanje ili pokazivanje na mobitelu.",
+    badge: "pro",
+    iconColor: "accent",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <rect x="2" y="6" width="20" height="13" rx="2" />
+        <path d="M2 10h20M6 15h4" />
+      </svg>
+    ),
+    dest: "/clanske-kartice",
+  },
+];
+
+// ── Business pretplata ────────────────────────────────────────────────────────
+const BUSINESS_TOOLS: Feature[] = [
   {
     title: "Ugovor o djelu",
     desc: "Kalkulator poreza i doprinosa na honorar (NETO ↔ BRUTO), automatski obračun PIO/zdravstva/zaštite, predložak ugovora i 6 uplatnica spremnih za banku.",
@@ -262,6 +242,7 @@ const FEATURES: Feature[] = [
   },
 ];
 
+// ── Brzi kalkulatori: odvojena sekcija, kao i prije ──────────────────────────
 interface QuickTool {
   title: string;
   desc: string;
@@ -303,6 +284,13 @@ const QUICK_TOOLS: QuickTool[] = [
   },
 ];
 
+const FLAGSHIP_POINTS = [
+  "Platni listići i uplatnice spremne za banku",
+  "Obrasci 2001 i 2002 za PUFBiH",
+  "JS3100 prijave i odjave radnika",
+  "MIP-1023 i GIP-1022 izvještaji",
+];
+
 const ArrowIcon = () => (
   <span className={styles.startArrow} aria-hidden="true">
     <svg
@@ -319,93 +307,170 @@ const ArrowIcon = () => (
   </span>
 );
 
-export default function Features() {
-  const [showModal, setShowModal] = useState(false);
+const CheckIcon = () => (
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 8.5l3.5 3.5L13 4.5" />
+  </svg>
+);
 
+function FeatureGroup({
+  title,
+  sub,
+  tools,
+  cta,
+  showBadges,
+}: {
+  title: string;
+  sub: string;
+  tools: Feature[];
+  cta: string;
+  showBadges?: boolean;
+}) {
   return (
-    <>
-      <section id="funkcije" className={styles.section}>
-        <div className={styles.header}>
-          <div className={styles.label}>Što dobijate</div>
-          <h2 className={styles.h2}>
-            Sve što vam treba
-            <br />
-            <em>na jednom ekranu</em>
-          </h2>
-          <p className={styles.intro}>
-            Od jednostavnog preračuna plate do kompletnih obrazaca i ugovora za
-            radnike.
-          </p>
-        </div>
-
-        <div className={styles.grid}>
-          {FEATURES.map((f) => (
-            <div
-              key={f.title}
-              className={`${styles.cell} ${f.featured ? styles.cellFeatured : ""}`}
-            >
-              {f.featured && (
-                <span className={styles.featuredTag}>Najpopularnije</span>
-              )}
-              <div
-                className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}
-              >
-                {f.icon}
-              </div>
-              <div className={styles.cellTitle}>{f.title}</div>
-              <div className={styles.cellDesc}>{f.desc}</div>
-              {f.soon ? (
-                <button
-                  type="button"
-                  className={styles.startButton}
-                  onClick={() => setShowModal(true)}
-                >
-                  Kreni <ArrowIcon />
-                </button>
-              ) : (
-                <Link href={f.dest} className={styles.startLink}>
-                  <button type="button" className={styles.startButton}>
-                    Kreni <ArrowIcon />
-                  </button>
-                </Link>
-              )}
+    <div className={styles.group}>
+      <div className={styles.groupHeader}>
+        <span className={styles.groupTitle}>{title}</span>
+        <span className={styles.groupSub}>{sub}</span>
+      </div>
+      <div className={styles.grid}>
+        {tools.map((f) => (
+          <div key={f.title} className={styles.cell}>
+            <div className={`${styles.icon} ${styles[`icon_${f.iconColor}`]}`}>
+              {f.icon}
+            </div>
+            <div className={styles.cellTitle}>{f.title}</div>
+            <div className={styles.cellDesc}>{f.desc}</div>
+            <Link href={f.dest} className={styles.startLink}>
+              <button type="button" className={styles.startButton}>
+                {cta} <ArrowIcon />
+              </button>
+            </Link>
+            {showBadges && (
               <span className={`${styles.badge} ${styles[`badge_${f.badge}`]}`}>
                 {BADGE_LABELS[f.badge]}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function Features() {
+  // Trial i "isprobaj" poruke su samo za goste; ulogovan korisnik (i
+  // pretplatnik) vidi neutralno "Otvori alat".
+  const user = useMe();
+  return (
+    <section id="funkcije" className={styles.section}>
+      <div className={styles.header}>
+        <div className={styles.label}>Što dobijate</div>
+        <h2 className={styles.h2}>
+          Sve što vam treba
+          <br />
+          <em>na jednom ekranu</em>
+        </h2>
+        <p className={styles.intro}>
+          Od jednostavnog preračuna plate do kompletnih obrazaca i ugovora za
+          radnike.
+        </p>
+      </div>
+
+      {/* Flagship: glavni alat, izdvojen iznad grupa */}
+      <div className={styles.flagship}>
+        <div className={styles.flagshipBody}>
+          <span className={styles.featuredTag}>Najpopularnije</span>
+          <h3 className={styles.flagshipTitle}>
+            Obračun plata i prijave radnika
+          </h3>
+          <p className={styles.flagshipDesc}>
+            Kompletan mjesečni obračun plata i doprinosa za vaše radnike, od
+            unosa do dokumenata spremnih za banku i poreznu upravu.
+          </p>
+          <ul className={styles.flagshipList}>
+            {FLAGSHIP_POINTS.map((p) => (
+              <li key={p}>
+                <CheckIcon />
+                {p}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className={styles.flagshipCta}>
+          <Link href="/prijave-radnika?tab=obracun" className={styles.startLink}>
+            <button type="button" className={styles.startButton}>
+              {user ? "Otvori alat" : "Isprobaj 30 dana besplatno"} <ArrowIcon />
+            </button>
+          </Link>
+          <span className={styles.flagshipNote}>
+            {user ? "Uz Pro pretplatu" : "Bez kartice · uz Pro pretplatu"}
+          </span>
+        </div>
+      </div>
+
+      <FeatureGroup
+        title="Besplatni alati"
+        sub="Bez registracije, stalna sredstva uz besplatan račun"
+        tools={FREE_TOOLS}
+        cta="Otvori alat"
+        showBadges
+      />
+
+      <FeatureGroup
+        title="Uz Pro pretplatu"
+        sub={
+          user
+            ? "Dostupno uz Pro pretplatu"
+            : "30 dana besplatno za nove korisnike"
+        }
+        tools={PRO_TOOLS}
+        cta={user ? "Otvori alat" : "Isprobaj besplatno"}
+      />
+      <FeatureGroup
+        title="Uz Business pretplatu"
+        sub="Za knjigovodstvene agencije i firme sa više radnika"
+        tools={BUSINESS_TOOLS}
+        cta={user ? "Otvori alat" : "Isprobaj besplatno"}
+      />
+
+      {/* PK Office banner namjerno uklonjen odavde: isti banner postoji u
+          Pricing sekciji i kao standalone PkOfficeTeaser niže na početnoj,
+          tri ponavljanja u jednom scrollu su bila previše. */}
+
+      {/* Brzi kalkulatori: odvojen red na dnu, kao i prije */}
+      <div className={styles.group}>
+        <div className={styles.groupHeader}>
+          <span className={styles.groupTitle}>Brzi kalkulatori</span>
+          <span className={styles.groupSub}>Besplatno, bez registracije</span>
+        </div>
+        <div className={styles.quickToolsRow}>
+          {QUICK_TOOLS.map((t) => (
+            <div key={t.title} className={styles.quickTool}>
+              <div className={`${styles.icon} ${styles.icon_sage}`}>
+                {t.icon}
+              </div>
+              <div className={styles.cellTitle}>{t.title}</div>
+              <div className={styles.quickToolDesc}>{t.desc}</div>
+              <Link href={t.dest} className={styles.startLink}>
+                <button type="button" className={styles.startButton}>
+                  Otvori alat <ArrowIcon />
+                </button>
+              </Link>
+              <span className={`${styles.badge} ${styles.badge_free}`}>
+                {BADGE_LABELS.free}
               </span>
             </div>
           ))}
         </div>
-
-        <div className={styles.quickToolsSection}>
-          <div className={styles.quickToolsHeader}>
-            <span className={styles.quickToolsLabel}>Brzi kalkulatori</span>
-            <span className={styles.quickToolsSubLabel}>
-              Besplatno, bez registracije
-            </span>
-          </div>
-          <div className={styles.quickToolsRow}>
-            {QUICK_TOOLS.map((t) => (
-              <div key={t.title} className={styles.quickTool}>
-                <div className={`${styles.icon} ${styles.icon_sage}`}>
-                  {t.icon}
-                </div>
-                <div className={styles.quickToolTitle}>{t.title}</div>
-                <div className={styles.quickToolDesc}>{t.desc}</div>
-                <Link href={t.dest} className={styles.startLink}>
-                  <button type="button" className={styles.startButton}>
-                    Kreni <ArrowIcon />
-                  </button>
-                </Link>
-                <span className={`${styles.badge} ${styles.badge_free}`}>
-                  {BADGE_LABELS.free}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {showModal && <ComingSoonModal onClose={() => setShowModal(false)} />}
-    </>
+      </div>
+    </section>
   );
 }

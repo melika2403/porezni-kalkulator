@@ -111,6 +111,11 @@ export default function PrivatnostPage() {
             korisnika lično.
           </li>
           <li>
+            <strong>Meta Pixel</strong>, mjerenje uspješnosti naših oglasnih kampanja na Meta
+            platformama (Facebook, Instagram): posjeta stranici i registracija nakon klika na
+            oglas. Aktivira se samo uz vašu privolu u banneru za kolačiće.
+          </li>
+          <li>
             <strong>Tehnički podaci</strong>, IP adresa, tip preglednika i operativni sistem, koje
             automatski bilježe naši serveri radi sigurnosti i dijagnostike. IP adresa se čuva
             ograničeni period.
@@ -138,8 +143,8 @@ export default function PrivatnostPage() {
             analitika korištenja, komunikacija o važnim izmjenama
           </li>
           <li>
-            <strong>Privola</strong>, Google Analytics i marketinška komunikacija (ako je
-            primjenjivo). Privolu možete u bilo koje vrijeme povući.
+            <strong>Privola</strong>, Google Analytics, Meta Pixel i marketinška komunikacija
+            (ako je primjenjivo). Privolu možete u bilo koje vrijeme povući.
           </li>
         </ul>
 
@@ -157,6 +162,10 @@ export default function PrivatnostPage() {
           <li>
             <strong>Analitički kolačići</strong>, Google Analytics kolačići koji nam pomažu razumjeti
             kako korisnici koriste Platformu. Podaci su anonimni i agregirani.
+          </li>
+          <li>
+            <strong>Marketinški kolačići</strong>, Meta Pixel kolačići za mjerenje uspješnosti
+            oglasnih kampanja. Postavljaju se samo ako prihvatite sve kolačiće.
           </li>
         </ul>
         <p>

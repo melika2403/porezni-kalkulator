@@ -1,9 +1,9 @@
+import Link from "next/link";
 import {
   IconBuildingBank,
   IconReceiptTax,
   IconCoins,
   IconFileText,
-  IconAddressBook,
   IconArrowsExchange,
   IconWallet,
   IconArrowDownLeft,
@@ -12,41 +12,119 @@ import {
   IconAlertCircle,
   IconCloudUpload,
   IconCircleCheck,
+  IconInbox,
+  IconPackage,
+  IconTransfer,
+  IconArrowRight,
+  IconSend,
+  IconUsers,
 } from "@tabler/icons-react";
 import { LandingCta } from "./LandingCta";
+import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 import styles from "./pkOffice.module.css";
 
-const FEATURES = [
+const FEATURES: {
+  icon: typeof IconInbox;
+  name: string;
+  desc: string;
+  /** Kartica preko cijelog reda (popunjava zadnji red 3-kolonskog grida). */
+  wide?: boolean;
+}[] = [
   {
-    icon: IconBuildingBank,
-    name: "Bankovni izvodi",
-    desc: "Učitaj PDF izvod iz e-bankinga, promet se provjerava prema saldu prije uvoza.",
+    icon: IconInbox,
+    name: "Grupni uvoz izvoda",
+    desc: "Za knjigovođe: ubaci PDF izvode SVIH obrta odjednom, svaki se sam prepozna po žiro računu i rasporedi na svoj obrt.",
   },
   {
     icon: IconArrowsExchange,
     name: "Automatsko knjiženje",
-    desc: "Transakcije se same razvrstavaju po kategorijama iz opisa, ti samo potvrdiš.",
+    desc: "Transakcije se same kategorišu, vežu za partnere i zatvaraju fakture; KPR, KUF i KIF se pune sami, ti samo potvrdiš.",
   },
   {
     icon: IconCoins,
     name: "Obračun plata",
-    desc: "Mjesečni obračun, platni listići, uplatnice i MIP/2001 obrasci na par klikova.",
+    desc: "Obračun, listići na email radnicima, uplatnice, MIP-1023 XML, 2001/2002, nalog za knjiženje, rekapitulacija i doprinosi vlasnika sa Obrascem 2002.",
+  },
+  {
+    icon: IconUsers,
+    name: "Radnici i evidencije",
+    desc: "Karton radnika po mjesecima, zakonska matična evidencija, spisak radnika u PDF/CSV i upozorenja na nepotpune podatke.",
   },
   {
     icon: IconReceiptTax,
-    name: "KPR i PDV evidencije",
-    desc: "Knjiga prihoda i rashoda i PDV evidencije se vode automatski iz tvojih dokumenata.",
+    name: "PDV evidencije",
+    desc: "KUF i KIF iz knjiženja, PDV prijava, e-KUF/e-KIF CSV za UINO portal i D-PDV obrazac.",
+  },
+  {
+    icon: IconFileText,
+    name: "KPR i porezni obrasci",
+    desc: "Knjiga prihoda i rashoda se vodi sama, a SPR, GPD, ČOK i ONŠ se pripreme iz knjiga, sa podacima za uplatu.",
   },
   {
     icon: IconFileInvoice,
     name: "Fakture i partneri",
-    desc: "Izdavanje faktura, kartice kupaca i dobavljača, saldo i dospjele obaveze.",
+    desc: "Izdavanje faktura, kartice kupaca i dobavljača, kompenzacije i cesije, dospjele obaveze.",
   },
   {
-    icon: IconFileText,
-    name: "Obrasci",
-    desc: "Svi porezni obrasci za obrt na jednom mjestu, popunjeni iz tvojih podataka.",
+    icon: IconPackage,
+    name: "Roba i maloprodaja",
+    desc: "Kalkulacije (KCM), lager lista, popis, nivelacije i trgovačka knjiga na malo (TKM).",
   },
+  {
+    icon: IconBuildingBank,
+    name: "Blagajna i putni nalozi",
+    desc: "Blagajnički nalozi i dnevnik po uredbi, putni nalozi sa dnevnicama.",
+  },
+  {
+    icon: IconTransfer,
+    name: "Migracija iz starog programa",
+    desc: "Besplatan uvoz artikala, partnera i izvoda: pređi bez ponovnog kucanja šifarnika.",
+    wide: true,
+  },
+];
+
+// Mock podaci za preview prozor obračuna plata (primjer, kao i dashboard)
+const PLATE_ROWS = [
+  {
+    ini: "AH",
+    ime: "Amila Hodžić",
+    chip: "Isplaćeno · listić poslan na email",
+    amt: "1.418,60 KM",
+    bg: "#d6e8d9",
+    fg: "#2d4633",
+  },
+  {
+    ini: "EK",
+    ime: "Emir Kovač",
+    chip: "Isplaćeno · listić poslan na email",
+    amt: "1.156,30 KM",
+    bg: "#d6e8d9",
+    fg: "#2d4633",
+  },
+  {
+    ini: "SB",
+    ime: "Selma Burić",
+    chip: "Obračunato",
+    amt: "1.270,30 KM",
+    bg: "#f7e9df",
+    fg: "#c8622a",
+  },
+  {
+    ini: "VL",
+    ime: "Vlasnik obrta",
+    chip: "Doprinosi vlasnika · Obrazac 2002",
+    amt: "612,30 KM",
+    bg: "#ede8db",
+    fg: "#5b6a5e",
+  },
+];
+
+// PK Office paketi (cijene iz src/data/pricing.ts, neto bez PDV-a)
+const PLAN_TIERS = [
+  { naziv: "Office Start", obrta: "do 2 obrta", cijena: "20 KM" },
+  { naziv: "Office Tim", obrta: "do 10 obrta", cijena: "80 KM" },
+  { naziv: "Office Agencija", obrta: "do 25 obrta", cijena: "175 KM" },
+  { naziv: "Office Agencija+", obrta: "do 50 obrta", cijena: "300 KM" },
 ];
 
 export default function PkOfficeLanding() {
@@ -56,15 +134,15 @@ export default function PkOfficeLanding() {
       <section className={styles.hero}>
         <span className={styles.badge}>
           <span className={styles.badgeDot} />
-          PK Office, uskoro
+          PK Office
         </span>
         <h1 className={styles.h1}>
           Knjigovodstvo tvog obrta, <em>na jednom mjestu</em>.
         </h1>
         <p className={styles.sub}>
           PK Office spaja bankovne izvode, automatsko knjiženje, obračun plata i
-          sve porezne obrasce u jedan jednostavan alat. Radimo na njemu, a ti se
-          možeš registrovati i biti među prvima koji ga isprobaju.
+          sve porezne obrasce u jedan jednostavan alat. Isprobaj ga 30 dana
+          besplatno, bez kartice i bez obaveze.
         </p>
         <div className={styles.ctaRow}>
           <LandingCta withSecondary />
@@ -240,6 +318,116 @@ export default function PkOfficeLanding() {
         </div>
       </section>
 
+      {/* Preview: obračun plata */}
+      <section className={styles.previewWrap}>
+        <div className={styles.window}>
+          <div className={styles.windowBar}>
+            <span className={styles.dot} style={{ background: "#e06c5a" }} />
+            <span className={styles.dot} style={{ background: "#e3b341" }} />
+            <span className={styles.dot} style={{ background: "#5aa86f" }} />
+            <span className={styles.windowUrl}>
+              app.poreznikalkulator.ba/obracuni-plata
+            </span>
+          </div>
+          <div className={styles.windowBody}>
+            <p className={styles.greet}>Obračuni plata.</p>
+            <p className={styles.greetSub}>
+              juni 2026. · Demo obrt · 3 radnika i vlasnik
+            </p>
+
+            <div className={styles.kpiGrid}>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#d6e8d9", color: "#3a5c42" }}
+                >
+                  <IconCoins size={17} />
+                </span>
+                <p className={styles.kpiLabel}>Neto za isplatu</p>
+                <p className={styles.kpiValue}>3.845,20</p>
+              </div>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#ede8db", color: "#7a8a7d" }}
+                >
+                  <IconReceiptTax size={17} />
+                </span>
+                <p className={styles.kpiLabel}>Doprinosi i porez</p>
+                <p className={styles.kpiValue}>2.731,45</p>
+              </div>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#d6e8d9", color: "#3a5c42" }}
+                >
+                  <IconSend size={17} />
+                </span>
+                <p className={styles.kpiLabel}>Listići na email</p>
+                <p className={styles.kpiValue}>3 / 3</p>
+              </div>
+              <div className={styles.kpi}>
+                <span
+                  className={styles.kpiIcon}
+                  style={{ background: "#d6e8d9", color: "#2d6e54" }}
+                >
+                  <IconCircleCheck size={17} />
+                </span>
+                <p className={styles.kpiLabel}>MIP-1023</p>
+                <p className={styles.kpiValue}>Preuzet</p>
+              </div>
+            </div>
+
+            <div className={styles.rows}>
+              <div className={styles.rowsHead}>Obračun za juni 2026.</div>
+              {PLATE_ROWS.map((r) => (
+                <div key={r.ime} className={styles.row}>
+                  <span
+                    className={`${styles.rowIcon} ${styles.rowInitials}`}
+                    style={{ background: r.bg, color: r.fg }}
+                  >
+                    {r.ini}
+                  </span>
+                  <div className={styles.rowMain}>
+                    <p className={styles.rowTitle}>{r.ime}</p>
+                    <span
+                      className={styles.catChip}
+                      style={{ background: r.bg, color: r.fg }}
+                    >
+                      {r.chip}
+                    </span>
+                  </div>
+                  <span className={styles.rowAmt}>{r.amt}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className={styles.docRow}>
+              <span className={`${styles.docChip} ${styles.docChipPrimary}`}>
+                <IconSend size={14} />
+                Pošalji listiće email-om
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                MIP-1023 XML
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                Nalog za knjiženje
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                Rekapitulacija (PDF)
+              </span>
+              <span className={styles.docChip}>
+                <IconFileText size={14} />
+                Uplatnice
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Funkcionalnosti */}
       <section className={styles.features}>
         <h2 className={styles.featuresTitle}>Šta PK Office radi</h2>
@@ -250,7 +438,12 @@ export default function PkOfficeLanding() {
           {FEATURES.map((f) => {
             const Icon = f.icon;
             return (
-              <div key={f.name} className={styles.feat}>
+              <div
+                key={f.name}
+                className={
+                  f.wide ? `${styles.feat} ${styles.featWide}` : styles.feat
+                }
+              >
                 <span className={styles.featIcon}>
                   <Icon size={20} />
                 </span>
@@ -260,9 +453,16 @@ export default function PkOfficeLanding() {
             );
           })}
         </div>
+        {/* Sitna napomena o fiskalizaciji, da očekivanja budu jasna */}
+        <p className={styles.featNapomena}>
+          Napomena: PK Office nema integraciju sa fiskalnim kasama i ne
+          povezuje se sa fiskalnim uređajem na računaru. Fiskalni računi se
+          izdaju na kasi kao i do sada, a dnevni promet (pazar) se u program
+          unosi ili povlači sa izvoda.
+        </p>
       </section>
 
-      {/* Najava pretplate (teaser, bez cijene) */}
+      {/* Pretplata: sve funkcije u svakom paketu, cijena po broju obrta */}
       <section className={styles.plan}>
         <div className={styles.planCard}>
           <span className={styles.planBadge}>
@@ -274,19 +474,32 @@ export default function PkOfficeLanding() {
                 background: "#fff",
               }}
             />
-            Uskoro
+            Paketi
           </span>
-          <h2>Jedna pretplata. Neograničen broj obrta.</h2>
+          <h2>Sve funkcije. Cijena po broju obrta.</h2>
           <p className={styles.planLead}>
-            Plaćaš jednom, vodiš koliko god obrta želiš. Bez naplate po obrtu i
-            bez skrivenih doplata.
+            Office Start pokriva sve za do 2 obrta, a paketi Tim i veći uz PK
+            Office uključuju i kompletan Business bez ograničenja. Biraš samo
+            koliko obrta vodiš.
           </p>
+          <div className={styles.planTiers}>
+            {PLAN_TIERS.map((t) => (
+              <div key={t.naziv} className={styles.planTier}>
+                <div className={styles.planTierName}>{t.naziv}</div>
+                <div className={styles.planTierObrta}>{t.obrta}</div>
+                <div className={styles.planTierPrice}>{t.cijena}</div>
+                <div className={styles.planTierPer}>mjesečno + PDV</div>
+              </div>
+            ))}
+          </div>
           <div className={styles.planFeatures}>
             {[
-              ["Neograničen broj obrta", "svi na jednom nalogu, bez limita"],
-              ["Sve funkcije uključene", "izvodi, plate, obrasci, fakture"],
-              ["Idealno za knjigovođe", "vodi i obrte svojih klijenata"],
-              ["Bez naplate po obrtu", "jedna fiksna pretplata"],
+              ["Grupni uvoz izvoda", "svi obrti odjednom, sami se rasporede"],
+              ["Automatsko knjiženje", "KPR, KUF i KIF se pune sami"],
+              ["Doprinosi vlasnika obrta", "obračun i Obrazac 2002 svaki mjesec"],
+              ["Listići na email", "svaki radnik dobije svoj listić jednim klikom"],
+              ["30 dana besplatne probe", "bez kartice i bez obaveze"],
+              ["Besplatna migracija", "uvoz artikala, partnera i izvoda"],
             ].map(([title, desc]) => (
               <div key={title} className={styles.planFeat}>
                 <IconCircleCheck size={19} className={styles.planFeatIcon} />
@@ -296,16 +509,30 @@ export default function PkOfficeLanding() {
               </div>
             ))}
           </div>
+          <div className={styles.planCtaRow}>
+            <OfficeTrialLink className={styles.planCtaBtn}>
+              Isprobaj 30 dana besplatno
+              <IconArrowRight size={16} />
+            </OfficeTrialLink>
+            <Link href="/pretplate#pk-office" className={styles.planCtaGhost}>
+              Pogledaj cjenovnik i izračunaj svoju cijenu
+            </Link>
+          </div>
+          <p className={styles.planFine}>
+            Godišnja pretplata: 2 mjeseca besplatno. Preko 50 obrta? Javi se za
+            posebnu ponudu.
+          </p>
         </div>
       </section>
 
       {/* Zavrsni CTA */}
       <section className={styles.cta}>
         <div className={styles.ctaCard}>
-          <h2>Budi među prvima.</h2>
+          <h2>Spreman za početak?</h2>
           <p>
-            Registruj se sada, obavijestićemo te čim PK Office bude spreman, a
-            dotad možeš koristiti sve naše besplatne porezne alate.
+            Registruj se, aktiviraj 30 dana besplatne probe i prebaci knjige
+            svojih obrta još danas. Migracija podataka iz starog programa je
+            besplatna, a tu su i svi naši besplatni porezni alati.
           </p>
           <LandingCta />
         </div>

@@ -2,12 +2,16 @@ require("dotenv").config();
 
 const path = require("path");
 const fs = require("fs");
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 
 const { sequelize, Organization, Worker } = require("./models/index");
 const { decryptJmbg } = require("./utils/encryptJmbg");
+const {
+  formatAccountDashed,
+} = require("./services/bankStatements/bankCodes");
 const KD_BIH_NAMES = require("./data/kdBihNames.json");
 const authRoutes = require("./routes/authRoutes");
 const usersRoutes = require("./routes/usersRoutes");
@@ -24,6 +28,7 @@ const citiesRoutes = require("./routes/citiesRoutes");
 const predracunRoutes = require("./routes/predracunRoutes");
 const karticaMembersRoutes = require("./routes/karticaMembersRoutes");
 const invoicesRoutes = require("./routes/invoicesRoutes");
+const preparedInvoicesRoutes = require("./routes/preparedInvoicesRoutes");
 const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes");
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
@@ -35,6 +40,20 @@ const meRoutes = require("./routes/meRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const bankStatementsRoutes = require("./routes/bankStatementsRoutes");
 const partnersRoutes = require("./routes/partnersRoutes");
+const pdvRoutes = require("./routes/pdvRoutes");
+const publicStatsRoutes = require("./routes/publicStatsRoutes");
+const prebijanjaRoutes = require("./routes/prebijanjaRoutes");
+const supportRoutes = require("./routes/supportRoutes");
+const announcementsRoutes = require("./routes/announcementsRoutes");
+const { initSocket } = require("./socket");
+const {
+  startNotificationScheduler,
+} = require("./services/notificationScheduler");
+const kalkulacijeRoutes = require("./routes/kalkulacijeRoutes");
+const lagerRoutes = require("./routes/lagerRoutes");
+const blagajnaRoutes = require("./routes/blagajnaRoutes");
+const putniNaloziRoutes = require("./routes/putniNaloziRoutes");
+const pkOfficeRoutes = require("./routes/pkOfficeRoutes");
 
 const app = express();
 
@@ -57,7 +76,9 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+// veći limit zbog grupnih uvoza (šifarnik artikala/partnera zna imati
+// desetine hiljada stavki poslanih kao JSON)
+app.use(express.json({ limit: "25mb" }));
 app.use(cookieParser());
 
 // ── static za uploadane fajlove (logo organizacije, kasnije i drugi) ─────────
@@ -81,6 +102,7 @@ app.use("/api/cities", citiesRoutes);
 app.use("/api/predracun", predracunRoutes);
 app.use("/api/kartica-members", karticaMembersRoutes);
 app.use("/api/invoices", invoicesRoutes);
+app.use("/api/prepared-invoices", preparedInvoicesRoutes);
 app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
@@ -92,6 +114,16 @@ app.use("/api/me", meRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/bank-statements", bankStatementsRoutes);
 app.use("/api/partners", partnersRoutes);
+app.use("/api/pdv", pdvRoutes);
+app.use("/api/public", publicStatsRoutes);
+app.use("/api/prebijanja", prebijanjaRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/announcements", announcementsRoutes);
+app.use("/api/kalkulacije", kalkulacijeRoutes);
+app.use("/api/lager", lagerRoutes);
+app.use("/api/blagajna", blagajnaRoutes);
+app.use("/api/putni-nalozi", putniNaloziRoutes);
+app.use("/api/pk-office", pkOfficeRoutes);
 
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
@@ -112,6 +144,206 @@ async function ensureColumns() {
       ddl: "ALTER TABLE organizations ADD COLUMN pdvNumber VARCHAR(20) NULL",
     },
     {
+      table: "organizations",
+      column: "pdvObveznikOd",
+      // ulazak u sistem PDV-a usred godine; null = obveznik oduvijek
+      ddl: "ALTER TABLE organizations ADD COLUMN pdvObveznikOd DATE NULL",
+    },
+    {
+      table: "organizations",
+      column: "pdvObveznikDo",
+      // izlazak iz sistema PDV-a; null = nije izašao
+      ddl: "ALTER TABLE organizations ADD COLUMN pdvObveznikDo DATE NULL",
+    },
+    {
+      table: "organizations",
+      column: "bankAccounts",
+      ddl: "ALTER TABLE organizations ADD COLUMN bankAccounts JSON NULL",
+    },
+    {
+      table: "organizations",
+      column: "kprPazarIzKp",
+      // KPR prihod od pazara iz KP-1042 umjesto pologa sa izvoda
+      ddl: "ALTER TABLE organizations ADD COLUMN kprPazarIzKp TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "organizations",
+      column: "blagajnickiMaksimum",
+      // blagajnički maksimum internom odlukom (Uredba, Sl. nov. FBiH 48/15 i 82/15)
+      ddl: "ALTER TABLE organizations ADD COLUMN blagajnickiMaksimum DECIMAL(12,2) NULL",
+    },
+    {
+      table: "popisi",
+      column: "pocetnoStanje",
+      // popis nastao uvozom početnog stanja lagera (poseban TKM opis)
+      ddl: "ALTER TABLE popisi ADD COLUMN pocetnoStanje TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    // ─── notifikacije: postavke po članu obrta i po korisniku ────────────────
+    {
+      table: "organization_members",
+      column: "notifPrefs",
+      ddl: "ALTER TABLE organization_members ADD COLUMN notifPrefs JSON NULL",
+    },
+    {
+      table: "users",
+      column: "notifPrefs",
+      ddl: "ALTER TABLE users ADD COLUMN notifPrefs JSON NULL",
+    },
+    // ─── putni nalozi: vlastito vozilo + evidencija isplate ──────────────────
+    {
+      table: "putni_nalozi",
+      column: "predjeniKm",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN predjeniKm DECIMAL(10,2) NULL",
+    },
+    {
+      table: "putni_nalozi",
+      column: "kmStopa",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN kmStopa DECIMAL(6,3) NULL",
+    },
+    {
+      table: "putni_nalozi",
+      column: "isplacenoDatum",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN isplacenoDatum DATE NULL",
+    },
+    {
+      table: "putni_nalozi",
+      column: "blagajnaNalogId",
+      ddl: "ALTER TABLE putni_nalozi ADD COLUMN blagajnaNalogId INT UNSIGNED NULL",
+    },
+    // ─── PDV evidencije (KUF/KIF) ─────────────────────────────────────────────
+    {
+      table: "ulazni_racuni",
+      column: "vrstaNabavke",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN vrstaNabavke VARCHAR(20) NOT NULL DEFAULT 'DOMACA'",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "pdvNeodbitan",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN pdvNeodbitan TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "pdvNeodbitniIznos",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN pdvNeodbitniIznos DECIMAL(12,2) NOT NULL DEFAULT 0",
+      // naslijeđeni sve-ili-ništa checkbox → cijeli PDV postaje neodbitni iznos
+      backfill:
+        "UPDATE ulazni_racuni SET pdvNeodbitniIznos = COALESCE(pdvIznos, 0) WHERE pdvNeodbitan = 1",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "datumPrijema",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN datumPrijema DATE NULL",
+      // KUF ide po periodu prijema; za postojeća knjiženja = datum računa
+      backfill:
+        "UPDATE ulazni_racuni SET datumPrijema = datumRacuna WHERE datumPrijema IS NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "tipDokumenta",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN tipDokumenta VARCHAR(2) NOT NULL DEFAULT '01'",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "vrstaDokumenta",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN vrstaDokumenta VARCHAR(20) NOT NULL DEFAULT 'REDOVNA'",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "jciBroj",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN jciBroj VARCHAR(30) NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "jciDatum",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN jciDatum DATE NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "pausalnaNaknada",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN pausalnaNaknada DECIMAL(12,2) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "kpEntitet",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN kpEntitet VARCHAR(10) NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "kpIznos",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN kpIznos DECIMAL(12,2) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "samoEvidencija",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN samoEvidencija TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "artikli",
+      column: "tip",
+      ddl: "ALTER TABLE artikli ADD COLUMN tip VARCHAR(10) NOT NULL DEFAULT 'ROBA'",
+    },
+    // PK Office slotovi po Office paketu + Office trial
+    {
+      table: "organizations",
+      column: "pkOfficeEnabled",
+      ddl: "ALTER TABLE organizations ADD COLUMN pkOfficeEnabled TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "organizations",
+      column: "pkOfficeActivatedAt",
+      ddl: "ALTER TABLE organizations ADD COLUMN pkOfficeActivatedAt DATETIME NULL",
+    },
+    {
+      table: "organizations",
+      column: "pkOfficeDisabledAt",
+      ddl: "ALTER TABLE organizations ADD COLUMN pkOfficeDisabledAt DATETIME NULL",
+    },
+    {
+      table: "users",
+      column: "pkOfficeTrialEndsAt",
+      ddl: "ALTER TABLE users ADD COLUMN pkOfficeTrialEndsAt DATETIME NULL",
+    },
+    {
+      table: "invoices",
+      column: "vrstaIsporuke",
+      ddl: "ALTER TABLE invoices ADD COLUMN vrstaIsporuke VARCHAR(20) NOT NULL DEFAULT 'OPOREZIVA'",
+    },
+    {
+      table: "invoices",
+      column: "kifTipDokumenta",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifTipDokumenta VARCHAR(2) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifVrstaFakture",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifVrstaFakture VARCHAR(30) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifVrstaDokumenta",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifVrstaDokumenta VARCHAR(20) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifKpEntitet",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifKpEntitet VARCHAR(10) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifKpIznos",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifKpIznos DECIMAL(12,2) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifJciBroj",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifJciBroj VARCHAR(30) NULL",
+    },
+    {
+      table: "invoices",
+      column: "kifJciDatum",
+      ddl: "ALTER TABLE invoices ADD COLUMN kifJciDatum DATE NULL",
+    },
+    {
       table: "invoices",
       column: "emailSentAt",
       ddl: "ALTER TABLE invoices ADD COLUMN emailSentAt DATETIME NULL",
@@ -126,6 +358,17 @@ async function ensureColumns() {
       column: "convertedFromProformaId",
       ddl: "ALTER TABLE invoices ADD COLUMN convertedFromProformaId INT UNSIGNED NULL",
     },
+    // ─── Avansne fakture, storno avansnih i knjižne obavijesti ───────────────
+    {
+      table: "invoices",
+      column: "docType",
+      ddl: "ALTER TABLE invoices ADD COLUMN docType VARCHAR(20) NOT NULL DEFAULT 'STANDARD'",
+    },
+    {
+      table: "invoices",
+      column: "linkedInvoiceId",
+      ddl: "ALTER TABLE invoices ADD COLUMN linkedInvoiceId INT UNSIGNED NULL",
+    },
     {
       table: "users",
       column: "trialUsedAt",
@@ -135,6 +378,11 @@ async function ensureColumns() {
       table: "users",
       column: "wantsTrial",
       ddl: "ALTER TABLE users ADD COLUMN wantsTrial TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "users",
+      column: "wantsOfficeTrial",
+      ddl: "ALTER TABLE users ADD COLUMN wantsOfficeTrial TINYINT(1) NOT NULL DEFAULT 0",
     },
     // ─── Korist u naravi (službeno vozilo) ────────────────────────────────────
     {
@@ -607,6 +855,8 @@ async function ensureColumns() {
     if (!exists) {
       console.log(`Adding column ${c.table}.${c.column}...`);
       await sequelize.query(c.ddl);
+      // jednokratna migracija podataka uz novu kolonu
+      if (c.backfill) await sequelize.query(c.backfill);
     }
   }
 
@@ -777,6 +1027,84 @@ async function ensureInvoiceCounterTypeColumn() {
   );
 }
 
+// Idempotentno proširenje invoice_counters.type ENUM-a: serije za avansne
+// fakture (A-) i knjižne obavijesti (KO-) pored postojećih INVOICE/PROFORMA.
+async function ensureInvoiceCounterSeriesEnum() {
+  const [tblRows] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_counters'",
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+
+  const [colRows] = await sequelize.query(
+    "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_counters' AND COLUMN_NAME = 'type'",
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  if (colType.includes("'AVANS'") && colType.includes("'KO'")) return;
+
+  console.log("Proširujem invoice_counters.type ENUM (AVANS, KO)...");
+  await sequelize.query(
+    "ALTER TABLE invoice_counters MODIFY COLUMN type ENUM('INVOICE','PROFORMA','AVANS','KO') NOT NULL DEFAULT 'INVOICE'",
+  );
+}
+
+// VIEWER rola člana organizacije (read-only pristup, npr. vlasnik obrta koji
+// samo gleda knjige kod knjigovođe). Aditivno širenje enum-a, bez backfilla
+// (postojeće vrijednosti OWNER/ADMIN/MEMBER ostaju u novoj listi).
+async function ensureMemberRoleEnum() {
+  const [tblRows] = await sequelize.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'organization_members'`,
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+  const [colRows] = await sequelize.query(
+    `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'organization_members' AND COLUMN_NAME = 'role'`,
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  if (!colType || colType.includes("'VIEWER'")) return;
+  console.log("Proširujem organization_members.role ENUM (VIEWER)...");
+  await sequelize.query(
+    "ALTER TABLE organization_members MODIFY COLUMN role ENUM('OWNER','ADMIN','MEMBER','VIEWER') DEFAULT 'MEMBER'",
+  );
+}
+
+// PK Office paketi: proširi plan ENUM na subscriptions i predracuni
+// (sync ne mijenja postojeće ENUM definicije). PAŽNJA: subscriptions.plan
+// je legacy LOWERCASE ('free','pro','business'), predracuni.plan UPPERCASE.
+async function ensureOfficePlanEnums() {
+  const targets = [
+    {
+      table: "subscriptions",
+      marker: "'office_2'",
+      // subscriptions.plan je dodan kao nullable (ensureColumns), a postojeći
+      // redovi (npr. admin upsert samo sa datumima) imaju NULL. MODIFY ... NOT
+      // NULL bi na strict MySQL-u pukao na NULL vrijednostima (i srušio startup),
+      // a na non-strict ih pretvorio u '' umjesto DEFAULT-a. Zato backfill prije.
+      backfill:
+        "UPDATE subscriptions SET plan = 'free' WHERE plan IS NULL OR plan = ''",
+      ddl: "ALTER TABLE subscriptions MODIFY COLUMN plan ENUM('free','pro','business','office_2','office_10','office_25','office_50') NOT NULL DEFAULT 'free'",
+    },
+    {
+      table: "predracuni",
+      marker: "'OFFICE_2'",
+      ddl: "ALTER TABLE predracuni MODIFY COLUMN plan ENUM('PRO','BUSINESS','OFFICE_2','OFFICE_10','OFFICE_25','OFFICE_50') NOT NULL",
+    },
+  ];
+  for (const t of targets) {
+    const [tblRows] = await sequelize.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${t.table}'`,
+    );
+    if (!Number(tblRows?.[0]?.cnt || 0)) continue;
+    const [colRows] = await sequelize.query(
+      `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${t.table}' AND COLUMN_NAME = 'plan'`,
+    );
+    const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+    if (!colType || colType.includes(t.marker)) continue;
+    console.log(`Proširujem ${t.table}.plan ENUM (OFFICE paketi)...`);
+    // Očisti NULL/'' vrijednosti prije MODIFY ... NOT NULL da migracija ne pukne.
+    if (t.backfill) await sequelize.query(t.backfill);
+    await sequelize.query(t.ddl);
+  }
+}
+
 // Idempotent ENUM proširenja — sync ne mijenja postojeće ENUM definicije.
 async function ensurePayrollDocTypeEnum() {
   const [tblRows] = await sequelize.query(
@@ -840,6 +1168,26 @@ async function ensureWorkerDocTypeEnum() {
   );
 }
 
+// Idempotentno proširenje forms.type ENUM-a: ČOK (članarina obrtničkoj
+// komori) i ONŠ (naknade za šume) na /app/obrasci.
+async function ensureFormTypeEnum() {
+  const [tblRows] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'forms'",
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+
+  const [colRows] = await sequelize.query(
+    "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'forms' AND COLUMN_NAME = 'type'",
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  if (["COK", "ONS"].every((v) => colType.includes(`'${v}'`))) return;
+
+  console.log("Proširujem forms.type ENUM (COK, ONS)...");
+  await sequelize.query(
+    "ALTER TABLE forms MODIFY COLUMN type ENUM('GPD','SPR','ZO3','UGOVOR','UOD','PLDI','AMS','SIH','JS3100','COK','ONS') NOT NULL",
+  );
+}
+
 // Idempotentni backfill spola vlasnika (VLASNIK Worker) iz JMBG-a, da ga payroll
 // prepozna automatski (kao kod radnika). Cifre 10-12 < 500 = M, >= 500 = Z.
 // Samo za one bez spola; nakon prvog prolaza nema šta ažurirati.
@@ -892,6 +1240,77 @@ async function ensureActivityNamesFresh() {
   }
 }
 
+// Backfill: računi sa VEĆ učitanih izvoda u organizations.bankAccounts.
+// Auto-upis novog računa u profil radi tek od uvođenja liste računa; ovo
+// jednom pokupi račune sa ranijih izvoda. Idempotentno: kad je lista već
+// popunjena i nema novih računa, ništa se ne piše.
+async function ensureOrgBankAccountsBackfill() {
+  // Brza kapija: ima li uopšte org-e koje treba backfill-ati (bankAccounts
+  // prazan, a postoji izvod sa računom)? Nakon prvog prolaza ovo je prazno pa
+  // preskačemo skupi DISTINCT scan i update petlju na svakom startu.
+  const [pending] = await sequelize.query(
+    `SELECT 1 FROM organizations o
+     WHERE o.bankAccounts IS NULL
+       AND EXISTS (
+         SELECT 1 FROM bank_statements s
+         WHERE s.organizationId = o.id AND s.account IS NOT NULL AND s.account != ''
+       )
+     LIMIT 1`,
+  );
+  if (!pending || pending.length === 0) return;
+
+  const [rows] = await sequelize.query(
+    "SELECT DISTINCT organizationId, account FROM bank_statements WHERE account IS NOT NULL AND account != ''",
+  );
+  const byOrg = new Map();
+  for (const r of rows) {
+    const digits = String(r.account || "").replace(/\D+/g, "");
+    if (digits.length < 8) continue;
+    if (!byOrg.has(r.organizationId)) byOrg.set(r.organizationId, []);
+    const arr = byOrg.get(r.organizationId);
+    if (!arr.includes(digits)) arr.push(digits);
+  }
+  if (byOrg.size === 0) return;
+
+  const orgs = await Organization.findAll({
+    where: { id: [...byOrg.keys()] },
+    attributes: ["id", "bankAccount", "bankAccounts"],
+  });
+  let updated = 0;
+  for (const org of orgs) {
+    let list = org.bankAccounts;
+    if (typeof list === "string") {
+      try {
+        list = JSON.parse(list);
+      } catch {
+        list = null;
+      }
+    }
+    if (!Array.isArray(list)) list = [];
+    const existing = list
+      .map((a) => String(a || "").replace(/\D+/g, ""))
+      .filter(Boolean);
+    const mainDigits = String(org.bankAccount || "").replace(/\D+/g, "");
+    // glavni iz profila je uvijek prvi u listi
+    const next = existing.length === 0 && mainDigits ? [mainDigits] : [...existing];
+    for (const acc of byOrg.get(org.id) || []) {
+      if (!next.includes(acc)) next.push(acc);
+    }
+    if (next.length === 0 || next.length === existing.length) continue;
+    await org.update({
+      bankAccounts: next,
+      bankAccount:
+        org.bankAccount || (next[0] ? formatAccountDashed(next[0]) : null),
+    });
+    updated += 1;
+  }
+  if (updated) {
+    console.log(
+      `Backfill žiro računa sa izvoda u profil za ${updated} organizacija.`,
+    );
+  }
+}
+
 // Ensure utf8mb4 charset za tabele koje su možda kreirane sa default DB charsetom
 // koji ne podržava bosanske znakove (ć, š, đ, ž, č).
 async function ensureUtf8Mb4() {
@@ -924,20 +1343,127 @@ async function ensureUtf8Mb4() {
   }
 }
 
+// Idempotentno dodavanje unique indeksa na POSTOJEĆE tabele (sync({alter:false})
+// ne dira postojeće tabele). Ako već postoji ili ako postoje duplikati u
+// testnim podacima, samo upozori, ne ruši start.
+async function ensureUniqueIndex(table, indexName, columns) {
+  const [tblRows] = await sequelize.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}'`,
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return; // tabelu će sync tek napraviti (sa indeksom)
+
+  const [idxRows] = await sequelize.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${table}' AND INDEX_NAME = '${indexName}'`,
+  );
+  if (Number(idxRows?.[0]?.cnt || 0)) return; // već postoji
+
+  const cols = columns.map((c) => `\`${c}\``).join(", ");
+  try {
+    await sequelize.query(
+      `CREATE UNIQUE INDEX \`${indexName}\` ON \`${table}\` (${cols})`,
+    );
+  } catch (e) {
+    console.warn(
+      `Unique index ${indexName} nije kreiran (vjerovatno postoje duplikati u testnim podacima): ${e.message}`,
+    );
+  }
+}
+
 // Sync database tables and start server
 sequelize
   .authenticate()
   .then(() => ensureInvoiceCounterTypeColumn())
   .then(() => sequelize.sync({ alter: false }))
   .then(() => ensureColumns())
+  .then(() => ensureOrgBankAccountsBackfill())
+  .then(() => ensureInvoiceCounterSeriesEnum())
+  .then(() => ensureOfficePlanEnums())
+  .then(() => ensureMemberRoleEnum())
   .then(() => ensurePayrollDocTypeEnum())
   .then(() => ensureWorkerDocTypeEnum())
+  .then(() => ensureFormTypeEnum())
   .then(() => ensureActivityNamesFresh())
   .then(() => ensureOwnerSpolFromJmbg())
   .then(() => ensureUtf8Mb4())
+  .then(() =>
+    ensureUniqueIndex("prebijanja", "prebijanja_org_broj", [
+      "organizationId",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("bank_statements", "bank_statements_org_num_date_acc", [
+      "organizationId",
+      "statementNumber",
+      "statementDate",
+      "account",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("artikli", "artikli_org_sifra", [
+      "organizationId",
+      "sifra",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("kalkulacije", "kalkulacije_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("popisi", "popisi_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("nivelacije", "nivelacije_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("razduzenja", "razduzenja_org_tip_god_broj", [
+      "organizationId",
+      "tip",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("tkm_pocetna_stanja", "tkm_pocetno_org_godina", [
+      "organizationId",
+      "godina",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("blagajna_nalozi", "blagajna_org_tip_god_broj", [
+      "organizationId",
+      "tip",
+      "godina",
+      "broj",
+    ]),
+  )
+  .then(() =>
+    ensureUniqueIndex("putni_nalozi", "putni_org_god_broj", [
+      "organizationId",
+      "godina",
+      "broj",
+    ]),
+  )
   .then(() => {
     console.log("Database synced successfully");
-    app.listen(port, () => {
+    // http.Server je potreban da bi Socket.IO (live chat podrška) mogao dijeliti
+    // isti port sa Express aplikacijom.
+    const server = http.createServer(app);
+    initSocket(server);
+    // dnevne notifikacije (rokovi, plate, digest...): jednom dnevno u 08h
+    startNotificationScheduler();
+    server.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}`);
     });
   })

@@ -18,6 +18,7 @@ export const BANK_CATEGORIES: BankCategory[] = [
   // prilivi koji su prihod
   { id: "PRIHOD_RACUN", label: "Prihod, naplata preko računa", direction: "IN", inKpr: true, kprColumn: 12 },
   { id: "PAZAR", label: "Pazar, prihod u gotovini", direction: "IN", inKpr: true, kprColumn: 11 },
+  { id: "PRIHOD_RACUN_BEZ_PDV", label: "Prihod bez PDV-a (izvoz, inostranstvo)", direction: "IN", inKpr: true, kprColumn: 12 },
   { id: "PRIHOD_NATURA", label: "Prihod u stvarima i uslugama", direction: "IN", inKpr: true, kprColumn: 13 },
   // prilivi koji nisu prihod
   { id: "POZAJMICA_VLASNIKA", label: "Pozajmica vlasnika", direction: "IN", inKpr: false, kprColumn: null },
@@ -25,9 +26,11 @@ export const BANK_CATEGORIES: BankCategory[] = [
   { id: "POVRAT_PDV", label: "Povrat PDV-a", direction: "IN", inKpr: false, kprColumn: null },
   // odlivi koji su rashod
   { id: "ROBA_MATERIJAL", label: "Nabavka robe i materijala", direction: "OUT", inKpr: true, kprColumn: 16 },
+  { id: "ROBA_MATERIJAL_BEZ_PDV", label: "Nabavka robe i materijala bez PDV-a", direction: "OUT", inKpr: true, kprColumn: 16 },
   { id: "PLATE_ZAPOSLENIKA", label: "Bruto plate zaposlenika", direction: "OUT", inKpr: true, kprColumn: 17 },
   { id: "DOPRINOSI_PODUZETNIKA", label: "Doprinosi poduzetnika", direction: "OUT", inKpr: true, kprColumn: 18 },
   { id: "OSTALI_RASHODI", label: "Ostali rashodi (režije, usluge, zakup...)", direction: "OUT", inKpr: true, kprColumn: 19 },
+  { id: "OSTALI_RASHODI_BEZ_PDV", label: "Ostali rashodi bez PDV-a (ino, neobveznici)", direction: "OUT", inKpr: true, kprColumn: 19 },
   { id: "PROVIZIJA_BANKE", label: "Bankarska provizija", direction: "OUT", inKpr: true, kprColumn: 19 },
   // odlivi koji nisu (priznat) rashod
   { id: "PDV_UIO", label: "Uplata PDV-a (UIO)", direction: "OUT", inKpr: false, kprColumn: null },
@@ -35,6 +38,8 @@ export const BANK_CATEGORIES: BankCategory[] = [
   { id: "POVRAT_POZAJMICE", label: "Povrat pozajmice vlasniku", direction: "OUT", inKpr: false, kprColumn: null },
   { id: "RATA_KREDITA", label: "Rata kredita (glavnica)", direction: "OUT", inKpr: false, kprColumn: null },
   { id: "OPREMA_STALNO_SREDSTVO", label: "Oprema / stalno sredstvo (ide u amortizaciju)", direction: "OUT", inKpr: false, kprColumn: null },
+  // godišnje knjiženje amortizacije iz PLDI registra (interni izvod na 31.12.)
+  { id: "AMORTIZACIJA", label: "Amortizacija (godišnji obračun)", direction: "OUT", inKpr: true, kprColumn: 19 },
   // oba smjera
   { id: "PRENOS_IZMEDJU_RACUNA", label: "Prenos između vlastitih računa", direction: "BOTH", inKpr: false, kprColumn: null },
   { id: "OSTALO_BEZ_KPR", label: "Ostalo (ne ide u KPR)", direction: "BOTH", inKpr: false, kprColumn: null },

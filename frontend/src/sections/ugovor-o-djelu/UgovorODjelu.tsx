@@ -522,17 +522,19 @@ function UgovorODjeluApp() {
           <div className={styles.fieldGrid} style={{ marginBottom: "1rem" }}>
             <label className={`${styles.field} ${styles.fieldFull}`}>
               <span className={styles.fieldLabel}>Vrsta naknade</span>
-              <select
-                className={styles.input}
+              <StyledSelect
                 value={vrsta}
-                onChange={(e) => setVrsta(e.target.value as VrstaNaknade)}
-              >
-                {(Object.keys(VRSTA_OPTIONS) as VrstaNaknade[]).map((k) => (
-                  <option key={k} value={k}>
-                    {VRSTA_OPTIONS[k].label}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setVrsta(String(v ?? "") as VrstaNaknade)}
+                groups={[
+                  {
+                    options: (Object.keys(VRSTA_OPTIONS) as VrstaNaknade[]).map(
+                      (k) => ({ value: k, label: VRSTA_OPTIONS[k].label }),
+                    ),
+                  },
+                ]}
+                ariaLabel="Vrsta naknade"
+                wrapStyle={{ width: "100%" }}
+              />
             </label>
           </div>
         )}

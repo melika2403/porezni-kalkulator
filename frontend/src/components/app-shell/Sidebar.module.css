@@ -146,13 +146,14 @@
   font-size: 13.5px;
   font-weight: 500;
   color: var(--color-brand-700);
-  background: #eef3ef;
+  /* token umjesto hardkodiranog #eef3ef da radi i dark tema */
+  background: var(--color-brand-50);
   text-decoration: none;
   transition: background 0.15s;
 }
 
 .backLink:hover {
-  background: #e7ede8;
+  background: var(--color-cream-200);
 }
 
 .backIcon {

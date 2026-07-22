@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -11,52 +11,67 @@ import {
   IconCircleCheck,
   IconAlertCircle,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { formatBAM } from "src/lib/format";
+import { parseDateInput, todayFormatted } from "src/lib/dateInput";
+import { parseKm } from "src/lib/amountInput";
+import { bankNameFromAccount, formatBankAccount } from "src/lib/bankCodes";
+import { categoriesForDirection } from "src/lib/bankCategories";
+import { getOrganization } from "src/api/profile";
+import { suggestCategories } from "src/api/bankStatements";
+import { unwrap } from "src/api/auth";
+import { PkSelect } from "src/components/app-shell/PkSelect";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
+import { PkAmountInput } from "src/components/app-shell/PkAmountInput";
+import { PartnerCombobox } from "src/components/app-shell/PartnerCombobox";
+import {
+  PartnerFormModal,
+  EMPTY_PARTNER_FORM,
+  type PartnerFormState,
+} from "src/sections/partneri/PartnerFormModal";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
+import { usePartners } from "src/hooks/usePartners";
 import {
   useBankStatements,
   useCreateManualStatement,
 } from "src/hooks/useBankStatements";
 
+// Stavke nemaju svoj datum: sve nose datum izvoda (unosi se samo na vrhu).
 type RowInput = {
   key: number;
-  date: string; // DD.MM.YYYY.
   description: string;
   counterpartyName: string;
+  /** potvrđen partner iz autocomplete-a (stavka ide na njegovu karticu) */
+  partnerId: number | null;
   amount: string;
   direction: "in" | "out";
+  /** KPR kategorija: prijedlog programa dok je categoryAuto, ili ručni izbor */
+  category: string | null;
+  categoryAuto: boolean;
 };
 
-/** "1.234,56" / "1234.56" / "1234,56" → broj ili null */
-function parseKm(s: string): number | null {
-  let v = String(s || "").trim().replace(/\s/g, "");
-  if (!v) return null;
-  if (v.includes(",")) {
-    v = v.replace(/\./g, "").replace(",", ".");
-  }
-  if (!/^-?\d+(\.\d{1,2})?$/.test(v)) return null;
-  return Number(v);
-}
-
-/** "10.06.2026." ili "10.06.2026" → "2026-06-10" ili null */
-function parseDateInput(s: string): string | null {
-  const m = String(s || "")
-    .trim()
-    .match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/);
-  if (!m) return null;
-  const day = Number(m[1]);
-  const month = Number(m[2]);
-  const year = Number(m[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function todayFormatted(): string {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}.`;
-}
-
 let keyCounter = 1;
+
+// opcije KPR kategorije za smjer stavke, grupisane: ide u KPR / ne ide
+function kategorijaGroups(direction: "in" | "out") {
+  const { uKpr, bezKpr } = categoriesForDirection(
+    direction === "in" ? "IN" : "OUT",
+  );
+  return [
+    { options: [{ value: "", label: "Bez kategorije (odluči kasnije)" }] },
+    {
+      label: "Ide u KPR",
+      options: uKpr.map((c) => ({
+        value: c.id,
+        label: `${c.label} · kolona ${c.kprColumn}`,
+      })),
+    },
+    {
+      label: "Ne ide u KPR",
+      options: bezKpr.map((c) => ({ value: c.id, label: c.label })),
+    },
+  ];
+}
 
 export default function RucniUnosIzvodaPage() {
   const router = useRouter();
@@ -65,7 +80,23 @@ export default function RucniUnosIzvodaPage() {
   const orgId = activeOrg?.id ?? null;
   const create = useCreateManualStatement(orgId);
 
-  // poznati računi sa već učitanih izvoda (obrt sa više banaka bira)
+  // žiro računi iz profila obrta; prvi je glavni (backend fallback za "")
+  const { data: fullOrg } = useQuery({
+    queryKey: ["pk-org", orgId],
+    queryFn: () => unwrap(getOrganization(orgId as number)),
+    enabled: orgId != null,
+  });
+  const profileAccounts = (
+    fullOrg?.bankAccounts?.length
+      ? fullOrg.bankAccounts
+      : fullOrg?.bankAccount
+        ? [fullOrg.bankAccount]
+        : []
+  ).map((a) => a.replace(/\D+/g, ""));
+  const profileSet = new Set(profileAccounts);
+
+  // računi viđeni na izvodima a još nisu u profilu (novi se auto-dodaju
+  // u profil pri učitavanju, pa je ovo prelazni fallback)
   const { data: statements } = useBankStatements(orgId);
   const knownAccounts = [
     ...new Map(
@@ -73,39 +104,143 @@ export default function RucniUnosIzvodaPage() {
         .filter((s) => s.account)
         .map((s) => [s.account as string, s.bankName ?? "Banka"]),
     ).entries(),
-  ];
+  ].filter(([account]) => !profileSet.has(account.replace(/\D+/g, "")));
   const [accountChoice, setAccountChoice] = useState(""); // "" = iz profila
   const [customAccount, setCustomAccount] = useState("");
 
   const [statementNumber, setStatementNumber] = useState("");
   const [statementDate, setStatementDate] = useState(todayFormatted());
+
+  // prijedlog broja izvoda: zadnji uneseni broj (za izabrani račun) + 1
+  const numberSuggestion = (() => {
+    const relevant = (statements ?? []).filter((s) =>
+      accountChoice && accountChoice !== "__custom"
+        ? s.account === accountChoice
+        : true,
+    );
+    const nums = relevant
+      .map((s) => Number(String(s.statementNumber ?? "").trim()))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    return nums.length > 0 ? Math.max(...nums) + 1 : null;
+  })();
   const [totalDuguje, setTotalDuguje] = useState("");
   const [totalPotrazuje, setTotalPotrazuje] = useState("");
   const [rows, setRows] = useState<RowInput[]>([
     {
       key: 0,
-      date: todayFormatted(),
       description: "",
       counterpartyName: "",
+      partnerId: null,
       amount: "",
       direction: "out",
+      category: null,
+      categoryAuto: true,
     },
   ]);
   const [error, setError] = useState<string | null>(null);
 
+  // živi prijedlog KPR kategorije dok se kuca (naučena pravila obrta + seed
+  // heuristike sa backenda); vrijedi samo za redove koje korisnik nije ručno
+  // kategorisao (categoryAuto)
+  useEffect(() => {
+    if (orgId == null) return;
+    const targets = rows.filter(
+      (r) =>
+        r.categoryAuto && (r.description.trim() || r.counterpartyName.trim()),
+    );
+    if (targets.length === 0) return;
+    const timer = setTimeout(async () => {
+      const res = await suggestCategories(
+        orgId,
+        targets.map((r) => ({
+          description: r.description,
+          counterpartyName: r.counterpartyName,
+          direction: r.direction,
+        })),
+      );
+      if (!res.ok) return;
+      const byKey = new Map(
+        targets.map((r, i) => [r.key, res.data[i] ?? null] as const),
+      );
+      setRows((rs) => {
+        let changed = false;
+        const next = rs.map((r) => {
+          if (!r.categoryAuto || !byKey.has(r.key)) return r;
+          const sug = byKey.get(r.key) ?? null;
+          if (sug === r.category) return r;
+          changed = true;
+          return { ...r, category: sug };
+        });
+        // ista referenca kad nema promjene, da se effect ne vrti u krug
+        return changed ? next : rs;
+      });
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [orgId, rows]);
+
+  // partneri za autocomplete protivstrane + "+ Novi partner" modal
+  const { data: partners } = usePartners(orgId);
+  const [partnerModal, setPartnerModal] = useState<{
+    rowKey: number;
+    initial: PartnerFormState;
+  } | null>(null);
+
+  function openNewPartner(rowKey: number, typed: string) {
+    const t = typed.trim();
+    const digits = t.replace(/\D+/g, "");
+    // ukucan žiro račun ide u račune partnera, tekst u naziv
+    const isAccount = digits.length >= 8 && /^[\d\s.,-]+$/.test(t);
+    setPartnerModal({
+      rowKey,
+      initial: {
+        ...EMPTY_PARTNER_FORM,
+        name: isAccount ? "" : t,
+        accounts: isAccount ? [digits] : [""],
+      },
+    });
+  }
+
   function updateRow(key: number, patch: Partial<RowInput>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
+
+  // promjena smjera: kategorija drugog smjera ne važi, resetuj na auto pa
+  // je prijedlog ponovo popuni
+  function changeDirection(key: number, direction: "in" | "out") {
+    setRows((rs) =>
+      rs.map((r) =>
+        r.key === key && r.direction !== direction
+          ? { ...r, direction, category: null, categoryAuto: true }
+          : r,
+      ),
+    );
+  }
+
+  // nakon "Dodaj stavku" fokus na opis novog reda (brzi unos bez miša)
+  const rowsWrapRef = useRef<HTMLDivElement>(null);
+  const focusLastRow = useRef(false);
+  useEffect(() => {
+    if (!focusLastRow.current) return;
+    focusLastRow.current = false;
+    const inputs = rowsWrapRef.current?.querySelectorAll<HTMLInputElement>(
+      'input[aria-label="Opis stavke"]',
+    );
+    inputs?.[inputs.length - 1]?.focus();
+  }, [rows.length]);
+
   function addRow() {
+    focusLastRow.current = true;
     setRows((rs) => [
       ...rs,
       {
         key: keyCounter++,
-        date: statementDate,
         description: "",
         counterpartyName: "",
+        partnerId: null,
         amount: "",
         direction: "out",
+        category: null,
+        categoryAuto: true,
       },
     ]);
   }
@@ -115,18 +250,24 @@ export default function RucniUnosIzvodaPage() {
 
   // živa kontrola: zbir stavki mora pogoditi deklarisani promet
   const dateIso = parseDateInput(statementDate);
-  const declaredDuguje = parseKm(totalDuguje);
-  const declaredPotrazuje = parseKm(totalPotrazuje);
+  // izvod može imati samo jednu stranu: prazno polje prometa znači 0,00
+  const declaredDuguje = totalDuguje.trim() ? parseKm(totalDuguje) : 0;
+  const declaredPotrazuje = totalPotrazuje.trim() ? parseKm(totalPotrazuje) : 0;
+  // potpuno prazne stavke (npr. zadnja nakon Entera) se preskaču pri
+  // validaciji i snimanju
+  const isRowEmpty = (r: RowInput) =>
+    !r.description.trim() && !r.counterpartyName.trim() && !r.amount.trim();
+  const activeRows = rows.filter((r) => !isRowEmpty(r));
+
   let sumIn = 0;
   let sumOut = 0;
-  let rowsValid = rows.length > 0;
-  for (const r of rows) {
+  let rowsValid = activeRows.length > 0;
+  for (const r of activeRows) {
     const amount = parseKm(r.amount);
     if (amount == null || amount <= 0) {
       rowsValid = false;
       continue;
     }
-    if (r.date && parseDateInput(r.date) == null) rowsValid = false;
     if (r.direction === "in") sumIn += Math.round(amount * 100);
     else sumOut += Math.round(amount * 100);
   }
@@ -143,6 +284,19 @@ export default function RucniUnosIzvodaPage() {
     balanced &&
     !create.isPending;
 
+  // zašto je "Sačuvaj izvod" sivo: prvi nezadovoljen uslov, redom unosa
+  const disabledReason = canSubmit || create.isPending
+    ? null
+    : dateIso == null
+      ? "Unesite datum izvoda."
+      : declaredDuguje == null || declaredPotrazuje == null
+        ? "Ukupni promet nije validan iznos."
+        : activeRows.length === 0
+          ? "Unesite bar jednu stavku."
+          : !rowsValid
+            ? "Svaka stavka treba iznos veći od nule."
+            : "Zbir stavki se još ne slaže sa unesenim prometom.";
+
   function submit() {
     if (!canSubmit) return;
     setError(null);
@@ -157,12 +311,19 @@ export default function RucniUnosIzvodaPage() {
         account,
         totalDuguje: declaredDuguje as number,
         totalPotrazuje: declaredPotrazuje as number,
-        transactions: rows.map((r) => ({
-          date: parseDateInput(r.date) ?? undefined,
-          description: r.description.trim(),
+        transactions: activeRows.map((r) => ({
+          // sve stavke nose datum izvoda
+          date: dateIso as string,
+          // prazan opis: podrazumijevano "Izvod N" (broj sa vrha)
+          description:
+            r.description.trim() ||
+            (statementNumber.trim() ? `Izvod ${statementNumber.trim()}` : ""),
           counterpartyName: r.counterpartyName.trim() || undefined,
+          partnerId: r.partnerId ?? undefined,
           amount: parseKm(r.amount) as number,
           direction: r.direction,
+          // izabrana/predložena KPR kategorija (prazno = odluči kasnije)
+          category: r.category ?? undefined,
         })),
       },
       {
@@ -211,22 +372,33 @@ export default function RucniUnosIzvodaPage() {
         <h2 className="font-serif-display text-[18px] text-text-primary mb-4">
           Podaci o izvodu
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Field label="Žiro račun">
             <div className="flex flex-col gap-2">
-              <select
+              <PkSelect
+                ariaLabel="Žiro račun"
                 value={accountChoice}
-                onChange={(e) => setAccountChoice(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">Iz profila obrta</option>
-                {knownAccounts.map(([account, bankName]) => (
-                  <option key={account} value={account}>
-                    {bankName} · {account}
-                  </option>
-                ))}
-                <option value="__custom">Drugi račun (upiši)</option>
-              </select>
+                onChange={(v) => setAccountChoice(String(v ?? ""))}
+                options={[
+                  // prvi račun iz profila = glavni; "" je backend fallback na njega
+                  {
+                    value: "",
+                    label: profileAccounts[0]
+                      ? `${bankNameFromAccount(profileAccounts[0]) ?? "Banka"} · ${formatBankAccount(profileAccounts[0])} · glavni`
+                      : "Iz profila obrta",
+                  },
+                  ...profileAccounts.slice(1).map((account) => ({
+                    value: account,
+                    label: `${bankNameFromAccount(account) ?? "Banka"} · ${formatBankAccount(account)}`,
+                  })),
+                  ...knownAccounts.map(([account, bankName]) => ({
+                    value: account,
+                    label: `${bankName} · ${formatBankAccount(account)}`,
+                  })),
+                  { value: "__custom", label: "Drugi račun (upiši)" },
+                ]}
+                wrapStyle={{ width: "100%" }}
+              />
               {accountChoice === "__custom" && (
                 <input
                   className={inputCls}
@@ -245,37 +417,47 @@ export default function RucniUnosIzvodaPage() {
               onChange={(e) => setStatementNumber(e.target.value)}
               placeholder="opciono"
             />
+            {!statementNumber.trim() && numberSuggestion != null && (
+              <button
+                type="button"
+                onClick={() => setStatementNumber(String(numberSuggestion))}
+                className="mt-1 text-[11.5px] text-brand-700 hover:text-brand-600 font-medium"
+                title="Zadnji uneseni broj izvoda + 1"
+              >
+                Prijedlog: {numberSuggestion}
+              </button>
+            )}
           </Field>
           <Field label="Datum izvoda *">
-            <input
-              className={[
-                inputCls,
-                statementDate && dateIso == null ? "border-warning" : "",
-              ].join(" ")}
+            <PkDateInput
               value={statementDate}
-              onChange={(e) => setStatementDate(e.target.value)}
-              placeholder="DD.MM.YYYY."
-              inputMode="numeric"
+              onChange={setStatementDate}
+              ariaLabel="Datum izvoda"
+              inputClassName="bg-cream-50"
             />
           </Field>
-          <Field label="Ukupni promet duguje (KM) *">
-            <input
-              className={inputCls}
-              value={totalDuguje}
-              onChange={(e) => setTotalDuguje(e.target.value)}
-              placeholder="0,00"
-              inputMode="decimal"
-            />
-          </Field>
-          <Field label="Ukupni promet potražuje (KM) *">
-            <input
-              className={inputCls}
-              value={totalPotrazuje}
-              onChange={(e) => setTotalPotrazuje(e.target.value)}
-              placeholder="0,00"
-              inputMode="decimal"
-            />
-          </Field>
+          {/* Ukupni promet: par duguje/potražuje uvijek u istom redu (kucaju
+              se jedno za drugim sa izvoda) */}
+          <div className="grid grid-cols-2 gap-2.5 sm:col-span-2">
+            <Field label="Promet duguje (KM)">
+              <PkAmountInput
+                value={totalDuguje}
+                onChange={setTotalDuguje}
+                ariaLabel="Ukupni promet duguje"
+                title="Prazno = 0,00 (izvod bez dugovne strane)"
+                className="bg-cream-50"
+              />
+            </Field>
+            <Field label="Promet potražuje (KM)">
+              <PkAmountInput
+                value={totalPotrazuje}
+                onChange={setTotalPotrazuje}
+                ariaLabel="Ukupni promet potražuje"
+                title="Prazno = 0,00 (izvod bez potražne strane)"
+                className="bg-cream-50"
+              />
+            </Field>
+          </div>
         </div>
       </div>
 
@@ -295,17 +477,17 @@ export default function RucniUnosIzvodaPage() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div ref={rowsWrapRef} className="flex flex-col gap-3">
           {rows.map((r) => (
             <div
               key={r.key}
-              className="grid grid-cols-2 lg:grid-cols-[210px_120px_minmax(0,1fr)_minmax(0,1fr)_120px_36px] gap-2.5 items-end rounded-lg border border-cream-300/70 bg-cream-50/50 p-3"
+              className="grid grid-cols-2 lg:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.15fr)_110px_36px] gap-2.5 items-end rounded-lg border border-cream-300/70 bg-cream-50/50 p-3"
             >
               <Field label="Smjer" small>
                 <div className="flex rounded-lg border border-cream-300 overflow-hidden">
                   <button
                     type="button"
-                    onClick={() => updateRow(r.key, { direction: "out" })}
+                    onClick={() => changeDirection(r.key, "out")}
                     className={[
                       "flex-1 px-3 py-2 text-[12.5px] font-medium transition-colors",
                       r.direction === "out"
@@ -317,7 +499,7 @@ export default function RucniUnosIzvodaPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => updateRow(r.key, { direction: "in" })}
+                    onClick={() => changeDirection(r.key, "in")}
                     className={[
                       "flex-1 px-3 py-2 text-[12.5px] font-medium transition-colors border-l border-cream-300",
                       r.direction === "in"
@@ -329,43 +511,67 @@ export default function RucniUnosIzvodaPage() {
                   </button>
                 </div>
               </Field>
-              <Field label="Datum" small>
-                <input
-                  className={[
-                    inputCls,
-                    r.date && parseDateInput(r.date) == null ? "border-warning" : "",
-                  ].join(" ")}
-                  value={r.date}
-                  onChange={(e) => updateRow(r.key, { date: e.target.value })}
-                  placeholder="DD.MM.YYYY."
-                  inputMode="numeric"
-                />
-              </Field>
               <Field label="Opis" small>
                 <input
                   className={inputCls}
                   value={r.description}
                   onChange={(e) => updateRow(r.key, { description: e.target.value })}
-                  placeholder="npr. Uplata po fakturi 12/26"
+                  placeholder={
+                    statementNumber.trim()
+                      ? `prazno = Izvod ${statementNumber.trim()}`
+                      : "npr. Uplata po fakturi 12/26"
+                  }
+                  aria-label="Opis stavke"
                 />
               </Field>
               <Field label="Protivstrana" small>
-                <input
-                  className={inputCls}
+                <PartnerCombobox
                   value={r.counterpartyName}
-                  onChange={(e) =>
-                    updateRow(r.key, { counterpartyName: e.target.value })
+                  partnerId={r.partnerId}
+                  onChange={(text, pid) =>
+                    updateRow(r.key, { counterpartyName: text, partnerId: pid })
                   }
-                  placeholder="opciono"
+                  partners={partners ?? []}
+                  onRequestNew={(typed) => openNewPartner(r.key, typed)}
+                  placeholder="opciono · naziv, šifra ili žiro račun partnera"
+                  ariaLabel="Protivstrana"
+                  inputClassName="bg-cream-50"
+                />
+              </Field>
+              <Field
+                label={
+                  r.categoryAuto && r.category
+                    ? "KPR kategorija · prijedlog"
+                    : "KPR kategorija"
+                }
+                small
+              >
+                <PkSelect
+                  ariaLabel="KPR kategorija"
+                  value={r.category ?? ""}
+                  onChange={(v) =>
+                    updateRow(r.key, {
+                      category: String(v ?? "") || null,
+                      categoryAuto: false,
+                    })
+                  }
+                  groups={kategorijaGroups(r.direction)}
+                  wrapStyle={{ width: "100%" }}
                 />
               </Field>
               <Field label="Iznos (KM)" small>
-                <input
-                  className={inputCls}
+                <PkAmountInput
                   value={r.amount}
-                  onChange={(e) => updateRow(r.key, { amount: e.target.value })}
-                  placeholder="0,00"
-                  inputMode="decimal"
+                  onChange={(v) => updateRow(r.key, { amount: v })}
+                  ariaLabel="Iznos stavke"
+                  className="bg-cream-50"
+                  title="Enter dodaje novu stavku"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addRow();
+                    }
+                  }}
                 />
               </Field>
               <button
@@ -423,16 +629,40 @@ export default function RucniUnosIzvodaPage() {
           </div>
         )}
 
-        <button
-          type="button"
-          disabled={!canSubmit}
-          onClick={submit}
-          className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-600 text-white text-[13.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
-        >
-          {create.isPending && <IconLoader2 size={16} className="animate-spin" />}
-          Sačuvaj izvod
-        </button>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={submit}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-600 text-white text-[13.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {create.isPending && (
+              <IconLoader2 size={16} className="animate-spin" />
+            )}
+            Sačuvaj izvod
+          </button>
+          {disabledReason && (
+            <span className="text-[12.5px] text-text-tertiary">
+              {disabledReason}
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* "+ Novi partner" iz protivstrane: nakon snimanja red se odmah poveže */}
+      <PartnerFormModal
+        orgId={orgId}
+        initial={partnerModal?.initial ?? null}
+        onClose={() => setPartnerModal(null)}
+        onSaved={(p) => {
+          if (partnerModal) {
+            updateRow(partnerModal.rowKey, {
+              counterpartyName: p.name,
+              partnerId: p.id,
+            });
+          }
+        }}
+      />
     </div>
   );
 }
@@ -448,6 +678,8 @@ function ControlSum({
   declared: number | null;
   match: boolean;
 }) {
+  // razlika deklarisanog prometa i zbira stavki, u feninzima
+  const diff = declared != null ? Math.round(declared * 100) - entered : null;
   return (
     <span className="text-text-tertiary">
       {label}:{" "}
@@ -465,6 +697,12 @@ function ControlSum({
       </span>
       {declared != null && (
         <span className="text-text-tertiary"> od {formatBAM(declared)}</span>
+      )}
+      {diff != null && diff !== 0 && (
+        <span className="text-warning font-medium tabular-nums">
+          {" "}
+          ({diff > 0 ? "fali" : "višak"} {formatBAM(Math.abs(diff) / 100)})
+        </span>
       )}
     </span>
   );

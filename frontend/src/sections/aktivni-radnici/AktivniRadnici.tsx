@@ -2,8 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import {
+  IconBuilding,
+  IconCoins,
+  IconFileText,
+  IconClipboardList,
+  IconId,
+  IconPencil,
+  IconTrash,
+  IconUserOff,
+} from "@tabler/icons-react";
 import {
   getClientOrganizations,
   getOrganizations,
@@ -14,31 +24,21 @@ import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useLastOrg } from "src/hooks/useLastOrg";
-import QuickAddWorkerModal from "src/components/WorkersSidebar/QuickAddWorkerModal";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
+import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
+import {
+  WorkersTable,
+  nedostajePodaci,
+} from "src/sections/zaposlenici/WorkersTable";
+import { DeleteWorkerModal } from "src/sections/zaposlenici/DeleteWorkerModal";
+import { RadnikKartonModal } from "src/sections/zaposlenici/RadnikKartonModal";
 import styles from "./aktivniRadnici.module.css";
+// PK Office tokeni + utility klase za .pk-scope blokove (tabela + modali).
+import "src/styles/pk-embed.css";
 
 type Filter = "svi" | "prijavljeni" | "draft" | "odjavljeni";
-
-const STATUS_LABEL: Record<string, string> = {
-  PRIJAVLJEN: "Prijavljen",
-  DRAFT: "Draft",
-  ODJAVLJEN: "Odjavljen",
-};
-
-const STATUS_CLASS: Record<string, string> = {
-  PRIJAVLJEN: styles.badgeActive,
-  DRAFT: styles.badgeDraft,
-  ODJAVLJEN: styles.badgeInactive,
-};
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return "–";
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return `${d}.${m}.${y}.`;
-}
 
 function fmtPlata(n: number | null): string {
   if (n == null) return "–";
@@ -128,7 +128,14 @@ export default function AktivniRadnici() {
   const [orgId, setOrgId] = useState<number | null>(urlOrg);
   const [hydrated, setHydrated] = useState<boolean>(urlOrg != null);
   const [filter, setFilter] = useState<Filter>("svi");
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  // PK Office modal forme: null = zatvoreno; { worker: null } = novi radnik.
+  const [workerModal, setWorkerModal] = useState<{
+    worker: Worker | null;
+  } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Worker | null>(null);
+  // Karton obračuna: plate radnika po mjesecima (isti modal kao PK Office)
+  const [kartonWorker, setKartonWorker] = useState<Worker | null>(null);
+  const router = useRouter();
 
   const orgsQuery = useQuery({
     queryKey: ["organizations"],
@@ -173,6 +180,7 @@ export default function AktivniRadnici() {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
+
 
   const allWorkers = workersQuery.data ?? [];
   const selectedOrg =
@@ -262,19 +270,39 @@ export default function AktivniRadnici() {
             style={{ fontSize: "1rem", padding: "0.7rem 0.95rem" }}
           />
         </label>
-        {orgId && canCreateWorker && (
-          <button
-            type="button"
-            className={styles.btnPrimary}
-            onClick={() => setQuickAddOpen(true)}
+        {orgId && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              flexWrap: "wrap",
+            }}
           >
-            + Novi radnik
-          </button>
-        )}
-        {orgId && !canCreateWorker && (
-          <Link href="/pretplate" className={styles.upgradeChip}>
-            🔒 Dodavanje radnika uz Pro pretplatu →
-          </Link>
+            {/* Pregled organizacije: kartica sa radnicima + pristup korisnicima */}
+            <Link
+              href={`/organizacija/${orgId}`}
+              className={styles.backLink}
+              style={{ marginBottom: 0 }}
+              title="Podaci organizacije, radnici i pristup korisnicima"
+            >
+              <IconBuilding size={15} />
+              Pregled organizacije
+            </Link>
+            {canCreateWorker ? (
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => setWorkerModal({ worker: null })}
+              >
+                + Novi radnik
+              </button>
+            ) : (
+              <Link href="/pretplate" className={styles.upgradeChip}>
+                🔒 Dodavanje radnika uz Pro pretplatu →
+              </Link>
+            )}
+          </div>
         )}
       </div>
 
@@ -309,169 +337,122 @@ export default function AktivniRadnici() {
                 : "Nijedan radnik ne odgovara filteru."}
             </div>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Ime i prezime</th>
-                  <th>JMBG</th>
-                  <th>Pozicija</th>
-                  <th>Plata</th>
-                  <th>Datum prijave</th>
-                  <th>Akcije</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((w: Worker) => (
-                  <tr key={w.id}>
-                    <td data-label="Status">
-                      <span
-                        className={`${styles.badge} ${STATUS_CLASS[w.employmentStatus] ?? styles.badgeDraft}`}
-                      >
-                        {STATUS_LABEL[w.employmentStatus] ?? w.employmentStatus}
-                      </span>
-                    </td>
-                    <td className={styles.nameCell} data-label="Ime i prezime">
-                      <Link
-                        href={`/aktivni-radnici/${w.id}`}
-                        className={styles.nameLink}
-                      >
-                        {w.firstName} {w.lastName}
-                      </Link>
-                      {w.role === "VLASNIK" && (
-                        <span
-                          style={{
-                            marginLeft: 8,
-                            padding: "2px 7px",
-                            background: "rgba(58, 92, 66, 0.12)",
-                            color: "var(--sage)",
-                            borderRadius: 999,
-                            fontSize: 10.5,
-                            fontWeight: 600,
-                            letterSpacing: "0.04em",
-                            textTransform: "uppercase",
-                            verticalAlign: "middle",
-                          }}
-                        >
-                          Vlasnik
-                        </span>
-                      )}
-                    </td>
-                    <td className={styles.muted} data-label="JMBG">{w.jmbg ?? "–"}</td>
-                    <td data-label="Pozicija">{w.position ?? "–"}</td>
-                    <td className={styles.num} data-label="Plata">
-                      <PlataCell w={w} isObrt={isObrt} />
-                    </td>
-                    <td className={styles.muted} data-label="Datum prijave">{fmtDate(w.prijavaDate)}</td>
-                    <td data-label="Akcije">
-                      <div className={styles.actions}>
-                        <Link
-                          href={`/ugovor-o-radu?org=${orgId}&worker=${w.id}&tab=ugovor`}
-                          className={styles.actionLink}
-                          title="Generiši ugovor o radu, auto-popuna podataka"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            width="14"
-                            height="14"
-                            aria-hidden="true"
-                          >
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <path d="M14 2v6h6" />
-                          </svg>
-                          Ugovor
-                        </Link>
-                        {w.employmentStatus === "PRIJAVLJEN" && (
-                          <Link
-                            href={`/ugovor-o-radu?org=${orgId}&worker=${w.id}&tab=otkaz`}
-                            className={styles.actionLink}
-                            title="Generiši otkaz, auto-popuna podataka"
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              width="14"
-                              height="14"
-                              aria-hidden="true"
-                            >
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                            Otkaz
-                          </Link>
-                        )}
-                        <Link
-                          href={`/prijave-radnika?org=${orgId}&worker=${w.id}&vrsta=${
-                            w.employmentStatus === "PRIJAVLJEN" ? "ODJAVA" : "PRIJAVA"
-                          }`}
-                          className={styles.actionLink}
-                          title="JS3100 prijava/odjava, auto-popuna"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            width="14"
-                            height="14"
-                            aria-hidden="true"
-                          >
-                            <rect x="8" y="2" width="8" height="4" rx="1" />
-                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                            <line x1="8" y1="11" x2="16" y2="11" />
-                            <line x1="8" y1="15" x2="14" y2="15" />
-                          </svg>
-                          JS3100
-                        </Link>
-                        <Link
-                          href={`/organizacija/${orgId}`}
-                          className={styles.actionLink}
-                          title="Uredi radnika"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            width="14"
-                            height="14"
-                            aria-hidden="true"
-                          >
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                          Uredi
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="pk-scope">
+              <WorkersTable
+                workers={filtered}
+                plataCell={(w) => <PlataCell w={w} isObrt={isObrt} />}
+                onRowClick={(w) => router.push(`/aktivni-radnici/${w.id}`)}
+                warningFor={nedostajePodaci}
+                actionsFor={(w) => ({
+                  primary: [
+                    {
+                      key: "ugovor",
+                      label: "Ugovor",
+                      title: "Generiši ugovor o radu, auto-popuna podataka",
+                      icon: <IconFileText size={14} />,
+                      href: `/ugovor-o-radu?org=${orgId}&worker=${w.id}&tab=ugovor`,
+                    },
+                    ...(canCreateWorker
+                      ? [
+                          {
+                            key: "uredi",
+                            label: "Uredi",
+                            icon: <IconPencil size={14} />,
+                            onClick: () => setWorkerModal({ worker: w }),
+                          },
+                        ]
+                      : []),
+                  ],
+                  menu: [
+                    {
+                      kind: "item" as const,
+                      key: "js3100",
+                      label: "JS3100",
+                      sub:
+                        w.employmentStatus === "PRIJAVLJEN"
+                          ? "odjava, auto-popuna"
+                          : "prijava, auto-popuna",
+                      icon: <IconClipboardList size={14} />,
+                      href: `/prijave-radnika?org=${orgId}&worker=${w.id}&vrsta=${
+                        w.employmentStatus === "PRIJAVLJEN" ? "ODJAVA" : "PRIJAVA"
+                      }`,
+                    },
+                    ...(w.employmentStatus === "PRIJAVLJEN"
+                      ? [
+                          {
+                            kind: "item" as const,
+                            key: "otkaz",
+                            label: "Otkaz",
+                            sub: "generiši otkaz, auto-popuna",
+                            icon: <IconUserOff size={14} />,
+                            href: `/ugovor-o-radu?org=${orgId}&worker=${w.id}&tab=otkaz`,
+                          },
+                        ]
+                      : []),
+                    {
+                      kind: "item" as const,
+                      key: "karton",
+                      label: "Karton radnika",
+                      sub: "dokumenti i podaci",
+                      icon: <IconId size={14} />,
+                      href: `/aktivni-radnici/${w.id}`,
+                    },
+                    {
+                      kind: "item" as const,
+                      key: "karton-obracuna",
+                      label: "Karton obračuna",
+                      sub: "plate po mjesecima",
+                      icon: <IconCoins size={14} />,
+                      onClick: () => setKartonWorker(w),
+                    },
+                    // Vlasnik se ne briše, akcija se i ne nudi.
+                    ...(canCreateWorker && w.role !== "VLASNIK"
+                      ? [
+                          {
+                            kind: "item" as const,
+                            key: "obrisi",
+                            label: "Obriši radnika",
+                            sub: "trajno, uz potvrdu",
+                            icon: <IconTrash size={14} />,
+                            onClick: () => setDeleteTarget(w),
+                          },
+                        ]
+                      : []),
+                  ],
+                })}
+              />
+            </div>
           )}
         </div>
       )}
 
-      {/* Modal */}
-      {quickAddOpen && orgId && (
-        <QuickAddWorkerModal
+      {/* PK Office modali (puna forma radnika + potvrda brisanja) */}
+      {workerModal != null && orgId && (
+        <div className="pk-scope">
+          <WorkerModal
+            key={workerModal.worker?.id ?? "new"}
+            orgId={orgId}
+            orgType={selectedOrg?.type ?? null}
+            worker={workerModal.worker}
+            onClose={() => setWorkerModal(null)}
+          />
+        </div>
+      )}
+      {orgId && (
+        <DeleteWorkerModal
           orgId={orgId}
-          onClose={() => setQuickAddOpen(false)}
-          onCreated={() => setQuickAddOpen(false)}
+          worker={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
         />
+      )}
+      {orgId && kartonWorker && (
+        <div className="pk-scope">
+          <RadnikKartonModal
+            orgId={orgId}
+            worker={kartonWorker}
+            onClose={() => setKartonWorker(null)}
+          />
+        </div>
       )}
     </main>
     </>

@@ -28,17 +28,29 @@ const LOGO_CANDIDATES = [path.join(__dirname, "..", "assets", "logo.jpg")];
 // Pricing model: NETO iznosi (cijena bez PDV-a) — osnovica na koju se PDV dodaje.
 // PDV i bruto (za naplatu) se računaju odozgo po stopi VAT_RATE.
 // Brojevi dolaze iz config/pricing.js (jedan izvor istine); ovdje dodajemo labele.
-const { PLAN_PRICES: PRICE_NUMBERS } = require("../config/pricing");
-const PLAN_PRICES = {
-  PRO: {
-    yearly: { net: PRICE_NUMBERS.PRO.yearly, label: "Godišnja pretplata PRO na poreznikalkulator.ba" },
-    monthly: { net: PRICE_NUMBERS.PRO.monthly, label: "Mjesečna pretplata PRO na poreznikalkulator.ba" },
-  },
-  BUSINESS: {
-    yearly: { net: PRICE_NUMBERS.BUSINESS.yearly, label: "Godišnja pretplata BUSINESS na poreznikalkulator.ba" },
-    monthly: { net: PRICE_NUMBERS.BUSINESS.monthly, label: "Mjesečna pretplata BUSINESS na poreznikalkulator.ba" },
-  },
-};
+const {
+  PLAN_PRICES: PRICE_NUMBERS,
+  OFFICE_PLANS,
+} = require("../config/pricing");
+// naziv plana u stavci predračuna ("Godišnja pretplata <naziv> na ...")
+function planDisplayName(plan) {
+  return OFFICE_PLANS[plan]?.label ?? plan;
+}
+const PLAN_PRICES = Object.fromEntries(
+  Object.entries(PRICE_NUMBERS).map(([plan, p]) => [
+    plan,
+    {
+      yearly: {
+        net: p.yearly,
+        label: `Godišnja pretplata ${planDisplayName(plan)} na poreznikalkulator.ba`,
+      },
+      monthly: {
+        net: p.monthly,
+        label: `Mjesečna pretplata ${planDisplayName(plan)} na poreznikalkulator.ba`,
+      },
+    },
+  ]),
+);
 const VAT_RATE = 0.17;
 
 // Normalizuj ciklus na "yearly" | "monthly" (default yearly za back-compat).

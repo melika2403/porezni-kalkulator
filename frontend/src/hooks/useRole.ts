@@ -13,9 +13,15 @@ export function useRole() {
   });
 
   const role = (user?.role ?? null) as AppRole | null;
+  // efektivna rola: PK Office paket/trial diže USER/PRO na BUSINESS (za
+  // gating funkcija); prava rola ostaje u `role` (npr. admin provjere)
+  const effectiveRole = (user?.effectiveRole ??
+    user?.role ??
+    null) as AppRole | null;
 
   return {
     role,
+    effectiveRole,
     isLoading,
     hasRole: (...roles: AppRole[]) => role !== null && roles.includes(role),
   };

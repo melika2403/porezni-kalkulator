@@ -358,7 +358,10 @@ function DashboardScreen() {
               <h2 className={styles.sectionTitle}>Posljednje transakcije</h2>
               <p className={styles.sectionSubtitle}>sa bankovnih izvoda</p>
             </div>
-            <span className={styles.sectionLink}>Sve →</span>
+            <span className={styles.sectionLink}>
+              Sve
+              <IconArrowRight size={14} />
+            </span>
           </header>
           <div className={styles.sectionBody}>
             {TX.map((t) => (
@@ -396,7 +399,10 @@ function DashboardScreen() {
               <h2 className={styles.sectionTitle}>Predstojeće obaveze</h2>
               <p className={styles.sectionSubtitle}>2 na čekanju · 1 završeno</p>
             </div>
-            <span className={styles.sectionLink}>Sve →</span>
+            <span className={styles.sectionLink}>
+              Sve
+              <IconArrowRight size={14} />
+            </span>
           </header>
           <div className={styles.sectionBody}>
             {OBLIGATIONS.map((o) => (

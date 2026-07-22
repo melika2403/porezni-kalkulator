@@ -588,6 +588,164 @@ ${displayName}`,
   });
 }
 
+// IOS (izvod otvorenih stavki) partneru: usaglašavanje potraživanja i
+// obaveza, sa molbom za ovjeru i povrat primjerka u roku od 8 dana.
+async function sendIosEmail({
+  to,
+  partnerName,
+  orgName,
+  naDanLabel,
+  pdfBuffer,
+  filename,
+}) {
+  const transporter = createInvoiceTransporter();
+  const fromAddr =
+    process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
+  const displayName = orgName || "Porezni Kalkulator";
+
+  await transporter.sendMail({
+    from: `"${displayName}" <${fromAddr}>`,
+    to,
+    subject: `Izvod otvorenih stavki (IOS) na dan ${naDanLabel} - ${displayName}`,
+    text: `Poštovani${partnerName ? ` ${partnerName}` : ""},
+
+u prilogu se nalazi izvod otvorenih stavki (IOS) na dan ${naDanLabel} od ${displayName}, radi usaglašavanja međusobnih potraživanja i obaveza.
+
+Molimo da provjerite iskazano stanje i jedan ovjeren primjerak vratite u roku od 8 dana od dana prijema, ili nam u istom roku dostavite primjedbe.
+
+Srdačan pozdrav,
+${displayName}`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">Izvod otvorenih stavki (IOS)</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6;">
+          Poštovani${partnerName ? ` <strong>${partnerName}</strong>` : ""},<br/>
+          u prilogu se nalazi izvod otvorenih stavki na dan <strong>${naDanLabel}</strong> od <strong>${displayName}</strong>, radi usaglašavanja međusobnih potraživanja i obaveza.
+        </p>
+        <p style="color: #666; font-size: 15px; line-height: 1.6;">
+          Molimo da provjerite iskazano stanje i jedan ovjeren primjerak vratite u roku od 8 dana od dana prijema, ili nam u istom roku dostavite primjedbe.
+        </p>
+        <p style="color: #999; font-size: 13px; margin-top: 28px;">
+          Poslano putem <a href="https://poreznikalkulator.ba" style="color:#3a5c42;">poreznikalkulator.ba</a>
+        </p>
+      </div>`,
+    attachments: [{ filename, content: pdfBuffer }],
+  });
+}
+
+// Opomena kupcu za dospjele neplaćene račune (PDF u prilogu). Ton prati
+// nivo: 1 = ljubazna opomena, 2 = pred utuženje.
+async function sendOpomenaEmail({
+  to,
+  partnerName,
+  orgName,
+  nivo,
+  dug,
+  pdfBuffer,
+  filename,
+}) {
+  const transporter = createInvoiceTransporter();
+  const fromAddr =
+    process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
+  const displayName = orgName || "Porezni Kalkulator";
+  const naslov = nivo === 2 ? "Opomena pred utuženje" : "Opomena";
+  const dugStr = Number(dug || 0).toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  await transporter.sendMail({
+    from: `"${displayName}" <${fromAddr}>`,
+    to,
+    subject: `${naslov} za dospjele obaveze - ${displayName}`,
+    text: `Poštovani${partnerName ? ` ${partnerName}` : ""},
+
+u prilogu se nalazi ${naslov.toLowerCase()} za dospjele neizmirene obaveze u ukupnom iznosu od ${dugStr} KM prema ${displayName}.
+
+Molimo da obaveze izmirite u roku navedenom u opomeni. Ako ste ih u međuvremenu izmirili, smatrajte ovu poruku bespredmetnom.
+
+Srdačan pozdrav,
+${displayName}`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${naslov}</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6;">
+          Poštovani${partnerName ? ` <strong>${partnerName}</strong>` : ""},<br/>
+          u prilogu se nalazi ${naslov.toLowerCase()} za dospjele neizmirene obaveze u ukupnom iznosu od <strong>${dugStr} KM</strong> prema <strong>${displayName}</strong>.
+        </p>
+        <p style="color: #666; font-size: 15px; line-height: 1.6;">
+          Molimo da obaveze izmirite u roku navedenom u opomeni. Ako ste ih u
+          međuvremenu izmirili, smatrajte ovu poruku bespredmetnom.
+        </p>
+        <p style="color: #999; font-size: 13px; margin-top: 28px;">
+          Poslano putem <a href="https://poreznikalkulator.ba" style="color:#3a5c42;">poreznikalkulator.ba</a>
+        </p>
+      </div>`,
+    attachments: [{ filename, content: pdfBuffer }],
+  });
+}
+
+// Generički šablon za sistemske notifikacije (rokovi plaćanja, sedmični
+// pregled, plate, podrška...): naslov + uvod + lista stavki + CTA dugme.
+// Footer uvijek vodi na postavke notifikacija (naš "unsubscribe").
+async function sendNotifikacijaEmail({
+  to,
+  subject,
+  title,
+  intro,
+  lines = [],
+  ctaUrl,
+  ctaLabel,
+}) {
+  const transporter = createInvoiceTransporter();
+  const fromAddr =
+    process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
+  const frontend =
+    process.env.FRONTEND_URL || "https://www.poreznikalkulator.ba";
+  const settingsUrl = `${frontend}/app/postavke?tab=notifikacije`;
+
+  const textLines = lines.map((l) => `- ${l}`).join("\n");
+  await transporter.sendMail({
+    from: `"Porezni Kalkulator" <${fromAddr}>`,
+    to,
+    subject,
+    text: `${title}
+
+${intro || ""}
+${textLines ? `\n${textLines}\n` : ""}
+${ctaUrl ? `${ctaLabel || "Otvori"}: ${ctaUrl}\n` : ""}
+Podešavanja obavijesti: ${settingsUrl}`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${title}</h2>
+        ${
+          intro
+            ? `<p style="color: #666; font-size: 15px; line-height: 1.6;">${intro}</p>`
+            : ""
+        }
+        ${
+          lines.length
+            ? `<ul style="color: #1a1a1a; font-size: 14.5px; line-height: 1.7; padding-left: 20px; margin: 12px 0;">${lines
+                .map((l) => `<li>${l}</li>`)
+                .join("")}</ul>`
+            : ""
+        }
+        ${
+          ctaUrl
+            ? `<p style="margin: 24px 0;"><a href="${ctaUrl}" style="background:#3a5c42;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">${
+                ctaLabel || "Otvori"
+              }</a></p>`
+            : ""
+        }
+        <p style="color: #999; font-size: 12.5px; margin-top: 28px; line-height: 1.6;">
+          Ovu poruku šalje <a href="https://poreznikalkulator.ba" style="color:#3a5c42;">poreznikalkulator.ba</a>.
+          Koje obavijesti primate podešavate na
+          <a href="${settingsUrl}" style="color:#3a5c42;">postavkama notifikacija</a>.
+        </p>
+      </div>`,
+  });
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendVerificationEmail,
@@ -599,4 +757,7 @@ module.exports = {
   sendSubscriptionReminderEmail,
   sendTrialInviteEmail,
   sendKarticaEmail,
+  sendIosEmail,
+  sendOpomenaEmail,
+  sendNotifikacijaEmail,
 };

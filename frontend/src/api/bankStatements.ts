@@ -20,6 +20,8 @@ export type BankTransaction = {
   status: TxStatus;
   category: string | null;
   invoiceId: number | null;
+  /** partner na čiju karticu se stavka vodi (auto-match ili ručno) */
+  partnerId: number | null;
   /** povezana faktura (kad je backend include-uje) */
   invoice?: {
     id: number;
@@ -46,6 +48,11 @@ export type BankStatementInfo = {
   createdAt: string;
   txCount: number;
   unmatchedCount: number;
+  /** potvrđene stavke bez KPR kategorije (ne ulaze u KPR dok se ne kategorišu) */
+  bezKategorijeCount: number;
+  /** zbir priliva / odliva izvoda (KM), za prikaz na listi */
+  totalIn?: number;
+  totalOut?: number;
 };
 
 /** Normalizuj warnings JSON kolonu u niz stringova. */
@@ -64,7 +71,7 @@ export function parseWarnings(w: string[] | string | null | undefined): string[]
 
 export type BankStatementDetail = Omit<
   BankStatementInfo,
-  "txCount" | "unmatchedCount"
+  "txCount" | "unmatchedCount" | "bezKategorijeCount"
 > & {
   transactions: BankTransaction[];
 };
@@ -121,6 +128,8 @@ export type UploadError = {
     | string;
   errorDetail?: string | null;
   validationErrors?: string[] | null;
+  /** uz DUPLICATE_STATEMENT: id već učitanog izvoda (za "Pogledaj postojeći") */
+  statementId?: number | null;
 };
 
 async function jsonRequest<T>(
@@ -168,8 +177,12 @@ export type ManualTransactionInput = {
   date?: string;
   description: string;
   counterpartyName?: string;
+  /** potvrđen partner iz autocomplete-a; ima prednost nad auto-matchom */
+  partnerId?: number;
   amount: number;
   direction: "in" | "out";
+  /** KPR kategorija izabrana pri unosu (prijedlog programa ili ručni izbor) */
+  category?: string;
 };
 
 export type ManualStatementPayload = {
@@ -205,6 +218,20 @@ export async function createManualStatement(
   }
 }
 
+export type SuggestCategoryItem = {
+  description: string;
+  counterpartyName?: string;
+  direction: "in" | "out";
+};
+
+/** Živi prijedlog KPR kategorije pri ručnom unosu (naučena pravila + seed). */
+export function suggestCategories(orgId: number, items: SuggestCategoryItem[]) {
+  return jsonRequest<(string | null)[]>(
+    `/api/bank-statements/${orgId}/suggest-category`,
+    { method: "POST", body: JSON.stringify({ items }) },
+  );
+}
+
 export function listBankStatements(orgId: number) {
   return jsonRequest<BankStatementInfo[]>(`/api/bank-statements/${orgId}`, {
     method: "GET",
@@ -233,7 +260,11 @@ export function deleteBankStatement(orgId: number, statementId: number) {
 }
 
 export type BankTransactionWithStatement = BankTransaction & {
-  statement?: { statementNumber: string | null; bankName: string | null } | null;
+  statement?: {
+    id?: number;
+    statementNumber: string | null;
+    bankName: string | null;
+  } | null;
 };
 
 export type TxSearchQuery = {
@@ -248,6 +279,14 @@ export type TxSearchQuery = {
   offset?: number;
 };
 
+export type TxSearchResult = {
+  items: BankTransactionWithStatement[];
+  total: number;
+  /** sume za CIJELI filtrirani skup (ne samo stranicu) */
+  sumIn: number;
+  sumOut: number;
+};
+
 export function searchBankTransactions(orgId: number, query: TxSearchQuery) {
   const sp = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -255,9 +294,23 @@ export function searchBankTransactions(orgId: number, query: TxSearchQuery) {
       sp.set(key, String(value));
     }
   }
-  return jsonRequest<{ items: BankTransactionWithStatement[]; total: number }>(
+  return jsonRequest<TxSearchResult>(
     `/api/bank-statements/${orgId}/transactions?${sp.toString()}`,
     { method: "GET" },
+  );
+}
+
+/** Masovna izmjena označenih stavki (status i/ili kategorija).
+ *  Stavke kojima izmjena ne odgovara (kategorija pogrešnog smjera) se
+ *  preskaču i vraćaju u `skipped`. */
+export function bulkUpdateBankTransactions(
+  orgId: number,
+  ids: number[],
+  patch: { status?: TxStatus; category?: string | null },
+) {
+  return jsonRequest<{ updated: number; skipped: number }>(
+    `/api/bank-statements/${orgId}/transactions/bulk`,
+    { method: "PATCH", body: JSON.stringify({ ids, patch }) },
   );
 }
 
@@ -305,6 +358,8 @@ export type KprRow = KprCols & {
   brojDokumenta: string;
   opis: string;
   kategorija: string;
+  /** izvod iz kojeg je stavka (klik na red ga otvara); null za KP-1042 */
+  statementId: number | null;
 };
 
 export type KprData = {
@@ -340,10 +395,83 @@ export function getKpr(orgId: number, period: KprPeriod) {
 export function updateBankTransaction(
   orgId: number,
   txId: number,
-  patch: { status?: TxStatus; category?: string | null; invoiceId?: number | null },
+  patch: {
+    status?: TxStatus;
+    category?: string | null;
+    invoiceId?: number | null;
+    partnerId?: number | null;
+  },
 ) {
   return jsonRequest<BankTransaction>(
     `/api/bank-statements/${orgId}/transactions/${txId}`,
     { method: "PATCH", body: JSON.stringify(patch) },
   );
+}
+
+// ── Grupni uvoz (Inbox): analiza više PDF-ova bez snimanja ──────────────────
+
+export type BulkFileStatus =
+  | "ready" // prepoznat, bez upozorenja: knjiži se jednim klikom
+  | "review" // prepoznat, ima upozorenja: traži pregled prije knjiženja
+  | "duplicate" // već učitan kod tog klijenta
+  | "unrecognized" // nijedan obrt nema ovaj žiro račun: ručna dodjela
+  | "conflict" // više obrta ima isti račun: ručni izbor
+  | "error"; // parsiranje/validacija nije prošla
+
+export type BulkTransactionPreview = {
+  date: string | null;
+  description: string | null;
+  amount: number;
+  direction: TxDirection;
+  counterpartyName: string | null;
+};
+
+export type BulkFileResult = {
+  fileName: string;
+  status: BulkFileStatus;
+  error?: string;
+  errorDetail?: string | null;
+  validationErrors?: string[] | null;
+  bankName?: string | null;
+  account?: string | null;
+  statementNumber?: string | null;
+  statementDate?: string | null;
+  transactionCount?: number;
+  totalIn?: number;
+  totalOut?: number;
+  openingBalance?: number | null;
+  closingBalance?: number | null;
+  transactions?: BulkTransactionPreview[];
+  org?: { id: number; name: string } | null;
+  existingStatementId?: number;
+  candidateOrgIds?: number[];
+  warnings?: string[];
+};
+
+export type BulkAnalyzeResult = {
+  files: BulkFileResult[];
+  organizations: { id: number; name: string }[];
+};
+
+/** Analiza svih PDF-ova: parsiranje + prepoznavanje obrta, NIŠTA se ne snima.
+ *  Knjiženje potom ide postojećim uploadBankStatement(orgId, file) po fajlu. */
+export async function bulkAnalyzeStatements(
+  files: File[],
+): Promise<ApiResponse<BulkAnalyzeResult>> {
+  const form = new FormData();
+  for (const f of files) form.append("files", f);
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bank-statements/bulk/analyze`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    const json = (await res
+      .json()
+      .catch(() => null)) as ApiResponse<BulkAnalyzeResult> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
 }

@@ -22,6 +22,12 @@ async function request<T>(
 }
 
 export type PlanKey = "free" | "pro" | "business";
+/** PK Office paketi: dodjeljuju se kroz admin/predračun, ne kroz change-plan */
+export type OfficePlanKey =
+  | "office_2"
+  | "office_10"
+  | "office_25"
+  | "office_50";
 export type SubscriptionStatus =
   | "active"
   | "cancelled"
@@ -54,8 +60,9 @@ export type SubscriptionUsage = {
 
 export type Subscription = {
   id: number;
-  plan: PlanKey;
+  plan: PlanKey | OfficePlanKey;
   status: SubscriptionStatus;
+  isTrial: boolean;
   billingCycle: BillingCycle | null;
   isActive: boolean;
   currentPeriodStart: string;
@@ -74,9 +81,21 @@ export type SubscriptionInvoice = {
   status: "paid" | "pending" | "failed" | "refunded";
   invoiceDate: string;
   dueDate: string;
-  plan: "PRO" | "BUSINESS";
+  /** PRO | BUSINESS | OFFICE_2 | OFFICE_10 | OFFICE_25 | OFFICE_50 */
+  plan: string;
+  billingCycle: BillingCycle;
+  /** Period pretplate koji predračun pokriva (YYYY-MM-DD). */
+  periodStart: string | null;
+  periodEnd: string | null;
+  /** Približan datum evidentiranja uplate (kad je označen plaćenim). */
+  paidAt: string | null;
   pdfUrl: string | null;
 };
+
+/** URL za PDF vlastitog predračuna (auth kolačić ide automatski). */
+export function subscriptionInvoicePdfUrl(id: number): string {
+  return `${BACKEND_URL}/api/subscription/invoices/${id}/pdf`;
+}
 
 export type SubscriptionInvoicesResponse = {
   items: SubscriptionInvoice[];
@@ -97,16 +116,6 @@ export function getInvoices(page = 1, limit = 20) {
   return request<SubscriptionInvoicesResponse>(
     `/api/subscription/invoices?page=${page}&limit=${limit}`,
   );
-}
-
-export function changePlan(payload: {
-  plan: PlanKey;
-  billingCycle?: BillingCycle;
-}) {
-  return request<Subscription>("/api/subscription/change-plan", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
 }
 
 export function cancelSubscription() {

@@ -13,8 +13,9 @@ import {
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
+import LoadState from "src/components/LoadState/LoadState";
 import styles from "./WorkersSidebar.module.css";
-import QuickAddWorkerModal from "./QuickAddWorkerModal";
+import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
 
 export type WorkerStatusDot = "active" | "draft" | "inactive" | "warning";
 
@@ -175,7 +176,7 @@ export default function WorkersSidebar({
         </div>
       )}
       {selectedOrgId && workersQuery.isLoading && (
-        <div className={styles.empty}>Učitavam…</div>
+        <div className={styles.empty}><LoadState compact text="Učitavam radnike..." /></div>
       )}
       {selectedOrgId &&
         !workersQuery.isLoading &&
@@ -232,11 +233,20 @@ export default function WorkersSidebar({
         </div>
       )}
 
+      {/* Puna PK forma radnika (ista kao na zaposlenicima/organizaciji);
+          nakon snimanja novi radnik se odmah selektuje u listi. */}
       {quickAddOpen && selectedOrgId && (
-        <QuickAddWorkerModal
+        <WorkerModal
+          key="sidebar-new"
           orgId={selectedOrgId}
+          orgType={
+            [...(orgsQuery.data ?? []), ...(clientOrgsQuery.data ?? [])].find(
+              (o) => o.id === selectedOrgId,
+            )?.type ?? null
+          }
+          worker={null}
           onClose={() => setQuickAddOpen(false)}
-          onCreated={(w) => onWorkerSelect(w.id, w)}
+          onSaved={(w) => onWorkerSelect(w.id, w)}
         />
       )}
     </aside>

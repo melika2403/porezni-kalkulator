@@ -1,5 +1,7 @@
 const organizationRepository = require("../repositories/organizationRepository");
 const { getPlan, planFromRole } = require("../config/plans");
+const { freshRole } = require("../services/tierService");
+const { getOfficeAccess } = require("./pkOfficeGateController");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 const {
   Organization,
@@ -7,8 +9,13 @@ const {
   UserPreference,
   Worker,
   Payroll,
+  BankStatement,
 } = require("../models/index");
 const { publicUrlFor, absPathFor, safeUnlink } = require("../utils/uploads");
+
+const {
+  formatAccountDashed,
+} = require("../services/bankStatements/bankCodes");
 
 function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
@@ -58,6 +65,26 @@ function validateOrgData(body, requireName = true) {
     data.bankAccount = body.bankAccount
       ? String(body.bankAccount).trim()
       : null;
+  // Lista svih žiro računa (samo cifre, bez duplikata); prvi je glavni
+  // pa se bankAccount drži sinhronizovan sa njim.
+  if (body.bankAccounts !== undefined) {
+    if (body.bankAccounts === null) {
+      data.bankAccounts = null;
+    } else if (Array.isArray(body.bankAccounts)) {
+      const seen = new Set();
+      const list = [];
+      for (const a of body.bankAccounts) {
+        const digits = String(a || "").replace(/\D+/g, "");
+        if (digits.length < 8 || seen.has(digits)) continue;
+        seen.add(digits);
+        list.push(digits);
+      }
+      data.bankAccounts = list.length ? list : null;
+      data.bankAccount = list[0] ? formatAccountDashed(list[0]) : null;
+    } else {
+      return { ok: false, message: "bankAccounts mora biti lista računa" };
+    }
+  }
 
   // Režim oporezivanja vlasnika obrta (čl. 19 / 31 / 6 t.10)
   if (body.taxRegime !== undefined) {
@@ -121,6 +148,26 @@ function validateOrgData(body, requireName = true) {
 
   if (body.isPdvObveznik !== undefined) {
     data.isPdvObveznik = Boolean(body.isPdvObveznik);
+  }
+
+  // Datumi ulaska/izlaska iz sistema PDV-a (prelazni period usred godine).
+  // Prazno/null = bez granice (obveznik oduvijek, odnosno nije izašao).
+  for (const f of ["pdvObveznikOd", "pdvObveznikDo"]) {
+    if (body[f] !== undefined) {
+      if (body[f] === null || body[f] === "") {
+        data[f] = null;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(String(body[f]))) {
+        data[f] = String(body[f]);
+      } else {
+        return { ok: false, message: `Neispravan datum (${f})` };
+      }
+    }
+  }
+
+  // prihod od pazara u KPR ide iz dnevnog prometa (KP-1042) umjesto iz
+  // pologa sa izvoda (kategorija PAZAR se tada isključuje iz KPR-a)
+  if (body.kprPazarIzKp !== undefined) {
+    data.kprPazarIzKp = Boolean(body.kprPazarIzKp);
   }
 
   // Dnevna stopa toplog obroka za firmu (obračun je množi sa radnim danima).
@@ -402,6 +449,20 @@ async function listWithPayrollStatus(req, res) {
     payrollsByOrg.set(p.organizationId, cur);
   }
 
+  // Zadnji učitani izvod po org (pregled obrta na PK Office početnoj).
+  const lastStatementByOrg = new Map();
+  const statements = await BankStatement.findAll({
+    where: { organizationId: orgIds },
+    attributes: ["organizationId", "statementDate"],
+  });
+  for (const s of statements) {
+    if (!s.statementDate) continue;
+    const cur = lastStatementByOrg.get(s.organizationId);
+    if (!cur || s.statementDate > cur) {
+      lastStatementByOrg.set(s.organizationId, s.statementDate);
+    }
+  }
+
   const enrich = (orgs) =>
     orgs.map((o) => {
       const workerCount = workersByOrg.get(o.id) || 0;
@@ -431,6 +492,7 @@ async function listWithPayrollStatus(req, res) {
         payrollIsplaceno: stats.isplaceno,
         payrollStatus,
         mipDownloadedAt: stats.mipDownloadedAt,
+        lastStatementDate: lastStatementByOrg.get(o.id) || null,
       };
     });
 
@@ -447,20 +509,45 @@ async function listWithPayrollStatus(req, res) {
 
 async function create(req, res) {
   const { ownerData, ...orgBody } = req.body ?? {};
-  const userRole = req.user.role;
+  // Svježa rola (lijeni istek pretplate): istekli BUSINESS ne smije značiti
+  // neograničeno kreiranje organizacija kroz direktne API pozive.
+  const userRole = await freshRole(req.user);
   // Limiti po planu (USER=free, PRO=pro, BUSINESS/ADMIN=business). -1 = neograničeno.
   const planLimits = getPlan(planFromRole(userRole)).limits;
 
+  // PK Office pretplatnik/trial (rola može ostati USER): kreiranje obrta je
+  // slobodno, pravi limit je PK Office slot po paketu. Vrijedi SAMO kad je
+  // naplata uključena (enforced) i SAMO za nosioca pretplate (scope
+  // "vlastiti"): naslijeđen pristup (knjigovođa u agenciji) ne daje pravo
+  // kreiranja mimo role. Sa isključenim flagom ponašanje kao prije.
+  const office = await getOfficeAccess(req.user.id);
+  const officeOk = Boolean(
+    office.enforced && office.hasOffice && office.scope === "vlastiti",
+  );
+
+  // Office Start (do 2 obrta): jedini office paket sa ukupnim limitom
+  // kreiranja. To je ograda dogovorenog pravila "Business funkcije za ta 2
+  // obrta" (Tim i veći su neograničeni jer su skuplji od Business-a).
+  if (officeOk && office.plan === "office_2") {
+    const [ownCount, clientCount] = await Promise.all([
+      organizationRepository.countOwnedOrganizations(req.user.id),
+      organizationRepository.countClientOrganizations(req.user.id),
+    ]);
+    if (ownCount + clientCount >= 2) {
+      return res.status(409).json({ ok: false, error: "OFFICE_START_LIMIT" });
+    }
+  }
+
   // Only elevated roles can create client orgs (with separate ownerData)
   const CLIENT_ORG_ROLES = ["PRO", "BUSINESS", "ADMIN"];
-  if (ownerData && !CLIENT_ORG_ROLES.includes(userRole)) {
+  if (ownerData && !CLIENT_ORG_ROLES.includes(userRole) && !officeOk) {
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
   }
 
   if (ownerData) {
     // Klijentska organizacija: limit po planu (PRO=20, BUSINESS/ADMIN=neograničeno).
     const limit = planLimits.clientOrganizations;
-    if (limit !== -1) {
+    if (limit !== -1 && !officeOk) {
       const clientCount =
         await organizationRepository.countClientOrganizations(req.user.id);
       if (clientCount >= limit) {
@@ -472,7 +559,7 @@ async function create(req, res) {
   } else {
     // Vlastita organizacija: limit po planu (USER=1, PRO=2, BUSINESS/ADMIN=neograničeno).
     const limit = planLimits.ownOrganizations;
-    if (limit !== -1) {
+    if (limit !== -1 && !officeOk) {
       const ownedCount = await organizationRepository.countOwnedOrganizations(
         req.user.id,
       );

@@ -8,8 +8,10 @@ const {
   OrganizationMember,
   Organization,
   Predracun,
+  User,
 } = require("../models/index");
 const { PLANS, getPlan, planFromRole } = require("../config/plans");
+const { OFFICE_PLANS } = require("../config/pricing");
 
 function setAuthCookieWithRole(res, userId, role) {
   const secret = process.env.JWT_SECRET;
@@ -59,14 +61,30 @@ async function upsert(req, res) {
   }
   if (isActive !== undefined) data.isActive = Boolean(isActive);
 
-  // Plan + ciklus naplate (opciono). Plan određuje i finalnu rolu korisnika.
+  // Plan + ciklus naplate (opciono). PRO/BUSINESS određuju i rolu korisnika;
+  // office_* paketi NE diraju rolu (effectiveRole u tierService ih diže na
+  // BUSINESS za marketing funkcije, a PK Office limite čita iz plana).
   let normalizedPlan = null;
+  let isOfficePlan = false;
   if (plan !== undefined && plan !== null && plan !== "") {
-    normalizedPlan = String(plan).toUpperCase();
-    if (normalizedPlan !== "PRO" && normalizedPlan !== "BUSINESS") {
-      return res.status(400).json({ ok: false, error: "Plan mora biti PRO ili BUSINESS" });
+    const raw = String(plan);
+    if (/^office_(2|10|25|50)$/i.test(raw)) {
+      // office paketi su lowercase u subscriptions.plan enumu
+      normalizedPlan = raw.toLowerCase();
+      isOfficePlan = true;
+    } else {
+      normalizedPlan = raw.toUpperCase();
+      if (normalizedPlan !== "PRO" && normalizedPlan !== "BUSINESS") {
+        return res.status(400).json({
+          ok: false,
+          error: "Plan mora biti PRO, BUSINESS ili office_2/10/25/50",
+        });
+      }
     }
     data.plan = normalizedPlan;
+    // Dodjela pravog paketa gasi trial oznaku (korisnik je kupio/dobio paket,
+    // inače bi mu "TRIAL" bedž ostao zauvijek u admin listama).
+    data.isTrial = false;
   }
   let normalizedCycle = null;
   if (billingCycle !== undefined && billingCycle !== null && billingCycle !== "") {
@@ -102,7 +120,9 @@ async function upsert(req, res) {
 
   try {
     const sub = await subscriptionRepository.upsert(userId, data);
-    if (data.isActive === true) {
+    // Office paketi NE mijenjaju rolu: pristup ide preko effectiveRole
+    // (tierService) i getOfficeAccess, rola u bazi ostaje kakva jeste.
+    if (data.isActive === true && !isOfficePlan) {
       const user = await userRepository.getUserById(userId);
       // Rola prati plan (PRO/BUSINESS). Ako plan nije poslan, zadrži staro
       // ponašanje (USER → PRO). Ne diramo ADMIN rolu.
@@ -217,6 +237,18 @@ async function ensureSubscription(userId, role) {
     return sub;
   }
 
+  // Office paket je jači od role (rola office korisnika ostaje USER/PRO):
+  // NE pregaziti AKTIVAN office plan planom izvedenim iz role, inače bi
+  // otvaranje stranice Pretplata obrisalo office paket. Kad office istekne
+  // (neaktivan ili prošao endDate), pusti da se plan vrati na role-derived,
+  // da panel ne pokazuje zauvijek "PK Office ..." i poslije prestanka.
+  if (String(sub.plan || "").toLowerCase().startsWith("office")) {
+    const end = sub.endDate ? new Date(sub.endDate) : null;
+    const stillValid = sub.isActive && (!end || end.getTime() >= Date.now());
+    if (stillValid) return sub;
+    // istekao: nastavi na sinhronizaciju plana iz role (free/pro/business)
+  }
+
   // Sinhroniziraj plan iz role-a ako se razlikuje
   if (sub.plan !== planKey) {
     sub.plan = planKey;
@@ -225,11 +257,48 @@ async function ensureSubscription(userId, role) {
   return sub;
 }
 
+// Prikazni "plan" objekat za office pakete (nisu u config/plans.js):
+// Business limiti + broj obrta iz paketa; Start je ograničen na 2
+// organizacije ukupno.
+function officeDisplayPlan(planKey) {
+  const key = String(planKey || "");
+  const meta = OFFICE_PLANS[key.toUpperCase()];
+  if (!meta) return null;
+  const business = getPlan("business");
+  const isStart = key.toLowerCase() === "office_2";
+  return {
+    key: key.toLowerCase(),
+    name: meta.label,
+    priceMonthly: 0,
+    priceYearly: 0,
+    limits: {
+      ...business.limits,
+      organizations: meta.maxObrta,
+      ownOrganizations: isStart ? 2 : -1,
+      clientOrganizations: isStart ? 2 : -1,
+    },
+    features: [
+      "Sve Business funkcije",
+      `PK Office za do ${meta.maxObrta} obrta`,
+    ],
+  };
+}
+
+// Neki stariji zapisi nemaju popunjen status (admin upsert ga ne dira),
+// pa ga izvedemo iz isActive + endDate da frontend nikad ne dobije prazno.
+function effectiveStatus(sub) {
+  if (sub.status) return sub.status;
+  const end = sub.endDate ? new Date(sub.endDate) : null;
+  if (!sub.isActive || (end && end.getTime() < Date.now())) return "expired";
+  return "active";
+}
+
 function buildSubscriptionResponse(sub, plan, usage) {
   return {
     id: sub.id,
     plan: sub.plan,
-    status: sub.status,
+    status: effectiveStatus(sub),
+    isTrial: !!sub.isTrial,
     billingCycle: sub.billingCycle,
     isActive: sub.isActive,
     currentPeriodStart: sub.startDate,
@@ -249,7 +318,7 @@ async function getCurrent(req, res) {
   if (!user) return res.status(404).json({ ok: false, error: "User not found" });
 
   const sub = await ensureSubscription(userId, user.role);
-  const plan = getPlan(sub.plan);
+  const plan = officeDisplayPlan(sub.plan) ?? getPlan(sub.plan);
   const usage = await computeUsage(userId);
 
   return res.json({ ok: true, data: buildSubscriptionResponse(sub, plan, usage) });
@@ -257,6 +326,97 @@ async function getCurrent(req, res) {
 
 async function listPlans(_req, res) {
   return res.json({ ok: true, data: Object.values(PLANS) });
+}
+
+// GET /api/admin/subscriptions — admin lista SVIH pretplata: korisnik, paket,
+// period, status; za office pakete i zauzeti slotovi (aktivirani obrti).
+async function adminList(_req, res) {
+  try {
+    // Stabilan poredak po isteku (istekle prve), ne po zadnjoj izmjeni:
+    // inače red "skoči" na vrh čim admin klikne Produži.
+    const subs = await Subscription.findAll({
+      raw: true,
+      order: [["endDate", "ASC"]],
+    });
+    const userIds = [...new Set(subs.map((s) => s.userId))];
+    const users = userIds.length
+      ? await User.findAll({
+          where: { id: { [Op.in]: userIds } },
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "email",
+            "role",
+            "pkOfficeTrialEndsAt",
+          ],
+          raw: true,
+        })
+      : [];
+    const userById = new Map(users.map((u) => [u.id, u]));
+
+    // zauzeti slotovi office pretplatnika: OWNER/ADMIN obrti sa pkOfficeEnabled
+    const officeIds = subs
+      .filter((s) => String(s.plan || "").startsWith("office"))
+      .map((s) => s.userId);
+    const slotCount = new Map();
+    if (officeIds.length) {
+      const rows = await OrganizationMember.findAll({
+        where: {
+          userId: { [Op.in]: officeIds },
+          role: { [Op.in]: ["OWNER", "ADMIN"] },
+        },
+        include: [
+          {
+            model: Organization,
+            as: "organization",
+            where: { type: "BUSINESS", pkOfficeEnabled: true },
+            attributes: [],
+          },
+        ],
+        attributes: ["userId"],
+        raw: true,
+      });
+      for (const r of rows) {
+        slotCount.set(r.userId, (slotCount.get(r.userId) || 0) + 1);
+      }
+    }
+
+    return res.json({
+      ok: true,
+      data: subs.map((s) => {
+        const u = userById.get(s.userId) || null;
+        const plan = String(s.plan || "");
+        const office = plan.startsWith("office")
+          ? OFFICE_PLANS[plan.toUpperCase()] || null
+          : null;
+        return {
+          userId: s.userId,
+          user: u
+            ? {
+                id: u.id,
+                name: `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim(),
+                email: u.email,
+                role: u.role,
+                pkOfficeTrialEndsAt: u.pkOfficeTrialEndsAt,
+              }
+            : null,
+          plan: plan || null,
+          billingCycle: s.billingCycle,
+          startDate: s.startDate,
+          endDate: s.endDate,
+          isActive: !!s.isActive,
+          isTrial: !!s.isTrial,
+          officeSlotovi: office
+            ? { zauzeto: slotCount.get(s.userId) || 0, max: office.maxObrta }
+            : null,
+        };
+      }),
+    });
+  } catch (err) {
+    console.error("admin subscriptions list error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
 }
 
 async function listInvoices(req, res) {
@@ -283,6 +443,11 @@ async function listInvoices(req, res) {
     invoiceDate: p.issueDate,
     dueDate: p.dueDate,
     plan: p.plan,
+    billingCycle: p.billingCycle || "yearly",
+    periodStart: p.periodStart,
+    periodEnd: p.periodEnd,
+    // Nemamo poseban datum uplate; kad admin označi PAID, updatedAt je najbliža aproksimacija.
+    paidAt: p.status === "PAID" ? p.updatedAt : null,
     pdfUrl: null,
   }));
 
@@ -292,41 +457,55 @@ async function listInvoices(req, res) {
   });
 }
 
-async function changePlan(req, res) {
+// GET /api/subscription/invoices/:id/pdf — PDF vlastitog predračuna.
+// Regeneriše se iz snimljenog zapisa (snapshot), isto kao admin verzija,
+// ali sa provjerom vlasništva (predračun mora pripadati ulogovanom korisniku).
+async function invoicePdf(req, res) {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
 
-  const { plan, billing_cycle, billingCycle } = req.body ?? {};
-  const cycle = billingCycle || billing_cycle;
-
-  if (!["free", "pro", "business"].includes(plan)) {
-    return res.status(400).json({ ok: false, error: "INVALID_PLAN" });
-  }
-  if (cycle && !["monthly", "yearly"].includes(cycle)) {
-    return res.status(400).json({ ok: false, error: "INVALID_BILLING_CYCLE" });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Nevažeći ID." });
   }
 
-  const user = await userRepository.getUserById(userId);
-  if (!user) return res.status(404).json({ ok: false, error: "User not found" });
+  const r = await Predracun.findOne({ where: { id, userId } });
+  if (!r) {
+    return res.status(404).json({ ok: false, error: "Predračun nije pronađen." });
+  }
 
-  const newRole = plan === "pro" ? "PRO" : plan === "business" ? "BUSINESS" : "USER";
-  await userRepository.updateUserById(userId, { role: newRole });
-
-  const sub = await ensureSubscription(userId, newRole);
-  sub.plan = plan;
-  sub.status = "active";
-  sub.cancelAtPeriodEnd = false;
-  sub.cancelledAt = null;
-  if (cycle) sub.billingCycle = cycle;
-  sub.isActive = true;
-  await sub.save();
-
-  // Reissue JWT s novom rolom
-  setAuthCookieWithRole(res, userId, newRole);
-
-  const planConfig = getPlan(plan);
-  const usage = await computeUsage(userId);
-  return res.json({ ok: true, data: buildSubscriptionResponse(sub, planConfig, usage) });
+  try {
+    const { generatePredracunPdf } = require("../utils/predracunPdf");
+    const pdfBuffer = await generatePredracunPdf({
+      plan: r.plan,
+      billingCycle: r.billingCycle,
+      periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
+      fullNumber: r.fullNumber,
+      issueDate: r.issueDate,
+      dueDate: r.dueDate,
+      buyer: {
+        code: r.buyerCode,
+        name: r.buyerName,
+        address: r.buyerAddress,
+        city: r.buyerCity,
+        postalCode: r.buyerPostalCode,
+        phone: r.buyerPhone,
+        idNumber: r.buyerIdNumber,
+        vatNumber: r.buyerVatNumber,
+        email: r.buyerEmail,
+      },
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="Predracun-${String(r.fullNumber).replace(/\//g, "-")}.pdf"`,
+    );
+    return res.status(200).end(pdfBuffer);
+  } catch (e) {
+    console.error("subscription invoicePdf error:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
 }
 
 async function cancelCurrent(req, res) {
@@ -370,11 +549,12 @@ async function reactivateCurrent(req, res) {
 module.exports = {
   upsert,
   remove,
+  adminList,
   startTrial,
   getCurrent,
   listPlans,
   listInvoices,
-  changePlan,
+  invoicePdf,
   cancelCurrent,
   reactivateCurrent,
 };

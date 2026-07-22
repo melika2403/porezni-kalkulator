@@ -36,6 +36,8 @@ export type FinanceClient = {
   lastName: string;
   email: string | null;
   role: "USER" | "PRO" | "ADMIN" | "BUSINESS"; // paket
+  /** plan pretplate (office_2..office_50 za PK Office; rola ih ne pokriva) */
+  plan?: string | null;
   subscriptionActive: boolean;
   subscriptionStart: string | null; // od (YYYY-MM-DD)
   subscriptionEnd: string | null; // do (YYYY-MM-DD)

@@ -361,25 +361,31 @@ export default function AmsForm() {
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) Period, Mjesec</label>
-            <select
-              className={styles.fieldInput}
+            <StyledSelect
+              ariaLabel="5) Period, Mjesec"
+              wrapStyle={{ width: "100%" }}
               value={periodMjesec}
-              onChange={(e) => setPeriodMjesec(e.target.value)}
-            >
-              <option value="">– Odaberite mjesec –</option>
-              <option value="01">Januar</option>
-              <option value="02">Februar</option>
-              <option value="03">Mart</option>
-              <option value="04">April</option>
-              <option value="05">Maj</option>
-              <option value="06">Juni</option>
-              <option value="07">Juli</option>
-              <option value="08">Avgust</option>
-              <option value="09">Septembar</option>
-              <option value="10">Oktobar</option>
-              <option value="11">Novembar</option>
-              <option value="12">Decembar</option>
-            </select>
+              onChange={(v) => setPeriodMjesec(String(v ?? ""))}
+              groups={[
+                {
+                  options: [
+                    { value: "", label: "– Odaberite mjesec –" },
+                    { value: "01", label: "Januar" },
+                    { value: "02", label: "Februar" },
+                    { value: "03", label: "Mart" },
+                    { value: "04", label: "April" },
+                    { value: "05", label: "Maj" },
+                    { value: "06", label: "Juni" },
+                    { value: "07", label: "Juli" },
+                    { value: "08", label: "Avgust" },
+                    { value: "09", label: "Septembar" },
+                    { value: "10", label: "Oktobar" },
+                    { value: "11", label: "Novembar" },
+                    { value: "12", label: "Decembar" },
+                  ],
+                },
+              ]}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>5) Period, Godina</label>

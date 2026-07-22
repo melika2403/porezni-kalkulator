@@ -1,6 +1,6 @@
 const express = require("express");
-const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
-const { getOrgOwnerRole } = require("../services/tierService");
+const { requireAuth } = require("../middlewares/authMiddleware");
+const { getOrgOwnerRole, freshRole } = require("../services/tierService");
 const ctrl = require("../controllers/documentsController");
 
 const router = express.Router();
@@ -30,7 +30,13 @@ async function guardRestrictedType(req, res, next) {
     return next();
   }
 
-  return requireRole(...allowed)(req, res, next);
+  // Bez orgId: rola pozivaoca, kroz freshRole da istekla pretplata ne
+  // prolazi na osnovu stale PRO/BUSINESS role u bazi.
+  const role = await freshRole(req.user);
+  if (!allowed.includes(role)) {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+  return next();
 }
 
 router.post("/", requireAuth, guardRestrictedType, ctrl.save);

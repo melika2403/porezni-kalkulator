@@ -40,16 +40,16 @@
 
 .input:focus,
 .select:focus {
-  outline: 2px solid var(--accent, #2563eb);
+  outline: 2px solid var(--sage, #3a5c42);
   outline-offset: -1px;
 }
 
 .btnPrimary {
   padding: 0.55rem 1rem;
-  background: var(--accent, #2563eb);
+  background: var(--sage, #3a5c42);
   color: #fff;
   border: 0;
-  border-radius: 6px;
+  border-radius: 10px;
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
@@ -69,7 +69,7 @@
   background: transparent;
   color: var(--ink, #1a1a1a);
   border: 1px solid var(--border, #d4cfc4);
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 500;
   font-size: 0.9rem;
   cursor: pointer;
@@ -91,10 +91,10 @@
 /* Tinted variants — secondary akcije u grupi sa primarnom bojom. */
 .btnTintBlue {
   padding: 0.55rem 1rem;
-  background: rgba(100, 160, 210, 0.22);
-  color: #2c6b94;
-  border: 1px solid rgba(74, 144, 194, 0.55);
-  border-radius: 8px;
+  background: var(--color-info-bg, #d8e6f1);
+  color: var(--color-info, #1f5a8c);
+  border: 1px solid color-mix(in srgb, var(--color-info, #1f5a8c) 45%, transparent);
+  border-radius: 10px;
   font-weight: 500;
   font-size: 0.9rem;
   cursor: pointer;
@@ -102,8 +102,8 @@
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 .btnTintBlue:hover {
-  background: rgba(100, 160, 210, 0.34);
-  border-color: #4a90c2;
+  background: color-mix(in srgb, var(--color-info-bg, #d8e6f1) 82%, var(--color-info, #1f5a8c) 18%);
+  border-color: var(--color-info, #1f5a8c);
 }
 .btnTintBlue:disabled {
   opacity: 0.5;
@@ -115,7 +115,7 @@
   background: rgba(58, 92, 66, 0.08);
   color: var(--sage, #3a5c42);
   border: 1px solid rgba(58, 92, 66, 0.4);
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 500;
   font-size: 0.9rem;
   cursor: pointer;
@@ -172,9 +172,9 @@
 .btnDanger {
   padding: 0.55rem 1rem;
   background: transparent;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
+  color: var(--color-danger, #9b2e2e);
+  border: 1px solid color-mix(in srgb, var(--color-danger, #9b2e2e) 35%, transparent);
+  border-radius: 10px;
   font-weight: 500;
   font-size: 0.9rem;
   cursor: pointer;
@@ -183,8 +183,9 @@
 .tableWrap {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--border, #d4d4d4);
-  border-radius: 8px;
+  background: var(--white, #fff);
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: var(--radius-lg, 12px);
 }
 
 .table {
@@ -201,7 +202,7 @@
 }
 
 .table th {
-  background: var(--bg-subtle, #fafafa);
+  background: var(--paper, #f5f2eb);
   font-weight: 600;
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -214,7 +215,7 @@
 }
 
 .table tr.rowClickable:hover {
-  background: var(--bg-subtle, #fafafa);
+  background: var(--paper, #f5f2eb);
   cursor: pointer;
 }
 
@@ -238,23 +239,23 @@
 }
 
 .badgeDraft {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-warning-bg, #f2dec0);
+  color: var(--color-warning, #8a4f10);
 }
 
 .badgeNone {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--paper, #f5f2eb);
+  color: var(--mid, #7a8a7d);
 }
 
 .badgeOk {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--color-success-bg, #d8ebe1);
+  color: var(--color-success, #2d6e54);
 }
 
 .badgePaid {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--color-info-bg, #d8e6f1);
+  color: var(--color-info, #1f5a8c);
 }
 
 .summary {

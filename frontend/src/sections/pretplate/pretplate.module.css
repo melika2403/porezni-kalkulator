@@ -150,6 +150,509 @@
   color: white;
 }
 
+/* PK Office paketi: tamnozelena kartica (kao landing), terracotta naglasci */
+.featuredOffice {
+  background: #14241b;
+  border-color: #14241b;
+  color: white;
+  padding: 1.6rem 1.4rem 1.25rem;
+}
+.featuredOffice .tier {
+  color: #e08a52;
+  opacity: 1;
+}
+.featuredOffice .price {
+  font-size: 1.9rem;
+}
+.featuredOffice .selectIndicator {
+  background: rgba(200, 98, 42, 0.28);
+}
+.cardActive.featuredOffice .selectIndicator {
+  background: var(--accent, #c8622a);
+  color: #fff;
+}
+
+/* ── PK Office sekcija ── */
+.officeSection {
+  margin: 3.5rem 0 3rem;
+  scroll-margin-top: 90px;
+}
+
+.officeHeader {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.officeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--accent, #c8622a);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-radius: 999px;
+  margin-bottom: 0.9rem;
+}
+
+.officeTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5rem;
+}
+
+.officeLead {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--mid, #5b6a5e);
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* kalkulator broja obrta */
+.officeCalc {
+  background: white;
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: var(--radius-lg, 14px);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.officeCalcLabel {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.officeCalcInput {
+  width: 74px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 8px 6px;
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+.officeCalcInput:focus {
+  outline: none;
+  border-color: var(--accent, #c8622a);
+  box-shadow: 0 0 0 3px rgba(200, 98, 42, 0.14);
+}
+
+.officeRange {
+  flex: 1;
+  min-width: 160px;
+  accent-color: var(--accent, #c8622a);
+}
+
+.officeSuggest {
+  font-size: 13.5px;
+  color: var(--mid, #5b6a5e);
+  white-space: nowrap;
+}
+
+.officeSuggest strong {
+  color: var(--accent, #c8622a);
+}
+
+/* procjena uštede vremena ispod kalkulatora (puna širina reda) */
+.officeRoi {
+  width: 100%;
+  border-top: 1px dashed var(--border, #d4cfc4);
+  padding-top: 0.85rem;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--mid, #5b6a5e);
+}
+
+.officeRoi strong {
+  color: var(--accent, #c8622a);
+  font-size: 15px;
+}
+
+.officeGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 1.5rem;
+}
+
+.officeObrta {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.95;
+  margin-bottom: 0.75rem;
+}
+
+.officePerObrt {
+  font-size: 12px;
+  color: #e8b28f;
+  margin-bottom: 0.4rem;
+}
+
+/* potvrda office triala nakon registracije (?officeTrial=auto) */
+.officeTrialBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0 0 18px;
+  padding: 0.9rem 1.2rem;
+  border-radius: 12px;
+  background: #e8f3ea;
+  border: 1px solid #bcd9c2;
+  color: #1f4632;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.officeTrialBannerWarn {
+  background: #fdf1e7;
+  border-color: #ecc9ad;
+  color: #8a4517;
+}
+
+.officeTrialBannerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--accent, #c8622a);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.officeTrialBannerBtn:hover {
+  opacity: 0.9;
+}
+
+/* probni period CTA ispod office kartica */
+.officeTrialRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 4px 0 22px;
+  text-align: center;
+}
+
+.officeTrialBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent, #c8622a);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.8rem 1.6rem;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.officeTrialBtn:hover {
+  background: #d97438;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px -12px rgba(200, 98, 42, 0.6);
+}
+
+.officeTrialNote {
+  font-size: 12px;
+  color: var(--mid, #6b7570);
+}
+
+/* funkcije: PK Office stil (bijele kartice, ikonica u obojenom kvadratiću) */
+.officeHeroGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.officeHero {
+  background: white;
+  border: 1px solid rgba(200, 98, 42, 0.4);
+  border-radius: 12px;
+  padding: 1.2rem 1.3rem;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  box-shadow: 0 10px 24px -18px rgba(200, 98, 42, 0.5);
+}
+
+.officeHeroIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #f7e9df;
+  color: var(--accent, #c8622a);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.officeHeroTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  color: #0f1a12;
+  margin-bottom: 0.3rem;
+}
+
+.officeHeroDesc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--mid, #5b6a5e);
+}
+
+.officeFeatGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.officeFeat {
+  background: white;
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--mid, #5b6a5e);
+}
+
+.officeFeatIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #d6e8d9;
+  color: #3a5c42;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.55rem;
+}
+
+.officeFeat strong {
+  display: block;
+  font-size: 13px;
+  color: #0f1a12;
+  margin-bottom: 2px;
+}
+
+/* sitna napomena ispod grida funkcija (fiskalne kase i sl.) */
+.officeNapomena {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--mid);
+  max-width: 720px;
+  margin: 0.75rem 0 1.5rem;
+}
+
+/* kontakt kartica za 50+ obrta: isti jezik kao hero kartice funkcija */
+.officeContact {
+  margin-top: 14px;
+  background: #14241b;
+  border-radius: 12px;
+  padding: 1.2rem 1.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+}
+
+.officeContactIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(200, 98, 42, 0.25);
+  color: #e08a52;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.officeContactBody {
+  flex: 1;
+  min-width: 240px;
+}
+
+.officeContactTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.2rem;
+}
+
+.officeContactDesc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #b9c8bd;
+}
+
+.officeContactBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent, #c8622a);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1.2;
+  padding: 0.65rem 1.25rem;
+  border: none;
+  border-radius: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.officeContactBtn:hover {
+  opacity: 0.9;
+}
+
+/* modal sa kontakt formom za posebnu ponudu (50+ obrta) */
+.officeModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 26, 18, 0.45);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.officeModal {
+  background: white;
+  border-radius: 16px;
+  padding: 1.6rem 1.7rem;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px -20px rgba(15, 26, 18, 0.4);
+}
+
+.officeModalTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.35rem;
+}
+
+.officeModalSub {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--mid, #5b6a5e);
+  margin: 0 0 1.1rem;
+}
+
+.officeModalFields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
+}
+
+.officeModalTextarea {
+  width: 100%;
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.officeModalTextarea:focus {
+  outline: none;
+  border-color: var(--accent, #c8622a);
+  box-shadow: 0 0 0 3px rgba(200, 98, 42, 0.14);
+}
+
+.officeModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 1rem;
+}
+
+.officeModalCancel {
+  background: white;
+  border: 1px solid var(--border, #d4cfc4);
+  border-radius: 10px;
+  padding: 0.6rem 1.1rem;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.officeModalSend {
+  background: var(--accent, #c8622a);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 1.25rem;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.officeModalSend:hover {
+  opacity: 0.9;
+}
+
+.officeModalSend:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 1000px) {
+  .officeGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .officeFeatGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .officeGrid {
+    grid-template-columns: 1fr;
+  }
+  .officeHeroGrid {
+    grid-template-columns: 1fr;
+  }
+  .officeFeatGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .cardActive {
   transform: translateY(-2px);
   box-shadow: 0 18px 40px rgba(15, 26, 18, 0.18);
@@ -270,6 +773,9 @@
 }
 .featuredBusiness .saveNote {
   color: #cfe0f5;
+}
+.featuredOffice .saveNote {
+  color: #f7ddcb;
 }
 
 .priceGross {

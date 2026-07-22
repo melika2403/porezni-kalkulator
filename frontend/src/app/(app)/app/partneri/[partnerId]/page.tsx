@@ -2,6 +2,7 @@
 
 import { use, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   IconArrowLeft,
@@ -27,29 +28,54 @@ import {
   useDeleteUlazniRacun,
 } from "src/hooks/usePartners";
 import {
+  downloadIosPdf,
   downloadKarticaPdf,
+  downloadOpomenaPdf,
+  emailIos,
   emailKartica,
+  emailOpomena,
   type KarticaType,
   type UlazniRacun,
 } from "src/api/partners";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
-import {
-  UlazniRacunModal,
-  parseDateInput,
-  maskDateInput,
-} from "src/sections/partneri/UlazniRacunModal";
+import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
+import { KompenzacijaModal } from "src/sections/prebijanja/PrebijanjeModali";
+import { parseDateInput } from "src/lib/dateInput";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
+import { PkSelect } from "src/components/app-shell/PkSelect";
 import {
   PartnerFormModal,
   formFromPartner,
   type PartnerFormState,
 } from "src/sections/partneri/PartnerFormModal";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 
+// izvedeni FIFO status ima prednost nad zapamćenim
+function racunEff(r: UlazniRacun): string {
+  return r.paymentStatus ?? r.status;
+}
 function RacunBadge({ r }: { r: UlazniRacun }) {
-  if (r.status === "PLACEN") {
+  const st = racunEff(r);
+  if (st === "PLACEN") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium bg-success-bg text-success shrink-0">
         <IconCircleCheck size={11} /> plaćen
+      </span>
+    );
+  }
+  if (st === "DJELIMICNO") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium bg-info-bg text-info shrink-0"
+        title={
+          r.preostalo != null
+            ? `Preostalo za platiti: ${formatBAM(r.preostalo)}`
+            : undefined
+        }
+      >
+        djelimično
+        {r.preostalo != null ? ` · ostalo ${formatBAM(r.preostalo)}` : ""}
       </span>
     );
   }
@@ -72,10 +98,15 @@ function Kpi({
   label,
   value,
   tone,
+  sub,
+  subTone,
 }: {
   label: string;
   value: string;
   tone?: "success" | "warning" | "muted";
+  /** dodatni red ispod vrijednosti, npr. dospjeli dio duga */
+  sub?: string | null;
+  subTone?: "accent";
 }) {
   const color =
     tone === "success"
@@ -95,6 +126,15 @@ function Kpi({
       >
         {value}
       </div>
+      {sub && (
+        <div
+          className={`text-[11.5px] mt-1.5 tabular-nums ${
+            subTone === "accent" ? "text-accent-500 font-medium" : "text-text-tertiary"
+          }`}
+        >
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -117,6 +157,7 @@ export default function PartnerKarticaPage({
 }) {
   const { partnerId: partnerIdRaw } = use(params);
   const partnerId = Number(partnerIdRaw) || null;
+  const router = useRouter();
 
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
@@ -125,6 +166,10 @@ export default function PartnerKarticaPage({
   const { data: kartica, isLoading } = usePartnerKartica(orgId, partnerId);
   const updateRacun = useUpdateUlazniRacun(orgId);
   const deleteRacun = useDeleteUlazniRacun(orgId);
+  // ulazni račun koji čeka potvrdu brisanja (PK modal umjesto window.confirm)
+  const [racunZaBrisanje, setRacunZaBrisanje] = useState<UlazniRacun | null>(
+    null,
+  );
 
   // PDV status obrta zbog PDV split-a kod knjiženja
   const { data: fullOrg } = useQuery({
@@ -134,6 +179,8 @@ export default function PartnerKarticaPage({
   });
 
   const [racunModalOpen, setRacunModalOpen] = useState(false);
+  // kompenzacija (partner sa dugom na obje strane)
+  const [kompOpen, setKompOpen] = useState(false);
   const [editInitial, setEditInitial] = useState<PartnerFormState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [mailInfo, setMailInfo] = useState<string | null>(null);
@@ -141,6 +188,12 @@ export default function PartnerKarticaPage({
   const [periodOd, setPeriodOd] = useState("");
   const [periodDo, setPeriodDo] = useState("");
   const [periodError, setPeriodError] = useState<string | null>(null);
+  // IOS: stanje na dan (prazno = danas)
+  const [iosNaDan, setIosNaDan] = useState("");
+  const [iosInfo, setIosInfo] = useState<string | null>(null);
+  // opomena kupcu za dospjeli dug (nivo 1 = opomena, 2 = pred utuženje)
+  const [opomenaNivo, setOpomenaNivo] = useState<"1" | "2">("1");
+  const [opomenaInfo, setOpomenaInfo] = useState<string | null>(null);
 
   const p = kartica?.partner ?? null;
   const totals = kartica?.totals ?? null;
@@ -149,23 +202,50 @@ export default function PartnerKarticaPage({
     (totals?.totalIn ?? 0) > 0 || (kartica?.invoices ?? []).length > 0;
   const jeDobavljac =
     (totals?.totalOut ?? 0) > 0 || (kartica?.ulazniRacuni ?? []).length > 0;
+  // ima li dospjelog duga preko roka (uslov za opomenu)
+  const imaDospjelo = (totals?.openInvoicesLate ?? 0) > 0;
 
-  // koju karticu prikazujemo na ekranu (toggle ako je partner oboje)
-  const [ledgerType, setLedgerType] = useState<KarticaType | null>(null);
+  // koju karticu prikazujemo na ekranu (toggle ako je partner oboje);
+  // ?tip iz liste (tab Kupci/Dobavljači) određuje početnu stranu, pa partner
+  // koji je oboje otvori onu karticu iz koje si došao
+  const searchParams = useSearchParams();
+  const tipParam = searchParams.get("tip");
+  const [ledgerType, setLedgerType] = useState<KarticaType | null>(
+    tipParam === "kupac" || tipParam === "dobavljac" ? tipParam : null,
+  );
   const activeLedger: KarticaType =
     ledgerType ?? (jeDobavljac || !jeKupac ? "dobavljac" : "kupac");
 
-  // redovi kartice prometa, isti raspored kao na PDF-u
+  // redovi kartice prometa, isti raspored kao na PDF-u; href = izvor
+  // knjiženja (izvod ili faktura), klik na red ga otvara
   const ledgerRows = useMemo(() => {
     if (!kartica) return [];
-    const rows: { date: string; label: string; duguje: number; potrazuje: number }[] = [];
+    const danas = new Date().toISOString().slice(0, 10);
+    const rows: {
+      date: string;
+      dospijece: string | null;
+      istekao: boolean;
+      label: string;
+      duguje: number;
+      potrazuje: number;
+      href: string | null;
+    }[] = [];
     if (activeLedger === "dobavljac") {
       for (const r of kartica.ulazniRacuni) {
         rows.push({
           date: r.datumRacuna,
-          label: `Račun ${r.brojRacuna}`,
+          label: r.kalkulacijaOznaka
+            ? `KLC ${r.kalkulacijaOznaka} · Račun ${r.brojRacuna}`
+            : `Račun ${r.brojRacuna}`,
           duguje: 0,
           potrazuje: Number(r.iznos) || 0,
+          dospijece: r.rokPlacanja,
+          istekao:
+            (r.preostalo != null ? r.preostalo > 0.005 : racunEff(r) !== "PLACEN") &&
+            !!r.rokPlacanja &&
+            String(r.rokPlacanja).slice(0, 10) < danas,
+          // klik otvara račun na Fakture → Ulazne (pretraga po broju računa)
+          href: `/app/fakture?tab=ulazne&q=${encodeURIComponent(r.brojRacuna)}`,
         });
       }
       for (const t of kartica.transactions) {
@@ -175,6 +255,9 @@ export default function PartnerKarticaPage({
           label: `Plaćanje${t.statement?.statementNumber ? `, izvod br. ${t.statement.statementNumber}` : ""}`,
           duguje: Number(t.amount) || 0,
           potrazuje: 0,
+          dospijece: null,
+          istekao: false,
+          href: t.statement?.id ? `/app/bankovni-izvodi/${t.statement.id}` : null,
         });
       }
     } else {
@@ -185,6 +268,14 @@ export default function PartnerKarticaPage({
           label: `Faktura ${inv.fullNumber}`,
           duguje: Number(inv.grossTotal) || 0,
           potrazuje: 0,
+          dospijece: inv.dueDate,
+          istekao:
+            (inv.preostalo != null
+              ? inv.preostalo > 0.005
+              : inv.status !== "PAID") &&
+            !!inv.dueDate &&
+            String(inv.dueDate).slice(0, 10) < danas,
+          href: `/app/fakture?q=${encodeURIComponent(inv.fullNumber)}`,
         });
       }
       for (const t of kartica.transactions) {
@@ -194,6 +285,9 @@ export default function PartnerKarticaPage({
           label: `Uplata${t.statement?.statementNumber ? `, izvod br. ${t.statement.statementNumber}` : ""}`,
           duguje: 0,
           potrazuje: Number(t.amount) || 0,
+          dospijece: null,
+          istekao: false,
+          href: t.statement?.id ? `/app/bankovni-izvodi/${t.statement.id}` : null,
         });
       }
     }
@@ -239,6 +333,109 @@ export default function PartnerKarticaPage({
     }
   }
 
+  // IOS: datum stanja iz polja (prazno = danas), validacija formata
+  function resolveIosNaDan(): string | null | undefined {
+    setIosInfo(null);
+    if (!iosNaDan.trim()) return undefined;
+    const d = parseDateInput(iosNaDan);
+    if (!d) {
+      setIosInfo("Datum 'na dan' nije validan (DD.MM.GGGG.).");
+      return null;
+    }
+    return d;
+  }
+
+  async function downloadIos(type: KarticaType) {
+    if (!orgId || !partnerId) return;
+    const naDan = resolveIosNaDan();
+    if (naDan === null) return;
+    setBusy(`ios-${type}`);
+    try {
+      const r = await downloadIosPdf(orgId, partnerId, type, naDan);
+      if (r.ok) triggerBlobDownload(r.blob, r.filename);
+      else setIosInfo("Preuzimanje nije uspjelo, pokušajte ponovo.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendIos() {
+    if (!orgId || !partnerId) return;
+    const naDan = resolveIosNaDan();
+    if (naDan === null) return;
+    setBusy("ios-email");
+    try {
+      // IOS se šalje za stranu na kojoj partner ima otvorene stavke;
+      // ako je oboje, šalju se oba dokumenta
+      const types: KarticaType[] = [];
+      if (jeKupac) types.push("kupac");
+      if (jeDobavljac) types.push("dobavljac");
+      if (types.length === 0) types.push("kupac");
+      for (const t of types) {
+        const r = await emailIos(orgId, partnerId, t, naDan);
+        if (!r.ok) {
+          setIosInfo(
+            r.error === "NO_EMAIL"
+              ? "Partner nema upisan email."
+              : "Slanje nije uspjelo, pokušajte ponovo.",
+          );
+          return;
+        }
+      }
+      setIosInfo(`IOS poslan na ${p?.email}.`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function downloadOpomena() {
+    if (!orgId || !partnerId) return;
+    setOpomenaInfo(null);
+    setBusy("opomena-pdf");
+    try {
+      const r = await downloadOpomenaPdf(
+        orgId,
+        partnerId,
+        opomenaNivo === "2" ? 2 : 1,
+      );
+      if (r.ok) triggerBlobDownload(r.blob, r.filename);
+      else {
+        setOpomenaInfo(
+          r.error === "NEMA_DOSPJELOG_DUGA"
+            ? "Partner nema dospjelog duga."
+            : "Preuzimanje nije uspjelo, pokušajte ponovo.",
+        );
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendOpomena() {
+    if (!orgId || !partnerId) return;
+    setOpomenaInfo(null);
+    setBusy("opomena-email");
+    try {
+      const r = await emailOpomena(
+        orgId,
+        partnerId,
+        opomenaNivo === "2" ? 2 : 1,
+      );
+      if (r.ok) setOpomenaInfo(`Opomena poslana na ${p?.email}.`);
+      else {
+        setOpomenaInfo(
+          r.error === "NO_EMAIL"
+            ? "Partner nema upisan email."
+            : r.error === "NEMA_DOSPJELOG_DUGA"
+              ? "Partner nema dospjelog duga."
+              : "Slanje nije uspjelo, pokušajte ponovo.",
+        );
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function sendKartica() {
     if (!orgId || !partnerId) return;
     const period = resolvePeriod();
@@ -270,6 +467,9 @@ export default function PartnerKarticaPage({
   const sectionTitleCls = "font-serif-display text-[18px] text-text-primary";
   const pdfBtnCls =
     "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cream-300 text-text-secondary text-[12px] font-medium hover:border-brand-600/50 hover:text-brand-600 transition-colors disabled:opacity-50";
+  // labela grupe u panelu dokumenata (poravnata kolona lijevo)
+  const groupLabelCls =
+    "w-[92px] shrink-0 text-[11px] uppercase tracking-[0.06em] text-text-tertiary font-semibold";
 
   if (isLoading || !p) {
     return (
@@ -322,8 +522,38 @@ export default function PartnerKarticaPage({
                 .join(" · ")}
             </p>
           )}
+          {(p.phone || p.email) && (
+            <p className="text-[12px] text-text-tertiary mt-1">
+              {[
+                p.phone ? `tel. ${p.phone}` : null,
+                p.email ?? null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+          {p.note && (
+            <p
+              className="text-[12px] text-text-tertiary italic mt-1 max-w-[560px]"
+              title="Interna napomena, ne ide na dokumente"
+            >
+              {p.note}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {(totals?.openInvoicesTotal ?? 0) > 0 &&
+            (totals?.openPayablesTotal ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setKompOpen(true)}
+                title="Partner ima dug na obje strane: zatvorite ga kompenzacijom"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors"
+              >
+                <IconArrowsExchange size={15} />
+                Kompenzacija
+              </button>
+            )}
           <button
             type="button"
             onClick={() => setEditInitial(formFromPartner(p))}
@@ -332,6 +562,14 @@ export default function PartnerKarticaPage({
             <IconPencil size={15} />
             Uredi podatke
           </button>
+          <Link
+            href={`/app/fakture/nova?partner=${p.id}`}
+            title="Nova faktura sa ovim partnerom kao kupcem"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-brand-600 text-brand-600 text-[13px] font-medium hover:bg-brand-100 transition-colors"
+          >
+            <IconFileInvoice size={15} />
+            Nova faktura
+          </Link>
           <button
             type="button"
             onClick={() => setRacunModalOpen(true)}
@@ -343,23 +581,25 @@ export default function PartnerKarticaPage({
         </div>
       </div>
 
-      {/* Kartica prometa: period + PDF + email */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
-        <input
-          className="rounded-lg border border-cream-300 bg-cream-100 px-3 py-1.5 text-[12.5px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600 w-[120px]"
+      {/* Dokumenti (kartica, IOS, opomena) grupisani u jedan panel */}
+      <div className="rounded-xl border border-cream-300 bg-cream-100 px-4 mb-5 divide-y divide-cream-300/70">
+        <div className="flex flex-wrap items-center gap-2 py-3">
+          <span className={groupLabelCls}>Kartica</span>
+        <PkDateInput
           value={periodOd}
-          onChange={(e) => setPeriodOd(maskDateInput(e.target.value))}
-          placeholder="od DD.MM.GGGG."
-          inputMode="numeric"
+          onChange={setPeriodOd}
+          placeholder="DD.MM.GGGG."
+          ariaLabel="Period od"
           title="Period štampe kartice (prazno = cijeli promet)"
+          className="w-[150px]"
         />
-        <input
-          className="rounded-lg border border-cream-300 bg-cream-100 px-3 py-1.5 text-[12.5px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600 w-[120px]"
+        <PkDateInput
           value={periodDo}
-          onChange={(e) => setPeriodDo(maskDateInput(e.target.value))}
-          placeholder="do DD.MM.GGGG."
-          inputMode="numeric"
+          onChange={setPeriodDo}
+          placeholder="DD.MM.GGGG."
+          ariaLabel="Period do"
           title="Period štampe kartice (prazno = do danas)"
+          className="w-[150px]"
         />
         {jeKupac && (
           <button
@@ -419,6 +659,154 @@ export default function PartnerKarticaPage({
         )}
       </div>
 
+      {/* IOS: izvod otvorenih stavki na dan (usaglašavanje salda) */}
+      {(jeKupac || jeDobavljac) && (
+        <div className="flex flex-wrap items-center gap-2 py-3">
+          <span
+            className={groupLabelCls}
+            title="Izvod otvorenih stavki: dokument za usaglašavanje potraživanja i obaveza sa partnerom, sa potvrdom salda i potpisima obje strane"
+          >
+            IOS na dan
+          </span>
+          <PkDateInput
+            value={iosNaDan}
+            onChange={setIosNaDan}
+            placeholder="DD.MM.GGGG."
+            ariaLabel="IOS na dan"
+            title="Stanje otvorenih stavki na ovaj dan (prazno = danas)"
+            className="w-[150px]"
+          />
+          {jeKupac && (
+            <button
+              type="button"
+              disabled={busy != null}
+              onClick={() => downloadIos("kupac")}
+              title="Naša potraživanja: otvorene fakture prema partneru"
+              className={pdfBtnCls}
+            >
+              {busy === "ios-kupac" ? (
+                <IconLoader2 size={14} className="animate-spin" />
+              ) : (
+                <IconDownload size={14} />
+              )}
+              IOS kupca (PDF)
+            </button>
+          )}
+          {jeDobavljac && (
+            <button
+              type="button"
+              disabled={busy != null}
+              onClick={() => downloadIos("dobavljac")}
+              title="Naše obaveze: otvoreni ulazni računi dobavljača"
+              className={pdfBtnCls}
+            >
+              {busy === "ios-dobavljac" ? (
+                <IconLoader2 size={14} className="animate-spin" />
+              ) : (
+                <IconDownload size={14} />
+              )}
+              IOS dobavljača (PDF)
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={busy != null || !p.email}
+            onClick={sendIos}
+            title={
+              p.email
+                ? `Pošalji IOS na ${p.email} (rok za ovjeru 8 dana)`
+                : "Partner nema upisan email"
+            }
+            className={pdfBtnCls}
+          >
+            {busy === "ios-email" ? (
+              <IconLoader2 size={14} className="animate-spin" />
+            ) : (
+              <IconMail size={14} />
+            )}
+            Pošalji IOS
+          </button>
+          {iosInfo && (
+            <span className="text-[12px] text-text-tertiary">{iosInfo}</span>
+          )}
+        </div>
+      )}
+
+      {/* Opomena kupcu: dugme uvijek vidljivo za kupca, aktivno tek kad ima
+          dospjelih računa preko roka; inače onemogućeno uz objašnjenje */}
+      {jeKupac && (
+        <div className="flex flex-wrap items-center gap-2 py-3">
+          <span className={groupLabelCls}>Opomena</span>
+          {imaDospjelo ? (
+            <span
+              className="text-[12px] text-warning font-medium"
+              title="Dospjele nenaplaćene fakture preko roka plaćanja"
+            >
+              Dospjeli dug {formatBAM(totals!.openInvoicesLate)}
+            </span>
+          ) : (
+            <span className="text-[12px] text-text-tertiary">
+              nema dospjelih računa
+            </span>
+          )}
+          <PkSelect
+            ariaLabel="Vrsta opomene"
+            value={opomenaNivo}
+            onChange={(v) => setOpomenaNivo(v === "2" ? "2" : "1")}
+            disabled={!imaDospjelo}
+            options={[
+              { value: "1", label: "Opomena" },
+              { value: "2", label: "Opomena pred utuženje" },
+            ]}
+            wrapStyle={{ width: 210 }}
+          />
+          <button
+            type="button"
+            disabled={busy != null || !imaDospjelo}
+            onClick={downloadOpomena}
+            title={
+              imaDospjelo
+                ? "PDF opomene sa spiskom dospjelih računa, rokom 8 dana i računom za uplatu"
+                : "Opomena se pravi samo za dospjele račune (prošao rok plaćanja). Trenutno nema dospjelih računa."
+            }
+            className={pdfBtnCls}
+          >
+            {busy === "opomena-pdf" ? (
+              <IconLoader2 size={14} className="animate-spin" />
+            ) : (
+              <IconDownload size={14} />
+            )}
+            Opomena (PDF)
+          </button>
+          <button
+            type="button"
+            disabled={busy != null || !imaDospjelo || !p.email}
+            onClick={sendOpomena}
+            title={
+              !imaDospjelo
+                ? "Nema dospjelih računa preko roka za opomenu"
+                : p.email
+                  ? `Pošalji opomenu na ${p.email}`
+                  : "Partner nema upisan email"
+            }
+            className={pdfBtnCls}
+          >
+            {busy === "opomena-email" ? (
+              <IconLoader2 size={14} className="animate-spin" />
+            ) : (
+              <IconMail size={14} />
+            )}
+            Pošalji opomenu
+          </button>
+          {opomenaInfo && (
+            <span className="text-[12px] text-text-tertiary">
+              {opomenaInfo}
+            </span>
+          )}
+        </div>
+      )}
+      </div>
+
       {/* KPI */}
       {totals && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -432,6 +820,14 @@ export default function PartnerKarticaPage({
                 : "–"
             }
             tone={totals.openInvoicesTotal > 0 ? "success" : "muted"}
+            sub={
+              totals.openInvoicesLate > 0
+                ? `od toga kasni ${formatBAM(totals.openInvoicesLate)}`
+                : totals.openInvoicesTotal > 0
+                  ? "ništa nije prošlo rok"
+                  : null
+            }
+            subTone={totals.openInvoicesLate > 0 ? "accent" : undefined}
           />
           <Kpi
             label="Naš dug (ulazni računi)"
@@ -441,6 +837,14 @@ export default function PartnerKarticaPage({
                 : "–"
             }
             tone={totals.openPayablesTotal > 0 ? "warning" : "muted"}
+            sub={
+              totals.openPayablesLate > 0
+                ? `od toga kasni ${formatBAM(totals.openPayablesLate)}`
+                : totals.openPayablesTotal > 0
+                  ? "ništa nije prošlo rok"
+                  : null
+            }
+            subTone={totals.openPayablesLate > 0 ? "accent" : undefined}
           />
         </div>
       )}
@@ -478,7 +882,9 @@ export default function PartnerKarticaPage({
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] font-medium text-text-primary">
-                        Račun {r.brojRacuna}
+                        {r.kalkulacijaOznaka
+                          ? `KLC ${r.kalkulacijaOznaka} · Račun ${r.brojRacuna}`
+                          : `Račun ${r.brojRacuna}`}
                       </span>
                       <RacunBadge r={r} />
                     </div>
@@ -501,23 +907,7 @@ export default function PartnerKarticaPage({
                   <span className="text-[13.5px] font-semibold tabular-nums text-text-primary whitespace-nowrap">
                     {formatBAM(Number(r.iznos))}
                   </span>
-                  {r.status === "OTVOREN" ? (
-                    <button
-                      type="button"
-                      title="Označi plaćenim (npr. gotovina)"
-                      disabled={updateRacun.isPending}
-                      onClick={() =>
-                        updateRacun.mutate({
-                          racunId: r.id,
-                          patch: { status: "PLACEN" },
-                        })
-                      }
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-600 text-brand-600 text-[12px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
-                    >
-                      <IconCircleCheck size={14} />
-                      Plaćen
-                    </button>
-                  ) : (
+                  {r.status === "PLACEN" ? (
                     <button
                       type="button"
                       title="Vrati u otvoreno"
@@ -533,17 +923,27 @@ export default function PartnerKarticaPage({
                       <IconRotate size={14} />
                       Vrati
                     </button>
+                  ) : racunEff(r) === "PLACEN" ? null : (
+                    <button
+                      type="button"
+                      title="Označi plaćenim (npr. gotovina)"
+                      disabled={updateRacun.isPending}
+                      onClick={() =>
+                        updateRacun.mutate({
+                          racunId: r.id,
+                          patch: { status: "PLACEN" },
+                        })
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-600 text-brand-600 text-[12px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+                    >
+                      <IconCircleCheck size={14} />
+                      Plaćen
+                    </button>
                   )}
                   <button
                     type="button"
                     title="Obriši račun"
-                    onClick={() => {
-                      if (
-                        window.confirm(`Obrisati ulazni račun ${r.brojRacuna}?`)
-                      ) {
-                        deleteRacun.mutate(r.id);
-                      }
-                    }}
+                    onClick={() => setRacunZaBrisanje(r)}
                     className="p-2 rounded-lg border border-cream-300 text-text-tertiary hover:text-accent-500 hover:border-accent-500/50 transition-colors"
                   >
                     <IconTrash size={15} />
@@ -597,6 +997,7 @@ export default function PartnerKarticaPage({
                 <tr className="bg-cream-200/60 text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary">
                   <th className="text-right font-medium px-3 py-2 w-[44px]">Rb</th>
                   <th className="text-left font-medium px-3 py-2 w-[100px]">Datum</th>
+                  <th className="text-left font-medium px-3 py-2 w-[100px]">Dospijeće</th>
                   <th className="text-left font-medium px-3 py-2">Opis knjiženja</th>
                   <th className="text-right font-medium px-3 py-2 w-[110px]">Duguje</th>
                   <th className="text-right font-medium px-3 py-2 w-[110px]">Potražuje</th>
@@ -611,13 +1012,34 @@ export default function PartnerKarticaPage({
                     return (
                       <tr
                         key={`${r.date}-${i}`}
-                        className="border-t border-cream-300/60"
+                        onClick={
+                          r.href ? () => router.push(r.href as string) : undefined
+                        }
+                        title={
+                          r.istekao
+                            ? `Rok plaćanja je prošao${r.href ? " · klik otvara izvor" : ""}`
+                            : r.href
+                              ? "Otvori izvor knjiženja"
+                              : undefined
+                        }
+                        className={[
+                          "border-t border-cream-300/60",
+                          r.istekao ? "bg-danger/5" : "",
+                          r.href
+                            ? r.istekao
+                              ? "cursor-pointer hover:bg-danger/10 transition-colors"
+                              : "cursor-pointer hover:bg-cream-50/70 transition-colors"
+                            : "",
+                        ].join(" ")}
                       >
                         <td className="text-right px-3 py-2 text-text-tertiary tabular-nums">
                           {i + 1}.
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap tabular-nums">
                           {formatDate(r.date)}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap tabular-nums text-text-tertiary">
+                          {r.dospijece ? formatDate(r.dospijece) : "–"}
                         </td>
                         <td className="px-3 py-2">{r.label}</td>
                         <td className="text-right px-3 py-2 tabular-nums">
@@ -641,7 +1063,7 @@ export default function PartnerKarticaPage({
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-cream-300 font-semibold">
-                  <td className="px-3 py-2" colSpan={3}>
+                  <td className="px-3 py-2" colSpan={4}>
                     <span className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary">
                       Ukupno
                     </span>
@@ -680,13 +1102,52 @@ export default function PartnerKarticaPage({
         onClose={() => setRacunModalOpen(false)}
         fixedPartner={p ? { id: p.id, name: p.name, code: p.code } : null}
         isPdvObveznik={Boolean(fullOrg?.isPdvObveznik)}
+        orgJurisdiction={fullOrg?.jurisdiction ?? null}
       />
+
+      {/* Kompenzacija sa ovim partnerom (dug na obje strane) */}
+      {kompOpen && orgId != null && (
+        <KompenzacijaModal
+          key={`komp-${orgId}-${partnerId}`}
+          orgId={orgId}
+          orgName={fullOrg?.name ?? activeOrg?.name ?? ""}
+          initialPartnerId={partnerId ?? undefined}
+          onClose={() => setKompOpen(false)}
+        />
+      )}
 
       {/* Uređivanje podataka partnera direktno sa kartice */}
       <PartnerFormModal
         orgId={orgId}
         initial={editInitial}
         onClose={() => setEditInitial(null)}
+      />
+
+      {/* potvrda brisanja ulaznog računa (PK modal umjesto window.confirm) */}
+      <ConfirmModal
+        open={racunZaBrisanje != null}
+        onClose={() => setRacunZaBrisanje(null)}
+        title="Obriši ulazni račun"
+        message={
+          racunZaBrisanje && (
+            <>
+              Obrisati ulazni račun{" "}
+              <strong className="text-text-primary">
+                {racunZaBrisanje.brojRacuna}
+              </strong>{" "}
+              ({formatBAM(Number(racunZaBrisanje.iznos))})? Ovo se ne može
+              poništiti.
+            </>
+          )
+        }
+        confirmLabel="Da, obriši račun"
+        busy={deleteRacun.isPending}
+        onConfirm={() => {
+          if (!racunZaBrisanje) return;
+          deleteRacun.mutate(racunZaBrisanje.id, {
+            onSuccess: () => setRacunZaBrisanje(null),
+          });
+        }}
       />
     </div>
   );

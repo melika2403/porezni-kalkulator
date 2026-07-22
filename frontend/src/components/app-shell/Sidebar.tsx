@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import {
   IconLayoutDashboard,
@@ -10,22 +11,32 @@ import {
   IconFileInvoice,
   IconAddressBook,
   IconBook2,
+  IconCalculator,
+  IconCash,
   IconReceiptTax,
+  IconRoute,
   IconFileText,
   IconUsers,
   IconCoins,
   IconCreditCard,
   IconSettings,
+  IconStack2,
   IconArrowLeft,
   IconBriefcase,
+  IconBuildingWarehouse,
 } from "@tabler/icons-react";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { useBankSummary } from "src/hooks/useBankStatements";
+import { useSupportUnread } from "src/api/support";
+import { useNotificationsUnreadQuery } from "src/api/announcements";
 import styles from "./Sidebar.module.css";
 
 const MARKETING_URL =
   process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+
+// Stabilan no-op subscribe za useSyncExternalStore (hydrated flag).
+const emptySubscribe = () => () => {};
 
 export type NavItem = {
   href: string;
@@ -56,13 +67,20 @@ export const NAV_GROUPS: NavGroup[] = [
         // badge: broj stavki za pregled, puni se dinamički u renderu
         badge: "dynamic-unmatched",
       },
-      { href: "/app/inbox", label: "Inbox", icon: IconInbox },
+      {
+        href: "/app/inbox",
+        label: "Inbox",
+        icon: IconInbox,
+        // badge: nepročitane poruke podrške + obavijesti (live)
+        badge: "dynamic-inbox",
+      },
       {
         href: "/app/transakcije",
         label: "Transakcije",
         icon: IconArrowsExchange,
       },
       { href: "/app/fakture", label: "Fakture", icon: IconFileInvoice },
+      { href: "/app/blagajna", label: "Blagajna", icon: IconCash },
       { href: "/app/partneri", label: "Partneri", icon: IconAddressBook },
     ],
   },
@@ -72,6 +90,27 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/app/kpr", label: "KPR-1041", icon: IconBook2 },
       { href: "/app/pdv", label: "PDV evidencije", icon: IconReceiptTax },
       { href: "/app/obrasci", label: "Obrasci", icon: IconFileText },
+      {
+        // nativna PK stranica; isti PLDI podaci kao marketing /amortizacija
+        href: "/app/stalna-sredstva",
+        label: "Stalna sredstva",
+        icon: IconBuildingWarehouse,
+      },
+    ],
+  },
+  {
+    label: "Roba",
+    items: [
+      {
+        href: "/app/kalkulacije",
+        label: "Kalkulacije",
+        icon: IconCalculator,
+      },
+      {
+        href: "/app/lager",
+        label: "Lager lista",
+        icon: IconStack2,
+      },
     ],
   },
   {
@@ -79,6 +118,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/app/zaposlenici", label: "Zaposlenici", icon: IconUsers },
       { href: "/app/obracuni-plata", label: "Obračuni plata", icon: IconCoins },
+      { href: "/app/putni-nalozi", label: "Putni nalozi", icon: IconRoute },
     ],
   },
   {
@@ -98,6 +138,15 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname() || "";
+  // Hydration-safe aktivni link: sa Proxy rewrite-om (app subdomena) server pri
+  // prerenderu vidi drugačiji pathname od browsera, pa aria-current/klasa pukne
+  // na hidrataciji. Server + prvi klijentski render zato NE označavaju aktivni
+  // link (stabilan fallback), a odmah nakon hidratacije se označi.
+  const hydrated = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 
   // badge za bankovne izvode: stvaran broj stavki koje čekaju pregled
   const { data: me } = usePkOfficeMe();
@@ -105,9 +154,18 @@ export function Sidebar({
   const { data: bankSummary } = useBankSummary(activeOrg?.id ?? null);
   const unmatchedCount = bankSummary?.unmatched ?? 0;
 
+  // badge za Inbox: nepročitane poruke podrške (live preko socketa) +
+  // admin obavijesti (react-query, PorukeTab invalidira po čitanju)
+  const supportUnread = useSupportUnread();
+  const { data: obavijestiUnread } = useNotificationsUnreadQuery();
+  const inboxUnread = supportUnread + (obavijestiUnread ?? 0);
+
   function badgeFor(item: NavItem): string | null {
     if (item.badge === "dynamic-unmatched") {
       return unmatchedCount > 0 ? String(unmatchedCount) : null;
+    }
+    if (item.badge === "dynamic-inbox") {
+      return inboxUnread > 0 ? String(inboxUnread) : null;
     }
     return item.badge ?? null;
   }
@@ -141,8 +199,9 @@ export function Sidebar({
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
+                    hydrated &&
+                    (pathname === item.href ||
+                      pathname.startsWith(item.href + "/"));
                   return (
                     <Link
                       key={item.href}

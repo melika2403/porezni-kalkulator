@@ -517,11 +517,33 @@ async function remove(req, res) {
   const existing = await Worker.findOne({ where: { id: workerId, organizationId: orgId } });
   if (!existing) return res.status(404).json({ ok: false, error: "Radnik nije pronađen" });
 
-  // Cascade: obriši sve Payroll zapise vezane za ovog radnika prije brisanja.
-  // Inače ostaju kao orphan zapisi i ulaze u zbirne totale u UI-u.
+  // Vlasnik se ne briše: organizacija ne može funkcionisati bez vlasnika
+  // (obrt po definiciji, a i kod d.o.o. se vlasnik/potpisnik izvodi iz ovog
+  // zapisa). Promjena vlasnika ide kroz postavke organizacije, ne brisanjem.
+  if (existing.role === "VLASNIK") {
+    return res.status(409).json({ ok: false, error: "VLASNIK_SE_NE_BRISE" });
+  }
+
+  // Radnik označen kao direktor/potpisnik d.o.o.-a se ne briše dok mu se
+  // ne dodijeli zamjena (inače ugovori i dokumenti ostaju bez potpisnika).
+  const { Organization } = require("../models/index");
+  const org = await Organization.findByPk(orgId, {
+    attributes: ["id", "directorWorkerId"],
+  });
+  if (org && Number(org.directorWorkerId) === Number(workerId)) {
+    return res.status(409).json({ ok: false, error: "DIREKTOR_SE_NE_BRISE" });
+  }
+
+  // Radnik sa obračunima plata se NE briše: obračuni moraju ostati (GIP i
+  // ostali godišnji izvještaji hvataju i radnike odjavljene/otišle u toku
+  // godine). Takvog radnika treba odjaviti, ne brisati. Brisanje je dozvoljeno
+  // samo za radnike bez ijednog obračuna (npr. greškom uneseni).
   const { Payroll } = require("../models/index");
   if (Payroll) {
-    await Payroll.destroy({ where: { workerId } });
+    const payrollCount = await Payroll.count({ where: { workerId } });
+    if (payrollCount > 0) {
+      return res.status(409).json({ ok: false, error: "RADNIK_IMA_OBRACUNE" });
+    }
   }
   await Worker.destroy({ where: { id: workerId } });
   return res.json({ ok: true });

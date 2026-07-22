@@ -122,9 +122,113 @@ export function deletePartner(orgId: number, partnerId: number) {
   });
 }
 
+// ── grupni uvoz partnera (Com_Soft XML/CSV) ──
+export type UvozPartneraResult = {
+  ukupno: number;
+  dodano: number;
+  /** uvezeni bez ID broja (JIB): treba ih dopuniti prije KUF/KIF upotrebe */
+  bezIdBroja: number;
+  vezanoTransakcija: number;
+  preskocenoUkupno: number;
+  /** lista je ograničena server-side (max 300 stavki) */
+  preskoceno: { sifra: string; naziv: string; razlog: string }[];
+};
+
+export function uvozPartnera(
+  orgId: number,
+  partneri: {
+    sifra?: string;
+    naziv: string;
+    jib?: string;
+    pdvBroj?: string;
+    adresa?: string;
+    mjesto?: string;
+    telefon?: string;
+    email?: string;
+    racuni?: string[];
+  }[],
+) {
+  return jsonRequest<UvozPartneraResult>(`/api/partners/${orgId}/uvoz`, {
+    method: "POST",
+    body: JSON.stringify({ partneri }),
+  });
+}
+
+// ── Ukupni promet kupaca/dobavljača (izvještaj) ──────────────────────────────
+export type PrometType = "kupac" | "dobavljac" | "svi";
+
+export type PrometRow = {
+  id: number;
+  code: number | null;
+  name: string;
+  /** type kupac/dobavljac */
+  duguje?: number;
+  potrazuje?: number;
+  saldo?: number;
+  /** type svi: saldo kupca (fakture - uplate) i dobavljača (računi - plaćanja) */
+  njihovDug?: number;
+  nasDug?: number;
+  razlika?: number;
+};
+
+export function prometPartnera(
+  orgId: number,
+  params: { type: PrometType; from?: string; to?: string },
+) {
+  const sp = new URLSearchParams({ type: params.type });
+  if (params.from) sp.set("from", params.from);
+  if (params.to) sp.set("to", params.to);
+  return jsonRequest<{
+    type: PrometType;
+    from: string;
+    to: string;
+    rows: PrometRow[];
+  }>(`/api/partners/${orgId}/promet?${sp.toString()}`, { method: "GET" });
+}
+
 // ── Ulazni računi (fakture dobavljača) ──────────────────────────────────────
 
 export type UlazniRacunStatus = "OTVOREN" | "PLACEN";
+/** KUF vrsta fakture: domaći dobavljač, uvoz, ili poljoprivrednik (paušal) */
+export type VrstaNabavke = "DOMACA" | "UVOZ" | "OD_NEOBVEZNIKA";
+/** KUF tip dokumenta po UINO evidencijama */
+export type TipDokumentaKuf =
+  | "01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09";
+export type VrstaDokumenta =
+  | "REDOVNA"
+  | "AVANSNA"
+  | "KNJIZNA_OBAVIJEST"
+  | "STORNO_AVANSNE"
+  | "PDV_NA_CEKANJU"
+  | "OSTALO";
+export type KpEntitet = "FBIH" | "RS" | "BD";
+
+export const TIPOVI_DOKUMENTA_KUF: { value: TipDokumentaKuf; label: string }[] = [
+  { value: "01", label: "01 · Ulazna faktura za robu i usluge iz zemlje" },
+  { value: "02", label: "02 · Faktura za vlastitu potrošnju (vanposlovne svrhe)" },
+  { value: "03", label: "03 · Avansna faktura (dati avansi)" },
+  { value: "04", label: "04 · Uvozna faktura (JCI)" },
+  { value: "05", label: "05 · Faktura za usluge primljene iz inostranstva" },
+  { value: "06", label: "06 · Naknadna umanjenja i primljeni popusti" },
+  { value: "07", label: "07 · Ispravak odbitka ulaznog poreza" },
+  { value: "08", label: "08 · Ulazni PDV u posebnoj šemi građevinarstva" },
+  { value: "09", label: "09 · Ostalo" },
+];
+
+export const VRSTE_DOKUMENTA: { value: VrstaDokumenta; label: string }[] = [
+  { value: "REDOVNA", label: "Redovna faktura" },
+  { value: "AVANSNA", label: "Avansna faktura" },
+  { value: "KNJIZNA_OBAVIJEST", label: "Knjižna obavijest" },
+  { value: "STORNO_AVANSNE", label: "Storno avansne fakture" },
+  { value: "PDV_NA_CEKANJU", label: "PDV na čekanju" },
+  { value: "OSTALO", label: "Ostalo" },
+];
+
+export const KP_ENTITETI: { value: KpEntitet; label: string }[] = [
+  { value: "FBIH", label: "Federacija BiH" },
+  { value: "RS", label: "Republika Srpska" },
+  { value: "BD", label: "Distrikt Brčko" },
+];
 
 export type UlazniRacun = {
   id: number;
@@ -135,10 +239,40 @@ export type UlazniRacun = {
   rokPlacanja: string | null;
   iznos: string; // DECIMAL stiže kao string
   pdvIznos: string | null;
+  vrstaNabavke: VrstaNabavke;
+  /** naslijeđeni sve-ili-ništa flag; mjerodavan je pdvNeodbitniIznos */
+  pdvNeodbitan: boolean;
+  /** dio ulaznog PDV-a koji se NE može odbiti (ne ulazi u polje 61 prijave) */
+  pdvNeodbitniIznos: string;
+  /** KUF period ide po datumu prijema fakture */
+  datumPrijema: string | null;
+  tipDokumenta: TipDokumentaKuf;
+  vrstaDokumenta: VrstaDokumenta;
+  jciBroj: string | null;
+  jciDatum: string | null;
+  /** otkup od poljoprivrednika: paušalna naknada (polja 23/43 prijave) */
+  pausalnaNaknada: string;
+  kpEntitet: KpEntitet | null;
+  kpIznos: string;
+  /** samo PDV evidencija (uvoz/JCI): u KUF-u je, ali ne stvara obavezu */
+  samoEvidencija: boolean;
   status: UlazniRacunStatus;
   paidAt: string | null;
   note: string | null;
-  partner?: { id: number; name: string };
+  /** račun nastao iz kalkulacije: KLC oznaka, npr. "1/26" (kartica partnera) */
+  kalkulacijaOznaka?: string | null;
+  /** izvedeni status naplate (FIFO od potvrđenih plaćanja sa izvoda) */
+  paymentStatus?: "OTVOREN" | "DJELIMICNO" | "PLACEN" | "KREDIT";
+  preostalo?: number;
+  placeno?: number;
+  partner?: {
+    id: number;
+    name: string;
+    jib?: string | null;
+    pdvBroj?: string | null;
+    code?: number | null;
+    city?: string | null;
+  };
 };
 
 export type UlazniRacunPayload = {
@@ -148,8 +282,33 @@ export type UlazniRacunPayload = {
   rokPlacanja?: string | null;
   iznos: number;
   pdvIznos?: number | null;
+  vrstaNabavke?: VrstaNabavke;
+  pdvNeodbitniIznos?: number;
+  datumPrijema?: string; // YYYY-MM-DD
+  tipDokumenta?: TipDokumentaKuf;
+  vrstaDokumenta?: VrstaDokumenta;
+  jciBroj?: string | null;
+  jciDatum?: string | null;
+  pausalnaNaknada?: number;
+  kpEntitet?: KpEntitet | null;
+  kpIznos?: number;
+  samoEvidencija?: boolean;
   note?: string;
 };
+
+export function listUlazniRacuni(
+  orgId: number,
+  query?: { partnerId?: number; status?: UlazniRacunStatus },
+) {
+  const sp = new URLSearchParams();
+  if (query?.partnerId) sp.set("partnerId", String(query.partnerId));
+  if (query?.status) sp.set("status", query.status);
+  const qs = sp.toString();
+  return jsonRequest<UlazniRacun[]>(
+    `/api/partners/${orgId}/ulazni-racuni${qs ? `?${qs}` : ""}`,
+    { method: "GET" },
+  );
+}
 
 export function createUlazniRacun(orgId: number, payload: UlazniRacunPayload) {
   return jsonRequest<UlazniRacun & { matched: boolean }>(
@@ -205,6 +364,12 @@ export type KarticaInvoice = {
   paidAt: string | null;
   grossTotal: string;
   status: string;
+  /** STANDARD | AVANSNA | STORNO_AVANSNE | KNJIZNA_OBAVIJEST (predznak iz vrste) */
+  docType: string | null;
+  /** izvedeni status naplate (FIFO od potvrđenih uplata sa izvoda) */
+  paymentStatus?: "OTVOREN" | "DJELIMICNO" | "PLACEN" | "KREDIT";
+  preostalo?: number;
+  placeno?: number;
 };
 
 export type KarticaData = {
@@ -217,6 +382,9 @@ export type KarticaData = {
     totalOut: number;
     openInvoicesTotal: number;
     openPayablesTotal: number;
+    /** dio otvorenog duga koji je prošao rok plaćanja */
+    openInvoicesLate: number;
+    openPayablesLate: number;
   };
 };
 
@@ -258,6 +426,89 @@ export async function downloadKarticaPdf(
   } catch {
     return { ok: false, error: "NETWORK_ERROR" };
   }
+}
+
+/** IOS: izvod otvorenih stavki na dan (prazno = danas). */
+export async function downloadIosPdf(
+  orgId: number,
+  partnerId: number,
+  type: KarticaType,
+  naDan?: string | null,
+): Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; error: string }> {
+  try {
+    const sp = new URLSearchParams({ type });
+    if (naDan) sp.set("naDan", naDan);
+    const res = await fetch(
+      `${BACKEND_URL}/api/partners/${orgId}/${partnerId}/ios.pdf?${sp.toString()}`,
+      { method: "GET", credentials: "include" },
+    );
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      return { ok: false, error: json?.error ?? `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") ?? "";
+    const m = cd.match(/filename="([^"]+)"/);
+    return { ok: true, blob, filename: m?.[1] ?? "IOS.pdf" };
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
+/** Pošalji IOS na email partnera. */
+export function emailIos(
+  orgId: number,
+  partnerId: number,
+  type: KarticaType,
+  naDan?: string | null,
+) {
+  return jsonRequest<{ sentTo: string }>(
+    `/api/partners/${orgId}/${partnerId}/ios/email`,
+    {
+      method: "POST",
+      body: JSON.stringify({ type, naDan: naDan || undefined }),
+    },
+  );
+}
+
+/** Opomena kupcu (nivo 1 = opomena, 2 = pred utuženje): PDF dospjelog duga. */
+export async function downloadOpomenaPdf(
+  orgId: number,
+  partnerId: number,
+  nivo: 1 | 2,
+): Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/partners/${orgId}/${partnerId}/opomena.pdf?nivo=${nivo}`,
+      { method: "GET", credentials: "include" },
+    );
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      return { ok: false, error: json?.error ?? `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") ?? "";
+    const m = cd.match(/filename="([^"]+)"/);
+    return { ok: true, blob, filename: m?.[1] ?? "Opomena.pdf" };
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
+/** Pošalji opomenu na email partnera. */
+export function emailOpomena(orgId: number, partnerId: number, nivo: 1 | 2) {
+  return jsonRequest<{ sentTo: string }>(
+    `/api/partners/${orgId}/${partnerId}/opomena/email`,
+    { method: "POST", body: JSON.stringify({ nivo }) },
+  );
+}
+
+/** Spoji partnera (source) u drugog (target): promet prelazi, source se briše. */
+export function mergePartner(orgId: number, sourceId: number, targetId: number) {
+  return jsonRequest<{ targetId: number }>(
+    `/api/partners/${orgId}/${sourceId}/merge`,
+    { method: "POST", body: JSON.stringify({ targetId }) },
+  );
 }
 
 /** Pošalji karticu prometa na email partnera. */

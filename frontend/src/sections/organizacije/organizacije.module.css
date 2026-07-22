@@ -175,6 +175,12 @@
 }
 
 /* Grupa utility dugmadi (Export CSV, Označi sve obračunate) — desno. */
+.bulkBarLeft {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .bulkBarRight {
   display: flex;
   gap: 0.5rem;
@@ -224,6 +230,19 @@
 .btnBulkPrimary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Info (plava) varijanta — mjesečne radne akcije koje treba da se izdvoje
+   od sporednih utility dugmadi (npr. "Preuzmi 2001/2002"). */
+.btnBulkInfo {
+  background: var(--color-info-bg, #d8e6f1);
+  color: var(--color-info, #1f5a8c);
+  border-color: var(--color-info, #1f5a8c);
+}
+
+.btnBulkInfo:hover {
+  background: var(--color-info, #1f5a8c);
+  color: #fff;
 }
 
 .controlsBar {

@@ -92,6 +92,8 @@ export type Payroll = {
   // obračun ga resetuje na false.
   imported: boolean;
   paymentDate: string | null;
+  /** kad je MIP-1023 XML za mjesec preuzet (markMipDownloaded) */
+  mipDownloadedAt?: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -150,6 +152,29 @@ export function listPayrolls(organizationId: number, year: number, month: number
     organizationId: String(organizationId),
     year: String(year),
     month: String(month),
+  });
+  return request<Payroll[]>(`/api/payroll?${sp.toString()}`);
+}
+
+// Svi obračuni organizacije za godinu (godišnji pregled po mjesecima).
+export function listYearPayrolls(organizationId: number, year: number) {
+  const sp = new URLSearchParams({
+    organizationId: String(organizationId),
+    year: String(year),
+  });
+  return request<Payroll[]>(`/api/payroll?${sp.toString()}`);
+}
+
+// Svi obračuni jednog radnika za godinu (karton radnika po mjesecima).
+export function listWorkerPayrolls(
+  organizationId: number,
+  year: number,
+  workerId: number,
+) {
+  const sp = new URLSearchParams({
+    organizationId: String(organizationId),
+    year: String(year),
+    workerId: String(workerId),
   });
   return request<Payroll[]>(`/api/payroll?${sp.toString()}`);
 }

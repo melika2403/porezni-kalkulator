@@ -216,6 +216,48 @@
   line-height: 1.4;
 }
 
+/* ── PK Office banner (puna širina na dnu mega menija) ── */
+.megaOfficeBanner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 0.25rem;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: #14241b;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.megaOfficeBanner:hover {
+  background: #1c3126;
+}
+
+.megaOfficeTag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e08a52;
+  white-space: nowrap;
+}
+
+.megaOfficeText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.megaOfficeCta {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #e08a52;
+  white-space: nowrap;
+}
+
 @media (max-width: 1100px) {
   .megaMenu {
     grid-template-columns: repeat(2, minmax(200px, 1fr));
@@ -237,11 +279,40 @@
     max-height: 70vh;
     overflow-y: auto;
   }
+
+  .megaOfficeBanner {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+
+  .megaOfficeText {
+    flex-basis: 100%;
+  }
+}
+
+/* PK Office banner u mobile draweru */
+.mobileOfficeBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0.75rem 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: #14241b;
+  text-decoration: none;
+}
+
+.mobileOfficeText {
+  flex-basis: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .btnGhost {
   padding: 8px 18px;
-  border-radius: var(--radius);
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: transparent;
   font-family: 'DM Sans', sans-serif;
@@ -258,7 +329,7 @@
 
 .btnPrimary {
   padding: 8px 20px;
-  border-radius: var(--radius);
+  border-radius: 10px;
   border: none;
   background: var(--sage);
   color: white;
@@ -280,15 +351,16 @@
   gap: 6px;
   padding: 6px 14px;
   border-radius: 999px;
-  background: var(--accent, #e88a1a);
+  background: var(--accent);
   color: #fff;
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
-  border: 1px solid color-mix(in srgb, var(--accent, #e88a1a) 70%, #000 0%);
+  border: 1px solid var(--accent);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  animation: addOrgPulse 2.4s ease-in-out infinite;
+  /* Pulse ograničen na par ponavljanja pri učitavanju, ne beskonačno. */
+  animation: addOrgPulse 2.4s ease-in-out 3;
   transition: opacity 0.15s, transform 0.15s;
 }
 
@@ -336,11 +408,11 @@
 @keyframes addOrgPulse {
   0%, 100% {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05),
-                0 0 0 0 color-mix(in srgb, var(--accent, #e88a1a) 50%, transparent);
+                0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
   }
   50% {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05),
-                0 0 0 6px color-mix(in srgb, var(--accent, #e88a1a) 0%, transparent);
+                0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
   }
 }
 
@@ -380,6 +452,130 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--sage);
+}
+
+/* ── Profil meni (desktop): chip → dropdown, isti obrazac kao PK Office ── */
+.userMenuWrap {
+  position: relative;
+}
+
+.userChipBtn {
+  composes: userChip;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.userChevron {
+  color: var(--sage);
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.userChevronOpen {
+  transform: rotate(180deg);
+}
+
+.userMenu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 264px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 34px -10px rgba(15, 26, 18, 0.24);
+  padding: 8px;
+  z-index: 300;
+}
+
+.userMenuHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.userMenuAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: white;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.userMenuId {
+  min-width: 0;
+}
+
+.userMenuName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userMenuEmail {
+  font-size: 12px;
+  color: var(--mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.userMenuSep {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 4px;
+}
+
+.userMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.userMenuItem:hover {
+  background: var(--paper);
+}
+
+.userMenuItem svg {
+  color: var(--mid);
+  flex-shrink: 0;
+}
+
+.userMenuLogout {
+  composes: userMenuItem;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: #c0524a;
+}
+
+.userMenuLogout:hover {
+  background: #f9e9e7;
+}
+
+.userMenuLogout svg {
+  color: #c0524a;
 }
 
 /* ── Hamburger (mobile only) ── */
@@ -495,7 +691,7 @@
   align-items: center;
   gap: 7px;
   padding: 8px 14px 8px 12px;
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: var(--sage);
   color: #fff !important;
   font-family: 'DM Sans', sans-serif;
