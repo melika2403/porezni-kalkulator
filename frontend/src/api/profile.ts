@@ -235,6 +235,10 @@ export type Organization = {
   taxNumber: string | null;
   pdvNumber: string | null;
   isPdvObveznik: boolean;
+  /** Ulazak u sistem PDV-a (ISO); null = obveznik oduvijek (cijelu godinu). */
+  pdvObveznikOd?: string | null;
+  /** Izlazak iz sistema PDV-a (ISO); null = nije izašao / nikad nije bio. */
+  pdvObveznikDo?: string | null;
   /** KPR prihod od pazara iz KP-1042 (dnevni promet) umjesto pologa sa izvoda */
   kprPazarIzKp?: boolean;
   jurisdiction: Jurisdiction | null;
@@ -277,6 +281,8 @@ export type OrgPayload = {
   taxNumber?: string;
   pdvNumber?: string;
   isPdvObveznik?: boolean;
+  pdvObveznikOd?: string | null;
+  pdvObveznikDo?: string | null;
   kprPazarIzKp?: boolean;
   jurisdiction?: Jurisdiction | null;
   taxRegime?: TaxRegime | null;

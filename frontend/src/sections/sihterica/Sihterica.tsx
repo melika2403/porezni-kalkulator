@@ -23,6 +23,7 @@ import { useRole } from "src/hooks/useRole";
 import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
+import LoadState from "src/components/LoadState/LoadState";
 import { useNotice } from "src/components/Notice/Notice";
 import { trackEvent } from "src/api/activity";
 import Link from "next/link";
@@ -331,12 +332,35 @@ function NapomenaSection() {
             obzira na checkbox.
           </li>
           <li>
+            <strong>Auto-popuna bolovanja (9.3) i porodiljskog (9.4)</strong>:
+            upišite raspon dana (od-do) u panelu Auto-popuna. Radni dani u
+            rasponu dobijaju šifru 9.3 odnosno 9.4, a slobodni dani u sedmici
+            (npr. subota/nedjelja) šifru 9.1 (sedmični odmor, 0 sati). Tako
+            ukupni sati odgovaraju mjesečnom fondu radnih sati.
+          </li>
+          <li>
             <strong>Neplaćena odsustva</strong> (9.6 neplaćeno, 9.9 štrajk,
             9.10 lockout, itd.) → 0 sati, ne ulazi u zbir.
           </li>
           <li>
             <strong>Terenski rad</strong> i <strong>pripravnost</strong>{" "}
             evidentiraju se zasebno i ne dodaju se na ukupni fond radnih sati.
+          </li>
+          <li>
+            <strong>Kopiraj u idući mjesec</strong>: dugme u panelu Auto-popuna
+            popuni idući mjesec istim rasporedom, radna vremena na radne dane, a
+            9.1 na slobodne dane idućeg mjeseca (dani u sedmici se pomjeraju iz
+            mjeseca u mjesec, pa se ne kopiraju datumi doslovno). Ako je radnik
+            na kraju mjeseca na bolovanju (9.3) ili porodiljskom (9.4), to
+            odsustvo se automatski nastavlja kroz cijeli idući mjesec. Praznici
+            i završena odsustva se ne prenose.
+          </li>
+          <li>
+            <strong>Veza sa obračunom plata</strong>: popunjena šihterica se
+            automatski povlači u obračun plata, ukupni sati idu u polje
+            &ldquo;Odrađeni sati&rdquo;, a dani sa šifrom 9.3 u polje
+            &ldquo;Dani bolovanja&rdquo; (i dalje u MIP obrazac, u polje broja
+            radnih sati na bolovanju).
           </li>
         </ul>
       </div>
@@ -650,6 +674,8 @@ function SihtericaApp() {
   const [autoVacationTo, setAutoVacationTo] = useState<string>("");
   const [autoSickFrom, setAutoSickFrom] = useState<string>("");
   const [autoSickTo, setAutoSickTo] = useState<string>("");
+  const [autoMaternityFrom, setAutoMaternityFrom] = useState<string>("");
+  const [autoMaternityTo, setAutoMaternityTo] = useState<string>("");
 
   // load defaults from worker
   const lastLoadedWorkerPrefs = useRef<number | null>(null);
@@ -674,6 +700,8 @@ function SihtericaApp() {
     setAutoVacationTo("");
     setAutoSickFrom("");
     setAutoSickTo("");
+    setAutoMaternityFrom("");
+    setAutoMaternityTo("");
   }, [selectedWorker]);
 
   // Reset month-specific auto-popuna fields whenever month/year changes
@@ -683,6 +711,8 @@ function SihtericaApp() {
     setAutoVacationTo("");
     setAutoSickFrom("");
     setAutoSickTo("");
+    setAutoMaternityFrom("");
+    setAutoMaternityTo("");
   }, [year, month]);
 
   const toggleDayOff = (d: number) => {
@@ -726,6 +756,7 @@ function SihtericaApp() {
     };
     const vacationDays = rangeToDays(autoVacationFrom, autoVacationTo);
     const sickDays = rangeToDays(autoSickFrom, autoSickTo);
+    const maternityDays = rangeToDays(autoMaternityFrom, autoMaternityTo);
 
     const next = entries.map((e) => ({ ...e }));
     for (let i = 0; i < daysInMonth; i++) {
@@ -733,6 +764,7 @@ function SihtericaApp() {
       const inRange = dayNum >= activeStart && dayNum <= activeEnd;
       const dow = getDayOfWeek(year, month, dayNum);
       const isSick = sickDays.has(dayNum);
+      const isMaternity = maternityDays.has(dayNum);
       const isVacation = vacationDays.has(dayNum);
       const isHoliday = holidayDays.has(dayNum);
       const isDayOff = autoDaysOff.has(dow);
@@ -751,8 +783,10 @@ function SihtericaApp() {
       }
       // Dan van perioda prijave/odjave: ostaje prazan, ne popunjavamo.
       if (!inRange) continue;
-      if (isSick) {
-        next[i].absence = "9.3";
+      if (isSick || isMaternity) {
+        // Sedmični odmor unutar bolovanja/porodiljskog ide na 9.1 (0h), da
+        // ukupni sati odgovaraju mjesečnom fondu (dogovor sa PU praksom).
+        next[i].absence = isDayOff ? "9.1" : isSick ? "9.3" : "9.4";
       } else if (isVacation) {
         next[i].absence = "9.1";
       } else if (isHoliday) {
@@ -796,6 +830,8 @@ function SihtericaApp() {
     autoVacationTo,
     autoSickFrom,
     autoSickTo,
+    autoMaternityFrom,
+    autoMaternityTo,
     selectedWorker,
     queryClient,
   ]);
@@ -815,6 +851,123 @@ function SihtericaApp() {
       });
     }
   }, [workerId, selectedWorker, year, month, daysInMonth, applyAutoFill]);
+
+  // ─── Kopiraj u idući mjesec ────────────────────────────────────────────────
+  // Prenosi OBRAZAC, ne datume: radna vremena idu na radne dane IDUĆEG mjeseca,
+  // 9.1 na njegove stvarne slobodne dane (dani u sedmici se pomjeraju iz
+  // mjeseca u mjesec). Bolovanje/porodiljsko (9.3/9.4) koje traje na kraju
+  // tekućeg mjeseca nastavlja se kroz cijeli idući. Praznici i završena
+  // odsustva se ne prenose.
+  const nextPeriod = useMemo(
+    () => (month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 }),
+    [year, month],
+  );
+  const nextMonthLabel = `${MONTHS[nextPeriod.m - 1]} ${nextPeriod.y}`;
+  const nextMonthSaved = savedMonths.some(
+    (s) => s.year === nextPeriod.y && s.month === nextPeriod.m,
+  );
+  const [confirmCopyNext, setConfirmCopyNext] = useState(false);
+  const [copyingNext, setCopyingNext] = useState(false);
+
+  const doCopyToNextMonth = useCallback(async () => {
+    if (!workerId || !selectedWorker) return;
+    const { y: ny, m: nm } = nextPeriod;
+    const nDim = getDaysInMonth(ny, nm);
+    const range = activeRangeForMonth(selectedWorker, ny, nm, nDim);
+    if (range.notRegistered) {
+      notify(
+        `Radnik nije prijavljen u mjesecu ${MONTHS[nm - 1]} ${ny}.`,
+        "warning",
+      );
+      return;
+    }
+    // Odsustvo u toku: skeniraj unazad od kraja mjeseca, preskoči prazne dane
+    // i 9.1/9.2 (sedmični odmor/praznik na kraju mjeseca). Ako je zadnji
+    // "radni" dan 9.3 ili 9.4 bez upisanih vremena → odsustvo se nastavlja.
+    let continueCode: string | null = null;
+    for (let i = daysInMonth - 1; i >= 0; i--) {
+      const e = entries[i];
+      if (!e || isEntryEmpty(e)) continue;
+      if (e.startTime && e.endTime) break;
+      const code = e.absence.trim();
+      if (code === "9.3" || code === "9.4") {
+        continueCode = code;
+        break;
+      }
+      if (code === "9.1" || code === "9.2") continue;
+      break;
+    }
+    const days: (DayEntry | null)[] = Array.from({ length: nDim }, (_, i) => {
+      const dayNum = i + 1;
+      if (dayNum < range.start || dayNum > range.end) return null;
+      const dow = getDayOfWeek(ny, nm, dayNum);
+      if (autoDaysOff.has(dow)) return { ...EMPTY_ENTRY, absence: "9.1" };
+      if (continueCode) return { ...EMPTY_ENTRY, absence: continueCode };
+      return {
+        ...EMPTY_ENTRY,
+        startTime: autoStart,
+        endTime: autoEnd,
+        zastoj: autoPause || "",
+      };
+    });
+    const org = orgsQuery.data?.find((o) => o.id === orgId) ?? null;
+    const meta = {
+      workerName,
+      orgName: org?.name ?? "",
+      orgAddress: org?.address ?? "",
+      orgCity: org?.city ?? "",
+      orgTaxNumber: org?.taxNumber ?? "",
+      weeklyDaysOff: [...autoDaysOff],
+      countAbsenceCodes: [...countCodes],
+    };
+    setCopyingNext(true);
+    try {
+      const res = await saveSihterica({
+        workerId,
+        year: ny,
+        month: nm,
+        days,
+        meta,
+      });
+      if (!res.ok) {
+        notify("Kopiranje nije uspjelo. Pokušajte ponovo.", "error");
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["sihtericaMonths", workerId] });
+      queryClient.invalidateQueries({
+        queryKey: ["sihtericaWorkerMonths", orgId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["sihtericaData", workerId, ny, nm],
+      });
+      setYear(ny);
+      setMonth(nm);
+      notify(`Šihterica kopirana u ${MONTHS[nm - 1]} ${ny}.`, "success");
+    } finally {
+      setCopyingNext(false);
+    }
+  }, [
+    workerId,
+    selectedWorker,
+    nextPeriod,
+    daysInMonth,
+    entries,
+    autoDaysOff,
+    autoStart,
+    autoEnd,
+    autoPause,
+    orgsQuery.data,
+    orgId,
+    workerName,
+    countCodes,
+    queryClient,
+    notify,
+  ]);
+
+  const handleCopyToNextMonth = useCallback(() => {
+    if (nextMonthSaved) setConfirmCopyNext(true);
+    else void doCopyToNextMonth();
+  }, [nextMonthSaved, doCopyToNextMonth]);
 
   const updateEntry = useCallback(
     (dayIdx: number, field: ColKey, value: string) => {
@@ -1163,7 +1316,9 @@ function SihtericaApp() {
         </div>
       )}
       {orgId && workersQuery.isLoading && (
-        <div className={styles.sidebarEmpty}>Učitavam…</div>
+        <div className={styles.sidebarEmpty}>
+          <LoadState compact text="Učitavam radnike..." />
+        </div>
       )}
       {orgId &&
         !workersQuery.isLoading &&
@@ -1646,7 +1801,61 @@ function SihtericaApp() {
                       />
                     </div>
                   </div>
+                  <div className={styles.autoFillField}>
+                    <span className={styles.autoFillLabel}>
+                      Porodiljsko (9.4)
+                    </span>
+                    <div className={styles.autoFillRange}>
+                      <input
+                        type="text"
+                        className={styles.autoFillInputSm}
+                        value={autoMaternityFrom}
+                        onChange={(e) =>
+                          setAutoMaternityFrom(e.target.value.replace(/\D/g, ""))
+                        }
+                        placeholder="od"
+                        maxLength={2}
+                        inputMode="numeric"
+                      />
+                      <span className={styles.autoFillRangeSep}>–</span>
+                      <input
+                        type="text"
+                        className={styles.autoFillInputSm}
+                        value={autoMaternityTo}
+                        onChange={(e) =>
+                          setAutoMaternityTo(e.target.value.replace(/\D/g, ""))
+                        }
+                        placeholder="do"
+                        maxLength={2}
+                        inputMode="numeric"
+                      />
+                    </div>
+                  </div>
 
+                  {workerId != null && (
+                    <button
+                      type="button"
+                      onClick={handleCopyToNextMonth}
+                      disabled={copyingNext}
+                      title={`Popuni ${nextMonthLabel} istim rasporedom (radna vremena i slobodni dani); bolovanje/porodiljsko u toku se nastavlja`}
+                      style={{
+                        padding: "0.55rem 1rem",
+                        border: "1px solid #d4cfc4",
+                        borderRadius: "var(--radius)",
+                        background: "#fff",
+                        color: "#0f1a12",
+                        fontFamily: "inherit",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: copyingNext ? "default" : "pointer",
+                        opacity: copyingNext ? 0.6 : 1,
+                      }}
+                    >
+                      {copyingNext
+                        ? "Kopiram…"
+                        : `Kopiraj u ${nextMonthLabel.split(" ")[0]} →`}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className={styles.autoFillBtn}
@@ -2042,6 +2251,88 @@ function SihtericaApp() {
                 }}
               >
                 Otkaži
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Potvrda: kopiranje pregazi već postojeći idući mjesec */}
+      {confirmCopyNext && (
+        <div
+          onClick={() => setConfirmCopyNext(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1001,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              maxWidth: 460,
+              width: "100%",
+              padding: "1.5rem",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 0.7rem", fontSize: "1.1rem", color: "#0f1a12" }}>
+              Idući mjesec već ima podataka
+            </h3>
+            <p style={{ margin: "0 0 1.3rem", fontSize: 14, lineHeight: 1.6, color: "#3a3a3a" }}>
+              Šihterica za <strong>{workerName}</strong> za{" "}
+              <strong>{nextMonthLabel}</strong> već postoji. Kopiranje će
+              pregaziti postojeće upise u tom mjesecu.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.6rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setConfirmCopyNext(false)}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "1px solid #d4cfc4",
+                  background: "#fff",
+                  color: "#0f1a12",
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Otkaži
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmCopyNext(false);
+                  void doCopyToNextMonth();
+                }}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#3a5c42",
+                  color: "#fff",
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Da, kopiraj
               </button>
             </div>
           </div>

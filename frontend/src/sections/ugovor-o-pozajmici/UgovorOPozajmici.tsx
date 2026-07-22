@@ -4,6 +4,7 @@ import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./ugovor.module.css";
 import type { UgovorData } from "./generateDocx";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
@@ -180,14 +181,20 @@ export default function UgovorOPozajmici() {
         </h2>
         <div className={styles.fieldGrid}>
           <label className={styles.fieldLabel}>Vrsta pozajmice</label>
-          <select
-            className={styles.fieldInput}
+          <StyledSelect
             value={form.vrsta}
-            onChange={(e) => set("vrsta", e.target.value)}
-          >
-            <option value="kratkoročnoj">Kratkoročno</option>
-            <option value="dugoročnoj">Dugoročno</option>
-          </select>
+            onChange={(v) => set("vrsta", String(v ?? ""))}
+            groups={[
+              {
+                options: [
+                  { value: "kratkoročnoj", label: "Kratkoročno" },
+                  { value: "dugoročnoj", label: "Dugoročno" },
+                ],
+              },
+            ]}
+            ariaLabel="Vrsta pozajmice"
+            wrapStyle={{ width: "100%" }}
+          />
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Datum zaključenja</label>
             <DateInput
@@ -423,25 +430,33 @@ export default function UgovorOPozajmici() {
               Ugovorene strane u svemu prihvataju odredbe ovog ugovora
             </label>
 
-            <select
-              className={styles.fieldInput}
+            <StyledSelect
               value={napomenaTip}
-              onChange={(e) => {
-                const tip = e.target.value as NapomenaTip;
+              onChange={(v) => {
+                const tip = String(v ?? "") as NapomenaTip;
                 setNapomenaTip(tip);
 
                 if (tip === "odricanje") set("napomene", NAPOMENA_ODRICANJE);
                 if (tip === "spor")
                   set("napomene", `${NAPOMENA_SPOR_PREFIX} ${sud}`);
               }}
-            >
-              <option value="odricanje">
-                i odriču se njihovog pobijanja ma iz kog razloga.
-              </option>
-              <option value="spor">
-                i u slučaju spora po ovom ugovoru nadležan je
-              </option>
-            </select>
+              groups={[
+                {
+                  options: [
+                    {
+                      value: "odricanje",
+                      label: "i odriču se njihovog pobijanja ma iz kog razloga.",
+                    },
+                    {
+                      value: "spor",
+                      label: "i u slučaju spora po ovom ugovoru nadležan je",
+                    },
+                  ],
+                },
+              ]}
+              ariaLabel="Ugovorene strane u svemu prihvataju odredbe ovog ugovora"
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
         </div>
 
@@ -472,31 +487,37 @@ export default function UgovorOPozajmici() {
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Ukupan broj primjeraka</label>
-            <select
-              className={styles.fieldInput}
+            <StyledSelect
               value={form.brojPrimjeraka}
-              onChange={(e) => set("brojPrimjeraka", e.target.value)}
-            >
-              {PRIMJERCI_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => set("brojPrimjeraka", String(v ?? ""))}
+              groups={[
+                {
+                  options: PRIMJERCI_OPTIONS.map((opt) => ({
+                    value: opt,
+                    label: opt,
+                  })),
+                },
+              ]}
+              ariaLabel="Ukupan broj primjeraka"
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Kopije po strani</label>
-            <select
-              className={styles.fieldInput}
+            <StyledSelect
               value={form.kopijePoPrimjerku}
-              onChange={(e) => set("kopijePoPrimjerku", e.target.value)}
-            >
-              {PRIMJERCI_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => set("kopijePoPrimjerku", String(v ?? ""))}
+              groups={[
+                {
+                  options: PRIMJERCI_OPTIONS.map((opt) => ({
+                    value: opt,
+                    label: opt,
+                  })),
+                },
+              ]}
+              ariaLabel="Kopije po strani"
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
         </div>
       </div>

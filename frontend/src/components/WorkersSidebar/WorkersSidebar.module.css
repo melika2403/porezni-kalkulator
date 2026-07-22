@@ -93,19 +93,19 @@
 }
 
 .dotActive {
-  background: #10b981;
+  background: var(--color-success, #2d6e54);
 }
 
 .dotDraft {
-  background: #94a3b8;
+  background: var(--mid);
 }
 
 .dotInactive {
-  background: #ef4444;
+  background: var(--color-danger, #9b2e2e);
 }
 
 .dotWarning {
-  background: #f59e0b;
+  background: var(--color-warning, #8a4f10);
 }
 
 .name {
@@ -161,7 +161,7 @@
   color: var(--sage);
   background: var(--white);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 10px;
   padding: 0.45rem 0.7rem;
   text-decoration: none;
   transition: all 0.12s;
@@ -185,7 +185,7 @@
   color: #fff;
   background: var(--sage);
   border: 1px solid var(--sage);
-  border-radius: var(--radius);
+  border-radius: 10px;
   padding: 0.55rem 0.85rem;
   text-decoration: none;
   transition: all 0.12s;

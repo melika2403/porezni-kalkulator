@@ -422,7 +422,7 @@
 .cta {
   width: 100%;
   padding: 11px;
-  border-radius: var(--radius);
+  border-radius: 10px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;
@@ -545,7 +545,7 @@
   background: var(--sage);
   color: white;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 10px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;

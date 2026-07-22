@@ -1,13 +1,52 @@
 import Link from 'next/link';
 import styles from './Footer.module.css';
 
+// Kolone linkova: alati i obrasci koje korisnici najviše traže + firma.
+// Pomaže i internom SEO linkovanju sa svake stranice.
+const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
+  {
+    title: 'Alati',
+    links: [
+      { label: 'PDV kalkulator', href: '/pdv-kalkulator' },
+      { label: 'Neto - Bruto plata', href: '/preracun-neto-bruto' },
+      { label: 'Obračun plata', href: '/prijave-radnika?tab=obracun' },
+      { label: 'Šihterica', href: '/sihterica' },
+      { label: 'Fakture i predračuni', href: '/fakture' },
+      { label: 'Amortizacija', href: '/amortizacija' },
+    ],
+  },
+  {
+    title: 'Obrasci i dokumenti',
+    links: [
+      { label: 'SPR-1053', href: '/spr' },
+      { label: 'GPD-1051', href: '/gpd' },
+      { label: 'Prijave radnika (JS3100)', href: '/prijave-radnika' },
+      { label: 'Ugovor o radu i otkaz', href: '/ugovor-o-radu' },
+      { label: 'Rješenja i odluke', href: '/rjesenja-i-odluke' },
+      { label: 'Cesije i kompenzacije', href: '/cesije-i-kompenzacije' },
+    ],
+  },
+  {
+    title: 'Porezni Kalkulator',
+    links: [
+      { label: 'PK Office', href: '/pk-office' },
+      { label: 'Pretplatnički paketi', href: '/pretplate' },
+      { label: 'Blog', href: '/blog' },
+      { label: 'O nama', href: '/o-nama' },
+      { label: 'Kontakt', href: '/kontakt' },
+    ],
+  },
+];
+
 export default function Footer() {
   return (
     <footer className={styles.footer} data-marketing-chrome="footer">
       <div className={styles.top}>
         <div className={styles.brand}>
           <div className={styles.logo}>Porezni Kalkulator</div>
-          <p className={styles.tagline}>Besplatni porezni alati za poduzetnike u BiH.</p>
+          <p className={styles.tagline}>
+            Porezni alati, obrasci i knjigovodstvo za poduzetnike u BiH.
+          </p>
           <div className={styles.social}>
             <a
               href="https://www.facebook.com/profile.php?id=61569234208200"
@@ -49,16 +88,26 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className={styles.links}>
-          <Link href="/o-nama">O nama</Link>
-          <Link href="/uvjeti">Uvjeti korištenja</Link>
-          <Link href="/privatnost">Privatnost</Link>
-          <Link href="/kontakt">Kontakt</Link>
-        </div>
+        {COLUMNS.map((col) => (
+          <div key={col.title} className={styles.col}>
+            <div className={styles.colTitle}>{col.title}</div>
+            <ul className={styles.colList}>
+              {col.links.map((l) => (
+                <li key={l.href}>
+                  <Link href={l.href}>{l.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
 
       <div className={styles.bottom}>
         <div className={styles.copy}>© 2026 Porezni Kalkulator. Sva prava zadržana.</div>
+        <div className={styles.legal}>
+          <Link href="/uvjeti">Uvjeti korištenja</Link>
+          <Link href="/privatnost">Privatnost</Link>
+        </div>
       </div>
     </footer>
   );

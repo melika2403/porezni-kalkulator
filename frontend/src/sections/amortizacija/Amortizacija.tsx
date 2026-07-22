@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRole } from "src/hooks/useRole";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
+import LoadState from "src/components/LoadState/LoadState";
 import { useLastOrg } from "src/hooks/useLastOrg";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import styles from "./amortizacija.module.css";
@@ -1229,7 +1230,7 @@ function AmortizacijaApp() {
             + Nova godina
           </button>
         )}
-        {dataLoading && <span className={styles.yearLoading}>Učitavam…</span>}
+        {dataLoading && <LoadState compact text="Učitavam..." />}
       </div>
 
     <div className={styles.page}>

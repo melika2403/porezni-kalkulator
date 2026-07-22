@@ -21,6 +21,7 @@ import {
   type KarticaMember,
 } from "src/api/karticaMembers";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
 import { trackEvent } from "src/api/activity";
@@ -805,20 +806,25 @@ function ClanskeKarticeApp() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <select
-              className={styles.sidebarSort}
+            <StyledSelect
               value={sortKey}
-              onChange={(e) => setSortKey(e.target.value as SortKey)}
-              title="Sortiraj"
-            >
-              <option value="default">Redoslijed dodavanja (zadano)</option>
-              <option value="name-asc">Ime A–Ž</option>
-              <option value="name-desc">Ime Ž–A</option>
-              <option value="valid-asc">Vrijedi do, najbliže</option>
-              <option value="valid-desc">Vrijedi do, najdalje</option>
-              <option value="created-desc">Učlanjeni, najnoviji</option>
-              <option value="created-asc">Učlanjeni, najstariji</option>
-            </select>
+              onChange={(v) => setSortKey(String(v ?? "") as SortKey)}
+              groups={[
+                {
+                  options: [
+                    { value: "default", label: "Redoslijed dodavanja (zadano)" },
+                    { value: "name-asc", label: "Ime A–Ž" },
+                    { value: "name-desc", label: "Ime Ž–A" },
+                    { value: "valid-asc", label: "Vrijedi do, najbliže" },
+                    { value: "valid-desc", label: "Vrijedi do, najdalje" },
+                    { value: "created-desc", label: "Učlanjeni, najnoviji" },
+                    { value: "created-asc", label: "Učlanjeni, najstariji" },
+                  ],
+                },
+              ]}
+              ariaLabel="Sortiraj"
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
           <div className={styles.sidebarList}>
             {membersQuery.isLoading ? (
@@ -996,25 +1002,30 @@ function ClanskeKarticeApp() {
               <div className={styles.field}>
                 <span className={styles.fieldLabel}>Vrijedi do</span>
                 <div className={styles.trajanjeRow}>
-                  <select
-                    className={styles.input}
+                  <StyledSelect
                     value={trajanjeMonths === "" ? "" : String(trajanjeMonths)}
-                    onChange={(e) => handleTrajanjeChange(e.target.value)}
-                    style={{ flex: "0 0 160px" }}
-                  >
-                    <option value="">Ručni unos →</option>
-                    <option value="6">6 mjeseci</option>
-                    <option value="12">1 godina</option>
-                    <option value="24">2 godine</option>
-                    <option value="36">3 godine</option>
-                    <option value="48">4 godine</option>
-                    <option value="60">5 godina</option>
-                    <option value="72">6 godina</option>
-                    <option value="84">7 godina</option>
-                    <option value="96">8 godina</option>
-                    <option value="108">9 godina</option>
-                    <option value="120">10 godina</option>
-                  </select>
+                    onChange={(v) => handleTrajanjeChange(String(v ?? ""))}
+                    groups={[
+                      {
+                        options: [
+                          { value: "", label: "Ručni unos →" },
+                          { value: "6", label: "6 mjeseci" },
+                          { value: "12", label: "1 godina" },
+                          { value: "24", label: "2 godine" },
+                          { value: "36", label: "3 godine" },
+                          { value: "48", label: "4 godine" },
+                          { value: "60", label: "5 godina" },
+                          { value: "72", label: "6 godina" },
+                          { value: "84", label: "7 godina" },
+                          { value: "96", label: "8 godina" },
+                          { value: "108", label: "9 godina" },
+                          { value: "120", label: "10 godina" },
+                        ],
+                      },
+                    ]}
+                    ariaLabel="Vrijedi do"
+                    wrapStyle={{ flex: "0 0 160px" }}
+                  />
                   <DateInput
                     className={styles.input}
                     value={validUntil}

@@ -19,6 +19,7 @@ import {
   type Js3100Spol,
 } from "src/sections/prijave-radnika/fillJs3100";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
@@ -937,26 +938,29 @@ function Js3100App() {
                 </div>
                 <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
                   <label className={styles.fieldLabel}>Stručna sprema</label>
-                  <select
-                    className={styles.fieldInput}
+                  <StyledSelect
+                    ariaLabel="Stručna sprema"
+                    wrapStyle={{ width: "100%" }}
                     value={worker.strucnaSpremaIdx ?? ""}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       setWorker((p) => ({
                         ...p,
                         strucnaSpremaIdx:
-                          e.target.value === ""
-                            ? null
-                            : parseInt(e.target.value),
+                          v === "" || v === null ? null : Number(v),
                       }))
                     }
-                  >
-                    <option value="">– Odaberite –</option>
-                    {STRUCNA_SPREMA.map((t, i) => (
-                      <option key={i} value={i}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                    groups={[
+                      {
+                        options: [
+                          { value: "", label: "– Odaberite –" },
+                          ...STRUCNA_SPREMA.map((t, i) => ({
+                            value: i,
+                            label: t,
+                          })),
+                        ],
+                      },
+                    ]}
+                  />
                 </div>
               </div>
             </section>
@@ -1010,23 +1014,28 @@ function Js3100App() {
                   <label className={styles.fieldLabel}>
                     Osnov osiguranja, Opis
                   </label>
-                  <select
-                    className={styles.fieldInput}
+                  <StyledSelect
+                    ariaLabel="Osnov osiguranja, Opis"
+                    wrapStyle={{ width: "100%" }}
                     value={treci.osnovOsiguranjaOpis}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       setTreci((p) => ({
                         ...p,
-                        osnovOsiguranjaOpis: e.target.value,
+                        osnovOsiguranjaOpis: String(v ?? ""),
                       }))
                     }
-                  >
-                    <option value="">– Odaberite –</option>
-                    {OSNOV_OSIGURANJA.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                    groups={[
+                      {
+                        options: [
+                          { value: "", label: "– Odaberite –" },
+                          ...OSNOV_OSIGURANJA.map((t) => ({
+                            value: t,
+                            label: t,
+                          })),
+                        ],
+                      },
+                    ]}
+                  />
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
@@ -1084,26 +1093,29 @@ function Js3100App() {
                   <label className={styles.fieldLabel}>
                     Stručna sprema koja se traži na radnom mjestu
                   </label>
-                  <select
-                    className={styles.fieldInput}
+                  <StyledSelect
+                    ariaLabel="Stručna sprema koja se traži na radnom mjestu"
+                    wrapStyle={{ width: "100%" }}
                     value={treci.strucnaSpremaTraziSeIdx ?? ""}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       setTreci((p) => ({
                         ...p,
                         strucnaSpremaTraziSeIdx:
-                          e.target.value === ""
-                            ? null
-                            : parseInt(e.target.value),
+                          v === "" || v === null ? null : Number(v),
                       }))
                     }
-                  >
-                    <option value="">– Odaberite –</option>
-                    {STRUCNA_SPREMA.map((t, i) => (
-                      <option key={i} value={i}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                    groups={[
+                      {
+                        options: [
+                          { value: "", label: "– Odaberite –" },
+                          ...STRUCNA_SPREMA.map((t, i) => ({
+                            value: i,
+                            label: t,
+                          })),
+                        ],
+                      },
+                    ]}
+                  />
                 </div>
 
                 {/* Red 5: Datum prijave/odjave/promjene */}

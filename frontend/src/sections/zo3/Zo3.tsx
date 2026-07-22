@@ -4,6 +4,7 @@ import styles from "./zo3.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import { fillZo3Template, type Zo3Data } from "src/sections/zo3/fillZo3";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import CitySelect from "src/components/CitySelect/CitySelect";
 import { useCityLookup } from "src/hooks/useCities";
 import PersonFillSelect, {
@@ -396,21 +397,23 @@ export default function Zo3Form() {
         <div className={styles.fieldGrid}>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Kanton FBiH</label>
-            <select
-              className={styles.fieldSelect}
+            <StyledSelect
+              ariaLabel="Kanton FBiH"
+              wrapStyle={{ width: "100%" }}
               value={kanton}
-              onChange={(e) => {
-                setKanton(e.target.value);
+              onChange={(v) => {
+                setKanton(String(v ?? ""));
                 setPoslovnica("");
               }}
-            >
-              <option value="">– Odaberite kanton –</option>
-              {KANTONI.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
+              groups={[
+                {
+                  options: [
+                    { value: "", label: "– Odaberite kanton –" },
+                    ...KANTONI.map((k) => ({ value: k, label: k })),
+                  ],
+                },
+              ]}
+            />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>

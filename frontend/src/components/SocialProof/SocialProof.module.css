@@ -4,14 +4,11 @@
   margin: 0 auto;
 }
 
+/* Odvojene kartice umjesto ćelija spojenih 1px linijama. */
 .inner {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  gap: 1rem;
 }
 
 .item {
@@ -19,7 +16,9 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.35rem;
-  background: white;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 1.9rem 2rem;
 }
 
@@ -37,7 +36,7 @@
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: var(--sage-pale);
   color: var(--sage);
   margin-bottom: 0.2rem;

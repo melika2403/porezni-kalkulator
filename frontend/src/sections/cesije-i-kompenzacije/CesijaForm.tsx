@@ -2,6 +2,7 @@
 import { useState } from "react";
 import styles from "../ugovor-o-pozajmici/ugovor.module.css";
 import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import { trackEvent } from "src/api/activity";
 import { LuFileText, LuFileDown } from "react-icons/lu";
@@ -255,17 +256,13 @@ export default function CesijaForm({ canGenerate }: { canGenerate: boolean }) {
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Broj primjeraka</label>
-            <select
-              className={styles.fieldInput}
+            <StyledSelect
               value={form.brojPrimjeraka}
-              onChange={(e) => set("brojPrimjeraka", e.target.value)}
-            >
-              {PRIMJERCI.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => set("brojPrimjeraka", String(v ?? ""))}
+              groups={[{ options: PRIMJERCI.map((o) => ({ value: o, label: o })) }]}
+              ariaLabel="Broj primjeraka"
+              wrapStyle={{ width: "100%" }}
+            />
           </div>
         </div>
       </div>

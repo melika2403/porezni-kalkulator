@@ -13,6 +13,7 @@ import {
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
+import LoadState from "src/components/LoadState/LoadState";
 import styles from "./WorkersSidebar.module.css";
 import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
 
@@ -175,7 +176,7 @@ export default function WorkersSidebar({
         </div>
       )}
       {selectedOrgId && workersQuery.isLoading && (
-        <div className={styles.empty}>Učitavam…</div>
+        <div className={styles.empty}><LoadState compact text="Učitavam radnike..." /></div>
       )}
       {selectedOrgId &&
         !workersQuery.isLoading &&

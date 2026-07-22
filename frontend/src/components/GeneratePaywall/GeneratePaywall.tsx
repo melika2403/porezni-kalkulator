@@ -6,6 +6,46 @@ import { me, unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
 import styles from "./GeneratePaywall.module.css";
 
+// SVG ikone u pločici (zamjena za nekadašnje emoji 🎁/🔒).
+function GiftIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+      <path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+
 type Tier = "PRO" | "BUSINESS";
 
 type Props = {
@@ -42,7 +82,9 @@ export default function GeneratePaywall({
         : "/pretplate?trial=auto";
     return (
       <div className={styles.paywall}>
-        <div className={styles.icon}>🎁</div>
+        <div className={styles.icon}>
+          <GiftIcon />
+        </div>
         <div className={styles.text}>
           <strong>Registrujte se besplatno</strong> i probajte 30 dana sve
           PRO funkcije. Bez kartice, bez automatske naplate.
@@ -62,7 +104,9 @@ export default function GeneratePaywall({
     if (isPro) {
       return (
         <div className={`${styles.paywall} ${styles.paywallBusiness}`}>
-          <div className={styles.icon}>🔒</div>
+          <div className={`${styles.icon} ${styles.iconAccent}`}>
+            <LockIcon />
+          </div>
           <div className={styles.text}>
             <strong>{what}</strong> zahtijeva{" "}
             <strong>Business</strong> pretplatu. Vaš Pro plan pokriva većinu
@@ -79,7 +123,9 @@ export default function GeneratePaywall({
     }
     return (
       <div className={`${styles.paywall} ${styles.paywallBusiness}`}>
-        <div className={styles.icon}>🔒</div>
+        <div className={`${styles.icon} ${styles.iconAccent}`}>
+          <LockIcon />
+        </div>
         <div className={styles.text}>
           <strong>{what}</strong> dostupno je uz{" "}
           <strong>Business</strong> pretplatu. Vaši uneseni podaci se čuvaju.
@@ -99,7 +145,9 @@ export default function GeneratePaywall({
   if (trialAvailable) {
     return (
       <div className={styles.paywall}>
-        <div className={styles.icon}>🎁</div>
+        <div className={styles.icon}>
+          <GiftIcon />
+        </div>
         <div className={styles.text}>
           <strong>Probajte 30 dana besplatno</strong> i preuzmite dokument. Bez
           kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate
@@ -114,7 +162,9 @@ export default function GeneratePaywall({
 
   return (
     <div className={styles.paywall}>
-      <div className={styles.icon}>🔒</div>
+      <div className={styles.icon}>
+        <LockIcon />
+      </div>
       <div className={styles.text}>
         <strong>{what}</strong> dostupno je uz <strong>Pro</strong> ili{" "}
         <strong>Business</strong> pretplatu. Vaši uneseni podaci se čuvaju, 

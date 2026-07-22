@@ -9,14 +9,28 @@
   border-radius: var(--radius-lg);
 }
 
+/* Business gate: terracotta naglasak iz palete (ne plava). */
 .paywallBusiness {
-  background: linear-gradient(135deg, #eef4ff, var(--paper));
-  border-color: #93b8ff;
+  background: linear-gradient(135deg, var(--accent-pale), var(--paper));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
+/* SVG ikona u zaobljenoj pločici (sage; business varijanta terracotta). */
 .icon {
-  font-size: 1.5rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--sage-pale);
+  color: var(--sage);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.iconAccent {
+  background: var(--accent-pale);
+  color: var(--accent);
 }
 
 .text {
@@ -34,14 +48,14 @@
   font-weight: 600;
   background: var(--sage);
   color: #fff;
-  border-radius: var(--radius);
+  border-radius: 10px;
   text-decoration: none;
   transition: opacity 0.15s;
   white-space: nowrap;
 }
 
 .btnBusiness {
-  background: #2b62d9;
+  background: var(--accent);
 }
 
 .btn:hover {
@@ -53,5 +67,9 @@
     flex-direction: column;
     align-items: stretch;
     text-align: center;
+  }
+
+  .icon {
+    margin: 0 auto;
   }
 }

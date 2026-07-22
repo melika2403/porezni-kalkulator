@@ -102,7 +102,7 @@
 
 .btn {
   padding: 14px 32px;
-  border-radius: var(--radius);
+  border-radius: 10px;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;

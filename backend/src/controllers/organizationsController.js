@@ -150,6 +150,20 @@ function validateOrgData(body, requireName = true) {
     data.isPdvObveznik = Boolean(body.isPdvObveznik);
   }
 
+  // Datumi ulaska/izlaska iz sistema PDV-a (prelazni period usred godine).
+  // Prazno/null = bez granice (obveznik oduvijek, odnosno nije izašao).
+  for (const f of ["pdvObveznikOd", "pdvObveznikDo"]) {
+    if (body[f] !== undefined) {
+      if (body[f] === null || body[f] === "") {
+        data[f] = null;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(String(body[f]))) {
+        data[f] = String(body[f]);
+      } else {
+        return { ok: false, message: `Neispravan datum (${f})` };
+      }
+    }
+  }
+
   // prihod od pazara u KPR ide iz dnevnog prometa (KP-1042) umjesto iz
   // pologa sa izvoda (kategorija PAZAR se tada isključuje iz KPR-a)
   if (body.kprPazarIzKp !== undefined) {

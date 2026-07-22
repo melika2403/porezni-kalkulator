@@ -23,7 +23,13 @@ import { LandingCta } from "./LandingCta";
 import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 import styles from "./pkOffice.module.css";
 
-const FEATURES = [
+const FEATURES: {
+  icon: typeof IconInbox;
+  name: string;
+  desc: string;
+  /** Kartica preko cijelog reda (popunjava zadnji red 3-kolonskog grida). */
+  wide?: boolean;
+}[] = [
   {
     icon: IconInbox,
     name: "Grupni uvoz izvoda",
@@ -73,6 +79,7 @@ const FEATURES = [
     icon: IconTransfer,
     name: "Migracija iz starog programa",
     desc: "Besplatan uvoz artikala, partnera i izvoda: pređi bez ponovnog kucanja šifarnika.",
+    wide: true,
   },
 ];
 
@@ -431,7 +438,12 @@ export default function PkOfficeLanding() {
           {FEATURES.map((f) => {
             const Icon = f.icon;
             return (
-              <div key={f.name} className={styles.feat}>
+              <div
+                key={f.name}
+                className={
+                  f.wide ? `${styles.feat} ${styles.featWide}` : styles.feat
+                }
+              >
                 <span className={styles.featIcon}>
                   <Icon size={20} />
                 </span>
@@ -441,6 +453,13 @@ export default function PkOfficeLanding() {
             );
           })}
         </div>
+        {/* Sitna napomena o fiskalizaciji, da očekivanja budu jasna */}
+        <p className={styles.featNapomena}>
+          Napomena: PK Office nema integraciju sa fiskalnim kasama i ne
+          povezuje se sa fiskalnim uređajem na računaru. Fiskalni računi se
+          izdaju na kasi kao i do sada, a dnevni promet (pazar) se u program
+          unosi ili povlači sa izvoda.
+        </p>
       </section>
 
       {/* Pretplata: sve funkcije u svakom paketu, cijena po broju obrta */}

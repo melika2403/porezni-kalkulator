@@ -63,14 +63,18 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   // "?" uz PK Office dugme: mali popover sa najjačim funkcijama
   const [pkInfoOpen, setPkInfoOpen] = useState(false);
+  // Profil meni (chip sa avatarom → dropdown), isti obrazac kao PK Office
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const pkInfoRef = useRef<HTMLSpanElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close menus on route change or outside click
   useEffect(() => {
     setMenuOpen(false);
     setMobileOpen(false);
     setPkInfoOpen(false);
+    setUserMenuOpen(false);
   }, [pathname]);
 
   // Zaključaj scroll body-ja dok je mobile drawer otvoren
@@ -117,6 +121,24 @@ export default function Navbar() {
       document.removeEventListener('keydown', onEsc);
     };
   }, [pkInfoOpen]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [userMenuOpen]);
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['me'],
@@ -457,6 +479,17 @@ export default function Navbar() {
                         </li>
                       ))}
                     </ul>
+                    <p
+                      style={{
+                        fontSize: 11.5,
+                        lineHeight: 1.5,
+                        color: "#7a8a7d",
+                        margin: "0 0 12px",
+                      }}
+                    >
+                      Napomena: bez integracije sa fiskalnim kasama, program se
+                      ne povezuje sa fiskalnim uređajem na računaru.
+                    </p>
                     <div style={{ display: "flex", gap: 8 }}>
                       <Link
                         href="/pk-office"
@@ -498,11 +531,114 @@ export default function Navbar() {
               </span>
               </span>
             )}
-            <Link href="/profil" className={`${styles.userChip} ${styles.hideOnMobile}`} title="Moj profil">
-              <span className={styles.userAvatar}>{user.firstName[0].toUpperCase()}</span>
-              <span className={styles.userName}>{user.firstName}</span>
-            </Link>
-            <button className={`${styles.btnGhost} ${styles.hideOnMobile}`} onClick={handleLogout}>Odjavi se</button>
+            <div
+              ref={userMenuRef}
+              className={`${styles.userMenuWrap} ${styles.hideOnMobile}`}
+            >
+              <button
+                type="button"
+                className={styles.userChipBtn}
+                onClick={() => setUserMenuOpen((o) => !o)}
+                title={`${user.firstName} ${user.lastName ?? ''}`.trim()}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+              >
+                <span className={styles.userAvatar}>
+                  {`${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()}
+                </span>
+                <span className={styles.userName}>{user.firstName}</span>
+                <svg
+                  className={`${styles.userChevron}${userMenuOpen ? ` ${styles.userChevronOpen}` : ''}`}
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {userMenuOpen && (
+                <div className={styles.userMenu} role="menu">
+                  <div className={styles.userMenuHead}>
+                    <span className={styles.userMenuAvatar}>
+                      {`${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()}
+                    </span>
+                    <div className={styles.userMenuId}>
+                      <div className={styles.userMenuName}>
+                        {user.firstName} {user.lastName}
+                      </div>
+                      <div className={styles.userMenuEmail}>{user.email}</div>
+                    </div>
+                  </div>
+                  <div className={styles.userMenuSep} />
+                  <Link
+                    href="/profil"
+                    className={styles.userMenuItem}
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    Moj profil
+                  </Link>
+                  <Link
+                    href="/profil?tab=pretplata"
+                    className={styles.userMenuItem}
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <path d="M2 10h20" />
+                    </svg>
+                    Pretplata
+                  </Link>
+                  <div className={styles.userMenuSep} />
+                  <button
+                    type="button"
+                    className={styles.userMenuLogout}
+                    onClick={handleLogout}
+                  >
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <path d="M16 17l5-5-5-5M21 12H9" />
+                    </svg>
+                    Odjavi se
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>

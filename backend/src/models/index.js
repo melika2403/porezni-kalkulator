@@ -129,6 +129,13 @@ const Organization = sequelize.define(
     taxNumber: { type: DataTypes.STRING(100), unique: true, allowNull: true },
     pdvNumber: { type: DataTypes.STRING(20), allowNull: true },
     isPdvObveznik: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // Ulazak/izlazak iz sistema PDV-a usred godine (prelazni period).
+    // pdvObveznikOd: null = obveznik oduvijek (cijelu godinu); datum = od tada.
+    // pdvObveznikDo: null = nije izašao; datum = bio obveznik do tog datuma
+    // (isključivo). Kad je bilo koji datum postavljen, KPR PDV split ide po
+    // dokumentu/datumu umjesto po trenutnom flagu (vidi services/kpr.js).
+    pdvObveznikOd: { type: DataTypes.DATEONLY, allowNull: true },
+    pdvObveznikDo: { type: DataTypes.DATEONLY, allowNull: true },
     // KPR prihod od pazara iz KP-1042 (dnevni promet) umjesto pologa sa izvoda
     kprPazarIzKp: { type: DataTypes.BOOLEAN, defaultValue: false },
     // Blagajnički maksimum utvrđen internom odlukom (Uredba o uslovima i
