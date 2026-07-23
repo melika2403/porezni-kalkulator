@@ -19,10 +19,14 @@ import {
 } from "src/api/partners";
 import { unwrap } from "src/api/auth";
 
-export function usePartners(orgId: number | null) {
+/** Lista partnera; year = null znači sve godine. */
+export function usePartners(orgId: number | null, year?: number | null) {
   return useQuery({
-    queryKey: ["partners", orgId],
-    queryFn: () => unwrap(listPartners(orgId as number)),
+    queryKey:
+      year === undefined
+        ? ["partners", orgId]
+        : ["partners", orgId, { year: year ?? "sve" }],
+    queryFn: () => unwrap(listPartners(orgId as number, year ?? null)),
     enabled: orgId != null,
   });
 }
@@ -93,12 +97,21 @@ export function useDeletePartner(orgId: number | null) {
 export function usePartnerKartica(
   orgId: number | null,
   partnerId: number | null,
+  period: { from?: string | null; to?: string | null } = {},
 ) {
   return useQuery({
-    queryKey: ["partners", orgId, "kartica", partnerId],
+    queryKey: [
+      "partners",
+      orgId,
+      "kartica",
+      partnerId,
+      period.from ?? null,
+      period.to ?? null,
+    ],
     queryFn: () =>
-      unwrap(getPartnerKartica(orgId as number, partnerId as number)),
+      unwrap(getPartnerKartica(orgId as number, partnerId as number, period)),
     enabled: orgId != null && partnerId != null,
+    placeholderData: (prev) => prev, // promjena godine bez treperenja
   });
 }
 

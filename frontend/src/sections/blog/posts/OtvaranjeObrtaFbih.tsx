@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { PkOfficeCta } from "../BlogCta";
 
 export default function OtvaranjeObrtaFbih() {
   return (
@@ -306,6 +307,8 @@ export default function OtvaranjeObrtaFbih() {
         Zakon o doprinosima FBiH (čl. 6 i 9). Iznosi taksi su za Kanton
         Sarajevo i variraju po općinama.
       </p>
+
+      <PkOfficeCta text="Kad obrt proradi, kreće vođenje knjiga. PK Office preuzima taj dio: bankovni izvodi se sami knjiže u KPR, fakture i plate su na klik, a SPR i GPD se izvlače iz već urednih knjiga." />
     </>
   );
 }

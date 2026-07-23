@@ -617,6 +617,18 @@
 }
 .duplicateNoticeClose:hover { color: var(--ink); }
 
+/* neobveznik uključio PDV: amber upozorenje ispod toggle reda, ne blokira */
+.pdvUpozorenje {
+  margin: 0.65rem 0 0;
+  padding: 0.6rem 0.9rem;
+  background: #fef3c7;
+  border: 1px solid rgba(146, 64, 14, 0.25);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #92400e;
+}
+
 .removeBtn {
   background: none;
   border: 0;

@@ -1,5 +1,7 @@
+import Link from "next/link";
 import styles from "./PkOfficeTeaser.module.css";
 import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
+import SpotlightTabs from "./SpotlightTabs";
 
 // Inline ikone (marketing server komponenta, bez icon-lib zavisnosti), u duhu
 // tabler ikona iz PK Office sidebara.
@@ -50,42 +52,101 @@ const ICONS: Record<string, React.ReactNode> = {
       <rect x="13" y="11" width="7" height="9" rx="1" />
     </>
   ),
+  receipt: (
+    <>
+      <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-3-2-2 2-2-2-2 2-2-2-3 2" />
+      <path d="M9 7h6M9 11h6" />
+    </>
+  ),
+  percent: (
+    <>
+      <circle cx="17" cy="17" r="2" />
+      <circle cx="7" cy="7" r="2" />
+      <path d="M6 18L18 6" />
+    </>
+  ),
+  box: (
+    <>
+      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3" />
+      <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />
+    </>
+  ),
+  cash: (
+    <>
+      <rect x="7" y="9" width="14" height="10" rx="2" />
+      <circle cx="14" cy="14" r="2" />
+      <path d="M17 9V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="4" y="5" width="16" height="16" rx="2" />
+      <path d="M16 3v4M8 3v4M4 11h16" />
+      <path d="M9 16l2 2 4-4" />
+    </>
+  ),
 };
 
 const MODULES = [
   {
-    icon: "coins",
-    name: "Obračun plata i doprinosa",
-    desc: "MIP-1023, 2001, GIP, platni listići i uplatnice",
-  },
-  {
-    icon: "users",
-    name: "Zaposlenici i prijave",
-    desc: "JS3100, ugovori, evidencija radnika",
-  },
-  {
-    icon: "addressBook",
-    name: "Partneri i računi",
-    desc: "ulazni i izlazni računi na jednom mjestu",
-  },
-  {
     icon: "bank",
-    name: "Bankovni izvodi",
-    desc: "uvoz izvoda i uparivanje sa računima",
+    name: "Bankovni izvodi i KPR",
+    desc: "izvod se knjiži sam, knjige uvijek ažurne",
   },
-  { icon: "book", name: "KPR", desc: "knjiga prihoda i rashoda, automatski" },
+  {
+    icon: "receipt",
+    name: "Fakture i partneri",
+    desc: "KIF, kartice kupaca, IOS, opomene, kompenzacije",
+  },
+  {
+    icon: "percent",
+    name: "PDV evidencije",
+    desc: "KUF/KIF, PDV prijava, D-PDV, e-podnošenje",
+  },
+  {
+    icon: "box",
+    name: "Roba i maloprodaja",
+    desc: "kalkulacije, lager lista, popis",
+  },
+  {
+    icon: "coins",
+    name: "Plate i radnici",
+    desc: "MIP-1023, 2001/2002, šihterica, JS3100",
+  },
+  {
+    icon: "cash",
+    name: "Blagajna i putni nalozi",
+    desc: "blagajnički dnevnik, dnevnice",
+  },
+  {
+    icon: "calendar",
+    name: "Godišnje obaveze",
+    desc: "SPR, GPD, amortizacija, zaključak godine",
+  },
   {
     icon: "dashboard",
     name: "Pregled poslovanja",
-    desc: "dashboard sa stanjem obrta",
+    desc: "dashboard, rokovi, notifikacije",
   },
 ];
 
-// Demo stavke za vizuelni prikaz automatskog knjiženja izvoda.
-const TX = [
-  { main: "Uplata kupca · 1.170,00", match: "Faktura 2026-014" },
-  { main: "Telekom · 89,00", match: "Trošak: komunikacije" },
-  { main: "Isplata plate · 1.030,00", match: "Plata, mart 2026" },
+// "Za koga je": tri tipična korisnika PK Office-a.
+const PERSONAS = [
+  {
+    icon: "users",
+    name: "Obrtnik koji vodi sam sebe",
+    desc: "Učitaš izvod, potvrdiš stavke i knjige su gotove: sat vremena mjesečno umjesto cijelog vikenda.",
+  },
+  {
+    icon: "addressBook",
+    name: "Knjigovodstvena agencija",
+    desc: "Svi obrti na jednom nalogu: grupni uvoz izvoda odjednom, bulk 2001/2002, paketi po broju obrta.",
+  },
+  {
+    icon: "box",
+    name: "Obrt sa maloprodajom",
+    desc: "Kalkulacije, lager i popis su uključeni u svaki paket, bez doplata i dodatnih programa.",
+  },
 ];
 
 export default function PkOfficeTeaser() {
@@ -140,7 +201,7 @@ export default function PkOfficeTeaser() {
 
             <div className={styles.preview}>
               <div className={styles.previewLabel}>
-                6 modula · jedan nalog · za obrte u FBiH
+                8 modula · jedan nalog · za obrte u FBiH
               </div>
               <ul className={styles.moduleList}>
                 {MODULES.map((m) => (
@@ -171,43 +232,41 @@ export default function PkOfficeTeaser() {
 
           <div className={styles.divider} />
 
-          {/* ── Spotlight: automatsko knjiženje izvoda ── */}
-          <div className={styles.spotlight}>
-            <div className={styles.spotlightText}>
-              <span className={styles.tag}>Najbolja funkcija</span>
-              <h3 className={styles.h3}>Bankovni izvod se knjiži sam</h3>
-              <p className={styles.spotlightLead}>
-                Učitaš izvod, a PK Office sam{" "}
-                <strong>upari uplate i troškove</strong> sa fakturama i partnerima
-                i <strong>proknjiži ih u KPR</strong>. Bez ručnog prepisivanja i
-                bez Excela.
-              </p>
-              <ul className={styles.spotChips}>
-                <li className={styles.spotChip}>uplate</li>
-                <li className={styles.spotChip}>troškovi</li>
-                <li className={styles.spotChip}>plate</li>
-              </ul>
-            </div>
+          {/* ── Spotlight: najbolje funkcije kroz tabove ── */}
+          <SpotlightTabs />
 
-            <div className={styles.mockup}>
-              <div className={styles.previewHead}>
-                <span className={styles.previewTitle}>Bankovni izvod</span>
+          {/* ── Za koga je PK Office ── */}
+          <div className={styles.personaRow}>
+            {PERSONAS.map((p) => (
+              <div key={p.name} className={styles.personaCard}>
+                <span className={styles.personaIcon} aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    width="17"
+                    height="17"
+                  >
+                    {ICONS[p.icon]}
+                  </svg>
+                </span>
+                <span className={styles.personaName}>{p.name}</span>
+                <span className={styles.personaDesc}>{p.desc}</span>
               </div>
-              <ul className={styles.txList}>
-                {TX.map((t) => (
-                  <li key={t.main} className={styles.txRow}>
-                    <span className={styles.txDesc}>
-                      <span className={styles.txMain}>{t.main}</span>
-                      <span className={styles.txMatch}>→ {t.match}</span>
-                    </span>
-                    <span className={styles.txBadge}>knjiženo</span>
-                  </li>
-                ))}
-              </ul>
-              <div className={styles.previewFoot}>
-                Automatski upareno i proknjiženo u KPR
-              </div>
-            </div>
+            ))}
+          </div>
+
+          {/* ── Linkovi na dnu sekcije ── */}
+          <div className={styles.linksRow}>
+            <Link href="/pk-office" className={styles.moreLink}>
+              Pogledaj sve funkcije →
+            </Link>
+            <Link href="/pretplate#pk-office" className={styles.moreLink}>
+              Cjenovnik po broju obrta →
+            </Link>
           </div>
         </div>
       </div>

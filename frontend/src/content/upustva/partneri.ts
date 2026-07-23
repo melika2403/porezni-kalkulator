@@ -20,6 +20,14 @@ export const partneri: Upustvo = {
           t: "savjet",
           text: "Partnere možete i grupno uvesti iz fajla izvezenog iz drugog programa, pa ne morate unositi jednog po jednog. Postojeći se preskaču uz obrazloženje.",
         },
+        {
+          t: "p",
+          text: "Iznad liste program predlaže partnere pronađene u vašim izvodima i fakturama: dodaju se jednim klikom, sa podacima koje već imamo. Uplate poreza i doprinosa, polog pazara, prenosi između vlastitih računa, rate kredita i bankarske provizije se ne predlažu (čim stavka na izvodu dobije takvu kategoriju, protivstrana nestaje iz prijedloga).",
+        },
+        {
+          t: "savjet",
+          text: "Ako se u prijedlozima ipak nađe neko ko nije partner, kliknite X pored njega i potvrdite: taj prijedlog se trajno uklanja i više se ne predlaže (pamti se po žiro računu i nazivu). Transakcije ostaju netaknute.",
+        },
       ],
     },
     {
@@ -40,6 +48,10 @@ export const partneri: Upustvo = {
         },
         {
           t: "p",
+          text: "Pregled je po godinama: default je tekuća godina, a na vrhu kartice birate drugu godinu ili \"Sve godine\". Dug iz ranijih godina se prikazuje kao prvi red \"Donos iz ranijeg perioda\" i računa se sam (početno stanje + sav raniji promet), pa se prenos u novu godinu ne mora raditi ručno. Dugovi u karticama i na listi su uvijek živi, bez obzira na izabranu godinu.",
+        },
+        {
+          t: "p",
           text: "Klik na red računa u kartici otvara taj dokument: izlazna faktura se otvori na Fakturama, ulazni račun na tabu Ulazne.",
         },
         {
@@ -48,8 +60,34 @@ export const partneri: Upustvo = {
         },
       ],
     },
+    {
+      naslov: "Početna stanja (migracija)",
+      blokovi: [
+        {
+          t: "p",
+          text: "Ako je obrt prije programa vođen negdje drugo, otvorene dugove partnera unesite kao početna stanja: pojedinačno na kartici partnera (red \"Poč. stanje\" u panelu dokumenata) ili grupno dugmetom \"Početna stanja\" iznad liste, sa zaključnih kartica iz starog programa na dan 31.12. prethodne godine.",
+        },
+        {
+          t: "koraci",
+          stavke: [
+            "Kliknite \"Početna stanja\" iznad liste partnera.",
+            "Provjerite datum stanja (default 31.12. prethodne godine).",
+            "Za svakog partnera upišite koliko on duguje vama i/ili vi njemu; prazno = bez duga.",
+            "Sačuvajte: iznosi ulaze u kartice kao donos i u otvorene dugove.",
+          ],
+        },
+        {
+          t: "savjet",
+          text: "Uplata partnera prvo zatvara najstariji dug, dakle početno stanje, pa tek onda nove fakture. Početno stanje ulazi i u IOS i u opomenu.",
+        },
+      ],
+    },
   ],
   faq: [
+    {
+      p: "Zašto na listi vidim promet samo za jednu godinu?",
+      o: "Lista i kartice su default na tekućoj godini; gore birate drugu godinu ili \"Sve godine\". Kolone duga su uvijek živo, ukupno stanje, jer se po njima radi naplata.",
+    },
     {
       p: "Moram li označiti da je neko kupac ili dobavljač?",
       o: "Ne. Uloga proizlazi iz poslovanja: uplate, isplate i fakture. Isti partner može biti i kupac i dobavljač.",
@@ -61,6 +99,10 @@ export const partneri: Upustvo = {
     {
       p: "Gdje se partner koristi?",
       o: "Na fakturama (kao kupac ili dobavljač) i pri kategorizaciji izvoda, gdje se protivstrana veže za partnera.",
+    },
+    {
+      p: "Zašto bankarska provizija ne ulazi u karticu partnera?",
+      o: "Banka uz plaćanje dobavljaču često knjiži i proviziju sa imenom dobavljača u opisu. Provizija nije promet sa partnerom: takve stavke (provizije, pazar, prenosi, porezi i doprinosi) se ne vežu na karticu i ne ulaze u promet partnera, nego samo u KPR po svojoj kategoriji.",
     },
     {
       p: "Kada mogu poslati opomenu kupcu?",

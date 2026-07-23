@@ -16,6 +16,7 @@ const {
   Partner,
   Prebijanje,
 } = require("../models/index");
+const { logEvent } = require("./activityController");
 const {
   maybeRevertInvoice,
   maybeReopenUlazniRacun,
@@ -364,6 +365,14 @@ async function create(req, res) {
           ostatak: (toC(a.item.iznos) - a.amountC) / 100,
         })),
     ];
+
+    // statistika PK Office korištenja (admin Aktivnost)
+    void logEvent({
+      userId: req.user?.id ?? null,
+      action: "OFFICE_PREBIJANJE",
+      label: `${type === "CESIJA" ? "Cesija" : "Kompenzacija"} ${broj}`,
+      organizationId,
+    });
 
     return res.status(201).json({
       ok: true,

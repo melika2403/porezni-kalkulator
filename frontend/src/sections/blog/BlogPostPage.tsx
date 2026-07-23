@@ -46,28 +46,25 @@ export default function BlogPostPage({ slug }: { slug: string }) {
           {(stariji || noviji) && (
             <nav
               aria-label="Navigacija među člancima"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: "1rem",
-                flexWrap: "wrap",
-                margin: "2rem 0 1rem",
-              }}
+              className={styles.postNav}
             >
-              {stariji ? (
-                <Link href={`/blog/${stariji.slug}`} className={styles.backLink}>
-                  ← {stariji.title}
+              {stariji && (
+                <Link href={`/blog/${stariji.slug}`} className={styles.navBtn}>
+                  <span className={styles.navBtnLabel}>
+                    ← Prethodni članak
+                  </span>
+                  <span className={styles.navBtnTitle}>{stariji.title}</span>
                 </Link>
-              ) : (
-                <span />
               )}
               {noviji && (
                 <Link
                   href={`/blog/${noviji.slug}`}
-                  className={styles.backLink}
-                  style={{ textAlign: "right" }}
+                  className={`${styles.navBtn} ${styles.navBtnRight}`}
                 >
-                  {noviji.title} →
+                  <span className={styles.navBtnLabel}>
+                    Sljedeći članak →
+                  </span>
+                  <span className={styles.navBtnTitle}>{noviji.title}</span>
                 </Link>
               )}
             </nav>

@@ -24,6 +24,38 @@ export function trackEvent(
   }
 }
 
+// ── Vlastita aktivnost (dashboard profila) ─────────────────────────────────
+
+export type MyActivity = {
+  items: {
+    action: string;
+    label: string | null;
+    organization: string | null;
+    createdAt: string;
+  }[];
+  /** broj događaja po akciji za tekući mjesec */
+  month: Record<string, number>;
+  /** sve akcije koje je korisnik ikad koristio */
+  usedActions: string[];
+  /** najčešće korištena akcija (za personalizovan badge) */
+  topAction: string | null;
+};
+
+export function getMyActivity() {
+  return (async (): Promise<ApiResponse<MyActivity>> => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/activity/moje`, {
+        credentials: "include",
+      });
+      const json = (await res.json().catch(() => null)) as ApiResponse<MyActivity> | null;
+      if (!json) return { ok: false, error: `HTTP ${res.status}` };
+      return json;
+    } catch {
+      return { ok: false, error: "NETWORK_ERROR" };
+    }
+  })();
+}
+
 // ── Admin ───────────────────────────────────────────────────────────────────
 
 export type ActivityItem = {

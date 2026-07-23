@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { BlogCta } from "../BlogCta";
 
 export default function UgovorDjeluVsRadu() {
   return (
@@ -285,6 +286,13 @@ export default function UgovorDjeluVsRadu() {
         Zakon o doprinosima FBiH, Zakon o radu FBiH, Zakon o obligacionim
         odnosima FBiH. Stope važeće za 2026. (sa izmjenama od 1.7.2025.).
       </p>
+
+      <BlogCta
+        title="Ugovor o djelu sa obračunom u minuti"
+        text="Naš alat generiše ugovor o djelu i odmah obračuna doprinose i porez na honorar (4% PIO + 10% poreza), sa dokumentom spremnim za potpis."
+        href="/ugovor-o-djelu"
+        button="Otvori ugovor o djelu"
+      />
     </>
   );
 }

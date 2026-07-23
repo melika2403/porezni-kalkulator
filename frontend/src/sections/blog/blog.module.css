@@ -118,15 +118,77 @@
 .backLink {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 13px;
+  font-weight: 600;
   color: var(--mid);
   text-decoration: none;
   margin-bottom: 1.25rem;
+  padding: 0.45rem 1rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s;
 }
 
 .backLink:hover {
   color: var(--sage);
+  border-color: var(--sage);
+}
+
+/* Navigacija prethodni/sljedeći članak: kartice-dugmad umjesto golog teksta */
+.postNav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 2rem 0 1rem;
+}
+
+.navBtn {
+  flex: 1 1 260px;
+  max-width: calc(50% - 0.5rem);
+  display: block;
+  padding: 0.85rem 1.15rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.navBtn:hover {
+  border-color: var(--sage);
+  box-shadow: 0 4px 14px -8px rgba(58, 92, 66, 0.35);
+}
+
+.navBtnRight {
+  margin-left: auto;
+  text-align: right;
+}
+
+.navBtnLabel {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin-bottom: 4px;
+}
+
+.navBtnTitle {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .navBtn {
+    max-width: 100%;
+  }
 }
 
 .postMeta {
@@ -212,6 +274,149 @@
 
 .postBody a:hover {
   border-bottom-color: var(--sage);
+}
+
+/* ── Oglas za naš alat na kraju članka ── */
+.ctaBox {
+  margin-top: 2.5rem;
+  padding: 1.4rem 1.6rem;
+  background: color-mix(in srgb, var(--sage) 7%, var(--white));
+  border: 1px solid color-mix(in srgb, var(--sage) 30%, transparent);
+  border-radius: var(--radius-lg);
+}
+
+.ctaLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sage);
+  margin-bottom: 0.5rem;
+}
+
+.ctaTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.35rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+}
+
+.ctaText {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--mid);
+  margin: 0 0 1rem;
+}
+
+.postBody a.ctaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.2rem;
+  background: var(--sage);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.postBody a.ctaBtn:hover {
+  opacity: 0.9;
+  border: none;
+}
+
+/* ── Veliki PK Office banner (PK Office paleta: tamni sage + cream) ── */
+.pkCta {
+  margin-top: 2.75rem;
+  padding: 2rem 2.2rem;
+  background: linear-gradient(135deg, #22382a 0%, #3a5c42 100%);
+  border-radius: 14px;
+  color: #f5f2eb;
+}
+
+.pkCtaBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border: 1px solid rgba(245, 242, 235, 0.35);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #f5f2eb;
+  margin-bottom: 1rem;
+}
+
+.pkCtaDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d6e8d9;
+}
+
+.pkCtaTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.5rem, 3.4vw, 2rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.65rem;
+}
+
+.pkCtaText {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: rgba(245, 242, 235, 0.85);
+  max-width: 640px;
+  margin: 0 0 0.85rem;
+}
+
+.pkCtaFeatures {
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: rgba(245, 242, 235, 0.65);
+  margin: 0 0 1.35rem;
+}
+
+.postBody a.pkCtaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 1.5rem;
+  background: #f5f2eb;
+  color: #22382a;
+  border: none;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.postBody a.pkCtaBtn:hover {
+  opacity: 0.92;
+  border: none;
+}
+
+.pkCtaHint {
+  display: inline-block;
+  margin-left: 0.9rem;
+  font-size: 12.5px;
+  color: rgba(245, 242, 235, 0.65);
+}
+
+@media (max-width: 640px) {
+  .pkCta {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .pkCtaHint {
+    display: block;
+    margin: 0.7rem 0 0;
+  }
 }
 
 .postFooter {

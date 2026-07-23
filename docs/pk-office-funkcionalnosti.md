@@ -21,6 +21,11 @@ Posljednje ažuriranje: juni 2026.
 
 - U vrhu sidebara je aktivna organizacija. Klik otvara listu svih obrta
   korisnika, grupisanu na "Moji obrti" i "Klijenti" (za računovođe).
+- **Pretraga**: kad korisnik ima više od 5 obrta, na vrhu liste je
+  search polje (autofokus, kucanje odmah filtrira). Traži po nazivu bez
+  dijakritika ("cevap" nađe "Ćevabdžinicu") i po ID/poreskom broju
+  (cifre); filtrira i sekciju "Dodaj u PK Office". Enter bira prvi
+  pogodak, Escape briše pretragu odnosno zatvara listu.
 - PK Office radi SAMO sa obrtima; d.o.o. organizacije se ne nude.
 - Ime se prikazuje u dva reda ako je dugačko; "Dodaj novi obrt" na dnu.
 - "Dodaj novi obrt" otvara punu formu (Postavke, tab "Novi obrt"): isti
@@ -75,10 +80,13 @@ Posljednje ažuriranje: juni 2026.
 
 Stranica: Finansije → Bankovni izvodi.
 
-- **Učitaj bankovni izvod** (drag&drop ili klik): prima PDF izvod iz
-  e-bankinga. Podržane banke: UniCredit, Raiffeisen, Sparkasse, KIB,
-  BBI, MF Banka, ZiraatBank (BBI/MF/Ziraat dijele Asseco format pa
-  srodne banke često rade odmah).
+- **Učitaj bankovne izvode** (drag&drop ili klik): prima jedan ili više
+  PDF izvoda iz e-bankinga odjednom. Podržane banke: UniCredit,
+  Raiffeisen, Sparkasse, KIB, BBI, MF Banka, ZiraatBank (BBI/MF/Ziraat
+  dijele Asseco format pa srodne banke često rade odmah). Više fajlova
+  se uvozi sekvencijalno (po nazivu fajla, da kontinuitet salda vidi
+  prethodne), uz progres "Čitam izvod 2/5..." i rezime na kraju
+  (koliko uvezeno + greška po fajlu).
 - Svaki izvod prolazi **validaciju salda**: početno stanje + potražuje −
   duguje mora dati završno stanje (kod Raiffeisena i saldo red-po-red).
   Izvod koji se ne slaže NE ulazi u knjige nego vraća grešku.
@@ -102,7 +110,21 @@ Stranica: Finansije → Bankovni izvodi.
 - Greške koje korisnik može vidjeti: nepoznata banka (uputa da nam
   pošalje uzorak), skeniran PDF (treba original iz e-bankinga),
   duplikat (isti izvod već učitan), neslaganje salda.
-- Nakon uspješnog uploada otvara se izvod sa svim stavkama.
+- Nakon uspješnog uploada jednog fajla otvara se izvod sa svim
+  stavkama; kod više fajlova ostaje se na listi (izvodi su u njoj
+  poredani po banci i broju).
+- **Početno stanje računa** (dugme iznad liste izvoda): za obrte koji
+  ne žele učitavati historijske izvode. Upiše se račun, datum (tipično
+  31.12. prethodne godine) i stanje u KM; program napravi poseban
+  "izvod" bez stavki (bankId `pocetno`, opening = closing = iznos) koji
+  služi kao sidro: kontinuitet salda prvog pravog izvoda se veže na
+  njega, a stanje računa je tačno bez starih izvoda. Po računu postoji
+  najviše jedno (ponovni unos ili klik na red u listi ga mijenja);
+  red u listi se zove "Početno stanje" i nema statusnu značku.
+  Za račune čije banke ne čitamo (ručni izvodi bez salda) se stanje
+  računa u KPI-ju računa kao: sidro + promet ručnih izvoda poslije
+  njegovog datuma. Poređenje računa (kontinuitet, stanje, grupisanje
+  liste) ide po ciframa jer banke pišu račun različito formatiran.
 
 ## 5. Izvodi: lista i detalj
 
@@ -281,6 +303,18 @@ Stranica: Finansije → Fakture.
   izda na main page, vidi se u PK Office i obratno. "Nova faktura" otvara
   istu formu unutar PK Office-a (/app/fakture/nova) i nakon snimanja
   vraća na listu.
+- **PDV default po statusu obrta**: checkbox "Obračunavam PDV" prati
+  isPdvObveznik izabranog prodavca (obveznik → uključen i stavke nude
+  17%, neobveznik → isključen pa se PDV kolona i ne prikazuje). Ručna
+  promjena checkboxa (ili učitana faktura kod uređivanja/dupliranja)
+  ima prednost i ne pregazi se. Ako neobveznik ipak uključi PDV,
+  ispod toggle reda se pokaže amber upozorenje (propisi ne dozvoljavaju
+  PDV na fakturi neobveznika), ali snimanje se NE blokira. Kod ručno
+  upisanog prodavca (marketing forma bez organizacije) status je
+  nepoznat pa se default ne dira i upozorenja nema.
+- **"Samo sačuvaj"**: pored "Spremi i preuzmi PDF" postoji i dugme koje
+  fakturu samo snimi bez preuzimanja PDF-a (u edit modu se zove
+  "Sačuvaj izmjene"); PDF se uvijek može skinuti kasnije sa liste.
 - **Prodavac se ne unosi**: u PK Office formi je prodavac uvijek aktivna
   organizacija iz sidebara (kartica Prodavac je sakrivena, prikazuje se
   samo naziv i adresa sa linkom na postavke obrta). Naziv, adresa,
@@ -472,8 +506,52 @@ Stranica: Finansije → Partneri.
 - **Prijedlozi**: sistem nudi partnere pronađene u podacima, protustrane
   sa izvoda (sa brojem transakcija) i kupce sa faktura (sa JIB-om i
   adresom). Klik na prijedlog otvara popunjenu formu, a **"Dodaj sve"**
-  doda sve pronađene odjednom (sa podacima koje već imamo). Uplate javnih
-  prihoda (porezi, doprinosi) se ne nude kao partneri.
+  doda sve pronađene odjednom (sa podacima koje već imamo). Ne nude se:
+  stavke sa kategorijom čija protivstrana nije partner (javni prihodi:
+  porezi, doprinosi, PDV; pazar; prenos između vlastitih računa;
+  pozajmice vlasnika; krediti i rate; bankarske provizije; plate;
+  "ostalo bez KPR") niti protivračuni koji su vlastiti računi obrta.
+  Kategorizacijom stavke na izvodu prijedlog nestaje sam.
+- **"Nije partner" (X na prijedlogu)**: uklanja prijedlog trajno, uz
+  potvrdu; pamti se po žiro računu i nazivu
+  (organizations.partnerSuggestionHides JSON), pa se više ne predlaže ni
+  sa izvoda ni sa faktura. Transakcije ostaju netaknute. Endpoint:
+  POST /api/partners/:orgId/suggestions/hide.
+- **Godišnji pregled**: lista partnera i kartica partnera su default na
+  tekućoj godini (picker "Godina GGGG" / "Sve godine"). Godina filtrira
+  promet, broj transakcija, fakturisano i zadnju aktivnost; DUGOVI
+  (otvorene stavke, obje strane) su UVIJEK živi, ukupni, bez obzira na
+  godinu, jer se po njima radi naplata i opomene. Backend: GET
+  /api/partners/:orgId?year=GGGG i kartica sa ?from=&to=.
+- **Donos na kartici**: kartica za izabranu godinu počinje redom "Donos
+  iz ranijeg perioda" = početno stanje + sav promet prije godine, računa
+  se ŽIVO pri svakom pogledu (nema kopiranja salda u novu godinu, pa
+  naknadna knjiženja u staroj godini automatski ispravljaju donos).
+  Zaključno stanje godine = saldo na dnu. Isti donos ide u PDF karticu
+  (prazan period štampe = izabrana godina pregleda). Kod pregleda "Sve
+  godine" se početno stanje vidi kao vlastiti red na svom datumu.
+- **Početna stanja partnera (migracija)**: PartnerOpeningBalance (jedan
+  po partneru: datum, kupacIznos = duguje nama, dobavljacIznos = mi
+  dugujemo). Unos pojedinačno (kartica partnera → red "Poč. stanje") ili
+  grupno ("Početna stanja" iznad liste: tabela svih partnera sa dvije
+  kolone, zajednički datum, pretraga; 0 u oba polja briše stanje).
+  Efekti: FIFO tretira početno stanje kao najstariji dokument (uplate ga
+  zatvaraju prije novih faktura), otvoreni dio ulazi u žive dugove na
+  listi i kartici (i u "kasni"), u IOS (red "Početno stanje (donos)",
+  valuta = datum stanja) i u opomenu. Endpoints: GET/POST
+  /api/partners/:orgId/opening-balances, PUT
+  /api/partners/:orgId/:partnerId/opening-balance.
+- **Ne-partner kategorije i kartica**: stavke sa kategorijom koja nije
+  promet partnera (ista lista kao gore: provizija banke, pazar, prenos,
+  krediti, javni prihodi...) se NE vežu automatski na partnera pri
+  uvozu izvoda (banke uz plaćanje dobavljaču knjiže i proviziju sa
+  imenom dobavljača u opisu, pa je name-match ranije vezao proviziju na
+  karticu). Promjena kategorije stavke u ne-partner kategoriju
+  automatski skida vezu s partnerom (osim ako se u istom patchu
+  eksplicitno šalje partnerId). I kad veza postoji (stari podaci ili
+  ručno vezano), te stavke se NE prikazuju u kartici partnera niti
+  ulaze u njegov promet/statistiku. KPR knjiženje se ne mijenja
+  (kategorija i dalje vlada).
 - Statistika po partneru: ukupno naplaćeno/plaćeno (potvrđene stavke),
   broj transakcija, zadnja aktivnost, otvorene fakture (po JIB-u ili
   nazivu kupca).
@@ -1035,8 +1113,10 @@ radi preko svih organizacija korisnika (gdje je OWNER/ADMIN).
   obrta iz padajuće liste; program tada zapamti račun za ubuduće),
   GREŠKA (nepodržana banka, sken bez teksta, saldo se ne slaže).
   Iznad liste je rezime po statusima, a redovi koji traže akciju
-  sortiraju se na vrh (proknjiženi tonu na dno). Dugme "Ukloni
-  završene" čisti proknjižene i duplikate iz liste.
+  sortiraju se na vrh (proknjiženi tonu na dno). Unutar istog statusa
+  redovi idu po obrtu (naziv abecedno), a izvodi istog obrta po broju
+  izvoda od manjeg ka većem (bez broja na kraj, po datumu). Dugme
+  "Ukloni završene" čisti proknjižene i duplikate iz liste.
 - **Pregled stavki**: svaki izvod u listi se može raširiti i vidjeti
   sve stavke (datum, protivstrana/opis, iznos) prije knjiženja.
 - **Knjiženje**: svaki potvrđeni izvod prolazi kroz isti uvoz kao na
@@ -1060,11 +1140,13 @@ radi preko svih organizacija korisnika (gdje je OWNER/ADMIN).
   Nakon potvrde red pokazuje "Sve stavke potvrđene za KPR." U traci
   iznad liste je i globalno **"Potvrdi sve izvode (N)"**: sekvencijalno
   potvrdi stavke svih proknjiženih izvoda sa progresom
-  ("Potvrđujem 3/7...").
-- **Vidljivost**: korisnicima koji vode više od jednog obrta grupni
-  uvoz se nudi i na Početnoj (istaknuta kartica sa dugmetom "Otvori
-  grupni uvoz") i na stranici Bankovni izvodi (traka ispod polja za
-  učitavanje); korisnici sa jednim obrtom te ulaze ne vide.
+  ("Potvrđujem 3/7..."). Ako korisnik stavke potvrdi u pop-up pregledu
+  izvoda (pojedinačno ili "Potvrdi sve"), red to sam prepozna pri
+  zatvaranju pregleda i označi se završenim; dugme na redu ostaje samo
+  kad neka stavka još čeka potvrdu.
+- **Vidljivost**: grupni uvoz se nudi svima (i sa jednim obrtom) i na
+  Početnoj (istaknuta kartica sa dugmetom "Otvori grupni uvoz") i na
+  stranici Bankovni izvodi (traka ispod polja za učitavanje).
 
 **Poruke i obavijesti**: obavijesti koje admin objavi (info/upozorenje/
 uspjeh, sa publikom i rokom isteka) + automatska upozorenja o isteku

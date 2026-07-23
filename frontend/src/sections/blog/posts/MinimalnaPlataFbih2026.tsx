@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { BlogCta } from "../BlogCta";
 
 export default function MinimalnaPlataFbih2026() {
   return (
@@ -227,6 +228,13 @@ export default function MinimalnaPlataFbih2026() {
         godinu, Zakon o doprinosima FBiH (čl. 6 i 9), Zakon o porezu na
         dohodak FBiH (čl. 12).
       </p>
+
+      <BlogCta
+        title="Obračunajte minimalnu platu bez greške"
+        text="Naš obračun plata već zna minimalac, stope doprinosa i lični odbitak za 2026: unesite radnika i preuzmite platnu listu i uplatnice."
+        href="/prijave-radnika?tab=obracun"
+        button="Otvori obračun plata"
+      />
     </>
   );
 }

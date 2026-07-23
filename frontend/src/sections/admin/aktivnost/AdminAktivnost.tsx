@@ -34,6 +34,28 @@ const ACTION_LABELS: Record<string, string> = {
   RJESENJE_GO_GENERATE: "Rješenje (god. odmor)",
   CESIJA_GENERATE: "Ugovor o cesiji",
   KOMPENZACIJA_GENERATE: "Kompenzacija",
+  // dokumenti obračuna plata i evidencije (dijeljeni generatori, pokrivaju
+  // marketing, PK Office i bulk preuzimanja)
+  OBRAZAC_2001_GENERATE: "Obrazac 2001 / 2001-A",
+  OBRAZAC_2002_GENERATE: "Obrazac 2002",
+  MIP_GENERATE: "MIP-1023",
+  GIP_GENERATE: "GIP-1022",
+  UPLATNICE_GENERATE: "Zbirne uplatnice",
+  PLATNI_LISTIC_GENERATE: "Platni listić",
+  NALOG_KNJIZENJE_GENERATE: "Nalog za knjiženje",
+  LISTA_NALOGA_GENERATE: "Lista naloga za plaćanje",
+  SPECIFIKACIJE_GENERATE: "Specifikacije plata",
+  EVIDENCIJA_GENERATE: "Matična evidencija",
+  // PK Office radne akcije (backend logEvent)
+  OFFICE_IZVOD_UCITAN: "PK Office: izvod učitan",
+  OFFICE_IZVOD_RUCNI: "PK Office: ručni izvod",
+  OFFICE_ULAZNI_RACUN: "PK Office: ulazni račun",
+  OFFICE_KALKULACIJA: "PK Office: kalkulacija",
+  OFFICE_BLAGAJNA_NALOG: "PK Office: blagajnički nalog",
+  OFFICE_PUTNI_NALOG: "PK Office: putni nalog",
+  OFFICE_POPIS: "PK Office: popis (inventura)",
+  OFFICE_PREBIJANJE: "PK Office: kompenzacija/cesija",
+  OFFICE_BACKFILL: "PK Office: tehnički zapis (backfill)",
 };
 
 function actionLabel(action: string) {

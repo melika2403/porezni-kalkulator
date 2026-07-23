@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { kantonForOpcina } from "src/data/uplatni-racuni";
+import { trackEvent } from "src/api/activity";
 import type { Organization, Worker } from "src/api/profile";
 import type { Payroll } from "src/api/payroll";
 import {
@@ -40,6 +41,9 @@ export type MipBuildError = {
 // Sklopi MIP-1023 XML iz raw payroll snapshot-a. Vraća ok+xml+filename ili
 // strukturisan error sa razlogom (no-payrolls, org-incomplete itd.).
 export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuildError {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("MIP_GENERATE", "MIP-1023 XML");
+
   const { workers, payrolls, organization, year, month } = input;
 
   const mm = String(month).padStart(2, "0");

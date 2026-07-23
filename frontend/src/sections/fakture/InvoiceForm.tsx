@@ -143,6 +143,17 @@ export default function InvoiceForm({
 
   const [type, setType] = useState<InvoiceType>("INVOICE");
   const [applyVat, setApplyVat] = useState(true);
+  // PDV status izabranog prodavca: određuje default checkbox-a "Obračunavam
+  // PDV" (obveznik → uključen, neobveznik → isključen) i upozorenje ako
+  // neobveznik ipak obračuna PDV. null = status nepoznat (ručno upisan
+  // prodavac), tada se default ne dira.
+  const [sellerIsPdv, setSellerIsPdv] = useState<boolean | null>(null);
+  // ručni klik na checkbox (ili učitana faktura) ima prednost nad defaultom
+  const vatTouchedRef = useRef(false);
+  useEffect(() => {
+    if (vatTouchedRef.current || sellerIsPdv == null) return;
+    setApplyVat(sellerIsPdv);
+  }, [sellerIsPdv]);
   // vrsta isporuke za KIF/PDV prijavu; izvoz i oslobođena idu bez PDV-a
   const [vrstaIsporuke, setVrstaIsporuke] = useState<
     "OPOREZIVA" | "IZVOZ" | "OSLOBODJENA"
@@ -488,6 +499,7 @@ export default function InvoiceForm({
       }
       const inv = res.data;
       setType(inv.type);
+      vatTouchedRef.current = true; // učitana vrijednost, default je ne dira
       setApplyVat(inv.applyVat);
       setVrstaIsporuke(inv.vrstaIsporuke ?? "OPOREZIVA");
       setCurrency(inv.currency);
@@ -557,6 +569,7 @@ export default function InvoiceForm({
       }
       const inv = res.data;
       setType(inv.type);
+      vatTouchedRef.current = true; // učitana vrijednost, default je ne dira
       setApplyVat(inv.applyVat);
       setVrstaIsporuke(inv.vrstaIsporuke ?? "OPOREZIVA");
       setCurrency(inv.currency);
@@ -608,6 +621,9 @@ export default function InvoiceForm({
   }, [editId, isAllowed, lockedSellerOrgId]);
 
   function pickSellerOrg(org: Organization) {
+    setSellerIsPdv(
+      typeof org.isPdvObveznik === "boolean" ? org.isPdvObveznik : null,
+    );
     setSeller({
       organizationId: org.id,
       name: org.name || "",
@@ -623,6 +639,7 @@ export default function InvoiceForm({
   }
 
   function applySellerFill(d: BuyerFillData) {
+    setSellerIsPdv(null); // ručno popunjen prodavac: PDV status nepoznat
     setSeller({
       organizationId: d.organizationId ?? null,
       name: d.name ?? "",
@@ -937,6 +954,7 @@ export default function InvoiceForm({
                 type="checkbox"
                 checked={applyVat}
                 onChange={(e) => {
+                  vatTouchedRef.current = true;
                   setApplyVat(e.target.checked);
                   // PDV se obračunava samo na oporezivu isporuku
                   if (e.target.checked) setVrstaIsporuke("OPOREZIVA");
@@ -963,6 +981,7 @@ export default function InvoiceForm({
                 type="button"
                 className={vrstaIsporuke === "IZVOZ" ? styles.active : ""}
                 onClick={() => {
+                  vatTouchedRef.current = true;
                   setVrstaIsporuke("IZVOZ");
                   setApplyVat(false);
                 }}
@@ -974,6 +993,7 @@ export default function InvoiceForm({
                 type="button"
                 className={vrstaIsporuke === "OSLOBODJENA" ? styles.active : ""}
                 onClick={() => {
+                  vatTouchedRef.current = true;
                   setVrstaIsporuke("OSLOBODJENA");
                   setApplyVat(false);
                 }}
@@ -1022,6 +1042,15 @@ export default function InvoiceForm({
             </div>
             )}
           </div>
+          {/* neobveznik obračunava PDV: upozorenje, bez blokade snimanja */}
+          {applyVat && sellerIsPdv === false && (
+            <p className={styles.pdvUpozorenje}>
+              Ovaj obrt nije u sistemu PDV-a, a na fakturi je uključeno
+              obračunavanje PDV-a. Neobveznik po propisima ne smije
+              iskazivati PDV na fakturi. Možete nastaviti ako je ovo
+              namjerno, a PDV status obrta se mijenja u postavkama.
+            </p>
+          )}
         </div>
 
         {/* ── PRODAVAC ─────────────────────────────────── */}
@@ -1756,14 +1785,19 @@ export default function InvoiceForm({
           <Link href={returnTo} className={`${styles.btn} ${styles.btnGhost}`}>
             Otkaži
           </Link>
-          {isAllowed && editingId != null && (
+          {isAllowed && (
             <button
               type="button"
               onClick={() => onSubmit(null, false)}
               className={`${styles.btn} ${styles.btnGhost}`}
               disabled={submit.isPending}
+              title="Sačuvaj bez preuzimanja PDF-a; dokument ostaje na listi pa se PDF može preuzeti kasnije"
             >
-              {submit.isPending ? "Snimam…" : "Sačuvaj izmjene"}
+              {submit.isPending
+                ? "Snimam…"
+                : editingId != null
+                  ? "Sačuvaj izmjene"
+                  : "Samo sačuvaj"}
             </button>
           )}
           {isAllowed ? (

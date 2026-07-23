@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { PkOfficeCta } from "../BlogCta";
 
 export default function PdvObveznik100000() {
   return (
@@ -298,6 +299,8 @@ export default function PdvObveznik100000() {
         upisu u Jedinstveni registar obveznika indirektnih poreza (Sl.
         glasnik BiH br. 51/12).
       </p>
+
+      <PkOfficeCta text="Kad uđete u sistem PDV-a, PK Office vodi kompletne PDV evidencije: KIF i KUF se pune iz faktura i ulaznih računa, PDV prijava i D-PDV se generišu automatski, uz e-KUF/e-KIF izvoz za UINO." />
     </>
   );
 }

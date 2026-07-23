@@ -15,15 +15,41 @@ export const bankovniIzvodi: Upustvo = {
         {
           t: "koraci",
           stavke: [
-            "Kliknite na polje za učitavanje ili prevucite PDF izvod u njega.",
+            "Kliknite na polje za učitavanje ili prevucite PDF izvod u njega. Možete odabrati i više izvoda odjednom: uvoze se jedan po jedan, po redu.",
             "Sačekajte da program pročita izvod (traje par sekundi).",
             "Provjerite banku, broj računa i period koji su prepoznati.",
             "Izvodi se unutar godine numerišu redom, od broja 1 do zadnjeg.",
           ],
         },
         {
+          t: "savjet",
+          text: "Kad učitate jedan fajl, izvod se odmah otvori sa svim stavkama. Kad učitate više fajlova, na kraju dobijete rezime koliko je uvezeno, a izvodi se pojave u listi ispod, poredani po banci i broju izvoda.",
+        },
+        {
           t: "upozorenje",
           text: "Izvode učitavajte redom kako su stizali. Ako preskočite jedan, saldo se neće poklopiti sa sljedećim izvodom.",
+        },
+      ],
+    },
+    {
+      naslov: "Početno stanje računa",
+      blokovi: [
+        {
+          t: "p",
+          text: "Ako obrt počinjete voditi u programu od ove godine, stare izvode ne morate učitavati. Umjesto toga kliknite \"Početno stanje računa\" (iznad liste izvoda) i upišite stanje sa zadnjeg izvoda prethodne godine, najčešće na dan 31.12. Program to koristi kao polaznu tačku: stanje računa je od tada tačno, a kontrola \"možda nedostaje izvod\" se veže za taj datum.",
+        },
+        {
+          t: "koraci",
+          stavke: [
+            "Kliknite \"Početno stanje računa\" iznad liste izvoda.",
+            "Izaberite žiro račun (ili upišite novi ako još nema izvoda).",
+            "Upišite datum stanja (npr. 31.12.2025.) i iznos u KM sa zadnjeg izvoda te godine.",
+            "Imate li više banaka, ponovite unos za svaki račun.",
+          ],
+        },
+        {
+          t: "savjet",
+          text: "Po računu se čuva jedno početno stanje. Pogriješite li iznos ili datum, kliknite na red \"Početno stanje\" u listi i ispravite ga.",
         },
       ],
     },

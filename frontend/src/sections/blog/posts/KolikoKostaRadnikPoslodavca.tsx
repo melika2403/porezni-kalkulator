@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { BlogCta } from "../BlogCta";
 
 export default function KolikoKostaRadnikPoslodavca() {
   return (
@@ -205,6 +206,13 @@ export default function KolikoKostaRadnikPoslodavca() {
         dohodak FBiH, sa izmjenama. Stope doprinosa na platu prema Sl. novine
         FBiH br. 33/25 (izmjena od 1.7.2025). Iznosi važeći za 2026. godinu.
       </p>
+
+      <BlogCta
+        title="Izračunajte tačan trošak svog radnika"
+        text="Unesite platu u naš obračun plata i dobijete kompletan trošak poslodavca: bruto, sve doprinose, porez i neoporezive naknade, sa platnom listom i uplatnicama za banku."
+        href="/prijave-radnika?tab=obracun"
+        button="Otvori obračun plata"
+      />
     </>
   );
 }

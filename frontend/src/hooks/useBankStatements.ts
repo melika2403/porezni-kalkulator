@@ -12,8 +12,10 @@ import {
   listBankStatements,
   listObligations,
   searchBankTransactions,
+  setInitialBalance,
   updateBankTransaction,
   uploadBankStatement,
+  type InitialBalancePayload,
   type KprPeriod,
   type ManualStatementPayload,
   type TxSearchQuery,
@@ -97,6 +99,21 @@ export function useUploadBankStatement(orgId: number | null) {
       if (orgId == null) throw new Error("Nema aktivne organizacije");
       const result = await uploadBankStatement(orgId, file);
       if (!result.ok) throw result; // UploadError objekt ide u onError
+      return result.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bank-statements", orgId] });
+    },
+  });
+}
+
+export function useSetInitialBalance(orgId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: InitialBalancePayload) => {
+      if (orgId == null) throw new Error("Nema aktivne organizacije");
+      const result = await setInitialBalance(orgId, payload);
+      if (!result.ok) throw result;
       return result.data;
     },
     onSuccess: () => {
