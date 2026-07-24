@@ -4,57 +4,198 @@
   margin: 0 auto;
 }
 
-/* Odvojene kartice umjesto ćelija spojenih 1px linijama. */
+/* jedna velika kartica, po mockup paleti */
 .inner {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
+  background: #fffefb;
+  border: 1px solid #e2dbcb;
+  border-radius: 20px;
+  padding: 48px;
+  box-shadow: 0 2px 24px rgba(30, 42, 35, 0.05);
+}
+@media (max-width: 640px) {
+  .inner {
+    padding: 32px 22px;
+  }
 }
 
-.item {
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+.title {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(26px, 3.4vw, 36px);
+  font-weight: 400;
+  line-height: 1.15;
+  margin: 0;
+  max-width: 460px;
+  color: #1e2a23;
+}
+.title em {
+  font-style: normal;
+  background: linear-gradient(115deg, #2e4a38 30%, #b98a2e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* live ticker pilula */
+.ticker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f3eee3;
+  border: 1px solid #e2dbcb;
+  border-radius: 100px;
+  padding: 10px 18px 10px 14px;
+  font-size: 13.5px;
+  color: #5c665e;
+  min-width: 300px;
+  overflow: hidden;
+}
+@media (max-width: 540px) {
+  .ticker {
+    min-width: 0;
+    width: 100%;
+  }
+  .tickerText {
+    white-space: normal;
+  }
+}
+.pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7c8b72;
+  flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 139, 114, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 139, 114, 0); }
+}
+.tickerText {
+  white-space: nowrap;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.tickerOut {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* dnevnik: kolone sa reveal animacijom i hover gradijentom */
+.ledger {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  border-top: 1px solid #e2dbcb;
+}
+
+.col {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.9rem 2rem;
+  padding: 28px 24px 26px 0;
+  border-bottom: 1px solid #e2dbcb;
+  border-left: 1px dashed #e2dbcb;
+  padding-left: 24px;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.6s ease, transform 0.6s ease, background 0.25s ease;
+}
+.col:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+.colIn {
+  opacity: 1;
+  transform: none;
+}
+.col:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(243, 238, 227, 0) 0%,
+    rgba(243, 238, 227, 0.6) 100%
+  );
+}
+@media (max-width: 540px) {
+  .col {
+    border-left: none;
+    padding-left: 0;
+  }
 }
 
+/* velike brojke sa zeleno-zlatnim gradijentom */
 .big {
-  font-family: 'DM Serif Display', serif;
-  font-size: 2.1rem;
-  line-height: 1.1;
-  color: var(--sage);
-  letter-spacing: -0.01em;
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(38px, 4.5vw, 52px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  /* zlato od 55% da kratke brojke ne ostanu cijele zelene */
+  background: linear-gradient(115deg, #2e4a38 0%, #b98a2e 55%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+  /* superscript "+" viri iznad linije teksta: padding proširuje pozadinu
+     na tu zonu, inače clip-om ostane "odrezan" (bez negativa bi se red
+     spustio, pa ga margina vraća) */
+  padding-top: 0.5em;
+  margin-top: -0.5em;
+}
+.plus {
+  font-size: 0.55em;
+  position: relative;
+  top: -0.45em;
 }
 
-.itemIcon {
+.colLabel {
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 10px;
+  color: #1e2a23;
+}
+.colDesc {
+  font-size: 13.5px;
+  color: #5c665e;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* trust red: čiste kvačice */
+.trustRow {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+}
+.trustItem {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--sage-pale);
-  color: var(--sage);
-  margin-bottom: 0.2rem;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #5c665e;
+}
+.trustItem svg {
+  color: #7c8b72;
+  flex-shrink: 0;
 }
 
-.itemIcon svg {
-  width: 19px;
-  height: 19px;
-}
-
-.itemTitle {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.itemDesc {
-  font-size: 13px;
-  color: var(--mid);
-  line-height: 1.55;
+@media (prefers-reduced-motion: reduce) {
+  .col,
+  .tickerText {
+    transition: none;
+  }
+  .col {
+    opacity: 1;
+    transform: none;
+  }
+  .pulse {
+    animation: none;
+  }
 }

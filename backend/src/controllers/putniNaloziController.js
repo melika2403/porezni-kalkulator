@@ -2,6 +2,7 @@
 // i PDF na frontendu. Numeracija po organizaciji i godini.
 
 const { sequelize, PutniNalog } = require("../models/index");
+const { logEvent } = require("./activityController");
 
 function parseId(v) {
   const n = Number(v);
@@ -168,6 +169,13 @@ async function create(req, res) {
             },
             { transaction: t },
           );
+        });
+        // statistika PK Office korištenja (admin Aktivnost)
+        void logEvent({
+          userId: req.user?.id ?? null,
+          action: "OFFICE_PUTNI_NALOG",
+          label: `Putni nalog br. ${created.broj}/${godina}`,
+          organizationId,
         });
         return res.status(201).json({ ok: true, data: nalogJson(created) });
       } catch (e) {

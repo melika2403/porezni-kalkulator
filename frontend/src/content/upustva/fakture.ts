@@ -24,8 +24,12 @@ export const fakture: Upustvo = {
             "Izaberite kupca iz partnera, ili ga dodajte ako ga nema.",
             "Unesite stavke, količine i cijene; PDV se obračuna po vrsti stavke.",
             "Provjerite datum izdavanja i datum valute u obliku DD.MM.GGGG.",
-            "Sačuvajte; faktura dobije redni broj i može se odštampati u PDF.",
+            "Sačuvajte: \"Spremi i preuzmi PDF\" odmah skida PDF, a \"Samo sačuvaj\" snima bez preuzimanja (PDF se uvijek može skinuti kasnije sa liste).",
           ],
+        },
+        {
+          t: "p",
+          text: "Opcija \"Obračunavam PDV\" prati PDV status obrta iz postavki: obvezniku je uključena (stavke nude 17%), a obrtu koji nije u sistemu PDV-a isključena. Ako neobveznik ipak uključi PDV, forma pokaže upozorenje, ali snimanje ne blokira.",
         },
       ],
     },

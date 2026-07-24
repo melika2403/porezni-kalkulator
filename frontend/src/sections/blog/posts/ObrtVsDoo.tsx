@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { PkOfficeCta } from "../BlogCta";
 
 export default function ObrtVsDoo() {
   return (
@@ -396,6 +397,8 @@ export default function ObrtVsDoo() {
         <Link href="/preracun-neto-bruto">kalkulator plate</Link>,{" "}
         <Link href="/prijave-radnika?tab=obracun">obračun plata</Link>.
       </p>
+
+      <PkOfficeCta text="Ako izaberete obrt, PK Office vam ga vodi od prvog dana: učitate bankovni izvod, a KPR, fakture, plate i godišnji obrasci (SPR, GPD) se popunjavaju sami. Sve obaveze iz ovog članka na jednom mjestu." />
     </>
   );
 }

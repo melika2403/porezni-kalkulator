@@ -17,18 +17,30 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconTrash,
+  IconScale,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { formatBAM, formatDate, mnozina } from "src/lib/format";
 import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 import { HelpButton } from "src/components/app-shell/HelpButton";
+import { Modal } from "src/components/app-shell/Modal";
+import { PkSelect } from "src/components/app-shell/PkSelect";
+import { PkDateInput } from "src/components/app-shell/PkDateInput";
+import { PkAmountInput } from "src/components/app-shell/PkAmountInput";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import {
   useBankSummary,
   useBankStatements,
   useUploadBankStatement,
   useDeleteBankStatement,
+  useSetInitialBalance,
 } from "src/hooks/useBankStatements";
 import type { BankStatementInfo } from "src/api/bankStatements";
+import { getOrganization } from "src/api/profile";
+import { unwrap } from "src/api/auth";
+import { bankNameFromAccount, formatBankAccount } from "src/lib/bankCodes";
+import { parseDateInput, isoToDisplay } from "src/lib/dateInput";
+import { parseKm, formatKm } from "src/lib/amountInput";
 
 const MONTHS = [
   "januar", "februar", "mart", "april", "maj", "juni",
@@ -184,6 +196,16 @@ export default function BankovniIzvodiPage() {
   const router = useRouter();
   const [dragging, setDragging] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // progres uploada više fajlova odjednom (Čitam izvod 2/5...)
+  const [multiProgress, setMultiProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  // rezime ture sa više fajlova: koliko uvezeno + greške po fajlu
+  const [multiRezime, setMultiRezime] = useState<{
+    ok: number;
+    errors: string[];
+  } | null>(null);
   const [filter, setFilter] = useState<ListFilter>("svi");
   // sklopljene grupe banaka (ključ banka|račun); default sve raširene
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -199,37 +221,162 @@ export default function BankovniIzvodiPage() {
   const { data: statements, isLoading: stLoading } = useBankStatements(orgId);
   const upload = useUploadBankStatement(orgId);
   const deleteStatement = useDeleteBankStatement(orgId);
+  const setInitial = useSetInitialBalance(orgId);
+
+  // ── Početno stanje računa (sidro salda bez historijskih izvoda) ──────────
+  const [psOpen, setPsOpen] = useState(false);
+  const [psAccount, setPsAccount] = useState(""); // račun ili "__custom"
+  const [psCustom, setPsCustom] = useState("");
+  const [psDate, setPsDate] = useState(
+    `31.12.${new Date().getFullYear() - 1}.`,
+  );
+  const [psAmount, setPsAmount] = useState("");
+  const [psError, setPsError] = useState<string | null>(null);
+
+  // računi iz profila obrta + računi viđeni na izvodima (bez duplikata)
+  const { data: fullOrg } = useQuery({
+    queryKey: ["pk-org", orgId],
+    queryFn: () => unwrap(getOrganization(orgId as number)),
+    enabled: orgId != null && psOpen,
+  });
+  const psOptions = (() => {
+    const seen = new Set<string>();
+    const opts: { value: string; label: string }[] = [];
+    const dodaj = (acc: string | null, bank?: string | null) => {
+      const digits = String(acc ?? "").replace(/\D+/g, "");
+      if (digits.length < 8 || seen.has(digits)) return;
+      seen.add(digits);
+      opts.push({
+        value: acc as string,
+        label: `${bank || bankNameFromAccount(acc as string) || "Banka"} · ${formatBankAccount(acc as string)}`,
+      });
+    };
+    for (const s of statements ?? []) {
+      if (s.bankId !== "pocetno") dodaj(s.account, s.bankName);
+    }
+    const profilni = fullOrg?.bankAccounts?.length
+      ? fullOrg.bankAccounts
+      : fullOrg?.bankAccount
+        ? [fullOrg.bankAccount]
+        : [];
+    for (const a of profilni) dodaj(a);
+    opts.push({ value: "__custom", label: "Drugi račun (upiši)" });
+    return opts;
+  })();
+
+  function otvoriPocetnoStanje() {
+    setPsError(null);
+    setPsAmount("");
+    setPsCustom("");
+    // predizbor: prvi poznati račun; bez poznatih odmah ručni unos
+    setPsAccount(psOptions.length > 1 ? psOptions[0].value : "__custom");
+    setPsOpen(true);
+  }
+
+  // klik na red početnog stanja: modal prefillovan za izmjenu (nema stavki
+  // pa detalj izvoda nema šta pokazati)
+  function otvoriIzmjenuPocetnog(s: BankStatementInfo) {
+    setPsError(null);
+    const digits = String(s.account ?? "").replace(/\D+/g, "");
+    const opt = psOptions.find(
+      (o) => o.value !== "__custom" && o.value.replace(/\D+/g, "") === digits,
+    );
+    setPsAccount(opt ? opt.value : "__custom");
+    setPsCustom(opt ? "" : (s.account ?? ""));
+    if (s.statementDate) setPsDate(isoToDisplay(s.statementDate));
+    setPsAmount(
+      s.closingBalance != null ? formatKm(Number(s.closingBalance)) : "",
+    );
+    setPsOpen(true);
+  }
+
+  function sacuvajPocetnoStanje() {
+    const account = psAccount === "__custom" ? psCustom : psAccount;
+    const digits = account.replace(/\D+/g, "");
+    if (digits.length < 8) {
+      setPsError("Upišite ispravan žiro račun (najmanje 8 cifara).");
+      return;
+    }
+    const iso = parseDateInput(psDate);
+    if (!iso) {
+      setPsError("Upišite ispravan datum stanja (npr. 31.12.2025.).");
+      return;
+    }
+    const amount = parseKm(psAmount);
+    if (amount == null || amount < 0) {
+      setPsError("Upišite stanje računa u KM (0 ili više).");
+      return;
+    }
+    setPsError(null);
+    setInitial.mutate(
+      { account, date: iso, amount },
+      {
+        onSuccess: () => setPsOpen(false),
+        onError: () =>
+          setPsError("Snimanje nije uspjelo. Pokušajte ponovo."),
+      },
+    );
+  }
 
   function handleDelete(s: BankStatementInfo) {
     setZaBrisanje(s);
   }
 
-  function handleFiles(files: FileList | null) {
-    if (!files || files.length === 0 || upload.isPending) return;
+  function porukaGreske(err: unknown): string {
+    const code =
+      err && typeof err === "object" && "error" in err
+        ? String((err as { error: string }).error)
+        : "PARSE_ERROR";
+    return (
+      UPLOAD_ERROR_MESSAGES[code] ??
+      `Greška pri obradi izvoda (${code}). Pokušajte ponovo.`
+    );
+  }
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0 || upload.isPending || multiProgress) {
+      return;
+    }
+    const pdfs = Array.from(files);
     setUploadError(null);
-    upload.mutate(files[0], {
-      onSuccess: (data) => {
-        // odmah otvori učitani izvod sa svim stavkama
-        router.push(`/app/bankovni-izvodi/${data.statementId}`);
-      },
-      onError: (err: unknown) => {
-        const code =
-          err && typeof err === "object" && "error" in err
-            ? String((err as { error: string }).error)
-            : "PARSE_ERROR";
-        setUploadError(
-          UPLOAD_ERROR_MESSAGES[code] ??
-            `Greška pri obradi izvoda (${code}). Pokušajte ponovo.`,
-        );
-      },
-    });
+    setMultiRezime(null);
     if (fileRef.current) fileRef.current.value = "";
+
+    // jedan fajl: kao do sad, odmah otvori učitani izvod sa svim stavkama
+    if (pdfs.length === 1) {
+      upload.mutate(pdfs[0], {
+        onSuccess: (data) => {
+          router.push(`/app/bankovni-izvodi/${data.statementId}`);
+        },
+        onError: (err: unknown) => setUploadError(porukaGreske(err)),
+      });
+      return;
+    }
+
+    // više fajlova: sekvencijalno (kontinuitet salda vidi prethodno uvezene
+    // izvode), po redu naziva fajla; na kraju rezime umjesto preusmjeravanja
+    pdfs.sort((a, b) => a.name.localeCompare(b.name, "bs", { numeric: true }));
+    setMultiProgress({ done: 0, total: pdfs.length });
+    const errors: string[] = [];
+    let ok = 0;
+    try {
+      for (let i = 0; i < pdfs.length; i++) {
+        setMultiProgress({ done: i, total: pdfs.length });
+        try {
+          await upload.mutateAsync(pdfs[i]);
+          ok++;
+        } catch (err) {
+          errors.push(`${pdfs[i].name}: ${porukaGreske(err)}`);
+        }
+      }
+    } finally {
+      setMultiProgress(null);
+    }
+    setMultiRezime({ ok, errors });
   }
 
   const now = new Date();
   const monthName = MONTHS[now.getMonth()];
-  // grupni uvoz ima smisla samo kad korisnik vodi više obrta
-  const imaViseObrta = (me?.organizations?.length ?? 0) > 1;
 
   // brojevi za filter chipove (prije filtriranja)
   const zaPregledCount = (statements ?? []).filter(
@@ -245,10 +392,12 @@ export default function BankovniIzvodiPage() {
     return true;
   });
 
-  // grupiši izvode po banci + računu
+  // grupiši izvode po računu (po ciframa: banke i početno stanje pišu isti
+  // račun različito formatiran); izvodi bez računa po nazivu banke
   const groups = new Map<string, { bankName: string; account: string | null; items: BankStatementInfo[] }>();
   for (const s of filtered) {
-    const key = `${s.bankName ?? "Banka"}|${s.account ?? ""}`;
+    const digits = String(s.account ?? "").replace(/\D+/g, "");
+    const key = digits ? `acc:${digits}` : `${s.bankName ?? "Banka"}|`;
     const group = groups.get(key) ?? {
       bankName: s.bankName ?? "Banka",
       account: s.account,
@@ -257,6 +406,14 @@ export default function BankovniIzvodiPage() {
     group.items.push(s);
     groups.set(key, group);
   }
+  // grupe uvijek istim redom: po nazivu banke pa broju računa (redoslijed sa
+  // API-ja zavisi od vremena uploada pa bi grupe "šetale")
+  const sortedGroups = [...groups.entries()].sort(([, a], [, b]) => {
+    return (
+      a.bankName.localeCompare(b.bankName, "bs") ||
+      String(a.account ?? "").localeCompare(String(b.account ?? ""))
+    );
+  });
   const hasAny = (statements ?? []).length > 0;
 
   function toggleGroup(key: string) {
@@ -293,7 +450,9 @@ export default function BankovniIzvodiPage() {
         <div
           role="button"
           tabIndex={0}
-          onClick={() => !upload.isPending && fileRef.current?.click()}
+          onClick={() =>
+            !upload.isPending && !multiProgress && fileRef.current?.click()
+          }
           onDragOver={(e) => {
             e.preventDefault();
             setDragging(true);
@@ -309,28 +468,35 @@ export default function BankovniIzvodiPage() {
             dragging
               ? "border-brand-600 bg-brand-100"
               : "border-brand-600/60 bg-brand-100/45 hover:bg-brand-100/75 hover:border-brand-600",
-            upload.isPending ? "opacity-70 pointer-events-none" : "",
+            upload.isPending || multiProgress
+              ? "opacity-70 pointer-events-none"
+              : "",
           ].join(" ")}
         >
           <input
             ref={fileRef}
             type="file"
             accept=".pdf"
+            multiple
             className="hidden"
             onChange={(e) => handleFiles(e.target.files)}
           />
           <span className="w-[54px] h-[54px] rounded-full bg-brand-600 text-white inline-flex items-center justify-center mb-3">
-            {upload.isPending ? (
+            {upload.isPending || multiProgress ? (
               <IconLoader2 size={26} className="animate-spin" />
             ) : (
               <IconCloudUpload size={26} />
             )}
           </span>
           <div className="font-serif-display text-[18px] leading-tight text-text-primary">
-            {upload.isPending ? "Čitam izvod..." : "Učitaj bankovni izvod"}
+            {multiProgress
+              ? `Čitam izvod ${multiProgress.done + 1}/${multiProgress.total}...`
+              : upload.isPending
+                ? "Čitam izvod..."
+                : "Učitaj bankovne izvode"}
           </div>
           <div className="text-[12.5px] text-text-tertiary mt-1.5">
-            Prevuci PDF ili klikni za odabir
+            Prevuci jedan ili više PDF-ova, ili klikni za odabir
           </div>
           <div className="text-[11px] text-text-tertiary mt-2.5">
             UniCredit · Raiffeisen · Sparkasse · KIB · BBI · MF · Ziraat
@@ -354,33 +520,70 @@ export default function BankovniIzvodiPage() {
         </button>
       </div>
 
-      {/* Grupni uvoz: vidljivo samo korisnicima sa više obrta */}
-      {imaViseObrta && (
-        <div className="rounded-xl border border-brand-600/25 bg-brand-100/50 px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[13px] leading-6 text-text-primary flex items-center gap-2.5">
-            <IconInbox size={17} className="text-brand-700 shrink-0" />
-            <span>
-              Vodite više obrta? Na Inboxu ubacite izvode za{" "}
-              <strong>sve obrte odjednom</strong>: svaki se sam prepozna po
-              žiro računu i rasporedi na svoj obrt.
-            </span>
+      {/* Grupni uvoz: vidljivo svima, i sa jednim obrtom */}
+      <div className="rounded-xl border border-brand-600/25 bg-brand-100/50 px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[13px] leading-6 text-text-primary flex items-center gap-2.5">
+          <IconInbox size={17} className="text-brand-700 shrink-0" />
+          <span>
+            Na Inboxu ubacite izvode za <strong>sve obrte odjednom</strong>:
+            svaki se sam prepozna po žiro računu i rasporedi na svoj obrt.
           </span>
-          <button
-            type="button"
-            onClick={() => router.push("/app/inbox?tab=izvodi")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-brand-600 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity shrink-0"
-          >
-            Grupni uvoz izvoda
-            <IconChevronRight size={14} />
-          </button>
-        </div>
-      )}
+        </span>
+        <button
+          type="button"
+          onClick={() => router.push("/app/inbox?tab=izvodi")}
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-brand-600 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity shrink-0"
+        >
+          Grupni uvoz izvoda
+          <IconChevronRight size={14} />
+        </button>
+      </div>
 
       {/* Greška uploada */}
       {uploadError && (
         <div className="rounded-xl border border-warning/30 bg-warning-bg text-warning px-4 py-3 mb-4 text-[13px] leading-5 flex items-start gap-2.5">
           <IconFileX size={17} className="shrink-0 mt-0.5" />
           <div>{uploadError}</div>
+        </div>
+      )}
+
+      {/* Rezime ture sa više fajlova */}
+      {multiRezime && (
+        <div
+          className={[
+            "rounded-xl border px-4 py-3 mb-4 text-[13px] leading-5",
+            multiRezime.errors.length
+              ? "border-warning/30 bg-warning-bg text-warning"
+              : "border-success/30 bg-success-bg text-success",
+          ].join(" ")}
+        >
+          <div className="flex items-start gap-2.5">
+            {multiRezime.errors.length ? (
+              <IconFileX size={17} className="shrink-0 mt-0.5" />
+            ) : (
+              <IconCircleCheck size={17} className="shrink-0 mt-0.5" />
+            )}
+            <div>
+              <div>
+                Uvezeno {multiRezime.ok} od{" "}
+                {multiRezime.ok + multiRezime.errors.length}{" "}
+                {mnozina(
+                  multiRezime.ok + multiRezime.errors.length,
+                  "izvod",
+                  "izvoda",
+                  "izvoda",
+                )}
+                .
+              </div>
+              {multiRezime.errors.length > 0 && (
+                <ul className="mt-1 space-y-0.5">
+                  {multiRezime.errors.map((e) => (
+                    <li key={e}>{e}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -440,9 +643,9 @@ export default function BankovniIzvodiPage() {
               Po banci i računu; unutar godine od br. 1 do zadnjeg
             </p>
           </div>
-          {hasAny && (
-            <div className="flex items-center gap-1.5">
-              {(
+          <div className="flex flex-wrap items-center gap-1.5">
+            {hasAny &&
+              (
                 [
                   { id: "svi" as const, label: "Svi" },
                   {
@@ -469,8 +672,16 @@ export default function BankovniIzvodiPage() {
                   {c.label}
                 </button>
               ))}
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={otvoriPocetnoStanje}
+              title="Upišite stanje računa na dan prije prvog učitanog izvoda (npr. 31.12. prethodne godine), da stanje bude tačno bez učitavanja starih izvoda"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-600 text-brand-600 text-[12px] font-medium hover:bg-brand-600 hover:text-white transition-colors ml-1"
+            >
+              <IconScale size={14} />
+              Početno stanje računa
+            </button>
+          </div>
         </div>
 
         {!hasAny && !stLoading ? (
@@ -492,7 +703,7 @@ export default function BankovniIzvodiPage() {
           </div>
         ) : (
           <div className="pb-2">
-            {[...groups.entries()].map(([key, group]) => {
+            {sortedGroups.map(([key, group]) => {
               const sections = yearSections(group.items);
               const stanje = zadnjeStanje(group.items);
               const sklopljena = collapsed.has(key);
@@ -589,7 +800,11 @@ export default function BankovniIzvodiPage() {
                                 )}
                                 <div
                                   onClick={() =>
-                                    router.push(`/app/bankovni-izvodi/${s.id}`)
+                                    s.bankId === "pocetno"
+                                      ? otvoriIzmjenuPocetnog(s)
+                                      : router.push(
+                                          `/app/bankovni-izvodi/${s.id}`,
+                                        )
                                   }
                                   className={[
                                     "flex items-center gap-3 pl-[49px] pr-4 py-[11px] cursor-pointer hover:bg-[rgba(15,26,18,0.025)] transition-colors border-b border-cream-300/50 border-l-[3px]",
@@ -601,14 +816,26 @@ export default function BankovniIzvodiPage() {
                                   </span>
                                   <div className="flex-1 min-w-0">
                                     <div className="text-[14.5px] font-medium text-text-primary">
-                                      {s.statementNumber
-                                        ? `Izvod br. ${s.statementNumber}`
-                                        : "Ručni izvod"}
+                                      {s.bankId === "pocetno"
+                                        ? "Početno stanje"
+                                        : s.statementNumber
+                                          ? `Izvod br. ${s.statementNumber}`
+                                          : "Ručni izvod"}
                                       <span className="text-text-tertiary font-normal">
                                         {" "}· {s.statementDate ? formatDate(s.statementDate) : "bez datuma"}
                                       </span>
                                     </div>
                                     <div className="text-[12.5px] text-text-tertiary truncate mt-0.5 tabular-nums">
+                                      {s.bankId === "pocetno" ? (
+                                        <>
+                                          Stanje računa na taj dan:{" "}
+                                          <span className="text-text-secondary font-medium">
+                                            {formatBAM(Number(s.closingBalance ?? 0))}
+                                          </span>
+                                          {" "}· polazna tačka, bez stavki
+                                        </>
+                                      ) : (
+                                        <>
                                       {s.txCount}{" "}
                                       {mnozina(s.txCount, "stavka", "stavke", "stavki")}
                                       {(s.totalIn ?? 0) > 0 && (
@@ -628,6 +855,8 @@ export default function BankovniIzvodiPage() {
                                         </>
                                       )}
                                       {s.fileName ? ` · ${s.fileName}` : ""}
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                   {(s.bezKategorijeCount ?? 0) > 0 && (
@@ -646,24 +875,26 @@ export default function BankovniIzvodiPage() {
                                       {s.bezKategorijeCount} bez kategorije
                                     </button>
                                   )}
-                                  <span
-                                    className={[
-                                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12.5px] font-medium shrink-0",
-                                      s.unmatchedCount > 0
-                                        ? "bg-accent-bg text-accent-500"
-                                        : "bg-brand-100 text-brand-700",
-                                    ].join(" ")}
-                                  >
-                                    {s.unmatchedCount > 0 ? (
-                                      <>
-                                        <IconAlertCircle size={11} /> {s.unmatchedCount} za pregled
-                                      </>
-                                    ) : (
-                                      <>
-                                        <IconCircleCheck size={11} /> potvrđen ({reviewed}/{s.txCount})
-                                      </>
-                                    )}
-                                  </span>
+                                  {s.bankId !== "pocetno" && (
+                                    <span
+                                      className={[
+                                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12.5px] font-medium shrink-0",
+                                        s.unmatchedCount > 0
+                                          ? "bg-accent-bg text-accent-500"
+                                          : "bg-brand-100 text-brand-700",
+                                      ].join(" ")}
+                                    >
+                                      {s.unmatchedCount > 0 ? (
+                                        <>
+                                          <IconAlertCircle size={11} /> {s.unmatchedCount} za pregled
+                                        </>
+                                      ) : (
+                                        <>
+                                          <IconCircleCheck size={11} /> potvrđen ({reviewed}/{s.txCount})
+                                        </>
+                                      )}
+                                    </span>
+                                  )}
                                   <button
                                     type="button"
                                     title="Obriši izvod"
@@ -694,13 +925,114 @@ export default function BankovniIzvodiPage() {
         )}
       </div>
 
+      {/* Unos početnog stanja računa */}
+      <Modal
+        open={psOpen}
+        onClose={() => setPsOpen(false)}
+        title="Početno stanje računa"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setPsOpen(false)}
+              className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] font-medium text-text-secondary hover:bg-cream-200 transition-colors"
+            >
+              Otkaži
+            </button>
+            <button
+              type="button"
+              onClick={sacuvajPocetnoStanje}
+              disabled={setInitial.isPending}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {setInitial.isPending ? (
+                <IconLoader2 size={15} className="animate-spin" />
+              ) : null}
+              Sačuvaj stanje
+            </button>
+          </>
+        }
+      >
+        <p className="text-[13px] leading-6 text-text-secondary mb-4">
+          Ako ne želite učitavati stare izvode, upišite stanje računa na dan
+          prije prvog izvoda koji jeste učitali (najčešće 31.12. prethodne
+          godine, sa zadnjeg izvoda te godine). Program ga koristi kao
+          polaznu tačku: stanje računa i kontrola nedostajućih izvoda se
+          računaju od tog datuma. Po računu se čuva jedno početno stanje,
+          ponovni unos ga mijenja.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[12px] font-medium text-text-secondary mb-1">
+              Žiro račun
+            </label>
+            <PkSelect
+              ariaLabel="Žiro račun"
+              value={psAccount}
+              onChange={(v) => setPsAccount(String(v ?? ""))}
+              options={psOptions}
+              wrapStyle={{ width: "100%" }}
+            />
+          </div>
+          {psAccount === "__custom" && (
+            <div>
+              <label className="block text-[12px] font-medium text-text-secondary mb-1">
+                Broj računa
+              </label>
+              <input
+                type="text"
+                value={psCustom}
+                onChange={(e) => setPsCustom(e.target.value)}
+                placeholder="npr. 161-000-00000000-00"
+                className="w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13.5px] text-text-primary outline-none focus:border-brand-600 transition-colors"
+              />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[12px] font-medium text-text-secondary mb-1">
+                Stanje na dan
+              </label>
+              <PkDateInput
+                value={psDate}
+                onChange={setPsDate}
+                ariaLabel="Datum početnog stanja"
+                inputClassName="bg-cream-50"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-text-secondary mb-1">
+                Stanje (KM)
+              </label>
+              <PkAmountInput
+                value={psAmount}
+                onChange={setPsAmount}
+                ariaLabel="Iznos početnog stanja"
+                className="bg-cream-50"
+              />
+            </div>
+          </div>
+          {psError && (
+            <p className="text-[12.5px] text-danger">{psError}</p>
+          )}
+        </div>
+      </Modal>
+
       {/* potvrda brisanja izvoda (PK modal umjesto browserskog dijaloga) */}
       <ConfirmModal
         open={zaBrisanje != null}
         onClose={() => setZaBrisanje(null)}
         title="Obriši izvod"
         message={
-          zaBrisanje && (
+          zaBrisanje &&
+          (zaBrisanje.bankId === "pocetno" ? (
+            <>
+              Obrisati{" "}
+              <strong className="text-text-primary">početno stanje</strong>{" "}
+              računa {zaBrisanje.account ?? ""}? Stanje računa i kontrola
+              kontinuiteta izvoda više neće imati ovu polaznu tačku.
+            </>
+          ) : (
             <>
               Obrisati{" "}
               <strong className="text-text-primary">
@@ -712,7 +1044,7 @@ export default function BankovniIzvodiPage() {
               stavki? Ovo se ne može poništiti, a povezane fakture i ulazni
               računi se vraćaju u otvoreno stanje.
             </>
-          )
+          ))
         }
         confirmLabel="Da, obriši izvod"
         busy={deleteStatement.isPending}

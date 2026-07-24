@@ -92,11 +92,12 @@
   font-weight: 600;
 }
 
+/* Glavni CTA u accent (terracotta) boji, kao na cjenovniku */
 .cta {
   display: inline-block;
   margin-top: 0.85rem;
   padding: 0.75rem 1.25rem;
-  background: var(--sage);
+  background: var(--accent, #c8622a);
   color: var(--white);
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -105,7 +106,7 @@
   transition: background 0.15s, transform 0.15s;
 }
 .cta:hover {
-  background: var(--sage-dark, #5d735f);
+  background: #b05423;
   transform: translateY(-1px);
 }
 .note {
@@ -177,6 +178,144 @@
 .divider {
   height: 1px;
   background: var(--border);
+}
+
+/* ── Tabovi za showcase funkcija (aktivni u accent boji) ── */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+.tabBtn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mid);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.45rem 1.05rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.tabBtn:hover {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent, #c8622a) 50%, transparent);
+}
+.tabBtnActive,
+.tabBtnActive:hover {
+  color: #fff;
+  background: var(--accent, #c8622a);
+  border-color: var(--accent, #c8622a);
+  position: relative;
+  overflow: hidden;
+}
+
+/* tanka linija na dnu aktivnog taba puni se do sljedeće auto-rotacije */
+.tabBtnActive::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.55);
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: tabProgress 9s linear forwards;
+}
+.tabsPaused .tabBtnActive::after {
+  animation-play-state: paused;
+}
+@keyframes tabProgress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* blagi fade/slide sadržaja pri smjeni funkcije */
+.spotFade {
+  animation: spotFade 0.45s ease;
+}
+@keyframes spotFade {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabBtnActive::after {
+    display: none;
+  }
+  .spotFade {
+    animation: none;
+  }
+}
+
+/* ── Za koga je PK Office ── */
+.personaRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+}
+@media (max-width: 880px) {
+  .personaRow {
+    grid-template-columns: 1fr;
+  }
+}
+.personaCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.1rem 1.2rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.personaIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent, #c8622a) 12%, transparent);
+  color: var(--accent, #c8622a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+.personaName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.personaDesc {
+  font-size: 12.5px;
+  color: var(--mid);
+  line-height: 1.55;
+}
+
+/* ── Linkovi na dnu sekcije ── */
+.linksRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.75rem;
+  justify-content: center;
+}
+.moreLink {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--sage);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--sage) 30%, transparent);
+  padding-bottom: 1px;
+}
+.moreLink:hover {
+  border-bottom-color: var(--sage);
 }
 
 /* ── Spotlight: automatsko knjiženje izvoda ── */

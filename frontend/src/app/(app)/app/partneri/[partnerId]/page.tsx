@@ -3,7 +3,7 @@
 import { use, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IconArrowLeft,
   IconPlus,
@@ -34,6 +34,7 @@ import {
   emailIos,
   emailKartica,
   emailOpomena,
+  setOpeningBalance,
   type KarticaType,
   type UlazniRacun,
 } from "src/api/partners";
@@ -41,9 +42,12 @@ import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
 import { KompenzacijaModal } from "src/sections/prebijanja/PrebijanjeModali";
-import { parseDateInput } from "src/lib/dateInput";
+import { parseDateInput, isoToDisplay } from "src/lib/dateInput";
+import { parseKm, formatKm } from "src/lib/amountInput";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
+import { PkAmountInput } from "src/components/app-shell/PkAmountInput";
 import { PkSelect } from "src/components/app-shell/PkSelect";
+import { Modal } from "src/components/app-shell/Modal";
 import {
   PartnerFormModal,
   formFromPartner,
@@ -163,7 +167,19 @@ export default function PartnerKarticaPage({
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
   const orgId = activeOrg?.id ?? null;
 
-  const { data: kartica, isLoading } = usePartnerKartica(orgId, partnerId);
+  // godišnji pregled: default tekuća godina, "sve" = cijeli period
+  const currentYear = new Date().getFullYear();
+  const [godina, setGodina] = useState<number | "sve">(currentYear);
+  const period =
+    godina === "sve"
+      ? {}
+      : { from: `${godina}-01-01`, to: `${godina}-12-31` };
+
+  const { data: kartica, isLoading } = usePartnerKartica(
+    orgId,
+    partnerId,
+    period,
+  );
   const updateRacun = useUpdateUlazniRacun(orgId);
   const deleteRacun = useDeleteUlazniRacun(orgId);
   // ulazni račun koji čeka potvrdu brisanja (PK modal umjesto window.confirm)
@@ -195,13 +211,73 @@ export default function PartnerKarticaPage({
   const [opomenaNivo, setOpomenaNivo] = useState<"1" | "2">("1");
   const [opomenaInfo, setOpomenaInfo] = useState<string | null>(null);
 
+  // početno stanje partnera (migracija iz starog programa)
+  const queryClient = useQueryClient();
+  const [psOpen, setPsOpen] = useState(false);
+  const [psDatum, setPsDatum] = useState("");
+  const [psKupac, setPsKupac] = useState("");
+  const [psDob, setPsDob] = useState("");
+  const [psNapomena, setPsNapomena] = useState("");
+  const [psError, setPsError] = useState<string | null>(null);
+  const [psBusy, setPsBusy] = useState(false);
+
+  function otvoriPocetnoStanje() {
+    const op = kartica?.opening ?? null;
+    setPsError(null);
+    setPsDatum(
+      op?.datum ? isoToDisplay(op.datum) : `31.12.${currentYear - 1}.`,
+    );
+    setPsKupac(op && op.kupacIznos !== 0 ? formatKm(op.kupacIznos) : "");
+    setPsDob(
+      op && op.dobavljacIznos !== 0 ? formatKm(op.dobavljacIznos) : "",
+    );
+    setPsNapomena(op?.napomena ?? "");
+    setPsOpen(true);
+  }
+
+  async function sacuvajPocetnoStanje() {
+    if (!orgId || !partnerId || psBusy) return;
+    const datum = parseDateInput(psDatum);
+    if (!datum) {
+      setPsError("Upišite ispravan datum stanja (npr. 31.12.2025.).");
+      return;
+    }
+    const kupacIznos = psKupac.trim() ? parseKm(psKupac) : 0;
+    const dobavljacIznos = psDob.trim() ? parseKm(psDob) : 0;
+    if (kupacIznos == null || dobavljacIznos == null) {
+      setPsError("Iznosi moraju biti brojevi u KM (prazno = 0).");
+      return;
+    }
+    setPsError(null);
+    setPsBusy(true);
+    const r = await setOpeningBalance(orgId, partnerId, {
+      datum,
+      kupacIznos,
+      dobavljacIznos,
+      napomena: psNapomena.trim() || null,
+    });
+    setPsBusy(false);
+    if (r.ok) {
+      setPsOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["partners", orgId] });
+    } else {
+      setPsError("Snimanje nije uspjelo. Pokušajte ponovo.");
+    }
+  }
+
   const p = kartica?.partner ?? null;
   const totals = kartica?.totals ?? null;
 
   const jeKupac =
-    (totals?.totalIn ?? 0) > 0 || (kartica?.invoices ?? []).length > 0;
+    (totals?.totalIn ?? 0) > 0 ||
+    (kartica?.invoices ?? []).length > 0 ||
+    Math.abs(kartica?.donos?.kupac ?? 0) > 0.005 ||
+    Math.abs(kartica?.opening?.kupacIznos ?? 0) > 0.005;
   const jeDobavljac =
-    (totals?.totalOut ?? 0) > 0 || (kartica?.ulazniRacuni ?? []).length > 0;
+    (totals?.totalOut ?? 0) > 0 ||
+    (kartica?.ulazniRacuni ?? []).length > 0 ||
+    Math.abs(kartica?.donos?.dobavljac ?? 0) > 0.005 ||
+    Math.abs(kartica?.opening?.dobavljacIznos ?? 0) > 0.005;
   // ima li dospjelog duga preko roka (uslov za opomenu)
   const imaDospjelo = (totals?.openInvoicesLate ?? 0) > 0;
 
@@ -292,6 +368,57 @@ export default function PartnerKarticaPage({
       }
     }
     rows.sort((a, b) => a.date.localeCompare(b.date));
+
+    // donos iz ranijih godina (početno stanje + raniji promet) na vrh;
+    // kartica strane: kupac duguje nama (duguje), dobavljaču mi (potražuje)
+    const donosSaldo =
+      activeLedger === "kupac"
+        ? (kartica.donos?.kupac ?? 0)
+        : (kartica.donos?.dobavljac ?? 0);
+    if (kartica.period?.from && Math.abs(donosSaldo) > 0.005) {
+      rows.unshift({
+        date: kartica.period.from,
+        dospijece: null,
+        istekao: false,
+        label: "Donos iz ranijeg perioda",
+        duguje:
+          activeLedger === "kupac"
+            ? Math.max(donosSaldo, 0)
+            : Math.max(-donosSaldo, 0),
+        potrazuje:
+          activeLedger === "kupac"
+            ? Math.max(-donosSaldo, 0)
+            : Math.max(donosSaldo, 0),
+        href: null,
+      });
+    }
+    // početno stanje unutar prikaza (pregled "sve" ili datum u periodu)
+    const op = kartica.opening;
+    if (op) {
+      const iznos =
+        activeLedger === "kupac" ? op.kupacIznos : op.dobavljacIznos;
+      const uPrikazu =
+        (!kartica.period?.from || op.datum >= kartica.period.from) &&
+        (!kartica.period?.to || op.datum <= kartica.period.to);
+      if (uPrikazu && Math.abs(iznos) > 0.005) {
+        rows.push({
+          date: op.datum,
+          dospijece: null,
+          istekao: false,
+          label: `Početno stanje na ${formatDate(op.datum)}`,
+          duguje:
+            activeLedger === "kupac"
+              ? Math.max(iznos, 0)
+              : Math.max(-iznos, 0),
+          potrazuje:
+            activeLedger === "kupac"
+              ? Math.max(-iznos, 0)
+              : Math.max(iznos, 0),
+          href: null,
+        });
+        rows.sort((a, b) => a.date.localeCompare(b.date));
+      }
+    }
     return rows;
   }, [kartica, activeLedger]);
 
@@ -320,9 +447,19 @@ export default function PartnerKarticaPage({
     return { from: from ?? undefined, to: to ?? undefined };
   }
 
+  // prazna polja perioda štampe: podrazumijeva se izabrana godina pregleda
+  function periodStampe(): { from?: string; to?: string } | null {
+    const res = resolvePeriod();
+    if (!res) return null;
+    if (!res.from && !res.to && godina !== "sve") {
+      return { from: `${godina}-01-01`, to: `${godina}-12-31` };
+    }
+    return res;
+  }
+
   async function downloadKartica(type: KarticaType) {
     if (!orgId || !partnerId) return;
-    const period = resolvePeriod();
+    const period = periodStampe();
     if (!period) return;
     setBusy(`pdf-${type}`);
     try {
@@ -438,7 +575,7 @@ export default function PartnerKarticaPage({
 
   async function sendKartica() {
     if (!orgId || !partnerId) return;
-    const period = resolvePeriod();
+    const period = periodStampe();
     if (!period) return;
     setBusy("email");
     setMailInfo(null);
@@ -542,6 +679,29 @@ export default function PartnerKarticaPage({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PkSelect
+            ariaLabel="Godina pregleda"
+            value={godina === "sve" ? "sve" : String(godina)}
+            onChange={(v) =>
+              setGodina(v === "sve" ? "sve" : Number(v) || currentYear)
+            }
+            options={[
+              ...Array.from(
+                {
+                  length:
+                    currentYear -
+                    Math.min(kartica?.minYear ?? currentYear, currentYear) +
+                    1,
+                },
+                (_, i) => ({
+                  value: String(currentYear - i),
+                  label: `Godina ${currentYear - i}`,
+                }),
+              ),
+              { value: "sve", label: "Sve godine" },
+            ]}
+            wrapStyle={{ width: 150 }}
+          />
           {(totals?.openInvoicesTotal ?? 0) > 0 &&
             (totals?.openPayablesTotal ?? 0) > 0 && (
               <button
@@ -590,7 +750,7 @@ export default function PartnerKarticaPage({
           onChange={setPeriodOd}
           placeholder="DD.MM.GGGG."
           ariaLabel="Period od"
-          title="Period štampe kartice (prazno = cijeli promet)"
+          title="Period štampe kartice (prazno = izabrana godina pregleda)"
           className="w-[150px]"
         />
         <PkDateInput
@@ -598,7 +758,7 @@ export default function PartnerKarticaPage({
           onChange={setPeriodDo}
           placeholder="DD.MM.GGGG."
           ariaLabel="Period do"
-          title="Period štampe kartice (prazno = do danas)"
+          title="Period štampe kartice (prazno = izabrana godina pregleda)"
           className="w-[150px]"
         />
         {jeKupac && (
@@ -805,6 +965,41 @@ export default function PartnerKarticaPage({
           )}
         </div>
       )}
+
+      {/* Početno stanje (migracija iz starog programa) */}
+      <div className="flex flex-wrap items-center gap-2 py-3">
+        <span
+          className={groupLabelCls}
+          title="Stanje duga pri ulasku obrta u program: ulazi u karticu kao donos i u žive dugove, a uplate ga po FIFO-u zatvaraju prije novih dokumenata"
+        >
+          Poč. stanje
+        </span>
+        {kartica?.opening ? (
+          <span className="text-[12px] text-text-secondary tabular-nums">
+            na {formatDate(kartica.opening.datum)}:{" "}
+            {kartica.opening.kupacIznos !== 0 &&
+              `kupac ${formatBAM(kartica.opening.kupacIznos)}`}
+            {kartica.opening.kupacIznos !== 0 &&
+              kartica.opening.dobavljacIznos !== 0 &&
+              " · "}
+            {kartica.opening.dobavljacIznos !== 0 &&
+              `dobavljač ${formatBAM(kartica.opening.dobavljacIznos)}`}
+          </span>
+        ) : (
+          <span className="text-[12px] text-text-tertiary">
+            nije uneseno (treba samo ako je dug postojao prije ulaska u
+            program)
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={otvoriPocetnoStanje}
+          className={pdfBtnCls}
+        >
+          <IconPencil size={14} />
+          {kartica?.opening ? "Izmijeni" : "Unesi početno stanje"}
+        </button>
+      </div>
       </div>
 
       {/* KPI */}
@@ -1149,6 +1344,94 @@ export default function PartnerKarticaPage({
           });
         }}
       />
+
+      {/* Unos/izmjena početnog stanja partnera */}
+      <Modal
+        open={psOpen}
+        onClose={() => setPsOpen(false)}
+        title="Početno stanje partnera"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setPsOpen(false)}
+              className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] font-medium text-text-secondary hover:bg-cream-200 transition-colors"
+            >
+              Otkaži
+            </button>
+            <button
+              type="button"
+              onClick={() => void sacuvajPocetnoStanje()}
+              disabled={psBusy}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {psBusy ? (
+                <IconLoader2 size={15} className="animate-spin" />
+              ) : null}
+              Sačuvaj
+            </button>
+          </>
+        }
+      >
+        <p className="text-[13px] leading-6 text-text-secondary mb-4">
+          Stanje duga na dan prije nego što ste obrt počeli voditi u programu
+          (najčešće 31.12. prethodne godine). Ulazi u karticu kao donos i u
+          otvorene dugove, a uplate ga zatvaraju prije novijih dokumenata.
+          Upišite 0 u oba polja da uklonite početno stanje.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[12px] font-medium text-text-secondary mb-1">
+              Stanje na dan
+            </label>
+            <PkDateInput
+              value={psDatum}
+              onChange={setPsDatum}
+              ariaLabel="Datum početnog stanja"
+              inputClassName="bg-cream-50"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[12px] font-medium text-text-secondary mb-1">
+                Partner duguje nama (KM)
+              </label>
+              <PkAmountInput
+                value={psKupac}
+                onChange={setPsKupac}
+                ariaLabel="Dug kupca"
+                title="Otvorena potraživanja od partnera kao kupca na taj dan"
+                className="bg-cream-50"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-text-secondary mb-1">
+                Mi dugujemo partneru (KM)
+              </label>
+              <PkAmountInput
+                value={psDob}
+                onChange={setPsDob}
+                ariaLabel="Dug prema dobavljaču"
+                title="Otvorene obaveze prema partneru kao dobavljaču na taj dan"
+                className="bg-cream-50"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-text-secondary mb-1">
+              Napomena (opciono)
+            </label>
+            <input
+              type="text"
+              value={psNapomena}
+              onChange={(e) => setPsNapomena(e.target.value)}
+              placeholder="npr. preneseno iz starog programa"
+              className="w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13.5px] text-text-primary outline-none focus:border-brand-600 transition-colors"
+            />
+          </div>
+          {psError && <p className="text-[12.5px] text-danger">{psError}</p>}
+        </div>
+      </Modal>
     </div>
   );
 }

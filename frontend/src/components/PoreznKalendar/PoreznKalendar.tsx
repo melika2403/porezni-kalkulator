@@ -130,50 +130,64 @@ export default function PoreznKalendar() {
       aria-labelledby="porezni-kalendar-title"
     >
       <div className={styles.container}>
-        <div className={styles.head}>
-          <div className={styles.label}>Reference: rokovi obaveza</div>
-          <h2 id="porezni-kalendar-title" className={styles.h2}>
-            Porezni <em>kalendar</em> FBiH
-          </h2>
-          <p className={styles.lead}>
-            Kada šta predati i uplatiti. Pregled najvažnijih mjesečnih, kvartalnih
-            i godišnjih obaveza za obrte, samostalne djelatnosti i poslodavce
-            u Federaciji BiH.
+        <div className={styles.inner}>
+          <div className={styles.head}>
+            <div className={styles.label}>
+              <span className={styles.labelDot} aria-hidden="true" />
+              Rokovi obaveza
+            </div>
+            <h2 id="porezni-kalendar-title" className={styles.h2}>
+              Porezni <em>kalendar</em> FBiH
+            </h2>
+            <p className={styles.lead}>
+              Kada šta predati i uplatiti. Pregled najvažnijih mjesečnih,
+              kvartalnih i godišnjih obaveza za obrte, samostalne djelatnosti
+              i poslodavce u Federaciji BiH.
+            </p>
+          </div>
+
+          <div className={styles.group}>
+            <h3 className={styles.groupTitle}>
+              Mjesečno
+              <span className={styles.groupCount}>{MJESECNO.length}</span>
+            </h3>
+            <div className={styles.list}>
+              {MJESECNO.map((it) => (
+                <ItemCard key={it.title} item={it} />
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.group}>
+            <h3 className={styles.groupTitle}>
+              Prijava i odjava radnika
+              <span className={styles.groupCount}>{JS3100.length}</span>
+            </h3>
+            <div className={styles.list}>
+              {JS3100.map((it) => (
+                <ItemCard key={it.title} item={it} />
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.group}>
+            <h3 className={styles.groupTitle}>
+              Godišnje
+              <span className={styles.groupCount}>{GODISNJE.length}</span>
+            </h3>
+            <div className={styles.list}>
+              {GODISNJE.map((it) => (
+                <ItemCard key={it.title} item={it} />
+              ))}
+            </div>
+          </div>
+
+          <p className={styles.disclaimer}>
+            Napomena: rokovi se mogu razlikovati ovisno o specifičnostima
+            poslovanja i izmjenama propisa. Za obavezujuće informacije
+            konsultujte nadležnu poreznu ispostavu ili svog knjigovođu.
           </p>
         </div>
-
-        <div className={styles.group}>
-          <h3 className={styles.groupTitle}>Mjesečno</h3>
-          <div className={styles.list}>
-            {MJESECNO.map((it) => (
-              <ItemCard key={it.title} item={it} />
-            ))}
-          </div>
-        </div>
-
-        <div className={styles.group}>
-          <h3 className={styles.groupTitle}>Prijava i odjava radnika</h3>
-          <div className={styles.list}>
-            {JS3100.map((it) => (
-              <ItemCard key={it.title} item={it} />
-            ))}
-          </div>
-        </div>
-
-        <div className={styles.group}>
-          <h3 className={styles.groupTitle}>Godišnje</h3>
-          <div className={styles.list}>
-            {GODISNJE.map((it) => (
-              <ItemCard key={it.title} item={it} />
-            ))}
-          </div>
-        </div>
-
-        <p className={styles.disclaimer}>
-          Napomena: rokovi se mogu razlikovati ovisno o specifičnostima poslovanja
-          i izmjenama propisa. Za obavezujuće informacije konsultujte nadležnu
-          poreznu ispostavu ili svog knjigovođu.
-        </p>
       </div>
     </section>
   );

@@ -155,7 +155,19 @@ export type AdminUserDetail = {
     type: string;
     isClientOrg: boolean;
     role: string;
+    pkOfficeEnabled?: boolean;
+    pkOfficeActivatedAt?: string | null;
   }[];
+  /** PK Office status: paket (subscription) i trial žive paralelno */
+  pkOffice: {
+    hasOffice: boolean;
+    plan: string | null;
+    planNaziv: string | null;
+    trialEndsAt: string | null;
+    trialAktivan: boolean;
+    maxObrta: number | null;
+    aktivnihObrta: number;
+  };
   counts: { forms: number; invoices: number };
 };
 

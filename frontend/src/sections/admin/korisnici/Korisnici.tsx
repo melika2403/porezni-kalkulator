@@ -458,6 +458,13 @@ function UserRow({ user }: { user: Users }) {
     : null;
   const officeTrialActive =
     !!officeTrialEnd && officeTrialEnd >= todayInputDate();
+  // admin-postavljena AKTIVNA pretplata ima prednost i u pristupu i u
+  // prikazu: njeni datumi se vide odmah, trial prozor samo kad pretplate nema
+  const subAktivna =
+    !!sub?.isActive &&
+    !!sub?.plan &&
+    (!sub.endDate || toInputDate(sub.endDate) >= todayInputDate());
+  const prikaziTrialProzor = officeTrialActive && !subAktivna;
   const officeTrialStart =
     officeTrialActive && officeTrialEnd
       ? new Date(new Date(officeTrialEnd).getTime() - 30 * 86400000)
@@ -656,12 +663,31 @@ function UserRow({ user }: { user: Users }) {
           </span>
         ) : paket ? (
           <span
-            className={`${styles.orgBadge} ${
-              styles[paket.cls as keyof typeof styles] ?? ""
-            }`}
-            title={paket.title}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              flexWrap: "wrap",
+            }}
           >
-            {paket.label}
+            <span
+              className={`${styles.orgBadge} ${
+                styles[paket.cls as keyof typeof styles] ?? ""
+              }`}
+              title={paket.title}
+            >
+              {paket.label}
+            </span>
+            {/* postojeći pretplatnik (npr. Business) sa aktivnim Office
+                trialom: trial se inače ne bi vidio jer paket ima prednost */}
+            {officeTrialActive && paket.cls !== "planTrial" && (
+              <span
+                className={`${styles.orgBadge} ${styles.planTrial}`}
+                title={`Office trial ističe ${formatDate(officeTrialEnd)}.`}
+              >
+                Office trial
+              </span>
+            )}
           </span>
         ) : (
           <span
@@ -677,7 +703,7 @@ function UserRow({ user }: { user: Users }) {
       <td>
         {isAdmin
           ? "–"
-          : officeTrialActive
+          : prikaziTrialProzor
             ? formatDate(officeTrialStart)
             : formatDate(sub?.startDate)}
       </td>
@@ -685,7 +711,7 @@ function UserRow({ user }: { user: Users }) {
       <td>
         {isAdmin
           ? "–"
-          : officeTrialActive
+          : prikaziTrialProzor
             ? formatDate(officeTrialEnd)
             : isForeverEnd(endDateToDisplay)
               ? "trajno"

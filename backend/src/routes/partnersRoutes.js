@@ -26,6 +26,35 @@ router.get(
   requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
   ctrl.suggestions,
 );
+// "nije partner": trajno skrij prijedlog (po računu i/ili nazivu)
+router.post(
+  "/:orgId/suggestions/hide",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  planGate,
+  ctrl.hideSuggestion,
+);
+// početna stanja partnera (migracija iz starog programa)
+router.get(
+  "/:orgId/opening-balances",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN", "MEMBER", "VIEWER"),
+  ctrl.listOpeningBalances,
+);
+router.post(
+  "/:orgId/opening-balances",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  planGate,
+  ctrl.bulkSetOpeningBalances,
+);
+router.put(
+  "/:orgId/:partnerId/opening-balance",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  planGate,
+  ctrl.setOpeningBalance,
+);
 // zbirni promet kupaca/dobavljača za period (izvještaj)
 router.get(
   "/:orgId/promet",

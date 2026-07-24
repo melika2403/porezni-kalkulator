@@ -57,7 +57,7 @@ export const inbox: Upustvo = {
     },
     {
       p: "Zašto izvod piše proknjižen a stavke nisu u KPR-u?",
-      o: "Knjiženje priprema izvod, ali stavke ulaze u KPR tek kad su potvrđene. Upotrijebite \"Potvrdi sve izvode\" ili otvorite izvod i potvrdite stavke.",
+      o: "Knjiženje priprema izvod, ali stavke ulaze u KPR tek kad su potvrđene. Upotrijebite \"Potvrdi sve izvode\" ili otvorite izvod i potvrdite stavke. Ako u pregledu izvoda potvrdite sve stavke, red to sam prepozna kad zatvorite pregled: ne treba ništa klikati ponovo.",
     },
     {
       p: "Moram li se prebacivati između obrta?",

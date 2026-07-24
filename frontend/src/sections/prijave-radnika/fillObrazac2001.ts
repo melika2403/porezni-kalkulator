@@ -6,6 +6,7 @@
 //  Pravni osnov: Pravilnik o načinu obračunavanja i uplate doprinosa FBiH.
 // ──────────────────────────────────────────────────────────────────────────────
 import { PDFDocument, PDFPage, rgb, TextAlignment } from "pdf-lib";
+import { trackEvent } from "src/api/activity";
 import fontkit from "@pdf-lib/fontkit";
 
 export type VrstaIsplate2001 = "DOPRINOSA_I_POREZA" | "SAMO_DOPRINOSA" | "SAMO_POREZA";
@@ -134,6 +135,9 @@ function drawCheckMarks(page: PDFPage, marks: CheckMark[]) {
 export async function fillObrazac2001Template(
   data: Obrazac2001Data,
 ): Promise<Uint8Array> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("OBRAZAC_2001_GENERATE", "Obrazac 2001");
+
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/obrazac-2001.pdf").then((r) => r.arrayBuffer()),
     fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),

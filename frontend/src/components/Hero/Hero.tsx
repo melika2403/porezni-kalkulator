@@ -15,16 +15,38 @@ export default function Hero() {
           Plate, porezi, fakture,<br />
           <em>riješene za minut.</em>
         </h1>
-        <div className={styles.features}>
-          {FEATURE_PILLS.map((f) => (
-            <span key={f} className={styles.pill}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              {f}
-            </span>
-          ))}
-        </div>
+        {/* dvije marquee trake alata: suprotni smjerovi, hover pauzira,
+            fade rubovi; svaki chip je link na alat */}
+        {[ROW1, ROW2].map((row, ri) => (
+          <div key={ri} className={styles.marqueeZone}>
+            <div
+              className={`${styles.track} ${ri === 0 ? styles.trackL : styles.trackR}`}
+            >
+              {[false, true].map((dup) =>
+                row.map((f) => (
+                  <Link
+                    key={`${f.label}-${dup}`}
+                    href={f.href}
+                    className={`${styles.chip} ${dup ? styles.dup : ""}`}
+                    aria-hidden={dup || undefined}
+                    tabIndex={dup ? -1 : undefined}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                      <path
+                        d="M2 7.5L5.5 11L12 3.5"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {f.label}
+                  </Link>
+                )),
+              )}
+            </div>
+          </div>
+        ))}
         <p className={styles.tagline}>
           Štedi sate svake sedmice. Bez excela, bez gužve.
         </p>
@@ -59,18 +81,21 @@ export default function Hero() {
   );
 }
 
-const FEATURE_PILLS = [
-  'Plate i doprinosi',
-  'MIP-1023 / GIP-1022',
-  'JS3100 prijave',
-  'Fakture i predračuni',
-  'Ugovor o radu / otkaz',
-  'Šihterica',
-  'PDV kalkulator',
-  'SPR-1053 / GPD-1051',
-  'Stalna sredstva (PLDI)',
-  'AMS generator',
-  'ZO3 obrazac',
-  'Ugovor o djelu',
+const ROW1 = [
+  { label: 'Plate i doprinosi', href: '/preracun-neto-bruto' },
+  { label: 'MIP-1023 / GIP-1022', href: '/prijave-radnika?tab=obracun' },
+  { label: 'JS3100 prijave', href: '/prijave-radnika' },
+  { label: 'Fakture i predračuni', href: '/fakture' },
+  { label: 'Ugovor o radu / otkaz', href: '/ugovor-o-radu' },
+  { label: 'Šihterica', href: '/sihterica' },
+];
+
+const ROW2 = [
+  { label: 'PDV kalkulator', href: '/pdv-kalkulator' },
+  { label: 'SPR-1053 / GPD-1051', href: '/spr' },
+  { label: 'Stalna sredstva (PLDI)', href: '/amortizacija' },
+  { label: 'AMS generator', href: '/ams' },
+  { label: 'ZO3 obrazac', href: '/zo3' },
+  { label: 'Ugovor o djelu', href: '/ugovor-o-djelu' },
 ];
 

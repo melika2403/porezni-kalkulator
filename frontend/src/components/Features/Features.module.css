@@ -74,6 +74,7 @@
 
 /* ── Flagship kartica (Plate i prijave radnika) ── */
 .flagship {
+  position: relative;
   display: flex;
   align-items: stretch;
   gap: 2rem;
@@ -325,15 +326,22 @@
   margin-bottom: 6px;
 }
 
+/* pun tekst bez odsijecanja (raniji line-clamp: 5 je rezao AMS i slične
+   duže opise usred reda); dugme ostaje na dnu preko flex-a kartice */
 .cellDesc {
   font-size: 13px;
   color: var(--mid);
   line-height: 1.6;
   margin-bottom: 10px;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  flex: 1;
+}
+
+/* cijela kartica klikabilna: link se ::after slojem rasteže preko roditelja
+   sa position: relative (.cell, .quickTool, .flagship) */
+.cellStretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 
 .badge {

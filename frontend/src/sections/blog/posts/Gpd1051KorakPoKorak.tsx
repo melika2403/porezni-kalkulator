@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { BlogCta } from "../BlogCta";
 
 export default function Gpd1051KorakPoKorak() {
   return (
@@ -284,6 +285,13 @@ export default function Gpd1051KorakPoKorak() {
         na dohodak FBiH. Rok i obrasci za poreznu godinu 2025. (predaja do
         31.03.2026.).
       </p>
+
+      <BlogCta
+        title="Popunite GPD-1051 online"
+        text="Naš alat vodi kroz sva polja GPD-1051, sam računa osnovicu i porez i na kraju generiše obrazac spreman za predaju Poreznoj upravi."
+        href="/gpd"
+        button="Otvori GPD-1051 alat"
+      />
     </>
   );
 }

@@ -11,6 +11,7 @@
 //  Ako se template promijeni, ova mapa treba ažuriranje.
 // ──────────────────────────────────────────────────────────────────────────────
 import { PDFDocument, TextAlignment } from "pdf-lib";
+import { trackEvent } from "src/api/activity";
 import fontkit from "@pdf-lib/fontkit";
 
 // Po obrascu, svaki red ima 24 kolone. "0" označava prazno polje.
@@ -260,6 +261,9 @@ async function fillSinglePage(
 export async function fillMip1023Template(
   data: Mip1023Data,
 ): Promise<Uint8Array> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("MIP_GENERATE", "MIP-1023 PDF");
+
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/MIP-1023.pdf").then((r) => r.arrayBuffer()),
     fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),

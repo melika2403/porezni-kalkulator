@@ -87,8 +87,12 @@ async function jsonRequest<T>(
   }
 }
 
-export function listPartners(orgId: number) {
-  return jsonRequest<Partner[]>(`/api/partners/${orgId}`, { method: "GET" });
+/** Lista partnera; year filtrira promet/aktivnost (dugovi su uvijek živi). */
+export function listPartners(orgId: number, year?: number | null) {
+  const qs = year ? `?year=${year}` : "";
+  return jsonRequest<Partner[]>(`/api/partners/${orgId}${qs}`, {
+    method: "GET",
+  });
 }
 
 export function partnerSuggestions(orgId: number) {
@@ -96,6 +100,17 @@ export function partnerSuggestions(orgId: number) {
     fromStatements: PartnerSuggestion[];
     fromInvoices: PartnerSuggestion[];
   }>(`/api/partners/${orgId}/suggestions`, { method: "GET" });
+}
+
+/** "Nije partner": trajno skrij prijedlog (prepoznaje se po računu/nazivu). */
+export function hidePartnerSuggestion(
+  orgId: number,
+  payload: { account?: string | null; name?: string | null },
+) {
+  return jsonRequest<{ hidden: number }>(
+    `/api/partners/${orgId}/suggestions/hide`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
 }
 
 export function createPartner(orgId: number, payload: PartnerPayload) {
@@ -372,11 +387,30 @@ export type KarticaInvoice = {
   placeno?: number;
 };
 
+export type PartnerOpening = {
+  /** stanje na kraj tog dana; kartica od narednog dana kreće s donosom */
+  datum: string;
+  kupacIznos: number;
+  dobavljacIznos: number;
+  napomena: string | null;
+  /** otvoreni (nenaplaćeni) dio početnog stanja po FIFO raspodjeli */
+  kupacPreostalo: number;
+  dobavljacPreostalo: number;
+};
+
 export type KarticaData = {
   partner: Partner;
   transactions: KarticaTransaction[];
   invoices: KarticaInvoice[];
   ulazniRacuni: UlazniRacun[];
+  /** period pregleda (null = sve) */
+  period: { from: string | null; to: string | null };
+  /** najranija godina sa podacima (za picker godina) */
+  minYear: number | null;
+  /** početno stanje partnera (migracija), null ako nije uneseno */
+  opening: PartnerOpening | null;
+  /** donos u izabrani period (samo kad je from zadan): saldo prije perioda */
+  donos: { kupac: number; dobavljac: number } | null;
   totals: {
     totalIn: number;
     totalOut: number;
@@ -388,10 +422,68 @@ export type KarticaData = {
   };
 };
 
-export function getPartnerKartica(orgId: number, partnerId: number) {
+export function getPartnerKartica(
+  orgId: number,
+  partnerId: number,
+  period: { from?: string | null; to?: string | null } = {},
+) {
+  const sp = new URLSearchParams();
+  if (period.from) sp.set("from", period.from);
+  if (period.to) sp.set("to", period.to);
+  const qs = sp.toString();
   return jsonRequest<KarticaData>(
-    `/api/partners/${orgId}/${partnerId}/kartica`,
+    `/api/partners/${orgId}/${partnerId}/kartica${qs ? `?${qs}` : ""}`,
     { method: "GET" },
+  );
+}
+
+// ── Početna stanja partnera (migracija iz starog programa) ──────────────────
+
+export type OpeningBalanceRow = {
+  partnerId: number;
+  datum: string;
+  kupacIznos: number;
+  dobavljacIznos: number;
+  napomena: string | null;
+};
+
+export function listOpeningBalances(orgId: number) {
+  return jsonRequest<OpeningBalanceRow[]>(
+    `/api/partners/${orgId}/opening-balances`,
+    { method: "GET" },
+  );
+}
+
+/** Snimi početno stanje partnera; oba iznosa 0 brišu zapis. */
+export function setOpeningBalance(
+  orgId: number,
+  partnerId: number,
+  payload: {
+    datum: string;
+    kupacIznos: number;
+    dobavljacIznos: number;
+    napomena?: string | null;
+  },
+) {
+  return jsonRequest<OpeningBalanceRow | null>(
+    `/api/partners/${orgId}/${partnerId}/opening-balance`,
+    { method: "PUT", body: JSON.stringify(payload) },
+  );
+}
+
+/** Grupni unos početnih stanja (migracija). */
+export function bulkSetOpeningBalances(
+  orgId: number,
+  items: {
+    partnerId: number;
+    datum: string;
+    kupacIznos: number;
+    dobavljacIznos: number;
+  }[],
+) {
+  return jsonRequest<{ saved: number; skipped: number }>(
+    `/api/partners/${orgId}/opening-balances`,
+    { method: "POST", body: JSON.stringify({ items }) },
   );
 }
 

@@ -127,9 +127,6 @@ export default function Dashboard() {
     (a, b) => Number(a.done) - Number(b.done) || a.due.localeCompare(b.due),
   );
 
-  // grupni uvoz izvoda vrijedi istaći samo kad korisnik vodi više obrta
-  const imaViseObrta = (data?.organizations?.length ?? 0) > 1;
-
   const activePayroll = activeOrg
     ? [...(payrollData?.own ?? []), ...(payrollData?.clients ?? [])].find(
         (o) => o.id === activeOrg.id,
@@ -328,9 +325,8 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* Grupni uvoz izvoda: kartica samo za korisnike sa više obrta */}
-      {imaViseObrta && (
-        <div className="rounded-xl border border-brand-600/25 bg-brand-100/50 px-5 py-4 mb-5 flex flex-wrap items-center justify-between gap-3">
+      {/* Grupni uvoz izvoda: vidljivo svima, i sa jednim obrtom */}
+      <div className="rounded-xl border border-brand-600/25 bg-brand-100/50 px-5 py-4 mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3 min-w-[240px] flex-1">
             <span className="w-10 h-10 rounded-lg bg-brand-600 text-white inline-flex items-center justify-center shrink-0">
               <IconInbox size={20} />
@@ -354,7 +350,7 @@ export default function Dashboard() {
             <IconArrowRight size={15} />
           </Link>
         </div>
-      )}
+
 
       <div className={styles.topGrid}>
         <div className={styles.balanceCard}>

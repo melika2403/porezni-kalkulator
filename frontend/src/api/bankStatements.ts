@@ -218,6 +218,29 @@ export async function createManualStatement(
   }
 }
 
+export type InitialBalancePayload = {
+  /** žiro račun (sa ili bez crtica) */
+  account: string;
+  /** datum stanja, YYYY-MM-DD (tipično 31.12. prethodne godine) */
+  date: string;
+  amount: number;
+};
+
+/** Početno stanje računa: sidro salda kad historijski izvodi nisu učitani.
+ *  Po računu postoji najviše jedno; ponovni unos ažurira postojeće. */
+export function setInitialBalance(orgId: number, payload: InitialBalancePayload) {
+  return jsonRequest<{
+    statementId: number;
+    account: string;
+    statementDate: string;
+    amount: number;
+    updated: boolean;
+  }>(`/api/bank-statements/${orgId}/initial-balance`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export type SuggestCategoryItem = {
   description: string;
   counterpartyName?: string;

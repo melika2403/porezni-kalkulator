@@ -7,6 +7,7 @@ import {
   IconCheck,
   IconPlus,
   IconBuildingStore,
+  IconSearch,
 } from "@tabler/icons-react";
 import {
   usePkOfficeMe,
@@ -24,11 +25,22 @@ const ROLE_LABEL: Record<string, string> = {
   VIEWER: "Uvid",
 };
 
+// pretraga bez dijakritika: "cevap" nađe "Ćevabdžinicu"
+function norm(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d");
+}
+
 export function OrgSwitcher() {
   const { data, isLoading } = usePkOfficeMe();
   const activate = useActivateOrganization();
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -39,6 +51,7 @@ export function OrgSwitcher() {
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
 
   const orgs = data?.organizations ?? [];
   const active: OrganizationSummary | null =
@@ -70,8 +83,25 @@ export function OrgSwitcher() {
   const { aktiviraj } = usePkOfficeSlot();
   const [slotError, setSlotError] = useState<string | null>(null);
 
-  const mine = vidljive.filter((o) => !o.isClientOrg);
-  const clients = vidljive.filter((o) => o.isClientOrg);
+  // pretraga po nazivu (bez dijakritika) i ID/poreskom broju; filtrira i
+  // "Dodaj u PK Office" sekciju da agencija nađe obrt i prije aktivacije
+  const nq = norm(q.trim());
+  const pogodak = (o: OrganizationSummary) => {
+    if (!nq) return true;
+    if (norm(o.name).includes(nq)) return true;
+    const digits = nq.replace(/\D+/g, "");
+    return (
+      digits.length > 0 &&
+      String(o.taxNumber ?? "").replace(/\D+/g, "").includes(digits)
+    );
+  };
+  const vidljiveFilt = vidljive.filter(pogodak);
+  const neaktiviraneFilt = neaktivirane.filter(pogodak);
+  // search se nudi tek kad lista stvarno naraste
+  const showSearch = vidljive.length + neaktivirane.length > 5;
+
+  const mine = vidljiveFilt.filter((o) => !o.isClientOrg);
+  const clients = vidljiveFilt.filter((o) => o.isClientOrg);
   // Grupne labele imaju smisla tek kad postoje obje grupe.
   const showGroups = mine.length > 0 && clients.length > 0;
 
@@ -134,7 +164,10 @@ export function OrgSwitcher() {
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setQ(""); // svako otvaranje kreće sa praznom pretragom
+          setOpen((o) => !o);
+        }}
         className={[
           "w-full flex items-center gap-3 p-3.5 rounded-xl border text-left transition-colors",
           open
@@ -177,6 +210,35 @@ export function OrgSwitcher() {
               </span>
             </div>
           )}
+          {showSearch && (
+            <div className="relative mb-1.5">
+              <IconSearch
+                size={15}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
+              />
+              <input
+                ref={searchRef}
+                type="text"
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    if (q) setQ("");
+                    else setOpen(false);
+                  }
+                  if (e.key === "Enter") {
+                    // Enter bira prvi pogodak
+                    const first = mine[0] ?? clients[0];
+                    if (first) selectOrg(first.id);
+                  }
+                }}
+                placeholder="Pretraži obrte..."
+                aria-label="Pretraži obrte"
+                className="w-full rounded-lg border border-cream-300 bg-cream-50 pl-8 pr-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary outline-none focus:border-brand-600 transition-colors"
+              />
+            </div>
+          )}
           <ul className="max-h-80 overflow-y-auto flex flex-col gap-1">
             {orgs.length === 0 && (
               <li className="px-3 py-3 text-[12.5px] text-text-tertiary">
@@ -188,6 +250,14 @@ export function OrgSwitcher() {
                 Nijedan obrt još nije aktiviran u PK Office. Aktiviraj ispod.
               </li>
             )}
+            {nq &&
+              vidljive.length > 0 &&
+              vidljiveFilt.length === 0 &&
+              neaktiviraneFilt.length === 0 && (
+                <li className="px-3 py-3 text-[12.5px] text-text-tertiary">
+                  Nema obrta za ovu pretragu.
+                </li>
+              )}
             {showGroups && (
               <li className="px-2.5 pt-1.5 pb-0.5 text-[10.5px] font-medium uppercase tracking-[0.13em] text-text-tertiary">
                 Moji obrti
@@ -200,12 +270,12 @@ export function OrgSwitcher() {
               </li>
             )}
             {clients.map(renderOrg)}
-            {slotMode && neaktivirane.length > 0 && (
+            {slotMode && neaktiviraneFilt.length > 0 && (
               <>
                 <li className="px-2.5 pt-2.5 pb-0.5 mt-1 border-t border-cream-300 text-[10.5px] font-medium uppercase tracking-[0.13em] text-text-tertiary">
                   Dodaj u PK Office
                 </li>
-                {neaktivirane.map((o) => (
+                {neaktiviraneFilt.map((o) => (
                   <li key={`slot-${o.id}`}>
                     <div className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg">
                       <span className="w-9 h-9 rounded-lg bg-cream-200 text-text-tertiary flex items-center justify-center text-[12px] font-semibold shrink-0">

@@ -20,6 +20,7 @@ const {
 } = require("../models/index");
 const { UPLOADS_ROOT } = require("../utils/uploads");
 const { decryptJmbg } = require("../utils/encryptJmbg");
+const { OFFICE_PLANS } = require("../config/pricing");
 
 function parseId(v) {
   const n = Number(v);
@@ -333,17 +334,20 @@ async function userDetail(req, res) {
     attributes: [
       "id", "firstName", "lastName", "email", "phone", "address", "city",
       "role", "isEmailVerified", "trialUsedAt", "utmSource", "utmCampaign",
-      "createdAt",
+      "pkOfficeTrialEndsAt", "createdAt",
     ],
   });
   if (!user) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
 
   const sub = await Subscription.findOne({ where: { userId: id } });
 
-  // organizacije: kreirane + članstva
+  // organizacije: kreirane + članstva (sa PK Office statusom obrta)
   const created = await Organization.findAll({
     where: { createdById: id },
-    attributes: ["id", "name", "type", "isClientOrg"],
+    attributes: [
+      "id", "name", "type", "isClientOrg",
+      "pkOfficeEnabled", "pkOfficeActivatedAt",
+    ],
     raw: true,
   });
   const memberships = await OrganizationMember.findAll({
@@ -352,7 +356,10 @@ async function userDetail(req, res) {
       {
         model: Organization,
         as: "organization",
-        attributes: ["id", "name", "type", "isClientOrg"],
+        attributes: [
+          "id", "name", "type", "isClientOrg",
+          "pkOfficeEnabled", "pkOfficeActivatedAt",
+        ],
       },
     ],
   });
@@ -368,6 +375,8 @@ async function userDetail(req, res) {
         name: o.name,
         type: o.type,
         isClientOrg: o.isClientOrg,
+        pkOfficeEnabled: o.pkOfficeEnabled,
+        pkOfficeActivatedAt: o.pkOfficeActivatedAt,
         role: m.role,
       });
     }
@@ -377,6 +386,40 @@ async function userDetail(req, res) {
     Form.count({ where: { createdById: id } }),
     Invoice.count({ where: { userId: id } }),
   ]);
+
+  // PK Office status: office paket (subscription) i/ili trial (User polje)
+  // žive paralelno; pristup ima ko ima bar jedno aktivno (paket ima prednost)
+  const danas = new Date().toISOString().slice(0, 10);
+  const officePlanAktivan = Boolean(
+    sub &&
+      sub.isActive &&
+      String(sub.plan || "").startsWith("office") &&
+      (!sub.endDate || String(sub.endDate).slice(0, 10) >= danas),
+  );
+  const trialAktivan = Boolean(
+    user.pkOfficeTrialEndsAt && new Date(user.pkOfficeTrialEndsAt) >= new Date(),
+  );
+  const planInfo = officePlanAktivan
+    ? OFFICE_PLANS[String(sub.plan).toUpperCase()]
+    : null;
+  const pkOffice = {
+    hasOffice: officePlanAktivan || trialAktivan,
+    plan: officePlanAktivan ? sub.plan : null,
+    planNaziv: officePlanAktivan
+      ? (planInfo?.label ?? sub.plan)
+      : trialAktivan
+        ? "Probni period (Office Tim)"
+        : null,
+    trialEndsAt: user.pkOfficeTrialEndsAt,
+    trialAktivan,
+    maxObrta: officePlanAktivan
+      ? (planInfo?.maxObrta ?? null)
+      : trialAktivan
+        ? 10
+        : null,
+    aktivnihObrta: [...orgMap.values()].filter((o) => o.pkOfficeEnabled)
+      .length,
+  };
 
   return res.json({
     ok: true,
@@ -405,6 +448,7 @@ async function userDetail(req, res) {
           }
         : null,
       organizations: [...orgMap.values()],
+      pkOffice,
       counts: { forms: formCount, invoices: invoiceCount },
     },
   });

@@ -20,6 +20,7 @@ const {
   TkmPazar,
   Organization,
 } = require("../models/index");
+const { logEvent } = require("./activityController");
 
 function parseId(v) {
   const n = Number(v);
@@ -959,6 +960,13 @@ async function proknjiziPopis(req, res) {
       return res.status(409).json({ ok: false, error: "POPIS_PROKNJIZEN" });
     }
     await p.update({ status: "PROKNJIZEN" });
+    // statistika PK Office korištenja (admin Aktivnost)
+    void logEvent({
+      userId: req.user?.id ?? null,
+      action: "OFFICE_POPIS",
+      label: `Popis ${p.broj}/${p.godina}`,
+      organizationId,
+    });
     return res.json({ ok: true });
   } catch (err) {
     console.error("popis proknjizi error:", err);

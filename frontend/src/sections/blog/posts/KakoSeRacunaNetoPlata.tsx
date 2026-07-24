@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { BlogCta } from "../BlogCta";
 
 export default function KakoSeRacunaNetoPlata() {
   return (
@@ -268,6 +269,13 @@ export default function KakoSeRacunaNetoPlata() {
         br. 35/98, sa izmjenama), Zakon o porezu na dohodak FBiH (Sl.
         novine FBiH br. 10/08, sa izmjenama). Stope važeće za 2026. godinu.
       </p>
+
+      <BlogCta
+        title="Obračun plata za FBiH u par klikova"
+        text="Ne morate ručno kroz formulu: unesite neto ili bruto i naš obračun plata izračuna doprinose, porez, minuli rad i topli obrok, pa odmah preuzmete platne liste i uplatnice."
+        href="/prijave-radnika?tab=obracun"
+        button="Otvori obračun plata"
+      />
     </>
   );
 }

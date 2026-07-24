@@ -23,6 +23,7 @@ import {
   bulkAnalyzeStatements,
   uploadBankStatement,
   confirmAllStatement,
+  getBankStatement,
   type BulkFileResult,
 } from "src/api/bankStatements";
 import { PkSelect } from "src/components/app-shell/PkSelect";
@@ -159,6 +160,8 @@ export function UvozIzvodaTab() {
     orgId: number;
     statementId: number;
     orgName: string | null;
+    /** uid reda iz liste, da se pri zatvaranju osvježi njegov KPR status */
+    rowUid?: number;
   } | null>(null);
   // progres sekvencijalnog "Proknjiži sve spremne" (Knjižim 3/7...)
   const [bulkProgress, setBulkProgress] = useState<{
@@ -311,6 +314,25 @@ export function UvozIzvodaTab() {
         row.result.org?.name ??
         organizations.find((o) => o.id === orgId)?.name ??
         null,
+      rowUid: row.uid,
+    });
+  }
+
+  // zatvaranje pregleda izvoda: ako je korisnik unutra potvrdio sve stavke
+  // (pojedinačno ili "Potvrdi sve"), red to odmah pokaže i dugme "Potvrdi
+  // sve stavke" nestane; ne treba ga klikati ponovo (stavke su već u KPR-u)
+  function zatvoriDetalj() {
+    const d = detalj;
+    setDetalj(null);
+    if (d?.rowUid == null) return;
+    void getBankStatement(d.orgId, d.statementId).then((res) => {
+      if (!res.ok) return; // npr. izvod obrisan u pop-upu: red ne diramo
+      const svePotvrdjene = res.data.transactions.every(
+        (tx) => tx.status !== "UNMATCHED",
+      );
+      if (svePotvrdjene) {
+        patchRow(d.rowUid!, { stavkePotvrdjene: true });
+      }
     });
   }
 
@@ -381,7 +403,8 @@ export function UvozIzvodaTab() {
     ).length ?? 0;
 
   // redovi koji traže akciju idu na vrh, proknjiženi tonu na dno; unutar
-  // istog statusa ostaje redoslijed batcha (sort je stabilan)
+  // istog statusa: po obrtu (naziv), pa izvodi tog obrta po broju od manjeg
+  // ka većem (bez broja na kraj, po datumu), da tura ne izgleda razbacano
   const STATUS_ORDER: Record<RowStatus, number> = {
     unrecognized: 0,
     conflict: 0,
@@ -392,8 +415,32 @@ export function UvozIzvodaTab() {
     duplicate: 4,
     booked: 5,
   };
+  function rowOrgName(r: Row): string {
+    return (
+      r.result.org?.name ??
+      organizations.find((o) => o.id === r.assignedOrgId)?.name ??
+      ""
+    );
+  }
+  function rowBrojIzvoda(r: Row): number | null {
+    const n = Number(String(r.result.statementNumber ?? "").trim());
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }
   const sortedRows = rows
-    ? [...rows].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
+    ? [...rows].sort((a, b) => {
+        const st = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+        if (st !== 0) return st;
+        const org = rowOrgName(a).localeCompare(rowOrgName(b), "bs");
+        if (org !== 0) return org;
+        const na = rowBrojIzvoda(a);
+        const nb = rowBrojIzvoda(b);
+        if (na != null && nb != null && na !== nb) return na - nb;
+        if (na != null && nb == null) return -1;
+        if (na == null && nb != null) return 1;
+        return String(a.result.statementDate ?? "").localeCompare(
+          String(b.result.statementDate ?? ""),
+        );
+      })
     : null;
   const brojPoStatusu = new Map<RowStatus, number>();
   for (const r of rows ?? []) {
@@ -899,7 +946,7 @@ export function UvozIzvodaTab() {
       {detalj != null && (
         <Modal
           open
-          onClose={() => setDetalj(null)}
+          onClose={zatvoriDetalj}
           title={
             detalj.orgName
               ? `Pregled izvoda · ${detalj.orgName}`

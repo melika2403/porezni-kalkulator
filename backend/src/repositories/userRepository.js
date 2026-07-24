@@ -53,23 +53,30 @@ async function listUsers({
 
   // Office paketi nisu role nego pretplate: filter "office"/"office_X" ide
   // preko subscription.plan (samo aktivne), ostale vrijednosti preko role.
+  // "office" (svi) hvata i korisnike na aktivnom PK Office trialu (trial se
+  // vodi na users.pkOfficeTrialEndsAt, ne kao pretplata).
   let include = userInclude;
+  let subQuery;
   const officeFilter =
     typeof role === "string" && /^office(_(2|10|25|50))?$/i.test(role)
       ? role.toLowerCase()
       : null;
-  if (officeFilter) {
+  if (officeFilter === "office") {
+    where[Op.or] = [
+      {
+        "$subscription.isActive$": true,
+        "$subscription.plan$": { [Op.like]: "office%" },
+      },
+      { pkOfficeTrialEndsAt: { [Op.gte]: new Date() } },
+    ];
+    // filter po koloni iz include-a uz limit traži subQuery: false
+    subQuery = false;
+  } else if (officeFilter) {
     include = [
       {
         ...userInclude[0],
         required: true,
-        where: {
-          isActive: true,
-          plan:
-            officeFilter === "office"
-              ? { [Op.like]: "office%" }
-              : officeFilter,
-        },
+        where: { isActive: true, plan: officeFilter },
       },
     ];
   } else if (role && ["USER", "PRO", "BUSINESS", "ADMIN"].includes(role)) {
@@ -89,6 +96,7 @@ async function listUsers({
     order,
     limit,
     offset,
+    ...(subQuery === false ? { subQuery: false } : {}),
   });
 
   return { items: items.map(toPublicUser), total };

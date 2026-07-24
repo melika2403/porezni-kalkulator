@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getWorkers, type Organization } from "src/api/profile";
+import { trackEvent } from "src/api/activity";
 import { listPayrolls, type Payroll } from "src/api/payroll";
 import {
   generateGip1022Xml,
@@ -37,6 +38,9 @@ export type GipBuildError = {
 export async function buildGip1022Xml(
   input: GipBuildInput,
 ): Promise<GipBuildResult | GipBuildError> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("GIP_GENERATE", "GIP-1022 XML");
+
   const { orgId, year, organization } = input;
 
   // Fetch svih radnika org-a + sve 12 mjeseci payrolla paralelno.
