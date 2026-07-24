@@ -5,6 +5,7 @@
 //  Template: /templates/obrazac-2002.pdf (sa AcroForm poljima — comb stilom).
 // ──────────────────────────────────────────────────────────────────────────────
 import { PDFDocument, PDFPage, rgb, TextAlignment } from "pdf-lib";
+import { trackEvent } from "src/api/activity";
 import fontkit from "@pdf-lib/fontkit";
 
 export type Operacija2002 = "PRIJAVA" | "IZMJENA" | "BRISANJE";
@@ -159,6 +160,9 @@ const JMB_PODUZETNIKA_FIELDS = [
 export async function fillObrazac2002Template(
   data: Obrazac2002Data,
 ): Promise<Uint8Array> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("OBRAZAC_2002_GENERATE", "Obrazac 2002");
+
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/obrazac-2002.pdf").then((r) => r.arrayBuffer()),
     fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),

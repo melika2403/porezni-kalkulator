@@ -1,4 +1,5 @@
 import { type ApiResponse } from "src/api/auth";
+import { trackEvent } from "src/api/activity";
 import { getBackendUrl } from "src/utils/backendUrl";
 
 const BACKEND_URL = getBackendUrl();
@@ -705,6 +706,8 @@ export async function downloadEvidencijaPdf(
 ): Promise<
   { ok: true; blob: Blob; filename: string } | { ok: false; error: string }
 > {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("EVIDENCIJA_GENERATE", "Matična evidencija");
   try {
     const res = await fetch(
       `${BACKEND_URL}/api/organizations/${orgId}/workers/${workerId}/evidencija-pdf`,

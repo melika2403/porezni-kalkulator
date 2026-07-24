@@ -348,7 +348,7 @@ function FeatureGroup({
             </div>
             <div className={styles.cellTitle}>{f.title}</div>
             <div className={styles.cellDesc}>{f.desc}</div>
-            <Link href={f.dest} className={styles.startLink}>
+            <Link href={f.dest} className={`${styles.startLink} ${styles.cellStretch}`}>
               <button type="button" className={styles.startButton}>
                 {cta} <ArrowIcon />
               </button>
@@ -405,7 +405,7 @@ export default function Features() {
           </ul>
         </div>
         <div className={styles.flagshipCta}>
-          <Link href="/prijave-radnika?tab=obracun" className={styles.startLink}>
+          <Link href="/prijave-radnika?tab=obracun" className={`${styles.startLink} ${styles.cellStretch}`}>
             <button type="button" className={styles.startButton}>
               {user ? "Otvori alat" : "Isprobaj 30 dana besplatno"} <ArrowIcon />
             </button>
@@ -459,7 +459,7 @@ export default function Features() {
               </div>
               <div className={styles.cellTitle}>{t.title}</div>
               <div className={styles.quickToolDesc}>{t.desc}</div>
-              <Link href={t.dest} className={styles.startLink}>
+              <Link href={t.dest} className={`${styles.startLink} ${styles.cellStretch}`}>
                 <button type="button" className={styles.startButton}>
                   Otvori alat <ArrowIcon />
                 </button>

@@ -8,6 +8,7 @@
 //  Format usklađen sa "Lista naloga" PDF-om (isti header, fontovi, kolone).
 // ──────────────────────────────────────────────────────────────────────────────
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage, rgb } from "pdf-lib";
+import { trackEvent } from "src/api/activity";
 import fontkit from "@pdf-lib/fontkit";
 
 export type WorkerPayItem = {
@@ -341,6 +342,9 @@ const SECTIONS: SectionDef[] = [
 export async function fillSpecifikacije(
   data: SpecifikacijeData,
 ): Promise<Uint8Array> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("SPECIFIKACIJE_GENERATE", "Specifikacije plata");
+
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
 

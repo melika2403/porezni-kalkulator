@@ -11,6 +11,10 @@ const router = express.Router();
 // Bilježenje aktivnosti — radi i za anonimne (optionalAuth veže userId ako postoji).
 router.post("/", optionalAuth, activityController.track);
 
+// Vlastita aktivnost korisnika (dashboard profila: nedavna aktivnost,
+// "Predstoji" signali, personalizovan "najčešće" badge).
+router.get("/moje", requireAuth, activityController.myActivity);
+
 // Admin pregled i statistika.
 router.get("/admin", requireAuth, requireRole("ADMIN"), activityController.adminList);
 router.get(

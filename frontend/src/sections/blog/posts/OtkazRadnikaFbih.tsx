@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { BlogCta } from "../BlogCta";
 
 export default function OtkazRadnikaFbih() {
   return (
@@ -326,6 +327,13 @@ export default function OtkazRadnikaFbih() {
         otpremnine i otkazni rokovi. Pravilnik o sadržaju ugovora o radu
         FBiH. Za specifične slučajeve konsultujte advokata.
       </p>
+
+      <BlogCta
+        title="Ugovor o radu i otkaz: gotovi dokumenti"
+        text="Naš generator pravi ugovor o radu i odluku o otkazu po Zakonu o radu FBiH: unesete podatke, preuzmete PDF ili Word, bez advokatskih šablona sa interneta."
+        href="/ugovor-o-radu"
+        button="Otvori generator ugovora"
+      />
     </>
   );
 }

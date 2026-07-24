@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./profil.module.css";
+import { getMyActivity } from "src/api/activity";
 import {
   formatMoneyLive,
   formatMoneyBlur,
@@ -39,7 +40,6 @@ import {
   LuReceipt,
   LuArrowRight,
   LuWallet,
-  LuCalendarDays,
   LuTrash2,
 } from "react-icons/lu";
 import { PkSelect } from "src/components/app-shell/PkSelect";
@@ -861,12 +861,22 @@ function ProfilTab({
                 type="button"
                 className={styles.progressChip}
                 onClick={() => setEditing(true)}
-                title="Dovrši podatke profila"
+                title={
+                  personalPct >= 100
+                    ? "Lični podaci su kompletni"
+                    : "Dovrši podatke profila"
+                }
               >
                 <ProgressRing pct={personalPct} />
                 <span>
-                  <span className={styles.progressVal}>Profil {personalPct}%</span>
-                  <span className={styles.progressSub}>Dovrši podatke</span>
+                  <span className={styles.progressVal}>
+                    {personalPct >= 100
+                      ? "Podaci kompletni"
+                      : `Profil ${personalPct}%`}
+                  </span>
+                  <span className={styles.progressSub}>
+                    {personalPct >= 100 ? "Sve popunjeno" : "Dovrši podatke"}
+                  </span>
                 </span>
               </button>
             </div>
@@ -4591,8 +4601,25 @@ const TOOLS = [
   { href: "/sihterica", title: "Šihterica", desc: "Evidencija radnih sati", icon: <LuClock size={18} />, hot: false },
   { href: "/fakture", title: "Fakture", desc: "Izrada i slanje faktura", icon: <LuReceipt size={18} />, hot: false },
   { href: "/amortizacija", title: "Amortizacija", desc: "Obračun amortizacije", icon: <LuFileText size={18} />, hot: false },
-  { href: "/rjesenja-i-odluke", title: "Rješenja i odluke", desc: "Godišnji odmor, regres, odsustva", icon: <LuCalendarDays size={18} />, hot: false },
 ];
+
+// nazivi akcija za Nedavnu aktivnost (sirovi action kodovi nisu za korisnika)
+const ACT_NAMES: Record<string, string> = {
+  PLATA_GENERATE: "Obračun plata", MIP_GENERATE: "MIP-1023", GIP_GENERATE: "GIP-1022",
+  SIH_GENERATE: "Šihterica", FAKTURA_GENERATE: "Faktura", PREDRACUN_GENERATE: "Predračun",
+  JS3100_GENERATE: "JS3100 prijava", UGOVOR_RADU_GENERATE: "Ugovor o radu",
+  OTKAZ_GENERATE: "Otkaz ugovora", RJESENJE_GENERATE: "Rješenje", PLDI_GENERATE: "Amortizacija",
+  SPR_GENERATE: "SPR-1053", GPD_GENERATE: "GPD-1051", AMS_GENERATE: "AMS-1035",
+  ZO3_GENERATE: "ZO3 obrazac", UGOVOR_DJELU_GENERATE: "Ugovor o djelu",
+  UGOVOR_POZAJMICA_GENERATE: "Ugovor o pozajmici", KARTICA_GENERATE: "Članska kartica",
+  EVIDENCIJA_GENERATE: "Matična evidencija", UPLATNICE_GENERATE: "Uplatnice",
+  PLATNI_LISTIC_GENERATE: "Platni listić", NALOG_KNJIZENJE_GENERATE: "Nalog za knjiženje",
+  LISTA_NALOGA_GENERATE: "Lista naloga", SPECIFIKACIJE_GENERATE: "Specifikacije",
+  OFFICE_IZVOD_UCITAN: "Izvod učitan", OFFICE_IZVOD_RUCNI: "Ručni izvod",
+  OFFICE_ULAZNI_RACUN: "Ulazni račun", OFFICE_KALKULACIJA: "Kalkulacija",
+  OFFICE_BLAGAJNA_NALOG: "Blagajnički nalog", OFFICE_PUTNI_NALOG: "Putni nalog",
+  OFFICE_POPIS: "Popis", OFFICE_PREBIJANJE: "Prebijanje",
+};
 
 function PregledTab({
   user,
@@ -4640,6 +4667,124 @@ function PregledTab({
   const onboardingDone = hasOrg && (hasWorkers || workersSkipped);
   const st = statsQuery.data;
 
+  // vlastita aktivnost: nedavni dokumenti, signali za "Predstoji" i
+  // personalizovan "najčešće" badge (šta ovaj korisnik stvarno koristi)
+  const myActQuery = useQuery({
+    queryKey: ["myActivity"],
+    queryFn: async () => {
+      const r = await getMyActivity();
+      if (!r.ok) throw new Error(r.error);
+      return r.data;
+    },
+    enabled: hasOrg,
+    retry: false,
+  });
+  const act = myActQuery.data;
+  const mCnt = (a: string) => act?.month?.[a] ?? 0;
+  const used = (a: string) => act?.usedActions?.includes(a) ?? false;
+
+  // "Predstoji": SAMO obaveze izvedene iz onoga što korisnik ima/koristi;
+  // maksimalno 3, bez PK Office tema (PDV je na /app Početnoj)
+  const MJESECI = [
+    "januar", "februar", "mart", "april", "maj", "juni",
+    "juli", "august", "septembar", "oktobar", "novembar", "decembar",
+  ];
+  // fiksirano pri mount-u (lint: bez impure poziva tokom rendera)
+  const [sada] = useState(() => new Date());
+  const [nowMs] = useState(() => Date.now());
+  const dan = sada.getDate();
+  const prosliMjesec = MJESECI[(sada.getMonth() + 11) % 12];
+  type Duty = {
+    key: string;
+    tone: "urgent" | "soon" | "ok";
+    when: string;
+    title: string;
+    desc: string;
+    href: string;
+    cta: string;
+  };
+  const duties: Duty[] = [];
+  if (act && (st?.radnici ?? 0) > 0) {
+    if (mCnt("PLATA_GENERATE") === 0) {
+      duties.push({
+        key: "plata",
+        tone: dan <= 10 ? "urgent" : "soon",
+        when: dan <= 10 ? "rok 10." : "ovaj mjesec",
+        title: `Obračun plata za ${prosliMjesec} nije pokrenut`,
+        desc: `${st!.radnici} radnika · doprinosi i porez do 10. u mjesecu`,
+        href: "/aktivni-radnici",
+        cta: "Pokreni obračun",
+      });
+    } else if (mCnt("MIP_GENERATE") === 0 && used("MIP_GENERATE")) {
+      duties.push({
+        key: "mip",
+        tone: "soon",
+        when: "nakon isplate",
+        title: `MIP-1023 za ${prosliMjesec}`,
+        desc: "obračun je urađen, MIP još nije preuzet",
+        href: "/prijave-radnika?tab=obracun",
+        cta: "Pripremi",
+      });
+    }
+  }
+  if (act && used("SIH_GENERATE") && mCnt("SIH_GENERATE") === 0) {
+    duties.push({
+      key: "sih",
+      tone: "ok",
+      when: "ovaj mjesec",
+      title: `Šihterica za ${MJESECI[sada.getMonth()]}`,
+      desc: "evidencija radnog vremena za tekući mjesec",
+      href: "/sihterica",
+      cta: "Otvori",
+    });
+  }
+  if (
+    act &&
+    sada.getMonth() <= 2 &&
+    (used("SPR_GENERATE") || used("GPD_GENERATE"))
+  ) {
+    duties.push({
+      key: "gpd",
+      tone: sada.getMonth() === 2 ? "urgent" : "soon",
+      when: "do 31.03.",
+      title: "SPR-1053 i GPD-1051 za prošlu godinu",
+      desc: "godišnja prijava poreza na dohodak",
+      href: "/spr",
+      cta: "Pripremi",
+    });
+  }
+  const dutiesTop = duties.slice(0, 3);
+
+  // personalizovan "najčešće": alat koji korisnik najviše koristi
+  const TOP_ACTION_TOOL: Record<string, string> = {
+    PLATA_GENERATE: "/aktivni-radnici",
+    MIP_GENERATE: "/aktivni-radnici",
+    GIP_GENERATE: "/aktivni-radnici",
+    SIH_GENERATE: "/sihterica",
+    FAKTURA_GENERATE: "/fakture",
+    PREDRACUN_GENERATE: "/fakture",
+    PLDI_GENERATE: "/amortizacija",
+    RJESENJE_GENERATE: "/rjesenja-i-odluke",
+  };
+  const hotHref =
+    (act?.topAction && TOP_ACTION_TOOL[act.topAction]) || "/aktivni-radnici";
+
+  // relativno vrijeme za nedavnu aktivnost
+  const ago = (iso: string) => {
+    const min = Math.max(
+      1,
+      Math.round((nowMs - new Date(iso).getTime()) / 60000),
+    );
+    if (min < 60) return `prije ${min} min`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `prije ${h} h`;
+    const d = Math.round(h / 24);
+    if (d === 1) return "jučer";
+    if (d < 7) return `prije ${d} dana`;
+    const w = Math.round(d / 7);
+    return w === 1 ? "prije sedmicu" : `prije ${w} sedmice`;
+  };
+
   const ownOrg = ownOrgs[0] ?? null;
   const orgIncomplete =
     !!ownOrg && (!ownOrg.address || !ownOrg.activityCode || !ownOrg.bankAccount);
@@ -4686,12 +4831,7 @@ function PregledTab({
     "Petak",
     "Subota",
   ];
-  const todayLabel = `Danas je ${DANI[danas.getDay()]}, ${String(
-    danas.getDate(),
-  ).padStart(2, "0")}.${String(danas.getMonth() + 1).padStart(
-    2,
-    "0",
-  )}.${danas.getFullYear()}. godine.`;
+  const todayLabel = `${DANI[danas.getDay()]}, ${danas.getDate()}. ${MJESECI[danas.getMonth()]} ${danas.getFullYear()}.`;
 
   return (
     <div className={styles.panel}>
@@ -4701,22 +4841,32 @@ function PregledTab({
             Dobro došli, <em>{user.firstName}</em>
           </h1>
           <p className={styles.pregledDate}>{todayLabel}</p>
-          <p className={styles.pregledLead}>
-            {hasOrg
-              ? "Sve je spremno za rad."
-              : "Postavimo vaš nalog u nekoliko koraka."}
-          </p>
+          {!hasOrg && (
+            <p className={styles.pregledLead}>
+              Postavimo vaš nalog u nekoliko koraka.
+            </p>
+          )}
         </div>
         {hasOrg && (
           <button
             className={styles.progressChip}
             onClick={() => onGoTab("djelatnosti")}
-            title="Dovrši podatke djelatnosti"
+            title={
+              progressPct >= 100
+                ? "Podaci djelatnosti su kompletni"
+                : "Dovrši podatke djelatnosti"
+            }
           >
             <ProgressRing pct={progressPct} />
             <span>
-              <span className={styles.progressVal}>Profil {progressPct}%</span>
-              <span className={styles.progressSub}>Dovrši podatke</span>
+              <span className={styles.progressVal}>
+                {progressPct >= 100
+                  ? "Podaci kompletni"
+                  : `Profil ${progressPct}%`}
+              </span>
+              <span className={styles.progressSub}>
+                {progressPct >= 100 ? "Sve popunjeno" : "Dovrši podatke"}
+              </span>
             </span>
           </button>
         )}
@@ -4791,6 +4941,38 @@ function PregledTab({
       {/* Bogati dashboard kad postoji djelatnost */}
       {hasOrg && (
         <>
+          {/* Predstoji: samo obaveze izvedene iz stvarnog korištenja */}
+          {dutiesTop.length > 0 && (
+            <div className={styles.dutiesPanel}>
+              <p className={styles.dutiesTitle}>Predstoji</p>
+              {dutiesTop.map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  className={styles.dutyRow}
+                  onClick={() => router.push(d.href)}
+                >
+                  <span
+                    className={`${styles.dutyWhen} ${
+                      d.tone === "urgent"
+                        ? styles.dutyUrgent
+                        : d.tone === "soon"
+                          ? styles.dutySoon
+                          : styles.dutyOk
+                    }`}
+                  >
+                    {d.when}
+                  </span>
+                  <span className={styles.dutyWhat}>
+                    {d.title}
+                    <span>{d.desc}</span>
+                  </span>
+                  <span className={styles.dutyAct}>{d.cta} →</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className={styles.statGrid}>
             <StatCard icon={<LuBuilding size={14} />} label="Djelatnosti" value={st?.djelatnosti} />
             <StatCard icon={<LuUsers size={14} />} label="Klijenti" value={st?.klijenti} />
@@ -4800,29 +4982,71 @@ function PregledTab({
             <StatCard icon={<LuUsers size={14} />} label="Radnici" value={st?.radnici} />
           </div>
 
+          <div className={styles.colsGrid}>
+          <div className={styles.colMain}>
+          <div className={styles.panelBox}>
           <div className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle}>Preporučeni alati</h2>
+            <h2 className={styles.sectionTitle}>Brzi alati</h2>
+            <button
+              className={styles.sectionAction}
+              onClick={() => router.push("/#funkcije")}
+            >
+              Svi alati →
+            </button>
           </div>
           <div className={styles.toolGrid}>
-            {TOOLS.map((t) => (
+            {TOOLS.map((t) => {
+              const hot = t.href === hotHref;
+              return (
               <button
                 key={t.href}
-                className={`${styles.toolCard} ${t.hot ? styles.toolCardHot : ""}`}
+                className={`${styles.toolCard} ${hot ? styles.toolCardHot : ""}`}
                 onClick={() => router.push(t.href)}
               >
                 <span className={styles.toolIcon}>{t.icon}</span>
                 <span className={styles.toolBody}>
                   <span className={styles.toolTitle}>
                     {t.title}
-                    {t.hot && <span className={styles.toolBadge}>Najčešće</span>}
+                    {hot && <span className={styles.toolBadge}>Najčešće</span>}
                   </span>
                   <span className={styles.toolDesc}>{t.desc}</span>
                 </span>
                 <LuArrowRight size={15} className={styles.toolArrow} />
               </button>
-            ))}
+              );
+            })}
+          </div>
           </div>
 
+          {/* Nedavna aktivnost (iz dnevnika, isti podaci kao u adminu) */}
+          {(act?.items?.length ?? 0) > 0 && (
+            <div className={styles.panelBox}>
+              <div className={styles.sectionHead}>
+                <h2 className={styles.sectionTitle}>Nedavna aktivnost</h2>
+                <button
+                  className={styles.sectionAction}
+                  onClick={() => onGoTab("historija")}
+                >
+                  Svi dokumenti →
+                </button>
+              </div>
+              {act!.items.slice(0, 5).map((it, i) => (
+                <div key={`${it.createdAt}-${i}`} className={styles.actRow}>
+                  <span className={styles.actDot} />
+                  <span className={styles.actText}>
+                    {ACT_NAMES[it.action] ?? it.action}
+                    {it.label ? ` · ${it.label}` : ""}
+                    {it.organization ? `, ${it.organization}` : ""}
+                  </span>
+                  <span className={styles.actAgo}>{ago(it.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          </div>
+
+          <div className={styles.colSide}>
+          <div className={styles.panelBox}>
           <div className={styles.sectionHead}>
             <h2 className={styles.sectionTitle}>Moje djelatnosti</h2>
             <button className={styles.sectionAction} onClick={() => onGoTab("djelatnosti")}>
@@ -4854,7 +5078,9 @@ function PregledTab({
               + Dodaj djelatnost
             </button>
           </div>
+          </div>
 
+          <div className={styles.panelBox}>
           <div className={styles.sectionHead}>
             <h2 className={styles.sectionTitle}>Klijenti</h2>
             <button className={styles.sectionAction} onClick={() => onGoTab("klijenti")}>
@@ -4877,6 +5103,9 @@ function PregledTab({
             <button className={styles.dashedAdd} onClick={() => onGoTab("klijenti")}>
               + Dodaj klijenta
             </button>
+          </div>
+          </div>
+          </div>
           </div>
         </>
       )}
@@ -4907,6 +5136,7 @@ function initials2(name: string): string {
 function ProgressRing({ pct }: { pct: number }) {
   const r = 13;
   const c = 2 * Math.PI * r;
+  const done = pct >= 100;
   const off = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
   return (
     <svg width={30} height={30} viewBox="0 0 32 32" style={{ flex: "none" }}>
@@ -4923,6 +5153,17 @@ function ProgressRing({ pct }: { pct: number }) {
         strokeLinecap="round"
         transform="rotate(-90 16 16)"
       />
+      {/* kvačica u sredini kad je 100% popunjeno */}
+      {done && (
+        <path
+          d="M11 16.5l3 3 6.5-6.5"
+          fill="none"
+          stroke="var(--sage)"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
     </svg>
   );
 }

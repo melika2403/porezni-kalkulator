@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { PkOfficeCta } from "../BlogCta";
 
 export default function PriznatiRashodiObrta() {
   return (
@@ -296,6 +297,8 @@ export default function PriznatiRashodiObrta() {
         primjeni Zakona o porezu na dohodak FBiH, Zakon o doprinosima FBiH
         (Sl. novine FBiH br. 35/98 i izmjene 33/25).
       </p>
+
+      <PkOfficeCta text="U PK Office-u se rashodi knjiže sami: učitate bankovni izvod, svaka stavka dobije KPR kategoriju, ulazni računi se vežu za dobavljače, a na kraju godine SPR je gotov iz već urednog KPR-a." />
     </>
   );
 }

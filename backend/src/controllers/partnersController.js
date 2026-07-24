@@ -8,6 +8,7 @@ const { Op, fn, col } = require("sequelize");
 const {
   sequelize,
   Partner,
+  PartnerOpeningBalance,
   BankTransaction,
   BankStatement,
   Invoice,
@@ -22,12 +23,16 @@ const {
   buildIosPdf,
   buildOpomenaPdf,
 } = require("../utils/karticaPdf");
-const { allocateFifo } = require("../utils/paymentAllocation");
+const { allocateFifo, r2 } = require("../utils/paymentAllocation");
+
+// sintetički id reda početnog stanja u FIFO raspodjeli (Map ključ)
+const OPENING_ID = "pocetno-stanje";
 const {
   sendKarticaEmail,
   sendIosEmail,
   sendOpomenaEmail,
 } = require("../utils/mailer");
+const { logEvent } = require("./activityController");
 
 function parseId(value) {
   const id = Number(value);
@@ -116,14 +121,17 @@ async function relinkTransactions(partner) {
   const pName = normalizeName(partner.name);
   const candidates = await BankTransaction.findAll({
     where: { organizationId: partner.organizationId },
-    attributes: ["id", "counterpartyAccount", "counterpartyName"],
+    attributes: ["id", "counterpartyAccount", "counterpartyName", "category"],
     raw: true,
   });
   const ids = candidates
     .filter(
       (t) =>
-        accounts.includes(normalizeDigits(t.counterpartyAccount)) ||
-        (pName && normalizeName(t.counterpartyName) === pName),
+        // provizija banke i sl. često nose ime partnera u opisu, ali nisu
+        // njegov promet pa se ne vežu na karticu
+        !isNonPartnerCategory(t.category) &&
+        (accounts.includes(normalizeDigits(t.counterpartyAccount)) ||
+          (pName && normalizeName(t.counterpartyName) === pName)),
     )
     .map((t) => t.id);
   if (ids.length === 0) return 0;
@@ -209,12 +217,22 @@ async function list(req, res) {
     });
   }
 
-  // promet po partneru (potvrđene stavke)
+  // ?year=GGGG: promet, broj transakcija i zadnja aktivnost se računaju za
+  // tu godinu; dugovi (otvorene stavke) su UVIJEK živi, bez obzira na godinu
+  const year = Number(req.query.year) || null;
+  const yearWhere = year
+    ? { date: { [Op.gte]: `${year}-01-01`, [Op.lte]: `${year}-12-31` } }
+    : {};
+
+  // promet po partneru (potvrđene stavke; provizije banke i sl. ne ulaze
+  // u promet partnera ni kad su greškom vezane)
   const sums = await BankTransaction.findAll({
     where: {
       organizationId,
       partnerId: { [Op.ne]: null },
       status: "CONFIRMED",
+      ...PARTNER_CATEGORY_WHERE,
+      ...yearWhere,
     },
     attributes: [
       "partnerId",
@@ -245,12 +263,61 @@ async function list(req, res) {
   }
 
   // izlazne fakture (izdane + naplaćene), vezane po JIB-u ili nazivu:
-  // otvorene čine "njihov dug", a sve zajedno dugovnu stranu kupca
+  // otvorene čine "njihov dug" (uvijek žive), a fakturisano se kod godišnjeg
+  // pregleda broji samo za izabranu godinu
   const openInvoices = await Invoice.findAll({
     where: { organizationId, type: "INVOICE", status: { [Op.in]: ["ISSUED", "PAID"] } },
-    attributes: ["buyerName", "buyerIdNumber", "grossTotal", "status"],
+    attributes: ["buyerName", "buyerIdNumber", "grossTotal", "status", "issueDate"],
     raw: true,
   });
+
+  // početna stanja (migracija): otvoreni dio ulazi u žive dugove. FIFO daje
+  // uplate najstarijem dokumentu prvom, a početno stanje je najstarije, pa je
+  // preostalo = stanje - nevezane uplate/isplate partnera (tačno po FIFO-u).
+  const openingRows = await PartnerOpeningBalance.findAll({
+    where: { organizationId },
+    raw: true,
+  });
+  const openingByPartner = new Map(
+    openingRows.map((r) => [
+      r.partnerId,
+      {
+        kupac: Number(r.kupacIznos) || 0,
+        dobavljac: Number(r.dobavljacIznos) || 0,
+      },
+    ]),
+  );
+  const unlinkedPools = new Map(); // partnerId -> {in, out}
+  if (openingRows.length > 0) {
+    const pools = await BankTransaction.findAll({
+      where: {
+        organizationId,
+        partnerId: { [Op.in]: openingRows.map((r) => r.partnerId) },
+        status: "CONFIRMED",
+        ...PARTNER_CATEGORY_WHERE,
+      },
+      attributes: [
+        "partnerId",
+        "direction",
+        "invoiceId",
+        "ulazniRacunId",
+        [fn("SUM", col("amount")), "total"],
+      ],
+      group: ["partnerId", "direction", "invoiceId", "ulazniRacunId"],
+      raw: true,
+    });
+    for (const row of pools) {
+      const entry = unlinkedPools.get(row.partnerId) || { in: 0, out: 0 };
+      // vezane uplate/isplate su već zatvorile svoj dokument, ne idu u pool
+      if (row.direction === "IN" && !row.invoiceId) {
+        entry.in += Number(row.total) || 0;
+      }
+      if (row.direction === "OUT" && !row.ulazniRacunId) {
+        entry.out += Number(row.total) || 0;
+      }
+      unlinkedPools.set(row.partnerId, entry);
+    }
+  }
 
   // ulazni računi po partneru: otvoreni ("naš dug") + ukupan broj
   // (i plaćeni računi čine partnera dobavljačem)
@@ -299,7 +366,9 @@ async function list(req, res) {
         (pJib && normalizeDigits(inv.buyerIdNumber) === pJib) ||
         normalizeName(inv.buyerName) === pName;
       if (matches) {
-        invoicesTotal += Number(inv.grossTotal) || 0;
+        if (!year || String(inv.issueDate).slice(0, 4) === String(year)) {
+          invoicesTotal += Number(inv.grossTotal) || 0;
+        }
         if (inv.status === "ISSUED") {
           openTotal += Number(inv.grossTotal) || 0;
           openCount += 1;
@@ -312,16 +381,25 @@ async function list(req, res) {
       racuniCount: 0,
       racuniTotal: 0,
     };
+    // otvoreni dio početnog stanja (dug iz starog programa)
+    const opening = openingByPartner.get(p.id);
+    let openingKupac = 0;
+    let openingDob = 0;
+    if (opening) {
+      const pool = unlinkedPools.get(p.id) || { in: 0, out: 0 };
+      openingKupac = Math.max(0, r2(opening.kupac - pool.in));
+      openingDob = Math.max(0, r2(opening.dobavljac - pool.out));
+    }
     return {
       ...p.toJSON(),
       accounts: Array.isArray(p.accounts) ? p.accounts : [],
       stats: {
         ...stats,
-        openInvoicesTotal: openTotal,
-        openInvoicesCount: openCount,
+        openInvoicesTotal: r2(openTotal + openingKupac),
+        openInvoicesCount: openCount + (openingKupac > 0 ? 1 : 0),
         invoicesTotal,
-        openPayablesTotal: pay.total,
-        openPayablesCount: pay.count,
+        openPayablesTotal: r2(pay.total + openingDob),
+        openPayablesCount: pay.count + (openingDob > 0 ? 1 : 0),
         racuniCount: pay.racuniCount,
         racuniTotal: pay.racuniTotal,
       },
@@ -329,6 +407,55 @@ async function list(req, res) {
   });
 
   return res.json({ ok: true, data });
+}
+
+// Kategorije čija protivstrana NIJE poslovni partner: javni prihodi, vlastiti
+// novac (pazar, prenosi, pozajmice vlasnika), banka (provizije, krediti),
+// plate radnika. Njihove stavke ne prave prijedlog partnera, ne vežu se
+// automatski na partnera i ne ulaze u karticu/statistiku partnera.
+const NON_PARTNER_CATEGORIES = [
+  "DOPRINOSI_PODUZETNIKA",
+  "POREZ_DOHODAK_VLASNIKA",
+  "PDV_UIO",
+  "POVRAT_PDV",
+  "DOPRINOSI_ZAPOSLENIKA",
+  "POREZI_PLATE",
+  "CLANARINE_TAKSE",
+  "PAZAR",
+  "PRENOS_IZMEDJU_RACUNA",
+  "POZAJMICA_VLASNIKA",
+  "POVRAT_POZAJMICE",
+  "KREDIT_PRILIV",
+  "RATA_KREDITA",
+  "PROVIZIJA_BANKE",
+  "PLATE_ZAPOSLENIKA",
+  "OSTALO_BEZ_KPR",
+];
+const NON_PARTNER_CATEGORY_SET = new Set(NON_PARTNER_CATEGORIES);
+
+function isNonPartnerCategory(category) {
+  return category != null && NON_PARTNER_CATEGORY_SET.has(category);
+}
+
+/** Sequelize where-uslov: stavke koje smiju u promet/karticu partnera. */
+const PARTNER_CATEGORY_WHERE = {
+  [Op.or]: [
+    { category: null },
+    { category: { [Op.notIn]: NON_PARTNER_CATEGORIES } },
+  ],
+};
+
+/** Skriveni prijedlozi ("nije partner") iz profila organizacije. */
+function parseSuggestionHides(org) {
+  let list = org?.partnerSuggestionHides;
+  if (typeof list === "string") {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = null;
+    }
+  }
+  return Array.isArray(list) ? list : [];
 }
 
 // GET /api/partners/:orgId/suggestions — kandidati iz izvoda i faktura
@@ -356,28 +483,51 @@ async function suggestions(req, res) {
     for (const a of accounts) knownAccounts.add(normalizeDigits(a));
   }
 
-  // kandidati sa izvoda: grupisano po protivračunu, bez vlastitih uplata
-  // na javne prihode (one imaju kategoriju doprinosa/poreza, nisu partneri)
+  // skriveni prijedlozi ("nije partner") + vlastiti računi obrta (prenos
+  // između računa i polog pazara nose vlastiti račun kao protivračun)
+  const org = await Organization.findByPk(organizationId, {
+    attributes: ["id", "bankAccount", "bankAccounts", "partnerSuggestionHides"],
+  });
+  const hides = parseSuggestionHides(org);
+  const hiddenAccounts = new Set(
+    hides.map((h) => normalizeDigits(h?.account)).filter((a) => a.length >= 8),
+  );
+  const hiddenNames = new Set(
+    hides.map((h) => normalizeName(h?.name)).filter(Boolean),
+  );
+  const ownAccounts = new Set();
+  if (org?.bankAccount) ownAccounts.add(normalizeDigits(org.bankAccount));
+  let orgAccList = org?.bankAccounts;
+  if (typeof orgAccList === "string") {
+    try {
+      orgAccList = JSON.parse(orgAccList);
+    } catch {
+      orgAccList = null;
+    }
+  }
+  for (const a of Array.isArray(orgAccList) ? orgAccList : []) {
+    const d = normalizeDigits(a);
+    if (d) ownAccounts.add(d);
+  }
+  const ownStatements = await BankStatement.findAll({
+    where: { organizationId, account: { [Op.ne]: null } },
+    attributes: ["account"],
+    raw: true,
+  });
+  for (const s of ownStatements) {
+    const d = normalizeDigits(s.account);
+    if (d) ownAccounts.add(d);
+  }
+
+  // kandidati sa izvoda: grupisano po protivračunu, bez stavki čija
+  // kategorija kaže da protivstrana nije partner (javni prihodi, pazar,
+  // prenosi, krediti, provizije, plate)
   const txRows = await BankTransaction.findAll({
     where: {
       organizationId,
       counterpartyAccount: { [Op.ne]: null },
       partnerId: null,
-      [Op.or]: [
-        { category: null },
-        {
-          category: {
-            [Op.notIn]: [
-              "DOPRINOSI_PODUZETNIKA",
-              "POREZ_DOHODAK_VLASNIKA",
-              "PDV_UIO",
-              "DOPRINOSI_ZAPOSLENIKA",
-              "POREZI_PLATE",
-              "CLANARINE_TAKSE",
-            ],
-          },
-        },
-      ],
+      ...PARTNER_CATEGORY_WHERE,
     },
     attributes: ["counterpartyAccount", "counterpartyName", "direction"],
     raw: true,
@@ -386,6 +536,7 @@ async function suggestions(req, res) {
   for (const t of txRows) {
     const acc = normalizeDigits(t.counterpartyAccount);
     if (acc.length < 8 || knownAccounts.has(acc)) continue;
+    if (ownAccounts.has(acc) || hiddenAccounts.has(acc)) continue;
     const entry = byAccount.get(acc) || {
       account: acc,
       names: new Map(),
@@ -421,7 +572,10 @@ async function suggestions(req, res) {
         txCount: e.txCount,
       };
     })
-    .filter((s) => !knownNames.has(normalizeName(s.name)))
+    .filter((s) => {
+      const n = normalizeName(s.name);
+      return !knownNames.has(n) && !hiddenNames.has(n);
+    })
     .sort((a, b) => b.txCount - a.txCount);
 
   // kandidati sa izlaznih faktura: kupci koji još nisu partneri
@@ -445,6 +599,7 @@ async function suggestions(req, res) {
     const jib = normalizeDigits(inv.buyerIdNumber);
     if (!normName || seenInvoiceNames.has(normName)) continue;
     if (knownNames.has(normName) || (jib && knownJibs.has(jib))) continue;
+    if (hiddenNames.has(normName)) continue;
     seenInvoiceNames.add(normName);
     fromInvoices.push({
       source: "invoice",
@@ -464,6 +619,38 @@ async function suggestions(req, res) {
     ok: true,
     data: { fromStatements, fromInvoices },
   });
+}
+
+// POST /api/partners/:orgId/suggestions/hide — "nije partner": skrij
+// prijedlog trajno (po žiro računu i/ili nazivu). Idempotentno.
+async function hideSuggestion(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const account = normalizeDigits(req.body?.account);
+  const name = normalizeName(req.body?.name);
+  if (account.length < 8 && !name) {
+    return res.status(400).json({ ok: false, error: "INVALID_SUGGESTION" });
+  }
+  const org = await Organization.findByPk(organizationId, {
+    attributes: ["id", "partnerSuggestionHides"],
+  });
+  if (!org) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+  const hides = parseSuggestionHides(org);
+  const exists = hides.some(
+    (h) =>
+      normalizeDigits(h?.account) === (account.length >= 8 ? account : "") &&
+      normalizeName(h?.name) === name,
+  );
+  if (!exists) {
+    hides.push({
+      account: account.length >= 8 ? account : null,
+      name: name || null,
+    });
+    await org.update({ partnerSuggestionHides: hides });
+  }
+  return res.json({ ok: true, data: { hidden: hides.length } });
 }
 
 // POST /api/partners/:orgId
@@ -937,6 +1124,13 @@ async function createUlazniRacun(req, res) {
   const matched = payload.samoEvidencija
     ? false
     : await tryMatchExistingPayment(racun);
+  // statistika PK Office korištenja (admin Aktivnost)
+  void logEvent({
+    userId: req.user?.id ?? null,
+    action: "OFFICE_ULAZNI_RACUN",
+    label: `${partner.name} · ${payload.brojRacuna}`,
+    organizationId,
+  });
   return res
     .status(201)
     .json({ ok: true, data: { ...racun.toJSON(), matched } });
@@ -1280,8 +1474,40 @@ async function kartica(req, res) {
     return res.status(404).json({ ok: false, error: "PARTNER_NOT_FOUND" });
   }
 
+  // period pregleda (?from=&to=, ISO): kartica default prikazuje jednu
+  // godinu sa donosom iz ranijih; bez parametara vraća sve (kao ranije).
+  // FIFO i dugovi se UVIJEK računaju preko cijele istorije, period samo
+  // filtrira šta se prikazuje i promet perioda.
+  const from = parseIsoDate(req.query.from);
+  const to = parseIsoDate(req.query.to);
+  const inPeriod = (iso) => {
+    const d = String(iso || "").slice(0, 10);
+    if (!d) return false;
+    return (!from || d >= from) && (!to || d <= to);
+  };
+
+  // provizije banke i sl. (ne-partner kategorije) ne ulaze u karticu ni kad
+  // su vezane za partnera: banka uz plaćanje dobavljaču knjiži i proviziju
+  // sa imenom dobavljača u opisu, a to nije promet sa partnerom
+  // sa periodom (godišnji pregled) transakcije se učitavaju SAMO za taj
+  // period, inače bi limit 300 (najnovije) ispustio starije godine za
+  // partnere sa puno prometa; bez perioda ostaje zadnjih 300 kao ranije
+  const txPeriodWhere =
+    from || to
+      ? {
+          date: {
+            ...(from ? { [Op.gte]: from } : {}),
+            ...(to ? { [Op.lte]: to } : {}),
+          },
+        }
+      : {};
   const transactions = await BankTransaction.findAll({
-    where: { organizationId, partnerId },
+    where: {
+      organizationId,
+      partnerId,
+      ...PARTNER_CATEGORY_WHERE,
+      ...txPeriodWhere,
+    },
     include: [
       {
         model: BankStatement,
@@ -1292,6 +1518,14 @@ async function kartica(req, res) {
     order: [["date", "DESC"], ["id", "DESC"]],
     limit: 300,
   });
+
+  // početno stanje (migracija iz starog programa): najstariji "dokument"
+  const opening = await PartnerOpeningBalance.findOne({
+    where: { organizationId, partnerId },
+  });
+  const openKupac = opening ? Number(opening.kupacIznos) || 0 : 0;
+  const openDob = opening ? Number(opening.dobavljacIznos) || 0 : 0;
+  const openingDatum = opening ? String(opening.datum).slice(0, 10) : null;
 
   // izlazne fakture vezane po JIB-u ili nazivu kupca
   const pJib = normalizeDigits(partner.jib);
@@ -1330,10 +1564,12 @@ async function kartica(req, res) {
     ulazniRacuni.map((r) => r.id),
   );
 
+  // promet izabranog perioda (bez from/to = sve, kao ranije)
   let totalIn = 0;
   let totalOut = 0;
   for (const t of transactions) {
     if (t.status !== "CONFIRMED") continue;
+    if ((from || to) && !inPeriod(t.date)) continue;
     if (t.direction === "IN") totalIn += Number(t.amount) || 0;
     else totalOut += Number(t.amount) || 0;
   }
@@ -1355,67 +1591,172 @@ async function kartica(req, res) {
   const invKreditSum = chargeableInvoices
     .filter(invKredit)
     .reduce((s, i) => s + (Number(i.grossTotal) || 0), 0);
-  // kupci: uplata vezana za konkretnu fakturu ju je već zatvorila (ne u pool)
-  const unlinkedIn = transactions
-    .filter(
-      (t) => t.status === "CONFIRMED" && t.direction === "IN" && !t.invoiceId,
-    )
-    .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-  // dobavljači: plaćanje koje je već zatvorilo konkretan račun (ulazniRacunId)
-  // je taj račun označilo PLACEN (manualPlacen); ne smije ponovo u pool, inače
-  // se ista uplata broji dvaput i sljedeći otvoren račun ispadne lažno plaćen
-  const unlinkedOut = transactions
-    .filter(
-      (t) =>
-        t.status === "CONFIRMED" && t.direction === "OUT" && !t.ulazniRacunId,
-    )
-    .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  // FIFO pool je LIFETIME (svih vremena), ne period: računa se preko SQL
+  // suma, inače bi limit 300 / period-filter na `transactions` iskrivili
+  // otvoreni dug i preostalo početnog stanja pri gledanju jedne godine.
+  // Uplata vezana za konkretnu fakturu/račun ju je već zatvorila (ne u pool).
+  const unlinkedIn =
+    Number(
+      await BankTransaction.sum("amount", {
+        where: {
+          organizationId,
+          partnerId,
+          status: "CONFIRMED",
+          direction: "IN",
+          invoiceId: null,
+          ...PARTNER_CATEGORY_WHERE,
+        },
+      }),
+    ) || 0;
+  const unlinkedOut =
+    Number(
+      await BankTransaction.sum("amount", {
+        where: {
+          organizationId,
+          partnerId,
+          status: "CONFIRMED",
+          direction: "OUT",
+          ulazniRacunId: null,
+          ...PARTNER_CATEGORY_WHERE,
+        },
+      }),
+    ) || 0;
+  // početno stanje ulazi u FIFO kao najstariji otvoreni dokument (dug iz
+  // ranijih godina se zatvara prije ovogodišnjih); negativno stanje (avans/
+  // pretplata) ide u pool kao već primljeno plaćanje
   const racunAlloc = allocateFifo(
-    ulazniRacuni.map((r) => ({
-      id: r.id,
-      iznos: Number(r.iznos) || 0,
-      datum: String(r.datumRacuna).slice(0, 10),
-      manualPlacen: r.status === "PLACEN",
-      // samoEvidencija (uvoz/JCI) nije obaveza prema dobavljaču, van FIFO-a
-      kredit: racunKredit(r) || Boolean(r.samoEvidencija),
-    })),
-    unlinkedOut + racunKreditSum,
+    [
+      ...(openDob > 0
+        ? [{ id: OPENING_ID, iznos: openDob, datum: openingDatum || "1900-01-01" }]
+        : []),
+      ...ulazniRacuni.map((r) => ({
+        id: r.id,
+        iznos: Number(r.iznos) || 0,
+        datum: String(r.datumRacuna).slice(0, 10),
+        manualPlacen: r.status === "PLACEN",
+        // samoEvidencija (uvoz/JCI) nije obaveza prema dobavljaču, van FIFO-a
+        kredit: racunKredit(r) || Boolean(r.samoEvidencija),
+      })),
+    ],
+    unlinkedOut + racunKreditSum + (openDob < 0 ? -openDob : 0),
   );
   const invAlloc = allocateFifo(
-    chargeableInvoices.map((i) => ({
-      id: i.id,
-      iznos: Number(i.grossTotal) || 0,
-      datum: String(i.issueDate).slice(0, 10),
-      manualPlacen: i.status === "PAID",
-      kredit: invKredit(i),
-    })),
-    unlinkedIn + invKreditSum,
+    [
+      ...(openKupac > 0
+        ? [{ id: OPENING_ID, iznos: openKupac, datum: openingDatum || "1900-01-01" }]
+        : []),
+      ...chargeableInvoices.map((i) => ({
+        id: i.id,
+        iznos: Number(i.grossTotal) || 0,
+        datum: String(i.issueDate).slice(0, 10),
+        manualPlacen: i.status === "PAID",
+        kredit: invKredit(i),
+      })),
+    ],
+    unlinkedIn + invKreditSum + (openKupac < 0 ? -openKupac : 0),
   );
+  const openingKupacPreostalo =
+    openKupac > 0 ? (invAlloc.get(OPENING_ID)?.preostalo ?? openKupac) : 0;
+  const openingDobPreostalo =
+    openDob > 0 ? (racunAlloc.get(OPENING_ID)?.preostalo ?? openDob) : 0;
 
   const danas = todayLocalIso();
-  const openPayablesTotal = ulazniRacuni.reduce(
-    (s, r) => s + (racunAlloc.get(r.id)?.preostalo || 0),
-    0,
-  );
-  const openInvoicesTotal = chargeableInvoices.reduce(
-    (s, i) => s + (invAlloc.get(i.id)?.preostalo || 0),
-    0,
-  );
-  const openPayablesLate = ulazniRacuni.reduce(
-    (s, r) =>
-      r.rokPlacanja && String(r.rokPlacanja).slice(0, 10) < danas
-        ? s + (racunAlloc.get(r.id)?.preostalo || 0)
-        : s,
-    0,
-  );
-  const openInvoicesLate = chargeableInvoices.reduce(
-    (s, i) =>
-      i.dueDate && String(i.dueDate).slice(0, 10) < danas
-        ? s + (invAlloc.get(i.id)?.preostalo || 0)
-        : s,
-    0,
-  );
+  // dugovi su ŽIVI (cijela istorija + početno stanje), period ih ne mijenja;
+  // otvoreni dio početnog stanja je odavno dospio pa ulazi i u "late"
+  const openPayablesTotal =
+    ulazniRacuni.reduce(
+      (s, r) => s + (racunAlloc.get(r.id)?.preostalo || 0),
+      0,
+    ) + openingDobPreostalo;
+  const openInvoicesTotal =
+    chargeableInvoices.reduce(
+      (s, i) => s + (invAlloc.get(i.id)?.preostalo || 0),
+      0,
+    ) + openingKupacPreostalo;
+  const openPayablesLate =
+    ulazniRacuni.reduce(
+      (s, r) =>
+        r.rokPlacanja && String(r.rokPlacanja).slice(0, 10) < danas
+          ? s + (racunAlloc.get(r.id)?.preostalo || 0)
+          : s,
+      0,
+    ) + openingDobPreostalo;
+  const openInvoicesLate =
+    chargeableInvoices.reduce(
+      (s, i) =>
+        i.dueDate && String(i.dueDate).slice(0, 10) < danas
+          ? s + (invAlloc.get(i.id)?.preostalo || 0)
+          : s,
+      0,
+    ) + openingKupacPreostalo;
 
+  // donos u izabrani period: početno stanje + sav promet PRIJE from
+  let donos = null;
+  if (from) {
+    const invPrije = chargeableInvoices
+      .filter((i) => String(i.issueDate).slice(0, 10) < from)
+      .reduce(
+        (s, i) => s + (invKredit(i) ? -1 : 1) * (Number(i.grossTotal) || 0),
+        0,
+      );
+    // uplate/plaćanja prije perioda preko SQL suma: lista transakcija u
+    // odgovoru je limitirana na 300 najnovijih pa bi starije ispale iz donosa
+    const sumTx = async (direction) =>
+      Number(
+        await BankTransaction.sum("amount", {
+          where: {
+            organizationId,
+            partnerId,
+            status: "CONFIRMED",
+            direction,
+            date: { [Op.lt]: from },
+            ...PARTNER_CATEGORY_WHERE,
+          },
+        }),
+      ) || 0;
+    const uplatePrije = await sumTx("IN");
+    const placanjaPrije = await sumTx("OUT");
+    const racuniPrije = ulazniRacuni
+      .filter(
+        (r) =>
+          !r.samoEvidencija && String(r.datumRacuna).slice(0, 10) < from,
+      )
+      .reduce(
+        (s, r) => s + (racunKredit(r) ? -1 : 1) * (Number(r.iznos) || 0),
+        0,
+      );
+    const openingUDonosu = opening && openingDatum && openingDatum < from;
+    donos = {
+      kupac: r2((openingUDonosu ? openKupac : 0) + invPrije - uplatePrije),
+      dobavljac: r2(
+        (openingUDonosu ? openDob : 0) + racuniPrije - placanjaPrije,
+      ),
+    };
+  }
+
+  // najranija godina sa podacima (za picker godina na frontu)
+  let minDatum = openingDatum;
+  for (const i of chargeableInvoices) {
+    const d = String(i.issueDate).slice(0, 10);
+    if (!minDatum || d < minDatum) minDatum = d;
+  }
+  for (const r of ulazniRacuni) {
+    const d = String(r.datumRacuna).slice(0, 10);
+    if (!minDatum || d < minDatum) minDatum = d;
+  }
+  // najranija transakcija preko SQL MIN (niz je period-scoped pa ne služi)
+  const minTxDate = await BankTransaction.min("date", {
+    where: { organizationId, partnerId, ...PARTNER_CATEGORY_WHERE },
+  });
+  if (minTxDate) {
+    const d = String(minTxDate).slice(0, 10);
+    if (!minDatum || d < minDatum) minDatum = d;
+  }
+  const minYear = minDatum ? Number(minDatum.slice(0, 4)) : null;
+
+  // sa periodom se prikazuju samo stavke perioda (FIFO statusi su ipak
+  // izračunati preko svega, pa su tačni i u godišnjem pregledu)
+  const filtered = from || to;
   return res.json({
     ok: true,
     data: {
@@ -1423,20 +1764,40 @@ async function kartica(req, res) {
         ...partner.toJSON(),
         accounts: Array.isArray(partner.accounts) ? partner.accounts : [],
       },
-      transactions,
-      invoices: invoices.map((i) => ({
-        ...(typeof i.toJSON === "function" ? i.toJSON() : i),
-        placeno: invAlloc.get(i.id)?.placeno ?? 0,
-        preostalo: invAlloc.get(i.id)?.preostalo ?? (Number(i.grossTotal) || 0),
-        paymentStatus: invAlloc.get(i.id)?.status ?? "OTVOREN",
-      })),
-      ulazniRacuni: ulazniRacuni.map((r) => ({
-        ...r.toJSON(),
-        kalkulacijaOznaka: klcByRacun.get(r.id) ?? null,
-        placeno: racunAlloc.get(r.id)?.placeno ?? 0,
-        preostalo: racunAlloc.get(r.id)?.preostalo ?? (Number(r.iznos) || 0),
-        paymentStatus: racunAlloc.get(r.id)?.status ?? "OTVOREN",
-      })),
+      transactions: filtered
+        ? transactions.filter((t) => inPeriod(t.date))
+        : transactions,
+      invoices: invoices
+        .filter((i) => !filtered || inPeriod(i.issueDate))
+        .map((i) => ({
+          ...(typeof i.toJSON === "function" ? i.toJSON() : i),
+          placeno: invAlloc.get(i.id)?.placeno ?? 0,
+          preostalo:
+            invAlloc.get(i.id)?.preostalo ?? (Number(i.grossTotal) || 0),
+          paymentStatus: invAlloc.get(i.id)?.status ?? "OTVOREN",
+        })),
+      ulazniRacuni: ulazniRacuni
+        .filter((r) => !filtered || inPeriod(r.datumRacuna))
+        .map((r) => ({
+          ...r.toJSON(),
+          kalkulacijaOznaka: klcByRacun.get(r.id) ?? null,
+          placeno: racunAlloc.get(r.id)?.placeno ?? 0,
+          preostalo: racunAlloc.get(r.id)?.preostalo ?? (Number(r.iznos) || 0),
+          paymentStatus: racunAlloc.get(r.id)?.status ?? "OTVOREN",
+        })),
+      period: { from: from || null, to: to || null },
+      minYear,
+      opening: opening
+        ? {
+            datum: openingDatum,
+            kupacIznos: openKupac,
+            dobavljacIznos: openDob,
+            napomena: opening.napomena,
+            kupacPreostalo: openingKupacPreostalo,
+            dobavljacPreostalo: openingDobPreostalo,
+          }
+        : null,
+      donos,
       totals: {
         totalIn,
         totalOut,
@@ -1447,6 +1808,120 @@ async function kartica(req, res) {
       },
     },
   });
+}
+
+// ─── Početno stanje partnera ────────────────────────────────────────────────
+
+// GET /api/partners/:orgId/opening-balances — sva početna stanja organizacije
+async function listOpeningBalances(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const rows = await PartnerOpeningBalance.findAll({
+    where: { organizationId },
+    raw: true,
+  });
+  return res.json({
+    ok: true,
+    data: rows.map((r) => ({
+      partnerId: r.partnerId,
+      datum: String(r.datum).slice(0, 10),
+      kupacIznos: Number(r.kupacIznos) || 0,
+      dobavljacIznos: Number(r.dobavljacIznos) || 0,
+      napomena: r.napomena,
+    })),
+  });
+}
+
+/** Upsert jednog početnog stanja; oba iznosa 0 briše zapis. */
+async function upsertOpeningBalance(organizationId, partnerId, body) {
+  const datum = parseIsoDate(body?.datum);
+  if (!datum) return { error: "INVALID_DATE" };
+  const kupacIznos = r2(Number(body?.kupacIznos) || 0);
+  const dobavljacIznos = r2(Number(body?.dobavljacIznos) || 0);
+  const napomena = String(body?.napomena || "").trim() || null;
+  const existing = await PartnerOpeningBalance.findOne({
+    where: { organizationId, partnerId },
+  });
+  if (kupacIznos === 0 && dobavljacIznos === 0) {
+    if (existing) await existing.destroy();
+    return { data: null };
+  }
+  if (existing) {
+    await existing.update({ datum, kupacIznos, dobavljacIznos, napomena });
+    return { data: existing };
+  }
+  const created = await PartnerOpeningBalance.create({
+    organizationId,
+    partnerId,
+    datum,
+    kupacIznos,
+    dobavljacIznos,
+    napomena,
+  });
+  return { data: created };
+}
+
+// PUT /api/partners/:orgId/:partnerId/opening-balance
+// {datum, kupacIznos, dobavljacIznos, napomena}; oba iznosa 0 = obriši
+async function setOpeningBalance(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  const partnerId = parseId(req.params.partnerId);
+  if (!organizationId || !partnerId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ID" });
+  }
+  const partner = await Partner.findOne({
+    where: { id: partnerId, organizationId },
+    attributes: ["id"],
+  });
+  if (!partner) {
+    return res.status(404).json({ ok: false, error: "PARTNER_NOT_FOUND" });
+  }
+  const result = await upsertOpeningBalance(
+    organizationId,
+    partnerId,
+    req.body,
+  );
+  if (result.error) {
+    return res.status(400).json({ ok: false, error: result.error });
+  }
+  return res.json({ ok: true, data: result.data });
+}
+
+// POST /api/partners/:orgId/opening-balances — grupni unos (migracija):
+// {items: [{partnerId, datum, kupacIznos, dobavljacIznos}]}
+async function bulkSetOpeningBalances(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (items.length === 0 || items.length > 2000) {
+    return res.status(400).json({ ok: false, error: "INVALID_ITEMS" });
+  }
+  const orgPartnerIds = new Set(
+    (
+      await Partner.findAll({
+        where: { organizationId },
+        attributes: ["id"],
+        raw: true,
+      })
+    ).map((p) => p.id),
+  );
+  let saved = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const partnerId = parseId(item?.partnerId);
+    if (!partnerId || !orgPartnerIds.has(partnerId)) {
+      skipped++;
+      continue;
+    }
+    const result = await upsertOpeningBalance(organizationId, partnerId, item);
+    if (result.error) skipped++;
+    else saved++;
+  }
+  return res.json({ ok: true, data: { saved, skipped } });
 }
 
 // ─── Kartica prometa (PDF + email) ──────────────────────────────────────────
@@ -1592,6 +2067,51 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
   return rows;
 }
 
+/** Dan prije ISO datuma ("2026-01-01" → "2025-12-31"). */
+function prevDayIso(iso) {
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Donos strane kartice PRIJE datuma: početno stanje + sav raniji promet.
+ *  Pozitivan = dug na toj strani (kupac nama / mi dobavljaču). */
+async function donosZaStranu(organizationId, partner, type, beforeIso) {
+  const opening = await PartnerOpeningBalance.findOne({
+    where: { organizationId, partnerId: partner.id },
+  });
+  let saldo = 0;
+  if (opening && String(opening.datum).slice(0, 10) < beforeIso) {
+    saldo +=
+      Number(
+        type === "kupac" ? opening.kupacIznos : opening.dobavljacIznos,
+      ) || 0;
+  }
+  const prije = await buildKarticaRows(
+    organizationId,
+    partner,
+    type,
+    "1900-01-01",
+    prevDayIso(beforeIso),
+  );
+  for (const r of prije) {
+    saldo += type === "kupac" ? r.duguje - r.potrazuje : r.potrazuje - r.duguje;
+  }
+  return r2(saldo);
+}
+
+/** Red donosa za PDF karticu: iznos na prirodnoj strani te kartice. */
+function donosRow(date, label, saldo, type) {
+  const kupac = type === "kupac";
+  return {
+    date,
+    dospijece: null,
+    label,
+    duguje: kupac ? Math.max(saldo, 0) : Math.max(-saldo, 0),
+    potrazuje: kupac ? Math.max(-saldo, 0) : Math.max(saldo, 0),
+  };
+}
+
 async function loadKarticaContext(req) {
   const organizationId = parseId(req.params.orgId);
   const partnerId = parseId(req.params.partnerId);
@@ -1617,6 +2137,33 @@ async function loadKarticaContext(req) {
     fromInput || "1900-01-01",
     to,
   );
+
+  // donos / početno stanje na kartici
+  if (fromInput) {
+    const donos = await donosZaStranu(organizationId, partner, type, fromInput);
+    if (Math.abs(donos) > 0.005) {
+      rows.unshift(donosRow(fromInput, "Donos iz ranijeg perioda", donos, type));
+    }
+  }
+  // početno stanje unutar prikazanog perioda (cijeli period, ili datum
+  // stanja u periodu): vlastiti red na svom datumu
+  const openingRec = await PartnerOpeningBalance.findOne({
+    where: { organizationId, partnerId: partner.id },
+  });
+  if (openingRec) {
+    const oDatum = String(openingRec.datum).slice(0, 10);
+    const oIznos =
+      Number(
+        type === "kupac" ? openingRec.kupacIznos : openingRec.dobavljacIznos,
+      ) || 0;
+    const uPrikazu = (!fromInput || oDatum >= fromInput) && oDatum <= to;
+    if (uPrikazu && Math.abs(oIznos) > 0.005) {
+      rows.push(
+        donosRow(oDatum, `Početno stanje na ${fmtDateHr(oDatum)}`, oIznos, type),
+      );
+      rows.sort((a, b) => a.date.localeCompare(b.date));
+    }
+  }
   const from =
     fromInput || rows[0]?.date || `${new Date().getFullYear()}-01-01`;
   const pdf = await buildKarticaPdf({
@@ -1761,8 +2308,60 @@ async function buildIosRows(organizationId, partner, type, naDan) {
       });
     }
   }
+
+  // otvoreni dio početnog stanja (dug iz starog programa) je otvorena
+  // stavka na dan; valuta = datum stanja (odavno dospjelo, ulazi i u opomenu)
+  const open = await openingPreostaloNaDan(organizationId, partner, type, naDan);
+  if (open && Math.abs(open.preostalo) > 0.005) {
+    rows.push({
+      broj:
+        open.preostalo < 0
+          ? "Početno stanje (avans)"
+          : "Početno stanje (donos)",
+      datum: open.datum,
+      valuta: open.datum,
+      iznos: open.preostalo,
+    });
+  }
+
   rows.sort((a, b) => a.datum.localeCompare(b.datum));
   return rows;
+}
+
+/** Otvoreni dio početnog stanja partnera na dan. FIFO: nevezane uplate
+ *  (bez fakture/računa) najprije zatvaraju najstarije, a početno stanje je
+ *  najstarije, pa je preostalo = stanje - nevezane uplate do tog dana. */
+async function openingPreostaloNaDan(organizationId, partner, type, naDan) {
+  const opening = await PartnerOpeningBalance.findOne({
+    where: { organizationId, partnerId: partner.id },
+  });
+  if (!opening) return null;
+  const iznos =
+    Number(type === "kupac" ? opening.kupacIznos : opening.dobavljacIznos) || 0;
+  const datum = String(opening.datum).slice(0, 10);
+  if (iznos === 0 || datum > naDan) return null;
+  // negativno = avans/pretplata: kredit koji umanjuje dug; prikazuje se kao
+  // negativna stavka (kao i u kartici gdje ide u pool plaćanja), pool se ne
+  // primjenjuje na kredit
+  if (iznos < 0) {
+    return { datum, iznos, preostalo: r2(iznos) };
+  }
+  const pool = await BankTransaction.sum("amount", {
+    where: {
+      organizationId,
+      partnerId: partner.id,
+      status: "CONFIRMED",
+      direction: type === "kupac" ? "IN" : "OUT",
+      [type === "kupac" ? "invoiceId" : "ulazniRacunId"]: null,
+      date: { [Op.lte]: naDan },
+      ...PARTNER_CATEGORY_WHERE,
+    },
+  });
+  return {
+    datum,
+    iznos,
+    preostalo: Math.max(0, r2(iznos - (Number(pool) || 0))),
+  };
 }
 
 async function loadIosContext(req) {
@@ -2030,6 +2629,10 @@ async function merge(req, res) {
 module.exports = {
   list,
   suggestions,
+  hideSuggestion,
+  listOpeningBalances,
+  setOpeningBalance,
+  bulkSetOpeningBalances,
   create,
   update,
   remove,
@@ -2048,6 +2651,7 @@ module.exports = {
   opomenaEmail,
   merge,
   loadPartnerMatcher,
+  isNonPartnerCategory,
   normalizeDigits,
   tryMatchExistingPayment,
 };

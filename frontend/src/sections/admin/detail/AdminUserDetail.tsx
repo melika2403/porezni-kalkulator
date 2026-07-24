@@ -92,8 +92,23 @@ export default function AdminUserDetail({ userId }: { userId: number }) {
           </div>
           <div className={styles.subtitle}>{u.email}</div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <span className={`${styles.badge} ${styles.badgeSage}`}>{u.role}</span>
+          {/* PK Office se ne vidi iz role (rola ostaje npr. BUSINESS):
+              trial/paket dobijaju vlastiti bedž da se odmah primijeti */}
+          {u.pkOffice?.trialAktivan && (
+            <span
+              className={`${styles.badge} ${styles.badgeAmber}`}
+              title={`Office trial do ${fmtDate(u.pkOffice.trialEndsAt)}`}
+            >
+              Office trial
+            </span>
+          )}
+          {u.pkOffice?.plan && (
+            <span className={`${styles.badge} ${styles.badgeSage}`}>
+              {u.pkOffice.planNaziv ?? u.pkOffice.plan}
+            </span>
+          )}
           <span
             className={`${styles.badge} ${
               u.isEmailVerified ? styles.badgeGreen : styles.badgeAmber
@@ -180,6 +195,53 @@ export default function AdminUserDetail({ userId }: { userId: number }) {
         </div>
       </div>
 
+      {/* PK Office */}
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <div className={styles.sectionTitle}>PK Office</div>
+        </div>
+        <div className={styles.card}>
+          {u.pkOffice?.hasOffice || (u.pkOffice?.aktivnihObrta ?? 0) > 0 ? (
+            <div className={styles.infoGrid}>
+              <Info
+                label="Pristup"
+                value={
+                  u.pkOffice.plan
+                    ? (u.pkOffice.planNaziv ?? u.pkOffice.plan)
+                    : u.pkOffice.trialAktivan
+                      ? "Probni period (Office Tim)"
+                      : "istekao"
+                }
+              />
+              <Info
+                label="Office trial"
+                value={
+                  u.pkOffice.trialEndsAt
+                    ? `${u.pkOffice.trialAktivan ? "aktivan do" : "istekao"} ${fmtDate(u.pkOffice.trialEndsAt)}`
+                    : "nije korišten"
+                }
+              />
+              <Info
+                label="Aktivirani obrti (granica)"
+                value={`${u.pkOffice.aktivnihObrta}${
+                  u.pkOffice.maxObrta != null
+                    ? ` / ${u.pkOffice.maxObrta}`
+                    : ""
+                }`}
+              />
+            </div>
+          ) : (
+            <div className={styles.empty}>
+              Korisnik ne koristi PK Office
+              {u.pkOffice?.trialEndsAt
+                ? ` (trial istekao ${fmtDate(u.pkOffice.trialEndsAt)})`
+                : " (trial nije korišten)"}
+              .
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Organizacije */}
       <div className={styles.section}>
         <div className={styles.sectionHead}>
@@ -197,6 +259,7 @@ export default function AdminUserDetail({ userId }: { userId: number }) {
                   <th>Naziv</th>
                   <th>Tip</th>
                   <th>Uloga</th>
+                  <th>PK Office</th>
                 </tr>
               </thead>
               <tbody>
@@ -213,6 +276,11 @@ export default function AdminUserDetail({ userId }: { userId: number }) {
                     </td>
                     <td>{TYPE_LABEL[o.type] ?? o.type}</td>
                     <td>{o.role}</td>
+                    <td>
+                      {o.pkOfficeEnabled
+                        ? `aktiviran${o.pkOfficeActivatedAt ? ` (${fmtDate(o.pkOfficeActivatedAt)})` : ""}`
+                        : "–"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

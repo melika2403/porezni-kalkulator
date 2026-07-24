@@ -10,6 +10,7 @@ import Gpd1051KorakPoKorak from "./posts/Gpd1051KorakPoKorak";
 import OtkazRadnikaFbih from "./posts/OtkazRadnikaFbih";
 import TopliObrokRegres from "./posts/TopliObrokRegres";
 import KolikoKostaRadnikPoslodavca from "./posts/KolikoKostaRadnikPoslodavca";
+import KakoVoditiObrt from "./posts/KakoVoditiObrt";
 
 export type BlogPost = {
   slug: string;
@@ -26,6 +27,16 @@ export type BlogPost = {
 
 // Najnoviji prvi (`date` desc).
 export const BLOG_POSTS: BlogPost[] = [
+  {
+    slug: "kako-voditi-obrt-fbih",
+    title: "Kako pravilno voditi obrt u FBiH: knjige, obaveze i rokovi",
+    excerpt:
+      "Kompletan vodič kroz vođenje obrta u stvarnom režimu: KPR, bankovni izvodi, fakture, doprinosi vlasnika, plate radnika, blagajna, PDV i godišnji obrasci. Kalendar rokova i najčešće greške koje koštaju.",
+    date: "2026-07-23",
+    readingTime: "12 min",
+    category: "Vođenje obrta",
+    Content: KakoVoditiObrt,
+  },
   {
     slug: "koliko-kosta-radnik-poslodavca-fbih",
     title: "Koliko košta radnik poslodavca u FBiH 2026: ukupan trošak zaposlenog",

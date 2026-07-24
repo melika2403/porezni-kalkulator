@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "../blog.module.css";
+import { BlogCta } from "../BlogCta";
 
 export default function TopliObrokRegres() {
   return (
@@ -345,6 +346,13 @@ export default function TopliObrokRegres() {
         porezu na dohodak FBiH. Iznosi propisani prema posljednjim podacima
         Federalnog zavoda za statistiku.
       </p>
+
+      <BlogCta
+        title="Topli obrok i regres bez ručnog računanja"
+        text="U našem obračunu plata topli obrok, prevoz i regres se dodaju jednim klikom, uz automatsku kontrolu neoporezivih iznosa i gotove platne liste."
+        href="/prijave-radnika?tab=obracun"
+        button="Otvori obračun plata"
+      />
     </>
   );
 }

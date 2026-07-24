@@ -7,7 +7,7 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 
-const { sequelize, Organization, Worker } = require("./models/index");
+const { sequelize, Organization, Worker, ActivityLog } = require("./models/index");
 const { decryptJmbg } = require("./utils/encryptJmbg");
 const {
   formatAccountDashed,
@@ -159,6 +159,12 @@ async function ensureColumns() {
       table: "organizations",
       column: "bankAccounts",
       ddl: "ALTER TABLE organizations ADD COLUMN bankAccounts JSON NULL",
+    },
+    {
+      table: "organizations",
+      column: "partnerSuggestionHides",
+      // skriveni prijedlozi partnera ("nije partner"), lista {account, name}
+      ddl: "ALTER TABLE organizations ADD COLUMN partnerSuggestionHides JSON NULL",
     },
     {
       table: "organizations",
@@ -1268,6 +1274,184 @@ async function ensurePdvObveznikFromPdvNumber() {
 // Auto-upis novog računa u profil radi tek od uvođenja liste računa; ovo
 // jednom pokupi račune sa ranijih izvoda. Idempotentno: kad je lista već
 // popunjena i nema novih računa, ništa se ne piše.
+// Backfill istorije PK Office aktivnosti u dnevnik (ActivityLog): backend
+// bilježenje OFFICE_* akcija je uvedeno naknadno, pa se postojeći izvodi,
+// ulazni računi i kalkulacije jednom upišu retroaktivno (sa ORIGINALNIM
+// createdAt), da admin Aktivnost pokaže i prošlo korištenje. Jednokratno:
+// marker red OFFICE_BACKFILL (sakriven) sprječava ponavljanje.
+async function ensureOfficeActivityBackfill() {
+  const [marker] = await sequelize.query(
+    "SELECT 1 FROM activity_logs WHERE action = 'OFFICE_BACKFILL' LIMIT 1",
+  );
+  if (marker && marker.length > 0) return;
+
+  const now = new Date();
+  const rows = [];
+
+  // učitani i ručni izvodi (interni "izvodi" se preskaču: prebijanja,
+  // amortizacija, početno stanje)
+  const [statements] = await sequelize.query(
+    `SELECT id, organizationId, uploadedById, bankId, bankName,
+            statementNumber, createdAt
+     FROM bank_statements
+     WHERE bankId NOT IN ('kompenzacija','cesija','amortizacija','pocetno')`,
+  );
+  for (const s of statements) {
+    rows.push({
+      userId: s.uploadedById ?? null,
+      action: s.bankId === "manual" ? "OFFICE_IZVOD_RUCNI" : "OFFICE_IZVOD_UCITAN",
+      label:
+        [s.bankName, s.statementNumber && `br. ${s.statementNumber}`]
+          .filter(Boolean)
+          .join(" ") || null,
+      organizationId: s.organizationId,
+      createdAt: s.createdAt,
+      updatedAt: s.createdAt,
+    });
+  }
+
+  // ulazni računi (bez onih koje su napravile kalkulacije, one imaju svoj red)
+  const [racuni] = await sequelize.query(
+    `SELECT r.id, r.organizationId, r.brojRacuna, r.createdAt, p.name AS partnerName
+     FROM ulazni_racuni r
+     LEFT JOIN partners p ON p.id = r.partnerId
+     WHERE NOT EXISTS (
+       SELECT 1 FROM kalkulacije k WHERE k.ulazniRacunId = r.id
+     )`,
+  );
+  for (const r of racuni) {
+    rows.push({
+      userId: null,
+      action: "OFFICE_ULAZNI_RACUN",
+      label: [r.partnerName, r.brojRacuna].filter(Boolean).join(" · ") || null,
+      organizationId: r.organizationId,
+      createdAt: r.createdAt,
+      updatedAt: r.createdAt,
+    });
+  }
+
+  const [kalkulacije] = await sequelize.query(
+    "SELECT id, organizationId, broj, godina, createdAt FROM kalkulacije",
+  );
+  for (const k of kalkulacije) {
+    rows.push({
+      userId: null,
+      action: "OFFICE_KALKULACIJA",
+      label: `KLC ${k.broj}/${String(k.godina).slice(-2)}`,
+      organizationId: k.organizationId,
+      createdAt: k.createdAt,
+      updatedAt: k.createdAt,
+    });
+  }
+
+  // zapisi + marker u JEDNOJ transakciji: ako padne, ništa se ne upiše pa
+  // se sljedeći start čisto ponovi (bez markera nema djelimičnog dupliranja)
+  await sequelize.transaction(async (t) => {
+    if (rows.length > 0) {
+      await ActivityLog.bulkCreate(rows, { transaction: t });
+    }
+    // marker: sakriven red da se backfill ne ponavlja (hiddenAt ga skriva
+    // iz admin liste, OFFICE_ prefiks iz javne brojke)
+    await ActivityLog.create(
+      {
+        userId: null,
+        action: "OFFICE_BACKFILL",
+        label: `backfill istorije PK Office (${rows.length} zapisa)`,
+        organizationId: null,
+        hiddenAt: now,
+      },
+      { transaction: t },
+    );
+  });
+  console.log(`PK Office aktivnost: backfill ${rows.length} istorijskih zapisa.`);
+}
+
+// Backfill v2: istorija za akcije dodane poslije prvog backfilla (blagajna,
+// putni nalozi, popisi, prebijanja). Vlastiti marker jer je v1 već izvršen.
+async function ensureOfficeActivityBackfillV2() {
+  const [marker] = await sequelize.query(
+    "SELECT 1 FROM activity_logs WHERE action = 'OFFICE_BACKFILL_V2' LIMIT 1",
+  );
+  if (marker && marker.length > 0) return;
+
+  const rows = [];
+
+  const [blagajna] = await sequelize.query(
+    "SELECT organizationId, tip, broj, godina, createdAt FROM blagajna_nalozi",
+  );
+  for (const n of blagajna) {
+    rows.push({
+      userId: null,
+      action: "OFFICE_BLAGAJNA_NALOG",
+      label: `${n.tip === "NAPLATA" ? "Naplata" : "Isplata"} br. ${n.broj}/${n.godina}`,
+      organizationId: n.organizationId,
+      createdAt: n.createdAt,
+      updatedAt: n.createdAt,
+    });
+  }
+
+  const [putni] = await sequelize.query(
+    "SELECT organizationId, broj, godina, createdAt FROM putni_nalozi",
+  );
+  for (const n of putni) {
+    rows.push({
+      userId: null,
+      action: "OFFICE_PUTNI_NALOG",
+      label: `Putni nalog br. ${n.broj}/${n.godina}`,
+      organizationId: n.organizationId,
+      createdAt: n.createdAt,
+      updatedAt: n.createdAt,
+    });
+  }
+
+  const [popisi] = await sequelize.query(
+    "SELECT organizationId, broj, godina, createdAt FROM popisi WHERE status = 'PROKNJIZEN'",
+  );
+  for (const p of popisi) {
+    rows.push({
+      userId: null,
+      action: "OFFICE_POPIS",
+      label: `Popis ${p.broj}/${p.godina}`,
+      organizationId: p.organizationId,
+      createdAt: p.createdAt,
+      updatedAt: p.createdAt,
+    });
+  }
+
+  const [prebijanja] = await sequelize.query(
+    "SELECT organizationId, type, broj, createdAt FROM prebijanja",
+  );
+  for (const p of prebijanja) {
+    rows.push({
+      userId: null,
+      action: "OFFICE_PREBIJANJE",
+      label: `${p.type === "CESIJA" ? "Cesija" : "Kompenzacija"} ${p.broj}`,
+      organizationId: p.organizationId,
+      createdAt: p.createdAt,
+      updatedAt: p.createdAt,
+    });
+  }
+
+  // zapisi + marker u jednoj transakciji (vidi v1: sprječava djelimično
+  // dupliranje ako padne između bulkCreate i markera)
+  await sequelize.transaction(async (t) => {
+    if (rows.length > 0) {
+      await ActivityLog.bulkCreate(rows, { transaction: t });
+    }
+    await ActivityLog.create(
+      {
+        userId: null,
+        action: "OFFICE_BACKFILL_V2",
+        label: `backfill istorije PK Office v2 (${rows.length} zapisa)`,
+        organizationId: null,
+        hiddenAt: new Date(),
+      },
+      { transaction: t },
+    );
+  });
+  console.log(`PK Office aktivnost: backfill v2, ${rows.length} zapisa.`);
+}
+
 async function ensureOrgBankAccountsBackfill() {
   // Brza kapija: ima li uopšte org-e koje treba backfill-ati (bankAccounts
   // prazan, a postoji izvod sa računom)? Nakon prvog prolaza ovo je prazno pa
@@ -1400,6 +1584,8 @@ sequelize
   .then(() => sequelize.sync({ alter: false }))
   .then(() => ensureColumns())
   .then(() => ensureOrgBankAccountsBackfill())
+  .then(() => ensureOfficeActivityBackfill())
+  .then(() => ensureOfficeActivityBackfillV2())
   .then(() => ensureInvoiceCounterSeriesEnum())
   .then(() => ensureOfficePlanEnums())
   .then(() => ensureMemberRoleEnum())

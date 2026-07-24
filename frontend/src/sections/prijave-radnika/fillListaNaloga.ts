@@ -7,6 +7,7 @@
 //  Format inspirisan klasičnim "LISTA NALOGA" iz starih programa za plate.
 // ──────────────────────────────────────────────────────────────────────────────
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage, rgb } from "pdf-lib";
+import { trackEvent } from "src/api/activity";
 import fontkit from "@pdf-lib/fontkit";
 
 export type UplatnicaItem = {
@@ -572,6 +573,9 @@ function drawTotalRow(
 }
 
 export async function fillListaNaloga(data: ListaNalogaData): Promise<Uint8Array> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("LISTA_NALOGA_GENERATE", "Lista naloga za plaćanje");
+
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
 

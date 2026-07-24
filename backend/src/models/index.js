@@ -175,6 +175,10 @@ const Organization = sequelize.define(
     // svuda čita bankAccount). Novi računi viđeni na izvodima se
     // automatski dopisuju na kraj liste.
     bankAccounts: { type: DataTypes.JSON, allowNull: true },
+    // Skriveni prijedlozi partnera (korisnik kliknuo "nije partner"):
+    // JSON lista { account: cifre|null, name: normalizovan naziv|null }.
+    // Prijedlog se više ne nudi ako mu se poklopi račun ILI naziv.
+    partnerSuggestionHides: { type: DataTypes.JSON, allowNull: true },
     logoUrl: { type: DataTypes.STRING(500), allowNull: true },
     // Konfiguracija računa primalaca i vrsta prihoda za uplatnice doprinosa/poreza.
     // JSON struktura: { pio: { account, vrstaPrihoda, primalac }, ... }
@@ -1524,6 +1528,48 @@ const Partner = sequelize.define(
   },
 );
 
+// Početno stanje partnera pri ulasku obrta u program (migracija iz starog
+// softvera): koliko nam kupac duguje / koliko mi dugujemo dobavljaču na dati
+// datum (tipično 31.12. prethodne godine). Kartica ga prikazuje kao donos,
+// FIFO raspodjela uplata ga tretira kao najstariji otvoreni dokument. Donos
+// za kasnije godine se NE snima: računa se živo (početno stanje + promet).
+const PartnerOpeningBalance = sequelize.define(
+  "PartnerOpeningBalance",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    partnerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // stanje "na kraj dana"; kartica od narednog dana kreće sa ovim donosom
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    // koliko nam kupac duguje (negativno = njegov avans/pretplata)
+    kupacIznos: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    // koliko mi dugujemo dobavljaču (negativno = naš avans kod njega)
+    dobavljacIznos: {
+      type: DataTypes.DECIMAL(14, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    napomena: { type: DataTypes.STRING(255), allowNull: true },
+  },
+  {
+    tableName: "partner_opening_balances",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      // jedno početno stanje po partneru
+      { unique: true, fields: ["organizationId", "partnerId"] },
+    ],
+  },
+);
+
 // Ulazni računi (fakture dobavljača). Knjiže se na partnera; plaćanje na
 // izvodu ih automatski zatvara. Polja pokrivaju i buduće KUF potrebe
 // (broj, datum, dobavljač preko partnera, iznos, PDV).
@@ -2586,6 +2632,15 @@ BankTransaction.belongsTo(Partner, { foreignKey: "partnerId", as: "partner" });
 
 Partner.hasMany(UlazniRacun, { foreignKey: "partnerId", as: "ulazniRacuni" });
 UlazniRacun.belongsTo(Partner, { foreignKey: "partnerId", as: "partner" });
+
+Partner.hasOne(PartnerOpeningBalance, {
+  foreignKey: "partnerId",
+  as: "openingBalance",
+});
+PartnerOpeningBalance.belongsTo(Partner, {
+  foreignKey: "partnerId",
+  as: "partner",
+});
 UlazniRacun.hasMany(BankTransaction, {
   foreignKey: "ulazniRacunId",
   as: "bankTransactions",
@@ -2772,6 +2827,7 @@ module.exports = {
   BankTransaction,
   BankMatchRule,
   Partner,
+  PartnerOpeningBalance,
   UlazniRacun,
   PdvDodatak,
   PdvKnjizenje,

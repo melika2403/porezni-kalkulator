@@ -1,6 +1,6 @@
 .page {
   padding: 5.5rem 2rem 6rem;
-  max-width: 1080px;
+  max-width: 1240px;
   margin: 0 auto;
   animation: fadeUp 0.5s ease both;
   display: flex;
@@ -1734,6 +1734,108 @@
   font-family: inherit;
 }
 
+/* ── Pregled redizajn: Predstoji + dvije kolone panela ── */
+.dutiesPanel {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.dutiesTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin: 0 0 0.5rem;
+}
+.dutyRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  border-top: 1px dashed var(--border);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.dutyRow:first-of-type { border-top: none; }
+.dutyWhen {
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 100px;
+  padding: 4px 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dutyUrgent { background: #f3e3dd; color: #a85a44; }
+.dutySoon { background: #f6ebd4; color: #8a6620; }
+.dutyOk { background: rgba(58, 92, 66, 0.12); color: var(--sage); }
+.dutyWhat { flex: 1; font-weight: 600; color: var(--ink); min-width: 0; }
+.dutyWhat span {
+  display: block;
+  font-weight: 400;
+  color: var(--mid);
+  font-size: 12.5px;
+}
+.dutyAct {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sage);
+  white-space: nowrap;
+}
+.dutyRow:hover .dutyAct { color: var(--ink); }
+
+.colsGrid {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: 1.25rem;
+  align-items: start;
+  margin-top: 1.25rem;
+}
+@media (max-width: 1000px) {
+  .colsGrid { grid-template-columns: 1fr; }
+}
+.colMain, .colSide { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.panelBox {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+}
+.panelBox .sectionHead { margin-top: 0; }
+
+.actRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 13.5px;
+  border-top: 1px dashed var(--border);
+}
+.actRow:first-of-type { border-top: none; }
+.actDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sage);
+  flex-shrink: 0;
+}
+.actText {
+  flex: 1;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.actAgo { font-size: 12px; color: var(--mid); white-space: nowrap; }
+
 .statGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
@@ -2134,3 +2236,44 @@
   flex: none;
   margin-top: 1px;
 }
+
+/* ── Pregled: mockup parity (spojena stats traka, kompaktni alati, sidebar) ── */
+.statGrid {
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.statGrid .statCard {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 0.9rem 1rem;
+}
+.statGrid .statCard + .statCard { border-left: 1px solid var(--border); }
+.statGrid .statValue {
+  font-family: "DM Serif Display", serif;
+  font-size: 26px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.statGrid .statLabel { font-size: 12px; color: var(--mid); }
+@media (max-width: 1000px) {
+  .statGrid { grid-template-columns: repeat(3, 1fr); }
+  .statGrid .statCard:nth-child(3n + 1) { border-left: none; }
+  .statGrid .statCard:nth-child(n + 4) { border-top: 1px solid var(--border); }
+}
+
+/* kompaktni alati u panelu: jednake visine, bez lomljenja kartice */
+.panelBox .toolGrid { margin-bottom: 0; grid-auto-rows: 1fr; }
+.panelBox .toolCard { padding: 0.7rem 0.95rem; min-width: 0; }
+.panelBox .toolCard .toolArrow { display: none; }
+.panelBox .toolCard .toolTitle { font-size: 14px; }
+.panelBox .toolCard .toolDesc { font-size: 12px; }
+

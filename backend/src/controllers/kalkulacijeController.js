@@ -16,6 +16,7 @@ const {
   KalkulacijaStavka,
 } = require("../models/index");
 const { tryMatchExistingPayment } = require("./partnersController");
+const { logEvent } = require("./activityController");
 
 const PDV_STOPA = 17;
 
@@ -477,6 +478,14 @@ async function create(req, res) {
 
     // izvod je možda već stigao: odmah probaj zatvoriti postojećom isplatom
     if (created.racun) await tryMatchExistingPayment(created.racun);
+
+    // statistika PK Office korištenja (admin Aktivnost)
+    void logEvent({
+      userId: req.user?.id ?? null,
+      action: "OFFICE_KALKULACIJA",
+      label: `KLC ${created.k.broj}/${String(godina).slice(-2)}`,
+      organizationId,
+    });
 
     return res.status(201).json({
       ok: true,

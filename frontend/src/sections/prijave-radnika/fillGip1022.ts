@@ -10,6 +10,7 @@
 //   • Dio 3: izjava + potpis + datum
 // ──────────────────────────────────────────────────────────────────────────────
 import { PDFDocument, TextAlignment } from "pdf-lib";
+import { trackEvent } from "src/api/activity";
 import fontkit from "@pdf-lib/fontkit";
 
 const MONTH_NAMES = [
@@ -280,6 +281,9 @@ function fillUkupno(
 export async function fillGip1022Template(
   data: Gip1022Data,
 ): Promise<Uint8Array> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("GIP_GENERATE", "GIP-1022 PDF");
+
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/GIP-1022.pdf").then((r) => r.arrayBuffer()),
     fetch("/templates/arial.ttf").then((r) => r.arrayBuffer()),

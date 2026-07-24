@@ -29,7 +29,11 @@ const {
 const { buildKpr } = require("../services/kpr");
 const { computeObligations } = require("../services/obligationsService");
 const { izvodUcitanEvent } = require("../services/notificationsService");
-const { loadPartnerMatcher } = require("./partnersController");
+const { logEvent } = require("./activityController");
+const {
+  loadPartnerMatcher,
+  isNonPartnerCategory,
+} = require("./partnersController");
 
 function parseId(v) {
   const n = Number(v);
@@ -81,11 +85,16 @@ async function maybeRevertInvoice(organizationId, invoiceId) {
 async function continuityWarnings(organizationId, parsed) {
   if (!parsed.account || parsed.openingBalance == null) return [];
 
-  const existing = await BankStatement.findAll({
-    where: { organizationId, account: parsed.account },
-    attributes: ["statementNumber", "statementDate", "openingBalance", "closingBalance"],
-    raw: true,
-  });
+  // isti račun se poredi po ciframa: banke pišu račun različito (sa i bez
+  // crtica), a i početno stanje uneseno prije prvog izvoda mora ući u niz
+  const digits = normalizeAccountDigits(parsed.account);
+  const existing = (
+    await BankStatement.findAll({
+      where: { organizationId, account: { [Op.ne]: null } },
+      attributes: ["account", "statementNumber", "statementDate", "openingBalance", "closingBalance"],
+      raw: true,
+    })
+  ).filter((s) => normalizeAccountDigits(s.account) === digits);
   if (existing.length === 0) return [];
 
   // poredak: datum pa numerički broj izvoda
@@ -100,6 +109,10 @@ async function continuityWarnings(organizationId, parsed) {
     if (k > newKey && (!next || k < sortKey(next))) next = s;
   }
 
+  // izvod početnog stanja nema broj: u poruci se zove po imenu
+  const lbl = (s) =>
+    s.statementNumber ? `izvoda br. ${s.statementNumber}` : "početnog stanja";
+
   const warnings = [];
   if (
     prev &&
@@ -107,7 +120,7 @@ async function continuityWarnings(organizationId, parsed) {
     toCents(prev.closingBalance) !== toCents(parsed.openingBalance)
   ) {
     warnings.push(
-      `Početno stanje (${fmtKm(parsed.openingBalance)} KM) se ne slaže sa završnim stanjem izvoda br. ${prev.statementNumber} (${fmtKm(prev.closingBalance)} KM). Možda nedostaje izvod između.`,
+      `Početno stanje (${fmtKm(parsed.openingBalance)} KM) se ne slaže sa završnim stanjem ${lbl(prev)} (${fmtKm(prev.closingBalance)} KM). Možda nedostaje izvod između.`,
     );
   }
   if (
@@ -117,7 +130,7 @@ async function continuityWarnings(organizationId, parsed) {
     toCents(next.openingBalance) !== toCents(parsed.closingBalance)
   ) {
     warnings.push(
-      `Završno stanje (${fmtKm(parsed.closingBalance)} KM) se ne slaže sa početnim stanjem izvoda br. ${next.statementNumber} (${fmtKm(next.openingBalance)} KM). Možda nedostaje izvod između.`,
+      `Završno stanje (${fmtKm(parsed.closingBalance)} KM) se ne slaže sa početnim stanjem ${lbl(next)} (${fmtKm(next.openingBalance)} KM). Možda nedostaje izvod između.`,
     );
   }
   return warnings;
@@ -294,6 +307,10 @@ async function upload(req, res) {
     await BankTransaction.bulkCreate(
       result.transactions.map((tx) => {
         const invoiceId = matchInvoice(tx);
+        // prijedlog kategorije: naučeno pravilo → faktura → seed pravila
+        const category =
+          learnedSuggest(tx) ??
+          (invoiceId ? "PRIHOD_RACUN" : suggestCategory(tx));
         return {
           organizationId,
           statementId: statement.id,
@@ -305,12 +322,11 @@ async function upload(req, res) {
           amount: tx.amount,
           direction: tx.direction === "in" ? "IN" : "OUT",
           balanceAfter: tx.balanceAfter,
-          // prijedlog kategorije: naučeno pravilo → faktura → seed pravila
-          category:
-            learnedSuggest(tx) ??
-            (invoiceId ? "PRIHOD_RACUN" : suggestCategory(tx)),
+          category,
           invoiceId,
-          partnerId: matchPartner(tx),
+          // provizija banke uz plaćanje nosi ime dobavljača u opisu, ali
+          // nije njegov promet: ne-partner kategorije se ne vežu na partnera
+          partnerId: isNonPartnerCategory(category) ? null : matchPartner(tx),
         };
       }),
       { transaction: t },
@@ -345,6 +361,15 @@ async function upload(req, res) {
       statementNumber: result.statementNumber,
       bankName: result.bankName,
     },
+  });
+  // statistika PK Office korištenja (admin Aktivnost)
+  void logEvent({
+    userId: req.user?.id ?? null,
+    action: "OFFICE_IZVOD_UCITAN",
+    label: [result.bankName, result.statementNumber && `br. ${result.statementNumber}`]
+      .filter(Boolean)
+      .join(" "),
+    organizationId,
   });
 
   return res.status(201).json({
@@ -692,21 +717,28 @@ async function createManual(req, res) {
       { transaction: t },
     );
     await BankTransaction.bulkCreate(
-      transactions.map((tx) => ({
-        organizationId,
-        statementId: statement.id,
-        ...tx,
-        direction: tx.direction === "in" ? "IN" : "OUT",
+      transactions.map((tx) => {
         // izbor sa fronta ima prednost, pa naučena pravila, pa seed heuristike
-        category: tx.category ?? learnedSuggest(tx) ?? suggestCategory(tx),
-        // potvrđen izbor sa fronta ima prednost nad auto-matchom
-        partnerId:
-          tx.partnerId != null && orgPartnerIds.has(tx.partnerId)
-            ? tx.partnerId
-            : matchPartner(tx),
-        // ručni unos je korisnik već pregledao stavku po stavku → odmah potvrđeno
-        status: "CONFIRMED",
-      })),
+        const category =
+          tx.category ?? learnedSuggest(tx) ?? suggestCategory(tx);
+        return {
+          organizationId,
+          statementId: statement.id,
+          ...tx,
+          direction: tx.direction === "in" ? "IN" : "OUT",
+          category,
+          // potvrđen izbor sa fronta ima prednost nad auto-matchom;
+          // auto-match preskače ne-partner kategorije (provizije i sl.)
+          partnerId:
+            tx.partnerId != null && orgPartnerIds.has(tx.partnerId)
+              ? tx.partnerId
+              : isNonPartnerCategory(category)
+                ? null
+                : matchPartner(tx),
+          // ručni unos je korisnik već pregledao stavku po stavku → odmah potvrđeno
+          status: "CONFIRMED",
+        };
+      }),
       { transaction: t },
     );
     return statement;
@@ -735,6 +767,16 @@ async function createManual(req, res) {
     if (tx.direction === "OUT" && tx.partnerId) await maybeCloseUlazniRacun(tx);
   }
 
+  // statistika PK Office korištenja (admin Aktivnost)
+  void logEvent({
+    userId: req.user?.id ?? null,
+    action: "OFFICE_IZVOD_RUCNI",
+    label: [bankName, created.statementNumber && `br. ${created.statementNumber}`]
+      .filter(Boolean)
+      .join(" "),
+    organizationId,
+  });
+
   return res.status(201).json({
     ok: true,
     data: {
@@ -748,6 +790,90 @@ async function createManual(req, res) {
       openingBalance: null,
       closingBalance: null,
       warnings: [],
+    },
+  });
+}
+
+// POST /api/bank-statements/:orgId/initial-balance — početno stanje računa.
+// Poseban "izvod" bez stavki (bankId "pocetno"): openingBalance =
+// closingBalance = uneseno stanje na dati datum (tipično 31.12. prethodne
+// godine). Služi kao sidro kad historijski izvodi nisu učitani u PK Office:
+// veže kontinuitet salda za prvi pravi izvod i daje tačno stanje računa.
+// Po računu postoji najviše jedan — ponovni unos ažurira postojeći.
+async function setInitialBalance(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const body = req.body || {};
+  const digits = normalizeAccountDigits(body.account);
+  if (digits.length < 8) {
+    return res.status(400).json({ ok: false, error: "INVALID_ACCOUNT" });
+  }
+  const date = String(body.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ ok: false, error: "INVALID_DATE" });
+  }
+  const amount = Number(body.amount);
+  if (!Number.isFinite(amount)) {
+    return res.status(400).json({ ok: false, error: "INVALID_AMOUNT" });
+  }
+  const stanje = Math.round(amount * 100) / 100;
+
+  // račun se piše onako kako ga pišu već učitani izvodi (banke ga formatiraju
+  // različito), da se početno stanje veže u isti niz; inače standardno sa
+  // crticama
+  const orgStatements = await BankStatement.findAll({
+    where: { organizationId, account: { [Op.ne]: null } },
+    attributes: ["id", "bankId", "account"],
+    raw: true,
+  });
+  let account = formatAccountDashed(digits) || digits;
+  const istiRacun = orgStatements.find(
+    (s) => s.bankId !== "pocetno" && normalizeAccountDigits(s.account) === digits,
+  );
+  if (istiRacun) account = istiRacun.account;
+
+  const postojeciId = orgStatements.find(
+    (s) => s.bankId === "pocetno" && normalizeAccountDigits(s.account) === digits,
+  )?.id;
+  let statement;
+  let updated = false;
+  if (postojeciId) {
+    statement = await BankStatement.findByPk(postojeciId);
+    statement.account = account;
+    statement.statementDate = date;
+    statement.openingBalance = stanje;
+    statement.closingBalance = stanje;
+    await statement.save();
+    updated = true;
+  } else {
+    statement = await BankStatement.create({
+      organizationId,
+      uploadedById: req.user.id,
+      bankId: "pocetno",
+      bankName: bankNameFromAccount(account) || "Početno stanje",
+      account,
+      statementNumber: null,
+      statementDate: date,
+      currency: "BAM",
+      openingBalance: stanje,
+      closingBalance: stanje,
+      fileName: null,
+      warnings: null,
+    });
+    // novi račun ide i u profil organizacije (kao kod ručnog unosa izvoda)
+    await addAccountToOrgProfile(organizationId, account);
+  }
+
+  return res.status(updated ? 200 : 201).json({
+    ok: true,
+    data: {
+      statementId: statement.id,
+      account,
+      statementDate: date,
+      amount: stanje,
+      updated,
     },
   });
 }
@@ -919,18 +1045,65 @@ async function summary(req, res) {
     if (row.direction === "OUT") totalOut = Number(row.total) || 0;
   }
 
-  // zadnje poznato stanje po računu (manual izvodi bez stanja se preskaču)
+  // zadnje poznato stanje po računu: zadnji izvod sa saldom (uključuje i
+  // uneseno početno stanje). Račun se poredi po ciframa jer ga banke pišu
+  // različito (sa i bez crtica).
   const latestByAccount = new Map();
   for (const s of allStatements) {
     if (!s.account || s.closingBalance == null) continue;
-    if (!latestByAccount.has(s.account)) latestByAccount.set(s.account, s);
+    const key = normalizeAccountDigits(s.account);
+    if (!latestByAccount.has(key)) latestByAccount.set(key, s);
   }
-  const accounts = [...latestByAccount.values()].map((s) => ({
-    account: s.account,
-    bankName: s.bankName,
-    statementDate: s.statementDate,
-    closingBalance: Number(s.closingBalance),
-  }));
+
+  // Ručni izvodi nemaju saldo pa bi stanje ostalo zamrznuto na zadnjem
+  // izvodu sa saldom (npr. početnom stanju). Zato se na sidro dodaje promet
+  // ručnih izvoda istog računa sa datumom poslije (ili na dan) sidra —
+  // obrti čije banke ne čitamo tako dobiju živo stanje.
+  const bezSalda = allStatements.filter(
+    (s) =>
+      s.account &&
+      s.closingBalance == null &&
+      s.statementDate &&
+      latestByAccount.has(normalizeAccountDigits(s.account)),
+  );
+  const netoPoIzvodu = new Map(); // statementId -> neto centi (IN - OUT)
+  if (bezSalda.length > 0) {
+    const txSums = await BankTransaction.findAll({
+      where: { statementId: { [Op.in]: bezSalda.map((s) => s.id) } },
+      attributes: [
+        "statementId",
+        "direction",
+        [sequelize.fn("SUM", sequelize.col("amount")), "total"],
+      ],
+      group: ["statementId", "direction"],
+      raw: true,
+    });
+    for (const r of txSums) {
+      const cents = Math.round((Number(r.total) || 0) * 100);
+      const cur = netoPoIzvodu.get(r.statementId) || 0;
+      netoPoIzvodu.set(
+        r.statementId,
+        r.direction === "IN" ? cur + cents : cur - cents,
+      );
+    }
+  }
+
+  const accounts = [...latestByAccount.entries()].map(([key, s]) => {
+    let cents = Math.round(Number(s.closingBalance) * 100);
+    let date = s.statementDate;
+    for (const m of bezSalda) {
+      if (normalizeAccountDigits(m.account) !== key) continue;
+      if (m.statementDate < s.statementDate) continue;
+      cents += netoPoIzvodu.get(m.id) || 0;
+      if (m.statementDate > date) date = m.statementDate;
+    }
+    return {
+      account: s.account,
+      bankName: s.bankName,
+      statementDate: date,
+      closingBalance: cents / 100,
+    };
+  });
   const balanceTotal = accounts.reduce((sum, a) => sum + a.closingBalance, 0);
 
   return res.json({
@@ -1018,6 +1191,12 @@ async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
       return { error: "INVALID_CATEGORY" };
     }
     tx.category = category ? String(category) : null;
+    // kategorija kaže da protivstrana nije partner (provizija banke, pazar,
+    // prenos...): skini auto-vezu sa kartice partnera. Eksplicitan izbor
+    // partnera u ISTOM pozivu (partnerId u patchu) ima prednost ispod.
+    if (isNonPartnerCategory(tx.category) && partnerId === undefined) {
+      tx.partnerId = null;
+    }
   }
   if (invoiceId !== undefined) {
     if (invoiceId == null) {
@@ -1407,6 +1586,7 @@ module.exports = {
   getStatement,
   confirmAll,
   createManual,
+  setInitialBalance,
   kpr,
   obligations,
   listTransactions,

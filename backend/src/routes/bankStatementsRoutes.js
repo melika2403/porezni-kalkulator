@@ -66,6 +66,14 @@ router.post(
   officeGate,
   ctrl.createManual,
 );
+// početno stanje računa (sidro salda kad historijski izvodi nisu učitani)
+router.post(
+  "/:orgId/initial-balance",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  officeGate,
+  ctrl.setInitialBalance,
+);
 // živi prijedlog kategorije pri ručnom unosu (read-only, ništa ne snima)
 router.post(
   "/:orgId/suggest-category",

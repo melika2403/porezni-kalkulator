@@ -5,6 +5,7 @@
 
 const { Op } = require("sequelize");
 const { sequelize, BlagajnaNalog, Organization } = require("../models/index");
+const { logEvent } = require("./activityController");
 
 function parseId(v) {
   const n = Number(v);
@@ -241,6 +242,13 @@ async function create(req, res) {
             },
             { transaction: t },
           );
+        });
+        // statistika PK Office korištenja (admin Aktivnost)
+        void logEvent({
+          userId: req.user?.id ?? null,
+          action: "OFFICE_BLAGAJNA_NALOG",
+          label: `${tip === "NAPLATA" ? "Naplata" : "Isplata"} br. ${created.broj}/${godina}`,
+          organizationId,
         });
         return res.status(201).json({ ok: true, data: nalogJson(created) });
       } catch (e) {

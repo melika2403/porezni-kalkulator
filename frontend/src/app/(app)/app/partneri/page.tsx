@@ -18,6 +18,7 @@ import {
   IconArrowsExchange,
   IconDownload,
   IconLoader2,
+  IconScale,
 } from "@tabler/icons-react";
 import { HelpButton } from "src/components/app-shell/HelpButton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,12 +31,20 @@ import {
   usePartners,
   usePartnerSuggestions,
 } from "src/hooks/usePartners";
-import { createPartner, uvozPartnera, type Partner } from "src/api/partners";
+import {
+  createPartner,
+  hidePartnerSuggestion,
+  uvozPartnera,
+  type Partner,
+  type PartnerSuggestion,
+} from "src/api/partners";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { parsePartneriFile } from "src/lib/comsoftUvoz";
 import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
 import { PrometModal } from "src/sections/partneri/PrometModal";
+import { PocetnaStanjaModal } from "src/sections/partneri/PocetnaStanjaModal";
 import { Modal } from "src/components/app-shell/Modal";
 import { UvozSifarnikaModal } from "src/components/app-shell/UvozSifarnikaModal";
 import { PkSelect } from "src/components/app-shell/PkSelect";
@@ -99,16 +108,23 @@ const SORT_GROUPS = [
 ];
 
 // tip partnera se ne bira ručno nego izvodi iz poslovanja
+// klasifikacija: promet izabrane godine ILI živ otvoren dug (partner sa
+// dugom iz ranijih godina ne smije nestati iz tabova u godišnjem pregledu)
 function isKupac(p: Partner): boolean {
   return p.stats.totalIn > 0 || p.stats.openInvoicesCount > 0;
 }
 function isDobavljac(p: Partner): boolean {
-  return p.stats.totalOut > 0 || p.stats.racuniCount > 0;
+  return (
+    p.stats.totalOut > 0 ||
+    p.stats.racuniCount > 0 ||
+    p.stats.openPayablesCount > 0
+  );
 }
 function isAktivan(p: Partner): boolean {
   return (
     p.stats.txCount > 0 ||
     p.stats.openInvoicesCount > 0 ||
+    p.stats.openPayablesCount > 0 ||
     p.stats.racuniCount > 0
   );
 }
@@ -195,6 +211,11 @@ export default function PartneriPage() {
   const [returnToRacun, setReturnToRacun] = useState(false);
   const [uvozOpen, setUvozOpen] = useState(false);
   const [prometOpen, setPrometOpen] = useState(false);
+  // grupni unos početnih stanja (migracija)
+  const [pocetnaOpen, setPocetnaOpen] = useState(false);
+  // godišnji pregled: promet i aktivnost za izabranu godinu, dugovi uvijek živi
+  const currentYear = new Date().getFullYear();
+  const [godina, setGodina] = useState<number | "sve">(currentYear);
   // spajanje duplikata: izvorni partner + izbor ciljnog
   const [mergeSource, setMergeSource] = useState<Partner | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
@@ -210,7 +231,10 @@ export default function PartneriPage() {
     enabled: orgId != null,
   });
 
-  const { data: partners, isLoading } = usePartners(orgId);
+  const { data: partners, isLoading } = usePartners(
+    orgId,
+    godina === "sve" ? null : godina,
+  );
   const { data: suggestions } = usePartnerSuggestions(orgId);
   const deletePartner = useDeletePartner(orgId);
 
@@ -341,6 +365,25 @@ export default function PartneriPage() {
     ? suggestionList
     : suggestionList.slice(0, 4);
 
+  // "nije partner": prijedlog za trajno skrivanje (potvrda u modalu)
+  const [zaSkrivanje, setZaSkrivanje] = useState<PartnerSuggestion | null>(
+    null,
+  );
+  const [hideBusy, setHideBusy] = useState(false);
+  async function sakrijPrijedlog() {
+    if (!orgId || !zaSkrivanje || hideBusy) return;
+    setHideBusy(true);
+    const r = await hidePartnerSuggestion(orgId, {
+      account: zaSkrivanje.account,
+      name: zaSkrivanje.name,
+    });
+    setHideBusy(false);
+    if (r.ok) {
+      setZaSkrivanje(null);
+      qc.invalidateQueries({ queryKey: ["partners", orgId, "suggestions"] });
+    }
+  }
+
   // grupno dodavanje svih prijedloga (podaci koje već imamo sa izvoda/faktura)
   async function dodajSvePrijedloge() {
     if (!orgId || bulkBusy || suggestionList.length === 0) return;
@@ -435,6 +478,21 @@ export default function PartneriPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PkSelect
+            ariaLabel="Godina pregleda"
+            value={godina === "sve" ? "sve" : String(godina)}
+            onChange={(v) =>
+              setGodina(v === "sve" ? "sve" : Number(v) || currentYear)
+            }
+            options={[
+              ...Array.from({ length: 6 }, (_, i) => ({
+                value: String(currentYear - i),
+                label: `Godina ${currentYear - i}`,
+              })),
+              { value: "sve", label: "Sve godine" },
+            ]}
+            wrapStyle={{ width: 150 }}
+          />
           <button
             type="button"
             onClick={() => setPrometOpen(true)}
@@ -450,6 +508,15 @@ export default function PartneriPage() {
           >
             <IconFileUpload size={16} />
             Uvoz
+          </button>
+          <button
+            type="button"
+            onClick={() => setPocetnaOpen(true)}
+            title="Grupni unos otvorenih stanja partnera pri ulasku obrta u program (migracija iz starog softvera)"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-cream-300 text-text-primary text-[13px] font-medium hover:bg-cream-200 transition-colors"
+          >
+            <IconScale size={16} />
+            Početna stanja
           </button>
           <button
             type="button"
@@ -553,6 +620,14 @@ export default function PartneriPage() {
                   >
                     <IconPlus size={13} />
                     Dodaj
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZaSkrivanje(s)}
+                    title="Nije partner: ukloni prijedlog i ne predlaži ga više"
+                    className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-cream-200 transition-colors shrink-0"
+                  >
+                    <IconX size={15} />
                   </button>
                 </li>
               );
@@ -1135,6 +1210,35 @@ export default function PartneriPage() {
           setReturnToRacun(true);
           setFormInitial({ ...EMPTY_PARTNER_FORM });
         }}
+      />
+
+      {/* Grupni unos početnih stanja partnera (migracija) */}
+      <PocetnaStanjaModal
+        orgId={orgId}
+        partners={partners ?? []}
+        open={pocetnaOpen}
+        onClose={() => setPocetnaOpen(false)}
+      />
+
+      {/* "Nije partner": potvrda trajnog skrivanja prijedloga */}
+      <ConfirmModal
+        open={zaSkrivanje != null}
+        onClose={() => setZaSkrivanje(null)}
+        title="Ukloni prijedlog"
+        message={
+          zaSkrivanje && (
+            <>
+              <strong className="text-text-primary">{zaSkrivanje.name}</strong>{" "}
+              se više neće predlagati kao partner (prepoznaje se po{" "}
+              {zaSkrivanje.account ? "žiro računu i nazivu" : "nazivu"}).
+              Transakcije ostaju netaknute, a partnera i dalje možete dodati
+              ručno kad zatreba.
+            </>
+          )
+        }
+        confirmLabel="Da, nije partner"
+        busy={hideBusy}
+        onConfirm={() => void sakrijPrijedlog()}
       />
     </div>
   );

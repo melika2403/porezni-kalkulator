@@ -1,4 +1,5 @@
 import { type ApiResponse } from "src/api/auth";
+import { trackEvent } from "src/api/activity";
 import { getBackendUrl } from "src/utils/backendUrl";
 
 const BACKEND_URL = getBackendUrl();
@@ -438,9 +439,14 @@ export async function generateMonthlyUplatnice(
   month: number,
   paymentDate?: string,
 ): Promise<
-  | { ok: true; blob: Blob; filename: string; pageCount: number }
+  | {
+ ok: true; blob: Blob; filename: string; pageCount: number }
   | { ok: false; error: string }
 > {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("PLATNI_LISTIC_GENERATE", "Platni listići mjeseca");
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("UPLATNICE_GENERATE", "Zbirne uplatnice");
   const sp = new URLSearchParams({
     organizationId: String(organizationId),
     year: String(year),
@@ -472,7 +478,8 @@ export async function generateMonthlyPayslips(
   month: number,
   paymentDate?: string,
 ): Promise<
-  | { ok: true; blob: Blob; filename: string; pageCount: number }
+  | {
+ ok: true; blob: Blob; filename: string; pageCount: number }
   | { ok: false; error: string }
 > {
   const sp = new URLSearchParams({
@@ -536,8 +543,11 @@ export async function generatePostingOrder(
   month: number,
   datumKnjizenja?: string,
 ): Promise<
-  { ok: true; blob: Blob; filename: string } | { ok: false; error: string }
+  {
+ ok: true; blob: Blob; filename: string } | { ok: false; error: string }
 > {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("NALOG_KNJIZENJE_GENERATE", "Nalog za knjiženje");
   try {
     const res = await fetch(`${BACKEND_URL}/api/payroll/posting-order`, {
       method: "POST",
@@ -613,6 +623,8 @@ export async function generateWorkerPayslip(
   payrollId: number,
   paymentDate?: string,
 ): Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; error: string }> {
+  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+  trackEvent("PLATNI_LISTIC_GENERATE", "Platni listić radnika");
   const sp = new URLSearchParams();
   if (paymentDate) sp.set("paymentDate", paymentDate);
   const qs = sp.toString();

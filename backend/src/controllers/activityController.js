@@ -28,6 +28,91 @@ async function track(req, res) {
   }
 }
 
+/** Backend upis u dnevnik aktivnosti (PK Office akcije koje ne idu kroz
+ *  frontend trackEvent). Best-effort: greška se samo loguje, nikad ne ruši
+ *  korisnički zahtjev. Ulazi i u javnu brojku na landing stranici (osim
+ *  sakrivenih zapisa; vidi publicStatsController). */
+async function logEvent({ userId = null, action, label = null, organizationId = null }) {
+  try {
+    await ActivityLog.create({
+      userId,
+      action: String(action).trim().slice(0, 60),
+      label: label ? String(label).trim().slice(0, 160) : null,
+      organizationId: Number.isInteger(organizationId) ? organizationId : null,
+    });
+  } catch (e) {
+    console.warn("activity logEvent failed:", e?.message || e);
+  }
+}
+
+// GET /api/activity/moje (requireAuth): zadnja aktivnost KORISNIKA za
+// dashboard profila + agregati (najčešći alat, korišteni alati, brojevi za
+// tekući mjesec) za "Predstoji" logiku i personalizovan "najčešće" badge.
+async function myActivity(req, res) {
+  try {
+    const userId = req.user.id;
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const [items, monthRows, allRows] = await Promise.all([
+      ActivityLog.findAll({
+        where: { userId, hiddenAt: null },
+        order: [["id", "DESC"]],
+        limit: 8,
+        attributes: ["action", "label", "createdAt"],
+        include: [
+          {
+            model: Organization,
+            as: "organization",
+            attributes: ["name"],
+            required: false,
+          },
+        ],
+      }),
+      ActivityLog.findAll({
+        where: { userId, hiddenAt: null, createdAt: { [Op.gte]: monthStart } },
+        attributes: ["action", [fn("COUNT", col("id")), "c"]],
+        group: ["action"],
+        raw: true,
+      }),
+      ActivityLog.findAll({
+        where: { userId, hiddenAt: null },
+        attributes: ["action", [fn("COUNT", col("id")), "c"]],
+        group: ["action"],
+        raw: true,
+      }),
+    ]);
+    let topAction = null;
+    let topCount = 0;
+    for (const r of allRows) {
+      const c = Number(r.c) || 0;
+      if (c > topCount) {
+        topCount = c;
+        topAction = r.action;
+      }
+    }
+    return res.json({
+      ok: true,
+      data: {
+        items: items.map((i) => ({
+          action: i.action,
+          label: i.label,
+          organization: i.organization?.name ?? null,
+          createdAt: i.createdAt,
+        })),
+        month: Object.fromEntries(
+          monthRows.map((r) => [r.action, Number(r.c) || 0]),
+        ),
+        usedActions: allRows.map((r) => r.action),
+        topAction,
+      },
+    });
+  } catch (e) {
+    console.error("activity myActivity failed:", e);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 function parsePositiveInt(v, fallback) {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 ? n : fallback;
@@ -130,9 +215,14 @@ async function adminStats(req, res) {
     const raw = String(req.query.days ?? "30");
     const allTime = raw === "0" || raw === "all";
     const days = allTime ? 0 : Math.min(parsePositiveInt(raw, 30), 3650);
+    // sakrivene stavke (uklj. tehnički OFFICE_BACKFILL marker) ne ulaze u
+    // statistiku, isto kao što ih ni lista ne prikazuje
     const where = allTime
-      ? {}
-      : { createdAt: { [Op.gte]: literal(`(NOW() - INTERVAL ${days} DAY)`) } };
+      ? { hiddenAt: null }
+      : {
+          hiddenAt: null,
+          createdAt: { [Op.gte]: literal(`(NOW() - INTERVAL ${days} DAY)`) },
+        };
 
     const byAction = await ActivityLog.findAll({
       where,
@@ -189,4 +279,4 @@ async function setHidden(req, res) {
   }
 }
 
-module.exports = { track, adminList, adminStats, setHidden };
+module.exports = { track, logEvent, myActivity, adminList, adminStats, setHidden };
