@@ -34,7 +34,14 @@ function norm(s: string): string {
     .replace(/đ/g, "d");
 }
 
-export function OrgSwitcher() {
+// variant "sidebar": uski chip u sidebaru (default).
+// variant "inline": šira traka za zaglavlje stranice, isti dropdown ispod.
+export function OrgSwitcher({
+  variant = "sidebar",
+}: {
+  variant?: "sidebar" | "inline";
+} = {}) {
+  const inline = variant === "inline";
   const { data, isLoading } = usePkOfficeMe();
   const activate = useActivateOrganization();
   const [open, setOpen] = useState(false);
@@ -160,44 +167,102 @@ export function OrgSwitcher() {
     );
   }
 
+  const toggle = () => {
+    setQ(""); // svako otvaranje kreće sa praznom pretragom
+    setOpen((o) => !o);
+  };
+
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => {
-          setQ(""); // svako otvaranje kreće sa praznom pretragom
-          setOpen((o) => !o);
-        }}
-        className={[
-          "w-full flex items-center gap-3 p-3.5 rounded-xl border text-left transition-colors",
-          open
-            ? "bg-cream-100 border-brand-600"
-            : "bg-cream-50 border-cream-300 hover:border-brand-400 hover:bg-cream-100",
-        ].join(" ")}
-      >
-        <span className="w-9 h-9 rounded-[10px] bg-brand-600 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
-          {active ? orgInitials(active.name) : <IconBuildingStore size={20} />}
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="block text-[11px] uppercase tracking-[0.1em] text-text-tertiary leading-none mb-[6px] whitespace-nowrap">
-            Organizacija
+      {inline ? (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="Promijeni aktivni obrt"
+          className={[
+            "w-full flex items-center gap-3.5 py-2.5 pl-2.5 pr-3.5 rounded-xl border text-left transition-colors",
+            open
+              ? "bg-cream-100 border-brand-600"
+              : "bg-cream-100 border-cream-300 hover:border-brand-400",
+          ].join(" ")}
+        >
+          <span className="w-11 h-11 rounded-[11px] bg-brand-600 text-white flex items-center justify-center text-[14.5px] font-semibold shrink-0">
+            {active ? orgInitials(active.name) : <IconBuildingStore size={21} />}
           </span>
-          <span
-            title={active?.name}
-            className="block text-[14px] leading-[1.2] font-medium text-text-primary line-clamp-2"
-          >
-            {isLoading
-              ? "Učitavanje..."
-              : active
-                ? active.name
-                : "Bez organizacije"}
+          <span className="flex-1 min-w-0">
+            <span className="block text-[10.5px] uppercase tracking-[0.13em] text-text-tertiary leading-none mb-[7px]">
+              Aktivni obrt
+            </span>
+            <span className="flex items-center gap-2 min-w-0">
+              <span
+                title={active?.name}
+                className="text-[17px] leading-[1.2] font-medium text-text-primary truncate"
+              >
+                {isLoading
+                  ? "Učitavanje..."
+                  : active
+                    ? active.name
+                    : "Bez organizacije"}
+              </span>
+              {active && (
+                <span
+                  className={[
+                    "shrink-0 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium",
+                    active.isClientOrg
+                      ? "bg-info-bg text-info"
+                      : "bg-brand-100 text-brand-700",
+                  ].join(" ")}
+                >
+                  {active.isClientOrg ? "Klijent" : "Moj obrt"}
+                </span>
+              )}
+            </span>
           </span>
-        </span>
-        <IconSelector size={19} className="text-text-tertiary shrink-0" />
-      </button>
+          <span className="hidden sm:inline text-[12.5px] text-text-tertiary shrink-0">
+            Promijeni
+          </span>
+          <IconSelector size={18} className="text-text-tertiary shrink-0" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={toggle}
+          className={[
+            "w-full flex items-center gap-3 p-3.5 rounded-xl border text-left transition-colors",
+            open
+              ? "bg-cream-100 border-brand-600"
+              : "bg-cream-50 border-cream-300 hover:border-brand-400 hover:bg-cream-100",
+          ].join(" ")}
+        >
+          <span className="w-9 h-9 rounded-[10px] bg-brand-600 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
+            {active ? orgInitials(active.name) : <IconBuildingStore size={20} />}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[11px] uppercase tracking-[0.1em] text-text-tertiary leading-none mb-[6px] whitespace-nowrap">
+              Organizacija
+            </span>
+            <span
+              title={active?.name}
+              className="block text-[14px] leading-[1.2] font-medium text-text-primary line-clamp-2"
+            >
+              {isLoading
+                ? "Učitavanje..."
+                : active
+                  ? active.name
+                  : "Bez organizacije"}
+            </span>
+          </span>
+          <IconSelector size={19} className="text-text-tertiary shrink-0" />
+        </button>
+      )}
 
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-2.5 z-30 rounded-xl border border-cream-300 bg-cream-100 shadow-[0_12px_34px_-10px_rgba(15,26,18,0.24)] overflow-hidden p-2">
+        <div
+          className={[
+            "absolute left-0 top-full mt-2.5 z-30 rounded-xl border border-cream-300 bg-cream-100 shadow-[0_12px_34px_-10px_rgba(15,26,18,0.24)] overflow-hidden p-2",
+            inline ? "w-[min(24rem,calc(100vw-3rem))]" : "right-0",
+          ].join(" ")}
+        >
           {upravljaSlotovima && pristup?.slotovi && (
             <div className="flex items-center justify-between px-2.5 pt-1.5 pb-1 text-[11px] text-text-tertiary">
               <span className="uppercase tracking-[0.1em] font-medium">

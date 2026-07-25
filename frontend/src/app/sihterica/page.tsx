@@ -69,7 +69,7 @@ const faqJsonLd = {
       name: "Kako popuniti šihtericu online i preuzeti PDF?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Registrujte se besplatno, dodajte djelatnost i radnika, izaberite mjesec i koristite auto-popunu (početak/kraj rada, slobodni dani, godišnji, praznici, bolovanje). Aplikacija automatski računa dnevne i mjesečne sate. PDF preuzimanje je dostupno uz Pro pretplatu, prvih 30 dana besplatno.",
+        text: "Registrujte se besplatno, dodajte djelatnost i radnika, izaberite mjesec i koristite auto-popunu (početak/kraj rada, slobodni dani, godišnji, praznici, bolovanje). Aplikacija automatski računa dnevne i mjesečne sate. PDF preuzimanje je dostupno uz Pro pretplatu ili u probnom periodu (30 dana besplatno).",
       },
     },
     {
@@ -77,7 +77,7 @@ const faqJsonLd = {
       name: "Da li je šihterica besplatna?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unos i popunjavanje šihterice za jednog radnika su besplatni nakon registracije. PDF preuzimanje i napredne funkcije (više radnika, bulk export svih radnika u ZIP) dostupne su uz Pro ili Business pretplatu. Svaki novi nalog dobija 30 dana Pro-a besplatno.",
+        text: "Unos i popunjavanje šihterice za jednog radnika su besplatni nakon registracije. PDF preuzimanje i napredne funkcije (više radnika, bulk export svih radnika u ZIP) dostupne su uz Pro ili Business pretplatu. Svaki nalog jednom može aktivirati 30 dana besplatno: PK Office i sve Business funkcije.",
       },
     },
     {

@@ -13,6 +13,10 @@
   --border: #d4cfc4;
   --white: #ffffff;
   --radius: 4px;
+  /* --radius-sm i --radius-md su se koristili po komponentama, a nikad nisu
+     bili definisani ovdje, pa su ti elementi ispadali oštri (radius 0). */
+  --radius-sm: 6px;
+  --radius-md: 10px;
   --radius-lg: 12px;
 }
 

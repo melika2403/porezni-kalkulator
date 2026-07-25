@@ -1,7 +1,7 @@
 const { Op } = require("sequelize");
 const {
   sequelize, User, Subscription, Organization, OrganizationMember, Client, Form,
-  InvoiceCounter, InvoiceItemTemplate, KarticaMember,
+  InvoiceCounter, InvoiceItemTemplate, KarticaMember, AmsIsplatilac,
 } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 const cascade = require("../services/adminCascade");
@@ -156,6 +156,7 @@ async function deleteUserById(id) {
     await cascade.deleteInvoicesWhere({ userId: id, organizationId: null }, t);
     await InvoiceCounter.destroy({ where: { userId: id }, transaction: t });
     await InvoiceItemTemplate.destroy({ where: { userId: id }, transaction: t });
+    await AmsIsplatilac.destroy({ where: { userId: id }, transaction: t });
     await KarticaMember.destroy({ where: { createdById: id }, transaction: t });
 
     await OrganizationMember.destroy({ where: { userId: id }, transaction: t });

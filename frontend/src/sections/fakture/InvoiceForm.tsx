@@ -7,6 +7,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import styles from "./fakture.module.css";
 import Modal from "src/components/Modal/Modal";
+import {
+  OFFICE_TRIAL_ACTIVATE_URL,
+  OFFICE_TRIAL_REGISTER_URL,
+} from "src/components/OfficeTrialCta/OfficeTrialCta";
 import { useRole } from "src/hooks/useRole";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
@@ -1826,13 +1830,13 @@ export default function InvoiceForm({
           ) : (
             <Link
               href={
-                role
-                  ? "/pretplate?trial=1"
-                  : `/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`
+                role ? OFFICE_TRIAL_ACTIVATE_URL : OFFICE_TRIAL_REGISTER_URL
               }
               className={styles.exportBtn}
             >
-              {role ? "Nadogradi na PRO za PDF →" : "Registruj se za PDF →"}
+              {role
+                ? "Aktiviraj 30 dana besplatno za PDF →"
+                : "Registruj se za PDF →"}
             </Link>
           )}
         </div>

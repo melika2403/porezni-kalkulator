@@ -26,6 +26,7 @@ import { PkSelect } from "src/components/app-shell/PkSelect";
 import { HelpButton } from "src/components/app-shell/HelpButton";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { Modal } from "src/components/app-shell/Modal";
+import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
 import RowActionsMenu from "src/components/RowActionsMenu/RowActionsMenu";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { useOrgInvoices } from "src/hooks/useBankStatements";
@@ -772,6 +773,8 @@ export default function FakturePage() {
     useState<Invoice | null>(null);
   // storniranje standardne fakture (status CANCELLED, broj ostaje)
   const [cancelTarget, setCancelTarget] = useState<Invoice | null>(null);
+  // poruka greške u PK modalu umjesto window.alert
+  const [obavijest, setObavijest] = useState<string | null>(null);
   // pripremljeni (ponavljajući) računi
   const [preparedOpen, setPreparedOpen] = useState(false);
   // knjiženje ulaznog računa + "+ Novi partner" iz njega
@@ -829,7 +832,7 @@ export default function FakturePage() {
     },
     onError: (e) => {
       const code = (e as Error).message;
-      window.alert(
+      setObavijest(
         code === "IMA_VEZANU_UPLATU"
           ? "Faktura je zatvorena uplatom sa bankovnog izvoda. Prvo ukloni vezu s tom uplatom na izvodu, pa je onda vrati u nenaplaćeno."
           : "Nije moguće vratiti fakturu u nenaplaćeno.",
@@ -2119,6 +2122,14 @@ export default function FakturePage() {
           setEmailTarget(null);
           sendEmail.reset();
         }}
+      />
+
+      {/* obavijest/greška u PK modalu umjesto window.alert */}
+      <ConfirmModal
+        open={obavijest != null}
+        onClose={() => setObavijest(null)}
+        title="Obavijest"
+        message={obavijest}
       />
     </div>
   );

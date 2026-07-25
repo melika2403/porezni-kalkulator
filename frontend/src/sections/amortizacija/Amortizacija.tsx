@@ -1830,9 +1830,9 @@ function AmortizacijaApp() {
             <div style={{ flex: 1 }}>
               <strong>Preuzimanje PLDI-1043 PDF-a je besplatno za
               registrovane korisnike.</strong>{" "}
-              Registracija je besplatna i traje minut. Plus dobijate 30 dana
-              PRO pretplate besplatno za sve napredne funkcije (plate, JS3100,
-              fakture).{" "}
+              Registracija je besplatna i traje minut. Uz nju možete aktivirati
+              30 dana besplatno: PK Office i sve Business funkcije (plate,
+              JS3100, ugovori, fakture).{" "}
               <a
                 href="/registracija"
                 style={{

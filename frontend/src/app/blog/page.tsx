@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import BlogIndex from "src/sections/blog/BlogIndex";
 import { BLOG_POSTS } from "src/sections/blog/posts";
 
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
     "Praktični vodiči o porezima, obrascima, obračunu plata, ugovorima i računovodstvu u FBiH, sa primjerima i brojevima za obrtnike, d.o.o. i knjigovođe.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

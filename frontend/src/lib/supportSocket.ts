@@ -6,12 +6,20 @@ import { getBackendUrl } from "src/utils/backendUrl";
 
 let socket: Socket | null = null;
 
+// Produkcijski backend je iza Apache + Phusion Passenger (shared hosting) koji
+// ne propušta Upgrade header, pa WebSocket handshake vraća 400. Zato na
+// produkciji forsiramo čisti polling bez pokušaja upgrade-a; u developmentu
+// ostaje websocket radi performansi.
+const isProd = process.env.NODE_ENV === "production";
+
 export function getSupportSocket(): Socket {
   if (!socket) {
     socket = io(getBackendUrl(), {
       withCredentials: true,
       autoConnect: false,
-      transports: ["websocket", "polling"],
+      ...(isProd
+        ? { transports: ["polling"] as const, upgrade: false }
+        : { transports: ["websocket", "polling"] as const }),
     });
   }
   return socket;

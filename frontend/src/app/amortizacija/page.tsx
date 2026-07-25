@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import { Suspense } from "react";
 import Amortizacija from "../../sections/amortizacija/Amortizacija";
 
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
     "PLDI-1043 obrazac za popis dugotrajne imovine i obračun amortizacije u FBiH, automatski prenos iz godine u godinu, PDF besplatno bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

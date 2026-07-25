@@ -153,7 +153,7 @@ export default function FaktureEdu() {
           Formu možete popunjavati besplatno i vidjeti živi pregled fakture
           sa svim obračunima. Snimanje i preuzimanje PDF-a (čuvanje fakture u
           arhivi, ponovni izvoz) dostupno je uz Pro ili Business pretplatu.
-          Svaki novi nalog dobija 30 dana Pro pretplate besplatno.
+          Svaki nalog jednom može aktivirati 30 dana besplatno: PK Office i sve Business funkcije.
         </p>
 
         <p>

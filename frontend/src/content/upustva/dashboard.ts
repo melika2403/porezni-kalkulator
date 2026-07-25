@@ -14,7 +14,7 @@ export const dashboard: Upustvo = {
         },
         {
           t: "p",
-          text: "Cijela aplikacija radi na jednom, aktivnom obrtu. Njegov naziv je gore u zaglavlju, a mijenjate ga prekidačem obrta pri vrhu.",
+          text: "Cijela aplikacija radi na jednom, aktivnom obrtu. Traka Aktivni obrt na vrhu Početne pokazuje na kojem ste, uz JIB, PDV status, žiro račun i datum zadnjeg izvoda. Klikom na tu traku birate drugi obrt, isto kao prekidačem u bočnoj traci.",
         },
       ],
     },
@@ -65,7 +65,7 @@ export const dashboard: Upustvo = {
     },
     {
       p: "Kako da promijenim obrt na kojem radim?",
-      o: "Prekidačem obrta pri vrhu. Aktivni obrt određuje šta vidite na svim stranicama.",
+      o: "Klikom na traku Aktivni obrt na Početnoj ili prekidačem obrta u bočnoj traci. Ako vodite više od pet obrta, u tom spisku dobijete i pretragu. Aktivni obrt određuje šta vidite na svim stranicama.",
     },
     {
       p: "Gdje nađem detaljno uputstvo za pojedinu stranicu?",

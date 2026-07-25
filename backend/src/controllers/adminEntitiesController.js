@@ -95,8 +95,9 @@ async function deleteForm(req, res) {
 }
 
 // POST /api/admin/users/:id/trial-invite
-// Pošalji poziv na besplatni trial — samo korisnicima koji ga još nisu
-// aktivirali (trialUsedAt == null) i koji su na besplatnom planu (USER).
+// Pošalji poziv na besplatnu probu (PK Office, 30 dana): samo korisnicima
+// koji je još nisu aktivirali (pkOfficeTrialEndsAt == null) i nemaju
+// pretplatu. Mail vodi na link koji probu aktivira odmah.
 async function sendTrialInvite(req, res) {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ ok: false, error: "Invalid id" });
@@ -104,12 +105,12 @@ async function sendTrialInvite(req, res) {
     const user = await User.findByPk(id);
     if (!user) return res.status(404).json({ ok: false, error: "Korisnik nije pronađen" });
     if (!user.email) return res.status(400).json({ ok: false, error: "Korisnik nema email adresu" });
-    if (user.role !== "USER" || user.trialUsedAt) {
-      return res.status(409).json({ ok: false, error: "Korisnik je već aktivirao trial ili ima pretplatu" });
+    if (user.pkOfficeTrialEndsAt) {
+      return res.status(409).json({ ok: false, error: "Korisnik je već aktivirao probni period" });
     }
 
     const frontendUrl = process.env.FRONTEND_URL || "https://poreznikalkulator.ba";
-    const trialUrl = `${frontendUrl}/pretplate?trial=1`;
+    const trialUrl = `${frontendUrl}/prijava?next=${encodeURIComponent("/pretplate?officeTrial=auto")}`;
     await sendTrialInviteEmail(user.email, user.firstName || "korisniče", { trialUrl });
 
     return res.json({ ok: true, data: { userId: id } });

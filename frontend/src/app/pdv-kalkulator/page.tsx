@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import PdvKalkulator from "src/sections/pdv/Pdv";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/pdv-kalkulator";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "PDV kalkulator za BiH sa stopom 17%, preračun iz cijene bez PDV-a i iz maloprodajne cijene u oba smjera, podrška za KM i EUR, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,
