@@ -102,6 +102,8 @@ const userAttributes = [
   "password",
   "idCardNumber",
   "trialUsedAt",
+  // PK Office proba: frontend po ovom polju zna smije li ponuditi trial
+  "pkOfficeTrialEndsAt",
 ];
 
 async function findUserWithSub(where) {
@@ -518,7 +520,7 @@ async function verifyEmail(req, res) {
     if (!trialAutoActivated && !officeTrialActivated) {
       try {
         const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-        const trialUrl = `${frontendUrl}/pretplate?trial=1`;
+        const trialUrl = `${frontendUrl}/prijava?next=${encodeURIComponent("/pretplate?officeTrial=auto")}`;
         void sendWelcomeEmail(user.email, user.firstName, trialUrl).catch(
           (err) => console.error("sendWelcomeEmail failed:", err?.message || err),
         );
@@ -655,7 +657,7 @@ async function googleCallback(req, res) {
         try {
           const frontendUrl =
             process.env.FRONTEND_URL || "http://localhost:3000";
-          const trialUrl = `${frontendUrl}/pretplate?trial=1`;
+          const trialUrl = `${frontendUrl}/prijava?next=${encodeURIComponent("/pretplate?officeTrial=auto")}`;
           void sendWelcomeEmail(email, firstName, trialUrl).catch((err) =>
             console.error(
               "sendWelcomeEmail (google) failed:",

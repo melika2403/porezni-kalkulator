@@ -19,11 +19,11 @@ export default function Register() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextUrl = safeNext(searchParams.get("next"));
-  // Registracija pokrenuta sa trial CTA (next vodi na /pretplate?trial=auto,
-  // odnosno ?officeTrial=auto za PK Office) -> backend će odgovarajući trial
-  // auto-aktivirati pri verifikaciji maila.
-  const wantsOfficeTrial = nextUrl.includes("officeTrial=auto");
-  const wantsTrial = nextUrl.includes("trial=auto") && !wantsOfficeTrial;
+  // Registracija pokrenuta sa CTA za probu -> backend probu auto-aktivira pri
+  // verifikaciji maila. Postoji samo jedna proba (PK Office, uz nju i sve
+  // Business funkcije); stari ?trial=auto linkovi vode na istu.
+  const wantsOfficeTrial =
+    nextUrl.includes("officeTrial=auto") || nextUrl.includes("trial=auto");
 
   // Ako je korisnik već ulogovan (npr. nakon verifikacije maila pa povratak
   // na /registracija), preusmjeri ga na ?next= ili početnu.
@@ -89,7 +89,6 @@ export default function Register() {
       password,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      wantsTrial,
       wantsOfficeTrial,
       ...getUtmForRegister(),
     });

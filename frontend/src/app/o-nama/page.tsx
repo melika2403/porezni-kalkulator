@@ -79,7 +79,7 @@ export default function ONamaPage() {
           </li>
         </ul>
 
-        <h3>Pro pretplata (30 dana besplatno)</h3>
+        <h3>Pro pretplata</h3>
         <p>
           Pro pretplata donosi <strong>automatsku popunu svih obrazaca i ugovora</strong> iz
           podataka vašeg profila (firma/obrt, JIB, adresa, podaci o vlasniku i radnicima), više ne
@@ -125,9 +125,10 @@ export default function ONamaPage() {
         <h2>Pretplatnički paketi</h2>
         <p>
           Aplikacija se koristi po modelu pretplate: <strong>Free</strong> (besplatno, brzi alati i
-          preview svih dokumenata), <strong>Pro</strong> (puno korištenje obrazaca i ugovora,{" "}
-          <strong>30 dana besplatno</strong> bez kartice) i <strong>Business</strong> (Pro + vođenje
-          klijenata, ugovor o radu, aktivni radnici). Detaljan pregled paketa i cijena dostupan je
+          preview svih dokumenata), <strong>Pro</strong> (puno korištenje obrazaca i ugovora) i{" "}
+          <strong>Business</strong> (Pro + vođenje klijenata, ugovor o radu, aktivni radnici).
+          Svaki nalog jednom može aktivirati <strong>30 dana besplatno</strong> bez kartice, na
+          nivou PK Office Tim paketa, uz koji idu i sve Business funkcije. Detaljan pregled paketa i cijena dostupan je
           na stranici <Link href="/pretplate">Pretplate</Link>.
         </p>
 

@@ -19,6 +19,7 @@ import {
   deleteSihterica,
 } from "src/api/sihterica";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
+import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useRole } from "src/hooks/useRole";
 import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
@@ -428,12 +429,7 @@ function SihtericaApp() {
     queryFn: () => unwrap(me()),
     retry: false,
   });
-  const trialAvailable =
-    meQuery.data?.role === "USER" && !meQuery.data?.trialUsedAt;
-  // Neregistrovan: trial mu je dostupan nakon registracije (auto-aktivacija),
-  // pa ga tretiramo kao trial ponudu i vodimo na /registracija?next=...trial=auto.
-  const isAnonymous = !meQuery.isLoading && !meQuery.data;
-  const showTrialOffer = trialAvailable || isAnonymous;
+  // Ponudu probe i sve njene varijante hendla dijeljeni GeneratePaywall.
   const userId = meQuery.data?.id ?? null;
 
   // Whether each paid-absence code counts as 8h in totals.
@@ -550,6 +546,14 @@ function SihtericaApp() {
     clientOrgsQuery.data,
     clientOrgsQuery.isLoading,
   ]);
+
+  // Prijavljen korisnik BEZ ijedne djelatnosti: umjesto praznog ekrana
+  // dobija istu preview tabelu kao neprijavljen (može unositi i računati),
+  // a ispod ide poziv na probu.
+  const bezDjelatnosti =
+    isLoggedInForOrgs &&
+    !orgsQuery.isLoading &&
+    (orgsQuery.data?.length ?? 0) === 0;
 
   // Auto-select organization if user has only one
   useEffect(() => {
@@ -1426,7 +1430,7 @@ function SihtericaApp() {
         {sidebar}
 
         <div className={styles.page}>
-          {isLoggedInForOrgs && !workerId ? (
+          {isLoggedInForOrgs && !bezDjelatnosti && !workerId ? (
             <div className={styles.emptyState}>
               <div className={styles.emptyIcon}>👤</div>
               <p className={styles.emptyText}>
@@ -1446,6 +1450,19 @@ function SihtericaApp() {
                     i PDF preuzimanje zahtjeva pretplatu.{" "}
                     <Link href="/registracija" className={styles.guestBannerLink}>
                       Registruj se besplatno →
+                    </Link>
+                  </div>
+                </div>
+              )}
+              {bezDjelatnosti && (
+                <div className={styles.guestBanner}>
+                  <span className={styles.guestBannerIcon}>🧪</span>
+                  <div className={styles.guestBannerText}>
+                    <strong>Preview šihterice</strong>, možete popunjavati dane
+                    i vidjeti zbirove. Da se evidencija čuva po radniku i da
+                    se povlači u obračun plata, dodajte svoju djelatnost.{" "}
+                    <Link href="/profil" className={styles.guestBannerLink}>
+                      Dodaj djelatnost →
                     </Link>
                   </div>
                 </div>
@@ -1990,44 +2007,13 @@ function SihtericaApp() {
                 </table>
               </div>
 
+              {/* Ista ponuda probe kao na ostalim obrascima (dijeljena
+                  komponenta), umjesto vlastitog paywall-a ove stranice. */}
               {!canExport && (
-                <div className={styles.exportPaywall}>
-                  <div className={styles.exportPaywallIcon}>
-                    {showTrialOffer ? "🎁" : "🔒"}
-                  </div>
-                  <div className={styles.exportPaywallText}>
-                    {showTrialOffer ? (
-                      <>
-                        <strong>Probajte 30 dana besplatno</strong> i preuzmite
-                        PDF obrazac. Bez kartice, bez automatske naplate.
-                        Nakon 30 dana automatski se vraćate na besplatan plan.
-                      </>
-                    ) : (
-                      <>
-                        <strong>Preuzimanje PDF obrasca</strong> dostupno je uz{" "}
-                        <strong>Pro</strong> ili <strong>Business</strong>{" "}
-                        pretplatu. Vaši uneseni podaci se čuvaju. Kada
-                        aktivirate pretplatu, samo kliknite preuzmi.
-                      </>
-                    )}
-                  </div>
-                  <a
-                    href={
-                      trialAvailable
-                        ? "/pretplate?trial=1"
-                        : isAnonymous
-                        ? `/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`
-                        : "/pretplate"
-                    }
-                    className={styles.exportPaywallBtn}
-                  >
-                    {trialAvailable
-                      ? "Aktiviraj 30 dana besplatno →"
-                      : isAnonymous
-                      ? "Registruj se i probaj besplatno →"
-                      : "Pogledaj pretplate →"}
-                  </a>
-                </div>
+                <GeneratePaywall
+                  tier="PRO"
+                  what="Preuzimanje PDF obrasca šihterice"
+                />
               )}
               <div className={styles.actions}>
                 <div style={{ display: "inline-flex", alignItems: "stretch" }}>

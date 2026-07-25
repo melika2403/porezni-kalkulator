@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import Fakture from "src/sections/fakture/Fakture";
 import FaktureEdu from "src/sections/fakture/FaktureEdu";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
     "Besplatna izrada faktura, predračuna, profaktura i računa online za BiH, automatski PDV 17 posto, numeracija, podaci kupaca, izvoz u PDF bez instalacije.",
   alternates: { canonical: "https://www.poreznikalkulator.ba/fakture" },
 openGraph: {
+  images: OG_IMAGE,
     type: "website",
     url: "https://www.poreznikalkulator.ba/fakture",
     title: TITLE,

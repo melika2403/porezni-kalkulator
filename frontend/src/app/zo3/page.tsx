@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import Zo3Form from "src/sections/zo3/Zo3";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/zo3";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "ZO-3 obrazac za prijavu člana porodice na zdravstveno osiguranje u FBiH, online popuna i popunjen PDF spreman za predaju Zavodu, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

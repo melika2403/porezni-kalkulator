@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import { notFound } from "next/navigation";
 import BlogPostPage from "src/sections/blog/BlogPostPage";
 import { BLOG_POSTS, getPostBySlug } from "src/sections/blog/posts";
@@ -26,6 +27,7 @@ export async function generateMetadata({
     description: post.excerpt,
     alternates: { canonical: url },
     openGraph: {
+      images: OG_IMAGE,
       type: "article",
       locale: "bs_BA",
       url,

@@ -1244,6 +1244,35 @@ const InvoiceItemTemplate = sequelize.define(
   },
 );
 
+// ─── AMS ISPLATILAC ───────────────────────────────────────────────────────────
+// Mali adresar isplatilaca za AMS-1035 obrazac, vezan SAMO za korisnika.
+// Namjerno nema veze sa organizacijama, klijentima ni obrtima: isplatilac je po
+// pravilu strana firma ili platforma, a obrazac se predaje mjesečno istom
+// isplatiocu, pa se podaci snimaju jednom i biraju klikom. Maksimum po
+// korisniku drži kontroler (LIMIT_ISPLATILACA).
+const AmsIsplatilac = sequelize.define(
+  "AmsIsplatilac",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    naziv: { type: DataTypes.STRING(255), allowNull: false },
+    adresa: { type: DataTypes.STRING(255), allowNull: true },
+    grad: { type: DataTypes.STRING(120), allowNull: true },
+    drzava: { type: DataTypes.STRING(120), allowNull: true },
+  },
+  {
+    tableName: "ams_isplatioci",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["userId"] }],
+  },
+);
+
 // ─── CLIENT PAYMENT ───────────────────────────────────────────────────────────
 // Mjesečna uplata klijenta (registrovanog korisnika) — admin finansije.
 // Jedan red po (userId, year, month). Ako je isAnnual=true, taj jedan unos
@@ -2554,6 +2583,9 @@ User.hasMany(InvoiceItemTemplate, {
 });
 InvoiceItemTemplate.belongsTo(User, { foreignKey: "userId", as: "user" });
 
+User.hasMany(AmsIsplatilac, { foreignKey: "userId", as: "amsIsplatioci" });
+AmsIsplatilac.belongsTo(User, { foreignKey: "userId", as: "user" });
+
 User.hasMany(ClientPayment, { foreignKey: "userId", as: "clientPayments" });
 ClientPayment.belongsTo(User, { foreignKey: "userId", as: "user" });
 
@@ -2816,6 +2848,7 @@ module.exports = {
   ContractCounter,
   WorkerDocument,
   InvoiceItemTemplate,
+  AmsIsplatilac,
   Payroll,
   PayrollDocument,
   ClientPayment,

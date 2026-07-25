@@ -1,4 +1,5 @@
 import ClanskeKartice from "src/sections/clanske-kartice/ClanskeKartice";
+import { OG_IMAGE } from "src/lib/ogImage";
 import type { Metadata } from "next";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/clanske-kartice";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "Generator članskih kartica sa QR kodom za klubove, fitness centre i udruženja, u formatu kreditne kartice, spremno za štampanje ili prikaz na mobitelu.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

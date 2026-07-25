@@ -19,8 +19,9 @@ export default function FinalCta() {
           <em>prvi dokument za par minuta.</em>
         </h2>
         <p className={styles.sub}>
-          Registracija traži samo ime, email i lozinku. Novi korisnici dobijaju
-          30 dana PRO pretplate besplatno, bez kartice.
+          Registracija traži samo ime, email i lozinku. Novi korisnici mogu
+          aktivirati 30 dana besplatno: PK Office i sve Business funkcije,
+          bez kartice.
         </p>
         <Link href="/registracija" className={styles.btn}>
           Registruj se besplatno

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { OG_IMAGE } from "src/lib/ogImage";
 import CesijeKompenzacije from "src/sections/cesije-i-kompenzacije/CesijeKompenzacije";
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import type { Metadata } from "next";
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
     "Napravite ugovor o cesiji (ustupanje potraživanja) i prijedlog za međusobnu kompenzaciju (prijeboj) u BiH. Popuna iz organizacija, preuzimanje u PDF i Word formatu.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

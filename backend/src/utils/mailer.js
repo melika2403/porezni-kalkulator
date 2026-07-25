@@ -226,103 +226,140 @@ ${replyTo ? `Za sva pitanja odgovorite na ovaj email, odlazi direktno na ${reply
   });
 }
 
+// ── Dijeljeni dijelovi PK Office mailova (welcome + trial reminder) ─────────
+// Email-safe inline stilovi (bez slika i webfontova). Paleta: cream #f5f2eb,
+// sage #3a5c42, tamnozelena hero sekcija #1e2b21 sa terakota #c8622a CTA
+// (ista kombinacija kao "Paketi" sekcija na sajtu).
+
+const OFFICE_MODULI = [
+  ["Bankovni izvodi se knjiže sami", "učitate PDF izvod, KPR uvijek ažuran"],
+  ["Fakture i partneri", "KIF, kartice kupaca, IOS i opomene"],
+  ["PDV evidencije", "KUF/KIF, PDV prijava i D-PDV izvoz"],
+  ["Roba i maloprodaja", "kalkulacije, lager lista i popis"],
+  ["Plate i radnici", "MIP-1023, 2001/2002, šihterica, JS3100"],
+  ["Blagajna i putni nalozi", "dnevnik blagajne, dnevnice"],
+  ["Godišnje obaveze", "SPR, GPD, amortizacija, zaključak godine"],
+  ["Pregled poslovanja", "dashboard sa stanjem i rokovima obrta"],
+];
+
+const BUSINESS_BONUS = [
+  "Obračun plata bez limita broja radnika",
+  "MIP-1023 i GIP-1022 izvještaji",
+  "Šihterica sa PDF obrascem",
+  "Fakture, predračuni i svi ugovori",
+  "Rješenja i odluke (godišnji odmor, regres, odsustva)",
+  "Neograničen broj klijenata",
+];
+
+// tamnozelena PK Office kartica sa terakota CTA (HTML)
+function officeHeroHtml(trialUrl, moduli) {
+  const rows = moduli
+    .map(
+      ([b, d]) =>
+        `<tr><td style="padding:4px 0; font-size:13.5px; line-height:1.5; color:#e8e4d8;">` +
+        `<span style="color:#e07b3f; font-weight:700;">&#10003;&nbsp;</span>` +
+        `<strong style="color:#ffffff;">${b}</strong>, ${d}</td></tr>`,
+    )
+    .join("");
+  return `
+        <div style="background:#1e2b21; border-radius:14px; padding:26px 24px; margin:24px 0;">
+          <div style="text-align:center; margin-bottom:6px;">
+            <span style="display:inline-block; background:#c8622a; color:#ffffff; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; border-radius:100px; padding:4px 14px;">&#9679;&nbsp;PK Office &middot; novo</span>
+          </div>
+          <div style="text-align:center; font-family:Georgia, 'Times New Roman', serif; font-size:24px; color:#ffffff; margin:10px 0 6px;">
+            Kompletno vođenje obrta na jednom mjestu
+          </div>
+          <p style="text-align:center; color:#c9c4b4; font-size:13.5px; line-height:1.6; margin:0 0 16px;">
+            Aplikacija za obrte u FBiH: knjige, PDV, plate, roba i fakture,
+            sve povezano i spremno za poreznu upravu.
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 18px;">${rows}</table>
+          <div style="text-align:center;">
+            <a href="${trialUrl}"
+               style="display:inline-block; background:#c8622a; color:#ffffff; text-decoration:none; padding:14px 30px; border-radius:10px; font-size:15px; font-weight:700;">
+              Isprobaj 30 dana besplatno &rarr;
+            </a>
+            <div style="color:#c9c4b4; font-size:12px; margin-top:10px;">
+              Bez kartice i bez obaveze. Besplatna migracija podataka iz starog programa.
+            </div>
+          </div>
+        </div>`;
+}
+
+// omotač maila: cream pozadina + bijela kartica + footer
+function officeMailWrap(innerHtml, footerNote) {
+  return `
+      <div style="background:#f5f2eb; padding:28px 12px; font-family:'DM Sans', Arial, sans-serif;">
+        <div style="max-width:600px; margin:0 auto; background:#ffffff; border:1px solid #d4cfc4; border-radius:14px; padding:32px 28px; color:#0f1a12;">
+          ${innerHtml}
+          <p style="color:#999; font-size:12px; line-height:1.6; margin:26px 0 0; border-top:1px solid #e8e4dc; padding-top:16px; text-align:center;">
+            ${footerNote}
+          </p>
+        </div>
+      </div>`;
+}
+
+// ── WELCOME EMAIL (poslije potvrde emaila) ──────────────────────────────────
 async function sendWelcomeEmail(to, firstName, trialUrl) {
   const transporter = createTransporter();
   const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
   const from = `"${displayName}" <${process.env.SMTP_USER}>`;
 
-  const proFeatures = [
-    "Šihterica, evidencija radnog vremena za sve radnike + PDF",
-    "Generator članskih kartica",
-    "Fakture/računi i predračuni za vaše klijente",
-    "Dodavanje do 20 klijenata i fizičkih lica",
-    "Do 5 radnika po organizaciji",
-    "Prijave/odjave radnika, JS3000 obrazac",
-    "Obračun plata i doprinosa",
-    "Generisanje uplatnica za plate i doprinose",
-  ];
-
-  const featuresHtml = proFeatures
-    .map(
-      (f) =>
-        `<li style="margin-bottom:8px; color:#444; font-size:14px; line-height:1.5;">${f}</li>`,
-    )
-    .join("");
-  const featuresText = proFeatures.map((f) => `  • ${f}`).join("\n");
+  const bonusHtml = BUSINESS_BONUS.map(
+    (f) =>
+      `<li style="margin-bottom:7px; color:#444; font-size:13.5px; line-height:1.5;">${f}</li>`,
+  ).join("");
+  const moduliText = OFFICE_MODULI.map(([b, d]) => `  • ${b}, ${d}`).join("\n");
+  const bonusText = BUSINESS_BONUS.map((f) => `  • ${f}`).join("\n");
 
   await transporter.sendMail({
     from,
     to,
-    subject: "30 dana PRO besplatno, počnite sa šihtericom",
+    subject: "30 dana besplatno: PK Office + sve Business funkcije",
     text: `Zdravo ${firstName},
 
 Hvala što ste potvrdili email adresu na Porezni Kalkulator.
 
-Aktivirajte 30 dana PRO pretplate BESPLATNO i odmah probajte našu šihtericu, vodite mjesečnu evidenciju radnog vremena za sve radnike i preuzmite popunjeni PDF obrazac prema propisima FBiH.
+Aktivirajte 30 dana BESPLATNO i probajte PK Office, našu novu aplikaciju za kompletno vođenje obrta u FBiH:
+${moduliText}
 
-Aktivirajte ovdje: ${trialUrl}
+Uz probni period dobijate i SVE Business funkcije na Poreznom Kalkulatoru:
+${bonusText}
 
-Šta dobijate uz PRO:
-${featuresText}
+Aktivirajte ovdje (klik odmah aktivira probu):
+${trialUrl}
 
-Bez kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate na besplatan plan.
+Bez kartice, bez automatske naplate. Nakon 30 dana vraćate se na besplatan plan.
 
-, Porezni Kalkulator`,
-    html: `
-      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
-        <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #7a8a7d; margin-bottom: 8px;">
-          Dobrodošli na Porezni Kalkulator
-        </div>
-        <h2 style="font-size: 26px; font-weight: 600; margin: 0 0 12px; color: #1a1a1a;">
-          30 dana <span style="color:#3a5c42;">PRO</span> besplatno
-        </h2>
-        <p style="color: #555; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-          Zdravo <strong>${firstName}</strong>, hvala što ste potvrdili email.
-        </p>
-
-        <div style="background: linear-gradient(135deg, #f5f2eb 0%, #ebe6d8 100%); border: 1px solid #d4cfc4; border-radius: 12px; padding: 24px; margin-bottom: 28px;">
-          <div style="font-size: 13px; font-weight: 600; color: #3a5c42; margin-bottom: 8px;">
-            ⭐ NAŠA NAJNOVIJA FUNKCIJA
+Porezni Kalkulator`,
+    html: officeMailWrap(
+      `
+          <div style="font-size:11px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:#7a8a7d; margin-bottom:8px;">
+            Dobrodošli na Porezni Kalkulator
           </div>
-          <div style="font-size: 18px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px;">
-            Šihterica, evidencija radnog vremena
-          </div>
-          <p style="color: #555; font-size: 14px; line-height: 1.55; margin: 0;">
-            Vodite mjesečnu evidenciju radnog vremena za sve radnike prema propisima FBiH
-            i preuzmite popunjeni PDF obrazac jednim klikom.
+          <h2 style="font-family:Georgia, 'Times New Roman', serif; font-size:26px; font-weight:400; margin:0 0 10px; color:#0f1a12;">
+            30 dana <span style="color:#3a5c42;">svega</span>, besplatno
+          </h2>
+          <p style="color:#555; font-size:14.5px; line-height:1.65; margin:0;">
+            Zdravo <strong>${firstName}</strong>, hvala što ste potvrdili email.
+            Jednim klikom ispod aktivirate probni period koji otključava sve
+            što platforma nudi.
           </p>
-        </div>
-
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${trialUrl}"
-             style="display: inline-block; background: #3a5c42; color: #fff; text-decoration: none;
-                    padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600;">
-            Aktiviraj 30 dana besplatno →
-          </a>
-        </div>
-
-        <div style="border-top: 1px solid #e5e7eb; padding-top: 24px; margin-top: 8px;">
-          <div style="font-size: 13px; font-weight: 600; color: #3a5c42; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;">
-            Šta dobijate uz PRO
+          ${officeHeroHtml(trialUrl, OFFICE_MODULI)}
+          <div style="font-size:12px; font-weight:700; color:#3a5c42; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px;">
+            Uz probu dobijate i sve Business funkcije
           </div>
-          <ul style="padding-left: 20px; margin: 0;">
-            ${featuresHtml}
+          <ul style="padding-left:20px; margin:0 0 20px;">
+            ${bonusHtml}
           </ul>
-        </div>
-
-        <div style="text-align: center; margin: 28px 0 8px;">
-          <a href="${trialUrl}"
-             style="display: inline-block; background: #3a5c42; color: #fff; text-decoration: none;
-                    padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;">
-            Aktiviraj 30 dana besplatno →
-          </a>
-        </div>
-
-        <p style="color: #999; font-size: 12px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 16px; text-align: center;">
-          Bez kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate na besplatan plan.
-        </p>
-      </div>
-    `,
+          <div style="text-align:center; margin:6px 0 4px;">
+            <a href="${trialUrl}"
+               style="display:inline-block; background:#3a5c42; color:#ffffff; text-decoration:none; padding:12px 26px; border-radius:10px; font-size:14px; font-weight:600;">
+              Aktiviraj 30 dana besplatno &rarr;
+            </a>
+          </div>`,
+      "Bez kartice, bez automatske naplate. Nakon 30 dana automatski se vraćate na besplatan plan.",
+    ),
   });
 }
 
@@ -332,68 +369,53 @@ async function sendTrialInviteEmail(to, firstName, { trialUrl }) {
   const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
   const from = `"${displayName}" <${process.env.SMTP_USER}>`;
 
-  const features = [
-    "Fakture i predračuni za vaše klijente",
-    "Ugovori o djelu sa automatskim obračunom poreza i doprinosa",
-    "Šihterica, evidencija radnog vremena uz PDF obrazac",
-    "Obračun plata i doprinosa, sa uplatnicama",
+  // kraća lista: tri najjače funkcije, ostalo pokriva hero kartica
+  const killer = [
+    ["Bankovni izvod se knjiži sam", "učitate PDF, KPR se popuni"],
+    ["Plate u dva klika", "MIP-1023, platne liste i uplatnice iz istog obračuna"],
+    ["PDV prijava iz knjiga", "KUF/KIF i D-PDV spremni za UINO"],
   ];
-  const featuresHtml = features
-    .map(
-      (f) =>
-        `<li style="margin-bottom:8px; color:#444; font-size:14px; line-height:1.5;">${f}</li>`,
-    )
-    .join("");
-  const featuresText = features.map((f) => `  • ${f}`).join("\n");
+  const moduliText = killer.map(([b, d]) => `  • ${b}, ${d}`).join("\n");
 
   await transporter.sendMail({
     from,
     to,
-    subject: "Vaš besplatni mjesec vas i dalje čeka, Porezni Kalkulator",
+    subject: "Vaših 30 dana besplatno još čeka: PK Office + Business",
     text: `Zdravo ${firstName},
 
-Primijetili smo da još niste aktivirali svoj besplatni mjesec (30 dana PRO) na Porezni Kalkulator. Dobra vijest: i dalje vas čeka.
+Primijetili smo da još niste aktivirali svojih 30 dana besplatno. Dobra vijest: i dalje vas čekaju, a u međuvremenu smo objavili PK Office, kompletno vođenje obrta na jednom mjestu:
+${moduliText}
 
-Uz PRO besplatno mjesec dana dobijate:
-${featuresText}
+Uz probu dobijate i sve Business funkcije (obračun plata bez limita, fakture, ugovori, rješenja...).
 
-Aktivirajte ovdje (bez kartice, bez obaveza):
+Aktivirajte ovdje (klik odmah aktivira probu, bez kartice):
 ${trialUrl}
 
 Ako imate bilo kakvo pitanje, slobodno odgovorite na ovaj email, rado pomažemo.
 
-, Porezni Kalkulator`,
-    html: `
-      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
-        <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #7a8a7d; margin-bottom: 8px;">
-          Vaš besplatni mjesec
-        </div>
-        <h2 style="font-size: 24px; font-weight: 600; margin: 0 0 12px;">
-          30 dana <span style="color:#3a5c42;">PRO</span> vas i dalje čeka
-        </h2>
-        <p style="color: #555; font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
-          Zdravo <strong>${firstName}</strong>, primijetili smo da još niste
-          aktivirali svoj besplatni mjesec. Evo šta dobijate uz PRO:
-        </p>
-        <ul style="padding-left: 20px; margin: 0 0 24px;">
-          ${featuresHtml}
-        </ul>
-        <div style="text-align: center; margin: 28px 0;">
-          <a href="${trialUrl}"
-             style="display: inline-block; background: #3a5c42; color: #fff; text-decoration: none;
-                    padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600;">
-            Aktiviraj 30 dana besplatno →
-          </a>
-        </div>
-        <p style="color: #666; font-size: 14px; line-height: 1.6;">
-          Bez kartice, bez obaveza. Ako imate pitanje, samo odgovorite na ovaj
-          email, rado pomažemo.
-        </p>
-        <p style="color: #999; font-size: 13px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-          Link: <a href="${trialUrl}" style="color: #3a5c42;">${trialUrl}</a>
-        </p>
-      </div>
-    `,
+Porezni Kalkulator`,
+    html: officeMailWrap(
+      `
+          <div style="font-size:11px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:#7a8a7d; margin-bottom:8px;">
+            Vaš besplatni mjesec
+          </div>
+          <h2 style="font-family:Georgia, 'Times New Roman', serif; font-size:25px; font-weight:400; margin:0 0 10px; color:#0f1a12;">
+            30 dana besplatno vas <span style="color:#3a5c42;">i dalje čeka</span>
+          </h2>
+          <p style="color:#555; font-size:14.5px; line-height:1.65; margin:0;">
+            Zdravo <strong>${firstName}</strong>, još niste aktivirali probni
+            period. U međuvremenu smo objavili i <strong>PK Office</strong>,
+            aplikaciju za kompletno vođenje obrta, i ulazi u istu probu.
+          </p>
+          ${officeHeroHtml(trialUrl, killer)}
+          <p style="color:#555; font-size:13.5px; line-height:1.65; margin:0 0 4px;">
+            Uz probu dobijate i <strong>sve Business funkcije</strong>: obračun
+            plata bez limita radnika, fakture i predračune, sve ugovore i
+            rješenja, neograničen broj klijenata. Ako imate pitanje, samo
+            odgovorite na ovaj email, rado pomažemo.
+          </p>`,
+      "Bez kartice, bez obaveza. Klik na dugme odmah aktivira probni period na vašem računu.",
+    ),
   });
 }
 

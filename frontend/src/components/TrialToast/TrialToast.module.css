@@ -1,0 +1,92 @@
+/* Tamnozelena PK Office potvrda, isti jezik kao OfficeTrialCta. */
+.toast {
+  position: fixed;
+  bottom: 1.75rem;
+  right: 1.75rem;
+  z-index: 1000;
+  max-width: 24rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem;
+  background: #14241b;
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.45);
+  font-family: "DM Sans", sans-serif;
+  animation: toastIn 0.25s ease both;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.check {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(200, 98, 42, 0.3);
+  color: #e08a52;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #c9c4b4;
+}
+
+.close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #7a8a7d;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0.15rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.close:hover {
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .toast {
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}

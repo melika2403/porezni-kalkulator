@@ -48,7 +48,15 @@ Posljednje ažuriranje: juni 2026.
 ## 3. Početna (dashboard)
 
 - Pozdrav po dobu dana (Dobro jutro / Dobar dan / Dobro veče) sa punim
-  datumom, imenom aktivne organizacije i badge-om "Moj obrt" / "Klijent".
+  datumom.
+- **Traka aktivnog obrta** ispod pozdrava: inicijali, naziv obrta i badge
+  "Moj obrt" / "Klijent". Traka je ujedno prekidač obrta (isti dropdown
+  kao u sidebaru, sa pretragom preko 5 obrta i grupama Moji obrti /
+  Klijenti), pa se klijent mijenja bez odlaska u bočnu traku. Ista
+  komponenta `OrgSwitcher` u varijanti `inline`.
+- **Lična karta obrta** uz traku: JIB, PDV status (Obveznik / Nije
+  obveznik, tooltip sa datumom ulaska u sistem), žiro račun i datum
+  zadnjeg izvoda (amber ako je stariji od 30 dana).
 - **Brze akcije** ispod zaglavlja: Učitaj izvod, Nova faktura,
   Blagajnički nalog, Nova kalkulacija.
 - **Prvi koraci**: obrt koji još nema nijedan izvod dobije checklist
@@ -1026,9 +1034,28 @@ ne prikazuje). Launch naplate = uključiti flag.
   sadržaja vidi upsell stranicu (pitch, udarne funkcije, mini cjenovnik,
   link na /pretplate#pk-office), personalizovanu brojem organizacija koje
   već vodi ("klijenti su već tu, nema migracije").
-- **Probni period**: dugme "Probaj 30 dana besplatno" na upsell stranici,
-  jednom po korisniku (users.pkOfficeTrialEndsAt), na nivou paketa Office
-  Tim (10 obrta); odvojen od PRO triala. Neregistrovani do probe dolaze
+- **Probni period**: JEDINA proba na platformi (od 24.07.2026. stari PRO
+  trial se više ne nudi). Jednom po korisniku (users.pkOfficeTrialEndsAt),
+  na nivou paketa Office Tim (10 obrta), a uz nju idu i SVE Business
+  funkcije na marketing dijelu (efektivna rola BUSINESS): ugovori, plate
+  bez limita, fakture, neograničeni klijenti. Zato je isti CTA ispravan i
+  za korisnika koji PK Office nikad neće otvoriti (npr. d.o.o.).
+  Zajednička komponenta: `src/components/OfficeTrialCta` (tamnozelena
+  traka + terakota dugme) i hook `useOfficeTrial()`; koriste je
+  GeneratePaywall (svi obrasci), profil (tab Klijenti), šihterica,
+  fakture i /pretplate. Prijavljen korisnik probu aktivira NA LICU MJESTA
+  (POST /api/pk-office/trial iz same trake), ostaje na stranici i ne gubi
+  unesene podatke obrasca; potvrdu sa datumom isteka pokazuje globalni
+  `TrialToast` (montiran u root layoutu, pa preživi nestanak paywall-a),
+  a osvježen `["me"]` odmah otključa dugmad za preuzimanje. Ko VEĆ PLAĆA
+  paket (Pro, Business ili Office) probu ne dobija na paywall-u, tamo mu
+  ide nadogradnja: proba nosi Business funkcije, pa bi Pro pretplatniku
+  dala nadogradnju besplatno i potrošila mu jedinu probu na nešto što nije
+  PK Office. Probu i dalje može sam pokrenuti sa /pretplate#pk-office.
+  Legacy link `?trial=auto` aktivira probu kao `?officeTrial=auto`, a
+  `?trial=1` (stari mailovi, bookmark) samo prikazuje ponudu, jer
+  jednokratna proba ne smije nestati pukim otvaranjem linka.
+  Neregistrovani do probe dolaze
   kroz marketing CTA-ove ("Isprobaj 30 dana besplatno" na /pretplate,
   landingu i početnoj): registracija → verifikacija maila → trial se
   aktivira automatski (users.wantsOfficeTrial), a /pretplate?officeTrial=auto
@@ -1178,7 +1205,16 @@ za zakonski rok ili se šalje samo kad ima sadržaja.
   GPD/SPR (rok 31.03.; preskače obrte sa već spremljenim GPD-om).
 - **Sedmični pregled**: ponedjeljkom, nepovezane transakcije + dospjele
   fakture + izvodi stariji od 30 dana; šalje se samo ako ima nečega.
-- **Istek pretplate**: automatski email 7 i 1 dan prije isteka.
+- **Istek pretplate**: automatski email samo PLAĆENIM pretplatnicima.
+  Godišnja: 30 dana, 7 dana i na dan isteka. Mjesečna: 3 dana i na dan
+  isteka. Pretplata bez upisanog ciklusa se vodi kao godišnja. Isti mail
+  admin može poslati i ručno iz `/admin` → Obnove.
+- **Istek PK Office probe**: email 7 dana prije i na dan isteka, jer
+  proba živi na `users.pkOfficeTrialEndsAt` i ne vidi je podsjetnik za
+  pretplate. Preskaču se korisnici koji su u međuvremenu kupili office
+  paket. Mail vodi na /pretplate#pk-office i kaže da podaci ostaju
+  sačuvani, a da prestaje pristup PK Office modulima i Business
+  funkcijama.
 - **In-app**: iste stvari kao kartice u Inbox → Poruke i obavijesti
   (klik vodi na stranicu), plus obavijest kad KOLEGA učita izvod za
   zajednički obrt. Broj nepročitanih ulazi u badge na tabu i sidebaru.

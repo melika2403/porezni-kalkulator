@@ -15,7 +15,12 @@ import {
   IconTransfer,
   IconBriefcase,
 } from "@tabler/icons-react";
-import { me, unwrap, startTrial, type AuthUser } from "src/api/auth";
+import { me, unwrap, type AuthUser } from "src/api/auth";
+import {
+  useOfficeTrial,
+  OFFICE_TRIAL_REGISTER_URL,
+} from "src/components/OfficeTrialCta/OfficeTrialCta";
+import { objaviTrialAktiviran } from "src/components/TrialToast/TrialToast";
 import styles from "./pretplate.module.css";
 import {
   createPredracun,
@@ -55,29 +60,30 @@ const PLANS: {
     id: "PRO",
     tier: "Pro",
     variant: "pro",
-    tag: "Najpopularnije",
+    tag: "Za obrtnike",
     features: [
       "Sve iz besplatnog plana",
       "Šihterica: evidencija radnog vremena",
-      "Višestruke vlastite djelatnosti",
-      "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
-      "Prijave/odjave radnika, izrada JS3100 obrasca",
-      "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
-      "Fakture/računi i predračuni/ponude",
+      "Više vlastitih djelatnosti",
+      "Do 20 klijenata i fizičkih lica",
+      "Prijave i odjave radnika, JS3100 obrazac",
+      "Obračun plata za vlasnika i zaposlene",
+      "Fakture, računi i predračuni",
     ],
   },
   {
     id: "BUSINESS",
     tier: "Business",
     variant: "business",
-    tag: "Najbolja vrijednost",
+    tag: "Za knjigovođe",
     features: [
       "Sve iz Pro plana",
-      "Upravljanje neograničenim brojem klijenata i fizičkih lica",
-      "Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima",
-      "Višekorisnički pristup (tim) za knjigovođe i agencije",
-      "Ugovor o radu i odluka o prestanku radnog odnosa, sa automatskom numeracijom",
-      "Ugovori o djelu i automatski obračun poreza i doprinosa",
+      "Neograničeno klijenata i fizičkih lica",
+      "Radnici po klijentu, obrasci se popunjavaju sami",
+      "Tim: više korisnika na istom nalogu",
+      "Ugovor o radu i odluka o otkazu, sa numeracijom",
+      "Ugovori o djelu sa obračunom poreza i doprinosa",
+      "Rješenja, odluke i potvrde (godišnji, regres, otpremnina...)",
       "Prioritetna podrška",
     ],
   },
@@ -137,14 +143,13 @@ const OFFICE_FEATURES: OfficeFeature[] = [
 export default function Pretplate() {
   // ── Pristup ──────────────────────────────────────────────────────────────
   // Stranica je javna: i neregistrovani korisnici vide pakete i trial karticu.
-  // Ako neregistrovan klikne trial, vodimo ga na registraciju sa
-  // ?next=/pretplate?trial=auto, pa se trial sam aktivira nakon verifikacije.
+  // Ako neregistrovan klikne probu, vodimo ga na registraciju sa
+  // ?next=/pretplate?officeTrial=auto, pa se proba sama aktivira nakon
+  // verifikacije maila.
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
   const trialParam = params.get("trial");
-  // trial=auto: dolazak iz registracije/verifikacije -> auto-aktiviraj trial.
-  const autoTrial = trialParam === "auto";
   const [trialStatus, setTrialStatus] = useState<
     "idle" | "starting" | "done" | "error"
   >("idle");
@@ -160,59 +165,49 @@ export default function Pretplate() {
   });
 
   const isAnonymous = !userLoading && !user;
-  const trialEligible =
-    isAnonymous || (!!user && user.role === "USER" && !user.trialUsedAt);
+  // Postoji samo JEDNA proba: PK Office (30 dana, nivo Office Tim), a uz nju
+  // idu i sve Business funkcije na marketing dijelu. Stari PRO trial linkovi
+  // (?trial=1, ?trial=auto) vode na istu aktivaciju.
+  const { available: officeTrialMoguc } = useOfficeTrial();
+  const trialEligible = isAnonymous || officeTrialMoguc;
 
   const handleStartTrial = async () => {
-    // Neregistrovan: vodi na registraciju, trial se aktivira nakon verifikacije.
+    // Neregistrovan: vodi na registraciju, proba se aktivira nakon verifikacije.
     if (isAnonymous) {
-      router.push(
-        `/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`,
-      );
+      router.push(OFFICE_TRIAL_REGISTER_URL);
       return;
     }
     setTrialError("");
     setTrialStatus("starting");
-    const res = await startTrial();
+    const res = await startPkOfficeTrial();
     if (!res.ok) {
       setTrialStatus("error");
       setTrialError(
         res.error === "TRIAL_ALREADY_USED"
           ? "Već ste iskoristili besplatan probni period."
           : res.error === "ALREADY_SUBSCRIBED"
-          ? "Već imate aktivnu pretplatu."
-          : res.error || "Greška pri aktiviranju.",
+            ? "Već imate aktivnu pretplatu."
+            : res.error || "Greška pri aktiviranju.",
       );
       return;
     }
     setTrialStatus("done");
+    // potvrda i kad je korisnik doskrolao do PK Office sekcije
+    objaviTrialAktiviran(res.data?.trialEndsAt ?? null);
     await queryClient.invalidateQueries({ queryKey: ["me"] });
   };
-
-  // Dolazak iz registracije/verifikacije (?trial=auto). Backend je trial najčešće
-  // već aktivirao pri verifikaciji maila (role -> PRO), pa samo prikažemo potvrdu.
-  // Fallback: ako iz nekog razloga nije (npr. Google), aktiviramo ga ovdje.
-  const autoTrialRef = useRef(false);
-  useEffect(() => {
-    if (!autoTrial || autoTrialRef.current) return;
-    if (userLoading || !user) return;
-    if (user.role === "USER" && !user.trialUsedAt) {
-      autoTrialRef.current = true;
-      void handleStartTrial();
-    } else if (user.trialUsedAt) {
-      // trial je već aktivan (server-side) -> prikaži potvrdu odmah
-      autoTrialRef.current = true;
-      setTrialStatus("done");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoTrial, userLoading, user]);
 
   // ── PK Office trial (?officeTrial=auto) ───────────────────────────────────
   // Dolazak iz registracije preko PK Office trial CTA. Backend je trial u
   // pravilu već aktivirao pri verifikaciji maila (wantsOfficeTrial); fallback
   // (npr. Google registracija) ga aktivira ovdje. Skrolamo direktno na PK
   // Office sekciju da se preskoči PRO/BUSINESS dio.
-  const officeTrialAuto = params.get("officeTrial") === "auto";
+  // Auto-aktivacija ide samo na linkove koji dolaze iz registracije/verifikacije
+  // (?officeTrial=auto i legacy ?trial=auto). Stari ?trial=1 iz već poslanih
+  // mailova i bookmarka SAMO prikazuje ponudu: proba je jednokratna, pa je puko
+  // otvaranje linka ne smije potrošiti bez klika.
+  const officeTrialAuto =
+    params.get("officeTrial") === "auto" || trialParam === "auto";
   const [officeTrialStatus, setOfficeTrialStatus] = useState<
     "idle" | "done" | "subscribed" | "used" | "error"
   >("idle");
@@ -412,7 +407,10 @@ export default function Pretplate() {
 
   // Trial karticu uvijek prikazujemo kad je korisnik kvalifikovan (i anonimni),
   // plus nakon uspješne aktivacije da se vidi potvrda.
-  const showTrialCard = trialEligible || trialStatus === "done";
+  // Kad proba ide automatski (?officeTrial=auto / legacy ?trial=*), potvrdu
+  // prikazuje traka u PK Office sekciji, pa se kartica gore ne duplira.
+  const showTrialCard =
+    (trialEligible && !officeTrialAuto) || trialStatus === "done";
 
   return (
     <div className={styles.page}>
@@ -429,61 +427,81 @@ export default function Pretplate() {
 
       {showTrialCard && (
         <div className={styles.trialCard}>
-          {trialStatus === "done" ? (
-            <>
-              <div className={styles.trialIcon}>✓</div>
-              <h2 className={styles.trialTitle}>Probni period aktiviran!</h2>
-              <p className={styles.trialText}>
-                Imate <strong>30 dana</strong> PRO pretplate besplatno.
-                Krenite od šihterice.
-              </p>
-              <a href="/sihterica" className={styles.trialBtn}>
-                Otvori šihtericu →
-              </a>
-            </>
-          ) : autoTrial && !isAnonymous ? (
-            <>
-              <div className={styles.trialIcon}>🎁</div>
-              <h2 className={styles.trialTitle}>Aktiviram probni period…</h2>
-              <p className={styles.trialText}>
-                Samo trenutak, pripremamo vaših <strong>30 dana</strong> PRO
-                pretplate besplatno.
-              </p>
-              {trialStatus === "error" && (
-                <p className={styles.trialError}>{trialError}</p>
-              )}
-            </>
-          ) : (
-            <>
-              <div className={styles.trialIcon}>🎁</div>
-              <h2 className={styles.trialTitle}>
-                Probaj PRO besplatno 30 dana
-              </h2>
-              <p className={styles.trialText}>
-                Bez kartice, bez automatske naplate.{" "}
-                {isAnonymous
-                  ? "Registrujte se i odmah dobijate sve PRO funkcije: obračun plata, prijave radnika, šihtericu, fakture i klijente."
-                  : "Aktivirajte odmah i koristite sve PRO funkcije: obračun plata, prijave radnika, šihtericu, fakture i klijente."}
-              </p>
-              {trialStatus === "error" && (
-                <p className={styles.trialError}>{trialError}</p>
-              )}
-              <button
-                type="button"
-                className={styles.trialBtn}
-                onClick={handleStartTrial}
-                disabled={trialStatus === "starting"}
+          <span className={styles.trialIcon} aria-hidden="true">
+            {trialStatus === "done" ? (
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                {isAnonymous
-                  ? "Registruj se i probaj besplatno →"
-                  : trialStatus === "starting"
+                <path d="M5 12l5 5L20 7" />
+              </svg>
+            ) : (
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {/* briefcase, isti znak kao PK Office */}
+                <path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" />
+                <path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" />
+                <path d="M3 13a20 20 0 0 0 18 0" />
+              </svg>
+            )}
+          </span>
+          <div className={styles.trialBody}>
+            {trialStatus === "done" ? (
+              <>
+                <h2 className={styles.trialTitle}>Probni period aktiviran</h2>
+                <p className={styles.trialText}>
+                  Imate <strong>30 dana</strong> kompletnog PK Office-a (nivo
+                  Office Tim, do 10 obrta) i sve Business funkcije na Poreznom
+                  Kalkulatoru.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className={styles.trialTitle}>Probaj 30 dana besplatno</h2>
+                <p className={styles.trialText}>
+                  Proba otključava <strong>PK Office</strong> (knjige, PDV,
+                  plate, bankovni izvodi) i{" "}
+                  <strong>sve Business funkcije</strong>: plate bez limita,
+                  prijave radnika, šihtericu, ugovore, fakture i klijente. Bez
+                  kartice, nakon 30 dana se vraćate na besplatan plan.
+                </p>
+                {trialStatus === "error" && (
+                  <p className={styles.trialError}>{trialError}</p>
+                )}
+              </>
+            )}
+          </div>
+          {trialStatus === "done" ? (
+            <a href={PK_OFFICE_DASHBOARD_URL} className={styles.trialBtn}>
+              Otvori PK Office →
+            </a>
+          ) : (
+            <button
+              type="button"
+              className={styles.trialBtn}
+              onClick={handleStartTrial}
+              disabled={trialStatus === "starting"}
+            >
+              {isAnonymous
+                ? "Registruj se i probaj →"
+                : trialStatus === "starting"
                   ? "Aktiviram..."
                   : "Aktiviraj 30 dana besplatno →"}
-              </button>
-              <p className={styles.trialFineprint}>
-                Nakon 30 dana automatski se vraćate na besplatan plan.
-              </p>
-            </>
+            </button>
           )}
         </div>
       )}
@@ -535,7 +553,12 @@ export default function Pretplate() {
                 <span className={styles.vatSuffix}>+ PDV</span>
               </div>
               <div className={styles.period}>
-                {cycle === "monthly" ? "mjesečno / po korisniku" : "godišnje / po korisniku"}
+                {cycle === "monthly" ? "mjesečno" : "godišnje"}
+                {cycle === "yearly" && (
+                  <span className={styles.monthlyEq}>
+                    oko {Math.floor(PLAN_PRICING[p.id].yearly / 12)} KM mjesečno
+                  </span>
+                )}
               </div>
               {cycle === "yearly" && (
                 <div className={styles.saveNote}>
@@ -821,9 +844,25 @@ export default function Pretplate() {
         {/* probni period: prijavljen ide u app (proba se tamo eksplicitno
             pokreće), neprijavljen na registraciju pa auto-aktivacija */}
         <div className={styles.officeTrialRow}>
-          <OfficeTrialLink className={styles.officeTrialBtn}>
-            Isprobaj 30 dana besplatno →
-          </OfficeTrialLink>
+          {/* Ista proba kao kartica na vrhu: prijavljen je aktivira odmah
+              ovdje (bez skoka u app), neprijavljen ide na registraciju, a ko
+              je već ima ide pravo u PK Office. */}
+          {trialEligible && !isAnonymous ? (
+            <button
+              type="button"
+              className={styles.officeTrialBtn}
+              onClick={handleStartTrial}
+              disabled={trialStatus === "starting"}
+            >
+              {trialStatus === "starting"
+                ? "Aktiviram..."
+                : "Aktiviraj 30 dana besplatno →"}
+            </button>
+          ) : (
+            <OfficeTrialLink className={styles.officeTrialBtn}>
+              {trialEligible ? "Isprobaj 30 dana besplatno →" : "Otvori PK Office →"}
+            </OfficeTrialLink>
+          )}
           <span className={styles.officeTrialNote}>
             Bez kartice i bez obaveze. Proba je na nivou paketa Office Tim (do
             10 obrta).
@@ -1030,9 +1069,10 @@ export default function Pretplate() {
                 Predračun možete generisati i bez registracije.
               </strong>{" "}
               Ako se registrujete, podaci se popunjavaju automatski iz vašeg
-              profila, a uz to dobijate 30 dana PRO pretplate besplatno.{" "}
+              profila, a uz to možete aktivirati 30 dana besplatno (PK Office i sve
+              Business funkcije).{" "}
               <a
-                href={`/registracija?next=${encodeURIComponent("/pretplate?trial=auto")}`}
+                href={OFFICE_TRIAL_REGISTER_URL}
                 className={styles.anonNoteLink}
               >
                 Registruj se besplatno →

@@ -410,10 +410,11 @@ function UserRow({ user }: { user: Users }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
   });
 
-  // ── poziv na trial (samo za korisnike koji ga još nisu aktivirali) ──
+  // ── poziv na probu (samo za korisnike koji je još nisu aktivirali) ──
+  // Postoji jedna proba: PK Office 30 dana, uz nju i sve Business funkcije.
   const [trialSent, setTrialSent] = useState(false);
   const [trialError, setTrialError] = useState<string | null>(null);
-  const trialEligible = user.role === "USER" && !user.trialUsedAt;
+  const trialEligible = !user.pkOfficeTrialEndsAt;
   const trialInvite = useMutation({
     mutationFn: async () => {
       const r = await sendTrialInvite(user.id);
@@ -460,9 +461,13 @@ function UserRow({ user }: { user: Users }) {
     !!officeTrialEnd && officeTrialEnd >= todayInputDate();
   // admin-postavljena AKTIVNA pretplata ima prednost i u pristupu i u
   // prikazu: njeni datumi se vide odmah, trial prozor samo kad pretplate nema
+  // "free" nije pretplata: backend kreira taj red čim korisnik otvori tab
+  // Pretplata, pa se ne smije brojati kao aktivan paket (inače bi svaki
+  // korisnik izgledao kao pretplatnik i sakrio bi se prikaz probe).
+  const subPlacena = !!sub?.plan && sub.plan.toLowerCase() !== "free";
   const subAktivna =
     !!sub?.isActive &&
-    !!sub?.plan &&
+    subPlacena &&
     (!sub.endDate || toInputDate(sub.endDate) >= todayInputDate());
   const prikaziTrialProzor = officeTrialActive && !subAktivna;
   const officeTrialStart =

@@ -337,7 +337,10 @@ export default function Navbar() {
                 Organizacije
               </Link>
             )}
-            {!needsOrg && orgsQuery.data && orgsQuery.data.length > 0 && (
+            {/* PK Office dugme i "?" stoje čim su podaci učitani, i kad
+                korisnik još nema nijedan obrt (tad je lijevo od njih "Dodaj
+                djelatnost") i kad vodi samo klijentske obrte. */}
+            {orgsQuery.data != null && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <a
                 href={PK_OFFICE_DASHBOARD_URL}

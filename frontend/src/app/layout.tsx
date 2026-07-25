@@ -4,6 +4,7 @@ import ConditionalNavbar from "src/components/Navbar/ConditionalNavbar";
 import ConditionalFooter from "src/components/Footer/ConditionalFooter";
 import Providers from "src/components/Providers/Providers";
 import ConsentBanner from "src/components/ConsentBanner/ConsentBanner";
+import TrialToast from "src/components/TrialToast/TrialToast";
 import ConditionalChrome from "src/components/ConditionalChrome/ConditionalChrome";
 import MetaPixelPageView from "src/components/MetaPixel/MetaPixelPageView";
 import "./fonts.css";
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
   },
 
   description:
-    "Besplatni porezni alati za poduzetnike u BiH: SPR-1053, GPD-1051, ZO-3, AMS-1035, PDV kalkulator, obračun plate, amortizacija, šihterica i ugovori.",
+    "Obračun plate, porezni obrasci (SPR, GPD, MIP), fakture, ugovori i knjigovodstvo obrta na jednom mjestu. Besplatni alati za obrtnike, firme i knjigovođe u FBiH.",
 authors: [{ name: "Porezni Kalkulator BiH" }],
   creator: "Porezni Kalkulator BiH",
 
@@ -48,9 +49,9 @@ authors: [{ name: "Porezni Kalkulator BiH" }],
     locale: "bs_BA",
     url: SITE_URL,
     siteName: "Porezni Kalkulator BiH",
-    title: "Porezni Kalkulator BiH, SPR, GPD, ZO3, AMS-1035, Ugovor o pozajmici, Obračun plate, PDV",
+    title: "Porezni Kalkulator BiH | Plate, obrasci i knjigovodstvo za FBiH",
     description:
-      "SPR-1053 · GPD-1051 · ZO3 · AMS-1035 · PDV kalkulator · Obračun plate · Stalna sredstva · Šihterica · Ugovori, besplatni porezni alati za poduzetnike u BiH.",
+      "Obračun plate, porezni obrasci, fakture, ugovori i knjigovodstvo obrta na jednom mjestu. Besplatni alati za obrtnike, firme i knjigovođe u FBiH.",
     images: [
       {
         url: "/og-image.png",
@@ -217,6 +218,8 @@ export default function RootLayout({
           <div className="pageContent">{children}</div>
           <ConditionalFooter />
           <ConsentBanner />
+          {/* potvrda aktivacije probe; mora biti van paywall-a koji nestane */}
+          <TrialToast />
           {META_PIXEL_ID && <MetaPixelPageView />}
         </Providers>
       </body>

@@ -1,9 +1,12 @@
 const repo = require("../repositories/karticaMemberRepository");
+const { getEffectiveRole } = require("../services/tierService");
 
 const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
 
-function checkRole(req, res) {
-  if (!ALLOWED_ROLES.includes(req.user?.role)) {
+// Efektivna rola: PK Office paket ili trial daje Business nivo iako je rola
+// u bazi USER.
+async function checkRole(req, res) {
+  if (!ALLOWED_ROLES.includes(await getEffectiveRole(req.user))) {
     res.status(403).json({ ok: false, error: "FORBIDDEN" });
     return false;
   }
@@ -18,14 +21,14 @@ function parseOrgId(value) {
 }
 
 async function list(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const orgId = parseOrgId(req.query.organizationId);
   const data = await repo.list(req.user.id, orgId === undefined ? undefined : orgId);
   res.status(200).json({ ok: true, data });
 }
 
 async function create(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const { name, code, clubName, validUntil } = req.body ?? {};
   const organizationId = parseOrgId(req.body?.organizationId);
   if (typeof name !== "string" || !name.trim())
@@ -47,7 +50,7 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0)
     return res.status(400).json({ ok: false, error: "Invalid id" });
@@ -78,7 +81,7 @@ async function update(req, res) {
 }
 
 async function remove(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0)
     return res.status(400).json({ ok: false, error: "Invalid id" });
@@ -92,7 +95,7 @@ async function remove(req, res) {
 }
 
 async function bulkUpsert(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const organizationId = parseOrgId(req.body?.organizationId);
   const { items, clubName } = req.body ?? {};
   if (!Array.isArray(items))

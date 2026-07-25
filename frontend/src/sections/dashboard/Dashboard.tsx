@@ -17,6 +17,7 @@ import {
   IconInbox,
 } from "@tabler/icons-react";
 import { HelpButton } from "src/components/app-shell/HelpButton";
+import { OrgSwitcher } from "src/components/app-shell/OrgSwitcher";
 import { formatBAM, formatDate } from "src/lib/format";
 import {
   usePkOfficeMe,
@@ -85,7 +86,6 @@ export default function Dashboard() {
 
   const firstName = data?.firstName?.trim();
   const activeOrg = data?.activeOrganization ?? data?.organizations?.[0] ?? null;
-  const orgName = activeOrg?.name ?? "Vaš obrt";
   const orgId = activeOrg?.id ?? null;
   const period = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
   const monthName = MONTHS[now.getMonth()].toLowerCase();
@@ -167,10 +167,12 @@ export default function Dashboard() {
   // oslanjamo na lastUpload (null tek kad nijedan izvod nije učitan).
   const svjezObrt =
     bankSummary !== undefined && balance == null && bankSummary.lastUpload == null;
+  // puni podaci obrta: prvi koraci (svjež obrt) i lična karta u zaglavlju,
+  // pa se traže za svaki obrt (odgovor je keširan po orgId)
   const { data: fullOrg } = useQuery({
     queryKey: ["pk-org", orgId],
     queryFn: () => unwrap(getOrganization(orgId as number)),
-    enabled: orgId != null && svjezObrt,
+    enabled: orgId != null,
   });
   const { data: radniciData } = useQuery({
     queryKey: ["pk-workers", orgId],
@@ -231,18 +233,60 @@ export default function Dashboard() {
         </div>
         <div className={styles.headerMeta}>
           <span>{fullDate}</span>
+        </div>
+        {/* Aktivni obrt je najvažniji kontekst stranice (svaka akcija ispod
+            piše u njegove knjige), pa stoji u vlastitoj traci i mijenja se
+            odmah odavde, bez odlaska u sidebar. Uz traku ide lična karta
+            obrta: podaci koje knjigovođa traži čim prebaci klijenta. */}
+        <div className={styles.headerRow}>
+          <div className={styles.orgStrip}>
+            <OrgSwitcher variant="inline" />
+          </div>
           {activeOrg && (
-            <>
-              <span className={styles.metaDot}>·</span>
-              <span className={styles.metaOrg}>{orgName}</span>
-              <span
-                className={
-                  activeOrg.isClientOrg ? styles.orgBadgeClient : styles.orgBadge
-                }
-              >
-                {activeOrg.isClientOrg ? "Klijent" : "Moj obrt"}
-              </span>
-            </>
+            <dl className={styles.orgFacts}>
+              <div className={styles.fact}>
+                <dt className={styles.factLabel}>JIB</dt>
+                <dd className={styles.factValue}>
+                  {fullOrg?.taxNumber || activeOrg.taxNumber || "–"}
+                </dd>
+              </div>
+              <div className={styles.fact}>
+                <dt className={styles.factLabel}>PDV</dt>
+                <dd
+                  className={styles.factValue}
+                  title={
+                    fullOrg?.isPdvObveznik && fullOrg?.pdvObveznikOd
+                      ? `U sistemu PDV-a od ${formatDate(fullOrg.pdvObveznikOd)}`
+                      : undefined
+                  }
+                >
+                  {fullOrg === undefined
+                    ? "–"
+                    : fullOrg.isPdvObveznik
+                      ? "Obveznik"
+                      : "Nije obveznik"}
+                </dd>
+              </div>
+              <div className={styles.fact}>
+                <dt className={styles.factLabel}>Žiro račun</dt>
+                <dd className={styles.factValue} title={fullOrg?.bankAccount ?? undefined}>
+                  {fullOrg?.bankAccount || "–"}
+                </dd>
+              </div>
+              <div className={styles.fact}>
+                <dt className={styles.factLabel}>Zadnji izvod</dt>
+                <dd
+                  className={`${styles.factValue} ${izvodZastario ? styles.factWarn : ""}`}
+                  title={
+                    izvodZastario
+                      ? "Zadnji izvod je stariji od 30 dana, stanje je vjerovatno zastarjelo"
+                      : undefined
+                  }
+                >
+                  {zadnjiIzvod ? formatDate(zadnjiIzvod) : "–"}
+                </dd>
+              </div>
+            </dl>
           )}
         </div>
       </header>

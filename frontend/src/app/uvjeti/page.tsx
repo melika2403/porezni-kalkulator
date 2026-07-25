@@ -112,19 +112,22 @@ export default function UvjetiPage() {
 
         <h2>6. Trial period (30 dana besplatno)</h2>
         <p>
-          Novi korisnici imaju pravo na <strong>jednokratno besplatno 30-dnevno korištenje Pro
-          paketa</strong> bez obaveze plaćanja. Pravila trial perioda:
+          Novi korisnici imaju pravo na <strong>jednokratno besplatno 30-dnevno
+          korištenje</strong> bez obaveze plaćanja. Probni period je na nivou paketa
+          <strong> PK Office Tim</strong> (do 10 obrta) i uz njega Korisnik dobija i sve
+          funkcije Business paketa. Pravila probnog perioda:
         </p>
         <ul>
           <li>Trial se aktivira ručno od strane Korisnika i ne zahtijeva podatke o kartici</li>
           <li>Trial se može iskoristiti jednom po Korisniku (po email adresi)</li>
           <li>
             Nakon isteka 30 dana trial se <strong>automatski gasi</strong> i račun se vraća na Free
-            paket, bez automatske naplate i bez aktiviranja Pro pretplate
+            paket, bez automatske naplate i bez aktiviranja bilo koje pretplate
           </li>
           <li>
-            Sve dokumente koje je Korisnik generisao tokom trial perioda zadržava i nakon prelaska
-            na Free, ali pristup generisanju novih Pro/Business dokumenata se prekida
+            Sve dokumente koje je Korisnik generisao tokom probnog perioda zadržava i nakon
+            prelaska na Free, ali pristup generisanju novih Pro/Business dokumenata i PK Office
+            modulima se prekida
           </li>
         </ul>
 

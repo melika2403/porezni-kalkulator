@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 // PK stilovi rade i na marketing profilu (tab je omotan u .pk-scope)
 import "src/styles/pk-embed.css";
@@ -19,7 +20,35 @@ import {
 } from "src/hooks/useSubscription";
 import { useProfile } from "src/hooks/useProfile";
 import { usePkOfficePristup } from "src/hooks/usePkOfficeMe";
-import { PK_OFFICE_DASHBOARD_URL } from "src/lib/pkOfficeUrl";
+import { MARKETING_URL, PK_OFFICE_DASHBOARD_URL } from "src/lib/pkOfficeUrl";
+
+// Link ka marketing stranici: panel se koristi i u PK Office-u (/app, u
+// produkciji app. subdomena) i na marketing profilu. Iz /app mora ići pun
+// <a href> na marketing origin, inače bi vodio na app.poreznikalkulator.ba
+// gdje te stranice ne postoje; na profilu ostaje običan Link.
+function MarketingLink({
+  href,
+  className,
+  children,
+}: {
+  href: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const uApp = usePathname()?.startsWith("/app") ?? false;
+  if (uApp) {
+    return (
+      <a href={`${MARKETING_URL}${href}`} className={className}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
 import { unwrap } from "src/api/auth";
 import { getMyStats } from "src/api/profile";
 import { formatBAM, formatDate } from "src/lib/format";
@@ -149,6 +178,9 @@ export function PretplataPanel() {
   const paidInvoices = invoices.filter((i) => i.status === "paid");
 
   const isPaidPlan = sub.plan !== "free";
+  // PK Office proba se prikazuje kao plan (Office Tim), ali NIJE plaćena
+  // pretplata: zahtjev za predračun već nudi traka na vrhu panela.
+  const isTrialPlan = sub.status === "trialing";
   const forever = isForeverEnd(sub.currentPeriodEnd);
   const showDates = isPaidPlan && !forever;
 
@@ -159,9 +191,11 @@ export function PretplataPanel() {
   const cycleLabel = cycle === "monthly" ? "mjesečna" : "godišnja";
 
   // Obnova: 30 dana prije isteka (godišnja), 7 dana (mjesečna), ili već isteklo.
-  const renewThreshold = cycle === "monthly" ? 7 : 30;
+  // Proba traje 30 dana i nema ciklus, pa bi godišnji prag držao KPI "Vrijedi
+  // do" u amberu od prvog dana: za nju upozoravamo tek zadnjih 7 dana.
+  const renewThreshold = isTrialPlan ? 7 : cycle === "monthly" ? 7 : 30;
   const showRenewal =
-    isPaidPlan && daysLeft !== null && daysLeft <= renewThreshold;
+    isPaidPlan && !isTrialPlan && daysLeft !== null && daysLeft <= renewThreshold;
 
   // Predračun za obnovu koji već čeka uplatu: izdat, a pokriva period POSLIJE
   // isteka tekuće pretplate (strogo veći periodEnd od tekućeg isteka).
@@ -212,12 +246,12 @@ export function PretplataPanel() {
             računu.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Link
+            <MarketingLink
               href="/pretplate#pk-office"
               className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-[13.5px] font-medium transition-colors shadow-[0_4px_14px_-4px_rgba(58,92,66,0.4)]"
             >
               Zatraži predračun za PK Office
-            </Link>
+            </MarketingLink>
             <a
               href={PK_OFFICE_DASHBOARD_URL}
               className="px-5 py-2.5 rounded-full border border-brand-600/40 bg-white/60 text-brand-700 text-[13.5px] font-medium hover:bg-brand-600/10 hover:border-brand-600 transition-colors"
@@ -295,34 +329,45 @@ export function PretplataPanel() {
               <h2 className="text-xl font-semibold text-text-primary">
                 {PLAN_LABELS[sub.plan]}
               </h2>
-              <span
-                className={[
-                  "text-[11px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full",
-                  statusOk
-                    ? "bg-success-bg text-success"
-                    : "bg-danger-bg text-danger",
-                ].join(" ")}
-              >
-                {statusLabel}
-              </span>
-              {sub.isTrial && (
+              {/* Besplatan plan nije pretplata pa nema status: bedž bi tu
+                  samo zbunjivao ("Aktivna" ili "Istekla" na free planu). */}
+              {isPaidPlan && (
+                <span
+                  className={[
+                    "text-[11px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full",
+                    statusOk
+                      ? "bg-success-bg text-success"
+                      : "bg-danger-bg text-danger",
+                  ].join(" ")}
+                >
+                  {statusLabel}
+                </span>
+              )}
+              {/* status "trialing" već ispisuje "Probni period", pa se bedž
+                  ne duplira (vrijedi za PK Office probu) */}
+              {sub.isTrial && sub.status !== "trialing" && (
                 <span className="text-[11px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-info-bg text-info">
                   Probni period
                 </span>
               )}
             </div>
-            {isPaidPlan && (
+            {isPaidPlan && !isTrialPlan && (
               <div className="text-[13px] leading-5 text-text-secondary mt-1">
                 {cycleLabel === "mjesečna" ? "Mjesečna" : "Godišnja"} naplata
               </div>
             )}
+            {isTrialPlan && (
+              <div className="text-[13px] leading-5 text-text-secondary mt-1">
+                Besplatna proba, 30 dana
+              </div>
+            )}
           </div>
-          <Link
+          <MarketingLink
             href="/pretplate"
             className="text-[12px] leading-4 font-medium text-brand-700 hover:text-brand-600 shrink-0"
           >
             Vidi sve planove →
-          </Link>
+          </MarketingLink>
         </div>
 
         {showDates && (
@@ -349,7 +394,7 @@ export function PretplataPanel() {
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Link
+          <MarketingLink
             href={
               sub.plan.startsWith("office")
                 ? "/pretplate#pk-office"
@@ -358,19 +403,25 @@ export function PretplataPanel() {
             className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-[13.5px] font-medium transition-colors shadow-[0_4px_14px_-4px_rgba(58,92,66,0.4)]"
           >
             {sub.plan === "free" ? "Nadogradi plan" : "Promijeni plan"}
-          </Link>
+          </MarketingLink>
         </div>
-        {isPaidPlan && (
+        {isPaidPlan && !isTrialPlan && (
           <p className="text-[12px] leading-5 text-text-tertiary mt-3">
             Nema automatske naplate: pretplata se produžava uplatom po
             predračunu. Ako ne želite produžiti, jednostavno ne uplatite novi
             predračun i pretplata ističe sama.
           </p>
         )}
+        {isTrialPlan && (
+          <p className="text-[12px] leading-5 text-text-tertiary mt-3">
+            Probni period, bez kartice i bez naplate. Nakon isteka se vraćate na
+            besplatan plan, a paket birate sami kad želite nastaviti.
+          </p>
+        )}
       </section>
 
-      {/* Podaci za uplatu */}
-      {isPaidPlan && (
+      {/* Podaci za uplatu: proba se ne plaća, pa tu sekciju ne treba */}
+      {isPaidPlan && !isTrialPlan && (
         <section className="bg-cream-100 border border-cream-300 rounded-xl p-5">
           <h2 className="text-[14px] leading-5 font-semibold text-text-primary mb-4">
             Podaci za uplatu
@@ -754,7 +805,7 @@ function RenewalSection({
             >
               {gen.isPending ? "Generišem..." : "Generiši predračun za obnovu"}
             </button>
-            <Link
+            <MarketingLink
               href={
                 plan.startsWith("OFFICE")
                   ? "/pretplate#pk-office"
@@ -763,7 +814,7 @@ function RenewalSection({
               className="text-[13px] font-medium text-brand-700 hover:text-brand-600"
             >
               Želim drugi plan ili ciklus
-            </Link>
+            </MarketingLink>
           </div>
           {!buyer?.email && (
             <p className="text-[12px] leading-5 text-text-tertiary mt-2">

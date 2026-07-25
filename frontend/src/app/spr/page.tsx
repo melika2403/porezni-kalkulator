@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import SprForm from "src/sections/spr/Spr";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/spr";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "SPR-1053 obrazac za specifikaciju dohotka od samostalne djelatnosti u FBiH, online popuna i preuzimanje PDF-a besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

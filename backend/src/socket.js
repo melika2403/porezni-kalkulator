@@ -130,6 +130,10 @@ function initSocket(server) {
       },
       credentials: true,
     },
+    // Passenger na shared hostingu zna prekinuti dugotrajne polling zahtjeve,
+    // pa ping ciklus mora biti kraći od defaultnih 25s/20s.
+    pingInterval: 10000,
+    pingTimeout: 8000,
   });
 
   io.use(async (socket, next) => {
@@ -216,7 +220,7 @@ function initSocket(server) {
         });
         io.to(`ticket:${ticketId}`).emit("message:new", { message });
         // Strane koje razgovor trenutno gledaju odmah su "pročitale" novu
-        // poruku — bez ovoga unread raste i dok je druga strana u chatu.
+        // poruku, bez ovoga unread raste i dok je druga strana u chatu.
         const room = io.sockets.adapter.rooms.get(`ticket:${ticketId}`);
         if (room) {
           let adminInRoom = false;
