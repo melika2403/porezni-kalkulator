@@ -1118,12 +1118,6 @@ function ClanskeKarticeApp() {
                   {generating ? "Generišem…" : "📄 Preuzmi karticu (PDF)"}
                 </button>
               </div>
-              {!canGenerate && (
-                <GeneratePaywall
-                  tier="PRO"
-                  what="Preuzimanje članske kartice"
-                />
-              )}
             </section>
 
             {/* ── Preview ──────────────────────────────────────────────── */}
@@ -1176,6 +1170,14 @@ function ClanskeKarticeApp() {
                 PDF je veličine kreditne kartice (85×55 mm). Pogledaj direktno
                 na mobitelu, popunjava cijeli ekran bez bijelog prostora okolo.
               </p>
+              {/* Ponuda probe stoji ispod pregleda, ne u uskoj koloni forme
+                  gdje se tekst lomio u traku od jedne riječi. */}
+              {!canGenerate && (
+                <GeneratePaywall
+                  tier="PRO"
+                  what="Preuzimanje članske kartice"
+                />
+              )}
             </aside>
           </div>
 

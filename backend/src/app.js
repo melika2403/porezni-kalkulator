@@ -30,6 +30,7 @@ const karticaMembersRoutes = require("./routes/karticaMembersRoutes");
 const invoicesRoutes = require("./routes/invoicesRoutes");
 const preparedInvoicesRoutes = require("./routes/preparedInvoicesRoutes");
 const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes");
+const amsIsplatiociRoutes = require("./routes/amsIsplatiociRoutes");
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
 const payrollDocumentsRoutes = require("./routes/payrollDocumentsRoutes");
@@ -104,6 +105,7 @@ app.use("/api/kartica-members", karticaMembersRoutes);
 app.use("/api/invoices", invoicesRoutes);
 app.use("/api/prepared-invoices", preparedInvoicesRoutes);
 app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
+app.use("/api/ams/isplatioci", amsIsplatiociRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/payroll-documents", payrollDocumentsRoutes);
@@ -1111,6 +1113,36 @@ async function ensureOfficePlanEnums() {
   }
 }
 
+// POPRAVKA (25.07.2026.): plaćene pretplate su godinama upisivane sa
+// plan = 'free'. Admin panel šalje plan "PRO"/"BUSINESS" velikim slovima, a
+// kolona je ENUM sa malim slovima, pa je MySQL upisivao praznu vrijednost koju
+// je ensureOfficePlanEnums poslije prevodio u 'free'. Kad se pretplata kreira
+// samo datumima (bez plana), takođe ostaje default 'free'. Zbog toga se prava
+// pretplata nije razlikovala od "besplatnog" reda.
+//
+// Ovdje se samo poravnava plan sa rolom. isActive se NE dira: šta je aktivno
+// odlučuje admin, a mašinsko paljenje/gašenje pretplata je već jednom napravilo
+// štetu. Forever redovi (endDate +100 godina) se preskaču jer nisu pretplata.
+async function ensureSubPlanFromRole() {
+  const [tblRows] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'subscriptions'",
+  );
+  if (!Number(tblRows?.[0]?.cnt || 0)) return;
+  const [res] = await sequelize.query(
+    `UPDATE subscriptions s
+        JOIN users u ON u.id = s.userId
+        SET s.plan = CASE u.role WHEN 'BUSINESS' THEN 'business' ELSE 'pro' END
+      WHERE (s.plan = 'free' OR s.plan = '')
+        AND u.role IN ('PRO', 'BUSINESS')
+        AND s.isActive = 1
+        AND s.endDate < DATE_ADD(CURDATE(), INTERVAL 50 YEAR)`,
+  );
+  const changed = res?.affectedRows ?? 0;
+  if (changed > 0) {
+    console.log(`Plan pretplate poravnat sa rolom: ${changed}`);
+  }
+}
+
 // Idempotent ENUM proširenja — sync ne mijenja postojeće ENUM definicije.
 async function ensurePayrollDocTypeEnum() {
   const [tblRows] = await sequelize.query(
@@ -1588,6 +1620,7 @@ sequelize
   .then(() => ensureOfficeActivityBackfillV2())
   .then(() => ensureInvoiceCounterSeriesEnum())
   .then(() => ensureOfficePlanEnums())
+  .then(() => ensureSubPlanFromRole())
   .then(() => ensureMemberRoleEnum())
   .then(() => ensurePayrollDocTypeEnum())
   .then(() => ensureWorkerDocTypeEnum())

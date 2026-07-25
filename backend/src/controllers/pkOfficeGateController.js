@@ -409,12 +409,12 @@ async function deaktiviraj(req, res) {
 
 /**
  * Dodijeli PK Office trial korisniku (postavlja pkOfficeTrialEndsAt na +30
- * dana). Poziva se i iz verifikacije maila (users.wantsOfficeTrial), pa ne
- * radi ništa kad naplata nije uključena: tada je pristup ionako slobodan i
- * trial bi se bespotrebno potrošio. Vraća datum isteka ili null.
+ * dana). Poziva se i iz verifikacije maila (users.wantsOfficeTrial). Radi i
+ * kad naplata nije uključena: proba od sada nosi i sve Business funkcije na
+ * marketing dijelu, a one se čitaju baš sa pkOfficeTrialEndsAt, pa bi bez
+ * upisa korisnik koji je tražio probu ostao zaključan. Vraća datum ili null.
  */
 async function dodijeliOfficeTrial(user) {
-  if (!naplataUkljucena()) return null;
   if (!user || user.pkOfficeTrialEndsAt) return null;
   const ends = new Date();
   ends.setDate(ends.getDate() + TRIAL_DANA);
@@ -462,8 +462,17 @@ async function startOfficeTrial(req, res) {
     }
     const access = await getOfficeAccess(userId);
     // blokira samo VLASTITA pretplata; naslijeđen pristup (knjigovođa u
-    // agenciji) smije pokrenuti svoju probu ako želi vlastite slotove
-    if (access.hasOffice && access.scope === "vlastiti" && !access.trial) {
+    // agenciji) smije pokrenuti svoju probu ako želi vlastite slotove.
+    // Kad naplata NIJE uključena, getOfficeAccess svima vraća pun pristup, pa
+    // bi ova provjera odbila svaku probu porukom "već imate pretplatu", a
+    // marketing funkcije bi ostale zaključane (efektivna rola ih čita sa
+    // pkOfficeTrialEndsAt). Zato provjera vrijedi samo uz uključenu naplatu.
+    if (
+      naplataUkljucena() &&
+      access.hasOffice &&
+      access.scope === "vlastiti" &&
+      !access.trial
+    ) {
       return res.status(400).json({ ok: false, error: "ALREADY_SUBSCRIBED" });
     }
     if (user.pkOfficeTrialEndsAt) {
@@ -488,4 +497,7 @@ module.exports = {
   startOfficeTrial,
   dodijeliOfficeTrial,
   getOfficeAccess,
+  // dijeljeno sa panelom pretplate (prikaz probe kao plana)
+  TRIAL_DANA,
+  TRIAL_PLAN_KEY,
 };

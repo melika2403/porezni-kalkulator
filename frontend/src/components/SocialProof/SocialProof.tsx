@@ -112,7 +112,7 @@ const TRUST = [
   "Po propisima FBiH, ažurno sa svakom izmjenom",
   "30 dana probe bez kartice",
   "Plaćanje po predračunu, bez skrivenih troškova",
-  "Uputstva i podrška na našem jeziku",
+  "Podrška i live chat u stvarnom vremenu",
 ];
 
 export default function SocialProof() {

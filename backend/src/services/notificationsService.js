@@ -452,7 +452,13 @@ async function digestJob(now, korisnici) {
   }
 }
 
-// ── 5) Istek pretplate (7 i 1 dan prije) ────────────────────────────────────
+// ── 5) Istek pretplate ──────────────────────────────────────────────────────
+// Godišnja: 30 dana, 7 dana i na dan isteka. Mjesečna: 3 dana i na dan isteka
+// (godišnja najava od mjesec dana nema smisla za paket koji traje mjesec).
+// Pretplate bez upisanog ciklusa se vode kao godišnje, jer to i jesu.
+// Probe se ovdje NE šalju: PK Office probu pokriva officeProbaJob ispod.
+const DANI_PODSJETNIKA = { yearly: [30, 7, 0], monthly: [3, 0] };
+
 async function pretplataJob(now) {
   const todayMs = new Date(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T00:00:00`,
@@ -469,20 +475,30 @@ async function pretplataJob(now) {
     ],
   });
   for (const sub of subs) {
+    const isTrial = Boolean(sub.isTrial);
+    if (isTrial) continue;
     const endStr = String(sub.endDate).slice(0, 10);
     const daysLeft = Math.round(
       (new Date(`${endStr}T00:00:00`).getTime() - todayMs) / 86400000,
     );
-    if (daysLeft !== 7 && daysLeft !== 1) continue;
+    const ciklus =
+      String(sub.billingCycle || "").toLowerCase() === "monthly"
+        ? "monthly"
+        : "yearly";
+    if (!DANI_PODSJETNIKA[ciklus].includes(daysLeft)) continue;
     const u = sub.User;
     if (!u?.email) continue;
     if (!(await prviPut(u.id, "PRETPLATA", `${endStr}:d${daysLeft}`))) continue;
 
-    const isTrial = Boolean(sub.isTrial);
     const [y, m, d] = endStr.split("-");
-    const planForMail =
-      sub.plan === "PRO" || sub.plan === "BUSINESS"
-        ? sub.plan
+    // subscriptions.plan je lowercase ('pro','business','office_10'), pa se
+    // poređenje mora raditi malim slovima. Office paketi u mailu idu kao
+    // "PK Office", a rola je rezerva za redove bez upisanog plana.
+    const planKey = String(sub.plan || "").toLowerCase();
+    const planForMail = planKey.startsWith("office")
+      ? "PK Office"
+      : planKey === "pro" || planKey === "business"
+        ? planKey.toUpperCase()
         : u.role === "PRO" || u.role === "BUSINESS"
           ? u.role
           : null;
@@ -490,17 +506,88 @@ async function pretplataJob(now) {
       await sendSubscriptionReminderEmail(u.email, u.firstName || "korisniče", {
         plan: planForMail,
         endDateStr: `${d}.${m}.${y}.`,
-        renewUrl: isTrial
-          ? `${FRONTEND}/pretplate`
-          : `${FRONTEND}/profil?tab=pretplata`,
+        renewUrl: `${FRONTEND}/profil?tab=pretplata`,
         daysLeft,
-        isTrial,
+        isTrial: false,
       });
     } catch (e) {
       console.warn("notifikacije: pretplata email nije poslan:", e?.message || e);
       // jedini kanal za istek pretplate: na neuspjeh vrati dedup da se ponovi
       await ponistiDedup(u.id, "PRETPLATA", `${endStr}:d${daysLeft}`);
     }
+  }
+}
+
+// ── 6) Istek PK Office probe (7 dana prije i na dan isteka) ─────────────────
+// Proba ne živi u tabeli pretplata nego na users.pkOfficeTrialEndsAt, pa je
+// pretplataJob ne vidi. Bez ovoga korisnik izgubi pristup modulima bez ijedne
+// najave. Preskačemo one koji su u međuvremenu kupili office paket, njima
+// proba više ništa ne znači.
+const DANI_PROBE = [7, 0];
+
+async function officeProbaJob(now) {
+  const todayMs = new Date(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T00:00:00`,
+  ).getTime();
+  // samo probe u prozoru koji nas zanima (danas do +8 dana), da job ne vuče
+  // sve korisnike koji su ikad imali probu
+  const korisnici = await User.findAll({
+    where: {
+      pkOfficeTrialEndsAt: {
+        [Op.gte]: new Date(todayMs),
+        [Op.lt]: new Date(todayMs + 8 * 86400000),
+      },
+    },
+    attributes: ["id", "email", "firstName", "pkOfficeTrialEndsAt"],
+  });
+  if (korisnici.length === 0) return;
+
+  // ko već ima aktivan office paket (kupio prije isteka probe)
+  const paketi = await Subscription.findAll({
+    where: {
+      userId: { [Op.in]: korisnici.map((u) => u.id) },
+      isActive: true,
+      plan: { [Op.like]: "office%" },
+    },
+    attributes: ["userId", "endDate"],
+    raw: true,
+  });
+  const saPaketom = new Set(
+    paketi
+      .filter((s) => !s.endDate || new Date(s.endDate).getTime() >= todayMs)
+      .map((s) => s.userId),
+  );
+
+  for (const u of korisnici) {
+    if (!u.email || saPaketom.has(u.id)) continue;
+    // lokalni datum (isto kao ostali jobovi), ne UTC preko toISOString
+    const kraj = new Date(u.pkOfficeTrialEndsAt);
+    const endStr = `${kraj.getFullYear()}-${String(kraj.getMonth() + 1).padStart(2, "0")}-${String(kraj.getDate()).padStart(2, "0")}`;
+    const daysLeft = Math.round(
+      (new Date(`${endStr}T00:00:00`).getTime() - todayMs) / 86400000,
+    );
+    if (!DANI_PROBE.includes(daysLeft)) continue;
+    if (!(await prviPut(u.id, "OFFICE_PROBA", `${endStr}:d${daysLeft}`))) continue;
+
+    const [y, m, d] = endStr.split("-");
+    const datum = `${d}.${m}.${y}.`;
+    const danas = daysLeft === 0;
+    const ok = await posaljiEmailSigurno({
+      to: u.email,
+      subject: danas
+        ? "PK Office proba ističe danas"
+        : "PK Office proba ističe za 7 dana",
+      title: danas
+        ? "Probni period ističe danas"
+        : "Probni period ističe za 7 dana",
+      intro: danas
+        ? `Zdravo ${u.firstName || "korisniče"}, vaš probni period ističe danas (${datum}). Svi podaci koje ste unijeli (obrti, izvodi, knjige, fakture, plate) ostaju sačuvani, ali pristup PK Office modulima i Business funkcijama prestaje dok ne aktivirate paket.`
+        : `Zdravo ${u.firstName || "korisniče"}, vaš probni period ističe ${datum}. Uz njega koristite PK Office i sve Business funkcije. Ako želite nastaviti bez prekida, zatražite predračun za paket po broju obrta; sve što ste unijeli ostaje na svom mjestu.`,
+      ctaUrl: `${FRONTEND}/pretplate#pk-office`,
+      ctaLabel: "Pogledaj PK Office pakete",
+    });
+    // email je jedini kanal za ovo: na neuspjeh vrati dedup, da se pokuša opet
+    if (!ok) await ponistiDedup(u.id, "OFFICE_PROBA", `${endStr}:d${daysLeft}`);
   }
 }
 
@@ -513,6 +600,7 @@ async function runDaily(now = new Date()) {
   await godisnjiJob(now, korisnici);
   await digestJob(now, korisnici);
   await pretplataJob(now);
+  await officeProbaJob(now);
 }
 
 // ── Event: podrška odgovorila dok korisnik nije online ──────────────────────

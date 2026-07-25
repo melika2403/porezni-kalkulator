@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import { Suspense } from "react";
 import InvoiceForm from "src/sections/fakture/InvoiceForm";
 import FaktureEdu from "src/sections/fakture/FaktureEdu";
@@ -34,6 +35,7 @@ export const metadata: Metadata = {
     "Porezni Kalkulator BiH",
   ],
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     url: "https://www.poreznikalkulator.ba/fakture/nova",
     title: TITLE,

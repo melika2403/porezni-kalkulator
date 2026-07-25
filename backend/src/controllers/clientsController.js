@@ -1,7 +1,7 @@
 const { Client, OrganizationMember } = require("../models/index");
 const clientRepository = require("../repositories/clientRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
-const { getOrgOwnerRole } = require("../services/tierService");
+const { getOrgOwnerRole, getEffectiveRole } = require("../services/tierService");
 
 const PRO_CLIENT_LIMIT = 20;
 
@@ -31,8 +31,10 @@ async function ensureAccessForCreate(req, res, organizationId, ownerTierAllowed 
     return true;
   }
 
-  // Legacy (no org): require caller's own role to be allowed
-  if (!ownerTierAllowed.includes(req.user.role)) {
+  // Legacy (no org): require caller's own EFEKTIVNU rolu (PK Office paket ili
+  // trial se broji kao BUSINESS, iako rola u bazi ostaje USER).
+  const callerTier = await getEffectiveRole(req.user);
+  if (!ownerTierAllowed.includes(callerTier)) {
     res.status(403).json({ ok: false, error: "FORBIDDEN" });
     return false;
   }
@@ -55,7 +57,7 @@ async function create(req, res) {
 
   // PRO limit (20) — broji se per-org kada je orgId postavljen, inače per-user (legacy).
   if (req.user.role !== "ADMIN") {
-    const limitOwnerTier = orgId ? await getOrgOwnerRole(orgId) : req.user.role;
+    const limitOwnerTier = orgId ? await getOrgOwnerRole(orgId) : await getEffectiveRole(req.user);
     if (limitOwnerTier === "PRO") {
       const where = orgId
         ? { organizationId: orgId, type: "PERSON", amortizacijaOnly: false }
@@ -162,7 +164,7 @@ async function createAmortizacija(req, res) {
   if (!(await ensureAccessForCreate(req, res, orgId))) return;
 
   if (req.user.role !== "ADMIN") {
-    const limitOwnerTier = orgId ? await getOrgOwnerRole(orgId) : req.user.role;
+    const limitOwnerTier = orgId ? await getOrgOwnerRole(orgId) : await getEffectiveRole(req.user);
     if (limitOwnerTier === "PRO") {
       const where = orgId
         ? { organizationId: orgId, type: "PERSON", amortizacijaOnly: true }

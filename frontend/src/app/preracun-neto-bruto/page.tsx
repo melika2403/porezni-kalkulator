@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import PreracunPlate from "src/sections/plata/Plata";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/preracun-neto-bruto";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "Online kalkulator plate za FBiH: preračun neto u bruto i bruto u neto sa svim doprinosima, porezom na dohodak i ukupnim troškom poslodavca, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import GpdForm from "src/sections/gpd/Gpd";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/gpd";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "GPD-1051 obrazac za godišnju prijavu poreza na dohodak fizičkih lica u FBiH, online popuna i preuzimanje PDF-a besplatno, bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

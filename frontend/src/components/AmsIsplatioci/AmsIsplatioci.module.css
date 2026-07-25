@@ -1,0 +1,195 @@
+/* Adresar isplatilaca uz Dio 2 AMS obrasca. Stoji kao ćelija u istoj mreži
+   polja (prazan prostor desno od "Država"), pa mora izgledati kao alat, a ne
+   kao još jedno polje: svjetlija podloga i tanji okvir. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.count {
+  font-size: 11.5px;
+  color: var(--mid);
+  white-space: nowrap;
+}
+
+.text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.rowActive {
+  border-color: var(--sage);
+}
+
+/* cijeli red je dugme za popunu, brisanje je zasebno dugme desno */
+.pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.4rem 0.55rem;
+  background: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick:hover .pickName {
+  color: var(--sage);
+}
+
+.pickName {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickMeta {
+  font-size: 11px;
+  color: var(--mid);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.del {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 0.3rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--mid);
+  cursor: pointer;
+}
+
+.del:hover {
+  background: #f3e2dc;
+  color: #b0432a;
+}
+
+.saveBtn {
+  align-self: flex-start;
+  padding: 0.45rem 0.9rem;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--sage);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.saveBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.saveBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* neregistrovan korisnik: isti okvir, ali poziv na registraciju */
+.guestBtn {
+  align-self: flex-start;
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--sage);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.guestBtn:hover {
+  opacity: 0.9;
+}
+
+.benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--mid);
+}
+
+.benefits li {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tick {
+  flex-shrink: 0;
+  color: var(--sage);
+  font-weight: 700;
+}
+
+.note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--mid);
+}
+
+.error {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #b0432a;
+}

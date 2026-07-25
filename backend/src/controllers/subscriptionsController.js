@@ -12,6 +12,11 @@ const {
 } = require("../models/index");
 const { PLANS, getPlan, planFromRole } = require("../config/plans");
 const { OFFICE_PLANS } = require("../config/pricing");
+// nivo i trajanje probe: jedan izvor istine (pkOfficeGateController)
+const {
+  TRIAL_PLAN_KEY,
+  TRIAL_DANA,
+} = require("./pkOfficeGateController");
 
 function setAuthCookieWithRole(res, userId, role) {
   const secret = process.env.JWT_SECRET;
@@ -81,7 +86,12 @@ async function upsert(req, res) {
         });
       }
     }
-    data.plan = normalizedPlan;
+    // subscriptions.plan je ENUM sa MALIM slovima. Ranije se ovdje upisivalo
+    // "PRO"/"BUSINESS", što MySQL nije primao kao validnu ENUM vrijednost, pa
+    // je red završavao sa praznim planom (a poslije 'free'), i prava pretplata
+    // se nije razlikovala od besplatnog reda. normalizedPlan ostaje velikim
+    // slovima jer se ispod poredi sa rolom korisnika.
+    data.plan = normalizedPlan.toLowerCase();
     // Dodjela pravog paketa gasi trial oznaku (korisnik je kupio/dobio paket,
     // inače bi mu "TRIAL" bedž ostao zauvijek u admin listama).
     data.isTrial = false;
@@ -116,6 +126,19 @@ async function upsert(req, res) {
       ok: false,
       error: "startDate and endDate are required when creating a subscription",
     });
+  }
+
+  // Aktivacija bez poslanog plana (npr. prekidač "Aktivna" u admin listi) je
+  // ranije ostavljala plan = 'free', pa se plaćena pretplata nije razlikovala
+  // od besplatnog reda. Plan se tada izvodi iz role, ali SAMO ako je prazan
+  // ili 'free': postojeći office paket se ne smije pregaziti.
+  if (data.plan === undefined && data.isActive === true) {
+    const trenutniPlan = String(existing?.plan || "").toLowerCase();
+    if (!trenutniPlan || trenutniPlan === "free") {
+      const user = await userRepository.getUserById(userId);
+      if (user?.role === "BUSINESS") data.plan = "business";
+      else if (user?.role === "PRO" || user?.role === "USER") data.plan = "pro";
+    }
   }
 
   try {
@@ -226,11 +249,15 @@ async function ensureSubscription(userId, role) {
     const start = new Date();
     const end = new Date(start);
     end.setFullYear(end.getFullYear() + 100); // free = "forever"
+    // Besplatan plan NIJE pretplata: red se kreira samo da panel ima šta
+    // pokazati, ali ostaje neaktivan. Inače bi svaki korisnik koji otvori tab
+    // Pretplata u admin listi izgledao kao pretplatnik (isActive je upravo to
+    // polje), a gasio bi se i prikaz probnog perioda.
     sub = await Subscription.create({
       userId,
       startDate: start,
       endDate: end,
-      isActive: planKey !== "free" ? true : true,
+      isActive: planKey !== "free",
       plan: planKey,
       status: "active",
     });
@@ -249,9 +276,11 @@ async function ensureSubscription(userId, role) {
     // istekao: nastavi na sinhronizaciju plana iz role (free/pro/business)
   }
 
-  // Sinhroniziraj plan iz role-a ako se razlikuje
+  // Sinhroniziraj plan iz role-a ako se razlikuje. Pad na free znači da
+  // pretplate više nema, pa se gasi i zastavica (admin lista je čita).
   if (sub.plan !== planKey) {
     sub.plan = planKey;
+    if (planKey === "free") sub.isActive = false;
     await sub.save();
   }
   return sub;
@@ -310,6 +339,14 @@ function buildSubscriptionResponse(sub, plan, usage) {
   };
 }
 
+// Proba nema vlastiti zapis (samo users.pkOfficeTrialEndsAt), pa se početak
+// izvodi iz datuma isteka: kraj minus trajanje probe.
+function pocetakProbe(trialEnds) {
+  const start = new Date(trialEnds);
+  start.setDate(start.getDate() - TRIAL_DANA);
+  return start;
+}
+
 async function getCurrent(req, res) {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
@@ -318,8 +355,49 @@ async function getCurrent(req, res) {
   if (!user) return res.status(404).json({ ok: false, error: "User not found" });
 
   const sub = await ensureSubscription(userId, user.role);
-  const plan = officeDisplayPlan(sub.plan) ?? getPlan(sub.plan);
   const usage = await computeUsage(userId);
+
+  // PK Office proba se ne vodi kao pretplata (živi na users.pkOfficeTrialEndsAt),
+  // pa bi panel inače pokazivao besplatan plan sa free limitima, iako proba
+  // ide na nivou paketa Office Tim i nosi sve Business funkcije. Prikazujemo je
+  // kao trenutni plan SAMO korisniku koji nema plaćen paket. Ko plaća Pro,
+  // Business ili Office, pa uz to pokrene probu, mora u panelu i dalje vidjeti
+  // svoju pretplatu i njene datume, ne probu.
+  const trialEnds = user.pkOfficeTrialEndsAt
+    ? new Date(user.pkOfficeTrialEndsAt)
+    : null;
+  const trialTraje = !!trialEnds && trialEnds.getTime() >= Date.now();
+  const krajPretplate = sub.endDate ? new Date(sub.endDate) : null;
+  if (krajPretplate) krajPretplate.setHours(23, 59, 59, 999);
+  const subJePlacena =
+    String(sub.plan || "").toLowerCase() !== "free" &&
+    sub.isActive &&
+    (!krajPretplate || krajPretplate.getTime() >= Date.now());
+
+  if (trialTraje && !subJePlacena) {
+    const trialPlan = officeDisplayPlan(TRIAL_PLAN_KEY);
+    const virtualSub = {
+      id: sub.id,
+      plan: TRIAL_PLAN_KEY.toLowerCase(),
+      status: "trialing",
+      isTrial: true,
+      billingCycle: null,
+      isActive: true,
+      // Početak PROBE, ne free reda: sub.startDate je datum registracije, pa
+      // bi panel starijem korisniku ispisao period od prije godinu dana i
+      // traku napretka skoro popunjenu čim proba počne.
+      startDate: pocetakProbe(trialEnds),
+      endDate: trialEnds,
+      cancelAtPeriodEnd: false,
+      cancelledAt: null,
+    };
+    return res.json({
+      ok: true,
+      data: buildSubscriptionResponse(virtualSub, trialPlan, usage),
+    });
+  }
+
+  const plan = officeDisplayPlan(sub.plan) ?? getPlan(sub.plan);
 
   return res.json({ ok: true, data: buildSubscriptionResponse(sub, plan, usage) });
 }

@@ -43,6 +43,7 @@ import {
   LuTrash2,
 } from "react-icons/lu";
 import { PkSelect } from "src/components/app-shell/PkSelect";
+import OfficeTrialCta, { useOfficeTrial } from "src/components/OfficeTrialCta/OfficeTrialCta";
 import { Modal } from "src/components/app-shell/Modal";
 import {
   updateProfile,
@@ -668,12 +669,15 @@ function ProfilTab({
     queryFn: () => unwrap(getOrganizations()),
   });
   const ownOrgs = orgs.filter((o) => o.memberRole === "OWNER");
-  const isSubscriber = user.role === "PRO" || user.role === "BUSINESS";
+  // Efektivna rola (PK Office paket ili trial = Business nivo), ista koju
+  // backend koristi za limite; rola u bazi ostaje USER.
+  const planRole = user.effectiveRole ?? user.role;
+  const isSubscriber = planRole === "PRO" || planRole === "BUSINESS";
   // Limit vlastitih djelatnosti po planu: USER=1, PRO=2, BUSINESS/ADMIN=neograničeno.
   const ownOrgLimit =
-    user.role === "BUSINESS" || user.role === "ADMIN"
+    planRole === "BUSINESS" || planRole === "ADMIN"
       ? Infinity
-      : user.role === "PRO"
+      : planRole === "PRO"
         ? 2
         : 1;
   const canAddOwnOrg = ownOrgs.length < ownOrgLimit;
@@ -1247,12 +1251,12 @@ function ProfilTab({
         {!showAddOrg &&
           editOwnId === null &&
           !canAddOwnOrg &&
-          user.role !== "BUSINESS" &&
-          user.role !== "ADMIN" && (
+          planRole !== "BUSINESS" &&
+          planRole !== "ADMIN" && (
             <div className={styles.lockedFeature}>
               <span>🔒</span>
               <span>
-                {user.role === "USER" ? (
+                {planRole === "USER" ? (
                   <>
                     Više djelatnosti dostupno uz pretplatu na{" "}
                     <strong>PRO ili BUSINESS plan</strong>.
@@ -2671,16 +2675,14 @@ function DjelatnostTab({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { role } = useRole();
+  // Efektivna rola: PK Office paket ili trial daje Business funkcije (pa i
+  // neograničene klijente) iako rola u bazi ostaje USER.
+  const { effectiveRole: role } = useRole();
   const isPro = role === "PRO";
-  // Za USER (bez pretplate) klijenti su zaključani, pa nudimo trial ako ga nije
-  // iskoristio (trialUsedAt). Reuse postojećeg ["me"] keša.
-  const { data: meUser } = useQuery<AuthUser>({
-    queryKey: ["me"],
-    queryFn: () => unwrap(me()),
-    retry: false,
-  });
-  const trialAvailable = role === "USER" && !meUser?.trialUsedAt;
+  // Za USER (bez pretplate) klijenti su zaključani, pa nudimo probu ako je nije
+  // iskoristio. Jedina proba je PK Office (30 dana, uz nju i sve Business
+  // funkcije); hook dijeli postojeći ["me"] keš, bez dodatnog zahtjeva.
+  const { available: trialAvailable } = useOfficeTrial();
   const { findByName } = useCityLookup();
   // Grad org-e MORA biti sa liste (kanton/općina za obračun). Grad vlasnika je
   // opcionalan, ali ako se upiše mora biti sa liste.
@@ -2953,7 +2955,7 @@ function DjelatnostTab({
           </div>
           <div
             className={styles.empty}
-            style={{ padding: "2rem 1rem", textAlign: "center" }}
+            style={{ padding: "1.4rem 1rem 1.6rem", textAlign: "center" }}
           >
             <div className={styles.emptyIcon}>
               <LuUsers />
@@ -2962,33 +2964,24 @@ function DjelatnostTab({
               className={styles.emptyText}
               style={{ maxWidth: 440, margin: "0.6rem auto 0", lineHeight: 1.5 }}
             >
-              Dodavanje klijenata (klijentske organizacije i fizička lica)
-              dostupno je uz <strong>Pro</strong> ili <strong>Business</strong>{" "}
-              pretplatu. Vodite obračune, prijave i dokumente za sve svoje
-              klijente na jednom mjestu.
+              Vodite obračune, prijave i dokumente za sve svoje klijente
+              (klijentske organizacije i fizička lica) na jednom mjestu.
             </div>
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                justifyContent: "center",
-                flexWrap: "wrap",
-                marginTop: "1.3rem",
-              }}
-            >
+            {trialAvailable ? (
+              <OfficeTrialCta
+                what="Neograničen broj klijenata"
+                variant="card"
+              />
+            ) : (
               <button
                 type="button"
                 className={styles.btnPrimary}
+                style={{ marginTop: "1.3rem" }}
                 onClick={() => router.push("/pretplate")}
               >
-                Pretplati se
+                Pogledaj pretplate
               </button>
-              {trialAvailable && (
-                <Link href="/pretplate?trial=1" className={styles.btnGhost}>
-                  Probaj Pro besplatno 30 dana
-                </Link>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>

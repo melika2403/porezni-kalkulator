@@ -32,13 +32,11 @@ const PLANS: Plan[] = [
     price: "0 KM",
     period: "zauvijek besplatno",
     features: [
-      "SPR-1053 i GPD-1051 obrazac",
-      "izrada i automatska popuna ZO3 obrazca",
-      "AMS-1035 generator zajedno sa uplatnicama",
+      "Osnovni obrasci: SPR-1053, GPD-1051, ZO3, AMS-1035",
       "Stalna sredstva i amortizacija kroz godine",
-      "Historija svih dokumenata po godinama ili obrascima",
-      "Pohrana podataka obrta u svim dokumentima",
-      "Izvoz u Docx / PDF",
+      "Historija svih dokumenata po godinama",
+      "Podaci obrta se pamte i popunjavaju sami",
+      "Izvoz u Docx i PDF",
     ],
     cta: "Počni besplatno",
     ctaStyle: "outline",
@@ -47,41 +45,41 @@ const PLANS: Plan[] = [
   {
     tier: "Pro",
     price: "199,00 KM",
-    period: "godišnje / po korisniku",
-    trial: "30 dana besplatno, bez kartice",
+    period: "godišnje",
     features: [
       "Sve iz besplatnog plana",
       "Šihterica: evidencija radnog vremena",
-      "Višestruke vlastite djelatnosti",
-      "Mogućnost dodavanja do 20 klijenata i fizičkih lica",
-      "Prijave/odjave radnika, izrada JS3100 obrasca",
-      "Obračun plata i doprinosa za vlasnika obrta i zaposlene",
-      "Fakture/računi i predračuni/ponude",
+      "Više vlastitih djelatnosti",
+      "Do 20 klijenata i fizičkih lica",
+      "Prijave i odjave radnika, JS3100 obrazac",
+      "Obračun plata za vlasnika i zaposlene",
+      "Fakture, računi i predračuni",
     ],
-    cta: "Aktiviraj besplatnu pretplatu",
+    cta: "Pretplati se na Pro",
     ctaStyle: "white",
     variant: "pro",
-    tag: "Najpopularnije",
+    tag: "Za obrtnike",
     action: "subscribe",
     planId: "PRO",
   },
   {
     tier: "Business",
     price: "499,00 KM",
-    period: "godišnje / po korisniku",
+    period: "godišnje",
     features: [
       "Sve iz Pro plana",
-      "Upravljanje neograničenim brojem klijenata i fizičkih lica",
-      "Dodavanje radnika na klijente i automatsko popunjavanje obrazaca s njihovim podacima",
-      "Višekorisnički pristup (tim) za knjigovođe i agencije",
-      "Ugovor o radu i odluka o prestanku radnog odnosa, sa automatskom numeracijom",
-      "Ugovori o djelu i automatski obračun poreza i doprinosa",
+      "Neograničeno klijenata i fizičkih lica",
+      "Radnici po klijentu, obrasci se popunjavaju sami",
+      "Tim: više korisnika na istom nalogu",
+      "Ugovor o radu i odluka o otkazu, sa numeracijom",
+      "Ugovori o djelu sa obračunom poreza i doprinosa",
+      "Rješenja, odluke i potvrde (godišnji, regres, otpremnina...)",
       "Prioritetna podrška",
     ],
     cta: "Pretplati se na Business",
     ctaStyle: "blue-white",
     variant: "business",
-    tag: "Najbolja vrijednost",
+    tag: "Za knjigovođe",
     action: "subscribe",
     planId: "BUSINESS",
   },
@@ -98,9 +96,8 @@ export default function Pricing() {
         .getElementById("funkcije")
         ?.scrollIntoView({ behavior: "smooth" });
     } else if (plan.action === "subscribe" && plan.planId) {
-      const trial = plan.planId === "PRO" ? "&trial=1" : "";
       router.push(
-        `/pretplate?plan=${plan.planId.toLowerCase()}&cycle=${cycle}${trial}`,
+        `/pretplate?plan=${plan.planId.toLowerCase()}&cycle=${cycle}`,
       );
     } else {
       setShowModal(true);
@@ -113,9 +110,16 @@ export default function Pricing() {
   const displayPeriod = (plan: Plan) =>
     plan.planId
       ? cycle === "monthly"
-        ? "mjesečno / po korisniku"
-        : "godišnje / po korisniku"
+        ? "mjesečno"
+        : "godišnje"
       : plan.period;
+  // Godišnja cifra izgleda veće nego što jeste, pa uz nju ide i mjesečni
+  // ekvivalent. Zaokružujemo NANIŽE na cijeli KM (stvarni iznos je nešto veći,
+  // pa "oko" nikad ne obećava manje nego što paket košta na mjesečnom planu).
+  const monthlyEquivalent = (plan: Plan) =>
+    plan.planId && cycle === "yearly"
+      ? `oko ${Math.floor(PLAN_PRICING[plan.planId].yearly / 12)} KM mjesečno`
+      : null;
 
   return (
     <>
@@ -167,7 +171,14 @@ export default function Pricing() {
                   {displayPrice(plan)}
                   {plan.planId && <span className={styles.vatSuffix}>+ PDV</span>}
                 </div>
-                <div className={styles.period}>{displayPeriod(plan)}</div>
+                <div className={styles.period}>
+                  {displayPeriod(plan)}
+                  {monthlyEquivalent(plan) && (
+                    <span className={styles.monthlyEq}>
+                      {monthlyEquivalent(plan)}
+                    </span>
+                  )}
+                </div>
                 <div
                   className={styles.trialBadge}
                   aria-hidden={

@@ -18,7 +18,11 @@ const {
   computeTotals,
 } = require("../utils/invoicePdf");
 const { sendInvoiceEmail } = require("../utils/mailer");
-const { getOrgOwnerRole } = require("../services/tierService");
+const {
+  getOrgOwnerRole,
+  getEffectiveRole,
+  officeUserIds,
+} = require("../services/tierService");
 
 const PRO_CLIENT_LIMIT = 20;
 
@@ -69,8 +73,22 @@ async function getAccessibleInvoicingOrgIds(userId, userRole, { adminGlobal = tr
     include: [{ model: require("../models/index").User, as: "user", attributes: ["role"] }],
   });
   const allowed = new Set();
+  const officeKandidati = [];
   for (const om of ownerMemberships) {
-    if (["PRO", "BUSINESS", "ADMIN"].includes(om.user?.role)) allowed.add(om.organizationId);
+    if (["PRO", "BUSINESS", "ADMIN"].includes(om.user?.role)) {
+      allowed.add(om.organizationId);
+    } else if (om.userId) {
+      officeKandidati.push(om);
+    }
+  }
+  // Vlasnik sa PK Office paketom ili trialom ima Business nivo iako mu je rola
+  // u bazi USER/PRO, pa se njegove organizacije isto propuštaju (jedan batch
+  // upit umjesto provjere po organizaciji).
+  if (officeKandidati.length > 0) {
+    const office = await officeUserIds(officeKandidati.map((om) => om.userId));
+    for (const om of officeKandidati) {
+      if (office.has(om.userId)) allowed.add(om.organizationId);
+    }
   }
   return [...allowed];
 }
@@ -525,13 +543,18 @@ async function create(req, res) {
         return res.status(403).json({ ok: false, error: "FORBIDDEN_OWNER_TIER" });
       }
     }
-  } else if (!["PRO", "BUSINESS", "ADMIN"].includes(req.user.role)) {
+  } else if (
+    // legacy (bez org-e): efektivna rola, pa PK Office paket/trial prolazi
+    !["PRO", "BUSINESS", "ADMIN"].includes(await getEffectiveRole(req.user))
+  ) {
     return res.status(403).json({ ok: false, error: "FORBIDDEN" });
   }
 
   // saveBuyerAsClient: PRO limit prati owner-tier kad ima org, inače user-role
   if (body.saveBuyerAsClient && !buyer.clientId) {
-    const limitTier = orgIdFromSeller ? await getOrgOwnerRole(orgIdFromSeller) : req.user.role;
+    const limitTier = orgIdFromSeller
+      ? await getOrgOwnerRole(orgIdFromSeller)
+      : await getEffectiveRole(req.user);
     if (limitTier === "PRO") {
       const where = orgIdFromSeller
         ? { organizationId: orgIdFromSeller, type: "PERSON", amortizacijaOnly: false }

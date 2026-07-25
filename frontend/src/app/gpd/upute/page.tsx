@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import GpdUpute from "../../../sections/gpd/GpdUpute";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/gpd/upute";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "Detaljan vodič za pravilno popunjavanje godišnje prijave poreza na dohodak, obrazac GPD-1051 u FBiH.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "article",
     locale: "bs_BA",
     url: PAGE_URL,

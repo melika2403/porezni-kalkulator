@@ -11,9 +11,9 @@ import { formatAddress } from "src/utils/formatAddress";
 import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
-import OrgFillSelect, {
-  type OrgFillData,
-} from "src/components/PersonFillSelect/OrgFillSelect";
+import AmsIsplatioci, {
+  type IsplatilacFill,
+} from "src/components/AmsIsplatioci/AmsIsplatioci";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import { trackEvent } from "src/api/activity";
 
@@ -102,9 +102,15 @@ export default function AmsForm() {
   const [jmbg, setJmbg] = useState("");
   const [adresa, setAdresa] = useState("");
   const [grad, setGrad] = useState("");
-  const [datumIsplate, setDatumIsplate] = useState("");
-  const [periodMjesec, setPeriodMjesec] = useState("");
-  const [periodGodina, setPeriodGodina] = useState("");
+  // AMS se predaje u roku od 5 dana od isplate, pa je period skoro uvijek
+  // tekući mjesec, a datum isplate današnji. Sve ostaje ručno izmjenjivo.
+  const [datumIsplate, setDatumIsplate] = useState(() => getTodayIso());
+  const [periodMjesec, setPeriodMjesec] = useState(() =>
+    String(new Date().getMonth() + 1).padStart(2, "0"),
+  );
+  const [periodGodina, setPeriodGodina] = useState(() =>
+    String(new Date().getFullYear()),
+  );
 
   // Dio 2
   const [naziv, setNaziv] = useState("");
@@ -145,10 +151,13 @@ export default function AmsForm() {
       setSourceOrgId(data.sourceWorkerOrgId);
   }, []);
 
-  const fillIsplatilac = useCallback((data: OrgFillData) => {
-    if (data.name) setNaziv(data.name);
-    if (data.address) setAdresaIsplatioca(data.address);
-    if (data.city) setGradIsplatioca(data.city);
+  // Popuna iz snimljenog isplatioca: prepisuje sva četiri polja, i praznim
+  // vrijednostima, da odabir uvijek da tačno ono što je snimljeno.
+  const fillIsplatilac = useCallback((data: IsplatilacFill) => {
+    setNaziv(data.naziv);
+    setAdresaIsplatioca(data.adresa);
+    setGradIsplatioca(data.grad);
+    setDrzava(data.drzava);
   }, []);
 
   /* ── Computed ── */
@@ -230,9 +239,11 @@ export default function AmsForm() {
     setLoading(true);
     try {
       const bytes = await fillAmsTemplate(buildAmsData());
+      // godina u nazivu je 4-cifarna kakva je i u polju; raniji "20" + polje
+      // je davao "202026" čim korisnik upiše punu godinu
       downloadPdf(
         bytes,
-        `AMS-1035_${periodMjesec || "XX"}_20${periodGodina || "XX"}.pdf`,
+        `AMS-1035_${periodMjesec || "XX"}_${parsedYear ?? "XXXX"}.pdf`,
       );
       trackEvent("AMS_GENERATE", "AMS-1035");
     } finally {
@@ -377,7 +388,7 @@ export default function AmsForm() {
                     { value: "05", label: "Maj" },
                     { value: "06", label: "Juni" },
                     { value: "07", label: "Juli" },
-                    { value: "08", label: "Avgust" },
+                    { value: "08", label: "August" },
                     { value: "09", label: "Septembar" },
                     { value: "10", label: "Oktobar" },
                     { value: "11", label: "Novembar" },
@@ -408,7 +419,6 @@ export default function AmsForm() {
         <h2 className={styles.sectionTitle}>
           Dio 2, Podaci o <em>isplatiocu</em>
         </h2>
-        <OrgFillSelect onFill={fillIsplatilac} />
         <div className={styles.fieldGrid}>
           <div className={`${styles.fieldGroup} ${styles.fieldFull}`}>
             <label className={styles.fieldLabel}>6) Naziv</label>
@@ -445,6 +455,17 @@ export default function AmsForm() {
               onChange={(e) => setDrzava(e.target.value)}
             />
           </div>
+          {/* Adresar isplatilaca stoji u praznoj ćeliji uz Državu: isti
+              isplatilac se ponavlja svaki mjesec, pa se snimi jednom. */}
+          <AmsIsplatioci
+            current={{
+              naziv,
+              adresa: adresaIsplatioca,
+              grad: gradIsplatioca,
+              drzava,
+            }}
+            onFill={fillIsplatilac}
+          />
         </div>
       </section>
 
@@ -896,7 +917,9 @@ export default function AmsForm() {
           <li>
             <strong>Unesite lične podatke i podatke o isplati</strong>, ime,
             prezime, JMB, adresa, datum primitka i bruto iznos sa konverzijom u
-            KM po važećem kursu CBBiH na dan primitka.
+            KM po važećem kursu CBBiH na dan primitka. Datum isplate i period
+            (mjesec i godina) su već popunjeni na današnji dan i tekući mjesec,
+            pa ih mijenjate samo ako se isplata odnosi na raniji period.
           </li>
           <li>
             <strong>Sistem obračunava poreznu osnovicu i obavezu</strong>, 
@@ -909,6 +932,12 @@ export default function AmsForm() {
             za predaju u nadležnoj poreznoj ispostavi i uplatu u banci.
           </li>
         </ol>
+        <p style={{ marginTop: "0.85rem" }}>
+          Pošto se obrazac predaje svaki mjesec, uz besplatnu registraciju
+          možete sačuvati do 5 isplatilaca (Dio 2) i sljedeći put ih popuniti
+          jednim klikom, a vaši lični podaci u Dijelu 1 se popunjavaju iz
+          profila. Sve popunjeno ostaje izmjenjivo prije preuzimanja.
+        </p>
       </section>
 
       <section className={styles.section}>
@@ -1015,6 +1044,10 @@ export default function AmsForm() {
             {
               q: "Kako da znam koji kanton i općinu da odaberem za uplatnice?",
               a: "Odaberite kanton i općinu prema svom trenutnom mjestu stanovanja (adresa prijavljenog boravišta), a ne prema lokaciji isplatioca. Svaki kanton ima vlastiti žiro račun za zdravstveno osiguranje i kantonalni budžet za porez na dohodak.",
+            },
+            {
+              q: "Moram li svaki mjesec ponovo kucati iste podatke?",
+              a: "Ne. Datum isplate i period (mjesec i godina) su unaprijed popunjeni na današnji dan i tekući mjesec, pa ih mijenjate samo ako se isplata odnosi na raniji period. Uz besplatnu registraciju možete sačuvati do 5 isplatilaca u Dijelu 2 obrasca i sljedeći put ih popuniti jednim klikom, a lični podaci u Dijelu 1 se popunjavaju sami iz profila. Isplatioci se čuvaju na vašem nalogu, ne na uređaju, pa su dostupni i sa mobitela i sa drugog računara. Snimanje i izmjena idu isključivo na vaš klik.",
             },
             {
               q: "Može li se AMS-1035 podnijeti elektronski?",

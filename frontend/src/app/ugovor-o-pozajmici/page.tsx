@@ -1,4 +1,5 @@
 import UgovorOPozajmici from "src/sections/ugovor-o-pozajmici/UgovorOPozajmici";
+import { OG_IMAGE } from "src/lib/ogImage";
 
 import type { Metadata } from "next";
 
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
     "Ugovor o pozajmici novca između fizičkih i pravnih lica u BiH: online popuna iznosa, kamate i roka, preuzimanje u PDF i Word formatu, besplatno.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,

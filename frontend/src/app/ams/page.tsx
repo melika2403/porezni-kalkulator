@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OG_IMAGE } from "src/lib/ogImage";
 import AmsForm from "src/sections/ams/Ams";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/ams";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
     "AMS-1035 obrazac za prihod iz inostranstva u FBiH, online generator i popunjene uplatnice spremne za banku, besplatno i bez registracije.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
+    images: OG_IMAGE,
     type: "website",
     locale: "bs_BA",
     url: PAGE_URL,
@@ -69,6 +71,14 @@ const faqSchema = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Da. Doprinos za zdravstveno osiguranje po stopi od 4% plaća se na svaki dohodak od samostalne djelatnosti, bez obzira na to da li ste već zdravstveno osigurani po osnovu radnog odnosa.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Moram li svaki mjesec ponovo kucati iste podatke?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Ne. Datum isplate i period su unaprijed popunjeni na današnji dan i tekući mjesec, uz mogućnost izmjene. Uz besplatnu registraciju možete sačuvati do 5 isplatilaca i sljedeći put ih popuniti jednim klikom, a lični podaci u Dijelu 1 se popunjavaju sami iz profila. Isplatioci se čuvaju na nalogu, ne na uređaju, pa su dostupni sa svakog računara i mobitela.",
       },
     },
     {

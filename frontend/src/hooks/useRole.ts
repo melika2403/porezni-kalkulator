@@ -23,6 +23,10 @@ export function useRole() {
     role,
     effectiveRole,
     isLoading,
-    hasRole: (...roles: AppRole[]) => role !== null && roles.includes(role),
+    // Gating funkcija ide po EFEKTIVNOJ roli (PK Office paket/trial = Business).
+    // Za ADMIN provjere je svejedno: getEffectiveRole vraća ADMIN nepromijenjen,
+    // a office nikad ne diže iznad BUSINESS.
+    hasRole: (...roles: AppRole[]) =>
+      effectiveRole !== null && roles.includes(effectiveRole),
   };
 }

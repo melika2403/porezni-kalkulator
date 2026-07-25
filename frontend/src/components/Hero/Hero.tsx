@@ -55,7 +55,7 @@ export default function Hero() {
             href={user ? '#funkcije' : '/registracija'}
             className={`${styles.btn} ${styles.btnPrimary}`}
           >
-            {user ? 'Otvori alate' : 'Počni besplatno: 30 dana PRO'}
+            {user ? 'Otvori alate' : 'Počni besplatno: 30 dana svega'}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 8h10M9 4l4 4-4 4" />
             </svg>
@@ -82,7 +82,7 @@ export default function Hero() {
 }
 
 const ROW1 = [
-  { label: 'Plate i doprinosi', href: '/preracun-neto-bruto' },
+  { label: 'Plate i doprinosi', href: '/prijave-radnika?tab=obracun' },
   { label: 'MIP-1023 / GIP-1022', href: '/prijave-radnika?tab=obracun' },
   { label: 'JS3100 prijave', href: '/prijave-radnika' },
   { label: 'Fakture i predračuni', href: '/fakture' },

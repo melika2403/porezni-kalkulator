@@ -1,9 +1,12 @@
 const { InvoiceItemTemplate } = require("../models/index");
+const { getEffectiveRole } = require("../services/tierService");
 
 const ALLOWED_ROLES = ["PRO", "BUSINESS", "ADMIN"];
 
-function checkRole(req, res) {
-  if (!ALLOWED_ROLES.includes(req.user?.role)) {
+// Efektivna rola: PK Office paket ili trial daje Business nivo iako je rola
+// u bazi USER.
+async function checkRole(req, res) {
+  if (!ALLOWED_ROLES.includes(await getEffectiveRole(req.user))) {
     res.status(403).json({ ok: false, error: "FORBIDDEN" });
     return false;
   }
@@ -22,7 +25,7 @@ function parseId(raw) {
 }
 
 async function list(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const items = await InvoiceItemTemplate.findAll({
     where: { userId: req.user.id },
     order: [["updatedAt", "DESC"]],
@@ -51,7 +54,7 @@ function normalizePayload(body) {
 }
 
 async function create(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const payload = normalizePayload(req.body);
   if (payload.errors.length) {
     return res.status(400).json({ ok: false, error: payload.errors.join(" ") });
@@ -66,7 +69,7 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ ok: false, error: "Invalid id" });
   const tpl = await InvoiceItemTemplate.findOne({
@@ -84,7 +87,7 @@ async function update(req, res) {
 }
 
 async function remove(req, res) {
-  if (!checkRole(req, res)) return;
+  if (!(await checkRole(req, res))) return;
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ ok: false, error: "Invalid id" });
   const deleted = await InvoiceItemTemplate.destroy({

@@ -351,6 +351,11 @@
   margin-bottom: 0.75rem;
 }
 
+/* mjesečni ekvivalent uz godišnju cijenu, u istom sitnom redu */
+.monthlyEq::before {
+  content: " · ";
+}
+
 .trialBadge {
   display: block;
   min-height: 18px;

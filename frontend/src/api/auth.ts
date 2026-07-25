@@ -20,6 +20,8 @@ export type AuthUser = {
   isEmailVerified: boolean;
   idCardNumber: string | null;
   trialUsedAt: string | null;
+  /** Kraj PK Office probe; postavljen = proba je iskorištena (jednokratna). */
+  pkOfficeTrialEndsAt?: string | null;
   subscription: {
     id: number;
     startDate: string;

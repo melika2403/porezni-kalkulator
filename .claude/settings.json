@@ -4,6 +4,11 @@
     "allow": [
       "Edit",
       "Write",
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash",
+      "PowerShell",
       "Bash(*)",
       "PowerShell(*)",
       "Bash(npm run:*)",
