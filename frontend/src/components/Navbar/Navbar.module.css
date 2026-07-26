@@ -78,6 +78,25 @@
   color: var(--ink);
 }
 
+/* Vijesti izdvojene kao meka sage pilula sa ikonicom novina; dvije klase u
+   selektoru da pobijede ".links a" pravila iznad */
+.links .linkVijesti {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 100px;
+  background: var(--sage-pale);
+  color: var(--sage);
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+
+.links .linkVijesti:hover {
+  background: var(--sage);
+  color: #fff;
+}
+
 .actions {
   display: flex;
   align-items: center;
@@ -630,6 +649,59 @@
 @keyframes drawerSlide {
   from { transform: translateX(20px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+/* Izdvojene pločice na vrhu drawera: Vijesti, Vodiči, Rasprave */
+.mobileFeatured {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobileFeaturedTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--sage);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.mobileFeaturedTile:active {
+  background: var(--sage-pale);
+}
+
+.mobileFeaturedTile svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mobileFeaturedVijesti {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fff;
+}
+
+.mobileFeaturedVijesti:active {
+  background: var(--sage-light, var(--sage));
+}
+
+.mobileFeaturedRasprave {
+  color: var(--accent, #c8622a);
+  border-color: color-mix(in srgb, var(--accent, #c8622a) 45%, transparent);
+}
+
+.mobileFeaturedRasprave:active {
+  background: var(--accent-pale, #f5e0d3);
 }
 
 .mobileGroup {

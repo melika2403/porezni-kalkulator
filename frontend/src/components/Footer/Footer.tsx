@@ -31,7 +31,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
     links: [
       { label: 'PK Office', href: '/pk-office' },
       { label: 'Pretplatnički paketi', href: '/pretplate' },
-      { label: 'Blog', href: '/blog' },
+      { label: 'Vijesti', href: '/vijesti' },
       { label: 'O nama', href: '/o-nama' },
       { label: 'Kontakt', href: '/kontakt' },
     ],

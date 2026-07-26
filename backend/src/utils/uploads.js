@@ -34,6 +34,21 @@ const logoUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
 });
 
+// Slike u vijestima i vodičima (naslovna + slike u tekstu). Veći limit jer su
+// naslovne slike krupnije od logotipa; smanjivanje radi next/image pri prikazu.
+const vijestiUpload = multer({
+  storage: makeStorage("vijesti"),
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 6 * 1024 * 1024 }, // 6 MB
+});
+
+// Slika profila komentatora (sekcija Vijesti)
+const avatarUpload = multer({
+  storage: makeStorage("avatari"),
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+});
+
 // Document uploads (DOCX/PDF) za worker documents
 function makeDocStorage(subdir) {
   const dir = path.join(UPLOADS_ROOT, subdir);
@@ -87,6 +102,8 @@ function safeUnlink(absPath) {
 module.exports = {
   UPLOADS_ROOT,
   logoUpload,
+  vijestiUpload,
+  avatarUpload,
   workerDocUpload,
   publicUrlFor,
   absPathFor,

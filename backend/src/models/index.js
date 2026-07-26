@@ -50,6 +50,26 @@ const User = sequelize.define(
     wantsTrial: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     // Isto, ali za PK Office trial CTA (postavlja pkOfficeTrialEndsAt).
     wantsOfficeTrial: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // Potpis ispod komentara u sekciji Vijesti. Korisnici su knjigovođe koje su
+    // se registrovale poslovno, pa im puno ime NE ide javno bez izbora: pri
+    // prvom komentaru biraju korisničko ime ili ime sa profila.
+    // NAMJERNO bez unique indeksa: tabela users je na MySQL limitu od 64
+    // indeksa (stari duplikati na email/googleId/jmbg). Zauzetost imena
+    // provjerava kontroler prije upisa.
+    javnoIme: { type: DataTypes.STRING(40), allowNull: true },
+    koristiPunoIme: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    // slika profila uz komentare (samo za sekciju Vijesti)
+    avatarUrl: { type: DataTypes.STRING(500), allowNull: true },
+    // zabrana komentarisanja (moderacija), ne dira pristup ostatku platforme
+    komentariBlokiran: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     // UTM atribucija — odakle korisnik dolazi (capture pri registraciji).
     utmSource: { type: DataTypes.STRING(80), allowNull: true },
     utmCampaign: { type: DataTypes.STRING(120), allowNull: true },
@@ -1241,6 +1261,306 @@ const InvoiceItemTemplate = sequelize.define(
     charset: "utf8mb4",
     collate: "utf8mb4_unicode_ci",
     indexes: [{ fields: ["userId"] }],
+  },
+);
+
+// ─── VIJESTI / VODIČI ─────────────────────────────────────────────────────────
+// Redakcijski sadržaj: tip "VIJEST" živi od datuma (rijeka na /vijesti), tip
+// "VODIC" živi od teme (stalna stranica na /vodici, ažurira se umjesto da se
+// piše iznova). Ista tabela i isti editor, razlikuje ih tip i raspored prikaza.
+// sadrzaj je sanitiziran HTML iz editora, sadrzajTekst je čista verzija za
+// izvode, brojanje riječi i provjeru sličnosti.
+const VijestClanak = sequelize.define(
+  "VijestClanak",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    tip: {
+      type: DataTypes.ENUM("VIJEST", "VODIC"),
+      allowNull: false,
+      defaultValue: "VIJEST",
+    },
+    slug: { type: DataTypes.STRING(180), allowNull: false, unique: true },
+    naslov: { type: DataTypes.STRING(255), allowNull: false },
+    nadnaslov: { type: DataTypes.STRING(160), allowNull: true },
+    sazetak: { type: DataTypes.STRING(600), allowNull: true },
+    sadrzaj: { type: DataTypes.TEXT("long"), allowNull: false, defaultValue: "" },
+    sadrzajTekst: { type: DataTypes.TEXT("long"), allowNull: true },
+    rubrika: { type: DataTypes.STRING(40), allowNull: false },
+    tagovi: { type: DataTypes.STRING(255), allowNull: true },
+    naslovnaSlika: { type: DataTypes.STRING(500), allowNull: true },
+    naslovnaAlt: { type: DataTypes.STRING(255), allowNull: true },
+    autorId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    autorPotpis: { type: DataTypes.STRING(120), allowNull: true },
+    izvorPropisa: { type: DataTypes.STRING(500), allowNull: true },
+    status: {
+      type: DataTypes.ENUM("NACRT", "ZAKAZAN", "OBJAVLJEN", "ARHIVIRAN"),
+      allowNull: false,
+      defaultValue: "NACRT",
+    },
+    datumObjave: { type: DataTypes.DATE, allowNull: true },
+    datumAzuriranja: { type: DataTypes.DATE, allowNull: true },
+    // vodič se periodično provjerava da ne ostane sa starim stopama
+    datumProvjere: { type: DataTypes.DATEONLY, allowNull: true },
+    // vodič se u rijeku vijesti gura samo kad se to izričito traži
+    uRijeci: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    istaknut: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // Mjesto na naslovnoj. Veličina kartice je posljedica pozicije, nije
+    // zasebna odluka. Kaskada (vodeća gura staru na izdvojeno, izdvojene na
+    // obično) radi na serveru pri izmjeni.
+    pozicija: {
+      type: DataTypes.ENUM("VODECA", "IZDVOJENO", "OBICNO"),
+      allowNull: false,
+      defaultValue: "OBICNO",
+    },
+    seoNaslov: { type: DataTypes.STRING(70), allowNull: true },
+    seoOpis: { type: DataTypes.STRING(200), allowNull: true },
+    fokusFraza: { type: DataTypes.STRING(120), allowNull: true },
+    brojPregleda: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    brojKomentara: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    brojDijeljenja: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+  },
+  {
+    tableName: "vijesti_clanci",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["tip", "status", "datumObjave"] },
+      { fields: ["rubrika"] },
+    ],
+  },
+);
+
+// ─── RASPRAVE ─────────────────────────────────────────────────────────────────
+// Teme koje otvaraju korisnici (pitanja i rasprave). Odgovori na temu su ISTI
+// sistem komentara (vijesti_komentari.temaId), pa glasovi, prijave i moderacija
+// rade bez dodatnog koda. Lista se sortira po zadnjoj aktivnosti, ne po datumu
+// otvaranja, da živa tema ostaje gore.
+const VijestTema = sequelize.define(
+  "VijestTema",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    slug: { type: DataTypes.STRING(180), allowNull: false, unique: true },
+    naslov: { type: DataTypes.STRING(255), allowNull: false },
+    tekst: { type: DataTypes.TEXT, allowNull: false },
+    vrsta: {
+      type: DataTypes.ENUM("PITANJE", "RASPRAVA"),
+      allowNull: false,
+      defaultValue: "PITANJE",
+    },
+    // ista lista rubrika kao vijesti, radi filtriranja; nije obavezna
+    rubrika: { type: DataTypes.STRING(40), allowNull: true },
+    autorId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    status: {
+      type: DataTypes.ENUM("OBJAVLJENA", "SAKRIVENA", "OBRISANA"),
+      allowNull: false,
+      defaultValue: "OBJAVLJENA",
+    },
+    brojOdgovora: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    brojPregleda: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    zadnjaAktivnost: { type: DataTypes.DATE, allowNull: false },
+    // admin: prikvačena stoji na vrhu liste, zaključana ne prima odgovore
+    prikvacena: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    zakljucana: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // pitanje je "riješeno" kad autor ili admin označe najbolji odgovor
+    prihvaceniOdgovorId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "vijesti_teme",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["status", "prikvacena", "zadnjaAktivnost"] },
+      { fields: ["autorId"] },
+    ],
+  },
+);
+
+// ─── KOMENTARI ────────────────────────────────────────────────────────────────
+// Komentari pišu samo prijavljeni korisnici (spam pada na nulu, a svaki
+// komentator je registrovan korisnik). Naknadna moderacija: komentar se odmah
+// vidi, a sakriva se prijavom ili odlukom admina.
+const VijestKomentar = sequelize.define(
+  "VijestKomentar",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    // komentar pripada ILI članku ILI temi rasprave (tačno jedno od dva)
+    clanakId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    temaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // odgovor na drugi komentar (jedan nivo dubine, kao na portalima)
+    roditeljId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    tekst: { type: DataTypes.TEXT, allowNull: false },
+    status: {
+      type: DataTypes.ENUM("OBJAVLJEN", "SAKRIVEN", "OBRISAN"),
+      allowNull: false,
+      defaultValue: "OBJAVLJEN",
+    },
+    // zbir glasova (+1 i -1), denormalizovan da lista ne radi dodatne upite
+    glasovi: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    brojPrijava: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+  },
+  {
+    tableName: "vijesti_komentari",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    // PAŽNJA: indeks na temaId NE ide ovdje. sync() indekse iz modela pravi
+    // prije ensureColumns migracija, pa bi pukao dok kolona još ne postoji;
+    // indeks kreira ensureColumns u istom DDL-u koji dodaje kolonu.
+    indexes: [{ fields: ["clanakId", "status"] }, { fields: ["userId"] }],
+  },
+);
+
+// Jedan glas po korisniku i komentaru; promjena glasa mijenja postojeći red.
+const VijestGlas = sequelize.define(
+  "VijestGlas",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    komentarId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    vrijednost: { type: DataTypes.TINYINT, allowNull: false },
+  },
+  {
+    tableName: "vijesti_glasovi",
+    timestamps: true,
+    indexes: [
+      { unique: true, fields: ["komentarId", "userId"], name: "vijesti_glas_jedan" },
+    ],
+  },
+);
+
+// Prijava neprimjerenog komentara; jedna po korisniku i komentaru.
+const VijestPrijava = sequelize.define(
+  "VijestPrijava",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    komentarId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    razlog: { type: DataTypes.STRING(255), allowNull: true },
+  },
+  {
+    tableName: "vijesti_prijave",
+    timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ["komentarId", "userId"],
+        name: "vijesti_prijava_jedna",
+      },
+    ],
+  },
+);
+
+// ─── OBAVJEŠTENJA (Vijesti/Rasprave) ─────────────────────────────────────────
+// In-app obavještenja sekcije Vijesti: odgovor na komentar/temu, glasovi,
+// prihvaćeno rješenje. Namjerno odvojeno od PK Office notifikacija (drugi
+// sistem, druge postavke, drugi korisnici). Glasovi se AGREGIRAJU: jedan red
+// po (komentar, tip glasa) sa brojačem, inače bi popularan komentar zatrpao
+// profil sa 50 redova.
+const VijestObavjestenje = sequelize.define(
+  "VijestObavjestenje",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    // primalac
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    tip: {
+      type: DataTypes.ENUM(
+        "ODGOVOR_KOMENTAR",
+        "ODGOVOR_TEMA",
+        "GLAS_PLUS",
+        "GLAS_MINUS",
+        "RJESENJE",
+      ),
+      allowNull: false,
+    },
+    // zadnji korisnik koji je izazvao događaj (kod agregiranih glasova)
+    akterId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    komentarId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    temaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    brojac: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 1 },
+    procitano: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  },
+  {
+    tableName: "vijesti_obavjestenja",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["userId", "procitano"] }],
+  },
+);
+
+// Pregledi po danu. Ukupan broj pregleda ne može odgovoriti na pitanje "šta se
+// čita ovih dana", jer stari tekst sa hiljadu pregleda zauvijek pobjeđuje novi.
+// Zato se broji po danu, a "Najčitanije" je zbir zadnjih 7 dana.
+const VijestPregled = sequelize.define(
+  "VijestPregled",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    clanakId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+  },
+  {
+    tableName: "vijesti_pregledi",
+    timestamps: false,
+    indexes: [
+      { unique: true, fields: ["clanakId", "datum"], name: "vijesti_pregled_dan" },
+      { fields: ["datum"] },
+    ],
   },
 );
 
@@ -2586,6 +2906,22 @@ InvoiceItemTemplate.belongsTo(User, { foreignKey: "userId", as: "user" });
 User.hasMany(AmsIsplatilac, { foreignKey: "userId", as: "amsIsplatioci" });
 AmsIsplatilac.belongsTo(User, { foreignKey: "userId", as: "user" });
 
+VijestClanak.belongsTo(User, { foreignKey: "autorId", as: "autor" });
+
+VijestKomentar.belongsTo(User, { foreignKey: "userId", as: "autor" });
+VijestKomentar.belongsTo(VijestClanak, { foreignKey: "clanakId", as: "clanak" });
+VijestClanak.hasMany(VijestKomentar, { foreignKey: "clanakId", as: "komentari" });
+VijestKomentar.belongsTo(VijestTema, { foreignKey: "temaId", as: "tema" });
+VijestTema.hasMany(VijestKomentar, { foreignKey: "temaId", as: "odgovori" });
+VijestTema.belongsTo(User, { foreignKey: "autorId", as: "autor" });
+
+VijestObavjestenje.belongsTo(User, { foreignKey: "akterId", as: "akter" });
+VijestObavjestenje.belongsTo(VijestKomentar, {
+  foreignKey: "komentarId",
+  as: "komentar",
+});
+VijestObavjestenje.belongsTo(VijestTema, { foreignKey: "temaId", as: "tema" });
+
 User.hasMany(ClientPayment, { foreignKey: "userId", as: "clientPayments" });
 ClientPayment.belongsTo(User, { foreignKey: "userId", as: "user" });
 
@@ -2849,6 +3185,13 @@ module.exports = {
   WorkerDocument,
   InvoiceItemTemplate,
   AmsIsplatilac,
+  VijestClanak,
+  VijestPregled,
+  VijestKomentar,
+  VijestGlas,
+  VijestPrijava,
+  VijestTema,
+  VijestObavjestenje,
   Payroll,
   PayrollDocument,
   ClientPayment,

@@ -31,6 +31,8 @@ const invoicesRoutes = require("./routes/invoicesRoutes");
 const preparedInvoicesRoutes = require("./routes/preparedInvoicesRoutes");
 const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes");
 const amsIsplatiociRoutes = require("./routes/amsIsplatiociRoutes");
+const vijestiRoutes = require("./routes/vijestiRoutes");
+const raspraveRoutes = require("./routes/raspraveRoutes");
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
 const payrollRoutes = require("./routes/payrollRoutes");
 const payrollDocumentsRoutes = require("./routes/payrollDocumentsRoutes");
@@ -106,6 +108,8 @@ app.use("/api/invoices", invoicesRoutes);
 app.use("/api/prepared-invoices", preparedInvoicesRoutes);
 app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
 app.use("/api/ams/isplatioci", amsIsplatiociRoutes);
+app.use("/api/vijesti", vijestiRoutes);
+app.use("/api/rasprave", raspraveRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/payroll-documents", payrollDocumentsRoutes);
@@ -127,6 +131,23 @@ app.use("/api/blagajna", blagajnaRoutes);
 app.use("/api/putni-nalozi", putniNaloziRoutes);
 app.use("/api/pk-office", pkOfficeRoutes);
 
+// Zadnji u nizu: greške koje nisu prošle kroz kontroler. Bez ovoga multer
+// greške (prevelika datoteka, pogrešan tip slike) izlaze kao Express 500 sa
+// HTML tijelom, pa ih klijent ne može razlikovati ni prikazati korisniku.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  const kod = err?.code === "LIMIT_FILE_SIZE" ? "LIMIT_FILE_SIZE" : err?.message;
+  const poznat = [
+    "LIMIT_FILE_SIZE",
+    "INVALID_IMAGE_TYPE",
+    "INVALID_DOC_TYPE",
+  ].includes(kod);
+  if (poznat) return res.status(400).json({ ok: false, error: kod });
+
+  console.error("Neuhvaćena greška:", req.method, req.originalUrl, err);
+  return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+});
+
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
   const checks = [
@@ -134,6 +155,48 @@ async function ensureColumns() {
       table: "organizations",
       column: "logoUrl",
       ddl: "ALTER TABLE organizations ADD COLUMN logoUrl VARCHAR(500) NULL",
+    },
+    {
+      // mjesto teksta na naslovnoj vijesti (kaskada vodeća → izdvojeno → obično)
+      table: "vijesti_clanci",
+      column: "pozicija",
+      ddl: "ALTER TABLE vijesti_clanci ADD COLUMN pozicija ENUM('VODECA','IZDVOJENO','OBICNO') NOT NULL DEFAULT 'OBICNO'",
+    },
+    {
+      // Potpis ispod komentara: korisničko ime umjesto punog imena.
+      // Bez UNIQUE jer je users na MySQL limitu od 64 indeksa (stari duplikati
+      // od sync alter:true); zauzetost provjerava kontroler.
+      table: "users",
+      column: "javnoIme",
+      ddl: "ALTER TABLE users ADD COLUMN javnoIme VARCHAR(40) NULL",
+    },
+    {
+      table: "users",
+      column: "koristiPunoIme",
+      ddl: "ALTER TABLE users ADD COLUMN koristiPunoIme TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "users",
+      column: "komentariBlokiran",
+      ddl: "ALTER TABLE users ADD COLUMN komentariBlokiran TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      // slika profila uz komentare
+      table: "users",
+      column: "avatarUrl",
+      ddl: "ALTER TABLE users ADD COLUMN avatarUrl VARCHAR(500) NULL",
+    },
+    {
+      // koliko je puta tekst podijeljen (dugme Podijeli)
+      table: "vijesti_clanci",
+      column: "brojDijeljenja",
+      ddl: "ALTER TABLE vijesti_clanci ADD COLUMN brojDijeljenja INT UNSIGNED NOT NULL DEFAULT 0",
+    },
+    {
+      // odgovori na teme rasprava idu kroz isti sistem komentara
+      table: "vijesti_komentari",
+      column: "temaId",
+      ddl: "ALTER TABLE vijesti_komentari ADD COLUMN temaId INT UNSIGNED NULL, ADD INDEX vijesti_kom_tema (temaId, status)",
     },
     {
       table: "invoices",
@@ -1143,6 +1206,69 @@ async function ensureSubPlanFromRole() {
   }
 }
 
+// Indeks na temaId. U ensureColumns ide zajedno sa kolonom, ali samo na bazi
+// gdje tabela već postoji; na svježoj bazi kolonu napravi sync, provjera
+// kolone prođe i indeks nikad ne nastane. Zato i ovdje, gdje se gleda indeks.
+async function ensureKomentarTemaIndex() {
+  const [t] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vijesti_komentari'",
+  );
+  if (!Number(t?.[0]?.cnt || 0)) return;
+  const [i] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vijesti_komentari' AND INDEX_NAME = 'vijesti_kom_tema'",
+  );
+  if (Number(i?.[0]?.cnt || 0)) return;
+  try {
+    console.log("vijesti_komentari: pravim indeks vijesti_kom_tema...");
+    await sequelize.query(
+      "CREATE INDEX `vijesti_kom_tema` ON `vijesti_komentari` (`temaId`, `status`)",
+    );
+  } catch (e) {
+    console.warn(`Indeks vijesti_kom_tema nije kreiran: ${e.message}`);
+  }
+}
+
+// Komentar sada pripada ili članku ili temi rasprave, pa clanakId mora
+// dozvoliti NULL (kreiran je kao NOT NULL dok su postojali samo članci).
+async function ensureKomentarClanakNullable() {
+  const [t] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vijesti_komentari'",
+  );
+  if (!Number(t?.[0]?.cnt || 0)) return;
+  const [c] = await sequelize.query(
+    "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vijesti_komentari' AND COLUMN_NAME = 'clanakId'",
+  );
+  if (c?.[0]?.IS_NULLABLE === "NO") {
+    console.log("vijesti_komentari.clanakId postaje NULL-abilan (rasprave)...");
+    await sequelize.query(
+      "ALTER TABLE vijesti_komentari MODIFY COLUMN clanakId INT UNSIGNED NULL",
+    );
+  }
+}
+
+// Pretraga vijesti i vodiča. Bez ovog indeksa je LIKE '%pojam%' po LONGTEXT
+// koloni pun scan tabele na svaku pretragu. FULLTEXT ne ide kroz model jer
+// Sequelize sync ne pravi fulltext indekse.
+async function ensureVijestiFulltext() {
+  const [t] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vijesti_clanci'",
+  );
+  if (!Number(t?.[0]?.cnt || 0)) return;
+  const [i] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vijesti_clanci' AND INDEX_NAME = 'vijesti_clanci_pretraga'",
+  );
+  if (Number(i?.[0]?.cnt || 0)) return;
+  try {
+    console.log("vijesti_clanci: pravim FULLTEXT indeks za pretragu...");
+    await sequelize.query(
+      "CREATE FULLTEXT INDEX `vijesti_clanci_pretraga` ON `vijesti_clanci` (`naslov`, `sazetak`, `sadrzajTekst`)",
+    );
+  } catch (e) {
+    // pretraga radi i bez indeksa (pada na LIKE), pa ovo ne smije rušiti start
+    console.warn(`FULLTEXT indeks nije kreiran: ${e.message}`);
+  }
+}
+
 // Idempotent ENUM proširenja — sync ne mijenja postojeće ENUM definicije.
 async function ensurePayrollDocTypeEnum() {
   const [tblRows] = await sequelize.query(
@@ -1620,6 +1746,9 @@ sequelize
   .then(() => ensureOfficeActivityBackfillV2())
   .then(() => ensureInvoiceCounterSeriesEnum())
   .then(() => ensureOfficePlanEnums())
+  .then(() => ensureKomentarClanakNullable())
+  .then(() => ensureKomentarTemaIndex())
+  .then(() => ensureVijestiFulltext())
   .then(() => ensureSubPlanFromRole())
   .then(() => ensureMemberRoleEnum())
   .then(() => ensurePayrollDocTypeEnum())

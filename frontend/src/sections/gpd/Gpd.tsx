@@ -1634,19 +1634,19 @@ export default function GpdForm() {
         </h2>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
-            <a href="/blog/gpd-1051-korak-po-korak" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a href="/vodici/gpd-1051-korak-po-korak" style={{ color: "var(--sage)", fontWeight: 600 }}>
               GPD-1051 korak po korak
             </a>,{" "}
             detaljan vodič kroz godišnju prijavu poreza na dohodak.
           </li>
           <li>
-            <a href="/blog/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a href="/vodici/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Obrt vs d.o.o. 2026
             </a>,{" "}
             koja forma se više isplati i kako se oporezuje.
           </li>
           <li>
-            <a href="/blog/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a href="/vodici/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Priznati rashodi obrta
             </a>,{" "}
             šta smanjuje poreznu osnovicu.
