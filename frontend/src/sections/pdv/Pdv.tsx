@@ -318,7 +318,7 @@ export default function PdvKalkulator() {
         </h2>
         <ul>
           <li>
-            <a href="/blog/pdv-obveznik-prag-100000-km">
+            <a href="/vodici/pdv-obveznik-prag-100000-km">
               PDV obveznik, prag 100.000 KM
             </a>,{" "}
             kada postajete obvezni za PDV i šta to znači.

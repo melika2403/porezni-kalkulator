@@ -276,7 +276,24 @@ export default function Navbar() {
 
         <Link href="/sifre-djelatnosti">Šifre djelatnosti</Link>
         <Link href="/javni-prihodi">Javni prihodi</Link>
-        <Link href="/blog">Blog</Link>
+        {/* Vijesti su izdvojene kao pilula: sekcija sadržaja, ne još jedan link */}
+        <Link href="/vijesti" className={styles.linkVijesti}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2V6" />
+            <path d="M18 14h-8M15 18h-5M10 6h8v4h-8z" />
+          </svg>
+          Vijesti
+        </Link>
         <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
         <Link href={sectionHref('kako')} className={styles.linkSecondary}>Kako radi</Link>
         <Link href={sectionHref('faq')} className={styles.linkSecondary}>FAQ</Link>
@@ -695,6 +712,66 @@ export default function Navbar() {
       {mobileOpen && (
         <div className={styles.mobileBackdrop} onClick={() => setMobileOpen(false)}>
           <div className={styles.mobileDrawer} onClick={(e) => e.stopPropagation()}>
+            {/* Izdvojeno na vrhu: sekcije sadržaja koje se svakodnevno čitaju,
+                da ne potonu ispod dugačkih lista funkcija */}
+            <div className={styles.mobileFeatured}>
+              <Link
+                href="/vijesti"
+                className={`${styles.mobileFeaturedTile} ${styles.mobileFeaturedVijesti}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2V6" />
+                  <path d="M18 14h-8M15 18h-5M10 6h8v4h-8z" />
+                </svg>
+                Vijesti
+              </Link>
+              <Link
+                href="/vodici"
+                className={styles.mobileFeaturedTile}
+                onClick={() => setMobileOpen(false)}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                </svg>
+                Vodiči
+              </Link>
+              <Link
+                href="/rasprave"
+                className={`${styles.mobileFeaturedTile} ${styles.mobileFeaturedRasprave}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Rasprave
+              </Link>
+            </div>
             {!user && !isLoading && (
               <div className={styles.mobileGroup}>
                 <div className={styles.mobileGroupTitle}>Nalog</div>
@@ -811,8 +888,9 @@ export default function Navbar() {
               <span className={styles.megaOfficeCta}>Saznaj više →</span>
             </Link>
 
+            {/* Vijesti, Vodiči i Rasprave su izdvojeni na vrhu drawera */}
             <div className={styles.mobileGroup}>
-              <div className={styles.mobileGroupTitle}>Reference i blog</div>
+              <div className={styles.mobileGroupTitle}>Reference</div>
               <ul className={styles.mobileList}>
                 <li>
                   <Link href="/sifre-djelatnosti" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
@@ -822,11 +900,6 @@ export default function Navbar() {
                 <li>
                   <Link href="/javni-prihodi" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
                     Javni prihodi
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/blog" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
-                    Blog
                   </Link>
                 </li>
               </ul>

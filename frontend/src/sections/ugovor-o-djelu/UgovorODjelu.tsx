@@ -1493,7 +1493,7 @@ function UgovorODjeluApp() {
         >
           <li>
             <a
-              href="/blog/ugovor-o-djelu-vs-ugovor-o-radu"
+              href="/vodici/ugovor-o-djelu-vs-ugovor-o-radu"
               style={{ color: "var(--sage)", fontWeight: 600 }}
             >
               Ugovor o djelu vs ugovor o radu

@@ -1258,13 +1258,13 @@ export default function SprForm() {
         </h2>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
-            <a href="/blog/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a href="/vodici/obrt-vs-doo-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Obrt vs d.o.o. 2026
             </a>,{" "}
             poređenje oporezivanja i kad se koja forma isplati.
           </li>
           <li>
-            <a href="/blog/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a href="/vodici/priznati-rashodi-obrta-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Priznati rashodi obrta
             </a>,{" "}
             koji troškovi smanjuju poreznu osnovicu u SPR-u.

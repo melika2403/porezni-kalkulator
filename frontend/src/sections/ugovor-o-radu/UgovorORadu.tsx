@@ -1622,13 +1622,13 @@ function UgovorORaduApp() {
         </h2>
         <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
           <li>
-            <a href="/blog/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a href="/vodici/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Otkaz radnika u FBiH
             </a>,{" "}
             razlozi, otkazni rokovi i postupak po Zakonu o radu.
           </li>
           <li>
-            <a href="/blog/ugovor-o-djelu-vs-ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+            <a href="/vodici/ugovor-o-djelu-vs-ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
               Ugovor o djelu vs ugovor o radu
             </a>,{" "}
             koja vrsta angažmana odgovara kojoj situaciji.

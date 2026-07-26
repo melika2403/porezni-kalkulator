@@ -13,6 +13,17 @@ const nextConfig: NextConfig = {
   // ili Cloudflare). Ranije je ovdje stajao Next www→non-www redirect koji je
   // bio u suprotnom smjeru od hostinga → beskonačna petlja (ERR_TOO_MANY_REDIRECTS).
   // Drži kanonikalizaciju na JEDNOM sloju (hostingu), ne i u Next-u.
+
+  // Blog je postao sekcija Vijesti, a stari tekstovi su vodiči. Trajna (301)
+  // preusmjerenja čuvaju pozicije u pretrazi i tuđe linkove. Pojedinačni
+  // tekstovi idu na /vodici/:slug jer su svi postojeći tekstovi vodiči; nove
+  // vijesti nikad nisu ni bile na /blog.
+  async redirects() {
+    return [
+      { source: "/blog", destination: "/vijesti", permanent: true },
+      { source: "/blog/:slug", destination: "/vodici/:slug", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

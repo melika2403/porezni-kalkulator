@@ -4,6 +4,7 @@ import Pricing from "src/components/Pricing/Pricing";
 import HowItWorks from "src/components/HowItWorks/HowItWorks";
 import PkOfficeTeaser from "src/components/PkOfficeTeaser/PkOfficeTeaser";
 import BlogTeaser from "src/components/BlogTeaser/BlogTeaser";
+import RaspraveTeaser from "src/components/RaspraveTeaser/RaspraveTeaser";
 import ResourceTeasers from "src/components/ResourceTeasers/ResourceTeasers";
 import PoreznKalendar from "src/components/PoreznKalendar/PoreznKalendar";
 import Faq from "src/components/Faq/Faq";
@@ -21,6 +22,7 @@ export default function HomePage() {
         <SocialProof />
         <PkOfficeTeaser />
         <BlogTeaser />
+        <RaspraveTeaser />
         {/* Šifre djelatnosti + javni prihodi: dva ranija full-bleed teasera
             sažeta u jednu kompaktnu sekciju sa dvije kartice. */}
         <ResourceTeasers />
