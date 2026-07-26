@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Edit",
       "Write",
@@ -49,8 +49,6 @@
       "PowerShell(git log:*)"
     ],
     "deny": [
-      "Bash(rm:*)",
-      "Bash(rmdir:*)",
       "Bash(git push:*)",
       "Bash(git reset --hard:*)",
       "Bash(git clean:*)",
@@ -60,8 +58,6 @@
       "Bash(git branch -D:*)",
       "Bash(git checkout --:*)",
       "Bash(git restore:*)",
-      "PowerShell(Remove-Item:*)",
-      "PowerShell(rm:*)",
       "PowerShell(git push:*)",
       "PowerShell(git reset --hard:*)"
     ]

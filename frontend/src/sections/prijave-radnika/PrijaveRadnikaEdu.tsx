@@ -310,19 +310,19 @@ export default function PrijaveRadnikaEdu() {
         </h2>
         <ul>
           <li>
-            <a href="/blog/minimalna-plata-fbih-2026">
+            <a href="/vodici/minimalna-plata-fbih-2026">
               Minimalna plata u FBiH 2026
             </a>,{" "}
             iznos, doprinosi i ukupan trošak poslodavca.
           </li>
           <li>
-            <a href="/blog/topli-obrok-regres-fbih-2026">
+            <a href="/vodici/topli-obrok-regres-fbih-2026">
               Topli obrok i regres
             </a>,{" "}
             neoporezivi iznosi i kako ulaze u obračun.
           </li>
           <li>
-            <a href="/blog/otkaz-radnika-fbih">Otkaz radnika u FBiH</a>, postupak,
+            <a href="/vodici/otkaz-radnika-fbih">Otkaz radnika u FBiH</a>, postupak,
             rokovi i odjava preko JS3100.
           </li>
         </ul>

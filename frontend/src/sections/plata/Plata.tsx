@@ -365,13 +365,13 @@ export default function PreracunPlate() {
         </h2>
         <ul>
           <li>
-            <a href="/blog/kako-se-racuna-neto-plata-fbih">
+            <a href="/vodici/kako-se-racuna-neto-plata-fbih">
               Kako se računa neto plata u FBiH
             </a>,{" "}
             korak po korak kroz doprinose, lični odbitak i porez.
           </li>
           <li>
-            <a href="/blog/minimalna-plata-fbih-2026">
+            <a href="/vodici/minimalna-plata-fbih-2026">
               Minimalna plata u FBiH 2026
             </a>,{" "}
             iznos, doprinosi i trošak poslodavca.

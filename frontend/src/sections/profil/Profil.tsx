@@ -41,7 +41,9 @@ import {
   LuArrowRight,
   LuWallet,
   LuTrash2,
+  LuMessageSquare,
 } from "react-icons/lu";
+import { getMojePostavke } from "src/api/vijestiKomentari";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import OfficeTrialCta, { useOfficeTrial } from "src/components/OfficeTrialCta/OfficeTrialCta";
 import { Modal } from "src/components/app-shell/Modal";
@@ -4450,6 +4452,15 @@ export default function Profil() {
     retry: false,
   });
 
+  // Profil na vijestima postoji tek kad je korisnik izabrao potpis
+  // (komentarisao ili otvorio temu); do tada se link ne prikazuje.
+  const { data: vijestiProfil } = useQuery({
+    queryKey: ["vijesti-moje-postavke"],
+    queryFn: () => unwrap(getMojePostavke()).catch(() => null),
+    enabled: !!user,
+    retry: false,
+  });
+
   useEffect(() => {
     if (isError && (error as Error)?.message === "UNAUTHENTICATED") {
       router.replace("/prijava");
@@ -4526,6 +4537,20 @@ export default function Profil() {
             </span>
             Pregled organizacija
           </button>
+          {/* Profil na vijestima: vidljiv tek kad profil postoji (korisnik je
+              izabrao potpis, tj. komentarisao ili otvorio temu). */}
+          {vijestiProfil?.izabran && (
+            <button
+              className={styles.navItem}
+              onClick={() => router.push(`/vijesti/korisnik/${user.id}`)}
+              title="Vaš javni profil u sekciji Vijesti i Rasprave"
+            >
+              <span className={styles.navIcon}>
+                <LuMessageSquare size={19} />
+              </span>
+              Profil na vijestima
+            </button>
+          )}
           {/* Admin, vidljiv samo ADMIN korisnicima. */}
           <RoleGuard roles={["ADMIN"]} mode="hide">
             <button

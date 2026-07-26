@@ -2232,13 +2232,13 @@ export default function RjesenjaOdluke() {
             </h2>
             <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
               <li>
-                <a href="/blog/topli-obrok-regres-fbih-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <a href="/vodici/topli-obrok-regres-fbih-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   Topli obrok i regres u FBiH
                 </a>
                 , neoporezivi iznosi i kako se isplaćuju.
               </li>
               <li>
-                <a href="/blog/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <a href="/vodici/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   Otkaz radnika u FBiH
                 </a>
                 , razlozi, otkazni rokovi i postupak.

@@ -1,5 +1,6 @@
-// RSS 2.0 feed bloga, generisan iz BLOG_POSTS.
-import { BLOG_POSTS } from "src/sections/blog/posts";
+// RSS 2.0 feed sekcije Vijesti, generisan iz baze (isti izvor kao sajt).
+import { getClanciServer } from "src/lib/vijestiServer";
+import { putanjaClanka } from "src/data/vijesti";
 
 const SITE_URL = "https://www.poreznikalkulator.ba";
 
@@ -13,24 +14,28 @@ function escapeXml(s: string): string {
 }
 
 export async function GET() {
-  const items = BLOG_POSTS.map((p) => {
-    const url = `${SITE_URL}/blog/${p.slug}`;
-    return `    <item>
-      <title>${escapeXml(p.title)}</title>
+  const podaci = await getClanciServer({ limit: 30 });
+  const items = (podaci?.items ?? [])
+    .map((p) => {
+      const url = `${SITE_URL}${putanjaClanka(p.tip, p.slug)}`;
+      const datum = p.datumObjave ? new Date(p.datumObjave) : new Date();
+      return `    <item>
+      <title>${escapeXml(p.naslov)}</title>
       <link>${url}</link>
       <guid isPermaLink="true">${url}</guid>
-      <description>${escapeXml(p.excerpt)}</description>
-      <pubDate>${new Date(`${p.date}T08:00:00Z`).toUTCString()}</pubDate>
-      ${p.category ? `<category>${escapeXml(p.category)}</category>` : ""}
+      <description>${escapeXml(p.sazetak || "")}</description>
+      <pubDate>${datum.toUTCString()}</pubDate>
+      ${p.rubrika ? `<category>${escapeXml(p.rubrika)}</category>` : ""}
     </item>`;
-  }).join("\n");
+    })
+    .join("\n");
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Porezni Kalkulator BiH - Blog</title>
-    <link>${SITE_URL}/blog</link>
-    <description>Praktični vodiči o porezima, platama i poslovanju za poduzetnike u BiH.</description>
+    <title>Porezni Kalkulator BiH - Vijesti</title>
+    <link>${SITE_URL}/vijesti</link>
+    <description>Izmjene propisa, porezi, plate i obrasci u FBiH, objašnjeni za obrtnike i knjigovođe.</description>
     <language>bs</language>
     <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
 ${items}
