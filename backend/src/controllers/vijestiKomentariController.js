@@ -138,7 +138,8 @@ async function pomjeriBrojac(k, delta) {
     delta > 0
       ? literal(`\`${kolona}\` + ${delta}`)
       : literal(`GREATEST(CAST(\`${kolona}\` AS SIGNED) - ${-delta}, 0)`);
-  await model.update({ [kolona]: izraz }, { where: { id } });
+  // silent: pomjeranje brojača nije izmjena sadržaja, ne dira updatedAt
+  await model.update({ [kolona]: izraz }, { where: { id }, silent: true });
 }
 
 // Komentar živi ili ispod članka ili ispod teme rasprave; isti kod, različit
@@ -427,7 +428,17 @@ async function obrisi(req, res) {
     return res.status(404).json({ ok: false, error: "NOT_FOUND" });
   }
   await k.update({ status: "OBRISAN" });
-  await pomjeriBrojac(k, -1);
+  // odgovori obrisanog korijena bi ostali nevidljivi (lista ih vuče samo uz
+  // živ korijen), a brojali bi se i dalje: brišu se zajedno sa korijenom
+  let obrisano = 1;
+  if (k.roditeljId == null) {
+    const [odgovora] = await VijestKomentar.update(
+      { status: "OBRISAN" },
+      { where: { roditeljId: k.id, status: { [Op.ne]: "OBRISAN" } } },
+    );
+    obrisano += odgovora;
+  }
+  await pomjeriBrojac(k, -obrisano);
   return res.json({ ok: true, data: { id } });
 }
 
@@ -441,10 +452,27 @@ async function adminObrisiSveKorisnika(req, res) {
   const clanak = await VijestClanak.findOne({ where: { slug }, attributes: ["id"] });
   if (!clanak) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
 
-  const [broj] = await VijestKomentar.update(
-    { status: "OBRISAN" },
-    { where: { clanakId: clanak.id, userId, status: { [Op.ne]: "OBRISAN" } } },
-  );
+  // prvo korisnikovi komentari, pa tuđi odgovori ispod upravo obrisanih
+  // korijena (inače ostaju nevidljivi u listi, a i dalje se broje)
+  const korisnikovi = await VijestKomentar.findAll({
+    where: { clanakId: clanak.id, userId, status: { [Op.ne]: "OBRISAN" } },
+    attributes: ["id"],
+    raw: true,
+  });
+  const ids = korisnikovi.map((r) => r.id);
+  let broj = 0;
+  if (ids.length > 0) {
+    const [n] = await VijestKomentar.update(
+      { status: "OBRISAN" },
+      { where: { id: { [Op.in]: ids } } },
+    );
+    broj += n;
+    const [odgovora] = await VijestKomentar.update(
+      { status: "OBRISAN" },
+      { where: { roditeljId: { [Op.in]: ids }, status: { [Op.ne]: "OBRISAN" } } },
+    );
+    broj += odgovora;
+  }
   if (broj > 0) {
     await pomjeriBrojac({ clanakId: clanak.id }, -broj);
   }
@@ -486,9 +514,11 @@ async function glasaj(req, res) {
         { transaction: t },
       );
     }
+    // silent: glas ne smije obilježiti komentar kao "izmijenjen"
+    // (izmijenjen = updatedAt > createdAt, a to je rezervisano za izmjenu teksta)
     await VijestKomentar.increment(
       { glasovi: vrijednost - stari },
-      { where: { id }, transaction: t },
+      { where: { id }, transaction: t, silent: true },
     );
   });
 
@@ -561,11 +591,38 @@ async function javniProfil(req, res) {
   }
 
   // Prikazuje se zadnjih 100, ali brojka mora biti stvarna: inače aktivan
-  // korisnik zauvijek piše "100 komentara".
-  const ukupnoKomentara = await VijestKomentar.count({
-    where: { userId: id, status: "OBJAVLJEN" },
-  });
-  const komentari = await VijestKomentar.findAll({
+  // korisnik zauvijek piše "100 komentara". Broje se i prikazuju samo
+  // komentari čiji je tekst/tema još javno vidljiv: komentar na obrisanoj
+  // temi ne smije viriti sa profila niti se brojati.
+  const [naClancima, naTemama] = await Promise.all([
+    VijestKomentar.count({
+      where: { userId: id, status: "OBJAVLJEN" },
+      include: [
+        {
+          model: VijestClanak,
+          as: "clanak",
+          required: true,
+          where: OBJAVLJENO(),
+          attributes: [],
+        },
+      ],
+    }),
+    VijestKomentar.count({
+      where: { userId: id, status: "OBJAVLJEN" },
+      include: [
+        {
+          model: VijestTema,
+          as: "tema",
+          required: true,
+          where: { status: "OBJAVLJENA" },
+          attributes: [],
+        },
+      ],
+    }),
+  ]);
+  const ukupnoKomentara = naClancima + naTemama;
+
+  const komentariRedovi = await VijestKomentar.findAll({
     where: { userId: id, status: "OBJAVLJEN" },
     order: [["createdAt", "DESC"]],
     limit: 100,
@@ -573,10 +630,26 @@ async function javniProfil(req, res) {
       {
         model: VijestClanak,
         as: "clanak",
-        attributes: ["id", "slug", "naslov", "tip"],
+        attributes: ["id", "slug", "naslov", "tip", "status", "datumObjave"],
       },
-      { model: VijestTema, as: "tema", attributes: ["id", "slug", "naslov"] },
+      {
+        model: VijestTema,
+        as: "tema",
+        attributes: ["id", "slug", "naslov", "status"],
+      },
     ],
+  });
+  const sada = new Date();
+  const komentari = komentariRedovi.filter((k) => {
+    if (k.clanak) {
+      return (
+        k.clanak.status === "OBJAVLJEN" &&
+        k.clanak.datumObjave &&
+        new Date(k.clanak.datumObjave) <= sada
+      );
+    }
+    if (k.tema) return k.tema.status === "OBJAVLJENA";
+    return false;
   });
 
   return res.json({

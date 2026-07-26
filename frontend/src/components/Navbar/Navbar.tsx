@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import styles from './Navbar.module.css';
 import { me, logout, unwrap } from 'src/api/auth';
 import { getOrganizations, getClientOrganizations } from 'src/api/profile';
+import { getBrojObavjestenja } from 'src/api/vijestiKomentari';
 import { PK_OFFICE_DASHBOARD_URL } from 'src/lib/pkOfficeUrl';
 
 type MenuItem = { label: string; href: string; desc?: string };
@@ -168,6 +169,20 @@ export default function Navbar() {
     enabled: !!user,
     retry: false,
   });
+  // značka nepročitanih obavještenja iz Vijesti/Rasprava na linku Vijesti;
+  // isti queryKey kao u sekciji Vijesti, pa se keš dijeli i gasi zajedno
+  const { data: obavBroj } = useQuery({
+    queryKey: ['vijesti-obavjestenja-broj'],
+    queryFn: async () => {
+      const res = await getBrojObavjestenja();
+      return res.ok && res.data ? res.data : null;
+    },
+    enabled: !!user,
+    retry: false,
+    refetchInterval: 120000,
+  });
+  const neprocitano = obavBroj?.neprocitano ?? 0;
+
   const ownCount = orgsQuery.data?.length ?? 0;
   const clientCount = clientOrgsQuery.data?.length ?? 0;
   const hasAnyOrg = ownCount > 0 || clientCount > 0;
@@ -293,6 +308,11 @@ export default function Navbar() {
             <path d="M18 14h-8M15 18h-5M10 6h8v4h-8z" />
           </svg>
           Vijesti
+          {neprocitano > 0 && (
+            <span className={styles.linkVijestiZnacka}>
+              {neprocitano > 9 ? '9+' : neprocitano}
+            </span>
+          )}
         </Link>
         <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
         <Link href={sectionHref('kako')} className={styles.linkSecondary}>Kako radi</Link>
@@ -733,6 +753,11 @@ export default function Navbar() {
                   <path d="M18 14h-8M15 18h-5M10 6h8v4h-8z" />
                 </svg>
                 Vijesti
+                {neprocitano > 0 && (
+                  <span className={styles.mobileFeaturedZnacka}>
+                    {neprocitano > 9 ? '9+' : neprocitano}
+                  </span>
+                )}
               </Link>
               <Link
                 href="/vodici"
