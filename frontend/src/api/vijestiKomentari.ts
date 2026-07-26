@@ -229,6 +229,13 @@ export function procitajObavjestenja() {
   });
 }
 
+/** Trajno uklanjanje jednog obavještenja (X u panelu ili na profilu). */
+export function ukloniObavjestenje(id: number) {
+  return request<{ id: number }>(`/api/vijesti/obavjestenja/${id}`, {
+    method: "DELETE",
+  });
+}
+
 // ── Moderacija (admin) ──────────────────────────────────────────────────────
 
 export type ModKomentar = {

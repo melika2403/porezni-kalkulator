@@ -97,6 +97,42 @@
   color: #fff;
 }
 
+/* broj nepročitanih obavještenja na pilulu Vijesti */
+.linkVijestiZnacka {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  margin-left: 2px;
+  border-radius: 100px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ista značka na pločici Vijesti u drawer-u, u uglu pločice */
+.mobileFeaturedZnacka {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 100px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .actions {
   display: flex;
   align-items: center;
@@ -661,6 +697,7 @@
 }
 
 .mobileFeaturedTile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;

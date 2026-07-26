@@ -10,6 +10,7 @@ import { me, unwrap } from "src/api/auth";
 import {
   getObavjestenja,
   procitajObavjestenja,
+  ukloniObavjestenje,
   type Obavjestenje,
 } from "src/api/vijestiKomentari";
 import { Avatar } from "./Potpis";
@@ -38,8 +39,12 @@ function opis(o: Obavjestenje): string {
   }
 }
 
+// koliko obavještenja se vidi dok je blok skupljen
+const SKUPLJENO = 4;
+
 export default function MojaObavjestenja({ profilId }: { profilId: number }) {
   const [ucitano, setUcitano] = useState(false);
+  const [prosireno, setProsireno] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: korisnik } = useQuery({
@@ -73,6 +78,16 @@ export default function MojaObavjestenja({ profilId }: { profilId: number }) {
 
   if (!mojProfil) return null;
 
+  async function ukloni(id: number) {
+    await ukloniObavjestenje(id);
+    await queryClient.invalidateQueries({ queryKey: ["vijesti-obavjestenja"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["vijesti-obavjestenja-broj"],
+    });
+  }
+
+  const prikazana = prosireno ? obavjestenja : obavjestenja.slice(0, SKUPLJENO);
+
   return (
     <div
       id="obavjestenja"
@@ -87,8 +102,8 @@ export default function MojaObavjestenja({ profilId }: { profilId: number }) {
         </p>
       ) : (
         <ul className={styles.profilPanelLista}>
-          {obavjestenja.map((o) => (
-            <li key={o.id}>
+          {prikazana.map((o) => (
+            <li key={o.id} className={styles.obavijestRed}>
               <Link href={o.link} className={styles.profilPanelItem}>
                 <Avatar
                   slika={o.akter?.avatar ?? null}
@@ -119,9 +134,31 @@ export default function MojaObavjestenja({ profilId }: { profilId: number }) {
                   </span>
                 </span>
               </Link>
+              <button
+                type="button"
+                className={styles.obavijestX}
+                onClick={() => void ukloni(o.id)}
+                aria-label="Ukloni obavještenje"
+                title="Ukloni, više se neće prikazivati"
+              >
+                ✕
+              </button>
             </li>
           ))}
         </ul>
+      )}
+      {obavjestenja.length > SKUPLJENO && (
+        <div style={{ textAlign: "center", marginTop: "0.75rem" }}>
+          <button
+            type="button"
+            className={`${styles.railDugme} ${styles.railDugmeMali}`}
+            onClick={() => setProsireno((v) => !v)}
+          >
+            {prosireno
+              ? "Prikaži manje"
+              : `Prikaži sva (${obavjestenja.length}) ↓`}
+          </button>
+        </div>
       )}
     </div>
   );

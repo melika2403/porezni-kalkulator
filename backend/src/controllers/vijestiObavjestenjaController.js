@@ -136,4 +136,18 @@ async function procitaj(req, res) {
   return res.json({ ok: true, data: { neprocitano: 0 } });
 }
 
-module.exports = { zabiljezi, zabiljeziGlas, lista, broj, procitaj };
+// DELETE /api/vijesti/obavjestenja/:id
+// Trajno uklanjanje jednog obavještenja (X u panelu ili na profilu).
+async function ukloni(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  }
+  const n = await VijestObavjestenje.destroy({
+    where: { id, userId: req.user.id },
+  });
+  if (n === 0) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+  return res.json({ ok: true, data: { id } });
+}
+
+module.exports = { zabiljezi, zabiljeziGlas, lista, broj, procitaj, ukloni };
