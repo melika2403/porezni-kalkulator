@@ -72,6 +72,7 @@ router.get("/korisnik/:id", kom.javniProfil);
 router.get("/obavjestenja", requireAuth, obav.lista);
 router.get("/obavjestenja/broj", requireAuth, obav.broj);
 router.post("/obavjestenja/procitaj", requireAuth, obav.procitaj);
+router.delete("/obavjestenja/:id", requireAuth, obav.ukloni);
 
 // ── Javno ───────────────────────────────────────────────────────────────────
 router.get("/naslovna", ctrl.naslovna);

@@ -14,6 +14,7 @@ import {
   getObavjestenja,
   getBrojObavjestenja,
   procitajObavjestenja,
+  ukloniObavjestenje,
   type Obavjestenje,
 } from "src/api/vijestiKomentari";
 import { Avatar } from "./Potpis";
@@ -76,6 +77,29 @@ export default function ProfilDugme() {
     enabled: !!korisnik && otvoren,
     retry: false,
   });
+
+  // U panelu se pokazuju nepročitana obavještenja i ona mlađa od sat vremena:
+  // kad ih korisnik jednom vidi (otvaranje panela ih čita), sat kasnije se
+  // sama sklone. Trenutak se hvata kroz efekat (react-hooks/purity).
+  const [sada, setSada] = useState(0);
+  useEffect(() => {
+    if (!otvoren) return;
+    const t = setTimeout(() => setSada(Date.now()), 0);
+    return () => clearTimeout(t);
+  }, [otvoren]);
+  const vidljiva = sada
+    ? obavjestenja.filter(
+        (o) => !o.procitano || sada - new Date(o.vrijeme).getTime() < 3600 * 1000,
+      )
+    : obavjestenja;
+
+  async function ukloni(id: number) {
+    await ukloniObavjestenje(id);
+    await queryClient.invalidateQueries({ queryKey: ["vijesti-obavjestenja"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["vijesti-obavjestenja-broj"],
+    });
+  }
 
   // otvaranje panela označava sve pročitanim, značka se gasi
   useEffect(() => {
@@ -166,15 +190,15 @@ export default function ProfilDugme() {
             </Link>
           </div>
 
-          {obavjestenja.length === 0 ? (
+          {vidljiva.length === 0 ? (
             <p className={styles.profilPanelPrazno}>
               Još nema obavještenja. Stižu kad neko odgovori na vaš komentar
               ili temu, ili glasa o vašem komentaru.
             </p>
           ) : (
             <ul className={styles.profilPanelLista}>
-              {obavjestenja.slice(0, 6).map((o) => (
-                <li key={o.id}>
+              {vidljiva.slice(0, 6).map((o) => (
+                <li key={o.id} className={styles.obavijestRed}>
                   <Link href={o.link} className={styles.profilPanelItem}>
                     <Avatar
                       slika={o.akter?.avatar ?? null}
@@ -194,6 +218,15 @@ export default function ProfilDugme() {
                       </span>
                     </span>
                   </Link>
+                  <button
+                    type="button"
+                    className={styles.obavijestX}
+                    onClick={() => void ukloni(o.id)}
+                    aria-label="Ukloni obavještenje"
+                    title="Ukloni"
+                  >
+                    ✕
+                  </button>
                 </li>
               ))}
             </ul>
