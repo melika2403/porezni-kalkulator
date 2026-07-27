@@ -1384,7 +1384,23 @@ kasnije veže lager lista.
   ili "Dodaj stavku" knjiži red i vraća fokus na artikal, pa se roba
   kuca red za redom kao u desktop programima. Živi obračun ispod polja.
   Unesena stavka se **uređuje direktno u tabeli** (olovka pretvara red u
-  polja, kvačica sprema), ne vraća se u panel.
+  polja, kvačica sprema), ne vraća se u panel. Iznad panela stoji
+  napomena o tipkovnici, a **F3** skače pravo na polje MPC (kad je
+  ostalo predpopunjeno iz prethodnog unosa artikla).
+- **Izbor artikla ne izlistava cijeli šifarnik**: prazno polje (strelica)
+  nudi **zadnjih 10 korištenih** artikala (`zadnjaUpotreba` = MAX datum
+  kalkulacije po artiklu, računa se u `listArtikli`), a kucanje pretražuje
+  cijeli šifarnik i vraća do 20 pogodaka **rangiranih**: tačna šifra ili
+  bar kod, šifra počinje upitom, naziv počinje upitom, naziv sadrži upit;
+  unutar istog ranga prvi su skorije korišteni. Na dnu panela stoji
+  "Prikazano N od M", da se vidi kad treba suziti pretragu.
+- **Broj kalkulacije**: numeracija ide po godini i sama daje sljedeći
+  slobodan broj, ali se u zaglavlju može upisati i **ručno** (npr.
+  nastavak numeracije iz starog programa), i pri unosu i pri izmjeni.
+  Duplikat u istoj godini se odbija (409 `BROJ_ZAUZET`, poruka kaže da
+  broj drži druga kalkulacija); broj se oslobodi kad se toj kalkulaciji
+  promijeni broj ili se obriše. Kopija kalkulacije uvijek dobija svoj
+  novi broj.
 - **Obračun kalkulacije**: drugi pod-tab prikazuje sve kolone KCM
   obrasca (iznos, rabat, fakturna, zavisni, nabavni iznos i cijena,
   marža, bez PDV-a, PDV, MPC, maloprodajni iznos) sa sumama; gore su

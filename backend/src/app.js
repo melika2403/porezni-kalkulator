@@ -199,6 +199,13 @@ async function ensureColumns() {
       ddl: "ALTER TABLE vijesti_komentari ADD COLUMN temaId INT UNSIGNED NULL, ADD INDEX vijesti_kom_tema (temaId, status)",
     },
     {
+      // naučeno pravilo pamti i partnera, ne samo kategoriju: sljedeći izvod
+      // istom dobavljaču sam veže karticu partnera
+      table: "bank_match_rules",
+      column: "partnerId",
+      ddl: "ALTER TABLE bank_match_rules ADD COLUMN partnerId INT UNSIGNED NULL",
+    },
+    {
       table: "invoices",
       column: "currency",
       ddl: "ALTER TABLE invoices ADD COLUMN currency ENUM('BAM','EUR') NOT NULL DEFAULT 'BAM'",

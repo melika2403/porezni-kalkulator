@@ -64,6 +64,9 @@ const labelCls =
   "block text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1";
 const inputCls =
   "w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600";
+// oznaka tipke u napomeni o prečicama
+const kbdCls =
+  "px-1.5 py-0.5 rounded border border-cream-300 bg-cream-50 text-[11px] font-medium text-text-secondary";
 const thCls =
   "px-2.5 py-2 text-left text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary font-semibold whitespace-nowrap";
 const tdCls = "px-2.5 py-2 text-[12.5px] text-text-primary whitespace-nowrap";
@@ -137,6 +140,11 @@ export function KalkulacijaForm({
   const [bezPdv, setBezPdv] = useState(initial?.bezPdv ?? false);
   const [napomena, setNapomena] = useState(
     kopija ? "" : (initial?.napomena ?? ""),
+  );
+  // Redni broj: prazno znači sljedeći slobodan. Pri uređivanju se prikazuje
+  // postojeći, kod kopije se ne prenosi (kopija dobija svoj broj).
+  const [brojS, setBrojS] = useState(
+    initial && !kopija ? String(initial.broj) : "",
   );
   const [noviPartner, setNoviPartner] = useState<PartnerFormState | null>(
     null,
@@ -467,6 +475,18 @@ export function KalkulacijaForm({
     fokusiraj(kolicinaWrapRef);
   }
 
+  // F3 skače pravo na maloprodajnu cijenu (kao u desktop programima): kad je
+  // ostalo popunjeno iz predpopune, ne mora se prolaziti kroz sva polja.
+  useEffect(() => {
+    function naTipku(e: KeyboardEvent) {
+      if (e.key !== "F3") return;
+      e.preventDefault();
+      fokusiraj(mpcWrapRef);
+    }
+    window.addEventListener("keydown", naTipku);
+    return () => window.removeEventListener("keydown", naTipku);
+  }, []);
+
   // Enter u polju: fokus na sljedeće; na MPC-u dodaje stavku
   function enterNa(
     next: React.RefObject<HTMLDivElement | null> | "dodaj",
@@ -698,6 +718,7 @@ export function KalkulacijaForm({
         datumRacuna: datumRacunaIso,
         bezPdv,
         napomena: napomena.trim(),
+        broj: brojS.trim() ? Number(brojS.trim()) : undefined,
         ulazniPdv: pdvSaRacuna ? efektivniUlazniPdv : undefined,
         stavke: rows.map((r) => ({
           artikalId: r.artikalId,
@@ -718,10 +739,15 @@ export function KalkulacijaForm({
       }
       router.push("/app/kalkulacije");
     } catch (e) {
+      const kod = e instanceof Error ? e.message : "";
       setSaveError(
-        e instanceof Error && e.message === "RACUN_PLACEN"
+        kod === "RACUN_PLACEN"
           ? "Ulazni račun ove kalkulacije je već plaćen (vezan za izvod), pa se kalkulacija ne može mijenjati. Prvo razvežite uplatu na stranici Partneri."
-          : "Greška pri spremanju, pokušajte ponovo.",
+          : kod === "BROJ_ZAUZET"
+            ? `Broj ${brojS.trim()} već koristi druga kalkulacija u ${datumIso.slice(0, 4)}. godini. Upišite drugi broj, ili prvo promijenite broj (odnosno obrišite) tu kalkulaciju.`
+            : kod === "BROJ_INVALID"
+              ? "Redni broj mora biti cijeli broj od 1 do 999999."
+              : "Greška pri spremanju, pokušajte ponovo.",
       );
     } finally {
       setSaving(null);
@@ -743,7 +769,9 @@ export function KalkulacijaForm({
         className="rounded-xl border border-cream-300 bg-cream-100 p-4"
         onKeyDown={topEnter}
       >
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        {/* items-end: labele različite visine (neke se lome u dva reda) ne
+            smiju razbiti poravnanje polja */}
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 items-end">
           <div className="col-span-2" data-enterskip>
             <label className={labelCls}>Dobavljač</label>
             <div className="flex items-center gap-2">
@@ -765,13 +793,33 @@ export function KalkulacijaForm({
               </button>
             </div>
           </div>
-          <div>
-            <label className={labelCls}>Broj računa dobavljača</label>
-            <input
-              value={brojRacuna}
-              onChange={(e) => setBrojRacuna(e.target.value)}
-              className={inputCls}
-            />
+          {/* broj kalkulacije je najviše 4 cifre, pa dijeli kolonu sa brojem
+              računa dobavljača umjesto da zauzima cijelu */}
+          <div className="col-span-2 grid grid-cols-[92px_minmax(0,1fr)] gap-3">
+            <div>
+              <label
+                className={labelCls}
+                title="Redni broj kalkulacije u godini. Ostavite prazno za sljedeći slobodan, ili upišite svoj broj (npr. nastavak numeracije iz starog programa)."
+              >
+                Broj
+              </label>
+              <input
+                value={brojS}
+                onChange={(e) => setBrojS(e.target.value.replace(/\D+/g, "").slice(0, 6))}
+                inputMode="numeric"
+                placeholder="auto"
+                title="Redni broj kalkulacije u godini; prazno = sljedeći slobodan"
+                className={`${inputCls} text-center tabular-nums`}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Broj računa dobavljača</label>
+              <input
+                value={brojRacuna}
+                onChange={(e) => setBrojRacuna(e.target.value)}
+                className={inputCls}
+              />
+            </div>
           </div>
           <div>
             <label className={labelCls}>Datum računa</label>
@@ -977,6 +1025,14 @@ export function KalkulacijaForm({
         <>
           {/* ── panel za unos artikla ── */}
           <div className="rounded-xl border border-cream-300 bg-cream-100 p-4">
+            <p className="text-[12px] text-text-tertiary mb-3">
+              <strong className="text-text-secondary">Tipkovnica:</strong>{" "}
+              <kbd className={kbdCls}>Enter</kbd> prebacuje na sljedeće polje
+              (artikal, količina, cijena, rabat, zavisni, marža, MPC), a na
+              polju MPC dodaje stavku i vraća vas na artikal.{" "}
+              <kbd className={kbdCls}>F3</kbd> skače pravo na maloprodajnu
+              cijenu.
+            </p>
             <div className="grid grid-cols-2 lg:grid-cols-9 gap-3 items-end">
               <div className="col-span-2 lg:col-span-3">
                 <label className={labelCls}>Artikal</label>

@@ -109,18 +109,18 @@ function partnerPayload(body) {
 /**
  * Poveži postojeće transakcije organizacije sa partnerom: po žiro računu
  * (pouzdano) ili po labavo normalizovanom nazivu protivstrane (kvačice,
- * velika/mala slova i pravne forme se ignorišu). Prvo skine staru vezu,
- * pa veže sve stavke koje odgovaraju.
+ * velika/mala slova i pravne forme se ignorišu).
+ *
+ * Samo DODAJE veze i to samo stavkama koje ni na koga nisu vezane. Izmjena
+ * partnera ne smije ništa skinuti sa njegove kartice: ručno povezane stavke
+ * (korisnik ih je vezao na prozoru izvoda, često bez poklapanja naziva) ostaju,
+ * kao i stavke vezane za drugog partnera. Veza se skida samo ručno, na stavci.
  */
 async function relinkTransactions(partner) {
-  await BankTransaction.update(
-    { partnerId: null },
-    { where: { organizationId: partner.organizationId, partnerId: partner.id } },
-  );
   const accounts = Array.isArray(partner.accounts) ? partner.accounts : [];
   const pName = normalizeName(partner.name);
   const candidates = await BankTransaction.findAll({
-    where: { organizationId: partner.organizationId },
+    where: { organizationId: partner.organizationId, partnerId: null },
     attributes: ["id", "counterpartyAccount", "counterpartyName", "category"],
     raw: true,
   });
@@ -180,10 +180,15 @@ async function loadPartnerMatcher(organizationId) {
     const n = normalizeName(p.name);
     if (n) byName.set(n, p.id);
   }
-  return (tx) =>
+  const match = (tx) =>
     byAccount.get(normalizeDigits(tx.counterpartyAccount)) ??
     byName.get(normalizeName(tx.counterpartyName)) ??
     null;
+  // naučeno pravilo može pokazivati na obrisanog partnera, pa pozivalac kroz
+  // ovo provjeri da li id još postoji u organizaciji (bez novog upita)
+  const postojeci = new Set(partners.map((p) => p.id));
+  match.postoji = (id) => !!id && postojeci.has(Number(id));
+  return match;
 }
 
 /** Sljedeća slobodna šifra partnera u organizaciji. */
@@ -284,6 +289,7 @@ async function list(req, res) {
       {
         kupac: Number(r.kupacIznos) || 0,
         dobavljac: Number(r.dobavljacIznos) || 0,
+        godina: Number(String(r.datum).slice(0, 4)) || 0,
       },
     ]),
   );
@@ -390,6 +396,14 @@ async function list(req, res) {
       openingKupac = Math.max(0, r2(opening.kupac - pool.in));
       openingDob = Math.max(0, r2(opening.dobavljac - pool.out));
     }
+    // Početno stanje je donos na kartici, pa ulazi i u dugovnu/potražnu
+    // stranu liste: inače lista i kartica pokazuju različit saldo. Predznak se
+    // čuva (negativno stanje je avans, umanjuje stranu na kojoj stoji). U
+    // godišnjem pregledu ulazi samo ako je do te godine i nastalo: stanje
+    // uneseno kasnije ne smije viriti u raniju godinu.
+    const donosVazi = !!opening && (!year || opening.godina <= year);
+    const openingKupacUkupno = donosVazi ? opening.kupac : 0;
+    const openingDobUkupno = donosVazi ? opening.dobavljac : 0;
     return {
       ...p.toJSON(),
       accounts: Array.isArray(p.accounts) ? p.accounts : [],
@@ -397,11 +411,11 @@ async function list(req, res) {
         ...stats,
         openInvoicesTotal: r2(openTotal + openingKupac),
         openInvoicesCount: openCount + (openingKupac > 0 ? 1 : 0),
-        invoicesTotal,
+        invoicesTotal: r2(invoicesTotal + openingKupacUkupno),
         openPayablesTotal: r2(pay.total + openingDob),
         openPayablesCount: pay.count + (openingDob > 0 ? 1 : 0),
         racuniCount: pay.racuniCount,
-        racuniTotal: pay.racuniTotal,
+        racuniTotal: r2(pay.racuniTotal + openingDobUkupno),
       },
     };
   });
@@ -1317,6 +1331,21 @@ async function promet(req, res) {
       }
       acc.get(pid)[key] += val;
     };
+
+    // Početno stanje (donos iz ranijeg programa) je najstariji dokument na
+    // kartici, pa mora ući i ovdje: bez njega se izvještaj i kartica ne slažu.
+    // Ulazi kad mu datum pada u traženi period, kao i svaki drugi dokument.
+    const openingRows = await PartnerOpeningBalance.findAll({
+      where: { organizationId, datum: { [Op.gte]: from, [Op.lte]: to } },
+      raw: true,
+    });
+    for (const o of openingRows) {
+      // predznak se čuva: negativno stanje je avans (kao odobrenje na kartici)
+      if (wantKupac) bump(o.partnerId, "kDuguje", Number(o.kupacIznos) || 0);
+      if (wantDobavljac) {
+        bump(o.partnerId, "dPotrazuje", Number(o.dobavljacIznos) || 0);
+      }
+    }
 
     if (wantKupac) {
       // fakture se vežu po JIB-u pa po labavom nazivu kupca (kao kartica)
