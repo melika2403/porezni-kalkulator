@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   IconCloudUpload,
@@ -28,6 +28,11 @@ import { PkSelect } from "src/components/app-shell/PkSelect";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { PkAmountInput } from "src/components/app-shell/PkAmountInput";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
+import {
+  procitajOtvoreniIzvod,
+  zaboraviOtvoreniIzvod,
+  zapamtiOtvoreniIzvod,
+} from "src/lib/izvodiSkrol";
 import {
   useBankSummary,
   useBankStatements,
@@ -219,6 +224,52 @@ export default function BankovniIzvodiPage() {
 
   const { data: summary } = useBankSummary(orgId);
   const { data: statements, isLoading: stLoading } = useBankStatements(orgId);
+
+  // Povratak sa detalja izvoda vraća na isti red, ne na vrh liste. Id se
+  // pamti pri ulasku u izvod, a ovdje se red doskrola i nakratko istakne.
+  //
+  // Radi na mount (bez zavisnosti): lista stiže asinhrono, pa se red čeka u
+  // kratkoj petlji. Položaj se drži nekoliko ciklusa jer router pri prelasku
+  // na listu skrola na vrh, i to tek nakon prvog namještanja. Skrol je
+  // trenutan, animaciju (globalni scroll-behavior: smooth) bi router prekinuo.
+  useEffect(() => {
+    // Ključ se briše tek kad skrol uspije: u dev-u React montira efekat dva
+    // puta, pa bi ga brisanje odmah pojelo prije nego prvi prolaz odradi posao.
+    const id = procitajOtvoreniIzvod();
+    if (!id) return;
+
+    let ciklus = 0;
+    let namjesteno = 0;
+    let istaknuto = false;
+    const petlja = setInterval(() => {
+      ciklus += 1;
+      const red = document.getElementById(`izvod-${id}`);
+      if (red) {
+        const okvir = red.getBoundingClientRect();
+        const cilj = Math.max(
+          0,
+          window.scrollY + okvir.top - (window.innerHeight - okvir.height) / 2,
+        );
+        if (Math.abs(window.scrollY - cilj) > 8) {
+          window.scrollTo({ top: cilj, behavior: "instant" as ScrollBehavior });
+          namjesteno = 0;
+        } else {
+          namjesteno += 1;
+        }
+        if (!istaknuto) {
+          istaknuto = true;
+          red.classList.add("bg-brand-100/50");
+          setTimeout(() => red.classList.remove("bg-brand-100/50"), 1600);
+        }
+      }
+      // gotovo kad položaj miruje tri ciklusa, ili nakon ~1,5 s pokušavanja
+      if (namjesteno >= 3 || ciklus >= 15) {
+        clearInterval(petlja);
+        zaboraviOtvoreniIzvod();
+      }
+    }, 100);
+    return () => clearInterval(petlja);
+  }, []);
   const upload = useUploadBankStatement(orgId);
   const deleteStatement = useDeleteBankStatement(orgId);
   const setInitial = useSetInitialBalance(orgId);
@@ -799,13 +850,15 @@ export default function BankovniIzvodiPage() {
                                   </div>
                                 )}
                                 <div
-                                  onClick={() =>
-                                    s.bankId === "pocetno"
-                                      ? otvoriIzmjenuPocetnog(s)
-                                      : router.push(
-                                          `/app/bankovni-izvodi/${s.id}`,
-                                        )
-                                  }
+                                  id={`izvod-${s.id}`}
+                                  onClick={() => {
+                                    if (s.bankId === "pocetno") {
+                                      otvoriIzmjenuPocetnog(s);
+                                      return;
+                                    }
+                                    zapamtiOtvoreniIzvod(s.id);
+                                    router.push(`/app/bankovni-izvodi/${s.id}`);
+                                  }}
                                   className={[
                                     "flex items-center gap-3 pl-[49px] pr-4 py-[11px] cursor-pointer hover:bg-[rgba(15,26,18,0.025)] transition-colors border-b border-cream-300/50 border-l-[3px]",
                                     rub,
@@ -864,6 +917,7 @@ export default function BankovniIzvodiPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        zapamtiOtvoreniIzvod(s.id);
                                         router.push(
                                           `/app/bankovni-izvodi/${s.id}?bezKategorije=1`,
                                         );

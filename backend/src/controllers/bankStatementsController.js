@@ -40,6 +40,22 @@ function parseId(v) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+/**
+ * Partner za novu stavku izvoda:
+ *   1. kartica partnera (žiro račun ili naziv protivstrane sa kartice)
+ *   2. naučeno pravilo (korisnik je ranije ručno vezao tu protivstranu)
+ * Provizija banke, pazar, prenos i slično se ne vežu ni na koga.
+ * @returns {number|null}
+ */
+function odrediPartnera(tx, category, { matchPartner, learnedSuggest }) {
+  if (isNonPartnerCategory(category)) return null;
+  const saKartice = matchPartner(tx);
+  if (saKartice) return saKartice;
+  const naucen = learnedSuggest.partnerFor ? learnedSuggest.partnerFor(tx) : null;
+  // pravilo može pokazivati na obrisanog partnera
+  return matchPartner.postoji && matchPartner.postoji(naucen) ? naucen : null;
+}
+
 const toCents = (v) => Math.round(Number(v) * 100);
 const fmtKm = (v) =>
   Number(v).toLocaleString("de-DE", {
@@ -311,6 +327,10 @@ async function upload(req, res) {
         const category =
           learnedSuggest(tx) ??
           (invoiceId ? "PRIHOD_RACUN" : suggestCategory(tx));
+        const partnerId = odrediPartnera(tx, category, {
+          matchPartner,
+          learnedSuggest,
+        });
         return {
           organizationId,
           statementId: statement.id,
@@ -324,9 +344,7 @@ async function upload(req, res) {
           balanceAfter: tx.balanceAfter,
           category,
           invoiceId,
-          // provizija banke uz plaćanje nosi ime dobavljača u opisu, ali
-          // nije njegov promet: ne-partner kategorije se ne vežu na partnera
-          partnerId: isNonPartnerCategory(category) ? null : matchPartner(tx),
+          partnerId,
         };
       }),
       { transaction: t },
@@ -732,9 +750,7 @@ async function createManual(req, res) {
           partnerId:
             tx.partnerId != null && orgPartnerIds.has(tx.partnerId)
               ? tx.partnerId
-              : isNonPartnerCategory(category)
-                ? null
-                : matchPartner(tx),
+              : odrediPartnera(tx, category, { matchPartner, learnedSuggest }),
           // ručni unos je korisnik već pregledao stavku po stavku → odmah potvrđeno
           status: "CONFIRMED",
         };
@@ -1232,11 +1248,38 @@ async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
   // heuristike), osim kad je korisnik kategoriju u ovom pozivu eksplicitno
   // obrisao. Bez kategorije stavka ne ulazi u KPR.
   const explicitClear = category !== undefined && category == null;
+  let learnedSuggester = opts.ruleSuggester ?? null;
   if (tx.status === "CONFIRMED" && !tx.category && !explicitClear) {
-    const learned = opts.ruleSuggester ?? (await loadRuleSuggester(organizationId));
+    learnedSuggester =
+      learnedSuggester ?? (await loadRuleSuggester(organizationId));
     const plain = tx.get({ plain: true });
-    const auto = learned(plain) ?? suggestCategory(plain);
+    const auto = learnedSuggester(plain) ?? suggestCategory(plain);
     if (auto) tx.category = auto;
+  }
+
+  // Isto i za partnera, ali SAMO u trenutku potvrde stavke: kasnije izmjene
+  // (npr. promjena kategorije) ne smiju vratiti partnera kojeg je korisnik u
+  // međuvremenu ručno skinuo sa stavke.
+  const partnerClear = partnerId !== undefined && partnerId == null;
+  if (
+    prevStatus !== "CONFIRMED" &&
+    tx.status === "CONFIRMED" &&
+    !tx.partnerId &&
+    !partnerClear &&
+    !isNonPartnerCategory(tx.category)
+  ) {
+    learnedSuggester =
+      learnedSuggester ?? (await loadRuleSuggester(organizationId));
+    const naucen = learnedSuggester.partnerFor
+      ? learnedSuggester.partnerFor(tx.get({ plain: true }))
+      : null;
+    if (naucen) {
+      const postoji = await Partner.findOne({
+        where: { id: naucen, organizationId },
+        attributes: ["id"],
+      });
+      if (postoji) tx.partnerId = postoji.id;
+    }
   }
   await tx.save();
 

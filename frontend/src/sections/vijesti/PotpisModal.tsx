@@ -12,10 +12,13 @@ export default function PotpisModal({
   punoIme,
   onGotovo,
   onOdustani,
+  potvrdiTekst = "Potvrdi i objavi",
 }: {
   punoIme: string;
   onGotovo: (potpis: string) => void;
   onOdustani: () => void;
+  /** natpis dugmeta; podrazumijevani je za tok objave komentara */
+  potvrdiTekst?: string;
 }) {
   const [izbor, setIzbor] = useState<"nadimak" | "puno">("nadimak");
   const [ime, setIme] = useState("");
@@ -108,7 +111,7 @@ export default function PotpisModal({
             onClick={potvrdi}
             disabled={salje || (izbor === "nadimak" && ime.trim().length < 3)}
           >
-            {salje ? "Snimam..." : "Potvrdi i objavi"}
+            {salje ? "Snimam..." : potvrdiTekst}
           </button>
         </div>
       </div>

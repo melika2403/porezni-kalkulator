@@ -1814,6 +1814,8 @@ const BankMatchRule = sequelize.define(
     matchValue: { type: DataTypes.STRING(255), allowNull: false },
     direction: { type: DataTypes.ENUM("IN", "OUT"), allowNull: false },
     category: { type: DataTypes.STRING(60), allowNull: false },
+    // partner kojeg je korisnik povezao uz ovu protivstranu; null = nije vezao
+    partnerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     timesConfirmed: {
       type: DataTypes.INTEGER.UNSIGNED,
       allowNull: false,

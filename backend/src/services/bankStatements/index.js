@@ -6,6 +6,7 @@
 
 const { extractTextItems, groupIntoRows } = require("../../utils/pdfText");
 const { validateStatement } = require("./engine");
+const { dopuniProtivstranu } = require("./counterparty");
 
 // Redoslijed je bitan: specifičnije banke prije generičkog Asseco formata.
 const BANKS = [
@@ -68,6 +69,10 @@ async function parseBankStatement(buffer) {
       bankId: bank.id,
     };
   }
+
+  // naziv i račun protivstrane iz opisa, tamo gdje ih banka ne daje zasebno;
+  // ide prije validacije jer ne dira iznose, samo dopunjava prazna polja
+  dopuniProtivstranu(result.transactions);
 
   const validation = validateStatement(result);
   return {
