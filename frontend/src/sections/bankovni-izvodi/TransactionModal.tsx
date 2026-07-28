@@ -9,6 +9,8 @@ import {
   IconLink,
   IconLinkOff,
   IconExternalLink,
+  IconPlus,
+  IconUserPlus,
 } from "@tabler/icons-react";
 import { formatBAM, formatDate } from "src/lib/format";
 import { Modal } from "src/components/app-shell/Modal";
@@ -112,6 +114,34 @@ export function TransactionModal({
   // dok korisnik kuca (draft != null), combobox se ponaša kao nepovezan
   const shownPartnerId =
     tx?.partnerId != null && draft === null ? tx.partnerId : null;
+
+  // Podaci protivstrane sa izvoda: osnova za novog partnera (dugme + i ponuda)
+  const cpNaziv = (tx?.counterpartyName ?? "").trim();
+  const cpRacun = (tx?.counterpartyAccount ?? "").replace(/\D+/g, "");
+  function otvoriNovogPartnera(naziv?: string) {
+    setNewPartnerInitial({
+      ...EMPTY_PARTNER_FORM,
+      name: (naziv ?? "").trim() || cpNaziv,
+      accounts: cpRacun ? [cpRacun] : [""],
+    });
+  }
+
+  // Ponuda "dodaj kao partnera": izvod nosi firmu, stavka nije vezana i te
+  // protivstrane još nema u partnerima (isti kriterij kao auto-match na
+  // serveru: žiro račun, pa naziv).
+  const normIme = (s: string) => s.toUpperCase().replace(/\s+/g, " ").trim();
+  const vecPostoji = (partners ?? []).some(
+    (p) =>
+      (cpRacun.length >= 8 &&
+        (p.accounts ?? []).some((a) => a.replace(/\D+/g, "") === cpRacun)) ||
+      (!!cpNaziv && normIme(p.name) === normIme(cpNaziv)),
+  );
+  const nudiNovog =
+    tx != null &&
+    tx.partnerId == null &&
+    draft === null &&
+    !!cpNaziv &&
+    !vecPostoji;
 
   return (
     <Modal
@@ -240,22 +270,23 @@ export function TransactionModal({
                     }
                   }}
                   partners={partners ?? []}
-                  onRequestNew={(typed) => {
-                    const digits = (tx.counterpartyAccount ?? "").replace(
-                      /\D+/g,
-                      "",
-                    );
-                    setNewPartnerInitial({
-                      ...EMPTY_PARTNER_FORM,
-                      name: typed.trim() || tx.counterpartyName || "",
-                      accounts: digits ? [digits] : [""],
-                    });
-                  }}
+                  onRequestNew={(typed) => otvoriNovogPartnera(typed)}
                   placeholder="poveži: naziv, šifra ili žiro račun partnera"
                   ariaLabel="Partner"
                   inputClassName="bg-cream-50"
                 />
               </div>
+              {tx.partnerId == null && (
+                <button
+                  type="button"
+                  onClick={() => otvoriNovogPartnera(draft ?? "")}
+                  title="Novi partner (podaci sa izvoda se popune sami)"
+                  aria-label="Novi partner"
+                  className="w-9 h-9 shrink-0 rounded-lg border border-cream-300 text-text-tertiary hover:text-brand-600 hover:border-brand-600 inline-flex items-center justify-center transition-colors"
+                >
+                  <IconPlus size={16} />
+                </button>
+              )}
               {tx.partnerId != null && (
                 <button
                   type="button"
@@ -273,12 +304,34 @@ export function TransactionModal({
                 </button>
               )}
             </div>
+            {nudiNovog && (
+              <button
+                type="button"
+                onClick={() => otvoriNovogPartnera()}
+                className="mt-2 w-full flex items-start gap-2 text-left px-3 py-2 rounded-lg border border-brand-600/30 bg-brand-100/40 hover:bg-brand-100 transition-colors"
+              >
+                <IconUserPlus
+                  size={15}
+                  className="text-brand-600 shrink-0 mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] font-medium text-brand-700 break-words">
+                    Dodaj {cpNaziv} kao partnera
+                  </span>
+                  <span className="block text-[11.5px] text-text-tertiary">
+                    Sa izvoda: {cpRacun ? `žiro račun ${cpRacun}` : "naziv"}.
+                    Nakon snimanja stavka se odmah veže na njegovu karticu.
+                  </span>
+                </span>
+              </button>
+            )}
             <p className="text-[11.5px] text-text-tertiary mt-1.5">
               Povezana stavka se vodi na kartici partnera
               {tx.direction === "OUT"
                 ? "; potvrđena isplata dobavljaču zatvara njegov otvoren ulazni račun"
                 : ""}
-              .
+              . Kad prvi put povežete partnera i kategoriju, sljedeći izvod se
+              za istu protivstranu popuni sam.
             </p>
           </div>
 

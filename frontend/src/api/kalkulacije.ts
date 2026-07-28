@@ -18,6 +18,8 @@ export type Artikal = {
   barkod: string | null;
   oslobodjenPdv: boolean;
   aktivan: boolean;
+  /** datum zadnje kalkulacije sa ovim artiklom (null = nikad korišten) */
+  zadnjaUpotreba?: string | null;
 };
 
 export type ArtikalPayload = {
@@ -116,6 +118,8 @@ export type KalkulacijaPayload = {
   datumRacuna: string;
   bezPdv?: boolean;
   napomena?: string;
+  /** opciono: ručno izabran redni broj u godini; prazno = sljedeći slobodan */
+  broj?: number;
   /** opciono (samo PDV obveznik): odbitni PDV kako piše na računu
    *  dobavljača; pregazi obračunatih 17% u KUF-u i iznosu računa */
   ulazniPdv?: number;

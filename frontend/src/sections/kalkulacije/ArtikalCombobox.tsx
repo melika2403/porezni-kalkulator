@@ -3,9 +3,36 @@
 // Combobox za izbor artikla: odmah se kuca (šifra ili naziv), lista se
 // filtrira uživo, strelice + Enter biraju. Nakon izbora fokus ide na
 // sljedeće polje (onPicked), pa se stavka unosi bez miša.
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { IconChevronDown } from "@tabler/icons-react";
 import type { Artikal } from "src/api/kalkulacije";
+
+// Prazno polje pokazuje zadnje korištene artikle (kod šifarnika od stotinu
+// stavki abecedni popis ne pomaže), a kucanje daje rangirane pogotke.
+const BEZ_UPITA = 10;
+const SA_UPITOM = 20;
+
+/** Rang pogotka: manji broj = bliži pogodak, prikazuje se prije ostalih. */
+function rang(a: Artikal, q: string): number | null {
+  const sifra = a.sifra.toLowerCase();
+  const naziv = a.naziv.toLowerCase();
+  const barkod = (a.barkod ?? "").toLowerCase();
+  if (sifra === q || (barkod && barkod === q)) return 0;
+  if (sifra.startsWith(q)) return 1;
+  if (naziv.startsWith(q)) return 2;
+  if (naziv.includes(q)) return 3;
+  return null;
+}
+
+/** Noviji datum zadnje upotrebe ide prvi; nekorišteni na kraj. */
+function poUpotrebi(a: Artikal, b: Artikal): number {
+  const av = a.zadnjaUpotreba ?? "";
+  const bv = b.zadnjaUpotreba ?? "";
+  if (av === bv) return a.sifra.localeCompare(b.sifra);
+  if (!av) return 1;
+  if (!bv) return -1;
+  return bv.localeCompare(av);
+}
 
 export function ArtikalCombobox({
   artikli,
@@ -33,16 +60,18 @@ export function ArtikalCombobox({
   const shown = query ?? label;
 
   const q = (query ?? "").trim().toLowerCase();
-  const filtered = (
-    q
-      ? artikli.filter(
-          (a) =>
-            a.sifra.toLowerCase().startsWith(q) ||
-            a.naziv.toLowerCase().includes(q) ||
-            (a.barkod ?? "").toLowerCase() === q,
-        )
-      : artikli
-  ).slice(0, 50);
+  // pogoci (svi) pa rez za prikaz: brojač na dnu treba i ukupan broj
+  const pogoci = useMemo(() => {
+    if (!q) return [...artikli].sort(poUpotrebi);
+    return artikli
+      .map((a) => ({ a, r: rang(a, q) }))
+      .filter((x): x is { a: Artikal; r: number } => x.r != null)
+      .sort((x, y) => (x.r !== y.r ? x.r - y.r : poUpotrebi(x.a, y.a)))
+      .map((x) => x.a);
+  }, [artikli, q]);
+  const limit = q ? SA_UPITOM : BEZ_UPITA;
+  const filtered = pogoci.slice(0, limit);
+  const skriveno = pogoci.length - filtered.length;
 
   function pick(a: Artikal) {
     onSelect(a);
@@ -97,11 +126,12 @@ export function ArtikalCombobox({
         }}
         className="w-full rounded-lg border border-cream-300 bg-cream-50 pl-3 pr-8 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600"
       />
-      {/* dugme koje otvara/zatvara CIJELU listu artikala */}
+      {/* dugme otvara listu zadnje korištenih artikala */}
       <button
         type="button"
         tabIndex={-1}
-        aria-label="Prikaži sve artikle"
+        aria-label="Prikaži zadnje korištene artikle"
+        title="Zadnje korišteni artikli; za ostale kucajte šifru, naziv ili bar kod"
         onMouseDown={(e) => {
           e.preventDefault();
           if (blurTimer.current) window.clearTimeout(blurTimer.current);
@@ -121,8 +151,9 @@ export function ArtikalCombobox({
           className={`transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
+      {/* min-w: naziv artikla je duži od polja, bez toga se lomi u dva reda */}
       {open && filtered.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-cream-300 bg-cream-100 shadow-lg py-1">
+        <div className="absolute z-20 mt-1 w-full min-w-[340px] max-h-72 overflow-y-auto rounded-lg border border-cream-300 bg-cream-100 shadow-lg py-1">
           {filtered.map((a, i) => (
             <button
               key={a.id}
@@ -133,7 +164,7 @@ export function ArtikalCombobox({
               }}
               onMouseEnter={() => setHi(i)}
               className={[
-                "w-full text-left px-3 py-1.5 text-[13px] transition-colors",
+                "w-full text-left px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors",
                 i === hi
                   ? "bg-cream-200 text-text-primary"
                   : "text-text-primary hover:bg-cream-200",
@@ -145,6 +176,21 @@ export function ArtikalCombobox({
               {a.naziv}
             </button>
           ))}
+          {/* koliko se vidi od ukupno: da se ne pomisli da traženog nema */}
+          <div className="sticky bottom-0 border-t border-cream-300 bg-cream-100 px-3 py-1.5 text-[11.5px] text-text-tertiary">
+            {q ? (
+              <>
+                Prikazano {filtered.length} od {pogoci.length}{" "}
+                {pogoci.length === 1 ? "pogotka" : "pogodaka"}
+                {skriveno > 0 ? ", suzite pretragu" : ""}
+              </>
+            ) : (
+              <>
+                Zadnje korišteni artikli: {filtered.length} od {artikli.length}
+                . Kucajte šifru, naziv ili bar kod za ostale.
+              </>
+            )}
+          </div>
         </div>
       )}
       {open && filtered.length === 0 && q && (

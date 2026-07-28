@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 import {
@@ -18,6 +18,7 @@ import {
   type Obavjestenje,
 } from "src/api/vijestiKomentari";
 import { Avatar } from "./Potpis";
+import PotpisModal from "./PotpisModal";
 import { relativnoVrijeme } from "src/lib/vijestiServer";
 import styles from "./vijesti.module.css";
 
@@ -45,8 +46,12 @@ function opis(o: Obavjestenje): string {
 
 export default function ProfilDugme() {
   const [otvoren, setOtvoren] = useState(false);
+  // korisnik bez izabranog potpisa još nema profil u Vijestima: umjesto
+  // panela (i linka na profil koji bi vratio 404) prvo bira korisničko ime
+  const [trebaPotpis, setTrebaPotpis] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { data: korisnik, isLoading } = useQuery({
@@ -160,7 +165,15 @@ export default function ProfilDugme() {
       <button
         type="button"
         className={styles.profilDugme}
-        onClick={() => setOtvoren((v) => !v)}
+        onClick={() => {
+          // bez potpisa nema profila: prvo izbor korisničkog imena
+          if (postavke && !postavke.izabran) {
+            setOtvoren(false);
+            setTrebaPotpis(true);
+            return;
+          }
+          setOtvoren((v) => !v);
+        }}
         aria-label="Profil i obavještenja"
       >
         <Avatar
@@ -240,6 +253,22 @@ export default function ProfilDugme() {
             Sva obavještenja &rarr;
           </Link>
         </div>
+      )}
+
+      {/* izbor potpisa otvara profil čim je gotov */}
+      {trebaPotpis && (
+        <PotpisModal
+          punoIme={`${korisnik.firstName ?? ""} ${korisnik.lastName ?? ""}`.trim()}
+          onOdustani={() => setTrebaPotpis(false)}
+          potvrdiTekst="Sačuvaj i otvori profil"
+          onGotovo={async () => {
+            setTrebaPotpis(false);
+            await queryClient.invalidateQueries({
+              queryKey: ["vijesti-moje-postavke"],
+            });
+            router.push(`/vijesti/korisnik/${korisnik.id}`);
+          }}
+        />
       )}
     </div>
   );

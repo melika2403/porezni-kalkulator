@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import VijestiHeader from "src/sections/vijesti/VijestiHeader";
+import ProfilNeotvoren from "src/sections/vijesti/ProfilNeotvoren";
 import { Avatar, Kvacica } from "src/sections/vijesti/Potpis";
 import ProfilPostavke from "src/sections/vijesti/ProfilPostavke";
 import MojaObavjestenja from "src/sections/vijesti/MojaObavjestenja";
@@ -46,7 +46,16 @@ export default async function ProfilKomentatoraPage({
 }) {
   const { id } = await params;
   const profil = await dohvatiProfil(id);
-  if (!profil) notFound();
+  // profil postoji tek kad korisnik izabere potpis; vlasniku naloga se tu
+  // ponudi izbor korisničkog imena umjesto sirovog 404
+  if (!profil) {
+    return (
+      <div className={styles.page}>
+        <VijestiHeader bezAktivne />
+        <ProfilNeotvoren profilId={Number(id) || 0} />
+      </div>
+    );
+  }
 
   const { korisnik, komentari } = profil;
 

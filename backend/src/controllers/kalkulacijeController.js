@@ -195,6 +195,17 @@ async function prepare(organizationId, body) {
     totals.ulazniPdv = r2(v);
   }
 
+  // Ručni redni broj (opciono): korisnik ga bira sam, npr. da nastavi
+  // numeraciju iz starog programa. Prazno = automatski sljedeći.
+  let zeljeniBroj = null;
+  if (body.broj !== undefined && body.broj !== null && String(body.broj).trim() !== "") {
+    const n = Number(body.broj);
+    if (!Number.isInteger(n) || n < 1 || n > 999999) {
+      return { status: 400, error: "BROJ_INVALID" };
+    }
+    zeljeniBroj = n;
+  }
+
   return {
     header: {
       datum,
@@ -204,11 +215,28 @@ async function prepare(organizationId, body) {
       bezPdv: bezPdvRacun && orgObveznik ? true : false,
       napomena: String(body.napomena || "").trim() || null,
     },
+    zeljeniBroj,
     partner,
     orgObveznik,
     stavke,
     totals,
   };
+}
+
+/**
+ * Da li je redni broj u toj godini već zauzet (osim same kalkulacije koja se
+ * uređuje)? Unique indeks je konačna zaštita, ovo je provjera prije upisa da
+ * korisnik dobije jasnu poruku umjesto greške baze.
+ */
+async function zauzetBroj(organizationId, godina, broj, t, osimId = null) {
+  const where = { organizationId, godina, broj };
+  if (osimId) where.id = { [Op.ne]: osimId };
+  const zauzeo = await Kalkulacija.findOne({
+    where,
+    attributes: ["id"],
+    transaction: t,
+  });
+  return !!zauzeo;
 }
 
 // Monotoni redni broj po organizaciji i godini: MAX+1 (ne count), unique
@@ -428,7 +456,7 @@ async function create(req, res) {
     if (prep.error) {
       return res.status(prep.status).json({ ok: false, error: prep.error });
     }
-    const { header, stavke, totals } = prep;
+    const { header, stavke, totals, zeljeniBroj } = prep;
     const godina = Number(header.datum.slice(0, 4));
 
     let created = null;
@@ -436,7 +464,14 @@ async function create(req, res) {
       try {
         // eslint-disable-next-line no-await-in-loop
         created = await sequelize.transaction(async (t) => {
-          const broj = await nextBroj(organizationId, godina, t);
+          let broj;
+          if (zeljeniBroj != null) {
+            const zauzeo = await zauzetBroj(organizationId, godina, zeljeniBroj, t);
+            if (zauzeo) throw new AbortError("BROJ_ZAUZET");
+            broj = zeljeniBroj;
+          } else {
+            broj = await nextBroj(organizationId, godina, t);
+          }
           const iznosRacuna = r2(totals.fakturnaVrijednost + totals.ulazniPdv);
           let racun = null;
           if (iznosRacuna > 0) {
@@ -468,6 +503,13 @@ async function create(req, res) {
         });
         break;
       } catch (e) {
+        // ručno izabran broj: ne pokušavaj drugi, javi da je zauzet
+        if (e instanceof AbortError && e.abortCode === "BROJ_ZAUZET") {
+          return res.status(409).json({ ok: false, error: "BROJ_ZAUZET" });
+        }
+        if (e.name === "SequelizeUniqueConstraintError" && zeljeniBroj != null) {
+          return res.status(409).json({ ok: false, error: "BROJ_ZAUZET" });
+        }
         // istovremeni zahtjev je zauzeo isti broj: probaj ponovo (max 4)
         if (e.name === "SequelizeUniqueConstraintError" && attempt < 3) {
           continue;
@@ -520,7 +562,7 @@ async function update(req, res) {
     if (prep.error) {
       return res.status(prep.status).json({ ok: false, error: prep.error });
     }
-    const { header, stavke, totals } = prep;
+    const { header, stavke, totals, zeljeniBroj } = prep;
     const godina = Number(header.datum.slice(0, 4));
 
     let result = null;
@@ -546,11 +588,27 @@ async function update(req, res) {
             throw new AbortError("RACUN_PLACEN");
           }
 
-          // promjena godine mijenja i redni broj (numeracija po godini)
-          const broj =
-            godina === k.godina
-              ? k.broj
-              : await nextBroj(organizationId, godina, t);
+          // ručno izabran broj ima prednost; inače promjena godine mijenja i
+          // redni broj (numeracija ide po godini)
+          let broj;
+          if (zeljeniBroj != null) {
+            if (zeljeniBroj !== k.broj || godina !== k.godina) {
+              const zauzeo = await zauzetBroj(
+                organizationId,
+                godina,
+                zeljeniBroj,
+                t,
+                k.id,
+              );
+              if (zauzeo) throw new AbortError("BROJ_ZAUZET");
+            }
+            broj = zeljeniBroj;
+          } else {
+            broj =
+              godina === k.godina
+                ? k.broj
+                : await nextBroj(organizationId, godina, t);
+          }
 
           const iznosRacuna = r2(totals.fakturnaVrijednost + totals.ulazniPdv);
           const fields = racunFields(header, totals, broj, godina);
@@ -595,6 +653,10 @@ async function update(req, res) {
         if (e instanceof AbortError) {
           const code = e.abortCode === "NOT_FOUND" ? 404 : 409;
           return res.status(code).json({ ok: false, error: e.abortCode });
+        }
+        // ručno izabran broj: ne traži drugi, javi da je zauzet
+        if (e.name === "SequelizeUniqueConstraintError" && zeljeniBroj != null) {
+          return res.status(409).json({ ok: false, error: "BROJ_ZAUZET" });
         }
         if (e.name === "SequelizeUniqueConstraintError" && attempt < 3) {
           continue;
@@ -767,7 +829,27 @@ async function listArtikli(req, res) {
     where: { organizationId },
     order: [["sifra", "ASC"]],
   });
-  return res.json({ ok: true, data: rows.map(artikalJson) });
+  // datum zadnje kalkulacije po artiklu: unos nudi zadnje korištene artikle
+  // dok se ne počne kucati (kod šifarnika od stotinu stavki abecedni popis
+  // ničemu ne služi)
+  const [upotreba] = await sequelize.query(
+    `SELECT ks.artikalId AS id, MAX(k.datum) AS zadnja
+       FROM kalkulacija_stavke ks
+       JOIN kalkulacije k ON k.id = ks.kalkulacijaId
+      WHERE k.organizationId = ?
+      GROUP BY ks.artikalId`,
+    { replacements: [organizationId] },
+  );
+  const zadnjaPoArtiklu = new Map(
+    upotreba.map((r) => [Number(r.id), r.zadnja ? String(r.zadnja).slice(0, 10) : null]),
+  );
+  return res.json({
+    ok: true,
+    data: rows.map((a) => ({
+      ...artikalJson(a),
+      zadnjaUpotreba: zadnjaPoArtiklu.get(a.id) ?? null,
+    })),
+  });
 }
 
 // sljedeća slobodna numerička šifra ("0001", "0002", ...)
