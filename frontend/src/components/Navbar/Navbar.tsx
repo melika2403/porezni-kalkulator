@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTheme } from 'next-themes';
 import styles from './Navbar.module.css';
 import { me, logout, unwrap } from 'src/api/auth';
 import { getOrganizations, getClientOrganizations } from 'src/api/profile';
@@ -62,6 +63,18 @@ export default function Navbar() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Tamna tema: isti next-themes provider (i pohrana) kao PK Office, pa je
+  // izbor teme sinhronizovan između marketinga i /app. mounted čuva od
+  // hydration mismatcha (server ne zna temu).
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // setTimeout-0: lint (set-state-in-effect) ne dozvoljava sinhroni setState
+    const t = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(t);
+  }, []);
+  const isDark =
+    mounted && (theme === 'system' ? resolvedTheme : theme) === 'dark';
   // "?" uz PK Office dugme: mali popover sa najjačim funkcijama
   const [pkInfoOpen, setPkInfoOpen] = useState(false);
   // Profil meni (chip sa avatarom → dropdown), isti obrazac kao PK Office
@@ -338,6 +351,44 @@ export default function Navbar() {
       </button>
 
       <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.themeToggle}
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+          title={isDark ? 'Svijetla tema' : 'Tamna tema'}
+          aria-label={isDark ? 'Uključi svijetlu temu' : 'Uključi tamnu temu'}
+        >
+          {isDark ? (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+          ) : (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </button>
         {!isLoading && (user ? (
           <>
             {needsOrg && (
@@ -433,11 +484,11 @@ export default function Navbar() {
                     width: 24,
                     height: 24,
                     borderRadius: "50%",
-                    background: pkInfoOpen ? "#c8622a" : "#fff",
+                    background: pkInfoOpen ? "var(--accent)" : "var(--white)",
                     border: pkInfoOpen
-                      ? "1px solid #c8622a"
-                      : "1px solid #d4cfc4",
-                    color: pkInfoOpen ? "#fff" : "#7a8a7d",
+                      ? "1px solid var(--accent)"
+                      : "1px solid var(--border)",
+                    color: pkInfoOpen ? "var(--white)" : "var(--mid)",
                     fontSize: 13,
                     fontWeight: 700,
                     cursor: "pointer",
@@ -454,8 +505,8 @@ export default function Navbar() {
                       top: "calc(100% + 10px)",
                       right: 0,
                       width: 320,
-                      background: "#fff",
-                      border: "1px solid #d4cfc4",
+                      background: "var(--white)",
+                      border: "1px solid var(--border)",
                       borderRadius: 14,
                       boxShadow: "0 18px 44px -14px rgba(15,26,18,0.3)",
                       padding: "16px 18px",
@@ -469,7 +520,7 @@ export default function Navbar() {
                         fontWeight: 700,
                         letterSpacing: "0.06em",
                         textTransform: "uppercase",
-                        color: "#c8622a",
+                        color: "var(--accent)",
                         marginBottom: 6,
                       }}
                     >
@@ -479,7 +530,7 @@ export default function Navbar() {
                       style={{
                         fontSize: 14.5,
                         fontWeight: 600,
-                        color: "#0f1a12",
+                        color: "var(--ink)",
                         marginBottom: 10,
                       }}
                     >
@@ -507,12 +558,12 @@ export default function Navbar() {
                           style={{
                             fontSize: 13,
                             lineHeight: 1.45,
-                            color: "#3d4a40",
+                            color: "var(--ink)",
                             display: "flex",
                             gap: 7,
                           }}
                         >
-                          <span style={{ color: "#c8622a", flexShrink: 0 }}>
+                          <span style={{ color: "var(--accent)", flexShrink: 0 }}>
                             ✓
                           </span>
                           {f}
@@ -523,7 +574,7 @@ export default function Navbar() {
                       style={{
                         fontSize: 11.5,
                         lineHeight: 1.5,
-                        color: "#7a8a7d",
+                        color: "var(--mid)",
                         margin: "0 0 12px",
                       }}
                     >
@@ -541,8 +592,8 @@ export default function Navbar() {
                           fontWeight: 600,
                           padding: "8px 10px",
                           borderRadius: 10,
-                          border: "1px solid #d4cfc4",
-                          color: "#0f1a12",
+                          border: "1px solid var(--border)",
+                          color: "var(--ink)",
                           textDecoration: "none",
                         }}
                       >
@@ -558,8 +609,8 @@ export default function Navbar() {
                           fontWeight: 600,
                           padding: "8px 10px",
                           borderRadius: 10,
-                          background: "#c8622a",
-                          color: "#fff",
+                          background: "var(--accent)",
+                          color: "var(--white)",
                           textDecoration: "none",
                         }}
                       >
@@ -655,6 +706,44 @@ export default function Navbar() {
                     </svg>
                     Pretplata
                   </Link>
+                  <button
+                    type="button"
+                    className={`${styles.userMenuItem} ${styles.userMenuItemBtn}`}
+                    onClick={() => {
+                      setTheme(isDark ? 'light' : 'dark');
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    {isDark ? (
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                      </svg>
+                    )}
+                    {isDark ? 'Svijetla tema' : 'Tamna tema'}
+                  </button>
                   <div className={styles.userMenuSep} />
                   <button
                     type="button"

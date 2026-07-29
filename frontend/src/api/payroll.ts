@@ -444,9 +444,9 @@ export async function generateMonthlyUplatnice(
   | { ok: false; error: string }
 > {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("PLATNI_LISTIC_GENERATE", "Platni listići mjeseca");
+  trackEvent("PLATNI_LISTIC_GENERATE", "Platni listići mjeseca", organizationId);
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("UPLATNICE_GENERATE", "Zbirne uplatnice");
+  trackEvent("UPLATNICE_GENERATE", "Zbirne uplatnice", organizationId);
   const sp = new URLSearchParams({
     organizationId: String(organizationId),
     year: String(year),
@@ -547,7 +547,7 @@ export async function generatePostingOrder(
  ok: true; blob: Blob; filename: string } | { ok: false; error: string }
 > {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("NALOG_KNJIZENJE_GENERATE", "Nalog za knjiženje");
+  trackEvent("NALOG_KNJIZENJE_GENERATE", "Nalog za knjiženje", organizationId);
   try {
     const res = await fetch(`${BACKEND_URL}/api/payroll/posting-order`, {
       method: "POST",
@@ -622,9 +622,10 @@ export async function emailMonthlyPayslipsBulk(
 export async function generateWorkerPayslip(
   payrollId: number,
   paymentDate?: string,
+  organizationId?: number | null,
 ): Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; error: string }> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("PLATNI_LISTIC_GENERATE", "Platni listić radnika");
+  trackEvent("PLATNI_LISTIC_GENERATE", "Platni listić radnika", organizationId);
   const sp = new URLSearchParams();
   if (paymentDate) sp.set("paymentDate", paymentDate);
   const qs = sp.toString();

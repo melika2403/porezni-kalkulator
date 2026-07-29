@@ -183,7 +183,7 @@
 
 /* ── Table card ───────────────────────────────────────────────────────── */
 .tableWrap {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   /* auto umjesto hidden: kad je sadržaj širi od ekrana, tabela dobije
@@ -311,6 +311,51 @@
   white-space: nowrap;
 }
 
+/* Ručna verifikacija: dugme u drugom redu ISPOD "Neverifikovan" bedža,
+   da kolona ne raste u širinu (gurala je ikone akcija van ekrana) */
+.verifyStack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Mala pilula "Verifikuj" */
+.btnVerify {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sage) 45%, transparent);
+  background: color-mix(in srgb, var(--sage) 8%, transparent);
+  color: var(--sage);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btnVerify:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sage) 16%, transparent);
+  border-color: var(--sage);
+}
+
+.btnVerify:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.verifyError {
+  font-size: 11.5px;
+  color: var(--err-text);
+  /* prelama se unutar kolone, ne smije je širiti */
+  white-space: normal;
+  max-width: 160px;
+}
+
 /* Vlasnik / radnik */
 .vlasnikBadge {
   background: #fce5d8;
@@ -366,7 +411,7 @@
   padding: 0.4rem 0.55rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: white;
+  background: var(--white);
   color: var(--ink);
   outline: none;
   width: 80px;
@@ -384,7 +429,7 @@
   padding: 0.35rem 0.55rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: white;
+  background: var(--white);
   color: var(--ink);
   cursor: pointer;
 }
@@ -443,7 +488,7 @@
 .empty,
 .loading,
 .errorBox {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 3rem 2rem;
@@ -566,7 +611,7 @@
   width: 18px;
   left: 3px;
   top: 3px;
-  background: white;
+  background: var(--white);
   border-radius: 50%;
   transition: transform 0.2s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);

@@ -73,6 +73,19 @@ export const kalkulacije: Upustvo = {
       ],
     },
     {
+      naslov: "Ispis i potpisnici",
+      blokovi: [
+        {
+          t: "p",
+          text: "PDF kalkulacije (KCM obrazac) se preuzima sa liste (ikona za preuzimanje) ili dugmetom Preuzmi PDF na samoj kalkulaciji. To dugme ispisuje snimljeno stanje bez spremanja, pa radi i kad je kalkulacija zaključana jer joj je ulazni račun već plaćen.",
+        },
+        {
+          t: "p",
+          text: "U dnu PDF-a su potpisnici: lijevo Kalkulaciju uradio (ime koje upišete dugmetom Potpisnik iznad liste kalkulacija), desno Kalkulaciju primio sa nazivom obrta. Potpisnik vrijedi za taj obrt i može se promijeniti u svakom trenutku.",
+        },
+      ],
+    },
+    {
       naslov: "Veza sa KUF i lagerom",
       blokovi: [
         {
@@ -86,6 +99,10 @@ export const kalkulacije: Upustvo = {
     {
       p: "Kako da brzo unesem puno artikala?",
       o: "Enter vodi kroz polja i na MPC-u dodaje stavku, pa se cijela kalkulacija može otkucati bez miša. F3 skače pravo na maloprodajnu cijenu.",
+    },
+    {
+      p: "Kako da odštampam kalkulaciju kojoj je račun već plaćen?",
+      o: "Otvorite je i kliknite Preuzmi PDF. To dugme ispisuje snimljeno stanje bez spremanja, pa radi i kad su izmjene zaključane zbog plaćenog računa.",
     },
     {
       p: "Zašto lista artikala ne pokazuje cijeli šifarnik?",

@@ -60,7 +60,7 @@
   padding: 0.65rem 1.25rem;
   font-size: 13px;
   font-weight: 600;
-  background: #c8622a;
+  background: var(--accent);
   color: #fff;
   border-radius: 10px;
   text-decoration: none;

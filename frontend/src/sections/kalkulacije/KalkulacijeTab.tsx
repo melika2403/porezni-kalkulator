@@ -6,13 +6,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IconCopy,
   IconDownload,
   IconLoader2,
   IconPencil,
   IconPlus,
+  IconSignature,
   IconTrash,
 } from "@tabler/icons-react";
 import { Modal } from "src/components/app-shell/Modal";
@@ -20,7 +21,11 @@ import { PkSelect } from "src/components/app-shell/PkSelect";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { useDeleteKalkulacija, useKalkulacije } from "src/hooks/useKalkulacije";
 import { usePartners } from "src/hooks/usePartners";
-import { getKalkulacija, type Kalkulacija } from "src/api/kalkulacije";
+import {
+  getKalkulacija,
+  setKalkulacijePotpisnik,
+  type Kalkulacija,
+} from "src/api/kalkulacije";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { formatBAM, formatDate, todayIso } from "src/lib/format";
@@ -82,6 +87,34 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
   const [brisi, setBrisi] = useState<Kalkulacija | null>(null);
   const [brisiError, setBrisiError] = useState<string | null>(null);
   const [pdfId, setPdfId] = useState<number | null>(null);
+
+  // potpisnik na ispisu ("Kalkulaciju uradio"); vrijedi za ovaj obrt
+  const queryClient = useQueryClient();
+  const [potpisnikOpen, setPotpisnikOpen] = useState(false);
+  const [potpisnikS, setPotpisnikS] = useState("");
+  const [potpisnikSaving, setPotpisnikSaving] = useState(false);
+  const [potpisnikError, setPotpisnikError] = useState<string | null>(null);
+
+  function otvoriPotpisnika() {
+    setPotpisnikS(fullOrg?.kalkulacijePotpisnik ?? "");
+    setPotpisnikError(null);
+    setPotpisnikOpen(true);
+  }
+
+  async function sacuvajPotpisnika() {
+    if (orgId == null) return;
+    setPotpisnikSaving(true);
+    setPotpisnikError(null);
+    try {
+      await unwrap(setKalkulacijePotpisnik(orgId, potpisnikS));
+      await queryClient.invalidateQueries({ queryKey: ["pk-org", orgId] });
+      setPotpisnikOpen(false);
+    } catch {
+      setPotpisnikError("Snimanje nije uspjelo, pokušajte ponovo.");
+    } finally {
+      setPotpisnikSaving(false);
+    }
+  }
 
   const rows = useMemo(() => {
     const all = kalkulacije ?? [];
@@ -218,9 +251,22 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
             className="w-full rounded-lg border border-cream-300 bg-cream-100 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600"
           />
         </div>
+        <button
+          type="button"
+          onClick={otvoriPotpisnika}
+          title={
+            fullOrg?.kalkulacijePotpisnik
+              ? `Potpisnik na ispisu: ${fullOrg.kalkulacijePotpisnik}`
+              : "Upišite ko radi kalkulacije: ime ide na PDF (Kalkulaciju uradio)"
+          }
+          className="ml-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+        >
+          <IconSignature size={15} />
+          Potpisnik
+        </button>
         <Link
           href="/app/kalkulacije/nova"
-          className="ml-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
         >
           <IconPlus size={15} />
           Nova kalkulacija
@@ -400,6 +446,56 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={potpisnikOpen}
+        onClose={() => setPotpisnikOpen(false)}
+        title="Potpisnik kalkulacija"
+      >
+        <div className="space-y-3">
+          <p className="text-[13px] leading-5 text-text-secondary">
+            Ime osobe koja radi kalkulacije u ovom obrtu. Ispisuje se na PDF-u
+            u donjem lijevom uglu (&quot;Kalkulaciju uradio&quot;), a u desnom
+            stoji naziv obrta (&quot;Kalkulaciju primio&quot;). Prazno polje
+            ostavlja liniju za ručni potpis.
+          </p>
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+              Ime i prezime potpisnika
+            </div>
+            <input
+              value={potpisnikS}
+              onChange={(e) => setPotpisnikS(e.target.value)}
+              maxLength={120}
+              placeholder="npr. Ime Prezime"
+              className="w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600"
+            />
+          </div>
+          {potpisnikError && (
+            <p className="text-[12.5px] text-accent-500">{potpisnikError}</p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setPotpisnikOpen(false)}
+              className="px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              disabled={potpisnikSaving}
+              onClick={() => void sacuvajPotpisnika()}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {potpisnikSaving && (
+                <IconLoader2 size={15} className="animate-spin" />
+              )}
+              Sačuvaj
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

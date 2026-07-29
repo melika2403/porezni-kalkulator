@@ -249,6 +249,22 @@ export function KalkulacijaForm({
   const [view, setView] = useState<"unos" | "obracun">("unos");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState<"spremi" | "pdf" | null>(null);
+  // PDF snimljenog stanja, bez spremanja: jedini izlaz za štampu kad je
+  // kalkulacija zaključana (ulazni račun plaćen pa se izmjene odbijaju)
+  const [samoPdf, setSamoPdf] = useState(false);
+
+  async function preuzmiSnimljeniPdf() {
+    if (!initial || kopija || !fullOrg || samoPdf) return;
+    setSamoPdf(true);
+    try {
+      const detail = await unwrap(getKalkulacija(orgId, initial.id));
+      await downloadKcmPdf(detail, fullOrg);
+    } catch {
+      setSaveError("Preuzimanje PDF-a nije uspjelo, pokušajte ponovo.");
+    } finally {
+      setSamoPdf(false);
+    }
+  }
 
   const artikli = artikliQ.data ?? [];
   const artikal = artikli.find((a) => a.id === artikalId) ?? null;
@@ -1612,6 +1628,18 @@ export function KalkulacijaForm({
         >
           Odustani
         </Link>
+        {initial && !kopija && (
+          <button
+            type="button"
+            disabled={samoPdf}
+            onClick={() => void preuzmiSnimljeniPdf()}
+            title="PDF snimljenog stanja, bez spremanja izmjena (radi i kad je kalkulacija zaključana jer je račun plaćen)"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors disabled:opacity-50"
+          >
+            {samoPdf && <IconLoader2 size={15} className="animate-spin" />}
+            Preuzmi PDF
+          </button>
+        )}
         <button
           type="button"
           disabled={saving != null}

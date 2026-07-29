@@ -68,7 +68,7 @@
   gap: 0.75rem;
 }
 .item {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
   border-radius: var(--radius-lg);
@@ -199,7 +199,7 @@
   align-items: center;
   gap: 5px;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--white);
   color: var(--mid);
   font-family: inherit;
   font-size: 12.5px;
@@ -227,7 +227,7 @@
   text-align: center;
   gap: 6px;
   padding: 3rem 1.5rem;
-  background: white;
+  background: var(--white);
   border: 1px dashed var(--border);
   border-radius: 14px;
 }
@@ -283,7 +283,7 @@
   font-family: inherit;
   font-size: 13.5px;
   color: var(--ink);
-  background: white;
+  background: var(--white);
   outline: none;
 }
 .input:focus,
@@ -321,7 +321,7 @@
 }
 .btnGhost {
   border: 1px solid var(--border);
-  background: white;
+  background: var(--white);
   color: var(--mid);
   font-family: inherit;
   font-size: 13.5px;
@@ -349,7 +349,7 @@
   z-index: 1000;
 }
 .modal {
-  background: #fff;
+  background: var(--white);
   border-radius: 16px;
   max-width: 460px;
   width: 100%;

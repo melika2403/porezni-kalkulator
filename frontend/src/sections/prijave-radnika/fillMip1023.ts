@@ -42,6 +42,8 @@ export interface Mip1023Row {
 }
 
 export interface Mip1023Data {
+  /** za dnevnik aktivnosti (admin vidi za koju org-u je dokument) */
+  organizationId?: number | null;
   // Dio 1 — Podaci o poslodavcu
   jib: string; // 13 cifara
   naziv: string;
@@ -262,7 +264,7 @@ export async function fillMip1023Template(
   data: Mip1023Data,
 ): Promise<Uint8Array> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("MIP_GENERATE", "MIP-1023 PDF");
+  trackEvent("MIP_GENERATE", "MIP-1023 PDF", data.organizationId);
 
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/MIP-1023.pdf").then((r) => r.arrayBuffer()),

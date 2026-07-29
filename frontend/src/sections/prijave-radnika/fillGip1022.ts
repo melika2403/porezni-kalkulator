@@ -49,6 +49,8 @@ export interface Gip1022Row {
 }
 
 export interface Gip1022Data {
+  /** za dnevnik aktivnosti (admin vidi za koju org-u je dokument) */
+  organizationId?: number | null;
   // Dio 1 — poslodavac
   jib: string;
   naziv: string;
@@ -282,7 +284,7 @@ export async function fillGip1022Template(
   data: Gip1022Data,
 ): Promise<Uint8Array> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("GIP_GENERATE", "GIP-1022 PDF");
+  trackEvent("GIP_GENERATE", "GIP-1022 PDF", data.organizationId);
 
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/GIP-1022.pdf").then((r) => r.arrayBuffer()),

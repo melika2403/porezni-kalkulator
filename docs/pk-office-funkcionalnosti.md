@@ -588,6 +588,19 @@ Stranica: Finansije → Partneri.
   da ih treba dopuniti za KUF/KIF. Postojeće nevezane transakcije sa
   izvoda se odmah automatski vežu na uvezene partnere (po žiro računu pa
   po nazivu).
+- **Uvoz partnera od drugog obrta** (dugme "Od drugog obrta", vidljivo
+  samo kad korisnik ima više obrta): mnogi obrti dijele iste dobavljače
+  (knjigovodstvo, BH Telecom, elektrodistribucija, vodovod...), pa se
+  šifarnik ne prekucava. U modalu se izabere izvorni obrt (bilo koji
+  obrt korisnika, provjera članstva na backendu), prikaže se njegov
+  šifarnik sa checkboxovima (default sve označeno, "Označi/Poništi sve")
+  i uveze odabrano. Kopiraju se SAMO matični podaci partnera (naziv,
+  ID/PDV broj, adresa, kontakt, žiro računi, kupac/dobavljač flagovi,
+  napomena), a NE promet, dugovi, početna stanja ni veze transakcija.
+  Duplikati se preskaču po istom pravilu kao Com_Soft uvoz (ID broj, pa
+  labavo normalizovan naziv) uz listu preskočenih sa razlogom; nevezane
+  transakcije ciljnog obrta se odmah vežu na nove partnere. Endpoint:
+  `POST /api/partners/:orgId/uvoz-iz-obrta` (OWNER/ADMIN + plan gate).
 
 ### Kartica partnera
 
@@ -1394,6 +1407,15 @@ kasnije veže lager lista.
   bar kod, šifra počinje upitom, naziv počinje upitom, naziv sadrži upit;
   unutar istog ranga prvi su skorije korišteni. Na dnu panela stoji
   "Prikazano N od M", da se vidi kad treba suziti pretragu.
+- **Ispis i potpisnici**: PDF se preuzima sa liste ili dugmetom "Preuzmi
+  PDF" na formi kalkulacije; to dugme ispisuje SNIMLJENO stanje bez
+  spremanja, pa radi i kad je kalkulacija zaključana (ulazni račun
+  plaćen). U dnu PDF-a su potpisnici: lijevo "Kalkulaciju uradio" (ime
+  iz dugmeta "Potpisnik" iznad liste kalkulacija, kolona
+  `organizations.kalkulacijePotpisnik`, PUT
+  `/api/kalkulacije/:orgId/potpisnik`, OWNER/ADMIN), desno "Kalkulaciju
+  primio" sa nazivom obrta ispod linije. Prazan potpisnik = prazna
+  linija za ručni potpis.
 - **Broj kalkulacije**: numeracija ide po godini i sama daje sljedeći
   slobodan broj, ali se u zaglavlju može upisati i **ručno** (npr.
   nastavak numeracije iz starog programa), i pri unosu i pri izmjeni.

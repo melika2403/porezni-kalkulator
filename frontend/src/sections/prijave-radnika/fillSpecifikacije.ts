@@ -21,6 +21,8 @@ export type WorkerPayItem = {
 };
 
 export interface SpecifikacijeData {
+  /** za dnevnik aktivnosti (admin vidi za koju org-u je dokument) */
+  organizationId?: number | null;
   organization: {
     name: string;
     taxNumber: string | null;
@@ -343,7 +345,7 @@ export async function fillSpecifikacije(
   data: SpecifikacijeData,
 ): Promise<Uint8Array> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("SPECIFIKACIJE_GENERATE", "Specifikacije plata");
+  trackEvent("SPECIFIKACIJE_GENERATE", "Specifikacije plata", data.organizationId);
 
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);

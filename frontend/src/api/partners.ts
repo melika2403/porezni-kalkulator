@@ -169,6 +169,28 @@ export function uvozPartnera(
   });
 }
 
+// ── uvoz partnera od drugog obrta istog korisnika (dijeljeni dobavljači) ──
+export type UvozIzObrtaResult = {
+  ukupno: number;
+  dodano: number;
+  vezanoTransakcija: number;
+  preskoceno: { naziv: string; razlog: string }[];
+};
+
+export function uvozPartneraIzObrta(
+  orgId: number,
+  sourceOrgId: number,
+  partnerIds: number[],
+) {
+  return jsonRequest<UvozIzObrtaResult>(
+    `/api/partners/${orgId}/uvoz-iz-obrta`,
+    {
+      method: "POST",
+      body: JSON.stringify({ sourceOrgId, partnerIds }),
+    },
+  );
+}
+
 // ── Ukupni promet kupaca/dobavljača (izvještaj) ──────────────────────────────
 export type PrometType = "kupac" | "dobavljac" | "svi";
 

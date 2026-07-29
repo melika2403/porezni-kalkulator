@@ -70,7 +70,7 @@
   transition: color 0.15s;
 }
 
-.toggleBtn:hover { background: white; color: var(--ink); }
+.toggleBtn:hover { background: var(--white); color: var(--ink); }
 .toggleActive { background: var(--sage-pale) !important; color: var(--sage) !important; }
 .toggleActive svg { color: var(--sage) !important; }
 

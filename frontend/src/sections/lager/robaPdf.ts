@@ -4,16 +4,29 @@
 // pa linije nikad ne prolaze kroz tekst. Isti vizuelni jezik kao KCM PDF.
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import type { Organization } from "src/api/profile";
 
 const M = 36;
 const INK = rgb(0, 0, 0);
+
+/** Zaglavlje ispisa: organizacija ili bilo koji nosilac (npr. korisnički
+    nalog kod pregleda svih organizacija). Organization ga strukturno
+    zadovoljava, pa postojeći pozivi rade nepromijenjeno. */
+export type PdfHeaderOrg = {
+  name: string;
+  address?: string | null;
+  city?: string | null;
+  taxNumber?: string | null;
+};
 
 export type PdfCol = { label: string; w: number; right?: boolean };
 
 export type PdfSection = {
   /** podnaslov iznad tabele (opciono) */
   heading?: string;
+  /** veličina fonta podnaslova (default 9.5) */
+  headingSize?: number;
+  /** razmak iznad podnaslova, od prethodne sekcije (default 8) */
+  headingGap?: number;
   cols: PdfCol[];
   rows: (string | string[])[][];
   /** red totala (bold), opciono */
@@ -67,15 +80,18 @@ export async function downloadTablePdf({
   subtitle,
   info = [],
   sections,
+  footerBrand = "PK Office",
 }: {
   fileName: string;
   landscape?: boolean;
-  org: Organization;
+  org: PdfHeaderOrg;
   title: string;
   subtitle?: string;
   /** linije lijevo ispod naslova (npr. filteri ispisa) */
   info?: string[];
   sections: PdfSection[];
+  /** brend u footeru; marketing stranice šalju "Porezni Kalkulator" */
+  footerBrand?: string;
 }) {
   const fontBytes = await fetch("/templates/arial.ttf").then((r) =>
     r.arrayBuffer(),
@@ -201,8 +217,8 @@ export async function downloadTablePdf({
     active = { scaled };
     if (section.heading) {
       if (y - 40 < M) newPage(false);
-      y -= 8;
-      text(section.heading, M, 9.5, true);
+      y -= section.headingGap ?? 8;
+      text(section.heading, M, section.headingSize ?? 9.5, true);
       y -= 6;
     }
     drawRow(
@@ -231,7 +247,7 @@ export async function downloadTablePdf({
   const pages = doc.getPages();
   pages.forEach((p, i) => {
     p.drawText(
-      `PK Office · ispis ${new Date().toLocaleDateString("de-DE")}`,
+      `${footerBrand} · ispis ${new Date().toLocaleDateString("de-DE")}`,
       { x: M, y: M - 16, size: 7, font, color: INK },
     );
     p.drawText(`${i + 1} / ${pages.length}`, {

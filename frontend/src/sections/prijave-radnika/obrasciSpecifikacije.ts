@@ -28,6 +28,7 @@ import type { Obrazac2002Data, VrstaSamostalne2002 } from "./fillObrazac2002";
 // OrganizationWithPayrollStatus ih imaju.
 export type OrgZaObrasce = Pick<
   Organization,
+  | "id"
   | "name"
   | "taxNumber"
   | "address"
@@ -180,6 +181,7 @@ export function build2001Data(input: {
   const o28 = r2(o18 + o22);
   const o30 = r2(o26 + o27 + o28 + t.tax);
   return {
+    organizationId: organization.id,
     // Dio 1
     naziv: organization.name || "",
     jib: (organization.taxNumber || "").replace(/\D/g, ""),
@@ -288,6 +290,7 @@ export function build2001AData(input: {
     obavezePio + obavezeZdrFBiH + obavezeNezapFBiH + t.tax,
   );
   return {
+    organizationId: organization.id,
     naziv: organization.name || "",
     jib: (organization.taxNumber || "").replace(/\D/g, ""),
     adresa: organization.address || "",
@@ -407,6 +410,7 @@ export function build2002Data(input: {
   const standardSati = countWorkDays(periodOdISO, periodDoISO) * 8;
 
   return {
+    organizationId: organization.id,
     naziv: organization.name || "",
     jib: (organization.taxNumber || "").replace(/\D/g, ""),
     operacija: "PRIJAVA",

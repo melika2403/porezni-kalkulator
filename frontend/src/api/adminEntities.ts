@@ -71,3 +71,22 @@ export async function sendTrialInvite(
     return { ok: false, error: "NETWORK_ERROR" };
   }
 }
+
+// Ručna verifikacija emaila (korisniku verifikacioni mail nije stigao).
+export async function adminVerifyUserEmail(
+  userId: number,
+): Promise<ApiResponse<{ userId: number }>> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/admin/users/${userId}/verify-email`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const json = (await res.json().catch(() => null)) as ApiResponse<{
+      userId: number;
+    }> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}

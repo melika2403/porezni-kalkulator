@@ -396,7 +396,7 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  background: var(--sage, #3a5c42);
+  background: var(--sage);
   color: #fff;
   border-radius: 10px;
   padding: 0.85rem 1.4rem;
@@ -426,4 +426,126 @@
   .paneShow .pdfLines i {
     animation: none;
   }
+}
+
+/* ── Tamna tema ──
+   Cijela sekcija prati temu, uključujući browser mockup i aktivni korak
+   (svijetli paneli u tamnom okruženju su djelovali kao greška). Editorial
+   zeleno-zlatni gradijent dobija svjetliju varijantu. */
+:global(.dark) .label {
+  color: var(--mid);
+}
+:global(.dark) .h2 {
+  color: var(--ink);
+}
+:global(.dark) .h2 em {
+  background: linear-gradient(115deg, #a8c1a4 30%, #d9b975 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+:global(.dark) .stepN {
+  color: var(--mid);
+}
+:global(.dark) .stepTitle {
+  color: var(--ink);
+}
+:global(.dark) .stepDesc {
+  color: var(--mid);
+}
+:global(.dark) .step:hover {
+  background: rgba(255, 254, 251, 0.05);
+}
+:global(.dark) .stepActive,
+:global(.dark) .stepActive:hover {
+  background: var(--white);
+  border-color: var(--border);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3);
+}
+:global(.dark) .stepActive .stepN {
+  background: linear-gradient(115deg, #a8c1a4 30%, #d9b975 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:global(.dark) .progress {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+:global(.dark) .preview {
+  background: var(--white);
+  border-color: var(--border);
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.35);
+}
+:global(.dark) .chrome {
+  background: var(--paper);
+  border-bottom-color: var(--border);
+}
+:global(.dark) .chrome i {
+  background: var(--border);
+}
+:global(.dark) .url {
+  color: var(--mid);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+:global(.dark) .mockTitle {
+  color: var(--ink);
+}
+:global(.dark) .fieldLabel {
+  color: var(--mid);
+}
+:global(.dark) .input {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border-color: var(--border);
+  color: var(--ink);
+}
+:global(.dark) .btnMock {
+  background: var(--ink);
+  color: var(--paper);
+}
+:global(.dark) .btnSage {
+  background: #7c8b72;
+  color: #f5f1e8;
+}
+:global(.dark) .chip {
+  border-color: var(--border);
+  color: var(--mid);
+}
+:global(.dark) .chipOn {
+  background: color-mix(in srgb, #7c8b72 25%, transparent);
+  border-color: #7c8b72;
+  color: var(--ink);
+}
+:global(.dark) .clientRow {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  border-color: var(--border);
+  color: var(--ink);
+}
+:global(.dark) .avatar {
+  background: color-mix(in srgb, #7c8b72 25%, transparent);
+  color: #a8c1a4;
+}
+:global(.dark) .clientMeta {
+  color: var(--mid);
+}
+:global(.dark) .pdfCard {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  border-color: var(--border);
+}
+:global(.dark) .pdfIcon {
+  background: var(--paper);
+  border-color: var(--border);
+}
+:global(.dark) .pdfLines i {
+  background: var(--border);
+}
+:global(.dark) .pdfName {
+  color: var(--ink);
+}
+:global(.dark) .pdfMeta {
+  color: var(--mid);
+}
+:global(.dark) .checkBadge {
+  color: #a8c1a4;
+}
+:global(.dark) .ctaNote {
+  color: var(--mid);
 }

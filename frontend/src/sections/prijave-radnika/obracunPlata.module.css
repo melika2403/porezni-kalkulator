@@ -34,19 +34,19 @@
   border: 1px solid var(--border, #d4d4d4);
   border-radius: 6px;
   font-size: 16px;
-  background: var(--bg, #fff);
+  background: var(--bg, var(--white));
   color: var(--fg, #111);
 }
 
 .input:focus,
 .select:focus {
-  outline: 2px solid var(--sage, #3a5c42);
+  outline: 2px solid var(--sage);
   outline-offset: -1px;
 }
 
 .btnPrimary {
   padding: 0.55rem 1rem;
-  background: var(--sage, #3a5c42);
+  background: var(--sage);
   color: #fff;
   border: 0;
   border-radius: 10px;
@@ -68,7 +68,7 @@
   padding: 0.55rem 1rem;
   background: transparent;
   color: var(--ink, #1a1a1a);
-  border: 1px solid var(--border, #d4cfc4);
+  border: 1px solid var(--border);
   border-radius: 10px;
   font-weight: 500;
   font-size: 0.9rem;
@@ -78,8 +78,8 @@
 }
 
 .btnGhost:hover {
-  border-color: var(--sage, #3a5c42);
-  color: var(--sage, #3a5c42);
+  border-color: var(--sage);
+  color: var(--sage);
   background: rgba(58, 92, 66, 0.04);
 }
 
@@ -113,7 +113,7 @@
 .btnTintSage {
   padding: 0.55rem 1rem;
   background: rgba(58, 92, 66, 0.08);
-  color: var(--sage, #3a5c42);
+  color: var(--sage);
   border: 1px solid rgba(58, 92, 66, 0.4);
   border-radius: 10px;
   font-weight: 500;
@@ -124,11 +124,28 @@
 }
 .btnTintSage:hover {
   background: rgba(58, 92, 66, 0.16);
-  border-color: var(--sage, #3a5c42);
+  border-color: var(--sage);
 }
 .btnTintSage:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Tamna tema: info-plavi tekst tokena ostaje taman (#1f5a8c), pa na tamnoj
+   info podlozi treba svjetlija plava; sage tint dobija svjetliji okvir. */
+:global(.dark) .btnTintBlue {
+  color: #8ab4dd;
+  border-color: color-mix(in srgb, #8ab4dd 45%, transparent);
+}
+:global(.dark) .btnTintBlue:hover {
+  border-color: #8ab4dd;
+}
+:global(.dark) .btnTintSage {
+  background: rgba(126, 161, 133, 0.1);
+  border-color: rgba(126, 161, 133, 0.4);
+}
+:global(.dark) .btnTintSage:hover {
+  background: rgba(126, 161, 133, 0.18);
 }
 
 /* Inline action buttons (in-table actions) — slim, polished */
@@ -139,7 +156,7 @@
   padding: 0.4rem 0.7rem;
   background: var(--paper, #faf8f3);
   color: var(--ink, #1a1a1a);
-  border: 1px solid var(--border, #d4cfc4);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-weight: 500;
   font-size: 0.82rem;
@@ -154,8 +171,8 @@
 }
 
 .actionBtn:hover {
-  border-color: var(--sage, #3a5c42);
-  color: var(--sage, #3a5c42);
+  border-color: var(--sage);
+  color: var(--sage);
   background: rgba(58, 92, 66, 0.06);
 }
 
@@ -183,8 +200,8 @@
 .tableWrap {
   width: 100%;
   overflow-x: auto;
-  background: var(--white, #fff);
-  border: 1px solid var(--border, #d4cfc4);
+  background: var(--white);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg, 12px);
 }
 
@@ -202,7 +219,7 @@
 }
 
 .table th {
-  background: var(--paper, #f5f2eb);
+  background: var(--paper);
   font-weight: 600;
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -215,7 +232,7 @@
 }
 
 .table tr.rowClickable:hover {
-  background: var(--paper, #f5f2eb);
+  background: var(--paper);
   cursor: pointer;
 }
 
@@ -244,8 +261,8 @@
 }
 
 .badgeNone {
-  background: var(--paper, #f5f2eb);
-  color: var(--mid, #7a8a7d);
+  background: var(--paper);
+  color: var(--mid);
 }
 
 .badgeOk {
@@ -311,7 +328,7 @@
 }
 
 .modal {
-  background: var(--bg, #fff);
+  background: var(--bg, var(--white));
   border-radius: 10px;
   max-width: 720px;
   width: 100%;
@@ -421,7 +438,7 @@
   padding: 0;
   margin-left: 0.4rem;
   font-size: 0.8rem;
-  color: var(--sage, #3a5c42);
+  color: var(--sage);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -430,9 +447,9 @@
 }
 
 .warning {
-  background: #fef3c7;
-  border: 1px solid #fbbf24;
-  color: #92400e;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-text);
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -440,9 +457,9 @@
 }
 
 .errorMsg {
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
-  color: #991b1b;
+  background: var(--err-bg);
+  border: 1px solid var(--err-border);
+  color: var(--err-text);
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -463,7 +480,7 @@
   gap: 1rem;
   padding: 0.85rem 1rem;
   background: var(--paper, #faf8f3);
-  border: 1px solid var(--border, #d4cfc4);
+  border: 1px solid var(--border);
   border-radius: 10px;
 }
 
@@ -472,7 +489,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--sage, #3a5c42);
+  background: var(--sage);
   color: #fff;
   display: flex;
   align-items: center;
@@ -513,7 +530,7 @@
   flex-shrink: 0;
   padding: 4px 10px;
   background: rgba(58, 92, 66, 0.08);
-  color: var(--sage, #3a5c42);
+  color: var(--sage);
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 500;
@@ -548,7 +565,7 @@
 .totalCostValue {
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--sage, #3a5c42);
+  color: var(--sage);
   font-variant-numeric: tabular-nums;
 }
 

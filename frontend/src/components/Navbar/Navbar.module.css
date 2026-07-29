@@ -139,6 +139,36 @@
   gap: 15px;
 }
 
+/* ── Prekidač teme (sunce/mjesec) ── */
+.themeToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--mid);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.themeToggle:hover {
+  color: var(--ink);
+  border-color: var(--mid);
+  background: var(--sage-pale);
+}
+
+/* Desktop: prekidač teme živi u profil dropdownu (neregistrovani ga nemaju);
+   okruglo dugme ostaje samo na mobilnom/tabletu gdje nema profil chipa. */
+@media (min-width: 1281px) {
+  .themeToggle {
+    display: none;
+  }
+}
+
 /* ── Back to home pill (visible on every non-home page) ── */
 .backHomeLink {
   display: inline-flex;
@@ -614,6 +644,16 @@
   flex-shrink: 0;
 }
 
+/* Stavka menija kao <button> (npr. prekidač teme): isti izgled kao link */
+.userMenuItemBtn {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
 .userMenuLogout {
   composes: userMenuItem;
   width: 100%;
@@ -626,7 +666,7 @@
 }
 
 .userMenuLogout:hover {
-  background: #f9e9e7;
+  background: color-mix(in srgb, #c0524a 10%, transparent);
 }
 
 .userMenuLogout svg {
@@ -733,12 +773,12 @@
 }
 
 .mobileFeaturedRasprave {
-  color: var(--accent, #c8622a);
-  border-color: color-mix(in srgb, var(--accent, #c8622a) 45%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .mobileFeaturedRasprave:active {
-  background: var(--accent-pale, #f5e0d3);
+  background: var(--accent-pale);
 }
 
 .mobileGroup {
