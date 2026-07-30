@@ -11,7 +11,7 @@
 // postoji u toj organizaciji (provjera je u pozivaocu).
 
 const { BankMatchRule } = require("../../models/index");
-const { normalizeAccount } = require("./javniPrihodi");
+const { normalizeAccount, lookupJavniPrihod } = require("./javniPrihodi");
 
 // Iz ovih kategorija se ne uči po protivstrani: red provizije banke nosi
 // račun i naziv onoga kome je plaćeno (banka naplati proviziju "po poslu"),
@@ -19,6 +19,12 @@ const { normalizeAccount } = require("./javniPrihodi");
 // plaćanje pogrešno svrstalo. Provizija se ionako pouzdano prepoznaje po
 // opisu kroz seed pravila.
 const KATEGORIJE_BEZ_UCENJA = new Set(["PROVIZIJA_BANKE"]);
+
+// Računi javnih prihoda su izuzeti iz pravila po protivstrani: isti račun
+// prima uplate različitog značenja (Budžet FBiH: PIO vlasnika I PIO radnika;
+// kantonalni budžet: porez radnika, vodnu, nesreće i akontaciju vlasnika),
+// pa bi jedno potvrđeno knjiženje "obojilo" sve buduće uplate na taj račun.
+// Njih kategorišu seed lookup + vlasnikDoprinosi (po iznosu), svaki put.
 
 function normalizeName(name) {
   return String(name || "")
@@ -61,6 +67,7 @@ async function loadRuleSuggester(organizationId) {
   const nadjiPravilo = (tx) => {
     const direction = String(tx.direction || "").toUpperCase();
     const account = normalizeAccount(tx.counterpartyAccount);
+    if (account && lookupJavniPrihod(account)) return null;
     if (account) {
       const hit = map.get(`ACCOUNT|${account}|${direction}`);
       if (hit) return hit;
@@ -85,6 +92,7 @@ async function loadRuleSuggester(organizationId) {
 async function learnFromTransaction(organizationId, tx) {
   if (!tx.category) return;
   if (KATEGORIJE_BEZ_UCENJA.has(tx.category)) return;
+  if (lookupJavniPrihod(normalizeAccount(tx.counterpartyAccount))) return;
   const direction = String(tx.direction || "").toUpperCase();
   const partnerId = tx.partnerId || null;
   for (const key of ruleKeysFor(tx)) {

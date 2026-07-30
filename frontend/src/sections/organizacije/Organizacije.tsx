@@ -194,7 +194,7 @@ export default function Organizacije() {
     if (statusFilter === "obracunato") return o.payrollStatus === "obracunato";
     if (statusFilter === "isplaceno") return o.payrollStatus === "isplaceno";
     if (statusFilter === "mip_todo")
-      return o.payrollObracunato > 0 && !o.mipDownloadedAt;
+      return !!o.mipRelevantno && !o.mipDownloadedAt;
     return true;
   };
 
@@ -268,9 +268,8 @@ export default function Organizacije() {
       obracunato: visible.filter((o) => o.payrollStatus === "obracunato")
         .length,
       isplaceno: visible.filter((o) => o.payrollStatus === "isplaceno").length,
-      mip_todo: visible.filter(
-        (o) => o.payrollObracunato > 0 && !o.mipDownloadedAt,
-      ).length,
+      mip_todo: visible.filter((o) => o.mipRelevantno && !o.mipDownloadedAt)
+        .length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allOrgs.length, typeFilter, statusQuery.data]);
@@ -661,7 +660,7 @@ export default function Organizacije() {
           o.paymentDate ? datumIz(o.paymentDate) : "",
           o.mipDownloadedAt
             ? `Preuzet ${datumIz(o.mipDownloadedAt)}`
-            : o.payrollObracunato > 0
+            : o.mipRelevantno
               ? "Nije preuzet"
               : "",
           // decimalni zarez bez tačke hiljada, da Excel prepozna broj
@@ -737,10 +736,11 @@ export default function Organizacije() {
                 : "")
             : "";
         // MIP-1023 status: preuzet (sa datumom) / nije preuzet iako ima
-        // obračuna / – kad za mjesec nema ni jednog obračuna.
+        // obračunatih radnika / – kad MIP obaveze nema (bez obračuna, ili su
+        // obračunati samo vlasnici koji ne ulaze u MIP).
         const mip = o.mipDownloadedAt
           ? `Preuzet ${datumHr(o.mipDownloadedAt)}`
-          : o.payrollObracunato > 0
+          : o.mipRelevantno
             ? "Nije preuzet"
             : "–";
         // Kontakt u dvije čiste linije (email pa telefon). Array ćelije se ne
@@ -1876,25 +1876,30 @@ function OrgsTable({
                           : ""}
                       </div>
                     )}
-                    {/* Isplata + MIP status: samo kad ima obračunatih plata */}
-                    {o.payrollObracunato > 0 && (
-                      <div className="text-[11.5px] mt-0.5 whitespace-nowrap">
-                        {o.paymentDate && (
-                          <span className="text-text-tertiary">
-                            isplata {datumIz(o.paymentDate)} ·{" "}
-                          </span>
-                        )}
-                        {o.mipDownloadedAt ? (
-                          <span className="text-text-tertiary">
-                            MIP preuzet {datumIz(o.mipDownloadedAt)}
-                          </span>
-                        ) : (
-                          <span className="text-warning font-medium">
-                            MIP nije preuzet
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    {/* Isplata + MIP status: samo kad ima obračunatih plata.
+                        MIP dio se krije kad su obračunati samo vlasnici
+                        (vlasnik obrta ne ulazi u MIP pa se ne podnosi). */}
+                    {o.payrollObracunato > 0 &&
+                      (o.paymentDate || o.mipRelevantno) && (
+                        <div className="text-[11.5px] mt-0.5 whitespace-nowrap">
+                          {o.paymentDate && (
+                            <span className="text-text-tertiary">
+                              isplata {datumIz(o.paymentDate)}
+                              {o.mipRelevantno ? " · " : ""}
+                            </span>
+                          )}
+                          {o.mipRelevantno &&
+                            (o.mipDownloadedAt ? (
+                              <span className="text-text-tertiary">
+                                MIP preuzet {datumIz(o.mipDownloadedAt)}
+                              </span>
+                            ) : (
+                              <span className="text-warning font-medium">
+                                MIP nije preuzet
+                              </span>
+                            ))}
+                        </div>
+                      )}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-text-primary whitespace-nowrap">
                     {(o.payrollTotalCost ?? 0) > 0

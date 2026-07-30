@@ -22,28 +22,31 @@ const UIO_RACUNI = [
 ];
 
 /**
- * Mapa: normalizovan račun → { naziv, category }.
- * category odgovara id-u iz categories.js.
+ * Mapa: normalizovan račun → { naziv, category, fond? }.
+ * category odgovara id-u iz categories.js. fond postoji samo na računima
+ * doprinosa (PIO | ZDR_KANTON | ZDR_FED | NEZAP_KANTON | NEZAP_FED) i služi
+ * razlikovanju doprinosa vlasnika od doprinosa radnika po iznosu uplate
+ * (vidi vlasnikDoprinosi.js): isti račun prima i jedno i drugo.
  */
 function buildLookup() {
   const map = new Map();
-  const add = (acc, naziv, category) => {
+  const add = (acc, naziv, category, fond) => {
     const n = normalizeAccount(acc);
-    if (n) map.set(n, { naziv, category });
+    if (n) map.set(n, { naziv, category, fond: fond || null });
   };
 
   for (const [, k] of Object.entries(RACUNI.KANTONI || {})) {
     // zdravstveno i nezaposlenost = doprinosi; kantonalni budžet najčešće
     // prima porez na dohodak (716111/716116) za obrtnike
-    add(k.zoRacun, `ZZO ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA");
-    add(k.nezapRacun, `Zavod za zapošljavanje ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA");
+    add(k.zoRacun, `ZZO ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA", "ZDR_KANTON");
+    add(k.nezapRacun, `Zavod za zapošljavanje ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA", "NEZAP_KANTON");
     add(k.budzet, `Budžet ${k.genitiv || k.ime}`, "POREZ_DOHODAK_VLASNIKA");
   }
 
   // Budžet FBiH prima PIO/MIO (i vodnu naknadu, nesreće) → doprinosi
-  add(RACUNI.FBIH_BUDZET_RACUN, "Budžet FBiH (PIO/MIO)", "DOPRINOSI_PODUZETNIKA");
-  add(RACUNI.FBIH_ZO_RACUN, "Federalni ZZO", "DOPRINOSI_PODUZETNIKA");
-  add(RACUNI.FBIH_NEZAP_RACUN, "Federalni zavod za zapošljavanje", "DOPRINOSI_PODUZETNIKA");
+  add(RACUNI.FBIH_BUDZET_RACUN, "Budžet FBiH (PIO/MIO)", "DOPRINOSI_PODUZETNIKA", "PIO");
+  add(RACUNI.FBIH_ZO_RACUN, "Federalni ZZO", "DOPRINOSI_PODUZETNIKA", "ZDR_FED");
+  add(RACUNI.FBIH_NEZAP_RACUN, "Federalni zavod za zapošljavanje", "DOPRINOSI_PODUZETNIKA", "NEZAP_FED");
   add(RACUNI.FOND_INVALIDI_RACUN, "Fond za rehabilitaciju OSI", "OSTALI_RASHODI");
   if (RACUNI.JRT_TREZOR_BIH_RACUN) {
     add(RACUNI.JRT_TREZOR_BIH_RACUN, "JRT Trezor BiH", "PDV_UIO");

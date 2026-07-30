@@ -155,6 +155,7 @@ export default function RucniUnosIzvodaPage() {
         targets.map((r) => ({
           description: r.description,
           counterpartyName: r.counterpartyName,
+          amount: parseKm(r.amount) ?? 0,
           direction: r.direction,
         })),
       );

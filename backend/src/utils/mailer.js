@@ -569,6 +569,63 @@ const MJESECI = [
   "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar",
 ];
 
+// Svi platni listići mjeseca u JEDNOM PDF-u na jednu adresu (npr. email
+// firme: oni odštampaju i uruče radnicima ručno, bez slanja svakom radniku).
+async function sendPayslipsBundleEmail({
+  to,
+  organizationName,
+  year,
+  month,
+  count,
+  pdfBuffer,
+}) {
+  const transporter = createInvoiceTransporter();
+  const fromAddr = process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
+  const displayName = organizationName || "Porezni Kalkulator";
+  const from = `"${displayName}" <${fromAddr}>`;
+  const mm = String(month).padStart(2, "0");
+  const yyyy = String(year);
+  const periodHr = `${MJESECI[month - 1] || mm}. ${yyyy}.`;
+  const brojStr = `${count} ${count === 1 ? "platni listić" : count < 5 ? "platna listića" : "platnih listića"}`;
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: `Platni listići, ${periodHr}${organizationName ? `, ${organizationName}` : ""}`,
+    text:
+`Poštovani,
+
+U prilogu je ${brojStr} za ${periodHr}${organizationName ? ` (${organizationName})` : ""}, u jednom PDF dokumentu.
+
+Dokument je namijenjen za štampu i uručenje radnicima.
+
+, ${displayName}`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Platni listići</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+          Poštovani,<br/>
+          u prilogu je <strong>${brojStr}</strong> za <strong>${periodHr}</strong>${organizationName ? ` (<strong>${organizationName}</strong>)` : ""}, u jednom PDF dokumentu.
+        </p>
+        <div style="background:#f5f2eb; border:1px solid #d4cfc4; border-radius:8px; padding:14px 20px; margin: 20px 0; color:#3a5c42; font-size:14px;">
+          Dokument je namijenjen za štampu i uručenje radnicima.
+        </div>
+        <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
+          , ${displayName}<br/>
+          <span style="color:#bbb;">Poslano preko poreznikalkulator.ba</span>
+        </p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `Platni-listici-${mm}-${yyyy}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+}
+
 // Kartica prometa partnera (PK Office): šalje PDF kartice kupcu/dobavljaču.
 async function sendKarticaEmail({
   to,
@@ -776,6 +833,7 @@ module.exports = {
   sendInvoiceEmail,
   sendWelcomeEmail,
   sendPayslipEmail,
+  sendPayslipsBundleEmail,
   sendSubscriptionReminderEmail,
   sendTrialInviteEmail,
   sendKarticaEmail,

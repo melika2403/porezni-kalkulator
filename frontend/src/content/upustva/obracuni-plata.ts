@@ -44,6 +44,19 @@ export const obracuniPlata: Upustvo = {
       ],
     },
     {
+      naslov: "Slanje platnih listića emailom",
+      blokovi: [
+        {
+          t: "p",
+          text: "Dugme \"Pošalji listiće email-om\" nudi dva načina: svakom radniku na njegov email (radnici bez upisanog email-a se preskaču i navedu u rezultatu), ili SVI listići mjeseca u jednom PDF-u na jednu adresu.",
+        },
+        {
+          t: "savjet",
+          text: "Opcija \"Sve u jednom PDF-u na jedan email\" je za firme gdje se listići štampaju i uručuju ručno: upišete npr. email firme (predpopuni se iz podataka obrta), oni ih odštampaju i podijele radnicima. Radnicima se tada ne šalje ništa.",
+        },
+      ],
+    },
+    {
       naslov: "Uvoz prethodnih plata",
       blokovi: [
         {
@@ -73,6 +86,10 @@ export const obracuniPlata: Upustvo = {
     {
       p: "Mogu li ponovo preuzeti platnu listu ili MIP za stari mjesec?",
       o: "Da. Otvorite željeni mjesec i ponovo preuzmite platne liste ili MIP-1023 XML kad god zatreba.",
+    },
+    {
+      p: "Firma sama štampa listiće i uručuje ih radnicima, mogu li sve poslati njima?",
+      o: "Da. Kod slanja listića izaberite \"Sve u jednom PDF-u na jedan email\" i upišite adresu firme: svi listići mjeseca stižu u jednom PDF dokumentu za štampu, a radnicima se ne šalje ništa.",
     },
   ],
 };

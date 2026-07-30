@@ -175,14 +175,30 @@ Svaka stavka dobija kategoriju koja određuje KPR kolonu:
 
 Prijedlozi se daju automatski:
 
-1. **Naučena pravila**: kad korisnik potvrdi stavku sa kategorijom,
+1. **Doprinosi vlasnika vs. radnika po iznosu** (samo obrt SA
+   radnicima): isti računi primaju i doprinose vlasnika (KPR kolona 18)
+   i doprinose iz plata radnika (dio bruto plate, kolona 17), pa se
+   razdvajaju po iznosu uplate. Očekivani iznosi vlasnika se računaju iz
+   podešavanja obrta (režim oporezivanja + kategorija djelatnosti →
+   osnovica iz Sl. novina, stope 19,5% PIO / 14,5% zdravstvo / 2%
+   nezaposlenost, podjele 89,8/10,2 i 70/30 kao na uplatnicama) i
+   dopunjuju stvarnim obračunima vlasnika iz PK Office (pokriva
+   pro-rate mjesece). Poklapanje (±2 feninga) → "Doprinosi
+   poduzetnika"; drugi iznos na računu doprinosa → "Bruto plate
+   zaposlenika". Obrt bez radnika ili bez utvrdivih iznosa: sve ostaje
+   doprinosi poduzetnika (kao ranije). Servis:
+   `backend/src/services/bankStatements/vlasnikDoprinosi.js`.
+2. **Naučena pravila**: kad korisnik potvrdi stavku sa kategorijom,
    sistem zapamti protivračun/naziv → kategorija za tu organizaciju i
-   ubuduće sam predlaže. Zadnja potvrda je presudna.
-2. **Računi javnih prihoda** (šifarnik): doprinosi (ZZO/PIO/
+   ubuduće sam predlaže. Zadnja potvrda je presudna. Izuzetak su računi
+   javnih prihoda: po njima se ne uči niti se pravila primjenjuju (isti
+   račun prima uplate različitog značenja), njih svaki put kategorišu
+   šifarnik + logika iznosa iz tačke 1.
+3. **Računi javnih prihoda** (šifarnik): doprinosi (ZZO/PIO/
    zapošljavanje), porez na dohodak (kantonalni budžeti), PDV (UIO).
-3. **Obrasci u opisu**: polog pazara, provizije/naknade, POS prilivi,
+4. **Obrasci u opisu**: polog pazara, provizije/naknade, POS prilivi,
    pozajmice, rate kredita.
-4. Default: priliv → prihod preko računa; odliv → bez prijedloga.
+5. Default: priliv → prihod preko računa; odliv → bez prijedloga.
 
 PDV obveznici: kategorije sa PDV-om izbijaju 17% (kolone 14 / 20),
 kolone 15 i 21 daju osnovicu. Inostrane uplate i fakture bez PDV-a se
@@ -226,8 +242,9 @@ Za banke koje još ne čitamo ili papirne izvode ("Unesi izvod ručno"):
 Potvrda i kategorija su odvojene stvari: potvrđena stavka **bez**
 kategorije ne ulazi u KPR. Zato lista izvoda uz "potvrđen (n/n)" nosi i
 žutu oznaku "X bez kategorije" kad takvih stavki ima, a potvrda
-pojedinačne stavke bez kategorije pokušava auto-popunu (naučena pravila
-pa heuristike) osim kad korisnik kategoriju eksplicitno obriše.
+pojedinačne stavke bez kategorije pokušava auto-popunu (doprinosi
+vlasnika po iznosu, pa naučena pravila, pa heuristike) osim kad
+korisnik kategoriju eksplicitno obriše.
 
 ## 8. KPR-1041 (Knjiga prihoda i rashoda)
 
@@ -762,9 +779,15 @@ Stranica: Zaposlenici → Obračuni plata.
   knjiženje (PDF)** (konta po agencijskoj konvenciji), **Rekapitulacija
   (PDF)** (tabela po radnicima: bruto, doprinosi iz i na, porez, neto,
   naknade, ukupan trošak, sa sumama; vlasnik nije u njoj, on ima 2002),
-  **Pošalji listiće email-om** (uz potvrdu; bulk slanje svim radnicima,
-  bez email-a se preskaču i navedu u rezimeu) i **Označi mjesec
-  isplaćenim**.
+  **Pošalji listiće email-om** (modal sa dva načina: svakom radniku na
+  njegov email, bez email-a se preskaču i navedu u rezimeu; ILI svi
+  listići mjeseca u JEDNOM PDF-u na jednu upisanu adresu, npr. email
+  firme koji se predpopuni iz podataka obrta, pa firma štampa i uruči
+  radnicima ručno, radnicima se tada ne šalje ništa; backend
+  `toEmail` mod na `POST /api/payroll/email-payslips-bulk`, isti
+  spojeni PDF kao "Sve platne liste") i **Označi mjesec isplaćenim**.
+  Ista opcija "Sve na jedan email" postoji i na marketing obračunu
+  (stavka u dropdown-u dugmeta za slanje listića).
 - **Datum isplate** (polje u traci akcija): upisuje se na sve obračune
   mjeseca i koriste ga MIP XML, platne liste i uplatnice; prazno =
   ukloni datum.
