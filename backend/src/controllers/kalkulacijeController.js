@@ -852,6 +852,23 @@ async function listArtikli(req, res) {
   });
 }
 
+// PUT /api/kalkulacije/:orgId/potpisnik  { potpisnik }
+// Potpisnik na ispisu kalkulacije ("Kalkulaciju uradio"); vrijedi za obrt.
+// Prazno briše potpisnika (na PDF-u ostane prazna linija za ručni potpis).
+async function setPotpisnik(req, res) {
+  const organizationId = parseId(req.params.orgId);
+  if (!organizationId) {
+    return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  }
+  const org = await Organization.findByPk(organizationId);
+  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+  const potpisnik =
+    String(req.body?.potpisnik || "").replace(/\s+/g, " ").trim().slice(0, 120) ||
+    null;
+  await org.update({ kalkulacijePotpisnik: potpisnik });
+  return res.json({ ok: true, data: { potpisnik } });
+}
+
 // sljedeća slobodna numerička šifra ("0001", "0002", ...)
 async function nextSifra(organizationId, t) {
   const rows = await Artikal.findAll({
@@ -1105,6 +1122,7 @@ module.exports = {
   remove,
   marza,
   zadnjaStavka,
+  setPotpisnik,
   listArtikli,
   createArtikal,
   updateArtikal,

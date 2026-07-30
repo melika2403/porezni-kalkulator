@@ -13,7 +13,7 @@ import {
   type Users,
   type UsersListResponse,
 } from "src/api/profile";
-import { sendTrialInvite } from "src/api/adminEntities";
+import { sendTrialInvite, adminVerifyUserEmail } from "src/api/adminEntities";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
@@ -410,6 +410,22 @@ function UserRow({ user }: { user: Users }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
   });
 
+  // ── ručna verifikacija emaila (mail nije stigao) ──
+  // Dvoklik potvrda umjesto browser confirm-a: prvi klik "Verifikuj",
+  // drugi "Potvrdi", pa tek onda poziv.
+  const [confirmVerify, setConfirmVerify] = useState(false);
+  const verifyMutation = useMutation({
+    mutationFn: async () => {
+      const r = await adminVerifyUserEmail(user.id);
+      if (!r.ok) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: () => {
+      setConfirmVerify(false);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+
   // ── poziv na probu (samo za korisnike koji je još nisu aktivirali) ──
   // Postoji jedna proba: PK Office 30 dana, uz nju i sve Business funkcije.
   const [trialSent, setTrialSent] = useState(false);
@@ -655,7 +671,30 @@ function UserRow({ user }: { user: Users }) {
         {user.isEmailVerified ? (
           <span className={styles.verifiedBadge}>Verifikovan</span>
         ) : (
-          <span className={styles.unverifiedBadge}>Neverifikovan</span>
+          <span className={styles.verifyStack}>
+            <span className={styles.unverifiedBadge}>Neverifikovan</span>
+            <button
+              type="button"
+              className={styles.btnVerify}
+              onClick={() =>
+                confirmVerify ? verifyMutation.mutate() : setConfirmVerify(true)
+              }
+              disabled={verifyMutation.isPending}
+              title="Ručno verifikuj email (korisniku verifikacioni mail nije stigao)"
+            >
+              <LuCheck size={13} />
+              {verifyMutation.isPending
+                ? "Verifikujem..."
+                : confirmVerify
+                  ? "Potvrdi"
+                  : "Verifikuj"}
+            </button>
+            {verifyMutation.isError && (
+              <span className={styles.verifyError}>
+                {(verifyMutation.error as Error).message}
+              </span>
+            )}
+          </span>
         )}
       </td>
 

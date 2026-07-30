@@ -104,7 +104,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.25rem 1.4rem;
-  background: white;
+  background: var(--white);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -213,7 +213,7 @@
 
 /* ── Table ────────────────────────────────────────────────────────────── */
 .tableWrap {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow-x: auto;
@@ -270,7 +270,7 @@
 .stickyCol {
   position: sticky;
   left: 0;
-  background: white;
+  background: var(--white);
   z-index: 1;
   min-width: 180px;
   box-shadow: 1px 0 0 var(--border);
@@ -430,7 +430,7 @@
 }
 
 .monthCellEditing {
-  background: white;
+  background: var(--white);
   min-width: 150px;
 }
 
@@ -440,7 +440,7 @@
   padding: 0.35rem 0.45rem;
   border: 1px solid var(--sage);
   border-radius: var(--radius);
-  background: white;
+  background: var(--white);
   color: var(--ink);
   outline: none;
   width: 72px;
@@ -496,7 +496,7 @@
 
 /* ── States ───────────────────────────────────────────────────────────── */
 .empty {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 2.5rem 2rem;

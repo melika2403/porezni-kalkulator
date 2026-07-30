@@ -109,7 +109,8 @@ export async function downloadKcmPdf(
   const size = 7;
   const lineH = 9;
 
-  let page: PDFPage;
+  // definite assignment: newPage(true) je postavi prije prve upotrebe
+  let page!: PDFPage;
   let y = 0;
 
   function cellX(i: number) {
@@ -290,6 +291,54 @@ export async function downloadKcmPdf(
     ],
     { bold: true },
   );
+
+  // ── potpisnici na dnu zadnje strane ──
+  // lijevo ko je kalkulaciju uradio (potpisnik obrta, upisuje se na stranici
+  // Kalkulacije), desno ko je primio; ispod desne linije naziv obrta.
+  {
+    const blokH = 64;
+    if (y - blokH < M) {
+      // samo za potpise: prazna strana bez zaglavlja tabele
+      page = doc.addPage(A4L);
+      y = A4L[1] - M;
+    }
+    const linijaW = 200;
+    const lijeviX = M + 20;
+    const desniX = A4L[0] - M - 20 - linijaW;
+    const labelY = y - 26;
+    const linijaY = labelY - 26;
+    const imeY = linijaY - 11;
+    const centriraj = (t: string, x0: number, s2: number) =>
+      x0 + (linijaW - font.widthOfTextAtSize(t, s2)) / 2;
+
+    page.drawText("Kalkulaciju uradio:", {
+      x: centriraj("Kalkulaciju uradio:", lijeviX, 9),
+      y: labelY, size: 9, font, color: INK,
+    });
+    page.drawText("Kalkulaciju primio:", {
+      x: centriraj("Kalkulaciju primio:", desniX, 9),
+      y: labelY, size: 9, font, color: INK,
+    });
+    for (const x0 of [lijeviX, desniX]) {
+      page.drawLine({
+        start: { x: x0, y: linijaY },
+        end: { x: x0 + linijaW, y: linijaY },
+        thickness: 0.7, color: LINE,
+      });
+    }
+    const potpisnik = (org.kalkulacijePotpisnik ?? "").trim();
+    if (potpisnik) {
+      page.drawText(potpisnik, {
+        x: centriraj(potpisnik, lijeviX, 8.5),
+        y: imeY, size: 8.5, font, color: INK,
+      });
+    }
+    page.drawText(org.name, {
+      x: centriraj(org.name, desniX, 8.5),
+      y: imeY, size: 8.5, font, color: INK,
+    });
+    y = imeY - 8;
+  }
 
   const pages = doc.getPages();
   pages.forEach((p, i) => {

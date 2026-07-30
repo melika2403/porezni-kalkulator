@@ -64,7 +64,7 @@
   flex-shrink: 0;
   background: none;
   border: none;
-  color: #7a8a7d;
+  color: var(--mid);
   font-size: 13px;
   line-height: 1;
   padding: 0.15rem;

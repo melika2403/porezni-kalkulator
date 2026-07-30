@@ -70,6 +70,14 @@ router.post(
   planGate,
   ctrl.uvozPartnera,
 );
+// uvoz partnera od drugog obrta istog korisnika (dijeljeni dobavljači)
+router.post(
+  "/:orgId/uvoz-iz-obrta",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  planGate,
+  ctrl.uvozIzObrta,
+);
 // ulazni računi prije generičkih /:orgId/:partnerId ruta
 router.get(
   "/:orgId/ulazni-racuni",

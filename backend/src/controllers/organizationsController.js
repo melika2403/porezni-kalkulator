@@ -432,7 +432,13 @@ async function listWithPayrollStatus(req, res) {
   const payrollsByOrg = new Map();
   const payrolls = await Payroll.findAll({
     where: { organizationId: orgIds, year, month },
-    attributes: ["organizationId", "status", "mipDownloadedAt"],
+    attributes: [
+      "organizationId",
+      "status",
+      "mipDownloadedAt",
+      "totalCost",
+      "paymentDate",
+    ],
   });
   for (const p of payrolls) {
     const cur = payrollsByOrg.get(p.organizationId) || {
@@ -440,13 +446,24 @@ async function listWithPayrollStatus(req, res) {
       obracunato: 0,
       isplaceno: 0,
       mipDownloadedAt: null,
+      totalCost: 0,
+      paymentDate: null,
     };
     cur.total += 1;
     if (p.status === "OBRACUNATO" || p.status === "ISPLACENO") {
       cur.obracunato += 1;
+      // Ukupan trošak poslodavca za mjesec: samo obračunate plate (DRAFT ne).
+      cur.totalCost += Number(p.totalCost) || 0;
     }
     if (p.status === "ISPLACENO") {
       cur.isplaceno += 1;
+    }
+    // paymentDate je batch-sinhronizovan na sve payrolle mjeseca; uzmi najnoviji.
+    if (
+      p.paymentDate &&
+      (!cur.paymentDate || p.paymentDate > cur.paymentDate)
+    ) {
+      cur.paymentDate = p.paymentDate;
     }
     // Batch update drži isti timestamp na svim payrollima mjeseca; uzmi najnoviji.
     if (
@@ -480,6 +497,8 @@ async function listWithPayrollStatus(req, res) {
         obracunato: 0,
         isplaceno: 0,
         mipDownloadedAt: null,
+        totalCost: 0,
+        paymentDate: null,
       };
       // payrollStatus:
       //   "no_workers"   — org nema aktivnih radnika
@@ -501,6 +520,9 @@ async function listWithPayrollStatus(req, res) {
         payrollIsplaceno: stats.isplaceno,
         payrollStatus,
         mipDownloadedAt: stats.mipDownloadedAt,
+        // trošak poslodavca za mjesec (zbir totalCost obračunatih plata)
+        payrollTotalCost: Math.round(stats.totalCost * 100) / 100,
+        paymentDate: stats.paymentDate,
         lastStatementDate: lastStatementByOrg.get(o.id) || null,
       };
     });

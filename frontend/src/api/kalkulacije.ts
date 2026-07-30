@@ -165,6 +165,14 @@ export function getKalkulacija(orgId: number, id: number) {
   });
 }
 
+/** Potpisnik na ispisu kalkulacije ("Kalkulaciju uradio"); vrijedi za obrt. */
+export function setKalkulacijePotpisnik(orgId: number, potpisnik: string) {
+  return jsonRequest<{ potpisnik: string | null }>(
+    `/api/kalkulacije/${orgId}/potpisnik`,
+    { method: "PUT", body: JSON.stringify({ potpisnik }) },
+  );
+}
+
 export function createKalkulacija(orgId: number, payload: KalkulacijaPayload) {
   return jsonRequest<Kalkulacija>(`/api/kalkulacije/${orgId}`, {
     method: "POST",

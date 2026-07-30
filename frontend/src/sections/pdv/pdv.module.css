@@ -82,7 +82,7 @@
 }
 
 .toggleBtn:hover {
-  background: white;
+  background: var(--white);
   color: var(--ink);
 }
 

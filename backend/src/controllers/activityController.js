@@ -54,9 +54,12 @@ async function myActivity(req, res) {
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
+    // PRIJAVA (login eventi) ne ulazi u korisnički dashboard: nije alat,
+    // a po broju bi odmah postala "najčešća aktivnost"
+    const bezPrijava = { userId, hiddenAt: null, action: { [Op.ne]: "PRIJAVA" } };
     const [items, monthRows, allRows] = await Promise.all([
       ActivityLog.findAll({
-        where: { userId, hiddenAt: null },
+        where: bezPrijava,
         order: [["id", "DESC"]],
         limit: 8,
         attributes: ["action", "label", "createdAt"],
@@ -70,13 +73,13 @@ async function myActivity(req, res) {
         ],
       }),
       ActivityLog.findAll({
-        where: { userId, hiddenAt: null, createdAt: { [Op.gte]: monthStart } },
+        where: { ...bezPrijava, createdAt: { [Op.gte]: monthStart } },
         attributes: ["action", [fn("COUNT", col("id")), "c"]],
         group: ["action"],
         raw: true,
       }),
       ActivityLog.findAll({
-        where: { userId, hiddenAt: null },
+        where: bezPrijava,
         attributes: ["action", [fn("COUNT", col("id")), "c"]],
         group: ["action"],
         raw: true,

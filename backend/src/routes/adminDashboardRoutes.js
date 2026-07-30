@@ -39,6 +39,9 @@ router.delete("/clients/:id", requireAuth, requireRole("ADMIN"), entities.delete
 // Poziv korisniku da aktivira besplatni trial (mail).
 router.post("/users/:id/trial-invite", requireAuth, requireRole("ADMIN"), entities.sendTrialInvite);
 
+// Ručna verifikacija emaila (korisniku mail nije stigao).
+router.post("/users/:id/verify-email", requireAuth, requireRole("ADMIN"), entities.verifyUserEmail);
+
 // Sve pretplate (paketi, periodi, office slotovi) — admin lista.
 router.get(
   "/subscriptions",

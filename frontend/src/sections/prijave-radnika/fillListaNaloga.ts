@@ -33,6 +33,8 @@ export type WorkerPay = {
 };
 
 export interface ListaNalogaData {
+  /** za dnevnik aktivnosti (admin vidi za koju org-u je dokument) */
+  organizationId?: number | null;
   organization: {
     name: string;
     taxNumber: string | null; // JIB
@@ -574,7 +576,7 @@ function drawTotalRow(
 
 export async function fillListaNaloga(data: ListaNalogaData): Promise<Uint8Array> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("LISTA_NALOGA_GENERATE", "Lista naloga za plaćanje");
+  trackEvent("LISTA_NALOGA_GENERATE", "Lista naloga za plaćanje", data.organizationId);
 
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);

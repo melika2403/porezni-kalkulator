@@ -50,10 +50,10 @@
 .selectedDoc {
   margin: 0.6rem 0 0;
   font-size: 13px;
-  color: var(--mid, #7a8a7d);
+  color: var(--mid);
 }
 .selectedDoc strong {
-  color: var(--ink, #0f1a12);
+  color: var(--ink);
   font-weight: 600;
 }
 

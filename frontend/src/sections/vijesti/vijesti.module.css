@@ -207,7 +207,7 @@
 .panelTabAktivan {
   color: var(--ink);
   background: var(--white);
-  border-bottom-color: var(--accent, #c8622a);
+  border-bottom-color: var(--accent);
 }
 
 /* po 5 naslova po tabu (PanelDesno), pa lista ne treba unutrašnji skrol */
@@ -243,7 +243,7 @@
   font-family: "DM Serif Display", serif;
   font-size: 1.15rem;
   line-height: 1.1;
-  color: var(--accent, #c8622a);
+  color: var(--accent);
   min-width: 18px;
 }
 
@@ -268,7 +268,7 @@
 }
 
 .panelRubrika {
-  color: var(--accent, #c8622a);
+  color: var(--accent);
   font-weight: 700;
   text-transform: uppercase;
   font-size: 10.5px;
@@ -773,7 +773,7 @@
   padding: 0.55rem 1.1rem;
   font-size: 13px;
   font-weight: 600;
-  background: #c8622a;
+  background: var(--accent);
   color: #fff;
   border-radius: 100px;
   text-decoration: none;
@@ -1680,21 +1680,21 @@
   padding: 0.35rem 0.9rem;
   font-size: 13px;
   font-weight: 700;
-  color: var(--accent, #c8622a);
-  border: 1px solid color-mix(in srgb, var(--accent, #c8622a) 45%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: 100px;
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
 }
 
 .raspravePill:hover {
-  background: var(--accent, #c8622a);
+  background: var(--accent);
   color: #fff;
 }
 
 .raspravePillAktivna {
-  background: var(--accent, #c8622a);
-  border-color: var(--accent, #c8622a);
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
@@ -1920,7 +1920,7 @@
   font-weight: 600;
   text-align: center;
   color: #fff;
-  background: var(--accent, #c8622a);
+  background: var(--accent);
   border: none;
   border-radius: 100px;
   cursor: pointer;

@@ -980,7 +980,7 @@
   padding: 0.3rem 0.9rem;
   border: 1px solid #fca5a5;
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--white);
   color: #dc2626;
   cursor: pointer;
 }

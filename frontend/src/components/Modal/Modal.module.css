@@ -17,7 +17,7 @@
 }
 
 .dialog {
-  background: #fff;
+  background: var(--white);
   border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.08);
   width: 100%;
@@ -56,7 +56,7 @@
   font-size: .95rem;
   font-family: inherit;
   color: inherit;
-  background: #fff;
+  background: var(--white);
   margin-bottom: 1.2rem;
   transition: border-color .15s;
 }

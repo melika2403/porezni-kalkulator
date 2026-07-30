@@ -20,7 +20,10 @@ import {
 export type MipBuildInput = {
   workers: Worker[]; // svi radnici org-e (filter na role=RADNIK radi se interno)
   payrolls: Payroll[]; // svi payroll-i za year/month
-  organization: Pick<Organization, "name" | "taxNumber" | "activityCode" | "city">;
+  organization: Pick<
+    Organization,
+    "id" | "name" | "taxNumber" | "activityCode" | "city"
+  >;
   year: number;
   month: number;
   paymentDate?: string; // YYYY-MM-DD; default zadnji dan mjeseca
@@ -42,7 +45,7 @@ export type MipBuildError = {
 // strukturisan error sa razlogom (no-payrolls, org-incomplete itd.).
 export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuildError {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("MIP_GENERATE", "MIP-1023 XML");
+  trackEvent("MIP_GENERATE", "MIP-1023 XML", input.organization.id);
 
   const { workers, payrolls, organization, year, month } = input;
 

@@ -68,7 +68,7 @@ type SortKey =
   | "datum"
   | "status_paid_first"
   | "status_unpaid_first";
-type StatusFilter = "all" | "todo" | "obracunato" | "isplaceno";
+type StatusFilter = "all" | "todo" | "obracunato" | "isplaceno" | "mip_todo";
 
 const STATUS_RANK_PAID_FIRST: Record<OrgPayrollStatus, number> = {
   isplaceno: 0,
@@ -84,6 +84,45 @@ const STATUS_RANK_UNPAID_FIRST: Record<OrgPayrollStatus, number> = {
   obracunato: 2,
   isplaceno: 3,
   no_workers: 4,
+};
+
+// PDF ispis liste: labele aktivnih filtera u zaglavlju ispisa (iste kao u
+// kontrolama iznad tabele, da ispis dokumentuje šta je bilo prikazano).
+const TYPE_FILTER_LABEL: Record<TypeFilter, string> = {
+  svi: "Sve",
+  COMPANY: "Privredno društvo",
+  BUSINESS: "Obrt / Samostalna djelatnost",
+};
+
+const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
+  all: "Sve",
+  todo: "Treba obračunati",
+  obracunato: "Obračunato (čeka isplatu)",
+  isplaceno: "Isplaćeno",
+  mip_todo: "MIP nije preuzet",
+};
+
+// DD.MM.GGGG. iz ISO datuma. Lokalni helper: datumHr iz robaPdf bi statičkim
+// importom povukao pdf-lib u bundle stranice.
+const datumIz = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const [y, m, d] = String(iso).slice(0, 10).split("-");
+  return `${d}.${m}.${y}.`;
+};
+
+// Iznos u KM formatu 1.234,56 (za tabelu i PDF).
+const km = (n: number) =>
+  n.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const SORT_LABEL: Record<SortKey, string> = {
+  naziv: "Naziv (A–Z)",
+  radnika: "Broj radnika",
+  datum: "Datum kreiranja",
+  status_paid_first: "Status plata: isplaćeno prvo",
+  status_unpaid_first: "Status plata: neobračunate prvo",
 };
 
 export default function Organizacije() {
@@ -134,6 +173,8 @@ export default function Organizacije() {
     total: number;
     name: string;
   } | null>(null);
+  // PDF ispis prikazane liste (sa aktivnim filterima i sortiranjem).
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: ["organizationsPayrollStatus", year, month],
@@ -152,6 +193,8 @@ export default function Organizacije() {
       return o.payrollStatus === "none" || o.payrollStatus === "partial";
     if (statusFilter === "obracunato") return o.payrollStatus === "obracunato";
     if (statusFilter === "isplaceno") return o.payrollStatus === "isplaceno";
+    if (statusFilter === "mip_todo")
+      return o.payrollObracunato > 0 && !o.mipDownloadedAt;
     return true;
   };
 
@@ -225,6 +268,9 @@ export default function Organizacije() {
       obracunato: visible.filter((o) => o.payrollStatus === "obracunato")
         .length,
       isplaceno: visible.filter((o) => o.payrollStatus === "isplaceno").length,
+      mip_todo: visible.filter(
+        (o) => o.payrollObracunato > 0 && !o.mipDownloadedAt,
+      ).length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allOrgs.length, typeFilter, statusQuery.data]);
@@ -574,9 +620,14 @@ export default function Organizacije() {
       "JIB",
       "Šifra djelatnosti",
       "Grad",
+      "Email",
+      "Telefon",
       "Status plata",
       "Obračunato (broj radnika)",
       "Isplaćeno (broj radnika)",
+      "Datum isplate",
+      "MIP-1023",
+      "Trošak plata (KM)",
       "Sekcija",
     ];
     const esc = (v: string | number | null | undefined) => {
@@ -602,9 +653,21 @@ export default function Organizacije() {
           o.taxNumber || "",
           o.activityCode || "",
           o.city || "",
+          o.email || "",
+          o.phone || "",
           STATUS_LABEL[o.payrollStatus],
           o.payrollObracunato,
           o.payrollIsplaceno,
+          o.paymentDate ? datumIz(o.paymentDate) : "",
+          o.mipDownloadedAt
+            ? `Preuzet ${datumIz(o.mipDownloadedAt)}`
+            : o.payrollObracunato > 0
+              ? "Nije preuzet"
+              : "",
+          // decimalni zarez bez tačke hiljada, da Excel prepozna broj
+          (o.payrollTotalCost ?? 0) > 0
+            ? (o.payrollTotalCost ?? 0).toFixed(2).replace(".", ",")
+            : "",
           section,
         ]
           .map(esc)
@@ -623,6 +686,151 @@ export default function Organizacije() {
     a.download = `organizacije-${year}-${String(month).padStart(2, "0")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // ── PDF ispis liste ───────────────────────────────────────────────────────
+  // Štampa tačno ono što je na ekranu: iste sekcije (moje/klijentske), isti
+  // filteri (tip, status, pretraga) i isto sortiranje. Aktivni filteri se
+  // ispisuju u zaglavlju PDF-a da se zna šta lista obuhvata.
+  const exportPdf = async () => {
+    if (own.length === 0 && clients.length === 0) {
+      notify("Nijedna organizacija ne odgovara filteru.", "warning");
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      // Lazy-load generatora (pdf-lib + font) da ne uvećavamo bundle.
+      const { downloadTablePdf, datumHr } = await import(
+        "src/sections/lager/robaPdf"
+      );
+      const user = userQuery.data;
+      const imeNaloga =
+        `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
+        user?.email ||
+        "Moj nalog";
+      const cols = [
+        { label: "Naziv", w: 150 },
+        { label: "Vlasnik", w: 85 },
+        { label: "Tip", w: 38 },
+        { label: "Radnika", w: 36, right: true },
+        { label: "JIB", w: 70 },
+        { label: "Šifra djel.", w: 40 },
+        { label: "Grad", w: 58 },
+        { label: "Kontakt", w: 105 },
+        { label: "Status plata", w: 95 },
+        { label: "Datum isplate", w: 52 },
+        { label: "MIP-1023", w: 68 },
+        { label: "Trošak (KM)", w: 62, right: true },
+      ];
+      const toRow = (
+        o: OrganizationWithPayrollStatus,
+      ): (string | string[])[] => {
+        const vlasnik = o.owner
+          ? o.owner.name ||
+            `${o.owner.firstName ?? ""} ${o.owner.lastName ?? ""}`.trim()
+          : "";
+        const detalj =
+          o.payrollStatus === "partial" || o.payrollStatus === "obracunato"
+            ? `${o.payrollObracunato}/${o.workerCount} obračunato` +
+              (o.payrollIsplaceno > 0
+                ? ` · ${o.payrollIsplaceno} isplaćeno`
+                : "")
+            : "";
+        // MIP-1023 status: preuzet (sa datumom) / nije preuzet iako ima
+        // obračuna / – kad za mjesec nema ni jednog obračuna.
+        const mip = o.mipDownloadedAt
+          ? `Preuzet ${datumHr(o.mipDownloadedAt)}`
+          : o.payrollObracunato > 0
+            ? "Nije preuzet"
+            : "–";
+        // Kontakt u dvije čiste linije (email pa telefon). Array ćelije se ne
+        // prelamaju u generatoru, pa predugi email skraćujemo sa "…" da ne
+        // pređe u susjednu kolonu.
+        const skrati = (s: string) =>
+          s.length > 26 ? `${s.slice(0, 25)}…` : s;
+        const kontaktLinije = [o.email, o.phone]
+          .filter(Boolean)
+          .map((s) => skrati(String(s)));
+        const kontakt: string | string[] = kontaktLinije.length
+          ? kontaktLinije
+          : "–";
+        return [
+          o.name,
+          vlasnik || "–",
+          o.type === "COMPANY" ? "D.o.o." : "Obrt",
+          String(o.workerCount),
+          o.taxNumber || "–",
+          o.activityCode || "–",
+          o.city || "–",
+          kontakt,
+          detalj
+            ? [STATUS_LABEL[o.payrollStatus], detalj]
+            : STATUS_LABEL[o.payrollStatus],
+          o.paymentDate ? datumHr(o.paymentDate) : "–",
+          mip,
+          (o.payrollTotalCost ?? 0) > 0 ? km(o.payrollTotalCost ?? 0) : "–",
+        ];
+      };
+      const totalsRow = (list: OrganizationWithPayrollStatus[]) => {
+        const trosak = list.reduce((a, o) => a + (o.payrollTotalCost ?? 0), 0);
+        return [
+          "Ukupno",
+          "",
+          "",
+          String(list.reduce((a, o) => a + o.workerCount, 0)),
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          trosak > 0 ? km(trosak) : "",
+        ];
+      };
+      const sections = [];
+      if (own.length > 0) {
+        sections.push({
+          heading: `Moje organizacije (${own.length})`,
+          headingSize: 12,
+          headingGap: 16,
+          cols,
+          rows: own.map(toRow),
+          totals: totalsRow(own),
+        });
+      }
+      if (clients.length > 0) {
+        sections.push({
+          heading: `Klijentske organizacije (${clients.length})`,
+          headingSize: 12,
+          headingGap: 20,
+          cols,
+          rows: clients.map(toRow),
+          totals: totalsRow(clients),
+        });
+      }
+      const info = [
+        `Tip: ${TYPE_FILTER_LABEL[typeFilter]} · Status plata: ${STATUS_FILTER_LABEL[statusFilter]} · Sortirano po: ${SORT_LABEL[sortKey]}`,
+      ];
+      if (search.trim()) info.push(`Pretraga: "${search.trim()}"`);
+      await downloadTablePdf({
+        fileName: `Organizacije-${year}-${String(month).padStart(2, "0")}.pdf`,
+        landscape: true,
+        org: { name: imeNaloga, address: user?.address, city: user?.city },
+        title: "Pregled organizacija",
+        subtitle: `Status plata za ${MONTHS[month - 1].toLowerCase()} ${year}.`,
+        info,
+        sections,
+        footerBrand: "Porezni Kalkulator",
+      });
+    } catch (e) {
+      notify(
+        `Greška pri generisanju PDF-a: ${(e as Error).message ?? e}`,
+        "error",
+      );
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   return (
@@ -770,6 +978,7 @@ export default function Organizacije() {
               ["todo", "Treba obračunati"],
               ["obracunato", "Obračunato (čeka isplatu)"],
               ["isplaceno", "Isplaćeno"],
+              ["mip_todo", "MIP nije preuzet"],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -890,6 +1099,34 @@ export default function Organizacije() {
           </div>
           {/* Desno: sporedni utility (rijetko korišten). */}
           <div className={styles.bulkBarRight}>
+            <button
+              type="button"
+              className={styles.btnBulk}
+              onClick={() => void exportPdf()}
+              disabled={pdfBusy || (own.length === 0 && clients.length === 0)}
+              title={
+                own.length === 0 && clients.length === 0
+                  ? "Nijedna organizacija ne odgovara filteru"
+                  : "Odštampaj prikazanu listu u PDF (poštuje filtere i sortiranje)"
+              }
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+              {pdfBusy ? "Generišem…" : "Štampaj PDF"}
+            </button>
             <button
               type="button"
               className={styles.btnBulk}
@@ -1544,17 +1781,18 @@ function OrgsTable({
       <div className="overflow-x-auto">
         {/* Fiksne širine kolona: obje tabele (moje/klijentske) se poravnaju
             identično, umjesto da svaka računa širine po svom sadržaju. */}
-        <table className="w-full text-[13px] table-fixed min-w-[1080px]">
+        <table className="w-full text-[13px] table-fixed min-w-[1240px]">
           <thead>
             <tr className="border-b border-cream-300 text-left text-[11px] uppercase tracking-wider text-text-tertiary">
-              <th className="px-4 py-2.5 font-semibold w-[17%]">Naziv</th>
-              <th className="px-3 py-2.5 font-semibold w-[11%]">Vlasnik</th>
-              <th className="px-3 py-2.5 font-semibold w-[7%]">Tip</th>
-              <th className="px-3 py-2.5 font-semibold text-right w-[6%]">Radnika</th>
-              <th className="px-3 py-2.5 font-semibold w-[12%]">JIB</th>
-              <th className="px-3 py-2.5 font-semibold w-[9%]">Grad</th>
-              <th className="px-3 py-2.5 font-semibold w-[15%]">Status plata</th>
-              <th className="px-4 py-2.5 w-[23%]"></th>
+              <th className="px-4 py-2.5 font-semibold w-[15%]">Naziv</th>
+              <th className="px-3 py-2.5 font-semibold w-[9%]">Vlasnik</th>
+              <th className="px-3 py-2.5 font-semibold w-[6%]">Tip</th>
+              <th className="px-3 py-2.5 font-semibold text-right w-[5%]">Radnika</th>
+              <th className="px-3 py-2.5 font-semibold w-[10%]">JIB</th>
+              <th className="px-3 py-2.5 font-semibold w-[7%]">Grad</th>
+              <th className="px-3 py-2.5 font-semibold w-[16%]">Status plata</th>
+              <th className="px-3 py-2.5 font-semibold text-right w-[8%]">Trošak (KM)</th>
+              <th className="px-4 py-2.5 w-[24%]"></th>
             </tr>
           </thead>
           <tbody>
@@ -1638,6 +1876,30 @@ function OrgsTable({
                           : ""}
                       </div>
                     )}
+                    {/* Isplata + MIP status: samo kad ima obračunatih plata */}
+                    {o.payrollObracunato > 0 && (
+                      <div className="text-[11.5px] mt-0.5 whitespace-nowrap">
+                        {o.paymentDate && (
+                          <span className="text-text-tertiary">
+                            isplata {datumIz(o.paymentDate)} ·{" "}
+                          </span>
+                        )}
+                        {o.mipDownloadedAt ? (
+                          <span className="text-text-tertiary">
+                            MIP preuzet {datumIz(o.mipDownloadedAt)}
+                          </span>
+                        ) : (
+                          <span className="text-warning font-medium">
+                            MIP nije preuzet
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-text-primary whitespace-nowrap">
+                    {(o.payrollTotalCost ?? 0) > 0
+                      ? km(o.payrollTotalCost ?? 0)
+                      : "–"}
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">
                     <OrgRowActions

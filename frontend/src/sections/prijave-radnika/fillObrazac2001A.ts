@@ -13,6 +13,8 @@ import fontkit from "@pdf-lib/fontkit";
 export type VrstaIsplate2001 = "DOPRINOSA_I_POREZA" | "SAMO_DOPRINOSA" | "SAMO_POREZA";
 
 export interface Obrazac2001AData {
+  /** za dnevnik aktivnosti (admin vidi za koju org-u je dokument) */
+  organizationId?: number | null;
   // Dio 1
   naziv: string;
   jib: string; // 13 cifara
@@ -171,7 +173,7 @@ export async function fillObrazac2001ATemplate(
   data: Obrazac2001AData,
 ): Promise<Uint8Array> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("OBRAZAC_2001_GENERATE", "Obrazac 2001-A");
+  trackEvent("OBRAZAC_2001_GENERATE", "Obrazac 2001-A", data.organizationId);
 
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/Obrazac 2001-A.pdf").then((r) => r.arrayBuffer()),

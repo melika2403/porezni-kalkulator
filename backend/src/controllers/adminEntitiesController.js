@@ -120,4 +120,31 @@ async function sendTrialInvite(req, res) {
   }
 }
 
-module.exports = { listOrgWorkers, deleteOrganization, deleteWorker, deletePersonClient, deleteForm, sendTrialInvite };
+// POST /api/admin/users/:id/verify-email
+// Ručna verifikacija emaila: za korisnike kojima verifikacioni mail ne
+// stigne (spam, firmin mail server), admin ih pusti bez čačkanja po bazi.
+async function verifyUserEmail(req, res) {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ ok: false, error: "Invalid id" });
+  try {
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({ ok: false, error: "Korisnik nije pronađen" });
+    }
+    if (user.isEmailVerified) {
+      return res.status(409).json({ ok: false, error: "Korisnik je već verifikovan" });
+    }
+    // Token se briše da stari link iz emaila ne ostane aktivan.
+    await user.update({
+      isEmailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationExpiry: null,
+    });
+    return res.json({ ok: true, data: { userId: id } });
+  } catch (e) {
+    console.error("admin verifyUserEmail failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+module.exports = { listOrgWorkers, deleteOrganization, deleteWorker, deletePersonClient, deleteForm, sendTrialInvite, verifyUserEmail };

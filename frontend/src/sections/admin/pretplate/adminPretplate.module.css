@@ -108,7 +108,7 @@
 
 /* ── Tabela ──────────────────────────────────────────────────────────── */
 .tableWrap {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -317,7 +317,7 @@
 .loading,
 .empty,
 .errorBox {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 3rem 2rem;
@@ -429,7 +429,7 @@
   z-index: 1000;
 }
 .modal {
-  background: #fff;
+  background: var(--white);
   border-radius: 16px;
   max-width: 540px;
   width: 100%;
@@ -447,7 +447,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1.1rem 1.4rem;
-  background: #f5f2eb;
+  background: var(--paper);
   border-bottom: 1px solid #e3ddd0;
 }
 .modalTitle {
@@ -477,7 +477,7 @@
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #3a5c42;
+  color: var(--sage);
   font-weight: 700;
   margin: 1.3rem 0 0.5rem;
 }
@@ -500,7 +500,7 @@
 /* istaknuti ukupan iznos */
 .detailRowTotal .detailLabel { color: #16241a; font-weight: 700; }
 .detailRowTotal .detailValue {
-  color: #3a5c42;
+  color: var(--sage);
   font-weight: 800;
   font-size: 1rem;
 }

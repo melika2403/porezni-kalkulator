@@ -15,9 +15,9 @@
   font-size: 14px;
   font-weight: 400;
   text-align: left;
-  color: var(--ink, #0f1a12);
-  background: var(--white, #fff);
-  border: 1px solid var(--border, #d4cfc4);
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--border);
   border-radius: var(--radius, 8px);
   padding: 0.6rem 0.8rem;
   cursor: pointer;
@@ -26,21 +26,21 @@
 }
 
 .fillBtn:hover {
-  border-color: var(--sage, #3a5c42);
+  border-color: var(--sage);
 }
 
 .fillBtn:focus-visible {
   outline: none;
-  border-color: var(--sage, #3a5c42);
+  border-color: var(--sage);
   box-shadow: 0 0 0 3px var(--sage-pale, #eef3ef);
 }
 
 .fillSelect {
   font-family: inherit;
   font-size: 14px;
-  color: var(--ink, #0f1a12);
-  background: var(--white, #fff);
-  border: 1px solid var(--border, #d4cfc4);
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--border);
   border-radius: var(--radius, 8px);
   padding: 0.6rem 0.8rem;
   cursor: pointer;
@@ -49,7 +49,7 @@
 
 .fillSelect:focus {
   outline: none;
-  border-color: var(--sage, #3a5c42);
+  border-color: var(--sage);
   box-shadow: 0 0 0 3px var(--sage-pale, #eef3ef);
 }
 
@@ -59,8 +59,8 @@
   top: calc(100% + 4px);
   left: 0;
   z-index: 200;
-  background: var(--white, #fff);
-  border: 1px solid var(--border, #d4cfc4);
+  background: var(--white);
+  border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(15, 26, 18, 0.18);
   padding: 0.85rem 1rem;
@@ -71,7 +71,7 @@
 .guestText {
   font-family: inherit;
   font-size: 13.5px;
-  color: var(--ink, #0f1a12);
+  color: var(--ink);
   line-height: 1.5;
   margin: 0 0 0.6rem;
 }
@@ -81,7 +81,7 @@
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--sage, #3a5c42);
+  color: var(--sage);
   text-decoration: none;
 }
 
@@ -100,8 +100,8 @@
   top: calc(100% + 4px);
   left: 0;
   z-index: 200;
-  background: var(--white, #fff);
-  border: 1px solid var(--border, #d4cfc4);
+  background: var(--white);
+  border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(15, 26, 18, 0.18);
   min-width: 280px;
@@ -116,16 +116,16 @@
   box-sizing: border-box;
   font-family: inherit;
   font-size: 14px;
-  color: var(--ink, #0f1a12);
+  color: var(--ink);
   background: var(--paper, #faf8f3);
   border: none;
-  border-bottom: 1px solid var(--border, #d4cfc4);
+  border-bottom: 1px solid var(--border);
   padding: 0.6rem 0.8rem;
   outline: none;
 }
 
 .dropdownSearch::placeholder {
-  color: var(--mid, #7a8a7d);
+  color: var(--mid);
 }
 
 .dropdownList {
@@ -141,7 +141,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--mid, #7a8a7d);
+  color: var(--mid);
 }
 
 .dropdownItem {
@@ -150,7 +150,7 @@
   text-align: left;
   font-family: inherit;
   font-size: 14px;
-  color: var(--ink, #0f1a12);
+  color: var(--ink);
   background: transparent;
   border: none;
   border-radius: 7px;
@@ -169,12 +169,12 @@
   padding: 0.9rem 0.6rem;
   text-align: center;
   font-size: 13px;
-  color: var(--mid, #7a8a7d);
+  color: var(--mid);
   font-style: italic;
 }
 
 .dropdownTeaser {
-  border-top: 1px solid var(--border, #d4cfc4);
+  border-top: 1px solid var(--border);
   padding: 0.6rem 0.75rem;
   background: var(--paper, #faf8f3);
 }
@@ -182,7 +182,7 @@
 .dropdownTeaserText {
   font-family: inherit;
   font-size: 12px;
-  color: var(--mid, #7a8a7d);
+  color: var(--mid);
   line-height: 1.4;
   margin: 0 0 0.25rem;
 }
@@ -191,7 +191,7 @@
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
-  color: var(--sage, #3a5c42);
+  color: var(--sage);
   text-decoration: none;
 }
 

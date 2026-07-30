@@ -345,6 +345,7 @@ export default function ObracuniPlataPage() {
         }
       })();
       const bytes = await fillObrazac2002Template({
+        organizationId: orgId,
         naziv: fullOrg.name || "",
         jib: (fullOrg.taxNumber || "").replace(/\D/g, ""),
         operacija: "PRIJAVA",
@@ -445,7 +446,7 @@ export default function ObracuniPlataPage() {
   async function downloadPayslip(payrollId: number) {
     setBusy(`payslip-${payrollId}`);
     try {
-      const r = await generateWorkerPayslip(payrollId);
+      const r = await generateWorkerPayslip(payrollId, undefined, orgId);
       if (r.ok) triggerBlobDownload(r.blob, r.filename);
       else setObavijest(`Greška: ${r.error}`);
     } finally {

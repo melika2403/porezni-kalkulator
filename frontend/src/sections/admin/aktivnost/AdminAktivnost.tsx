@@ -46,6 +46,8 @@ const ACTION_LABELS: Record<string, string> = {
   LISTA_NALOGA_GENERATE: "Lista naloga za plaćanje",
   SPECIFIKACIJE_GENERATE: "Specifikacije plata",
   EVIDENCIJA_GENERATE: "Matična evidencija",
+  // prijave korisnika (backend logEvent; ne ulaze u javni brojač dokumenata)
+  PRIJAVA: "Prijava korisnika",
   // PK Office radne akcije (backend logEvent)
   OFFICE_IZVOD_UCITAN: "PK Office: izvod učitan",
   OFFICE_IZVOD_RUCNI: "PK Office: ručni izvod",

@@ -1,5 +1,5 @@
 .section {
-  background: white;
+  background: var(--white);
   padding: 6rem 2rem;
 }
 
@@ -65,7 +65,7 @@
 }
 
 .cycleBtnActive {
-  background: var(--white, #fff);
+  background: var(--white);
   color: var(--ink);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
@@ -208,6 +208,7 @@
 
 .officeGhost:hover {
   background: rgba(255, 255, 255, 0.14);
+  /* fiksno tamnozeleni baner: border ostaje bijeli u obje teme */
   border-color: #fff;
 }
 
@@ -277,7 +278,7 @@
 }
 
 .card {
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 2rem;
@@ -292,8 +293,10 @@
 }
 
 .featuredPro {
-  border-color: var(--sage);
-  background: var(--sage);
+  /* Brend kartica: fiksno tamnozelena u obje teme (var(--sage) bi u tamnoj
+     posvijetlio pa bijeli tekst gubi kontrast na velikoj površini) */
+  border-color: #3a5c42;
+  background: #3a5c42;
   color: white;
 }
 
@@ -362,7 +365,7 @@
   font-size: 12px;
   font-weight: 400;
   letter-spacing: 0.01em;
-  color: var(--accent, #c8622a);
+  color: var(--accent);
   padding: 0;
   margin-bottom: 1.25rem;
   opacity: 0.95;
@@ -445,24 +448,26 @@
   background: var(--sage-pale);
 }
 
+/* Dugme na sage kartici: kartica je obojena u obje teme, pa dugme ostaje
+   fiksno svijetlo sa fiksno tamnim tekstom (var() bi ga u dark slomio). */
 .white {
-  background: white;
+  background: #fff;
   border: none;
-  color: var(--sage);
+  color: #2d4633;
 }
 
 .white:hover {
-  background: var(--sage-pale);
+  background: #ece7dc;
 }
 
 .dark {
   background: var(--ink);
   border: none;
-  color: white;
+  color: var(--paper);
 }
 
 .dark:hover {
-  background: #2a3a2d;
+  opacity: 0.88;
 }
 
 /* ── Modal ── */
