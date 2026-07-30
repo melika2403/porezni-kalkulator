@@ -15,9 +15,9 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.7rem 1.3rem;
-  background: var(--sage, #3a5c42);
+  background: var(--sage);
   color: #fff;
-  border: 1px solid var(--sage, #3a5c42);
+  border: 1px solid var(--sage);
   border-radius: var(--radius, 8px);
   font-family: inherit;
   font-size: 14px;
@@ -32,8 +32,8 @@
 }
 
 .btnDownloadAlt {
-  background: var(--white, #fff);
-  color: var(--sage, #3a5c42);
+  background: var(--white);
+  color: var(--sage);
 }
 
 .btnDownload:disabled {

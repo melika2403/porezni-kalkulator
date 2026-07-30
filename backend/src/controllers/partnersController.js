@@ -13,6 +13,7 @@ const {
   BankStatement,
   Invoice,
   Organization,
+  OrganizationMember,
   UlazniRacun,
   Prebijanje,
   Kalkulacija,
@@ -885,6 +886,162 @@ async function uvozPartnera(req, res) {
     });
   } catch (err) {
     console.error("partneri uvoz error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
+// POST /api/partners/:orgId/uvoz-iz-obrta: uvoz partnera od drugog obrta
+// istog korisnika (mnogi obrti dijele iste dobavljače: knjigovodstvo,
+// BH Telecom, elektrodistribucija, vodovod...). Kopiraju se samo matični
+// podaci partnera (naziv, ID/PDV broj, adresa, računi...), NE i promet,
+// početna stanja ni veze sa transakcijama. Duplikati se preskaču po istom
+// pravilu kao kod Com_Soft uvoza (ID broj, pa labavo normalizovan naziv).
+async function uvozIzObrta(req, res) {
+  try {
+    const organizationId = parseId(req.params.orgId);
+    const sourceOrgId = parseId(req.body?.sourceOrgId);
+    if (!organizationId || !sourceOrgId) {
+      return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+    }
+    if (sourceOrgId === organizationId) {
+      return res.status(400).json({ ok: false, error: "ISTI_OBRT" });
+    }
+    // requireOrgRole čuva samo ciljni obrt (:orgId); pristup izvornom
+    // provjeravamo ovdje, dovoljna je bilo koja rola (čitanje šifarnika)
+    const clan = await OrganizationMember.findOne({
+      where: { userId: req.user.id, organizationId: sourceOrgId },
+    });
+    if (!clan) {
+      return res.status(403).json({ ok: false, error: "NO_ACCESS_SOURCE" });
+    }
+
+    const ids = Array.isArray(req.body?.partnerIds)
+      ? req.body.partnerIds.map(parseId).filter(Boolean)
+      : [];
+    const where = { organizationId: sourceOrgId };
+    if (ids.length > 0) where.id = { [Op.in]: ids };
+    const izvorni = await Partner.findAll({ where, order: [["name", "ASC"]] });
+    if (izvorni.length === 0) {
+      return res.status(400).json({ ok: false, error: "EMPTY" });
+    }
+
+    const postojeci = await Partner.findAll({
+      where: { organizationId },
+      attributes: ["name", "jib"],
+      raw: true,
+    });
+    const poJibu = new Map();
+    const poNazivu = new Map();
+    for (const p of postojeci) {
+      if (p.jib) poJibu.set(p.jib, p.name);
+      const n = normalizeName(p.name);
+      if (n) poNazivu.set(n, p.name);
+    }
+
+    let code = await nextPartnerCode(organizationId);
+    const zaUnos = [];
+    const preskoceno = [];
+    for (const p of izvorni) {
+      if (p.jib && poJibu.has(p.jib)) {
+        preskoceno.push({
+          naziv: p.name,
+          razlog: `ID broj već postoji (${poJibu.get(p.jib)})`,
+        });
+        continue;
+      }
+      const norm = normalizeName(p.name);
+      if (norm && poNazivu.has(norm)) {
+        const isti = poNazivu.get(norm);
+        preskoceno.push({
+          naziv: p.name,
+          razlog:
+            isti === p.name ? "naziv već postoji" : `naziv već postoji (${isti})`,
+        });
+        continue;
+      }
+      if (p.jib) poJibu.set(p.jib, p.name);
+      if (norm) poNazivu.set(norm, p.name);
+      // MariaDB zna vratiti JSON kolonu kao string
+      const accounts = Array.isArray(p.accounts)
+        ? p.accounts
+        : typeof p.accounts === "string"
+          ? JSON.parse(p.accounts || "[]")
+          : [];
+      zaUnos.push({
+        organizationId,
+        code: code++,
+        name: p.name,
+        jib: p.jib,
+        pdvBroj: p.pdvBroj,
+        address: p.address,
+        city: p.city,
+        email: p.email,
+        phone: p.phone,
+        accounts: cleanAccounts(accounts),
+        isKupac: p.isKupac,
+        isDobavljac: p.isDobavljac,
+        note: p.note,
+      });
+    }
+
+    const created = [];
+    for (let i = 0; i < zaUnos.length; i += 500) {
+      // eslint-disable-next-line no-await-in-loop
+      const chunk = await Partner.bulkCreate(zaUnos.slice(i, i + 500));
+      created.push(...chunk);
+    }
+
+    // nevezane transakcije ciljnog obrta odmah vezati za nove partnere:
+    // jedan prolaz (po žiro računu pa po labavom nazivu), isti obrazac kao
+    // kod Com_Soft uvoza; relink po partneru bi za velike šifarnike značio
+    // hiljade sekvencijalnih upita
+    let vezano = 0;
+    if (created.length > 0) {
+      const byAccount = new Map();
+      const byName = new Map();
+      for (const p of created) {
+        for (const a of Array.isArray(p.accounts) ? p.accounts : []) {
+          byAccount.set(normalizeDigits(a), p.id);
+        }
+        const n = normalizeName(p.name);
+        if (n && !byName.has(n)) byName.set(n, p.id);
+      }
+      const slobodne = await BankTransaction.findAll({
+        where: { organizationId, partnerId: null },
+        attributes: ["id", "counterpartyAccount", "counterpartyName"],
+        raw: true,
+      });
+      const poPartneru = new Map();
+      for (const tx of slobodne) {
+        const pid =
+          byAccount.get(normalizeDigits(tx.counterpartyAccount)) ??
+          byName.get(normalizeName(tx.counterpartyName)) ??
+          null;
+        if (pid == null) continue;
+        if (!poPartneru.has(pid)) poPartneru.set(pid, []);
+        poPartneru.get(pid).push(tx.id);
+      }
+      for (const [partnerId, txIds] of poPartneru) {
+        // eslint-disable-next-line no-await-in-loop
+        await BankTransaction.update(
+          { partnerId },
+          { where: { id: { [Op.in]: txIds } } },
+        );
+        vezano += txIds.length;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        ukupno: izvorni.length,
+        dodano: created.length,
+        vezanoTransakcija: vezano,
+        preskoceno,
+      },
+    });
+  } catch (err) {
+    console.error("partneri uvoz-iz-obrta error:", err);
     return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
   }
 }
@@ -2666,6 +2823,7 @@ module.exports = {
   update,
   remove,
   uvozPartnera,
+  uvozIzObrta,
   promet,
   listUlazniRacuni,
   createUlazniRacun,

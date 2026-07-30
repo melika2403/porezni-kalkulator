@@ -19,6 +19,7 @@ const googleAuth = require("../auth/googleAuth");
 const subscriptionRepository = require("../repositories/subscriptionRepository");
 const { dodijeliOfficeTrial } = require("./pkOfficeGateController");
 const { getEffectiveRole } = require("../services/tierService");
+const { logEvent } = require("./activityController");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
 const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10; // 10 godina
@@ -258,6 +259,9 @@ async function login(req, res) {
     });
 
     setAuthCookie(res, token, Boolean(rememberMe));
+
+    // dnevnik aktivnosti (admin Aktivnost); ne ulazi u javni brojač dokumenata
+    void logEvent({ userId: user.id, action: "PRIJAVA", label: "Email i lozinka" });
 
     const safeUser = await findUserWithSub({ id: user.id });
     return res.status(200).json({ ok: true, data: toPublicUser(safeUser) });
@@ -678,6 +682,8 @@ async function googleCallback(req, res) {
     // gubi sesija prijavljeni preko Google-a, isti UX kao kod ostalih app-ova.
     const token = signJwtForUser(user, "3650d");
     setAuthCookie(res, token, true);
+    // dnevnik aktivnosti (admin Aktivnost); ne ulazi u javni brojač dokumenata
+    void logEvent({ userId: user.id, action: "PRIJAVA", label: "Google" });
     return redirectToFrontend(res, "/");
   } catch (error) {
     console.error("googleCallback error:", error.message);

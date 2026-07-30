@@ -1,11 +1,9 @@
 .page {
-  --ink: #0f1a12;
-  --muted: #7a8a7d;
-  --paper: #f5f2eb;
-  --line: #d4cfc4;
-  --sage: #3a5c42;
-  --sage-soft: #d6e8d9;
-  --accent: #c8622a;
+  /* Lokalni aliasi prate globalnu temu (svijetlu i tamnu); ranije hardkodirane
+     svijetle vrijednosti (--ink/--paper/--sage-soft) lomile su tamnu temu. */
+  --muted: var(--mid);
+  --line: var(--border);
+  --sage-soft: var(--sage-pale);
   background: var(--paper);
   color: var(--ink);
 }
@@ -26,7 +24,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--accent);
-  background: #f7e9df;
+  background: var(--accent-pale);
   border-radius: 20px;
   padding: 0.3rem 0.8rem;
   margin-bottom: 1.25rem;
@@ -83,7 +81,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: #fff;
+  background: var(--white);
   color: var(--ink);
   font-weight: 600;
   font-size: 15px;
@@ -109,7 +107,7 @@
   padding: 0 1.5rem 4rem;
 }
 .window {
-  background: #fff;
+  background: var(--white);
   border: 1px solid var(--line);
   border-radius: 16px;
   overflow: hidden;
@@ -120,7 +118,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.7rem 1rem;
-  background: #faf8f3;
+  background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
 .dot {
@@ -132,7 +130,7 @@
   margin-left: 0.75rem;
   font-size: 12px;
   color: var(--muted);
-  background: #fff;
+  background: var(--white);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.25rem 0.7rem;
@@ -162,7 +160,7 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.85rem 0.95rem;
-  background: #fff;
+  background: var(--white);
 }
 .kpiIcon {
   width: 30px;
@@ -204,7 +202,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.7rem 1rem;
-  border-bottom: 1px solid #ece8df;
+  border-bottom: 1px solid var(--border);
 }
 .row:last-child {
   border-bottom: 0;
@@ -308,7 +306,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--ink);
-  background: #fff;
+  background: var(--white);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.32rem 0.75rem;
@@ -344,7 +342,7 @@
   gap: 1rem;
 }
 .feat {
-  background: #fff;
+  background: var(--white);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 1.3rem;
@@ -548,7 +546,7 @@
 }
 .planCtaGhost:hover {
   color: #fff;
-  border-color: #fff;
+  border-color: var(--white);
 }
 .planFine {
   margin: 1rem auto 0;
@@ -590,12 +588,14 @@
   margin: 0 auto 1.5rem;
   max-width: 48ch;
 }
+/* CTA sekcija ima fiksnu tamnu pozadinu (#14241b) u obje teme, pa i dugme
+   ostaje fiksno svijetlo (var(--white) bi u tamnoj temi potamnilo). */
 .ctaCard .btnPrimary {
-  background: #fff;
-  color: var(--sage);
+  background: #f5f2eb;
+  color: #2d4633;
 }
 .ctaCard .btnPrimary:hover {
-  background: #f0ede5;
+  background: #e8e4da;
 }
 
 @media (max-width: 860px) {

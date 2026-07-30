@@ -206,6 +206,12 @@ async function ensureColumns() {
       ddl: "ALTER TABLE bank_match_rules ADD COLUMN partnerId INT UNSIGNED NULL",
     },
     {
+      // potpisnik na ispisu kalkulacije ("Kalkulaciju uradio"); po obrtu
+      table: "organizations",
+      column: "kalkulacijePotpisnik",
+      ddl: "ALTER TABLE organizations ADD COLUMN kalkulacijePotpisnik VARCHAR(120) NULL",
+    },
+    {
       table: "invoices",
       column: "currency",
       ddl: "ALTER TABLE invoices ADD COLUMN currency ENUM('BAM','EUR') NOT NULL DEFAULT 'BAM'",

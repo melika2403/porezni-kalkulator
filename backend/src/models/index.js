@@ -228,6 +228,8 @@ const Organization = sequelize.define(
     // sa brojem radnih dana iz šihterice i popuni topli obrok. Pojedini radnik
     // može imati svoju stopu (Worker.mealAllowancePerDay). NULL = bez auto-stope.
     mealAllowancePerDay: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    // Potpisnik na ispisu kalkulacije ("Kalkulaciju uradio"); po obrtu
+    kalkulacijePotpisnik: { type: DataTypes.STRING(120), allowNull: true },
     // ── Model vlasništva / direktora (relevantno za d.o.o./COMPANY) ──────────
     // Razdvaja VLASNIŠTVO od ZAPOSLENJA. Za obrt (BUSINESS) se ignoriše:
     // vlasnik je uvijek obrtnik (Worker VLASNIK, Obrazac 2002).

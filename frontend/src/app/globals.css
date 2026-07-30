@@ -18,6 +18,51 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 12px;
+  /* semantičke boje upozorenja/grešaka (žuti i crveni callouti) */
+  --warn-bg: #fffbeb;
+  --warn-border: #f59e0b;
+  --warn-text: #8a4f10;
+  --err-bg: #fee2e2;
+  --err-border: #fca5a5;
+  --err-text: #991b1b;
+  /* sekundarne površine: koristile su se samo kao var() fallback po
+     komponentama (npr. sumarni paneli obračuna plata), sad su definisane
+     da bi tamna tema mogla da ih pregazi */
+  --bg: #ffffff;
+  --bg-subtle: #fafafa;
+  --border-light: #ececec;
+  --card-bg: #f7f3eb;
+}
+
+/* Tamna tema za marketing dio. Klasu .dark na <html> postavlja globalni
+   next-themes ThemeProvider (ista pohrana kao PK Office, "pk-office-theme"),
+   pa je tema sinhronizovana između marketinga i /app. Vrijednosti su 1:1
+   mapirane na dark PK tokene (pk-theme.css / pk-office.css .pk-app).
+   --white je "površina kartice": u dark postaje tamna, pa bijele kartice,
+   meniji i inputi automatski potamne, a tekst na sage/accent dugmadima
+   (var(--white)) ostane čitljiv jer sage/accent u dark posvijetle. */
+.dark {
+  --ink: #f5f2eb;
+  --paper: #0e110e;
+  --sage: #7ea185;
+  --sage-light: #a8c1a4;
+  --sage-pale: #2d4633;
+  --accent: #e08a52;
+  --accent-pale: #3a2418;
+  --mid: #888780;
+  --border: #2f342f;
+  --white: #181b18;
+  --warn-bg: #2c2312;
+  --warn-border: #7a5410;
+  --warn-text: #e8bd7a;
+  --err-bg: #3a1f1f;
+  --err-border: #7a3535;
+  --err-text: #e8a0a0;
+  --bg: #181b18;
+  --bg-subtle: #1d201d;
+  --border-light: #262b26;
+  --card-bg: #181b18;
+  color-scheme: dark;
 }
 
 /* Reset u @layer base: layered stilovi i dalje gaze browser defaulte,

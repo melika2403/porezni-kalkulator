@@ -78,10 +78,10 @@
   display: flex;
   align-items: stretch;
   gap: 2rem;
-  background: white;
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: inset 4px 0 0 var(--accent, #c8622a);
+  box-shadow: inset 4px 0 0 var(--accent);
   padding: 2.25rem 2.5rem;
 }
 
@@ -219,7 +219,7 @@
   gap: 0.35rem;
   padding: 0.75rem 1.4rem;
   border-radius: 999px;
-  background: var(--accent, #c8622a);
+  background: var(--accent);
   color: white;
   font-size: 0.95rem;
   font-weight: 600;
@@ -250,7 +250,7 @@
 
 .officeGhostLink:hover {
   color: #fff;
-  border-color: #fff;
+  border-color: var(--white);
 }
 
 .officeNote {
@@ -289,7 +289,7 @@
 
 .featuredTag {
   align-self: flex-start;
-  background: var(--accent, #c8622a);
+  background: var(--accent);
   color: white;
   font-size: 10px;
   font-weight: 600;
@@ -318,7 +318,7 @@
 
 .icon_sage { background: var(--sage-pale); color: var(--sage); }
 .icon_accent { background: var(--accent-pale); color: var(--accent); }
-.icon_dark { background: #e8e4dc; color: var(--ink); }
+.icon_dark { background: #e8e4dc; color: #0f1a12; }
 
 .cellTitle {
   font-size: 15px;

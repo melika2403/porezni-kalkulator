@@ -199,3 +199,55 @@
     animation: none;
   }
 }
+
+/* ── Tamna tema: velika kartica prati temu, gradijent brojki svjetlija
+   zeleno-zlatna varijanta ── */
+:global(.dark) .inner {
+  background: var(--white);
+  border-color: var(--border);
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.3);
+}
+:global(.dark) .title {
+  color: var(--ink);
+}
+:global(.dark) .title em {
+  background: linear-gradient(115deg, #a8c1a4 30%, #d9b975 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+:global(.dark) .big {
+  background: linear-gradient(115deg, #a8c1a4 0%, #d9b975 55%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+:global(.dark) .ticker {
+  background: var(--paper);
+  border-color: var(--border);
+  color: var(--mid);
+}
+:global(.dark) .ledger {
+  border-top-color: var(--border);
+}
+:global(.dark) .col {
+  border-bottom-color: var(--border);
+  border-left-color: var(--border);
+}
+:global(.dark) .col:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+}
+:global(.dark) .colLabel {
+  color: var(--ink);
+}
+:global(.dark) .colDesc {
+  color: var(--mid);
+}
+:global(.dark) .trustItem {
+  color: var(--mid);
+}
+:global(.dark) .trustItem svg {
+  color: var(--sage);
+}

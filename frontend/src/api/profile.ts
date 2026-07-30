@@ -242,6 +242,8 @@ export type Organization = {
   pdvObveznikDo?: string | null;
   /** KPR prihod od pazara iz KP-1042 (dnevni promet) umjesto pologa sa izvoda */
   kprPazarIzKp?: boolean;
+  /** Potpisnik na ispisu kalkulacije ("Kalkulaciju uradio"); po obrtu. */
+  kalkulacijePotpisnik?: string | null;
   jurisdiction: Jurisdiction | null;
   taxRegime: TaxRegime | null;
   activityCode: string | null;
@@ -420,6 +422,13 @@ export type OrganizationWithPayrollStatus = Organization & {
   payrollObracunato: number;
   payrollIsplaceno: number;
   payrollStatus: OrgPayrollStatus;
+  /** zadnje preuzimanje MIP-1023 XML-a za odabrani mjesec (null = nije) */
+  mipDownloadedAt?: string | null;
+  /** ukupan trošak poslodavca za mjesec (zbir totalCost obračunatih plata) */
+  payrollTotalCost?: number;
+  /** datum isplate plata za mjesec (iz mjesečnih dokumenata) */
+  paymentDate?: string | null;
+  lastStatementDate?: string | null;
 };
 
 export type OrganizationsPayrollStatusResponse = {
@@ -707,7 +716,7 @@ export async function downloadEvidencijaPdf(
   { ok: true; blob: Blob; filename: string } | { ok: false; error: string }
 > {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("EVIDENCIJA_GENERATE", "Matična evidencija");
+  trackEvent("EVIDENCIJA_GENERATE", "Matična evidencija", orgId);
   try {
     const res = await fetch(
       `${BACKEND_URL}/api/organizations/${orgId}/workers/${workerId}/evidencija-pdf`,

@@ -14,6 +14,7 @@ import {
   IconSearch,
   IconX,
   IconFileUpload,
+  IconCopy,
   IconReportAnalytics,
   IconArrowsExchange,
   IconDownload,
@@ -45,6 +46,7 @@ import { parsePartneriFile } from "src/lib/comsoftUvoz";
 import { UlazniRacunModal } from "src/sections/partneri/UlazniRacunModal";
 import { PrometModal } from "src/sections/partneri/PrometModal";
 import { PocetnaStanjaModal } from "src/sections/partneri/PocetnaStanjaModal";
+import { UvozIzObrtaModal } from "src/sections/partneri/UvozIzObrtaModal";
 import { Modal } from "src/components/app-shell/Modal";
 import { UvozSifarnikaModal } from "src/components/app-shell/UvozSifarnikaModal";
 import { PkSelect } from "src/components/app-shell/PkSelect";
@@ -196,6 +198,8 @@ export default function PartneriPage() {
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
   const orgId = activeOrg?.id ?? null;
+  // ostali obrti korisnika: izvor za "Uvezi partnere od drugog obrta"
+  const drugeOrge = (me?.organizations ?? []).filter((o) => o.id !== orgId);
 
   const [tab, setTab] = useState<TabId>("svi");
   const [q, setQ] = useState("");
@@ -210,6 +214,8 @@ export default function PartneriPage() {
   // "+ Novi partner" iz knjiženja: po snimanju vrati na knjiženje
   const [returnToRacun, setReturnToRacun] = useState(false);
   const [uvozOpen, setUvozOpen] = useState(false);
+  // uvoz šifarnika partnera od drugog obrta korisnika (dijeljeni dobavljači)
+  const [uvozIzObrtaOpen, setUvozIzObrtaOpen] = useState(false);
   const [prometOpen, setPrometOpen] = useState(false);
   // grupni unos početnih stanja (migracija)
   const [pocetnaOpen, setPocetnaOpen] = useState(false);
@@ -509,6 +515,17 @@ export default function PartneriPage() {
             <IconFileUpload size={16} />
             Uvoz
           </button>
+          {drugeOrge.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setUvozIzObrtaOpen(true)}
+              title="Preuzmi partnere iz drugog obrta kojem imate pristup (isti dobavljači: knjigovodstvo, telekom, struja...)"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-cream-300 text-text-primary text-[13px] font-medium hover:bg-cream-200 transition-colors"
+            >
+              <IconCopy size={16} />
+              Od drugog obrta
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setPocetnaOpen(true)}
@@ -1049,6 +1066,13 @@ export default function PartneriPage() {
           }
           return { ...r, napomene };
         }}
+      />
+
+      <UvozIzObrtaModal
+        open={uvozIzObrtaOpen}
+        onClose={() => setUvozIzObrtaOpen(false)}
+        orgId={orgId}
+        orgOptions={drugeOrge}
       />
 
       <PartnerFormModal

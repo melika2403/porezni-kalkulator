@@ -9,7 +9,7 @@
 
 /* ── Sidebar ──────────────────────────────────────────────────────────── */
 .sidebar {
-  background: white;
+  background: var(--white);
   border-right: 1px solid var(--border);
   padding: 1.5rem 1rem 1rem;
   display: flex;

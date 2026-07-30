@@ -39,7 +39,7 @@ export async function buildGip1022Xml(
   input: GipBuildInput,
 ): Promise<GipBuildResult | GipBuildError> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("GIP_GENERATE", "GIP-1022 XML");
+  trackEvent("GIP_GENERATE", "GIP-1022 XML", input.orgId);
 
   const { orgId, year, organization } = input;
 

@@ -332,7 +332,7 @@
 .pkCta {
   margin-top: 2.75rem;
   padding: 2rem 2.2rem;
-  background: linear-gradient(135deg, #22382a 0%, #3a5c42 100%);
+  background: linear-gradient(135deg, #22382a 0%, var(--sage) 100%);
   border-radius: 14px;
   color: #f5f2eb;
 }
@@ -356,7 +356,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #d6e8d9;
+  background: var(--sage-pale);
 }
 
 .pkCtaTitle {
@@ -387,7 +387,7 @@
   align-items: center;
   gap: 0.55rem;
   padding: 0.75rem 1.5rem;
-  background: #f5f2eb;
+  background: var(--paper);
   color: #22382a;
   border: none;
   border-radius: 10px;

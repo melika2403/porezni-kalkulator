@@ -61,6 +61,28 @@ export const partneri: Upustvo = {
       ],
     },
     {
+      naslov: "Uvoz partnera od drugog obrta",
+      blokovi: [
+        {
+          t: "p",
+          text: "Ako vodite više obrta, isti dobavljači (knjigovodstvo, telekom, elektrodistribucija, vodovod...) se ne moraju prekucavati u svakom. Dugme \"Od drugog obrta\" iznad liste preuzima šifarnik partnera iz drugog obrta kojem imate pristup.",
+        },
+        {
+          t: "koraci",
+          stavke: [
+            "Kliknite \"Od drugog obrta\" iznad liste partnera.",
+            "Izaberite izvorni obrt: prikaže se njegov šifarnik partnera.",
+            "Sve je označeno; odznačite one koje ne želite prenijeti.",
+            "Kliknite \"Uvezi odabrane\": duplikati se automatski preskaču.",
+          ],
+        },
+        {
+          t: "savjet",
+          text: "Kopiraju se samo podaci partnera (naziv, ID i PDV broj, adresa, žiro računi, kontakt), a NE promet, dugovi ni početna stanja: kartica partnera u svakom obrtu živi svoj život. Ako uvezeni partner po žiro računu ili nazivu odgovara nevezanim transakcijama sa izvoda, one se odmah automatski povežu.",
+        },
+      ],
+    },
+    {
       naslov: "Početna stanja (migracija)",
       blokovi: [
         {
@@ -95,6 +117,10 @@ export const partneri: Upustvo = {
     {
       p: "Mogu li uvesti partnere iz drugog programa?",
       o: "Da, kroz grupni uvoz iz fajla drugog programa (XML ili CSV). Partneri koji već postoje se preskaču.",
+    },
+    {
+      p: "Vodim više obrta, moram li iste dobavljače unositi u svakom?",
+      o: "Ne. Dugme \"Od drugog obrta\" preuzima šifarnik partnera iz drugog obrta kojem imate pristup: izaberete obrt, označite partnere i uvezete ih. Duplikati se preskaču, a promet i dugovi se ne prenose.",
     },
     {
       p: "Gdje se partner koristi?",

@@ -916,11 +916,11 @@ function ObracunPlataApp() {
           style={{
             margin: "0 0 1.25rem",
             padding: "0.95rem 1.1rem",
-            background: "#fffbeb",
-            border: "1px solid #f59e0b",
+            background: "var(--warn-bg)",
+            border: "1px solid var(--warn-border)",
             borderRadius: 10,
             fontSize: 14,
-            color: "var(--color-warning, #8a4f10)",
+            color: "var(--warn-text)",
             lineHeight: 1.55,
           }}
         >
@@ -947,7 +947,7 @@ function ObracunPlataApp() {
               </li>
             ))}
           </ul>
-          <p style={{ margin: "0.6rem 0 0", fontSize: 12.5, color: "#78350f" }}>
+          <p style={{ margin: "0.6rem 0 0", fontSize: 12.5, color: "var(--warn-text)" }}>
             Bruto plata radnika upišite proporcionalno (npr. {`mjesečna_bruto × dani_aktivnosti / ukupni_dani`}).
             Obrazac 2001 period će se automatski prilagoditi datumima.
             {isObrt && " Vlasniku obrta se osnovica i doprinosi (2002) automatski obračunavaju proporcionalno (pro-rate) za aktivni period."}
@@ -959,11 +959,11 @@ function ObracunPlataApp() {
           style={{
             margin: "0 0 1.25rem",
             padding: "0.95rem 1.1rem",
-            background: "#fffbeb",
-            border: "1px solid #f59e0b",
+            background: "var(--warn-bg)",
+            border: "1px solid var(--warn-border)",
             borderRadius: 10,
             fontSize: 14,
-            color: "var(--color-warning, #8a4f10)",
+            color: "var(--warn-text)",
             lineHeight: 1.55,
           }}
         >
@@ -985,12 +985,12 @@ function ObracunPlataApp() {
               </li>
             )}
           </ul>
-          <p style={{ margin: "0.6rem 0 0", fontSize: 12.5, color: "#78350f" }}>
+          <p style={{ margin: "0.6rem 0 0", fontSize: 12.5, color: "var(--warn-text)" }}>
             JMBG i grad su potrebni za obrasce (2002, GIP, MIP) i uplatnice.
             Obrazac će se i bez njih generisati, ali ta polja ostaju prazna.{" "}
             <a
               href={`/organizacija/${orgId}`}
-              style={{ color: "var(--color-warning, #8a4f10)", fontWeight: 600 }}
+              style={{ color: "var(--warn-text)", fontWeight: 600 }}
             >
               Dopuni podatke →
             </a>
@@ -1184,8 +1184,8 @@ function ObracunPlataApp() {
                           title="Uvezeno iz ranijeg programa (za GIP)"
                           style={{
                             marginLeft: 4,
-                            background: "#ede8db",
-                            color: "#7a8a7d",
+                            background: "color-mix(in srgb, var(--mid, #7a8a7d) 16%, transparent)",
+                            color: "var(--mid, #7a8a7d)",
                           }}
                         >
                           Uvezeno
@@ -1237,7 +1237,7 @@ function ObracunPlataApp() {
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (!canGenerate) return;
-                              const r = await generateWorkerPayslip(p.id);
+                              const r = await generateWorkerPayslip(p.id, undefined, orgId);
                               if (r.ok) triggerBlobDownload(r.blob, r.filename);
                             }}
                             disabled={!canGenerate}
@@ -1460,8 +1460,9 @@ function FadePreviewList({ cards }: { cards: React.ReactNode[] }) {
               alignItems: "flex-end",
               justifyContent: "center",
               paddingBottom: 8,
+              // fade u boju pozadine stranice, prati temu (svijetlu i tamnu)
               background:
-                "linear-gradient(rgba(245,242,235,0), rgba(245,242,235,0.96))",
+                "linear-gradient(transparent, var(--paper, #f5f2eb))",
               pointerEvents: "none",
             }}
           >
@@ -2091,6 +2092,7 @@ function MonthlyPanel({
       }
       const opcinaInfo = kantonForOpcina(organization.city || "");
       const data: ListaNalogaData = {
+        organizationId: orgId,
         organization: {
           name: organization.name || "",
           taxNumber: organization.taxNumber,
@@ -2189,6 +2191,7 @@ function MonthlyPanel({
         throw new Error("Nema radnika za odabranu banku");
       }
       const data: SpecifikacijeData = {
+        organizationId: orgId,
         organization: {
           name: organization.name || "",
           taxNumber: organization.taxNumber,
@@ -2416,6 +2419,7 @@ function MonthlyPanel({
       });
 
       const data: Mip1023Data = {
+        organizationId: orgId,
         jib: (organization.taxNumber || "").replace(/\D/g, ""),
         naziv: organization.name || "",
         sifraDjelatnosti: organization.activityCode || "",
@@ -2571,6 +2575,8 @@ function MonthlyPanel({
       };
 
       const xml = generateMip1023Xml(xmlData);
+      // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+      trackEvent("MIP_GENERATE", "MIP-1023 XML", orgId);
       const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
       const jib = xmlData.jibPoslodavca || "MIP";
       return { blob, filename: `${jib}_${mm}${yyyy}.xml` };
@@ -2788,6 +2794,7 @@ function MonthlyPanel({
         .join(", ");
 
       const data: Gip1022Data = {
+        organizationId: orgId,
         jib: (organization.taxNumber || "").replace(/\D/g, ""),
         naziv: organization.name || "",
         adresaSjedista,
@@ -3154,9 +3161,9 @@ function MonthlyPanel({
               style={{
                 padding: "0.7rem 1rem",
                 borderRadius: 8,
-                border: "1px solid #f0d9a8",
-                background: "#fdf6e3",
-                color: "#7a5b13",
+                border: "1px solid var(--warn-border)",
+                background: "var(--warn-bg)",
+                color: "var(--warn-text)",
                 fontSize: "0.88rem",
                 lineHeight: 1.5,
               }}
@@ -3867,7 +3874,7 @@ function MonthlyPanel({
                   ? "wait"
                   : "pointer",
                 background: summaryQuery.data?.combineKantonal
-                  ? "#eef4ee"
+                  ? "color-mix(in srgb, var(--sage, #3a5c42) 12%, transparent)"
                   : "var(--card-bg, #fdfbf6)",
                 transition: "border-color .15s, background .15s",
                 opacity: combineKantonalMutation.isPending ? 0.65 : 1,
@@ -3944,9 +3951,9 @@ function MonthlyPanel({
                   style={{
                     fontSize: "0.75rem",
                     fontWeight: 600,
-                    color: "#2d6e54",
-                    background: "#e3efe7",
-                    border: "1px solid #bcd9c6",
+                    color: "var(--sage, #2d6e54)",
+                    background: "color-mix(in srgb, var(--sage, #3a5c42) 14%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--sage, #3a5c42) 40%, transparent)",
                     borderRadius: 999,
                     padding: "0.15rem 0.6rem",
                   }}

@@ -11,6 +11,15 @@ const router = express.Router();
 // PK Office gate: obrt mora biti aktiviran u PK Office (no-op bez naplate)
 const officeGate = requireOfficeOrg();
 
+// potpisnik na ispisu kalkulacije (po obrtu); prije generičkog /:orgId/:id
+router.put(
+  "/:orgId/potpisnik",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  officeGate,
+  ctrl.setPotpisnik,
+);
+
 // šifarnik artikala (literal rute prije /:orgId/:id)
 router.get(
   "/:orgId/artikli",

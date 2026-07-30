@@ -213,7 +213,7 @@
   cursor: pointer;
   transition: background 0.15s;
 }
-.btnDanger:hover { background: #fffbeb; }
+.btnDanger:hover { background: color-mix(in srgb, #c0392b 10%, transparent); }
 
 .roleSelect {
   font-family: "DM Sans", sans-serif;
@@ -221,8 +221,9 @@
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--fg);
+  /* --surface/--fg nikad nisu bili definisani (padalo na transparent) */
+  background: var(--white);
+  color: var(--ink);
   cursor: pointer;
 }
 

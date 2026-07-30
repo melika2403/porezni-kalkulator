@@ -63,9 +63,16 @@ async function stats(req, res) {
       prije30.setDate(prije30.getDate() - 29);
       const [events, last30, users, organizations, forms, invoices, payrollDocs, workerDocs, dailyRows, recent] =
         await Promise.all([
-          ActivityLog.count({ where: { hiddenAt: null } }),
+          // PRIJAVA (login eventi) nije dokument pa ne ulazi u javne brojke
           ActivityLog.count({
-            where: { hiddenAt: null, createdAt: { [Op.gte]: prije30 } },
+            where: { hiddenAt: null, action: { [Op.ne]: "PRIJAVA" } },
+          }),
+          ActivityLog.count({
+            where: {
+              hiddenAt: null,
+              action: { [Op.ne]: "PRIJAVA" },
+              createdAt: { [Op.gte]: prije30 },
+            },
           }),
           User.count(),
           Organization.count(),
@@ -76,7 +83,7 @@ async function stats(req, res) {
           sequelize.query(
             `SELECT DATE(createdAt) AS d, COUNT(*) AS c
              FROM activity_logs
-             WHERE hiddenAt IS NULL AND createdAt >= ?
+             WHERE hiddenAt IS NULL AND action <> 'PRIJAVA' AND createdAt >= ?
              GROUP BY DATE(createdAt)`,
             { replacements: [prije30], type: sequelize.QueryTypes.SELECT },
           ),

@@ -20,6 +20,8 @@ export type VrstaSamostalne2002 =
 export type DohodakNa2002 = "POSLOVNIH_KNJIGA" | "PAUSALNO";
 
 export interface Obrazac2002Data {
+  /** za dnevnik aktivnosti (admin vidi za koju org-u je dokument) */
+  organizationId?: number | null;
   // Dio 1 — Podaci o registrovanoj djelatnosti
   naziv: string; // 1
   jib: string; // 2, 13 cifara (comb)
@@ -161,7 +163,7 @@ export async function fillObrazac2002Template(
   data: Obrazac2002Data,
 ): Promise<Uint8Array> {
   // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("OBRAZAC_2002_GENERATE", "Obrazac 2002");
+  trackEvent("OBRAZAC_2002_GENERATE", "Obrazac 2002", data.organizationId);
 
   const [templateBytes, fontBytes, boldBytes] = await Promise.all([
     fetch("/templates/obrazac-2002.pdf").then((r) => r.arrayBuffer()),
