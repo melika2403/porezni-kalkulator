@@ -37,6 +37,12 @@ const REZIMI_OPOREZIVANJA = {
   OSTALI: "OSTALI", // čl. 6 t.10 Zakona o doprinosima
 };
 
+// Stope doprinosa za vlasnika obrta, ukupno 36% (član 9 Zakona o doprinosima
+// FBiH). Obrtnik pokriva i radnički i poslodavčev dio iz vlastite osnovice.
+const OBRTNIK_PIO = 0.195; // 17% + 2.5%
+const OBRTNIK_ZDR = 0.145; // 12.5% + 2%
+const OBRTNIK_NEZAP = 0.02; // 1.5% + 0.5%
+
 // Mjesečne osnovice za obračun doprinosa po godinama.
 // Sve vrijednosti u KM.
 const OSNOVICE_OBRTNICI_FBIH = {
@@ -98,5 +104,8 @@ module.exports = {
   KATEGORIJE_PAUSALNI,
   REZIMI_OPOREZIVANJA,
   OSNOVICE_OBRTNICI_FBIH,
+  OBRTNIK_PIO,
+  OBRTNIK_ZDR,
+  OBRTNIK_NEZAP,
   getOsnovica,
 };

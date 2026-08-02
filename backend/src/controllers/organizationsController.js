@@ -413,14 +413,22 @@ async function listWithPayrollStatus(req, res) {
   if (orgIds.length === 0) {
     return res.json({ ok: true, data: { own: [], clients: [], year, month } });
   }
+  // Tip org po id-u: VLASNIK se iz MIP-a isključuje SAMO za obrt (BUSINESS);
+  // d.o.o. vlasnik-direktor je zaposlenik i ulazi u MIP.
+  const orgTypeById = new Map(
+    [...own, ...clients].map((o) => [o.id, o.type]),
+  );
 
   // Agregat: broj radnika po org (svi koji nisu odjavljeni — RADNIK + VLASNIK).
   const workersByOrg = new Map();
+  // rola po workeru: MIP pokriva samo radnike (vlasnik obrta ne ulazi u MIP)
+  const roleByWorkerId = new Map();
   const workers = await Worker.findAll({
     where: { organizationId: orgIds },
     attributes: ["id", "organizationId", "employmentStatus", "role"],
   });
   for (const w of workers) {
+    roleByWorkerId.set(w.id, w.role);
     if (w.employmentStatus === "ODJAVLJEN") continue;
     workersByOrg.set(
       w.organizationId,
@@ -434,6 +442,7 @@ async function listWithPayrollStatus(req, res) {
     where: { organizationId: orgIds, year, month },
     attributes: [
       "organizationId",
+      "workerId",
       "status",
       "mipDownloadedAt",
       "totalCost",
@@ -448,12 +457,22 @@ async function listWithPayrollStatus(req, res) {
       mipDownloadedAt: null,
       totalCost: 0,
       paymentDate: null,
+      mipRadnika: 0,
     };
     cur.total += 1;
     if (p.status === "OBRACUNATO" || p.status === "ISPLACENO") {
       cur.obracunato += 1;
       // Ukupan trošak poslodavca za mjesec: samo obračunate plate (DRAFT ne).
       cur.totalCost += Number(p.totalCost) || 0;
+      // Obračunati koji ulaze u MIP: vlasnik OBRTA (2002) se NE prijavljuje
+      // u MIP, pa obrt sa samo vlasnikom nema MIP obavezu za mjesec.
+      // Kod d.o.o. je vlasnik-direktor zaposlenik i ULAZI u MIP.
+      const vlasnikObrta =
+        orgTypeById.get(p.organizationId) === "BUSINESS" &&
+        roleByWorkerId.get(p.workerId) === "VLASNIK";
+      if (!vlasnikObrta) {
+        cur.mipRadnika += 1;
+      }
     }
     if (p.status === "ISPLACENO") {
       cur.isplaceno += 1;
@@ -499,6 +518,7 @@ async function listWithPayrollStatus(req, res) {
         mipDownloadedAt: null,
         totalCost: 0,
         paymentDate: null,
+        mipRadnika: 0,
       };
       // payrollStatus:
       //   "no_workers"   — org nema aktivnih radnika
@@ -520,6 +540,8 @@ async function listWithPayrollStatus(req, res) {
         payrollIsplaceno: stats.isplaceno,
         payrollStatus,
         mipDownloadedAt: stats.mipDownloadedAt,
+        // ima li obračunatih koji ulaze u MIP (vlasnik obrta ne ulazi)
+        mipRelevantno: stats.mipRadnika > 0,
         // trošak poslodavca za mjesec (zbir totalCost obračunatih plata)
         payrollTotalCost: Math.round(stats.totalCost * 100) / 100,
         paymentDate: stats.paymentDate,

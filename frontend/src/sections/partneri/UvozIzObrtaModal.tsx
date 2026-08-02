@@ -171,6 +171,7 @@ export function UvozIzObrtaModal({
                 setError(null);
               }}
               placeholder="Izaberite obrt..."
+              searchable
               options={orgOptions.map((o) => ({
                 value: String(o.id),
                 label: o.name,

@@ -244,6 +244,8 @@ export function setInitialBalance(orgId: number, payload: InitialBalancePayload)
 export type SuggestCategoryItem = {
   description: string;
   counterpartyName?: string;
+  /** iznos u KM: backend po njemu razlikuje doprinose vlasnika od radnika */
+  amount?: number;
   direction: "in" | "out";
 };
 

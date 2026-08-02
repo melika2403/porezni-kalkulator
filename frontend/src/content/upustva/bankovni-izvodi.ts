@@ -73,6 +73,14 @@ export const bankovniIzvodi: Upustvo = {
           t: "savjet",
           text: "Naučena pravila po obrtu su jača od automatskih prijedloga. Nekoliko ispravki na početku i kasnije skoro sve dolazi tačno.",
         },
+        {
+          t: "p",
+          text: "Doprinosi na istim računima (PIO na Budžet FBiH, zdravstvo na ZZO, nezaposlenost na zavode) se razdvajaju po iznosu: kad obrt ima radnike, program iz podešavanja obrta (režim oporezivanja i kategorija djelatnosti) i obračuna zna tačne mjesečne iznose doprinosa vlasnika, pa samo te uplate predloži kao \"Doprinosi poduzetnika\". Ostale uplate doprinosa i plata se predlažu kao \"Bruto plate zaposlenika\".",
+        },
+        {
+          t: "savjet",
+          text: "Da bi razdvajanje radilo, u podešavanjima obrta postavite režim oporezivanja i kategoriju djelatnosti (ili obračunavajte plate vlasnika u programu). Obrt bez radnika ovo ne treba: sve njegove uplate doprinosa su doprinosi poduzetnika.",
+        },
       ],
     },
     {
@@ -127,6 +135,10 @@ export const bankovniIzvodi: Upustvo = {
     {
       p: "Zašto se saldo ne poklapa?",
       o: "Najčešće je preskočen jedan izvod. Izvodi se nadovezuju: završni saldo jednog mora biti početni saldo sljedećeg. Učitajte izvode redom, bez preskakanja.",
+    },
+    {
+      p: "Obrt ima radnike, kako program zna koji su doprinosi vlasnika, a koji radnika?",
+      o: "Po iznosu uplate. Iznosi doprinosa vlasnika su fiksni (iz osnovice po režimu oporezivanja i kategoriji djelatnosti obrta), pa se uplate koje se poklope s tim iznosima predlažu kao doprinosi poduzetnika, a sve ostale uplate doprinosa kao trošak bruto plata zaposlenika. Prijedlog uvijek možete ručno promijeniti prije potvrde.",
     },
     {
       p: "Prepoznaje li program pazar u gotovini?",
