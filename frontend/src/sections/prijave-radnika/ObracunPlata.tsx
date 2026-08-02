@@ -2014,6 +2014,40 @@ function MonthlyPanel({
     },
   });
 
+  // "Sve na jedan email": svi listići mjeseca u jednom PDF-u na upisanu
+  // adresu (npr. email firme, pa oni štampaju i uruče radnicima ručno).
+  const [bundleEmailOpen, setBundleEmailOpen] = useState(false);
+  const [bundleEmailAddr, setBundleEmailAddr] = useState("");
+  const bundleEmailMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error("Nedostaje organizacija");
+      const r = await emailMonthlyPayslipsBulk(
+        orgId,
+        year,
+        month,
+        paymentDate,
+        bundleEmailAddr.trim(),
+      );
+      if (!r.ok) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: (r) => {
+      setBundleEmailOpen(false);
+      notify(
+        `Svi listići (${r.count ?? 0}) poslani u jednom PDF-u na ${r.sentTo}`,
+        "success",
+      );
+    },
+    onError: (e: Error) => {
+      notify(
+        e.message === "INVALID_EMAIL"
+          ? "Upišite ispravnu email adresu."
+          : `Greška pri slanju: ${e.message}`,
+        "error",
+      );
+    },
+  });
+
   const queryClientMP = useQueryClient();
   const markAllPaidMutation = useMutation({
     mutationFn: async () => {
@@ -3395,6 +3429,40 @@ function MonthlyPanel({
                     })
                   </span>
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setEmailMenuOpen(false);
+                    setBundleEmailAddr(organization?.email?.trim() || "");
+                    setBundleEmailOpen(true);
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "0.55rem 0.7rem",
+                    background: "transparent",
+                    border: 0,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    fontFamily: "inherit",
+                    color: "inherit",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                  title="Svi listići mjeseca u jednom PDF-u na jednu adresu (npr. email firme za štampu i uručenje radnicima)"
+                >
+                  <strong>Sve na jedan email…</strong>
+                  <span style={{ color: "var(--mid, #6c6862)", marginLeft: 6 }}>
+                    (jedan PDF)
+                  </span>
+                </button>
                 <div
                   style={{
                     height: 1,
@@ -3480,6 +3548,144 @@ function MonthlyPanel({
               </div>
             )}
           </div>
+          {/* Modal: svi listići mjeseca u jednom PDF-u na jednu adresu */}
+          {bundleEmailOpen && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(15, 26, 18, 0.45)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+                padding: "1rem",
+              }}
+              onClick={() =>
+                !bundleEmailMutation.isPending && setBundleEmailOpen(false)
+              }
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: "var(--white)",
+                  borderRadius: 12,
+                  maxWidth: 460,
+                  width: "100%",
+                  padding: "1.5rem",
+                  boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+                }}
+              >
+                <h3
+                  style={{
+                    margin: "0 0 0.6rem",
+                    fontSize: 17,
+                    color: "var(--ink)",
+                  }}
+                >
+                  Svi listići na jedan email
+                </h3>
+                <p
+                  style={{
+                    margin: "0 0 1rem",
+                    fontSize: 13.5,
+                    lineHeight: 1.55,
+                    color: "var(--mid)",
+                  }}
+                >
+                  Svi platni listići za{" "}
+                  <strong>
+                    {String(month).padStart(2, "0")}/{year}
+                  </strong>{" "}
+                  šalju se u jednom PDF-u na upisanu adresu (npr. email firme),
+                  pa se tamo odštampaju i uruče radnicima. Radnicima se ovim ne
+                  šalje ništa.
+                </p>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--ink)",
+                    marginBottom: 5,
+                  }}
+                >
+                  Email adresa
+                </div>
+                <input
+                  type="email"
+                  value={bundleEmailAddr}
+                  onChange={(e) => setBundleEmailAddr(e.target.value)}
+                  placeholder="npr. firma@email.ba"
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.8rem",
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                    color: "var(--ink)",
+                    background: "var(--white)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    outline: "none",
+                    marginBottom: "1.1rem",
+                  }}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.6rem",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setBundleEmailOpen(false)}
+                    disabled={bundleEmailMutation.isPending}
+                    style={{
+                      padding: "0.55rem 1rem",
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      background: "var(--white)",
+                      color: "var(--ink)",
+                      fontSize: 13.5,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => bundleEmailMutation.mutate()}
+                    disabled={
+                      bundleEmailMutation.isPending || !bundleEmailAddr.trim()
+                    }
+                    style={{
+                      padding: "0.55rem 1rem",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "var(--sage)",
+                      color: "#fff",
+                      fontSize: 13.5,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      opacity:
+                        bundleEmailMutation.isPending ||
+                        !bundleEmailAddr.trim()
+                          ? 0.6
+                          : 1,
+                    }}
+                  >
+                    {bundleEmailMutation.isPending ? "Šaljem…" : "Pošalji"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             className={styles.btnPrimary}

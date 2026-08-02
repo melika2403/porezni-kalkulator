@@ -589,6 +589,8 @@ export async function emailWorkerPayslip(
 // Bulk slanje platnih listića za sve radnike u (org, year, month). Radnici
 // bez email-a se preskaču — vraćaju se u `skipped` listi. Failure-i u
 // `failed`. Ostatak je `sent`.
+// Uz `toEmail`: umjesto svakom radniku, SVI listići mjeseca idu u jednom
+// PDF-u na tu adresu (npr. email firme za štampu i ručno uručenje).
 export type BulkEmailPayslipsResult =
   | {
       ok: true;
@@ -596,6 +598,11 @@ export type BulkEmailPayslipsResult =
       skipped: Array<{ workerId: number; name: string; reason: string }>;
       failed: Array<{ workerId: number; name: string; reason: string }>;
       totalProcessed: number;
+      /** "single" kad je sve poslano u jednom PDF-u na jednu adresu */
+      mode?: "single";
+      sentTo?: string;
+      /** broj listića u poslanom PDF-u (single mod) */
+      count?: number;
     }
   | { ok: false; error: string };
 
@@ -604,15 +611,19 @@ export async function emailMonthlyPayslipsBulk(
   year: number,
   month: number,
   paymentDate?: string,
+  toEmail?: string,
 ): Promise<BulkEmailPayslipsResult> {
   const res = await request<{
     sent: number;
     skipped: Array<{ workerId: number; name: string; reason: string }>;
     failed: Array<{ workerId: number; name: string; reason: string }>;
     totalProcessed: number;
+    mode?: "single";
+    sentTo?: string;
+    count?: number;
   }>(`/api/payroll/email-payslips-bulk`, {
     method: "POST",
-    body: JSON.stringify({ organizationId, year, month, paymentDate }),
+    body: JSON.stringify({ organizationId, year, month, paymentDate, toEmail }),
   });
   if (!res.ok) return { ok: false, error: res.error };
   return { ok: true, ...res.data };

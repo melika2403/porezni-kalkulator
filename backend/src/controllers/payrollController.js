@@ -419,19 +419,19 @@ const { addPayslipPage, embedFonts } = require("../utils/payslipPdf");
 const { PDFDocument } = require("pdf-lib");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 const { UPLOADS_ROOT, safeUnlink } = require("../utils/uploads");
-const { getOsnovica } = require("../utils/obrtniciFbih");
+const {
+  getOsnovica,
+  OBRTNIK_PIO,
+  OBRTNIK_ZDR,
+  OBRTNIK_NEZAP,
+} = require("../utils/obrtniciFbih");
 
 const DOCS_SUBDIR = "payroll-documents";
 
 // Standardni mjesečni fond minuta = 174h * 60 = 10440 (orijentaciono, FBiH).
 const STANDARD_MONTHLY_MINUTES = 174 * 60;
 
-// Stope doprinosa za vlasnika obrta — ukupno 36% (član 9 Zakona o doprinosima FBiH).
-// Obrtnik pokriva i radnički i poslodavčev dio iz vlastite osnovice.
-const OBRTNIK_PIO = 0.195; // 17% + 2.5%
-const OBRTNIK_ZDR = 0.145; // 12.5% + 2%
-const OBRTNIK_NEZAP = 0.02; // 1.5% + 0.5%
-const OBRTNIK_TOTAL = OBRTNIK_PIO + OBRTNIK_ZDR + OBRTNIK_NEZAP; // 0.36
+// Stope doprinosa vlasnika obrta (0.195/0.145/0.02) dolaze iz obrtniciFbih.js.
 
 // Računa snapshot doprinosa za vlasnika obrta. Osnovica je fiksna iz tabele
 // (obrtniciFbih.js) zavisno od režima oporezivanja i kategorije djelatnosti.
@@ -2193,6 +2193,64 @@ async function generateMonthlyUplatnice(req, res) {
   }
 }
 
+// Kombinovani PDF sa platnim listićima svih radnika mjeseca: preskače orphan
+// payroll-e (radnik obrisan) i vlasnike obrta (oni idu u Obrazac 2002).
+// Vraća { pdfBytes, pages, paymentDate } ili null kad nema nijednog listića.
+// Koristi ga i download (monthly-payslips) i slanje svega na jedan email.
+async function buildMonthlyPayslipsBundle(org, year, month, queryPaymentDate) {
+  const organizationId = org.id;
+  const isObrt = org.type === "BUSINESS";
+  const existingWorkers = await Worker.findAll({
+    where: { organizationId },
+    attributes: ["id", "role"],
+  });
+  const validWorkerIds = new Set(
+    existingWorkers
+      .filter((w) => !(isObrt && w.role === "VLASNIK"))
+      .map((w) => w.id),
+  );
+  const rawPayrolls = await Payroll.findAll({
+    where: { organizationId, year, month },
+    order: [["workerId", "ASC"]],
+  });
+  const payrolls = rawPayrolls.filter((p) => validWorkerIds.has(p.workerId));
+  if (payrolls.length === 0) return null;
+  // Hierarchy: override > payroll snapshot > zadnji dan mjeseca.
+  // payrollPaymentDate je jedan datum iz prvog payroll-a koji ga ima
+  // (svi payroll-i u mjesecu su sinhroni preko setPaymentDate batch update-a).
+  const payrollPaymentDate =
+    payrolls.find((p) => p.paymentDate)?.paymentDate || null;
+  const paymentDate =
+    queryPaymentDate ||
+    (payrollPaymentDate ? String(payrollPaymentDate).slice(0, 10) : null) ||
+    new Date(year, month, 0).toISOString().slice(0, 10);
+  const workerIds = payrolls.map((p) => p.workerId);
+  const workers = await Worker.findAll({
+    where: { id: workerIds, organizationId },
+  });
+  const workerMap = new Map(workers.map((w) => [w.id, w]));
+
+  const orgPlain = org.toJSON ? org.toJSON() : org;
+  const pdf = await PDFDocument.create();
+  const fonts = await embedFonts(pdf);
+
+  let pages = 0;
+  for (const p of payrolls) {
+    const w = workerMap.get(p.workerId);
+    if (!w) continue;
+    const workerPlain = w.toJSON ? w.toJSON() : w;
+    if (workerPlain.jmbg) {
+      try { workerPlain.jmbg = decryptJmbg(workerPlain.jmbg); }
+      catch { workerPlain.jmbg = ""; }
+    }
+    addPayslipPage(pdf, p.toJSON(), orgPlain, workerPlain, paymentDate, fonts);
+    pages++;
+  }
+
+  const pdfBytes = Buffer.from(await pdf.save());
+  return { pdfBytes, pages, paymentDate };
+}
+
 // ── POST /api/payroll/monthly-payslips ──────────────────────────────────────
 // Kombinovani PDF sa platnim listićima za sve radnike za odabrani mjesec.
 async function generateMonthlyPayslips(req, res) {
@@ -2211,59 +2269,16 @@ async function generateMonthlyPayslips(req, res) {
     const org = await assertOrgAccess(organizationId, req.user.id);
     if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
-    // Filtriraj orphan payroll-e (radnik obrisan ali payroll ostao)
-    // i vlasnike obrta (oni idu u Obrazac 2002, ne u platni listić).
-    const isObrt = org.type === "BUSINESS";
-    const existingWorkers = await Worker.findAll({
-      where: { organizationId },
-      attributes: ["id", "role"],
-    });
-    const validWorkerIds = new Set(
-      existingWorkers
-        .filter((w) => !(isObrt && w.role === "VLASNIK"))
-        .map((w) => w.id),
+    const bundle = await buildMonthlyPayslipsBundle(
+      org,
+      year,
+      month,
+      queryPaymentDate,
     );
-    const rawPayrolls = await Payroll.findAll({
-      where: { organizationId, year, month },
-      order: [["workerId", "ASC"]],
-    });
-    const payrolls = rawPayrolls.filter((p) => validWorkerIds.has(p.workerId));
-    if (payrolls.length === 0) {
+    if (!bundle) {
       return res.status(404).json({ ok: false, error: "NO_PAYROLLS" });
     }
-    // Hierarchy: query override > payroll snapshot > zadnji dan mjeseca.
-    // payrollPaymentDate je jedan datum iz prvog payroll-a koji ga ima
-    // (svi payroll-i u mjesecu su sinhroni preko setPaymentDate batch update-a).
-    const payrollPaymentDate =
-      payrolls.find((p) => p.paymentDate)?.paymentDate || null;
-    const paymentDate =
-      queryPaymentDate ||
-      (payrollPaymentDate ? String(payrollPaymentDate).slice(0, 10) : null) ||
-      new Date(year, month, 0).toISOString().slice(0, 10);
-    const workerIds = payrolls.map((p) => p.workerId);
-    const workers = await Worker.findAll({
-      where: { id: workerIds, organizationId },
-    });
-    const workerMap = new Map(workers.map((w) => [w.id, w]));
-
-    const orgPlain = org.toJSON();
-    const pdf = await PDFDocument.create();
-    const fonts = await embedFonts(pdf);
-
-    let pages = 0;
-    for (const p of payrolls) {
-      const w = workerMap.get(p.workerId);
-      if (!w) continue;
-      const workerPlain = w.toJSON ? w.toJSON() : w;
-      if (workerPlain.jmbg) {
-        try { workerPlain.jmbg = decryptJmbg(workerPlain.jmbg); }
-        catch { workerPlain.jmbg = ""; }
-      }
-      addPayslipPage(pdf, p.toJSON(), orgPlain, workerPlain, paymentDate, fonts);
-      pages++;
-    }
-
-    const pdfBytes = Buffer.from(await pdf.save());
+    const { pdfBytes, pages } = bundle;
     const fname = `platni-listici-${year}-${String(month).padStart(2, "0")}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
@@ -2443,6 +2458,47 @@ async function emailMonthlyPayslipsBulk(req, res) {
     const queryPaymentDate = /^\d{4}-\d{2}-\d{2}$/.test(paymentDateRaw)
       ? paymentDateRaw
       : null;
+
+    // Mod "sve na jedan email": svi listići mjeseca u jednom PDF-u na upisanu
+    // adresu (npr. email firme, pa oni štampaju i uruče radnicima ručno).
+    const toEmailRaw = String(req.body?.toEmail || "").trim();
+    if (toEmailRaw) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmailRaw)) {
+        return res.status(400).json({ ok: false, error: "INVALID_EMAIL" });
+      }
+      const bundle = await buildMonthlyPayslipsBundle(
+        org,
+        year,
+        month,
+        queryPaymentDate,
+      );
+      if (!bundle) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "Nema obračunatih plata za taj mjesec" });
+      }
+      const { sendPayslipsBundleEmail } = require("../utils/mailer");
+      await sendPayslipsBundleEmail({
+        to: toEmailRaw,
+        organizationName: org.name,
+        year,
+        month,
+        count: bundle.pages,
+        pdfBuffer: bundle.pdfBytes,
+      });
+      return res.json({
+        ok: true,
+        data: {
+          mode: "single",
+          sentTo: toEmailRaw,
+          count: bundle.pages,
+          sent: 1,
+          skipped: [],
+          failed: [],
+          totalProcessed: bundle.pages,
+        },
+      });
+    }
 
     const payrolls = await Payroll.findAll({
       where: { organizationId, year, month, status: { [Op.in]: ["OBRACUNATO", "ISPLACENO"] } },

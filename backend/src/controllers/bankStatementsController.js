@@ -26,6 +26,9 @@ const {
   loadRuleSuggester,
   learnFromTransaction,
 } = require("../services/bankStatements/rules");
+const {
+  loadVlasnikDoprinosSuggester,
+} = require("../services/bankStatements/vlasnikDoprinosi");
 const { buildKpr } = require("../services/kpr");
 const { computeObligations } = require("../services/obligationsService");
 const { izvodUcitanEvent } = require("../services/notificationsService");
@@ -282,6 +285,9 @@ async function upload(req, res) {
 
   // naučena pravila organizacije imaju prednost nad seed pravilima
   const learnedSuggest = await loadRuleSuggester(organizationId);
+  // doprinosi na izvodu: vlasnikovi (po iznosu) ili radnički, prije svega
+  // ostalog, jer za račune doprinosa jedino iznos nosi značenje
+  const vlasnikSuggest = await loadVlasnikDoprinosSuggester(organizationId);
   // auto-match priliva na otvorene fakture
   const matchInvoice = await loadInvoiceMatcher(organizationId);
   // poslovni partneri: po žiro računu, pa po nazivu protivstrane
@@ -323,8 +329,10 @@ async function upload(req, res) {
     await BankTransaction.bulkCreate(
       result.transactions.map((tx) => {
         const invoiceId = matchInvoice(tx);
-        // prijedlog kategorije: naučeno pravilo → faktura → seed pravila
+        // prijedlog kategorije: vlasnik/radnik doprinosi (po iznosu) →
+        // naučeno pravilo → faktura → seed pravila
         const category =
+          vlasnikSuggest(tx) ??
           learnedSuggest(tx) ??
           (invoiceId ? "PRIHOD_RACUN" : suggestCategory(tx));
         const partnerId = odrediPartnera(tx, category, {
@@ -703,6 +711,7 @@ async function createManual(req, res) {
   const bankName = bankNameFromAccount(account) || "Ručni unos";
 
   const learnedSuggest = await loadRuleSuggester(organizationId);
+  const vlasnikSuggest = await loadVlasnikDoprinosSuggester(organizationId);
   const matchPartner = await loadPartnerMatcher(organizationId);
   // partnerId sa fronta smije pokazivati samo na partnera ove organizacije
   const orgPartnerIds = new Set(
@@ -736,9 +745,13 @@ async function createManual(req, res) {
     );
     await BankTransaction.bulkCreate(
       transactions.map((tx) => {
-        // izbor sa fronta ima prednost, pa naučena pravila, pa seed heuristike
+        // izbor sa fronta ima prednost, pa vlasnik/radnik doprinosi po
+        // iznosu, pa naučena pravila, pa seed heuristike
         const category =
-          tx.category ?? learnedSuggest(tx) ?? suggestCategory(tx);
+          tx.category ??
+          vlasnikSuggest(tx) ??
+          learnedSuggest(tx) ??
+          suggestCategory(tx);
         return {
           organizationId,
           statementId: statement.id,
@@ -1244,16 +1257,21 @@ async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
     }
   }
 
-  // potvrda bez kategorije: pokušaj auto-popune (naučena pravila pa seed
-  // heuristike), osim kad je korisnik kategoriju u ovom pozivu eksplicitno
-  // obrisao. Bez kategorije stavka ne ulazi u KPR.
+  // potvrda bez kategorije: pokušaj auto-popune (vlasnik/radnik doprinosi po
+  // iznosu, pa naučena pravila, pa seed heuristike), osim kad je korisnik
+  // kategoriju u ovom pozivu eksplicitno obrisao. Bez kategorije stavka ne
+  // ulazi u KPR.
   const explicitClear = category !== undefined && category == null;
   let learnedSuggester = opts.ruleSuggester ?? null;
   if (tx.status === "CONFIRMED" && !tx.category && !explicitClear) {
     learnedSuggester =
       learnedSuggester ?? (await loadRuleSuggester(organizationId));
+    const vlasnikSuggester =
+      opts.vlasnikSuggester ??
+      (await loadVlasnikDoprinosSuggester(organizationId));
     const plain = tx.get({ plain: true });
-    const auto = learnedSuggester(plain) ?? suggestCategory(plain);
+    const auto =
+      vlasnikSuggester(plain) ?? learnedSuggester(plain) ?? suggestCategory(plain);
     if (auto) tx.category = auto;
   }
 
@@ -1365,9 +1383,10 @@ async function bulkUpdateTransactions(req, res) {
 
   let updated = 0;
   let skipped = 0;
-  // suggester učitaj JEDNOM (ne po stavci): bulk potvrda bez kategorije bi
+  // suggestere učitaj JEDNOM (ne po stavci): bulk potvrda bez kategorije bi
   // inače skenirala tabelu pravila za svaku stavku
   const ruleSuggester = await loadRuleSuggester(organizationId);
+  const vlasnikSuggester = await loadVlasnikDoprinosSuggester(organizationId);
   for (const id of ids) {
     const tx = await BankTransaction.findOne({
       where: { id, organizationId },
@@ -1378,6 +1397,7 @@ async function bulkUpdateTransactions(req, res) {
     }
     const result = await applyTransactionPatch(organizationId, tx, patch, {
       ruleSuggester,
+      vlasnikSuggester,
     });
     if (result.error) skipped++;
     else updated++;
@@ -1604,15 +1624,17 @@ async function suggestKategorije(req, res) {
     ? req.body.items.slice(0, 100)
     : [];
   const learnedSuggest = await loadRuleSuggester(organizationId);
+  const vlasnikSuggest = await loadVlasnikDoprinosSuggester(organizationId);
   const data = items.map((it) => {
     const tx = {
       description: String(it?.description || ""),
       counterpartyName: String(it?.counterpartyName || ""),
       counterpartyAccount: String(it?.counterpartyAccount || ""),
+      amount: Number(it?.amount) || 0,
       direction:
         String(it?.direction || "").toLowerCase() === "in" ? "IN" : "OUT",
     };
-    return learnedSuggest(tx) ?? suggestCategory(tx);
+    return vlasnikSuggest(tx) ?? learnedSuggest(tx) ?? suggestCategory(tx);
   });
   return res.json({ ok: true, data });
 }

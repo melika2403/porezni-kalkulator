@@ -424,6 +424,8 @@ export type OrganizationWithPayrollStatus = Organization & {
   payrollStatus: OrgPayrollStatus;
   /** zadnje preuzimanje MIP-1023 XML-a za odabrani mjesec (null = nije) */
   mipDownloadedAt?: string | null;
+  /** ima li obračunatih koji ulaze u MIP (vlasnik obrta ne ulazi u MIP) */
+  mipRelevantno?: boolean;
   /** ukupan trošak poslodavca za mjesec (zbir totalCost obračunatih plata) */
   payrollTotalCost?: number;
   /** datum isplate plata za mjesec (iz mjesečnih dokumenata) */

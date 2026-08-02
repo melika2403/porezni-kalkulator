@@ -22,6 +22,7 @@ import { PkSelect } from "src/components/app-shell/PkSelect";
 import { HelpButton } from "src/components/app-shell/HelpButton";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
 import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
+import { Modal } from "src/components/app-shell/Modal";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
 import { usePayrollStatus } from "src/hooks/usePkOfficeMe";
 import {
@@ -153,6 +154,10 @@ export default function ObracuniPlataPage() {
   const [obavijest, setObavijest] = useState<string | null>(null);
   // potvrda prije grupnog slanja listića email-om (vanjska akcija)
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+  // način slanja: svakom radniku na njegov email (default) ili svi listići
+  // u jednom PDF-u na jednu adresu (npr. email firme za štampu i uručenje)
+  const [emailNacin, setEmailNacin] = useState<"svima" | "jedan">("svima");
+  const [jedanEmail, setJedanEmail] = useState("");
   // karton radnika (isti modal kao na Zaposlenicima)
   const [kartonWorker, setKartonWorker] = useState<Worker | null>(null);
   // uvoz prethodnih plata (klijent prešao u toku godine, za kompletan GIP)
@@ -614,28 +619,47 @@ export default function ObracuniPlataPage() {
 
   async function posaljiSveEmail() {
     if (orgId == null) return;
+    // mod "jedan email": svi listići u jednom PDF-u na upisanu adresu
+    const naJedan = emailNacin === "jedan";
+    if (naJedan && !jedanEmail.trim()) return;
     setBusy("email-bulk");
     try {
-      const r = await emailMonthlyPayslipsBulk(orgId, year, month);
+      const r = await emailMonthlyPayslipsBulk(
+        orgId,
+        year,
+        month,
+        undefined,
+        naJedan ? jedanEmail.trim() : undefined,
+      );
       if (!r.ok) {
-        setObavijest(`Greška pri slanju listića: ${r.error}`);
+        setObavijest(
+          r.error === "INVALID_EMAIL"
+            ? "Upišite ispravnu email adresu."
+            : `Greška pri slanju listića: ${r.error}`,
+        );
         return;
       }
-      const dijelovi = [`Poslano listića: ${r.sent}.`];
-      if (r.skipped.length) {
-        dijelovi.push(
-          `Preskočeno (bez email-a): ${r.skipped.map((s) => s.name).join(", ")}.`,
+      if (r.mode === "single") {
+        setObavijest(
+          `Svi listići (${r.count ?? 0}) poslani u jednom PDF-u na ${r.sentTo}.`,
         );
+      } else {
+        const dijelovi = [`Poslano listića: ${r.sent}.`];
+        if (r.skipped.length) {
+          dijelovi.push(
+            `Preskočeno (bez email-a): ${r.skipped.map((s) => s.name).join(", ")}.`,
+          );
+        }
+        if (r.failed.length) {
+          dijelovi.push(
+            `Neuspjelo: ${r.failed.map((s) => s.name).join(", ")}.`,
+          );
+        }
+        setObavijest(dijelovi.join(" "));
       }
-      if (r.failed.length) {
-        dijelovi.push(
-          `Neuspjelo: ${r.failed.map((s) => s.name).join(", ")}.`,
-        );
-      }
-      setObavijest(dijelovi.join(" "));
+      setBulkEmailOpen(false);
     } finally {
       setBusy(null);
-      setBulkEmailOpen(false);
     }
   }
 
@@ -825,8 +849,12 @@ export default function ObracuniPlataPage() {
           <button
             type="button"
             disabled={busy != null || !anyObracunato}
-            onClick={() => setBulkEmailOpen(true)}
-            title="Pošalji platni listić svakom radniku na njegov email (radnici bez email-a se preskaču)"
+            onClick={() => {
+              setEmailNacin("svima");
+              setJedanEmail(fullOrg?.email?.trim() || "");
+              setBulkEmailOpen(true);
+            }}
+            title="Pošalji listiće email-om: svakom radniku na njegov email, ili sve u jednom PDF-u na jednu adresu"
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
           >
             {busy === "email-bulk" ? (
@@ -1101,17 +1129,91 @@ export default function ObracuniPlataPage() {
         </div>
       </div>
 
-      {/* potvrda grupnog slanja listića (vanjska akcija, ide radnicima) */}
-      <ConfirmModal
+      {/* grupno slanje listića: svakom radniku (default) ili sve u jednom
+          PDF-u na jedan email (npr. email firme za štampu i uručenje) */}
+      <Modal
         open={bulkEmailOpen}
-        onClose={() => setBulkEmailOpen(false)}
-        onConfirm={() => void posaljiSveEmail()}
+        onClose={() => busy !== "email-bulk" && setBulkEmailOpen(false)}
         title="Slanje platnih listića"
-        danger={false}
-        busy={busy === "email-bulk"}
-        confirmLabel="Pošalji"
-        message={`Poslati platni listić za ${MJESECI[month - 1].toLowerCase()} ${year}. svakom radniku na njegov email? Radnici bez upisanog email-a se preskaču i biće navedeni u rezultatu.`}
-      />
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setBulkEmailOpen(false)}
+              disabled={busy === "email-bulk"}
+              className="inline-flex items-center px-4 py-2 rounded-lg border border-cream-300 text-text-primary text-[13px] font-medium hover:bg-cream-200 transition-colors"
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              onClick={() => void posaljiSveEmail()}
+              disabled={
+                busy === "email-bulk" ||
+                (emailNacin === "jedan" && !jedanEmail.trim())
+              }
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {busy === "email-bulk" && (
+                <IconLoader2 size={15} className="animate-spin" />
+              )}
+              Pošalji
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-[13px] leading-5 text-text-tertiary">
+            Platni listići za {MJESECI[month - 1].toLowerCase()} {year}.
+          </p>
+          <label className="flex items-start gap-2.5 rounded-lg border border-cream-300 px-3 py-2.5 cursor-pointer hover:bg-cream-200/60 transition-colors">
+            <input
+              type="radio"
+              name="emailNacin"
+              checked={emailNacin === "svima"}
+              onChange={() => setEmailNacin("svima")}
+              className="mt-0.5 w-4 h-4 accent-brand-600"
+            />
+            <span>
+              <span className="block text-[13px] font-medium text-text-primary">
+                Svakom radniku na njegov email
+              </span>
+              <span className="block text-[12px] text-text-tertiary">
+                Radnici bez upisanog email-a se preskaču i biće navedeni u
+                rezultatu.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2.5 rounded-lg border border-cream-300 px-3 py-2.5 cursor-pointer hover:bg-cream-200/60 transition-colors">
+            <input
+              type="radio"
+              name="emailNacin"
+              checked={emailNacin === "jedan"}
+              onChange={() => setEmailNacin("jedan")}
+              className="mt-0.5 w-4 h-4 accent-brand-600"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-medium text-text-primary">
+                Sve u jednom PDF-u na jedan email
+              </span>
+              <span className="block text-[12px] text-text-tertiary">
+                Npr. na email firme: tamo se odštampaju i uruče radnicima.
+                Radnicima se ne šalje ništa.
+              </span>
+              {emailNacin === "jedan" && (
+                <input
+                  type="email"
+                  value={jedanEmail}
+                  onChange={(e) => setJedanEmail(e.target.value)}
+                  placeholder="npr. firma@email.ba"
+                  autoFocus
+                  className="mt-2 w-full rounded-lg border border-cream-300 bg-cream-50 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-600"
+                />
+              )}
+            </span>
+          </label>
+        </div>
+      </Modal>
 
       {/* potvrda MIP-a za mjesec sa uvezenim platama iz ranijeg programa */}
       <ConfirmModal
