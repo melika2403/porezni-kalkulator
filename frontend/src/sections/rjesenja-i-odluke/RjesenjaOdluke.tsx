@@ -50,6 +50,7 @@ import {
 import { composeRjesenjePorodiljsko } from "./porodiljsko/compose";
 import { composeOdlukaOtpremnina } from "./otpremnina/compose";
 import { composeOdlukaTopliObrok } from "./topli-obrok/compose";
+import { composeOdlukaBlagajnickiMaksimum } from "./blagajnicki-maksimum/compose";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const thisYear = () => new Date().getFullYear();
@@ -147,7 +148,12 @@ type DocKey =
   | "upozorenje-otkaz"
   | "porodiljsko"
   | "otpremnina"
-  | "topli-obrok";
+  | "topli-obrok"
+  | "blagajnicki-maksimum";
+
+// Akti FIRME (bez radnika): forma krije sekciju radnika, dokument se ne
+// arhivira u dosje radnika, a naziv fajla ne nosi prezime.
+const IS_AKT_FIRME = (k: DocKey) => k === "blagajnicki-maksimum";
 
 // Dokumenti grupisani po kategoriji (top-nivo tabovi + dokumenti unutra).
 type DocCategory = "potvrde" | "odsustva" | "nagrade" | "radni-odnos";
@@ -163,6 +169,10 @@ const CATEGORIES: {
       { value: "potvrda-zaposlenje", label: "Potvrda o zaposlenju" },
       { value: "potvrda-plata", label: "Potvrda o visini primanja" },
       { value: "potvrda-staz", label: "Potvrda o radnom stažu" },
+      {
+        value: "blagajnicki-maksimum",
+        label: "Odluka o blagajničkom maksimumu",
+      },
     ],
   },
   {
@@ -205,11 +215,15 @@ const CATEGORY_OF: Record<DocKey, DocCategory> = CATEGORIES.reduce(
   {} as Record<DocKey, DocCategory>,
 );
 
-const IS_POTVRDA = (k: DocKey) => CATEGORY_OF[k] === "potvrde";
+// Blagajnički maksimum stoji u kategoriji "Potvrde" radi preglednosti, ali
+// NIJE potvrda (akt firme sa svojom formom), pa se ovdje izuzima.
+const IS_POTVRDA = (k: DocKey) =>
+  CATEGORY_OF[k] === "potvrde" && !IS_AKT_FIRME(k);
 
+// type: null = akt firme, ne arhivira se u dosje radnika.
 const DOC_CFG: Record<
   DocKey,
-  { type: WorkerDocumentType; file: string; track: string }
+  { type: WorkerDocumentType | null; file: string; track: string }
 > = {
   "godisnji-odmor": {
     type: "RJESENJE_GO",
@@ -285,6 +299,11 @@ const DOC_CFG: Record<
     type: "ODLUKA_TOPLI_OBROK",
     file: "Odluka-o-toplom-obroku",
     track: "Odluka o pravu na topli obrok",
+  },
+  "blagajnicki-maksimum": {
+    type: null,
+    file: "Odluka-o-blagajnickom-maksimumu",
+    track: "Odluka o blagajničkom maksimumu",
   },
 };
 
@@ -431,6 +450,13 @@ export default function RjesenjaOdluke() {
   // Topli obrok
   const [dnevniIznos, setDnevniIznos] = useState("");
   const [topliDatumIso, setTopliDatumIso] = useState("");
+
+  // Blagajnički maksimum (akt firme, bez radnika)
+  const [blagIznos, setBlagIznos] = useState("");
+  const [blagZaduzeni, setBlagZaduzeni] = useState("");
+  const [blagDatumIso, setBlagDatumIso] = useState("");
+  const [blagUkljOsnov, setBlagUkljOsnov] = useState(true);
+  const [blagUkljPazar, setBlagUkljPazar] = useState(true);
 
   const [gen, setGen] = useState<"pdf" | "docx" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -609,6 +635,12 @@ export default function RjesenjaOdluke() {
     setOtpremninaNacin("");
     setDnevniIznos("");
     setTopliDatumIso("");
+    // Blagajnički maksimum
+    setBlagIznos("");
+    setBlagZaduzeni("");
+    setBlagDatumIso("");
+    setBlagUkljOsnov(true);
+    setBlagUkljPazar(true);
     // Na kraju: auto-popuna polja izvedenih iz radnika (datum, staž, period,
     // stara plata, broj/datum ugovora) , da pregazi gornje resetove.
     popuniIzRadnika(selectedWorker);
@@ -621,6 +653,22 @@ export default function RjesenjaOdluke() {
   };
 
   const composeFor = (): RjesenjeComposed => {
+    if (docKey === "blagajnicki-maksimum") {
+      return composeOdlukaBlagajnickiMaksimum({
+        nazivFirme,
+        adresaFirme,
+        gradFirme,
+        brojAkta,
+        mjesto,
+        datumDonosenjaIso,
+        potpisnik,
+        iznos: blagIznos,
+        zaduzeni: blagZaduzeni,
+        datumPrimjeneIso: blagDatumIso,
+        ukljuciOsnov: blagUkljOsnov,
+        ukljuciPazar: blagUkljPazar,
+      });
+    }
     const common = {
       nazivFirme,
       adresaFirme,
@@ -807,6 +855,11 @@ export default function RjesenjaOdluke() {
   const validate = (): string | null => {
     if (!nazivFirme.trim())
       return "Unesite naziv poslodavca (ili odaberite organizaciju).";
+    // Akt firme: nema radnika, traži se samo iznos.
+    if (docKey === "blagajnicki-maksimum") {
+      if (!blagIznos.trim()) return "Unesite iznos blagajničkog maksimuma.";
+      return null;
+    }
     if (!imeRadnikaDativ.trim()) return "Unesite ime radnika.";
     if (!radnoMjesto.trim()) return "Unesite radno mjesto radnika.";
 
@@ -913,10 +966,11 @@ export default function RjesenjaOdluke() {
     try {
       const composed = composeFor();
       const cfg = DOC_CFG[docKey];
-      const last = (imeRadnikaDativ.split(" ").pop() || "radnik").replace(
-        /[^\p{L}\p{N}_-]/gu,
-        "",
-      );
+      // Akt firme u nazivu fajla nosi firmu, ostali prezime radnika.
+      const sufiksIzvor = IS_AKT_FIRME(docKey)
+        ? nazivFirme || "firma"
+        : imeRadnikaDativ.split(" ").pop() || "radnik";
+      const last = sufiksIzvor.replace(/[^\p{L}\p{N}_-]/gu, "");
       const filename = `${cfg.file}_${last}.${kind}`;
       let blob: Blob;
       if (kind === "docx") {
@@ -927,7 +981,10 @@ export default function RjesenjaOdluke() {
       }
       downloadBlob(blob, filename);
       trackEvent("RJESENJE_GENERATE", cfg.track, sidebarOrgId);
-      archiveDocument(blob, filename, cfg.type, kind === "docx" ? "DOCX" : "PDF");
+      // Akt firme (type null) se ne arhivira u dosje radnika.
+      if (cfg.type) {
+        archiveDocument(blob, filename, cfg.type, kind === "docx" ? "DOCX" : "PDF");
+      }
     } catch (e) {
       setError("Greška pri generisanju: " + (e as Error).message);
     } finally {
@@ -947,6 +1004,7 @@ export default function RjesenjaOdluke() {
 
   // Labela polja "Broj ..." prema vrsti dokumenta.
   const brojAktaLabel = () => {
+    if (IS_AKT_FIRME(docKey)) return "Broj odluke";
     const cat = CATEGORY_OF[docKey];
     if (cat === "potvrde") return "Broj potvrde";
     if (cat === "odsustva") return "Broj rješenja";
@@ -1074,7 +1132,8 @@ export default function RjesenjaOdluke() {
             </div>
           </section>
 
-          {/* Radnik */}
+          {/* Radnik (akti firme, npr. blagajnički maksimum, nemaju radnika) */}
+          {!IS_AKT_FIRME(docKey) && (
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}>Radnik</h2>
             <div className={styles.grid}>
@@ -1114,6 +1173,7 @@ export default function RjesenjaOdluke() {
               </div>
             </div>
           </section>
+          )}
 
           {/* Osnovni podaci akta */}
           <section className={styles.section}>
@@ -1689,6 +1749,72 @@ export default function RjesenjaOdluke() {
             </section>
           )}
 
+          {/* ── BLAGAJNIČKI MAKSIMUM (akt firme) ── */}
+          {docKey === "blagajnicki-maksimum" && (
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                Detalji <em>blagajničkog maksimuma</em>
+              </h2>
+              <div className={styles.grid3}>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>Iznos maksimuma (KM)</span>
+                  <input
+                    className={styles.input}
+                    inputMode="decimal"
+                    value={blagIznos}
+                    onChange={(e) => setBlagIznos(formatMoneyLive(e.target.value))}
+                    onBlur={(e) => setBlagIznos(formatMoneyBlur(e.target.value))}
+                    placeholder="npr. 500,00"
+                  />
+                  <span className={styles.hint}>
+                    Po Uredbi se utvrđuje prema prosječnim dnevnim isplatama iz
+                    blagajne u prethodnom mjesecu.
+                  </span>
+                </div>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>
+                    Zadužen za blagajnu (opciono)
+                  </span>
+                  <input
+                    className={styles.input}
+                    value={blagZaduzeni}
+                    onChange={(e) => setBlagZaduzeni(e.target.value)}
+                    placeholder="npr. Ime Prezime, blagajnik"
+                  />
+                </div>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>
+                    Primjenjuje se od (opciono)
+                  </span>
+                  <DateInput
+                    className={styles.input}
+                    value={blagDatumIso}
+                    onValueChange={setBlagDatumIso}
+                  />
+                  <span className={styles.hint}>Prazno = danom donošenja.</span>
+                </div>
+              </div>
+              <label className={styles.checkRow} style={{ marginTop: "1rem" }}>
+                <input
+                  type="checkbox"
+                  checked={blagUkljOsnov}
+                  onChange={(e) => setBlagUkljOsnov(e.target.checked)}
+                />
+                Uključi rečenicu o načinu utvrđivanja visine (prosječne dnevne
+                isplate iz blagajne u prethodnom mjesecu)
+              </label>
+              <label className={styles.checkRow} style={{ marginTop: "0.4rem" }}>
+                <input
+                  type="checkbox"
+                  checked={blagUkljPazar}
+                  onChange={(e) => setBlagUkljPazar(e.target.checked)}
+                />
+                Uključi odredbu o uplati gotovine na račun (istog, najkasnije
+                narednog radnog dana)
+              </label>
+            </section>
+          )}
+
           {/* ── GODIŠNJI ODMOR ── */}
           {docKey === "godisnji-odmor" && (
             <>
@@ -2112,7 +2238,7 @@ export default function RjesenjaOdluke() {
             <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
               <li>
                 <strong>Potvrde</strong>, o zaposlenju, o visini primanja i o
-                radnom stažu.
+                radnom stažu, te odluka o blagajničkom maksimumu.
               </li>
               <li>
                 <strong>Rješenja</strong>, o godišnjem odmoru, plaćenom i

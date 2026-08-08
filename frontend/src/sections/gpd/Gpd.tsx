@@ -323,16 +323,17 @@ export default function GpdForm() {
   const [sourceClientId, setSourceClientId] = useState<number | null>(null);
   const [sourceOrgId, setSourceOrgId] = useState<number | null>(null);
 
+  // "Prepiši" znači prepiši SVE: polje bez podatka se isprazni, ne smije
+  // ostati vrijednost prethodnog izbora.
   const fillPersonal = useCallback((data: FillData) => {
     setPersonal((p) => ({
       ...p,
-      jmb: data.jmbg ?? p.jmb,
-      fullName:
-        [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
-      address: data.address ?? p.address,
-      city: data.city ?? p.city,
-      phone: data.phone ?? p.phone,
-      email: data.email ?? p.email,
+      jmb: data.jmbg ?? "",
+      fullName: [data.firstName, data.lastName].filter(Boolean).join(" "),
+      address: data.address ?? "",
+      city: data.city ?? "",
+      phone: data.phone ?? "",
+      email: data.email ?? "",
     }));
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);
@@ -388,15 +389,17 @@ export default function GpdForm() {
       const owner = org.owner;
       const notes: string[] = [];
 
+      // Prepiši podatke vlasnika IZABRANE organizacije (prazno kad podatka
+      // nema): "?? staro" bi zadržao vrijednosti prethodnog izbora.
       setPersonal((p) => ({
         ...p,
-        jmb: owner?.jmbg ?? p.jmb,
+        jmb: owner?.jmbg ?? "",
         fullName:
           owner?.name ||
           [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") ||
-          p.fullName,
-        address: owner?.address ?? p.address,
-        city: owner?.city ?? p.city,
+          "",
+        address: owner?.address ?? "",
+        city: owner?.city ?? "",
         taxYear: String(year).slice(-2),
       }));
       setSourceOrgId(orgId);

@@ -19,6 +19,7 @@ import {
 import { HelpButton } from "src/components/app-shell/HelpButton";
 import { OrgSwitcher } from "src/components/app-shell/OrgSwitcher";
 import { formatBAM, formatDate } from "src/lib/format";
+import { defaultObracunPeriod } from "src/lib/obracunskiPeriod";
 import {
   usePkOfficeMe,
   usePayrollStatus,
@@ -70,17 +71,10 @@ export default function Dashboard() {
   const { data } = usePkOfficeMe();
   const now = new Date();
 
-  // Plate se obračunavaju za protekli mjesec, pa kartica do 25. u mjesecu
-  // prikazuje prethodni mjesec; od 25. prelazi na tekući.
-  let payrollYear = now.getFullYear();
-  let payrollMonth = now.getMonth() + 1;
-  if (now.getDate() < 25) {
-    payrollMonth -= 1;
-    if (payrollMonth === 0) {
-      payrollMonth = 12;
-      payrollYear -= 1;
-    }
-  }
+  // Plate se obračunavaju za protekli mjesec, pa kartica do 15. u mjesecu
+  // prikazuje prethodni mjesec; od 16. prelazi na tekući (zajedničko pravilo
+  // u lib/obracunskiPeriod, isto kao obračuni plata i pregled organizacija).
+  const { year: payrollYear, month: payrollMonth } = defaultObracunPeriod(now);
   const { data: payrollData } = usePayrollStatus(payrollYear, payrollMonth);
   const payrollMonthName = MONTHS[payrollMonth - 1].toLowerCase();
 

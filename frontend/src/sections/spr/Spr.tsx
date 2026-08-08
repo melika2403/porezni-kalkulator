@@ -157,14 +157,15 @@ export default function SprForm() {
 
   /* ── Fill from profile/client ── */
 
+  // "Prepiši" znači prepiši SVE: polje bez podatka se isprazni, ne smije
+  // ostati vrijednost prethodnog izbora.
   const fillPersonal = useCallback((data: FillData) => {
     setPersonal((p) => ({
       ...p,
-      jmbOsobni: data.jmbg ?? p.jmbOsobni,
-      fullName:
-        [data.firstName, data.lastName].filter(Boolean).join(" ") || p.fullName,
-      address: data.address ?? p.address,
-      city: data.city ?? p.city,
+      jmbOsobni: data.jmbg ?? "",
+      fullName: [data.firstName, data.lastName].filter(Boolean).join(" "),
+      address: data.address ?? "",
+      city: data.city ?? "",
     }));
     if (data.sourceClientId !== undefined)
       setSourceClientId(data.sourceClientId);
@@ -175,12 +176,12 @@ export default function SprForm() {
   const fillBusiness = useCallback((data: OrgFillData) => {
     setBusiness((p) => ({
       ...p,
-      jibJmb: data.taxNumber ?? p.jibJmb,
-      name: data.name ?? p.name,
-      address: data.address ?? p.address,
-      city: data.city ?? p.city,
-      activityCode: data.activityCode ?? p.activityCode,
-      activityName: data.activityName ?? p.activityName,
+      jibJmb: data.taxNumber ?? "",
+      name: data.name ?? "",
+      address: data.address ?? "",
+      city: data.city ?? "",
+      activityCode: data.activityCode ?? "",
+      activityName: data.activityName ?? "",
     }));
   }, []);
 
@@ -229,26 +230,28 @@ export default function SprForm() {
       const org = orgRes.data;
       const owner = org.owner;
 
+      // Prepiši SVE podatke izabrane organizacije (prazno kad podatka nema):
+      // "?? staro" bi zadržao vrijednosti prethodno izabrane organizacije.
       setPersonal((p) => ({
         ...p,
-        jmbOsobni: owner?.jmbg ?? p.jmbOsobni,
+        jmbOsobni: owner?.jmbg ?? "",
         fullName:
           owner?.name ||
           [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") ||
-          p.fullName,
-        address: owner?.address ?? p.address,
-        city: owner?.city ?? p.city,
+          "",
+        address: owner?.address ?? "",
+        city: owner?.city ?? "",
       }));
       setBusiness((p) => ({
         ...p,
-        jibJmb: org.taxNumber ?? p.jibJmb,
+        jibJmb: org.taxNumber ?? "",
         periodFrom: `${year}-01-01`,
         periodTo: `${year}-12-31`,
-        name: org.name ?? p.name,
-        address: org.address ?? p.address,
-        city: org.city ?? p.city,
-        activityCode: org.activityCode ?? p.activityCode,
-        activityName: org.activityName ?? p.activityName,
+        name: org.name ?? "",
+        address: org.address ?? "",
+        city: org.city ?? "",
+        activityCode: org.activityCode ?? "",
+        activityName: org.activityName ?? "",
       }));
       setSourceOrgId(orgId);
 

@@ -474,3 +474,38 @@
   opacity: 0.9;
 }
 
+
+/* Statusna traka ispod izbora tipa: jasno kaže šta će se desiti izabranom
+   radniku (odjava je upozoravajuća boja jer je najskuplja greška: slučajna
+   odjava umjesto naknadne prijave). */
+.vrstaCallout {
+  display: block;
+  margin-top: 0.7rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  border: 1px solid var(--border);
+}
+
+.vrstaCallout strong {
+  font-weight: 700;
+}
+
+.vrstaCalloutOk {
+  background: var(--sage-pale, #eef3ef);
+  border-color: color-mix(in srgb, var(--sage) 35%, transparent);
+  color: var(--sage);
+}
+
+.vrstaCalloutWarn {
+  background: var(--warn-bg, #fdf6e3);
+  border-color: var(--warn-border, #e6d9a8);
+  color: var(--warn-text, #7a6a1f);
+}
+
+.vrstaCalloutNeutral {
+  background: var(--bg-subtle, #fafafa);
+  border-color: var(--border);
+  color: var(--mid);
+}

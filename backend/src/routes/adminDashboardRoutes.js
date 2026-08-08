@@ -6,12 +6,20 @@ const forms = require("../controllers/formsController");
 const entities = require("../controllers/adminEntitiesController");
 const detail = require("../controllers/adminDetailController");
 const subscriptions = require("../controllers/subscriptionsController");
+const paymentExport = require("../controllers/paymentExportController");
 const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
 // ── Admin "360" detalj organizacije i korisnika ──────────────────────────────
 const admin = [requireAuth, requireRole("ADMIN")];
+
+// ── Izvoz platnih naloga u e-bankarstvo (test harness, Faza 0) ───────────────
+// Zaštita je OVDJE na serveru (requireRole ADMIN), ekran u admin panelu je
+// samo pogodnost. Vidi docs/faza0-tkdis-izvoz-halcom.md.
+router.get("/izvoz-naloga/organizacije", ...admin, paymentExport.listOrganizacije);
+router.get("/izvoz-naloga/obracuni", ...admin, paymentExport.listObracuni);
+router.post("/izvoz-naloga/generisi", ...admin, paymentExport.generisi);
 router.get("/organizations/:id/detail", ...admin, detail.organizationDetail);
 router.get("/organizations/:id/workers-full", ...admin, detail.organizationWorkers);
 router.get("/organizations/:id/payrolls", ...admin, detail.organizationPayrolls);
