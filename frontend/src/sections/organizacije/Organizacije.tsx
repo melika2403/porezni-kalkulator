@@ -19,6 +19,7 @@ import RowActionsMenu, {
   type RowMenuItem,
 } from "src/components/RowActionsMenu/RowActionsMenu";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
+import { defaultObracunPeriod } from "src/lib/obracunskiPeriod";
 import styles from "./organizacije.module.css";
 // PK Office tokeni + utility klase za .pk-scope blokove (stats, tabela)
 import "src/styles/pk-embed.css";
@@ -136,8 +137,11 @@ export default function Organizacije() {
   const { notify } = useNotice();
 
   const now = new Date();
-  const [year, setYear] = useState<number>(now.getFullYear());
-  const [month, setMonth] = useState<number>(now.getMonth() + 1);
+  // Do 15. u mjesecu default je PRETHODNI mjesec (tada se još obračunavaju i
+  // isplaćuju plate prethodnog mjeseca), od 16. tekući. Vidi lib/obracunskiPeriod.
+  const initPeriod = defaultObracunPeriod(now);
+  const [year, setYear] = useState<number>(initPeriod.year);
+  const [month, setMonth] = useState<number>(initPeriod.month);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("svi");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("naziv");
@@ -173,6 +177,17 @@ export default function Organizacije() {
     total: number;
     name: string;
   } | null>(null);
+  // Status plata za obrasce: sve (obračunate + isplaćene) / samo isplaćene /
+  // samo obračunate koje još nisu isplaćene.
+  const [obrasciStatusFilter, setObrasciStatusFilter] = useState<
+    "sve" | "isplacene" | "obracunate"
+  >("sve");
+  // Izbor organizacija u modalima: null = sve označene (default). Lista sa
+  // checkboxovima se otvara tek na "Izaberi koje", da modali ne budu pretrpani.
+  const [obrasciSelected, setObrasciSelected] = useState<Set<number> | null>(null);
+  const [obrasciPickerOpen, setObrasciPickerOpen] = useState(false);
+  const [bulkCalcSelected, setBulkCalcSelected] = useState<Set<number> | null>(null);
+  const [bulkCalcPickerOpen, setBulkCalcPickerOpen] = useState(false);
   // PDF ispis prikazane liste (sa aktivnim filterima i sortiranjem).
   const [pdfBusy, setPdfBusy] = useState(false);
 
@@ -182,8 +197,10 @@ export default function Organizacije() {
     enabled: isLoggedIn,
   });
 
+  // I prethodna godina: u januaru je default decembar prošle godine, a i inače
+  // treba pogledati stare mjesece.
   const yearOptions = useMemo(
-    () => [now.getFullYear() + 1, now.getFullYear()],
+    () => [now.getFullYear() + 1, now.getFullYear(), now.getFullYear() - 1],
     [now],
   );
 
@@ -293,6 +310,12 @@ export default function Organizacije() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allOrgs.length, statusQuery.data]);
 
+  // Efektivni izbor za pokretanje obračuna: default sve, ili ručno označene.
+  const bulkCalcEffective =
+    bulkCalcSelected === null
+      ? bulkCalcCandidates
+      : bulkCalcCandidates.filter((o) => bulkCalcSelected.has(o.id));
+
   if (!isLoggedIn) {
     return (
       <PreviewRegisterGate
@@ -358,10 +381,10 @@ export default function Organizacije() {
     const { obracunOrgPayrolls } = await import(
       "src/sections/prijave-radnika/obracunOrgPayrolls"
     );
-    const total = bulkCalcCandidates.length;
+    const total = bulkCalcEffective.length;
     const results: typeof bulkCalcResults = [];
     for (let i = 0; i < total; i++) {
-      const o = bulkCalcCandidates[i];
+      const o = bulkCalcEffective[i];
       setBulkCalcProgress({ current: i + 1, total, name: o.name });
       try {
         const r = await obracunOrgPayrolls({
@@ -413,6 +436,21 @@ export default function Organizacije() {
         o.payrollStatus === "obracunato" || o.payrollStatus === "isplaceno",
     )
     .sort((a, b) => a.name.localeCompare(b.name, "bs"));
+  const obrasciIsplaceneCount = obrasciCandidates.filter(
+    (o) => o.payrollStatus === "isplaceno",
+  ).length;
+  // Suženje po statusu plata iz modala, pa ručni izbor (null = sve iz filtera).
+  const obrasciFiltered = obrasciCandidates.filter((o) =>
+    obrasciStatusFilter === "sve"
+      ? true
+      : obrasciStatusFilter === "isplacene"
+        ? o.payrollStatus === "isplaceno"
+        : o.payrollStatus === "obracunato",
+  );
+  const obrasciEffective =
+    obrasciSelected === null
+      ? obrasciFiltered
+      : obrasciFiltered.filter((o) => obrasciSelected.has(o.id));
 
   const runBulkObrasci = async () => {
     setObrasciRunning(true);
@@ -450,11 +488,11 @@ export default function Organizacije() {
       const lastDay = new Date(year, month, 0).getDate();
       const defaultPaymentDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
 
-      for (let i = 0; i < obrasciCandidates.length; i++) {
-        const o = obrasciCandidates[i];
+      for (let i = 0; i < obrasciEffective.length; i++) {
+        const o = obrasciEffective[i];
         setObrasciProgress({
           current: i + 1,
-          total: obrasciCandidates.length,
+          total: obrasciEffective.length,
           name: o.name,
         });
         try {
@@ -594,7 +632,7 @@ export default function Organizacije() {
       setObrasciModalOpen(false);
       if (problems.length === 0) {
         notify(
-          `Preuzeto ${items.length} obrazaca za ${obrasciCandidates.length} org.`,
+          `Preuzeto ${items.length} obrazaca za ${obrasciEffective.length} org.`,
           "success",
         );
       } else {
@@ -1018,7 +1056,12 @@ export default function Organizacije() {
             <button
               type="button"
               className={`${styles.btnBulk} ${styles.btnBulkPrimary}`}
-              onClick={() => setBulkCalcConfirmOpen(true)}
+              onClick={() => {
+                // Svako otvaranje kreće od "sve označeno" (izbor je situacioni)
+                setBulkCalcSelected(null);
+                setBulkCalcPickerOpen(false);
+                setBulkCalcConfirmOpen(true);
+              }}
               disabled={bulkCalcCandidates.length === 0 || bulkCalcRunning}
               title={
                 bulkCalcCandidates.length === 0
@@ -1046,7 +1089,13 @@ export default function Organizacije() {
             <button
               type="button"
               className={`${styles.btnBulk} ${styles.btnBulkInfo}`}
-              onClick={() => setObrasciModalOpen(true)}
+              onClick={() => {
+                // Svako otvaranje kreće od "sve org, svi statusi"
+                setObrasciStatusFilter("sve");
+                setObrasciSelected(null);
+                setObrasciPickerOpen(false);
+                setObrasciModalOpen(true);
+              }}
               disabled={obrasciCandidates.length === 0 || obrasciRunning}
               title={
                 obrasciCandidates.length === 0
@@ -1204,14 +1253,211 @@ export default function Organizacije() {
                 color: "#3a3a3a",
               }}
             >
-              Specifikacije za <strong>{obrasciCandidates.length}</strong> org.
-              sa obračunatim platama za{" "}
+              Specifikacije za <strong>{obrasciEffective.length}</strong> org.
+              za{" "}
               <strong>
                 {MONTHS[month - 1]} {year}
               </strong>
               , spojene u jedan PDF za štampu. Obrazac 2001-A (radnici sa
               prebivalištem u RS) generiše se automatski uz 2001.
             </p>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: "#0f1a12",
+                  marginBottom: "0.4rem",
+                }}
+              >
+                Status plata
+              </div>
+              {(
+                [
+                  {
+                    v: "sve",
+                    label: `Obračunate i isplaćene (${obrasciCandidates.length})`,
+                  },
+                  {
+                    v: "isplacene",
+                    label: `Samo isplaćene (${obrasciIsplaceneCount})`,
+                  },
+                  {
+                    v: "obracunate",
+                    label: `Samo obračunate, još neisplaćene (${obrasciCandidates.length - obrasciIsplaceneCount})`,
+                  },
+                ] as const
+              ).map((opt) => (
+                <label
+                  key={opt.v}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    fontSize: 13.5,
+                    color: "#3a3a3a",
+                    padding: "0.2rem 0",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="obrasciStatusFilter"
+                    checked={obrasciStatusFilter === opt.v}
+                    onChange={() => {
+                      // Promjena statusa resetuje ručni izbor: sve iz novog skupa
+                      setObrasciStatusFilter(opt.v);
+                      setObrasciSelected(null);
+                    }}
+                    disabled={obrasciRunning}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+
+            {/* Sažeta linija izbora organizacija: lista sa checkboxovima se
+                pojavi tek na "Izaberi koje", da modal ne bude pretrpan. */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+                margin: "0 0 1rem",
+                fontSize: 13,
+                color: "#6c6862",
+              }}
+            >
+              <span>
+                {obrasciFiltered.length === 0
+                  ? "Nijedna organizacija ne odgovara izabranom statusu."
+                  : obrasciEffective.length === obrasciFiltered.length
+                    ? `Uključene su sve organizacije (${obrasciFiltered.length}).`
+                    : `Uključeno ${obrasciEffective.length} od ${obrasciFiltered.length} organizacija.`}
+              </span>
+              {obrasciFiltered.length > 0 &&
+                (!obrasciPickerOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setObrasciPickerOpen(true)}
+                    disabled={obrasciRunning}
+                    style={{
+                      padding: "0.15rem 0.7rem",
+                      border: "1px solid #d4cfc4",
+                      background: "#fff",
+                      color: "#0f1a12",
+                      borderRadius: 999,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Izaberi koje
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setObrasciSelected(
+                        obrasciEffective.length < obrasciFiltered.length
+                          ? new Set(obrasciFiltered.map((o) => o.id))
+                          : new Set(),
+                      )
+                    }
+                    disabled={obrasciRunning}
+                    style={{
+                      padding: "0.15rem 0.7rem",
+                      border: "1px solid #d4cfc4",
+                      background: "#fff",
+                      color: "#0f1a12",
+                      borderRadius: 999,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {obrasciEffective.length < obrasciFiltered.length
+                      ? "Označi sve"
+                      : "Odznači sve"}
+                  </button>
+                ))}
+            </div>
+
+            {obrasciPickerOpen && obrasciFiltered.length > 0 && (
+              <div
+                style={{
+                  border: "1px solid #d4cfc4",
+                  borderRadius: 8,
+                  maxHeight: 200,
+                  overflowY: "auto",
+                  marginBottom: "1rem",
+                }}
+              >
+                {obrasciFiltered.map((o) => {
+                  const checked =
+                    obrasciSelected === null || obrasciSelected.has(o.id);
+                  const toggle = () =>
+                    setObrasciSelected((prev) => {
+                      const next = new Set(
+                        prev === null ? obrasciFiltered.map((x) => x.id) : prev,
+                      );
+                      if (next.has(o.id)) next.delete(o.id);
+                      else next.add(o.id);
+                      return next;
+                    });
+                  return (
+                    <label
+                      key={o.id}
+                      style={{
+                        padding: "0.45rem 0.7rem",
+                        borderBottom: "1px solid #ece8df",
+                        fontSize: 13,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "0.6rem",
+                        cursor: "pointer",
+                        opacity: checked ? 1 : 0.5,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          minWidth: 0,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={toggle}
+                          disabled={obrasciRunning}
+                          style={{ accentColor: "#3a5c42" }}
+                        />
+                        <span>
+                          <strong>{o.name}</strong>{" "}
+                          <span style={{ color: "#6c6862", fontSize: 12 }}>
+                            · {o.workerCount} radnik(a)
+                          </span>
+                        </span>
+                      </span>
+                      <span
+                        style={{
+                          color: o.payrollStatus === "isplaceno" ? "#3a5c42" : "#92400e",
+                          fontSize: 12,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {o.payrollStatus === "isplaceno" ? "isplaćeno" : "obračunato"}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
 
             <div style={{ marginBottom: "1rem" }}>
               <div
@@ -1344,7 +1590,7 @@ export default function Organizacije() {
               <button
                 type="button"
                 onClick={() => void runBulkObrasci()}
-                disabled={obrasciRunning || obrasciCandidates.length === 0}
+                disabled={obrasciRunning || obrasciEffective.length === 0}
                 style={{
                   padding: "0.55rem 0.9rem",
                   borderRadius: 8,
@@ -1353,11 +1599,17 @@ export default function Organizacije() {
                   color: "#fff",
                   fontSize: 13.5,
                   fontWeight: 600,
-                  cursor: obrasciRunning ? "default" : "pointer",
-                  opacity: obrasciRunning ? 0.7 : 1,
+                  cursor:
+                    obrasciRunning || obrasciEffective.length === 0
+                      ? "default"
+                      : "pointer",
+                  opacity:
+                    obrasciRunning || obrasciEffective.length === 0 ? 0.7 : 1,
                 }}
               >
-                {obrasciRunning ? "Generišem…" : "Preuzmi PDF"}
+                {obrasciRunning
+                  ? "Generišem…"
+                  : `Preuzmi PDF (${obrasciEffective.length})`}
               </button>
             </div>
           </div>
@@ -1479,11 +1731,73 @@ export default function Organizacije() {
                 </h3>
                 <p style={{ margin: "0 0 0.8rem", color: "var(--mid)", fontSize: 14 }}>
                   Obračunat će se{" "}
-                  <strong>{bulkCalcCandidates.length} org.</strong> sekvencijalno.
+                  <strong>{bulkCalcEffective.length} org.</strong> sekvencijalno.
                   Za svaku org-u koristi se isti default kao &quot;Obračunaj sve&quot; iz
                   modula plate (sihterica → standardni fond mjeseca, automatski
                   pro-rate za mid-month radnike).
                 </p>
+                {/* Sažeta linija izbora: modal ostaje jednostavan, checkboxovi
+                    se pojave tek na "Izaberi koje". */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    margin: "0 0 0.6rem",
+                    fontSize: 13,
+                    color: "var(--mid)",
+                  }}
+                >
+                  <span>
+                    {bulkCalcEffective.length === bulkCalcCandidates.length
+                      ? `Označene su sve organizacije (${bulkCalcCandidates.length}).`
+                      : `Označeno ${bulkCalcEffective.length} od ${bulkCalcCandidates.length} organizacija.`}
+                  </span>
+                  {!bulkCalcPickerOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => setBulkCalcPickerOpen(true)}
+                      style={{
+                        padding: "0.15rem 0.7rem",
+                        border: "1px solid var(--border)",
+                        background: "var(--white)",
+                        color: "var(--ink)",
+                        borderRadius: 999,
+                        fontSize: 12.5,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Izaberi koje
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBulkCalcSelected(
+                          bulkCalcEffective.length < bulkCalcCandidates.length
+                            ? new Set(bulkCalcCandidates.map((o) => o.id))
+                            : new Set(),
+                        )
+                      }
+                      style={{
+                        padding: "0.15rem 0.7rem",
+                        border: "1px solid var(--border)",
+                        background: "var(--white)",
+                        color: "var(--ink)",
+                        borderRadius: 999,
+                        fontSize: 12.5,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {bulkCalcEffective.length < bulkCalcCandidates.length
+                        ? "Označi sve"
+                        : "Odznači sve"}
+                    </button>
+                  )}
+                </div>
                 <div
                   style={{
                     border: "1px solid var(--border)",
@@ -1501,8 +1815,21 @@ export default function Organizacije() {
                     let warning = "";
                     if (noWorkers && isObrt) warning = "Samo vlasnik (2002)";
                     else if (noWorkers) warning = "Nema radnika, preskočiće se";
+                    const checked =
+                      bulkCalcSelected === null || bulkCalcSelected.has(o.id);
+                    const toggle = () =>
+                      setBulkCalcSelected((prev) => {
+                        const next = new Set(
+                          prev === null
+                            ? bulkCalcCandidates.map((x) => x.id)
+                            : prev,
+                        );
+                        if (next.has(o.id)) next.delete(o.id);
+                        else next.add(o.id);
+                        return next;
+                      });
                     return (
-                      <div
+                      <label
                         key={o.id}
                         style={{
                           padding: "0.45rem 0.7rem",
@@ -1511,12 +1838,31 @@ export default function Organizacije() {
                           display: "flex",
                           justifyContent: "space-between",
                           gap: "0.6rem",
+                          cursor: bulkCalcPickerOpen ? "pointer" : "default",
+                          opacity: bulkCalcPickerOpen && !checked ? 0.5 : 1,
                         }}
                       >
-                        <span>
-                          <strong>{o.name}</strong>{" "}
-                          <span style={{ color: "var(--mid)", fontSize: 12 }}>
-                            · {o.workerCount} radnik(a)
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            minWidth: 0,
+                          }}
+                        >
+                          {bulkCalcPickerOpen && (
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={toggle}
+                              style={{ accentColor: "var(--sage)" }}
+                            />
+                          )}
+                          <span>
+                            <strong>{o.name}</strong>{" "}
+                            <span style={{ color: "var(--mid)", fontSize: 12 }}>
+                              · {o.workerCount} radnik(a)
+                            </span>
                           </span>
                         </span>
                         {warning && (
@@ -1530,7 +1876,7 @@ export default function Organizacije() {
                             ⚠ {warning}
                           </span>
                         )}
-                      </div>
+                      </label>
                     );
                   })}
                 </div>
@@ -1559,18 +1905,21 @@ export default function Organizacije() {
                   <button
                     type="button"
                     onClick={runBulkCalc}
+                    disabled={bulkCalcEffective.length === 0}
                     style={{
                       padding: "0.5rem 1rem",
                       border: "1px solid var(--sage)",
                       background: "var(--sage)",
                       color: "#fff",
                       borderRadius: 6,
-                      cursor: "pointer",
+                      cursor:
+                        bulkCalcEffective.length === 0 ? "default" : "pointer",
+                      opacity: bulkCalcEffective.length === 0 ? 0.55 : 1,
                       fontFamily: "inherit",
                       fontWeight: 600,
                     }}
                   >
-                    Pokreni obračun
+                    Pokreni obračun ({bulkCalcEffective.length})
                   </button>
                 </div>
               </>

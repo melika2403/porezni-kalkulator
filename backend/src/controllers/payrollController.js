@@ -2945,4 +2945,9 @@ module.exports = {
   // exported for tests / future reuse
   computePayrollSnapshot,
   STANDARD_MONTHLY_MINUTES,
+  // TKDIS izvoz naloga (services/paymentExport/obracunAdapter) SAMO ČITA ove
+  // helpere da nalozi budu identični uplatnicama; ne mijenja ih.
+  buildAllUplatnice,
+  getAccountInfo,
+  VRSTA_SVRHA_MAP,
 };

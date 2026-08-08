@@ -48,12 +48,18 @@ function prijavaDateForPayslip(worker) {
   return worker.prijavaDate || worker.startDate || null;
 }
 
-// Ukupan radni staž za listić, KONZISTENTNO sa logikom minulog rada
-// (totalYearsOfService u payrollController): priorWorkYears ima prednost (staž
-// prije + staž od prijave), zatim firstEmploymentDate (prvo zaposlenje ikada),
-// inače prijavaDate (ili startDate kao fallback). Vraća "X god. Y mj.".
-function workStazLabel(worker, paymentDateStr) {
-  const end = paymentDateStr ? new Date(paymentDateStr) : new Date();
+// Ukupan radni staž za listić. Izvor staža KONZISTENTAN sa logikom minulog
+// rada (totalYearsOfService u payrollController): priorWorkYears ima prednost
+// (staž prije + staž od prijave), zatim firstEmploymentDate (prvo zaposlenje
+// ikada), inače prijavaDate (ili startDate kao fallback). Vraća "X god. Y mj.".
+//
+// Staž se računa ZAKLJUČNO SA ZADNJIM DANOM MJESECA OBRAČUNA, inkluzivno
+// (kadrovska konvencija: prijava 01.03. na julskom listiću daje 5 mj., jer je
+// juli peti mjesec rada), a ne do datuma isplate. Tehnika: kao kraj se uzima
+// prvi dan NAREDNOG mjeseca, pa "godišnjica" račun daje inkluzivan rezultat.
+// Prikazna stvar: obračun minulog rada (navršene godine) se ovdje ne dira.
+function workStazLabel(worker, stazEndIso) {
+  const end = stazEndIso ? new Date(stazEndIso) : new Date();
   if (Number.isNaN(end.getTime())) return "–";
   let baseStart = null;
   let extraMonths = 0;
@@ -210,7 +216,9 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   drawField("Datum prijave", fmtDateDDMMYYYY(prijavaDateForPayslip(worker)), colRightX, cursorY);
   cursorY -= 24;
 
-  drawField("Ukupan radni staž", workStazLabel(worker, paymentDateIso), colLeftX, cursorY);
+  // Staž zaključno s krajem mjeseca obračuna: kraj = 1. narednog mjeseca.
+  const stazEndIso = `${payroll.month === 12 ? payroll.year + 1 : payroll.year}-${String(payroll.month === 12 ? 1 : payroll.month + 1).padStart(2, "0")}-01`;
+  drawField("Ukupan radni staž", workStazLabel(worker, stazEndIso), colLeftX, cursorY);
   drawField("Adresa", worker.address || "–", colRightX, cursorY);
   cursorY -= 22;
 
@@ -514,4 +522,6 @@ module.exports = {
   addPayslipPage,
   embedFonts,
   generatePayslipsCombined,
+  // izvezeno za testove
+  workStazLabel,
 };

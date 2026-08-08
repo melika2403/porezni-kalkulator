@@ -258,23 +258,29 @@ function Js3100App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workersQuery.data, initialWorkerId]);
 
+  // Popuna poslodavca SAMO pri stvarnoj promjeni organizacije. Polja se
+  // preslikavaju direktno (prazno kad org nema podatak): raniji "?? p.X"
+  // fallback je zadržavao email/adresu/vlasnika PRETHODNE organizacije kad
+  // nova nema svoj. Ref čuva zadnju primijenjenu org da refetch istih
+  // podataka (npr. refokus prozora) ne pregazi ručne izmjene u poljima.
+  const appliedOrgRef = useRef<number | null>(null);
   useEffect(() => {
     const org = orgQuery.data;
     if (!org) return;
+    if (appliedOrgRef.current === org.id) return;
+    appliedOrgRef.current = org.id;
     setEmployer((p) => ({
       ...p,
-      jib: org.taxNumber ?? p.jib,
-      naziv: org.name ?? p.naziv,
-      adresa: org.address ?? p.adresa,
-      grad: org.city ?? p.grad,
-      email: org.email ?? p.email,
-      telefon: org.phone ?? p.telefon,
+      jib: org.taxNumber ?? "",
+      naziv: org.name ?? "",
+      adresa: org.address ?? "",
+      grad: org.city ?? "",
+      email: org.email ?? "",
+      telefon: org.phone ?? "",
     }));
-    if (org.owner) {
-      setPopunioImeIPrezime(
-        `${org.owner.firstName} ${org.owner.lastName}`.trim(),
-      );
-    }
+    setPopunioImeIPrezime(
+      org.owner ? `${org.owner.firstName} ${org.owner.lastName}`.trim() : "",
+    );
   }, [orgQuery.data]);
 
   /* ── Sidebar auto-popuna: radnik ── */
@@ -330,45 +336,47 @@ function Js3100App() {
       ...p,
       sati: p.sati || "08",
       minuta: p.minuta || "00",
-      // Osnov osiguranja i zanimanje — prvo iz spremljenih worker polja (prijava
-      // ih je zapamtila), pa fallback na default/poziciju. Tako odjava povuče
-      // iste podatke kao prijava bez ručnog ponovnog unosa.
+      // Osnov osiguranja i zanimanje: iz spremljenih worker polja (prijava ih
+      // je zapamtila), pa fallback na default/poziciju. Bez zadržavanja
+      // vrijednosti PRETHODNO izabranog radnika: promjena radnika ne smije
+      // ostaviti tuđe zanimanje/spremu u obrascu.
       osnovOsiguranjaOpis: normalizeOsnovOpis(
-        w.osnovOsiguranjaOpis ||
-          p.osnovOsiguranjaOpis ||
-          "Zaposleni, puno radno vrijeme",
+        w.osnovOsiguranjaOpis || "Zaposleni, puno radno vrijeme",
       ),
-      osnovOsiguranjaSifra: w.osnovOsiguranjaSifra || p.osnovOsiguranjaSifra || "01",
-      zanimanjeOpis: w.zanimanjeOpis ?? w.position ?? p.zanimanjeOpis,
-      zanimanjeSifra: w.zanimanjeSifra ?? p.zanimanjeSifra,
-      strucnaSpremaTraziSeIdx: w.strucnaSpremaIdx ?? p.strucnaSpremaTraziSeIdx,
+      osnovOsiguranjaSifra: w.osnovOsiguranjaSifra || "01",
+      zanimanjeOpis: w.zanimanjeOpis ?? w.position ?? "",
+      zanimanjeSifra: w.zanimanjeSifra ?? "",
+      strucnaSpremaTraziSeIdx: w.strucnaSpremaIdx ?? null,
       datumPromjeneIso,
+      // prazno kad radnik nema bruto: ne smije ostati iznos prethodnog radnika
       osnovUplateOpis:
         w.salaryBruto != null
           ? `${w.salaryBruto.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM`
-          : p.osnovUplateOpis,
+          : "",
     }));
   };
 
   /* ── Fill from profile ── */
+  // "Prepiši" znači prepiši SVE: polje bez podatka se isprazni, ne smije
+  // ostati vrijednost prethodnog izbora.
   const fillEmployer = useCallback((data: OrgFillData) => {
     setEmployer((p) => ({
       ...p,
-      jib: data.taxNumber ?? p.jib,
-      naziv: data.name ?? p.naziv,
-      adresa: data.address ?? p.adresa,
-      grad: data.city ?? p.grad,
+      jib: data.taxNumber ?? "",
+      naziv: data.name ?? "",
+      adresa: data.address ?? "",
+      grad: data.city ?? "",
     }));
   }, []);
 
   const fillWorker = useCallback((data: FillData) => {
     setWorker((p) => ({
       ...p,
-      jmbg: data.jmbg ?? p.jmbg,
-      ime: data.firstName ?? p.ime,
-      prezime: data.lastName ?? p.prezime,
-      adresa: data.address ?? p.adresa,
-      grad: data.city ?? p.grad,
+      jmbg: data.jmbg ?? "",
+      ime: data.firstName ?? "",
+      prezime: data.lastName ?? "",
+      adresa: data.address ?? "",
+      grad: data.city ?? "",
     }));
   }, []);
 
@@ -673,6 +681,49 @@ function Js3100App() {
                       ),
                     )}
                   </div>
+                  {/* Jasna poruka šta će se izabranom radniku desiti: tip se
+                      auto-predloži iz statusa u aplikaciji, pa se kod kasnog
+                      vađenja JS3100 zna desiti da korisnik nehotice odjavi
+                      radnika ne primijetivši predizbor. */}
+                  {(worker.ime || worker.prezime) && (
+                    <span
+                      className={[
+                        styles.vrstaCallout,
+                        vrsta === "ODJAVA"
+                          ? styles.vrstaCalloutWarn
+                          : vrsta === "PRIJAVA"
+                            ? styles.vrstaCalloutOk
+                            : styles.vrstaCalloutNeutral,
+                      ].join(" ")}
+                    >
+                      {vrsta === "ODJAVA" ? (
+                        <>
+                          Pravite <strong>ODJAVU osiguranja</strong>:{" "}
+                          {`${worker.ime} ${worker.prezime}`.trim()} će ovim
+                          obrascem biti odjavljen(a).
+                          {selectedStatus === "PRIJAVLJEN" && (
+                            <>
+                              {" "}Tip je predložen automatski jer je radnik u
+                              aplikaciji označen kao prijavljen. Ako pravite
+                              naknadnu prijavu za njega, promijenite tip iznad.
+                            </>
+                          )}
+                        </>
+                      ) : vrsta === "PRIJAVA" ? (
+                        <>
+                          Pravite <strong>PRIJAVU osiguranja</strong>:{" "}
+                          {`${worker.ime} ${worker.prezime}`.trim()} će ovim
+                          obrascem biti prijavljen(a).
+                        </>
+                      ) : (
+                        <>
+                          Pravite <strong>PROMJENU podataka</strong> za:{" "}
+                          {`${worker.ime} ${worker.prezime}`.trim()}. Status
+                          radnika u aplikaciji se ne mijenja.
+                        </>
+                      )}
+                    </span>
+                  )}
                 </div>
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>Datum prijave</label>
@@ -1310,7 +1361,15 @@ function Js3100App() {
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
                 </svg>
-                {loading ? "Generisanje..." : "Preuzmi PDF"}
+                {loading
+                  ? "Generisanje..."
+                  : `Preuzmi JS3100 (${
+                      vrsta === "PRIJAVA"
+                        ? "prijava"
+                        : vrsta === "PROMJENA"
+                          ? "promjena"
+                          : "odjava"
+                    })`}
               </button>
               {vrsta !== "PROMJENA" && (
                 <button

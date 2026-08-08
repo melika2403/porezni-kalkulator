@@ -18,6 +18,7 @@ import {
   IconTableImport,
 } from "@tabler/icons-react";
 import { formatBAM } from "src/lib/format";
+import { defaultObracunPeriod } from "src/lib/obracunskiPeriod";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import { HelpButton } from "src/components/app-shell/HelpButton";
 import { PkDateInput } from "src/components/app-shell/PkDateInput";
@@ -137,18 +138,11 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
 
 export default function ObracuniPlataPage() {
   const now = new Date();
-  // isti default kao dashboard: do 25. u mjesecu prikazuj prethodni mjesec
-  let defYear = now.getFullYear();
-  let defMonth = now.getMonth() + 1;
-  if (now.getDate() < 25) {
-    defMonth -= 1;
-    if (defMonth === 0) {
-      defMonth = 12;
-      defYear -= 1;
-    }
-  }
-  const [year, setYear] = useState(defYear);
-  const [month, setMonth] = useState(defMonth);
+  // isti default kao dashboard: do 15. u mjesecu prethodni mjesec, od 16.
+  // tekući (zajedničko pravilo u lib/obracunskiPeriod)
+  const initPeriod = defaultObracunPeriod(now);
+  const [year, setYear] = useState(initPeriod.year);
+  const [month, setMonth] = useState(initPeriod.month);
   const [busy, setBusy] = useState<string | null>(null);
   // poruka greške/upozorenja u PK modalu umjesto window.alert
   const [obavijest, setObavijest] = useState<string | null>(null);
