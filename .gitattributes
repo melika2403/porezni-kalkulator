@@ -1,0 +1,7 @@
+# Golden test fixtures za izvoz platnih naloga: bajt-egzaktne datoteke
+# (Halcom TKDIS: CRLF + 0x1A; Raiffeisen: CP852 + CRLF). Git NE smije dirati
+# završetke redova ni sadržaj (vidi docs/faza0-tkdis-izvoz-halcom.md).
+backend/test/fixtures/izvoz_naloga.txt -text
+backend/test/fixtures/MAX_COP.txt -text
+backend/test/fixtures/raiffeisen_platavlasnik_161.txt -text
+backend/test/fixtures/raiffeisen_plataradnici_161.txt -text

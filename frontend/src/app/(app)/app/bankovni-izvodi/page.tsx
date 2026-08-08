@@ -768,12 +768,12 @@ export default function BankovniIzvodiPage() {
                   <button
                     type="button"
                     onClick={() => toggleGroup(key)}
-                    className="w-full flex items-center gap-2.5 px-4 pt-3.5 pb-2.5 text-left cursor-pointer hover:bg-[rgba(15,26,18,0.02)] transition-colors"
+                    className="w-full flex flex-wrap items-center gap-x-2.5 gap-y-1 px-4 pt-3.5 pb-2.5 text-left cursor-pointer hover:bg-[rgba(15,26,18,0.02)] transition-colors"
                   >
                     <span className="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 inline-flex items-center justify-center shrink-0">
                       <IconBuildingBank size={16} />
                     </span>
-                    <span className="text-[15px] font-medium text-text-primary">
+                    <span className="text-[15px] font-medium text-text-primary whitespace-nowrap">
                       {group.bankName}
                     </span>
                     {group.account && (
@@ -781,7 +781,9 @@ export default function BankovniIzvodiPage() {
                         {group.account}
                       </span>
                     )}
-                    <span className="ml-auto flex items-center gap-3 shrink-0">
+                    {/* na uskom ekranu se cijela desna grupa spusti u svoj red
+                        (flex-wrap + ml-auto), umjesto da probija viewport */}
+                    <span className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
                       {stanje && (
                         <span className="text-[12.5px] text-text-secondary tabular-nums">
                           Stanje:{" "}
@@ -860,14 +862,17 @@ export default function BankovniIzvodiPage() {
                                     router.push(`/app/bankovni-izvodi/${s.id}`);
                                   }}
                                   className={[
-                                    "flex items-center gap-3 pl-[49px] pr-4 py-[11px] cursor-pointer hover:bg-[rgba(15,26,18,0.025)] transition-colors border-b border-cream-300/50 border-l-[3px]",
+                                    "flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-[49px] pr-4 py-[11px] cursor-pointer hover:bg-[rgba(15,26,18,0.025)] transition-colors border-b border-cream-300/50 border-l-[3px]",
                                     rub,
                                   ].join(" ")}
                                 >
                                   <span className="w-8 h-8 rounded-lg bg-brand-100/60 text-brand-700 inline-flex items-center justify-center shrink-0">
                                     <IconFileText size={15} />
                                   </span>
-                                  <div className="flex-1 min-w-0">
+                                  {/* min-w umjesto min-w-0: kad je usko, značke
+                                      ispod se spuste u svoj red (flex-wrap),
+                                      pa broj izvoda i datum ostanu čitljivi */}
+                                  <div className="flex-1 min-w-[200px]">
                                     <div className="text-[14.5px] font-medium text-text-primary">
                                       {s.bankId === "pocetno"
                                         ? "Početno stanje"
@@ -912,59 +917,63 @@ export default function BankovniIzvodiPage() {
                                       )}
                                     </div>
                                   </div>
-                                  {(s.bezKategorijeCount ?? 0) > 0 && (
+                                  {/* desna grupa u svom spanu: na uskom ekranu
+                                      se cijela spusti u novi red, desno */}
+                                  <span className="ml-auto flex items-center gap-2 shrink-0">
+                                    {(s.bezKategorijeCount ?? 0) > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          zapamtiOtvoreniIzvod(s.id);
+                                          router.push(
+                                            `/app/bankovni-izvodi/${s.id}?bezKategorije=1`,
+                                          );
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12.5px] font-medium shrink-0 bg-warning-bg text-warning hover:opacity-80 transition-opacity cursor-pointer"
+                                        title="Potvrđene stavke bez KPR kategorije ne ulaze u KPR. Klik otvara izvod filtriran na te stavke."
+                                      >
+                                        <IconAlertCircle size={11} />{" "}
+                                        {s.bezKategorijeCount} bez kategorije
+                                      </button>
+                                    )}
+                                    {s.bankId !== "pocetno" && (
+                                      <span
+                                        className={[
+                                          "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12.5px] font-medium shrink-0",
+                                          s.unmatchedCount > 0
+                                            ? "bg-accent-bg text-accent-500"
+                                            : "bg-brand-100 text-brand-700",
+                                        ].join(" ")}
+                                      >
+                                        {s.unmatchedCount > 0 ? (
+                                          <>
+                                            <IconAlertCircle size={11} /> {s.unmatchedCount} za pregled
+                                          </>
+                                        ) : (
+                                          <>
+                                            <IconCircleCheck size={11} /> potvrđen ({reviewed}/{s.txCount})
+                                          </>
+                                        )}
+                                      </span>
+                                    )}
                                     <button
                                       type="button"
+                                      title="Obriši izvod"
+                                      disabled={deleteStatement.isPending}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        zapamtiOtvoreniIzvod(s.id);
-                                        router.push(
-                                          `/app/bankovni-izvodi/${s.id}?bezKategorije=1`,
-                                        );
+                                        handleDelete(s);
                                       }}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12.5px] font-medium shrink-0 bg-warning-bg text-warning hover:opacity-80 transition-opacity cursor-pointer"
-                                      title="Potvrđene stavke bez KPR kategorije ne ulaze u KPR. Klik otvara izvod filtriran na te stavke."
+                                      className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-cream-200 transition-colors shrink-0 disabled:opacity-50"
                                     >
-                                      <IconAlertCircle size={11} />{" "}
-                                      {s.bezKategorijeCount} bez kategorije
+                                      <IconTrash size={15} />
                                     </button>
-                                  )}
-                                  {s.bankId !== "pocetno" && (
-                                    <span
-                                      className={[
-                                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12.5px] font-medium shrink-0",
-                                        s.unmatchedCount > 0
-                                          ? "bg-accent-bg text-accent-500"
-                                          : "bg-brand-100 text-brand-700",
-                                      ].join(" ")}
-                                    >
-                                      {s.unmatchedCount > 0 ? (
-                                        <>
-                                          <IconAlertCircle size={11} /> {s.unmatchedCount} za pregled
-                                        </>
-                                      ) : (
-                                        <>
-                                          <IconCircleCheck size={11} /> potvrđen ({reviewed}/{s.txCount})
-                                        </>
-                                      )}
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    title="Obriši izvod"
-                                    disabled={deleteStatement.isPending}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDelete(s);
-                                    }}
-                                    className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-cream-200 transition-colors shrink-0 disabled:opacity-50"
-                                  >
-                                    <IconTrash size={15} />
-                                  </button>
-                                  <IconChevronRight
-                                    size={16}
-                                    className="text-[rgba(15,26,18,0.28)] shrink-0"
-                                  />
+                                    <IconChevronRight
+                                      size={16}
+                                      className="text-[rgba(15,26,18,0.28)] shrink-0"
+                                    />
+                                  </span>
                                 </div>
                               </li>
                             );

@@ -41,6 +41,7 @@ import {
 import { getSihterica } from "src/api/sihterica";
 import { trackEvent } from "src/api/activity";
 import { parseMoneyInput, formatMoneyBlur } from "src/lib/format";
+import { defaultObracunPeriod } from "src/lib/obracunskiPeriod";
 import {
   fromGross,
   fromNet,
@@ -487,10 +488,6 @@ export function standardWorkDaysForMonth(year: number, month: number): number {
 // ~1.700 KM → ~17 KM/dan. Iznad ovoga višak se oporezuje kao plata.
 export const MEAL_ALLOWANCE_TAXFREE_PER_DAY = 17;
 
-const todayYM = () => {
-  const d = new Date();
-  return { year: d.getFullYear(), month: d.getMonth() + 1 };
-};
 
 export default function ObracunPlata() {
   return (
@@ -512,12 +509,13 @@ export default function ObracunPlata() {
 
 function ObracunPlataApp() {
   const queryClient = useQueryClient();
-  const init = todayYM();
+  // Do 15. u mjesecu default je PRETHODNI mjesec (tada se još obračunavaju
+  // plate prethodnog mjeseca), od 16. tekući. Vidi lib/obracunskiPeriod.
+  const init = defaultObracunPeriod();
   const searchParams = useSearchParams();
   const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
-  // Default je trenutni mjesec — osim ako URL eksplicitno specificira drugi
-  // (deep-link iz /organizacije pregleda gdje knjigovođa već bira mjesec).
-  // Tako otvaranje preko Navbar-a uvijek pokazuje "danas", a klik na "Plate"
+  // URL eksplicitno specificiran mjesec ima prednost (deep-link iz
+  // /organizacije pregleda gdje knjigovođa već bira mjesec): klik na "Plate"
   // u /organizacije otvara mjesec koji je tamo bio aktivan.
   const urlYearInit = (() => {
     const v = Number(searchParams.get("year"));
