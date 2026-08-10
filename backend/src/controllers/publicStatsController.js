@@ -17,8 +17,10 @@ const {
 // se veća od te dvije. Uz to: aktivnost zadnjih 30 dana + po danima (mini
 // grafikon), broj korisnika i organizacija, i anonimizovan "ticker" zadnjih
 // događaja (samo tip dokumenta i vrijeme, NIKAD ime/organizacija). Brojke se
-// zaokružuju NANIŽE (dokumenti na 50, ostalo na 10) i keširaju 10 min.
-const TTL_MS = 10 * 60 * 1000;
+// zaokružuju NANIŽE (dokumenti na 50, ostalo na 10) i keširaju 1 h: javna
+// stranica ima najviše saobraćaja, a brojke su ionako zaokružene pa svježina
+// od sat vremena ništa ne mijenja korisniku, samo štedi upite na bazu.
+const TTL_MS = 60 * 60 * 1000;
 let cache = { at: 0, value: null };
 
 const floorTo = (n, step) => Math.floor(n / step) * step;

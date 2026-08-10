@@ -4,6 +4,7 @@ const {
   requirePlanTier,
 } = require("../middlewares/authMiddleware");
 const ctrl = require("../controllers/payrollController");
+const exportCtrl = require("../controllers/paymentExportController");
 
 const router = express.Router();
 
@@ -16,6 +17,8 @@ const planGate = requirePlanTier("PRO");
 router.get("/", requireAuth, ctrl.list);
 router.get("/monthly-summary", requireAuth, ctrl.monthlySummary);
 router.post("/monthly-uplatnice", requireAuth, planGate, ctrl.generateMonthlyUplatnice);
+// Izvoz naloga mjeseca u datoteku za e-bankarstvo (isti nalozi kao uplatnice).
+router.post("/bank-export", requireAuth, planGate, exportCtrl.bankExport);
 router.post("/mark-month-paid", requireAuth, planGate, ctrl.markMonthPaid);
 router.post("/payment-date", requireAuth, planGate, ctrl.setPaymentDate);
 router.post("/mark-mip-downloaded", requireAuth, planGate, ctrl.markMipDownloaded);

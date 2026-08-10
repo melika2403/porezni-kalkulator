@@ -235,10 +235,15 @@ async function adminStats(req, res) {
       raw: true,
     });
 
-    const total = byAction.reduce((s, r) => s + Number(r.count), 0);
+    // PRIJAVA (login) nije dokument: ostaje u byAction (pilula + filter),
+    // ali ne ulazi u ukupno/registrovani/neregistrovani, da se admin brojke
+    // poklapaju sa javnim brojačem na početnoj (publicStatsController).
+    const total = byAction
+      .filter((r) => r.action !== "PRIJAVA")
+      .reduce((s, r) => s + Number(r.count), 0);
 
     const anonRow = await ActivityLog.findOne({
-      where: { ...where, userId: null },
+      where: { ...where, userId: null, action: { [Op.ne]: "PRIJAVA" } },
       attributes: [[fn("COUNT", col("id")), "count"]],
       raw: true,
     });

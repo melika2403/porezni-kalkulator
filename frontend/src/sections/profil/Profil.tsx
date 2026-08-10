@@ -4633,6 +4633,7 @@ const ACT_NAMES: Record<string, string> = {
   EVIDENCIJA_GENERATE: "Matična evidencija", UPLATNICE_GENERATE: "Uplatnice",
   PLATNI_LISTIC_GENERATE: "Platni listić", NALOG_KNJIZENJE_GENERATE: "Nalog za knjiženje",
   LISTA_NALOGA_GENERATE: "Lista naloga", SPECIFIKACIJE_GENERATE: "Specifikacije",
+  IZVOZ_BANKA_GENERATE: "Izvoz za e-bankarstvo",
   OFFICE_IZVOD_UCITAN: "Izvod učitan", OFFICE_IZVOD_RUCNI: "Ručni izvod",
   OFFICE_ULAZNI_RACUN: "Ulazni račun", OFFICE_KALKULACIJA: "Kalkulacija",
   OFFICE_BLAGAJNA_NALOG: "Blagajnički nalog", OFFICE_PUTNI_NALOG: "Putni nalog",

@@ -44,6 +44,7 @@ const ACTION_LABELS: Record<string, string> = {
   PLATNI_LISTIC_GENERATE: "Platni listić",
   NALOG_KNJIZENJE_GENERATE: "Nalog za knjiženje",
   LISTA_NALOGA_GENERATE: "Lista naloga za plaćanje",
+  IZVOZ_BANKA_GENERATE: "Izvoz naloga za e-bankarstvo",
   SPECIFIKACIJE_GENERATE: "Specifikacije plata",
   EVIDENCIJA_GENERATE: "Matična evidencija",
   // prijave korisnika (backend logEvent; ne ulaze u javni brojač dokumenata)

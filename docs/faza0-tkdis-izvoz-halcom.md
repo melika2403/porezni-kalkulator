@@ -248,6 +248,8 @@ Individualne stavke ne nose račun platioca. Pri uvozu su moguća tri ponašanja
 
 Test T3 odgovara u jednom pokušaju. **Za arhitekturu nije bitno**: u sva tri slučaja je jedna datoteka po firmi. Razlikuje se samo uputstvo korisniku.
 
+**RIJEŠENO (10.8.2026., test na stvarnoj banci):** ponašanje je kombinacija A i C. Halcom čita račun platioca iz zaglavlja datoteke i podatke nalogodavca popuni iz svojih postavki; ako se račun iz datoteke ne slaže sa izabranim računom u aplikaciji, daje jasno upozorenje sa izborom Da/Ne ("Račun terećenja u nalozima se ne slaže s trenutno izbranim računom..."). Naše zaglavlje radi ispravno, izmjene nisu potrebne.
+
 ## Faze
 
 ### Faza 1. Test harness u admin panelu
@@ -280,6 +282,8 @@ Ljestvica od najjeftinijeg:
 
 **Sigurnost.** Uvezeni nalozi moraju sletjeti među pripremljene i čekati potpis. Provjeriti na prvom uvozu, testne naloge obrisati.
 
+- STATUS (10.8.2026.): **Halcom uvoz potvrđen na stvarnoj banci.** Svih 17 naloga (uključujući neto plate radnika) uvezeno u status PRIPREMLJEN, sva polja ispravna (vrsta prihoda, općina, budžetska organizacija, poziv na broj, porezni period, datum valute). T2 i T3 prošli, T3 vidi "Otvoreno pitanje" iznad. **Raiffeisen uvoz u RBBHnet takođe potvrđen** (javni prihodi).
+
 ### Faza 5. UniCredit profil
 
 Pola dana: cp1250 encoder, bez `0x1A`, isti formatter. Test uvoz kod klijenta koji ima e-ba Plus, ista ljestvica T2 do T4.
@@ -288,6 +292,8 @@ Pola dana: cp1250 encoder, bez `0x1A`, isti formatter. Test uvoz kod klijenta ko
 
 Dugme na obračunu sa izborom banke, download. Interface `PaymentFileExporter` za buduće formate. Predvidjeti "Izvezi sve firme" (ZIP), jer biro obračunava desetine firmi.
 
+- STATUS (10.8.2026.): implementirano. Dugme "Izvoz za e-bankarstvo" na /prijave-radnika (tab Obračun) u redu akcija mjeseca, modal sa izborom banke (Halcom, Raiffeisen, UniCredit, BBI, ASA, Sparkasse; posljednje tri dijele ELBA profil), datumom valute (default datum isplate mjeseca), preuzimanjem, prikazom preskočenih naloga i uputstvom sa kontakt porukama (uvoz ne radi / banke nema na listi → info@poreznikalkulator.ba). Endpoint POST /api/payroll/bank-export: requireAuth + isti plan gate kao uplatnice (PRO+) + assertOrgAccess; transliteracija automatska po banci (halcom→yuscii, unicredit/elba→cp1250, raiffeisen→cp852), objedinjavanje kantonalnih prati postavku korisnika (kao PDF uplatnice). Zajednička logika `generisiDatoteku` u paymentExportController; admin harness na /admin/izvoz-naloga ostaje za kalibraciju. PK Office korisnici dolaze kroz postojeći link sa /app/obracuni-plata. Izbor banke se pamti po organizaciji (Organization.bankExportBank, ensureColumns) i predpopunjava se pri sljedećem izvozu. "Izvezi sve firme" (ZIP) ostaje za kasnije po potrebi.
+
 ## Kasnije, van scope-a
 
 **ELBA formatter (BBI + ASA + Sparkasse).** Vidi "Dopune nakon reviewa" ispod: javno dokumentovan TXT verzija 2 format, isti adapter, drugi (jednostavniji) formatter. Ide odmah poslije UniCredit profila, prije Raiffeisena.
@@ -295,7 +301,7 @@ Dugme na obračunu sa izborom banke, download. Interface `PaymentFileExporter` z
 **UniCredit REST API.** e-ba Plus B2B ima GET za stanje računa i POST za slanje XML naloga uz API ključ koji korisnik sam generiše; nalozi stižu u status ZAPRIMLJEN i potpisuju se u aplikaciji. Kandidat za PK Office: slanje naloga bez datoteke i čitanje stanja. XML polja su ista kao TXT (halcomSifra1/2/3 itd), pa adapter ostaje isti.
 
 **Raiffeisen RBBHnet.** Format 345 znakova sa SM/UJ prefiksima, spec nije javna. RBBHnet učitava txt za domaća plaćanja (ne ino, ne zbirne uplate). Akcija: tražiti specifikaciju od poslovnog bankara. Kodna stranica im je tolerantna (preporuka Win 1250, stari program koristi CP852).
-   - STATUS: implementirano (services/paymentExport/raiffeisenFormatter.js + profil "raiffeisen" u harnessu). Format rekonstruisan i verifikovan bajt po bajt na ORIGINALNIM izvoznim datotekama starog programa (fixtures raiffeisen_platavlasnik_161.txt i raiffeisen_plataradnici_161.txt, obračun 06/2026 MELY OBRT). Na originalima potvrđeno: SM zaglavlje 211 znakova (opis polje 35), UJ slogovi 345, CRLF, BEZ EOF markera, CP852 (Ž = 0xA6). Golden testovi porede kompletne datoteke bez izuzetaka. Ostaje: probni uvoz u RBBHnet; format naloga za NETO isplate je nepoznat (stari program izvozi samo javne prihode, pa i mi: prenosi se preskaču uz razlog). SM zaglavlje nosi i PTT broj uz mjesto ("77245 BUZIM"); mi pišemo samo grad dok ne dodamo poštanske brojeve.
+   - STATUS: implementirano (services/paymentExport/raiffeisenFormatter.js + profil "raiffeisen" u harnessu). Format rekonstruisan i verifikovan bajt po bajt na ORIGINALNIM izvoznim datotekama starog programa (fixtures raiffeisen_platavlasnik_161.txt i raiffeisen_plataradnici_161.txt, obračun 06/2026 MELY OBRT). Na originalima potvrđeno: SM zaglavlje 211 znakova (opis polje 35), UJ slogovi 345, CRLF, BEZ EOF markera, CP852 (Ž = 0xA6). Golden testovi porede kompletne datoteke bez izuzetaka. Probni uvoz u RBBHnet POTVRĐEN 10.8.2026. (javni prihodi). Format naloga za NETO isplate je i dalje nepoznat (stari program izvozi samo javne prihode, pa i mi: prenosi se preskaču uz razlog); korisnik će ručno unijeti jedan nalog neto plate u RBBHnet i izvesti ga u txt kao primjer, pa se prenos slog dodaje istim postupkom (dekodiranje bajt po bajt + golden test). SM zaglavlje nosi i PTT broj uz mjesto ("77245 BUZIM"); mi pišemo samo grad dok ne dodamo poštanske brojeve.
 
 **Neto plate u UniCredit/Raiffeisen uzorcima.** Stari program izvozi samo javne prihode, nijedan uzorak nema nalog neto plate. Za Halcom imamo primjer neto plate u fixture. Za ostale banke provjeriti na test uvozu.
 
