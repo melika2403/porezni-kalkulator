@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import {
   type Worker,
 } from "src/api/profile";
 import {
+  bankExport,
   calculatePayroll,
   deletePayroll,
   emailMonthlyPayslipsBulk,
@@ -34,6 +35,9 @@ import {
   savePayrollInputs,
   setCombineKantonal,
   setPayrollPaymentDate,
+  type BankExportPreskocen,
+  type BankExportProfil,
+  type BankExportRezultat,
   type MonthlyUplatnicaSummary,
   type Payroll,
   type PayrollDocumentType,
@@ -121,6 +125,33 @@ const STATUS_LABEL: Record<Payroll["status"], string> = {
   DRAFT: "Draft",
   OBRACUNATO: "Obračunato",
   ISPLACENO: "Isplaćeno",
+};
+
+// Izvoz naloga za e-bankarstvo: banke koje korisnik prepoznaje po imenu,
+// interno mapirane na format datoteke (profil). BBI, ASA i Sparkasse dijele
+// ELBA platformu; Halcom (Hal E-Bank / Personal) koriste klijenti više banaka.
+const IZVOZ_BANKE: {
+  value: string;
+  label: string;
+  profil: BankExportProfil;
+}[] = [
+  { value: "halcom", label: "Halcom (Hal E-Bank, više banaka)", profil: "halcom" },
+  { value: "raiffeisen", label: "Raiffeisen banka (RBBHnet)", profil: "raiffeisen" },
+  { value: "unicredit", label: "UniCredit banka (e-ba)", profil: "unicredit" },
+  { value: "bbi", label: "BBI banka (eBBI)", profil: "elba" },
+  { value: "asa", label: "ASA banka (ELBA)", profil: "elba" },
+  { value: "sparkasse", label: "Sparkasse banka (ELBA)", profil: "elba" },
+];
+
+const IZVOZ_GRESKE: Record<string, string> = {
+  NEMA_OBRACUNA: "Za ovaj mjesec nema obračuna plata.",
+  NEMA_NALOGA:
+    "Nijedan nalog nije mogao ući u datoteku (pogledajte preskočene stavke).",
+  FORBIDDEN: "Nemate pristup ovoj organizaciji.",
+  FORBIDDEN_PLAN: "Potrebna je aktivna Pro ili Office pretplata.",
+  INVALID_DATUM_VALUTE: "Datum valute nije ispravan kalendarski datum.",
+  SERVER_ERROR: "Greška na serveru, pokušajte ponovo.",
+  NETWORK_ERROR: "Greška u konekciji, pokušajte ponovo.",
 };
 
 const UPLATNICA_LABEL: Record<PayrollDocumentType, string> = {
@@ -1353,6 +1384,23 @@ function fmtAccount(s: string): string {
   return s;
 }
 
+// Red u kartici "Dokumenti mjeseca": caps labela lijevo (kome dokument ide),
+// dugmad desno; na uskom ekranu labela iznad dugmadi (vidi .docRow u CSS-u).
+function DocRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.docRow}>
+      <div className={styles.docRowLabel}>{label}</div>
+      <div className={styles.docRowBtns}>{children}</div>
+    </div>
+  );
+}
+
 function BulkMarkPaidAction({
   isPending,
   onMark,
@@ -1936,6 +1984,86 @@ function MonthlyPanel({
     },
     onSuccess: (r) => triggerBlobDownload(r.blob, r.filename),
   });
+
+  // Izvoz naloga mjeseca u datoteku za e-bankarstvo: isti nalozi kao zbirne
+  // uplatnice (uključujući objedinjavanje kantonalnih ako je uključeno),
+  // format po izabranoj banci. Korisnik datoteku uveze u svoje bankarstvo
+  // (opcija "uvoz naloga") i samo potpiše naloge.
+  const [izvozOpen, setIzvozOpen] = useState(false);
+  const [izvozBanka, setIzvozBanka] = useState<string | null>(null);
+  const [izvozDatum, setIzvozDatum] = useState("");
+  const [izvozRezultat, setIzvozRezultat] =
+    useState<BankExportRezultat | null>(null);
+  // Preskočeni nalozi se prikazuju i kad izvoz USPIJE (djelimična datoteka) i
+  // kad padne sa NEMA_NALOGA (backend i tada šalje listu u error bodyju);
+  // odvojen state da se "pogledajte preskočene stavke" ne pokazuje na prazno.
+  const [izvozPreskoceni, setIzvozPreskoceni] = useState<BankExportPreskocen[]>(
+    [],
+  );
+  // Zadnji izbor banke po organizaciji: server ga pamti na org-u
+  // (bankExportBank), ref pokriva tekuću sesiju dok se org ne refetchuje.
+  const izvozBankaByOrgRef = useRef<Record<number, string>>({});
+  const izvozMutation = useMutation({
+    mutationFn: async () => {
+      const banka = IZVOZ_BANKE.find((b) => b.value === izvozBanka);
+      if (!banka) throw new Error("Izaberite banku.");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(izvozDatum)) {
+        throw new Error("Upišite datum valute.");
+      }
+      const r = await bankExport({
+        organizationId: orgId,
+        year,
+        month,
+        datumValute: izvozDatum,
+        profil: banka.profil,
+        banka: banka.value,
+      });
+      if (!r.ok) {
+        const pres = (r as { preskoceni?: BankExportPreskocen[] }).preskoceni;
+        if (pres?.length) setIzvozPreskoceni(pres);
+        throw new Error(IZVOZ_GRESKE[r.error] || r.error);
+      }
+      // Download u mutationFn: neispravan base64 (server bug) završi kao
+      // error state, a ne kao izuzetak POSLIJE prikazanog "preuzeto".
+      const bytes = Uint8Array.from(atob(r.data.base64), (c) =>
+        c.charCodeAt(0),
+      );
+      triggerBlobDownload(
+        new Blob([bytes], { type: "text/plain" }),
+        r.data.fileName,
+      );
+      return { data: r.data, banka: banka.value };
+    },
+    onMutate: () => {
+      // novi pokušaj čisti prethodni rezultat da uspjeh i greška iz dva
+      // pokušaja ne stoje na ekranu istovremeno
+      setIzvozRezultat(null);
+      setIzvozPreskoceni([]);
+    },
+    onSuccess: ({ data, banka }) => {
+      setIzvozRezultat(data);
+      setIzvozPreskoceni(data.preskoceni);
+      if (orgId) izvozBankaByOrgRef.current[orgId] = banka;
+    },
+  });
+  const openIzvoz = () => {
+    const d = new Date();
+    const danas = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setIzvozDatum(/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) ? paymentDate : danas);
+    const zapamcena =
+      (orgId ? izvozBankaByOrgRef.current[orgId] : null) ??
+      organization?.bankExportBank ??
+      null;
+    setIzvozBanka(
+      zapamcena && IZVOZ_BANKE.some((b) => b.value === zapamcena)
+        ? zapamcena
+        : null,
+    );
+    setIzvozRezultat(null);
+    setIzvozPreskoceni([]);
+    izvozMutation.reset();
+    setIzvozOpen(true);
+  };
 
   // Agencijska opcija: objedini kantonalne uplatnice po kantonu (sve org-e).
   // Mijenja agregaciju na serveru, pa invalidiramo SVE monthlySummary upite
@@ -3210,37 +3338,35 @@ function MonthlyPanel({
               uplatnice.
             </div>
           )}
-          {/* GRUPA 1, Za isplatu plata (banka) */}
+          {/* Dokumenti mjeseca: grupe po tome kome dokument ide, redoslijed
+              prati tok posla (radnici, banka, knjiženje, porezna uprava).
+              Pravilo: jedno tamno dugme po grupi (najčešća akcija), ostalo
+              tint varijanta. */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "0.55rem",
-              padding: "0.85rem 1rem",
+              padding: "0.85rem 1.1rem 0.3rem",
               borderRadius: 8,
               border: "1px solid var(--border, #d8d4ca)",
               background: "var(--card-bg, #f7f3eb)",
             }}
           >
-            <div
+            <h3
               style={{
-                fontSize: "0.78rem",
-                fontWeight: 600,
-                color: "var(--mid, #6c6862)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
+                fontFamily: "DM Serif Display, serif",
+                fontSize: "1.15rem",
+                fontWeight: 400,
+                textAlign: "center",
+                margin: "0.15rem 0 0",
+                paddingBottom: "0.65rem",
+                borderBottom: "1px dashed var(--border, #d8d4ca)",
+                color: "var(--ink, #0f1a12)",
               }}
             >
-              Za isplatu plata (banka)
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: "0.55rem",
-                flexWrap: "wrap",
-                justifyContent: "center",
-              }}
-            >
+              Dokumenti za {MONTHS[month - 1].toLowerCase()} {year}.
+            </h3>
+            <DocRow label="Radnici">
           <button
             type="button"
             className={styles.btnPrimary}
@@ -3292,7 +3418,7 @@ function MonthlyPanel({
           >
             <button
               type="button"
-              className={styles.btnPrimary}
+              className={styles.btnTintBlue}
               onClick={() => payslipsEmailMutation.mutate()}
               disabled={
                 payslipsEmailMutation.isPending ||
@@ -3337,7 +3463,7 @@ function MonthlyPanel({
             </button>
             <button
               type="button"
-              className={styles.btnPrimary}
+              className={styles.btnTintBlue}
               onClick={() => setEmailMenuOpen((v) => !v)}
               disabled={
                 payslipsEmailMutation.isPending ||
@@ -3353,7 +3479,8 @@ function MonthlyPanel({
                 alignItems: "center",
                 borderTopLeftRadius: 0,
                 borderBottomLeftRadius: 0,
-                borderLeft: "1px solid rgba(255,255,255,0.35)",
+                borderLeft:
+                  "1px solid color-mix(in srgb, var(--color-info, #1f5a8c) 35%, transparent)",
               }}
               aria-haspopup="menu"
               aria-expanded={emailMenuOpen}
@@ -3684,6 +3811,8 @@ function MonthlyPanel({
               </div>
             </div>
           )}
+            </DocRow>
+            <DocRow label="Banka">
           <button
             type="button"
             className={styles.btnPrimary}
@@ -3715,6 +3844,40 @@ function MonthlyPanel({
             {uplatniceMutation.isPending
               ? "Generišem…"
               : "Preuzmi uplatnice"}
+          </button>
+          <button
+            type="button"
+            className={styles.btnTintBlue}
+            onClick={openIzvoz}
+            disabled={!organization || !canGenerate}
+            title={
+              canGenerate
+                ? "Datoteka sa nalozima mjeseca za uvoz u e-bankarstvo (Halcom, UniCredit, Raiffeisen, BBI, ASA, Sparkasse)"
+                : "Dostupno uz Pro pretplatu"
+            }
+            style={{
+              padding: "0.75rem 1.5rem",
+              fontSize: "0.95rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              width="16"
+              height="16"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Izvoz za e-bankarstvo
           </button>
           <button
             type="button"
@@ -3754,134 +3917,6 @@ function MonthlyPanel({
               ? "Generišem…"
               : "Lista naloga"}
           </button>
-          <div
-            ref={nalogMenuRef}
-            style={{
-              position: "relative",
-              display: "inline-flex",
-              alignItems: "stretch",
-            }}
-          >
-            <button
-              type="button"
-              className={styles.btnTintBlue}
-              onClick={() => postingOrderMutation.mutate()}
-              disabled={
-                postingOrderMutation.isPending || !organization || !canGenerate
-              }
-              title={
-                canGenerate
-                  ? "Nalog za knjiženje plate (konta duguje/potražuje) za osobu zaduženu za knjiženje"
-                  : "Dostupno uz Pro pretplatu"
-              }
-              style={{
-                padding: "0.75rem 1.25rem",
-                fontSize: "0.95rem",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                borderTopRightRadius: 0,
-                borderBottomRightRadius: 0,
-                borderRight: "none",
-              }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                width="16"
-                height="16"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <path d="M14 2v6h6" />
-                <line x1="9" y1="13" x2="15" y2="13" />
-                <line x1="9" y1="17" x2="15" y2="17" />
-              </svg>
-              {postingOrderMutation.isPending
-                ? "Generišem…"
-                : "Nalog za knjiženje"}
-            </button>
-            <button
-              type="button"
-              className={styles.btnTintBlue}
-              onClick={() => setNalogMenuOpen((v) => !v)}
-              disabled={!organization || !canGenerate}
-              title="Podesi konta"
-              style={{
-                padding: "0.75rem 0.7rem",
-                fontSize: "0.95rem",
-                display: "inline-flex",
-                alignItems: "center",
-                borderTopLeftRadius: 0,
-                borderBottomLeftRadius: 0,
-              }}
-              aria-haspopup="menu"
-              aria-expanded={nalogMenuOpen}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                width="14"
-                height="14"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-            {nalogMenuOpen && (
-              <div
-                role="menu"
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 4px)",
-                  right: 0,
-                  minWidth: 200,
-                  background: "var(--paper, #faf8f3)",
-                  border: "1px solid var(--border, #d4cfc4)",
-                  borderRadius: 8,
-                  boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
-                  padding: "0.35rem",
-                  zIndex: 10,
-                }}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setNalogMenuOpen(false);
-                    setKontaOpen(true);
-                  }}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "0.5rem 0.7rem",
-                    background: "transparent",
-                    border: 0,
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    fontSize: "0.88rem",
-                    fontFamily: "inherit",
-                    color: "inherit",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
-                >
-                  Podesi konta
-                </button>
-              </div>
-            )}
-          </div>
           <div
             ref={bankMenuRef}
             style={{
@@ -4063,117 +4098,465 @@ function MonthlyPanel({
               </div>
             )}
           </div>
-            </div>
-            <label
-              style={{
-                display: "flex",
-                gap: "0.65rem",
-                alignItems: "flex-start",
-                padding: "0.7rem 0.85rem",
-                border: summaryQuery.data?.combineKantonal
-                  ? "1.5px solid var(--sage, #3a5c42)"
-                  : "1px solid var(--border, #d4cfc4)",
-                borderRadius: 10,
-                cursor: combineKantonalMutation.isPending
-                  ? "wait"
-                  : "pointer",
-                background: summaryQuery.data?.combineKantonal
-                  ? "color-mix(in srgb, var(--sage, #3a5c42) 12%, transparent)"
-                  : "var(--card-bg, #fdfbf6)",
-                transition: "border-color .15s, background .15s",
-                opacity: combineKantonalMutation.isPending ? 0.65 : 1,
-                marginTop: "0.1rem",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={!!summaryQuery.data?.combineKantonal}
-                disabled={combineKantonalMutation.isPending}
-                onChange={(e) => combineKantonalMutation.mutate(e.target.checked)}
+              {/* opcija se tiče uplatnica i izvoza u banku, pa stoji uz njih */}
+              <label
                 style={{
-                  marginTop: 3,
-                  width: 17,
-                  height: 17,
-                  accentColor: "var(--sage, #3a5c42)",
-                  cursor: "inherit",
-                }}
-              />
-              <span>
-                <strong
-                  style={{ fontSize: 13, color: "var(--ink, #0f1a12)" }}
-                >
-                  Objedini kantonalne doprinose po kantonu
-                </strong>
-                <br />
-                <span style={{ fontSize: 12, color: "var(--mid, #6c6862)" }}>
-                  Zdravstvo i nezaposlenost na jedan nalog po kantonu, šifra
-                  općine = sjedište firme. Porez na dohodak ostaje po općini
-                  radnika.
-                </span>
-              </span>
-            </label>
-          </div>
-
-          {/* GRUPA 2, Za poreznu upravu (PUFBiH) */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.55rem",
-              padding: "0.85rem 1rem",
-              borderRadius: 8,
-              border: "1px solid var(--border, #d8d4ca)",
-              background: "var(--card-bg, #f7f3eb)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "0.5rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  color: "var(--mid, #6c6862)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
+                  flexBasis: "100%",
+                  display: "flex",
+                  gap: "0.5rem",
+                  alignItems: "flex-start",
+                  padding: "0.45rem 0.6rem",
+                  borderRadius: 8,
+                  border: summaryQuery.data?.combineKantonal
+                    ? "1px solid var(--sage, #3a5c42)"
+                    : "1px solid var(--border, #d4cfc4)",
+                  cursor: combineKantonalMutation.isPending
+                    ? "wait"
+                    : "pointer",
+                  background: summaryQuery.data?.combineKantonal
+                    ? "color-mix(in srgb, var(--sage, #3a5c42) 10%, transparent)"
+                    : "transparent",
+                  transition: "border-color .15s, background .15s",
+                  opacity: combineKantonalMutation.isPending ? 0.65 : 1,
+                  maxWidth: 620,
                 }}
               >
-                Za poreznu upravu (PUFBiH)
-              </div>
-              {mipPreuzetAt && (
-                <span
-                  title={`MIP-1023 XML preuzet ${(() => {
-                    const [y, mo, d] = mipPreuzetAt.slice(0, 10).split("-");
-                    return `${d}.${mo}.${y}.`;
-                  })()}`}
+                <input
+                  type="checkbox"
+                  checked={!!summaryQuery.data?.combineKantonal}
+                  disabled={combineKantonalMutation.isPending}
+                  onChange={(e) =>
+                    combineKantonalMutation.mutate(e.target.checked)
+                  }
                   style={{
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: "var(--sage, #2d6e54)",
-                    background: "color-mix(in srgb, var(--sage, #3a5c42) 14%, transparent)",
-                    border: "1px solid color-mix(in srgb, var(--sage, #3a5c42) 40%, transparent)",
-                    borderRadius: 999,
-                    padding: "0.15rem 0.6rem",
+                    marginTop: 2,
+                    width: 15,
+                    height: 15,
+                    accentColor: "var(--sage, #3a5c42)",
+                    cursor: "inherit",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 12,
+                    lineHeight: 1.45,
+                    color: "var(--mid, #6c6862)",
                   }}
                 >
-                  MIP preuzet ✓
+                  <strong
+                    style={{ color: "var(--ink, #0f1a12)", fontWeight: 600 }}
+                  >
+                    Objedini kantonalne doprinose po kantonu
+                  </strong>{" "}
+                  · zdravstvo i nezaposlenost na jedan nalog po kantonu (šifra
+                  općine = sjedište firme), porez na dohodak ostaje po općini
+                  radnika.
                 </span>
-              )}
-            </div>
-            <div
+              </label>
+            </DocRow>
+            <DocRow label="Knjiženje">
+          <div
+            ref={nalogMenuRef}
+            style={{
+              position: "relative",
+              display: "inline-flex",
+              alignItems: "stretch",
+            }}
+          >
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={() => postingOrderMutation.mutate()}
+              disabled={
+                postingOrderMutation.isPending || !organization || !canGenerate
+              }
+              title={
+                canGenerate
+                  ? "Nalog za knjiženje plate (konta duguje/potražuje) za osobu zaduženu za knjiženje"
+                  : "Dostupno uz Pro pretplatu"
+              }
               style={{
-                display: "flex",
-                gap: "0.55rem",
-                flexWrap: "wrap",
-                justifyContent: "center",
+                padding: "0.75rem 1.25rem",
+                fontSize: "0.95rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                borderTopRightRadius: 0,
+                borderBottomRightRadius: 0,
+                borderRight: "none",
               }}
             >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="16"
+                height="16"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <line x1="9" y1="13" x2="15" y2="13" />
+                <line x1="9" y1="17" x2="15" y2="17" />
+              </svg>
+              {postingOrderMutation.isPending
+                ? "Generišem…"
+                : "Nalog za knjiženje"}
+            </button>
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={() => setNalogMenuOpen((v) => !v)}
+              disabled={!organization || !canGenerate}
+              title="Podesi konta"
+              style={{
+                padding: "0.75rem 0.7rem",
+                fontSize: "0.95rem",
+                display: "inline-flex",
+                alignItems: "center",
+                borderTopLeftRadius: 0,
+                borderBottomLeftRadius: 0,
+                borderLeft: "1px solid rgba(255,255,255,0.35)",
+              }}
+              aria-haspopup="menu"
+              aria-expanded={nalogMenuOpen}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                width="14"
+                height="14"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {nalogMenuOpen && (
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  right: 0,
+                  minWidth: 200,
+                  background: "var(--paper, #faf8f3)",
+                  border: "1px solid var(--border, #d4cfc4)",
+                  borderRadius: 8,
+                  boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
+                  padding: "0.35rem",
+                  zIndex: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setNalogMenuOpen(false);
+                    setKontaOpen(true);
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "0.5rem 0.7rem",
+                    background: "transparent",
+                    border: 0,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    fontFamily: "inherit",
+                    color: "inherit",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                >
+                  Podesi konta
+                </button>
+              </div>
+            )}
+          </div>
+            </DocRow>
+            {/* Modal: izvoz naloga mjeseca u datoteku za e-bankarstvo */}
+            {izvozOpen && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(15, 26, 18, 0.45)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 1000,
+                  padding: "1rem",
+                }}
+                onClick={() => !izvozMutation.isPending && setIzvozOpen(false)}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    background: "var(--white)",
+                    borderRadius: 12,
+                    maxWidth: 520,
+                    width: "100%",
+                    maxHeight: "90vh",
+                    overflowY: "auto",
+                    padding: "1.5rem",
+                    boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: "0 0 0.6rem",
+                      fontSize: 17,
+                      color: "var(--ink)",
+                    }}
+                  >
+                    Izvoz naloga za e-bankarstvo
+                  </h3>
+                  <p
+                    style={{
+                      margin: "0 0 1rem",
+                      fontSize: "0.88rem",
+                      color: "var(--mid, #6c6862)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Preuzmite datoteku sa svim nalozima za{" "}
+                    {MONTHS[month - 1].toLowerCase()} {year}: doprinosi, porez
+                    i isplate radnicima, isto kao na zbirnim uplatnicama.
+                    Uvezite je u svoje e-bankarstvo i samo potpišite naloge.
+                  </p>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.9rem",
+                    }}
+                  >
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--ink)",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Banka (e-bankarstvo)
+                      </label>
+                      <StyledSelect
+                        value={izvozBanka}
+                        onChange={(v) =>
+                          setIzvozBanka(v === null ? null : String(v))
+                        }
+                        groups={[
+                          {
+                            options: IZVOZ_BANKE.map((b) => ({
+                              value: b.value,
+                              label: b.label,
+                            })),
+                          },
+                        ]}
+                        placeholder="– Izaberite banku –"
+                        ariaLabel="Banka za izvoz naloga"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="izvozDatumValute"
+                        style={{
+                          display: "block",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--ink)",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Datum valute (datum plaćanja)
+                      </label>
+                      <DateInput
+                        id="izvozDatumValute"
+                        value={izvozDatum}
+                        onValueChange={setIzvozDatum}
+                        className={js3Styles.fieldInput}
+                      />
+                    </div>
+                    {summaryQuery.data?.combineKantonal && (
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "0.8rem",
+                          color: "var(--mid, #6c6862)",
+                        }}
+                      >
+                        Kantonalni doprinosi (zdravstvo i nezaposlenost) se
+                        objedinjuju po kantonu, po vašoj uključenoj opciji.
+                      </p>
+                    )}
+                  </div>
+                  {izvozMutation.isError && (
+                    <div
+                      style={{
+                        marginTop: "1rem",
+                        padding: "0.7rem 0.9rem",
+                        borderRadius: 8,
+                        border: "1px solid #e2b4ab",
+                        background: "#fbeeec",
+                        color: "#8a2f21",
+                        fontSize: "0.85rem",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {izvozMutation.error instanceof Error
+                        ? izvozMutation.error.message
+                        : "Greška pri generisanju datoteke."}
+                    </div>
+                  )}
+                  {izvozRezultat && (
+                    <div
+                      style={{
+                        marginTop: "1rem",
+                        padding: "0.7rem 0.9rem",
+                        borderRadius: 8,
+                        border: "1px solid #b7d4bd",
+                        background: "#eef6ef",
+                        color: "#2d4633",
+                        fontSize: "0.85rem",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Datoteka <strong>{izvozRezultat.fileName}</strong> je
+                      preuzeta: {izvozRezultat.meta.brojNaloga} naloga, ukupno{" "}
+                      {fmtKM(izvozRezultat.meta.ukupnoKm)} KM.
+                    </div>
+                  )}
+                  {izvozPreskoceni.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: "0.6rem",
+                        padding: "0.7rem 0.9rem",
+                        borderRadius: 8,
+                        border: "1px solid var(--warn-border)",
+                        background: "var(--warn-bg)",
+                        color: "var(--warn-text)",
+                        fontSize: "0.83rem",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <strong>
+                        Nisu u datoteci ({izvozPreskoceni.length}):
+                      </strong>
+                      <ul style={{ margin: "0.3rem 0 0.4rem", paddingLeft: "1.1rem" }}>
+                        {izvozPreskoceni.map((p, i) => (
+                          <li key={i}>
+                            {p.stavka}, {fmtKM(p.iznosKm)} KM
+                            {p.radnik ? `, ${p.radnik}` : ""} ({p.razlog})
+                          </li>
+                        ))}
+                      </ul>
+                      Te iznose platite posebno ili dopunite podatke pa
+                      ponovite izvoz.
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      marginTop: "1rem",
+                      padding: "0.8rem 0.95rem",
+                      borderRadius: 8,
+                      background: "var(--paper, #faf8f3)",
+                      border: "1px solid var(--border, #d4cfc4)",
+                      fontSize: "0.83rem",
+                      color: "var(--mid, #6c6862)",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <strong style={{ color: "var(--ink)" }}>Kako radi</strong>
+                    <ol style={{ margin: "0.35rem 0 0.6rem", paddingLeft: "1.2rem" }}>
+                      <li>
+                        Izaberite banku i datum valute, pa preuzmite datoteku.
+                      </li>
+                      <li>
+                        U svom e-bankarstvu izaberite uvoz naloga iz datoteke i
+                        učitajte preuzeti fajl.
+                      </li>
+                      <li>
+                        Nalozi se pojave pripremljeni, ostaje samo da ih
+                        potpišete.
+                      </li>
+                    </ol>
+                    Ako uvoz u vaše bankarstvo ne radi, javite nam se na{" "}
+                    <a href="mailto:info@poreznikalkulator.ba">
+                      info@poreznikalkulator.ba
+                    </a>{" "}
+                    i popravićemo u roku od par dana. Ako vaše banke nema na
+                    listi, pošaljite nam primjer izvoza iz svog bankarstva i
+                    dodaćemo je.
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: "0.6rem",
+                      marginTop: "1.2rem",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setIzvozOpen(false)}
+                      disabled={izvozMutation.isPending}
+                      style={{
+                        padding: "0.55rem 1rem",
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                        background: "var(--white)",
+                        color: "var(--ink)",
+                        fontSize: 13.5,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Zatvori
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => izvozMutation.mutate()}
+                      disabled={izvozMutation.isPending || !izvozBanka}
+                      style={{
+                        padding: "0.55rem 1rem",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "var(--sage)",
+                        color: "#fff",
+                        fontSize: 13.5,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        opacity:
+                          izvozMutation.isPending || !izvozBanka ? 0.6 : 1,
+                      }}
+                    >
+                      {izvozMutation.isPending
+                        ? "Generišem…"
+                        : "Preuzmi datoteku"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DocRow label="Porezna uprava">
           {radniciFbih.length > 0 && (
             <button
               type="button"
@@ -4347,6 +4730,27 @@ function MonthlyPanel({
               </button>
             </div>
           )}
+          {mipPreuzetAt && (
+            <span
+              title={`MIP-1023 XML preuzet ${(() => {
+                const [y, mo, d] = mipPreuzetAt.slice(0, 10).split("-");
+                return `${d}.${mo}.${y}.`;
+              })()}`}
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--sage, #2d6e54)",
+                background:
+                  "color-mix(in srgb, var(--sage, #3a5c42) 14%, transparent)",
+                border:
+                  "1px solid color-mix(in srgb, var(--sage, #3a5c42) 40%, transparent)",
+                borderRadius: 999,
+                padding: "0.15rem 0.6rem",
+              }}
+            >
+              MIP preuzet ✓
+            </span>
+          )}
           {radnici.length > 0 && (
             <div
               style={{
@@ -4485,7 +4889,7 @@ function MonthlyPanel({
               </button>
             </div>
           )}
-            </div>
+            </DocRow>
           </div>
         </div>
 
@@ -4835,6 +5239,75 @@ function PayrollModal({
   // zarez decimala, pa "1.030" = 1030 (ne 1,03). parseDecimal bi jednu tačku
   // pogrešno protumačio kao decimalu, zato ovdje koristimo parseMoneyInput.
   const parseMoney = (s: string) => parseMoneyInput(s) ?? 0;
+
+  // ── Umanjenje toplog obroka za dane odsustva (bolovanje + godišnji) ──
+  // Mjesečni iznos: iznos ÷ puni radni dani mjeseca × dani na radu, zaokruženo
+  // na cijeli KM (npr. juli 23 dana, 120 KM, 12 dana godišnjeg → 120/23 × 11 =
+  // 57 KM). Dnevna stopa: stopa × (dani za obrok - dani odsustva). Checkbox se
+  // ne pamti u bazi: rezultat se upiše u polje toplog obroka kao ručni unos.
+  // Sakriven kad postoji šihterica uz dnevnu stopu, tamo odsustva već ispadaju
+  // iz dana prisustva pa bi se umanjilo duplo.
+  const odsutnihDana =
+    Math.max(0, parseInt(sickDays, 10) || 0) +
+    Math.max(0, parseInt(vacationDays, 10) || 0);
+  const [umanjiObrok, setUmanjiObrok] = useState(false);
+  const obrokBazaRef = useRef<number | null>(null);
+  const obrokUmanjenjeMoguce =
+    odsutnihDana > 0 && !(hasSihterica && mealRatePerDay != null);
+  const umanjeniObrok = (() => {
+    if (mealRatePerDay != null) {
+      const prisutno = Math.max(0, mealDays - odsutnihDana);
+      return {
+        prisutno,
+        ukupno: mealDays,
+        iznos: Math.round(mealRatePerDay * prisutno * 100) / 100,
+        baza: null as number | null,
+      };
+    }
+    const baza = obrokBazaRef.current ?? parseMoney(meal);
+    const prisutno = Math.max(0, fullWorkDays - odsutnihDana);
+    return {
+      prisutno,
+      ukupno: fullWorkDays,
+      iznos: baza > 0 ? Math.round((baza / fullWorkDays) * prisutno) : 0,
+      baza,
+    };
+  })();
+  // fmtMoneyInput(0) vraća prazan string, a umanjenje na 0 KM (odsutan cijeli
+  // mjesec) treba da se VIDI kao nula, ne kao nepopunjeno polje.
+  const obrokUpis = (n: number) => (n === 0 ? "0,00" : fmtMoneyInput(n));
+  const toggleUmanjiObrok = (checked: boolean) => {
+    setUmanjiObrok(checked);
+    if (checked) {
+      if (obrokBazaRef.current == null) obrokBazaRef.current = parseMoney(meal);
+      mealTouchedRef.current = true;
+      setMeal(obrokUpis(umanjeniObrok.iznos));
+    } else {
+      // Isključenje vraća UHVAĆENU bazu (i ručno korigovan iznos), ne auto:
+      // check/uncheck ne smije tiho promijeniti postojeći obračun.
+      const baza = obrokBazaRef.current;
+      obrokBazaRef.current = null;
+      if (baza != null) {
+        setMeal(obrokUpis(baza));
+      } else if (mealRatePerDay != null && mealAuto != null) {
+        mealTouchedRef.current = false;
+        setMeal(fmtMoneyInput(mealAuto));
+      }
+    }
+  };
+  // Dok je uključeno, promjena dana odsustva ILI osnove (proRate toggle,
+  // šihterica stigne pa mealDays padne) ažurira iznos; ako umanjenje više
+  // nije moguće (odsustvo vraćeno na 0 ili šihterica preuzela dane), gasi se
+  // checkbox i vraća baza, da skriveni flag ne bi duplo umanjivao.
+  useEffect(() => {
+    if (!umanjiObrok) return;
+    if (!obrokUmanjenjeMoguce) {
+      toggleUmanjiObrok(false);
+      return;
+    }
+    setMeal(obrokUpis(umanjeniObrok.iznos));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sickDays, vacationDays, obrokUmanjenjeMoguce, mealDays, mealRatePerDay]);
 
   // Preview izračun u modalu (bez minimum-base logike — server primjenjuje to).
   // Efektivni bruto = osnovica + minuli rad + uvećanja (po istoj logici kao server).
@@ -5680,6 +6153,54 @@ function PayrollModal({
                   onChange={(e) => setVacationDays(e.target.value)}
                 />
               </div>
+              {obrokUmanjenjeMoguce && (
+                <div
+                  style={{
+                    alignSelf: "end",
+                    padding: "0.55rem 0.7rem",
+                    background: umanjiObrok
+                      ? "color-mix(in srgb, var(--sage, #3a5c42) 10%, transparent)"
+                      : "transparent",
+                    border: umanjiObrok
+                      ? "1px solid var(--sage, #3a5c42)"
+                      : "1px solid var(--border, #d4cfc4)",
+                    borderRadius: 8,
+                    fontSize: "0.85rem",
+                    transition: "border-color .15s, background .15s",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "0.5rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={umanjiObrok}
+                      onChange={(e) => toggleUmanjiObrok(e.target.checked)}
+                      style={{
+                        marginTop: 2,
+                        accentColor: "var(--sage, #3a5c42)",
+                      }}
+                    />
+                    <span>
+                      Umanji topli obrok za dane odsustva
+                      <br />
+                      <span
+                        className={styles.note}
+                        style={{ fontSize: "0.78rem" }}
+                      >
+                        {umanjeniObrok.baza != null
+                          ? `${fmtKM(umanjeniObrok.baza)} ÷ ${umanjeniObrok.ukupno} × ${umanjeniObrok.prisutno} ${umanjeniObrok.prisutno === 1 ? "dan" : "dana"} na radu = ${fmtKM(umanjeniObrok.iznos)} KM`
+                          : `${fmtKM(mealRatePerDay ?? 0)} KM × ${umanjeniObrok.prisutno} od ${umanjeniObrok.ukupno} dana = ${fmtKM(umanjeniObrok.iznos)} KM`}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 
@@ -5790,6 +6311,9 @@ function PayrollModal({
                   value={meal}
                   onChange={(e) => {
                     mealTouchedRef.current = true;
+                    // ručni unos preuzima kontrolu: gasi umanjenje za odsustva
+                    setUmanjiObrok(false);
+                    obrokBazaRef.current = null;
                     setMeal(formatMoneyLive(e.target.value));
                   }}
                   onBlur={(e) => setMeal(formatMoneyBlur(e.target.value))}
@@ -5807,6 +6331,9 @@ function PayrollModal({
                         className={styles.linkInline}
                         onClick={() => {
                           mealTouchedRef.current = false;
+                          // puni auto iznos: gasi i umanjenje za odsustva
+                          setUmanjiObrok(false);
+                          obrokBazaRef.current = null;
                           setMeal(fmtMoneyInput(mealAuto));
                         }}
                       >

@@ -148,6 +148,44 @@
   background: rgba(126, 161, 133, 0.18);
 }
 
+/* Kartica "Dokumenti mjeseca": red = caps labela (kome dokument ide) lijevo
+   + dugmad desno, redovi odvojeni isprekidanom linijom. Na uskom ekranu
+   labela ide iznad dugmadi. */
+.docRow {
+  display: grid;
+  grid-template-columns: 118px 1fr;
+  gap: 0.4rem 1rem;
+  align-items: start;
+  padding: 0.8rem 0;
+}
+.docRow + .docRow {
+  border-top: 1px dashed var(--border, #d8d4ca);
+}
+.docRowLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--mid, #6c6862);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.35;
+  padding-top: 0.7rem;
+}
+.docRowBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .docRow {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+  .docRowLabel {
+    padding-top: 0;
+  }
+}
+
 /* Inline action buttons (in-table actions) — slim, polished */
 .actionBtn {
   display: inline-flex;

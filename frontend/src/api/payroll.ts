@@ -471,6 +471,60 @@ export async function generateMonthlyUplatnice(
   }
 }
 
+// ── Izvoz naloga za e-bankarstvo ────────────────────────────────────────────
+
+export type BankExportProfil = "halcom" | "unicredit" | "elba" | "raiffeisen";
+
+export type BankExportPreskocen = {
+  radnik: string;
+  stavka: string;
+  iznosKm: number;
+  razlog: string;
+};
+
+export type BankExportRezultat = {
+  fileName: string;
+  /** kompletna datoteka, binarno, za download */
+  base64: string;
+  /** nalozi koji NISU u datoteci (npr. radnik bez žiro računa) + razlog */
+  preskoceni: BankExportPreskocen[];
+  meta: { profil: BankExportProfil; brojNaloga: number; ukupnoKm: number };
+};
+
+// Datoteka sa nalozima mjeseca za uvoz u e-bankarstvo (isti nalozi kao zbirne
+// uplatnice, format po izabranoj banci). datumValute je ISO YYYY-MM-DD.
+// banka = izbor sa ekrana (bbi/asa/sparkasse dijele elba profil); server ga
+// po uspjehu pamti na organizaciji za predpopunu sljedećeg izvoza.
+export async function bankExport(payload: {
+  organizationId: number;
+  year: number;
+  month: number;
+  datumValute: string;
+  profil: BankExportProfil;
+  banka?: string;
+}): Promise<ApiResponse<BankExportRezultat>> {
+  const r = await request<BankExportRezultat>("/api/payroll/bank-export", {
+    method: "POST",
+    body: JSON.stringify({
+      orgId: payload.organizationId,
+      year: payload.year,
+      month: payload.month,
+      datumValute: payload.datumValute,
+      profil: payload.profil,
+      banka: payload.banka,
+    }),
+  });
+  if (r.ok) {
+    // statistika generisanja (admin Aktivnost); best-effort, ne blokira
+    trackEvent(
+      "IZVOZ_BANKA_GENERATE",
+      "Izvoz naloga za e-bankarstvo",
+      payload.organizationId,
+    );
+  }
+  return r;
+}
+
 // Mjesečni platni listići — kombinovani PDF (jedna stranica po radniku)
 export async function generateMonthlyPayslips(
   organizationId: number,

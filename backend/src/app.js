@@ -157,6 +157,12 @@ async function ensureColumns() {
       ddl: "ALTER TABLE organizations ADD COLUMN logoUrl VARCHAR(500) NULL",
     },
     {
+      // zadnja izabrana banka za izvoz naloga u e-bankarstvo (po organizaciji)
+      table: "organizations",
+      column: "bankExportBank",
+      ddl: "ALTER TABLE organizations ADD COLUMN bankExportBank VARCHAR(20) NULL",
+    },
+    {
       // mjesto teksta na naslovnoj vijesti (kaskada vodeća → izdvojeno → obično)
       table: "vijesti_clanci",
       column: "pozicija",
