@@ -255,6 +255,8 @@ export type Organization = {
   bankAccount: string | null;
   /** Svi žiro računi (samo cifre); prvi je glavni (= bankAccount). */
   bankAccounts: string[] | null;
+  /** Zadnja izabrana banka za izvoz naloga u e-bankarstvo (predpopuna). */
+  bankExportBank?: string | null;
   logoUrl: string | null;
   taxCategory: TaxCategory | null;
   // Default tip plate za nove radnike u ovoj org-i. Vidi SalaryType u Worker.

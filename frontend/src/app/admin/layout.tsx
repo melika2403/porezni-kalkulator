@@ -262,7 +262,7 @@ const NAV_ITEMS: {
   },
   {
     href: "/admin/nalozi",
-    label: "Test nalog",
+    label: "Štampa naloga",
     icon: (
       <svg
         viewBox="0 0 24 24"

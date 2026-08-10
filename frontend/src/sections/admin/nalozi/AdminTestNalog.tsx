@@ -1,92 +1,105 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
-import {
-  buildNaloziPdf,
-  testNalogValues,
-  PAGE_W_MM,
-  PAGE_H_MM,
-} from "./nalogPlacanjePdf";
+import { buildPrn, testNalogValues } from "./escpNalog";
+import NaloziStampa from "./NaloziStampa";
 
-// Kalibracioni offseti se pamte u localStorage (per-uređaj, kao postavke štampe
-// u starom programu). Default: X 8 mm, Y 6 mm (početne vrijednosti za prvi test).
-const LS_KEY = "pk_nalog_kalibracija_tip1";
+// Postavke ESC/P štampe (per-uređaj, kao postavke štampe u starom programu):
+// kalibracioni pomaci u kolonama/linijama + naša slova (PC852) ili ASCII.
+const LS_KEY = "pk_nalog_escp";
 
-function loadCal(): { x: number; y: number } {
-  if (typeof window === "undefined") return { x: 8, y: 6 };
+export type EscpPostavke = {
+  pomakKolona: number;
+  pomakLinija: number;
+  nasaSlova: boolean;
+};
+
+const DEFAULT_POSTAVKE: EscpPostavke = {
+  pomakKolona: 0,
+  pomakLinija: 0,
+  nasaSlova: true,
+};
+
+function loadPostavke(): EscpPostavke {
+  if (typeof window === "undefined") return DEFAULT_POSTAVKE;
   try {
     const raw = window.localStorage.getItem(LS_KEY);
     if (raw) {
       const o = JSON.parse(raw);
       return {
-        x: Number.isFinite(o.x) ? o.x : 8,
-        y: Number.isFinite(o.y) ? o.y : 6,
+        pomakKolona: Number.isFinite(o.pomakKolona) ? o.pomakKolona : 0,
+        pomakLinija: Number.isFinite(o.pomakLinija) ? o.pomakLinija : 0,
+        nasaSlova: typeof o.nasaSlova === "boolean" ? o.nasaSlova : true,
       };
     }
   } catch {
     // ignore
   }
-  return { x: 8, y: 6 };
+  return DEFAULT_POSTAVKE;
 }
 
+export function preuzmiPrn(bytes: Uint8Array, ime: string) {
+  const blob = new Blob([new Uint8Array(bytes)], {
+    type: "application/octet-stream",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = ime;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export const PORUKA_STAMPA =
+  "Fajl je poslan na štampu. Ako se štampa ne pokrene sama, kliknite na preuzeti fajl u traci preuzimanja.";
+
 export default function AdminTestNalog() {
-  const [xOff, setXOff] = useState("8");
-  const [yOff, setYOff] = useState("6");
+  // Stranica je iza RoleGuard-a (renderuje se tek klijentski poslije provjere
+  // uloge), pa je localStorage siguran direktno u inicijalizatorima.
+  const [pomakKolona, setPomakKolona] = useState(() =>
+    String(loadPostavke().pomakKolona),
+  );
+  const [pomakLinija, setPomakLinija] = useState(() =>
+    String(loadPostavke().pomakLinija),
+  );
+  const [nasaSlova, setNasaSlova] = useState(() => loadPostavke().nasaSlova);
   const [count, setCount] = useState("3");
-  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // Učitaj sačuvanu kalibraciju na mount.
-  useEffect(() => {
-    const c = loadCal();
-    setXOff(String(c.x));
-    setYOff(String(c.y));
-  }, []);
-
-  const parse = (s: string, def: number) => {
-    const n = Number(String(s).replace(",", "."));
-    return Number.isFinite(n) ? n : def;
+  const parseInt0 = (s: string) => {
+    const n = parseInt(String(s).trim(), 10);
+    return Number.isFinite(n) ? n : 0;
   };
 
-  const saveCal = (x: number, y: number) => {
+  const postavke: EscpPostavke = {
+    pomakKolona: parseInt0(pomakKolona),
+    pomakLinija: parseInt0(pomakLinija),
+    nasaSlova,
+  };
+
+  const savePostavke = (p: EscpPostavke) => {
     try {
-      window.localStorage.setItem(LS_KEY, JSON.stringify({ x, y }));
+      window.localStorage.setItem(LS_KEY, JSON.stringify(p));
     } catch {
       // ignore
     }
   };
 
-  const generate = async () => {
-    setBusy(true);
+  const generateTest = () => {
     setMsg(null);
-    try {
-      const x = parse(xOff, 8);
-      const y = parse(yOff, 6);
-      const n = Math.max(1, Math.min(Math.round(parse(count, 1)), 50));
-      saveCal(x, y);
-      const bytes = await buildNaloziPdf(testNalogValues(), {
-        xOffsetMm: x,
-        yOffsetMm: y,
-        count: n,
-      });
-      const blob = new Blob([new Uint8Array(bytes)], {
-        type: "application/pdf",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `test-nalog_${n}x_X${x}_Y${y}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setMsg(`Generisano ${n} test naloga (offset X ${x} mm, Y ${y} mm).`);
-    } catch (e) {
-      setMsg("Greška: " + ((e as Error)?.message || "nepoznata"));
-    } finally {
-      setBusy(false);
-    }
+    const n = Math.max(1, Math.min(parseInt0(count) || 1, 50));
+    savePostavke(postavke);
+    const nalozi = Array.from({ length: n }, () => testNalogValues());
+    const bytes = buildPrn(nalozi, {
+      kodnaStranica: postavke.nasaSlova ? "pc852" : "ascii",
+      pomakKolona: postavke.pomakKolona,
+      pomakLinija: postavke.pomakLinija,
+    });
+    preuzmiPrn(bytes, `test-nalozi_${n}x.prn`);
+    setMsg(`Generisano ${n} test naloga. ${PORUKA_STAMPA}`);
   };
 
   const labelStyle: React.CSSProperties = {
@@ -109,7 +122,7 @@ export default function AdminTestNalog() {
     border: "1px solid var(--border, #d4cfc4)",
     borderRadius: 12,
     padding: "1.1rem 1.25rem",
-    maxWidth: 760,
+    maxWidth: 980,
   };
 
   return (
@@ -123,22 +136,38 @@ export default function AdminTestNalog() {
             color: "var(--ink, #0f1a12)",
           }}
         >
-          Test nalog za plaćanje
+          Štampa naloga (matrični)
         </h1>
         <p
           style={{
             color: "var(--mid, #7a8a7d)",
             margin: "0 0 1.25rem",
             fontSize: "0.95rem",
-            maxWidth: 760,
+            maxWidth: 980,
           }}
         >
-          Generiše PDF sa test nalozima (X-evi i 9-ke u svim poljima) za
-          kalibraciju matričnog štampača na pred-štampani Grafis obrazac. Stranica
-          je {PAGE_W_MM} × {PAGE_H_MM} mm, jedan nalog po stranici.
+          Direktna ESC/P štampa na matrični pisač: EPSON LX-350 ili BILO KOJI
+          drugi sa Epson ESC/P emulacijom (Epson LX/FX/LQ serije, OKI,
+          Panasonic, Star... u Epson modu). Pred-štampani Grafis obrazac,
+          traktorska traka. Preuzeti .prn fajl se na podešenoj radnoj stanici
+          otvara dvoklikom ili automatski i sirovo kopira na pisač, bez drivera
+          (podešavanje stanice: docs/faza1-escp-stampa-naloga.md, DIO B).
         </p>
 
+        {/* ── Test sekcija: kalibracija + test .prn ── */}
         <div style={cardStyle}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "var(--mid, #7a8a7d)",
+              marginBottom: "0.8rem",
+            }}
+          >
+            Test štampa (X-evi i 9-ke)
+          </div>
           <div
             style={{
               display: "flex",
@@ -148,23 +177,25 @@ export default function AdminTestNalog() {
             }}
           >
             <div>
-              <label style={labelStyle}>Pomak X (mm)</label>
+              <label style={labelStyle}>Pomak, kolona</label>
               <input
                 style={inputStyle}
                 type="text"
-                inputMode="decimal"
-                value={xOff}
-                onChange={(e) => setXOff(e.target.value)}
+                inputMode="numeric"
+                value={pomakKolona}
+                onChange={(e) => setPomakKolona(e.target.value)}
+                title="Kalibracija: pomak svih polja udesno u kolonama (12 cpi), može i negativan"
               />
             </div>
             <div>
-              <label style={labelStyle}>Pomak Y (mm)</label>
+              <label style={labelStyle}>Pomak, linija (0-3)</label>
               <input
                 style={inputStyle}
                 type="text"
-                inputMode="decimal"
-                value={yOff}
-                onChange={(e) => setYOff(e.target.value)}
+                inputMode="numeric"
+                value={pomakLinija}
+                onChange={(e) => setPomakLinija(e.target.value)}
+                title="Kalibracija: prazne linije prije prve linije naloga"
               />
             </div>
             <div>
@@ -177,10 +208,26 @@ export default function AdminTestNalog() {
                 onChange={(e) => setCount(e.target.value)}
               />
             </div>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                fontSize: 14,
+                paddingBottom: "0.55rem",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={nasaSlova}
+                onChange={(e) => setNasaSlova(e.target.checked)}
+              />
+              Naša slova (PC852)
+            </label>
             <button
               type="button"
-              onClick={generate}
-              disabled={busy}
+              onClick={generateTest}
               style={{
                 padding: "0.6rem 1.1rem",
                 background: "var(--sage, #3a5c42)",
@@ -189,63 +236,235 @@ export default function AdminTestNalog() {
                 borderRadius: 8,
                 fontSize: 14,
                 fontWeight: 600,
-                cursor: busy ? "default" : "pointer",
-                opacity: busy ? 0.7 : 1,
+                cursor: "pointer",
               }}
             >
-              {busy ? "Generišem…" : "Generiši test PDF"}
+              Generiši test .prn
             </button>
           </div>
-
           {msg && (
-            <div
-              style={{
-                marginTop: "0.9rem",
-                fontSize: 13,
-                color: msg.startsWith("Greška") ? "#a3322f" : "#1f5e44",
-              }}
-            >
+            <div style={{ marginTop: "0.9rem", fontSize: 13, color: "#1f5e44" }}>
               {msg}
             </div>
           )}
+          <div
+            style={{
+              marginTop: "0.9rem",
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: "var(--mid, #7a8a7d)",
+            }}
+          >
+            Ako polja ne padaju u kućice: pomjeri Pomak kolona/linija (pamti
+            se). Ako naša slova izlaze pogrešno, isključi opciju Naša slova
+            (ASCII, č→c) ili u postavkama pisača postavi tabelu znakova na
+            PC852.
+          </div>
         </div>
 
-        <div
-          style={{
-            marginTop: "1.25rem",
-            maxWidth: 760,
-            fontSize: 13.5,
-            lineHeight: 1.55,
-            color: "var(--ink, #0f1a12)",
-            background: "#fdf6e3",
-            border: "1px solid #f0d9a6",
-            borderRadius: 10,
-            padding: "0.85rem 1rem",
-          }}
-        >
-          <strong>Kako testirati (matrični LX-350, traktorska traka):</strong>
-          <ol style={{ margin: "0.5rem 0 0", paddingLeft: "1.1rem" }}>
-            <li>
-              Postavi broj naloga na npr. 3 ili više, generiši PDF.
-            </li>
-            <li>
-              Štampaj u <strong>continuous / fanfold</strong> modu, na{" "}
-              <strong>stvarna veličina (100%)</strong>, bez "fit to page" i bez
-              margina. Najbolje iz pravog PDF čitača (Acrobat/SumatraPDF), ne iz
-              browsera.
-            </li>
-            <li>
-              Provjeri da i <strong>prvi i zadnji</strong> nalog padaju na
-              obrazac. Ako prvi valja a zadnji drifta gore/dolje, problem je
-              visina stranice / form length, ne offset.
-            </li>
-            <li>
-              Ako je sve pomjereno jednako, koriguj <strong>Pomak X / Y</strong>{" "}
-              u koracima od 1 mm i generiši ponovo. Vrijednosti se pamte.
-            </li>
-          </ol>
+        {/* ── Podešavanje radne stanice (DIO B iz spec dokumenta) ── */}
+        <div style={{ ...cardStyle, marginTop: "1.25rem" }}>
+          <PodesavanjeStanice />
+        </div>
+
+        {/* ── Pregled i štampa stvarnog obračuna ── */}
+        <div style={{ ...cardStyle, marginTop: "1.25rem" }}>
+          <NaloziStampa postavke={postavke} />
         </div>
       </div>
     </RoleGuard>
+  );
+}
+
+// Uputstvo za podešavanje klijentskog računara (jednom po stanici, ~5 min):
+// klik na Štampaj u PK → pisač krene sam, bez ikakve instalacije. Sažetak
+// DIO B iz docs/faza1-escp-stampa-naloga.md, tu je i puna verzija sa svim
+// rubnim slučajevima.
+const FTYPE_KOMANDE = `assoc .prn=PKNalog
+ftype PKNalog=cmd /c copy /b "%1" "\\\\%COMPUTERNAME%\\LX350"`;
+
+function PodesavanjeStanice() {
+  const [otvoreno, setOtvoreno] = useState(false);
+  const [kopirano, setKopirano] = useState(false);
+
+  const kopiraj = async () => {
+    try {
+      await navigator.clipboard.writeText(FTYPE_KOMANDE);
+      setKopirano(true);
+      setTimeout(() => setKopirano(false), 2500);
+    } catch {
+      // clipboard nedostupan: admin može ručno selektovati tekst
+    }
+  };
+
+  const h = (t: string) => (
+    <div style={{ fontWeight: 600, fontSize: 14, margin: "0.9rem 0 0.25rem" }}>
+      {t}
+    </div>
+  );
+
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            color: "var(--mid, #7a8a7d)",
+          }}
+        >
+          Podešavanje radne stanice (jednom po računaru, ~5 min)
+        </div>
+        <button
+          type="button"
+          onClick={() => setOtvoreno((v) => !v)}
+          style={{
+            padding: "0.4rem 0.9rem",
+            background: "var(--white, #fff)",
+            color: "var(--sage, #3a5c42)",
+            border: "1px solid var(--sage, #3a5c42)",
+            borderRadius: 999,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {otvoreno ? "Sakrij uputstvo" : "Prikaži uputstvo"}
+        </button>
+      </div>
+
+      {otvoreno && (
+        <div style={{ fontSize: 13.5, lineHeight: 1.55, maxWidth: 860 }}>
+          <p style={{ margin: "0.7rem 0 0", color: "var(--mid, #7a8a7d)" }}>
+            Cilj: klik na Štampaj u PK pokrene matrični pisač bez instaliranja.
+            NE mora biti LX-350: radi svaki matrični sa Epson ESC/P emulacijom
+            (Epson LX/FX/LQ, a i OKI/Panasonic/Star/Citizen kad su u Epson
+            modu), LX-350 je samo model iz primjera. Browser ne smije slati
+            podatke direktno na pisač, pa se Windows jednom nauči da otvaranje
+            .prn fajla znači: kopiraj ga sirovo na pisač. Preduslov: pisač radi
+            na tom računaru. Red štampe koji koristi stari program NE dirati,
+            share je samo dodatno ime.
+          </p>
+
+          {h("1. Podijeli pisač samom sebi (share)")}
+          <div>
+            Postavke → Bluetooth i uređaji → Štampači i skeneri → tvoj matrični
+            pisač → Printer properties → kartica <strong>Sharing</strong> →
+            uključi &quot;Share this printer&quot;, ime share-a npr.{" "}
+            <strong>LX350</strong> (proizvoljno, bez razmaka; isto ime ide u
+            komandu u koraku 2) → Sačuvaj.
+          </div>
+
+          {h("2. Nauči Windows šta sa .prn fajlovima")}
+          <div>
+            Start → ukucaj <strong>cmd</strong> → desni klik na Command Prompt
+            → <strong>Run as administrator</strong> → zalijepi ove dvije linije
+            (Enter poslije svake):
+          </div>
+          <div
+            style={{
+              position: "relative",
+              margin: "0.5rem 0",
+              padding: "0.7rem 0.85rem",
+              background: "#1e241f",
+              color: "#d6e8d9",
+              borderRadius: 8,
+              fontFamily: '"Courier New", monospace',
+              fontSize: 13,
+              whiteSpace: "pre",
+              overflowX: "auto",
+            }}
+          >
+            {FTYPE_KOMANDE}
+            <button
+              type="button"
+              onClick={kopiraj}
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                padding: "0.25rem 0.7rem",
+                background: kopirano ? "#3a5c42" : "#fff",
+                color: kopirano ? "#fff" : "#1e241f",
+                border: "none",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {kopirano ? "Kopirano ✓" : "Kopiraj"}
+            </button>
+          </div>
+          <div style={{ color: "var(--mid, #7a8a7d)" }}>
+            Provjera odmah: ukucaj <strong>ftype PKNalog</strong> i mora
+            ispisati gornju komandu. Ovo su samo dva zapisa u registru, ništa
+            se ne instalira.
+          </div>
+
+          {h("3. Test štampe")}
+          <div>
+            Gore generiši test .prn i u Downloads folderu dvoklik na fajl.
+            Pisač mora krenuti odmah; ako je papir dobro uvučen, polja padaju u
+            kućice (inače koriguj pomake gore).
+          </div>
+
+          {h("4. Automatsko otvaranje (jedan klik u browseru)")}
+          <div>
+            Poslije prvog preuzimanja, u traci preuzimanja desni klik na fajl →
+            &quot;Always open files of this type&quot; / &quot;Uvijek otvaraj
+            datoteke ove vrste&quot;. Od tada: klik na Štampaj → pisač kreće
+            sam.
+          </div>
+
+          {h("Ako zapne")}
+          <ul style={{ margin: "0.25rem 0 0", paddingLeft: "1.2rem", color: "var(--mid, #7a8a7d)" }}>
+            <li>
+              &quot;Access is denied&quot;: u firewallu uključi &quot;File and
+              printer sharing&quot;; provjeri da &quot;Password protected
+              sharing&quot; ne blokira.
+            </li>
+            <li>
+              Pisač na drugom računaru u mreži: u ftype komandi umjesto
+              %COMPUTERNAME% upiši ime računara sa pisačem (share se pravi
+              tamo).
+            </li>
+            <li>
+              Fajl se otvara a štampa ne kreće: provjeri da share LX350
+              postoji i da pisač nije pauziran u redu za štampu.
+            </li>
+            <li>
+              Kvačice izlaze pogrešno: u Default Settings pisača postavi
+              Character Table na PC852, ili gore isključi opciju Naša slova.
+            </li>
+            <li>
+              Drugi model pisača štampa gluposti umjesto naloga: pisač je
+              najvjerovatnije u IBM ProPrinter modu, u njegovim postavkama
+              izabrati Epson ESC/P emulaciju.
+            </li>
+            <li>
+              Novi računar, reinstalacija ili promjena imena računara: ponovi
+              korake 1, 2 i 4.
+            </li>
+          </ul>
+          <p style={{ margin: "0.7rem 0 0", color: "var(--mid, #7a8a7d)" }}>
+            Puna verzija sa detaljima: docs/faza1-escp-stampa-naloga.md, DIO B.
+            Napomena za klijente: .prn fajlovi u Downloads folderu sadrže
+            podatke naloga, povremeno očistiti ako računar dijeli više ljudi.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

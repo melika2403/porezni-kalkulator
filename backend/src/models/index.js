@@ -195,6 +195,9 @@ const Organization = sequelize.define(
     // svuda čita bankAccount). Novi računi viđeni na izvodima se
     // automatski dopisuju na kraj liste.
     bankAccounts: { type: DataTypes.JSON, allowNull: true },
+    // Zadnja izabrana banka za izvoz naloga u e-bankarstvo, pamti se po
+    // organizaciji (halcom/raiffeisen/unicredit/bbi/asa/sparkasse).
+    bankExportBank: { type: DataTypes.STRING(20), allowNull: true },
     // Skriveni prijedlozi partnera (korisnik kliknuo "nije partner"):
     // JSON lista { account: cifre|null, name: normalizovan naziv|null }.
     // Prijedlog se više ne nudi ako mu se poklopi račun ILI naziv.

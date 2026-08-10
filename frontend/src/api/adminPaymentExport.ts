@@ -81,6 +81,58 @@ export function getIzvozObracuni(orgId: number) {
   return get<IzvozObracun[]>(`/api/admin/izvoz-naloga/obracuni?orgId=${orgId}`);
 }
 
+// ── ESC/P štampa naloga na matričnom (Faza 1) ───────────────────────────────
+
+export type StampaNalog = {
+  rb: number;
+  tip: "javniPrihod" | "prenos";
+  naziv: string;
+  mjesto: string;
+  racun: string;
+  svrha: string;
+  iznosKm: number;
+  jib: string;
+  vrstaPrihoda: string;
+  opcina: string;
+  budzetskaOrganizacija: string;
+  pozivNaBroj: string;
+  /** ISO YYYY-MM-DD, prazno za prenos naloge */
+  periodOd: string;
+  periodDo: string;
+};
+
+export type StampaNalozi = {
+  platilac: { racun: string; naziv: string; adresa: string; mjesto: string };
+  datumValute: string;
+  nalozi: StampaNalog[];
+  preskoceni: IzvozPreskocen[];
+};
+
+// Nalozi obračuna kao JSON (isti adapter kao izvoz datoteka, bez formatiranja)
+// za ekran pregleda i ESC/P štampu.
+export async function getNaloziZaStampu(payload: {
+  orgId: number;
+  year: number;
+  month: number;
+  /** ISO YYYY-MM-DD */
+  datumValute: string;
+  combineKantonal: boolean;
+}): Promise<ApiResponse<StampaNalozi>> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/admin/izvoz-naloga/nalozi`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json().catch(() => null)) as ApiResponse<StampaNalozi> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
 export async function generisiIzvoz(payload: {
   orgId: number;
   year: number;

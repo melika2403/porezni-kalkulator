@@ -20,6 +20,8 @@ const admin = [requireAuth, requireRole("ADMIN")];
 router.get("/izvoz-naloga/organizacije", ...admin, paymentExport.listOrganizacije);
 router.get("/izvoz-naloga/obracuni", ...admin, paymentExport.listObracuni);
 router.post("/izvoz-naloga/generisi", ...admin, paymentExport.generisi);
+// Nalozi obračuna kao JSON, za ESC/P štampu na matričnom (Faza 1, admin).
+router.post("/izvoz-naloga/nalozi", ...admin, paymentExport.listNaloziZaStampu);
 router.get("/organizations/:id/detail", ...admin, detail.organizationDetail);
 router.get("/organizations/:id/workers-full", ...admin, detail.organizationWorkers);
 router.get("/organizations/:id/payrolls", ...admin, detail.organizationPayrolls);

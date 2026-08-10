@@ -2950,4 +2950,8 @@ module.exports = {
   buildAllUplatnice,
   getAccountInfo,
   VRSTA_SVRHA_MAP,
+  // Korisnički izvoz naloga za e-bankarstvo (paymentExportController.bankExport)
+  // koristi istu provjeru pristupa org-u i istu agencijsku opciju kao uplatnice.
+  assertOrgAccess,
+  getCombineKantonal,
 };
