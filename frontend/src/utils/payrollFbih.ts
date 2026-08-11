@@ -66,22 +66,29 @@ export function deductionFromCoefficient(coefficient: number): number {
 }
 
 export function fromGross(gross: number, deduction: number): PayrollResult {
-  const empPio = gross * EMP_PIO;
-  const empZdravstvo = gross * EMP_ZDRAVSTVO;
-  const empNezaposlenost = gross * EMP_NEZAPOSLENOST;
-  const empTotal = gross * EMP_TOTAL;
-  const taxBase = Math.max(gross - empTotal - deduction, 0);
-  const incomeTax = taxBase * TAX_RATE;
-  const net = gross - empTotal - incomeTax;
-  const erpPio = gross * ERP_PIO;
-  const erpZdravstvo = gross * ERP_ZDRAVSTVO;
-  const erpNezaposlenost = gross * ERP_NEZAPOSLENOST;
-  const erpTotal = gross * ERP_TOTAL;
-  const vodnaNaknada = net * VODNA_NAKNADA;
-  const naknadaNesrece = net * NAKNADA_NESRECE;
-  const totalCost = gross + erpTotal + vodnaNaknada + naknadaNesrece;
+  // OGLEDALO backend computePayrollSnapshot zaokruživanja: svaka komponenta
+  // na 2 decimale PRIJE sabiranja (PUFBiH pravilo, MIP/2001 validacija).
+  // Bez ovoga preview zna biti fening pored serverski snimljenog neta
+  // (granični slučajevi u ~37% bruto vrijednosti), pa je modal slao pogrešan
+  // cilj neto i neto "šetao" za fening pri pojedinačnom obračunu.
+  const r2 = (n: number) => +n.toFixed(2);
+  const g = r2(Number(gross) || 0);
+  const empPio = r2(g * EMP_PIO);
+  const empZdravstvo = r2(g * EMP_ZDRAVSTVO);
+  const empNezaposlenost = r2(g * EMP_NEZAPOSLENOST);
+  const empTotal = r2(empPio + empZdravstvo + empNezaposlenost);
+  const taxBase = r2(Math.max(g - empTotal - deduction, 0));
+  const incomeTax = r2(taxBase * TAX_RATE);
+  const net = r2(g - empTotal - incomeTax);
+  const erpPio = r2(g * ERP_PIO);
+  const erpZdravstvo = r2(g * ERP_ZDRAVSTVO);
+  const erpNezaposlenost = r2(g * ERP_NEZAPOSLENOST);
+  const erpTotal = r2(erpPio + erpZdravstvo + erpNezaposlenost);
+  const vodnaNaknada = r2(net * VODNA_NAKNADA);
+  const naknadaNesrece = r2(net * NAKNADA_NESRECE);
+  const totalCost = r2(g + erpTotal + vodnaNaknada + naknadaNesrece);
   return {
-    gross,
+    gross: g,
     empPio,
     empZdravstvo,
     empNezaposlenost,
@@ -172,13 +179,35 @@ export function computeKorist(koristNetValue: number): KoristResult | null {
   };
 }
 
-export function fromNet(net: number, deduction: number): PayrollResult {
+// Sirovi analitički bruto iz neta (bez zaokruživanja): dijele ga fromNet i
+// computeMinContribBase, da min. osnovica ostane bajt-identična backendu
+// (backend računa fullMin iz sirovog inverza pa zaokruži tek na kraju).
+function analitickiBrutoIzNeta(net: number, deduction: number): number {
   const netCoeff = (1 - EMP_TOTAL) * (1 - TAX_RATE);
   const grossWithTax = (net - deduction * TAX_RATE) / netCoeff;
   if (grossWithTax * (1 - EMP_TOTAL) - deduction > 0.001) {
-    return fromGross(grossWithTax, deduction);
+    return grossWithTax;
   }
-  return fromGross(net / (1 - EMP_TOTAL), deduction);
+  return net / (1 - EMP_TOTAL);
+}
+
+export function fromNet(net: number, deduction: number): PayrollResult {
+  const raw = analitickiBrutoIzNeta(net, deduction);
+  // Fening-search kao na serveru: analitički bruto poslije zaokruživanja po
+  // komponentama zna promašiti traženi neto za fening, pa se bruto pomjera
+  // ±10 feninga i bira prvi koji vraća TAČNO ukucani neto (Neto→Bruto tako
+  // uvijek "vraća" isti neto koji je korisnik ukucao).
+  const target = +Number(net).toFixed(2);
+  const start = +raw.toFixed(2);
+  for (let k = 0; k <= 10; k++) {
+    for (const smjer of k === 0 ? [0] : [k, -k]) {
+      const kandidat = +(start + smjer / 100).toFixed(2);
+      if (kandidat <= 0) continue;
+      const r = fromGross(kandidat, deduction);
+      if (r.net === target) return r;
+    }
+  }
+  return fromGross(raw, deduction);
 }
 
 // Min. osnovica za doprinose po Zakonu o doprinosima FBiH (čl. 7, izmjene
@@ -193,7 +222,9 @@ export function computeMinContribBase(
   const coeff = Math.max(Number(coefficient) || 0, 0);
   const hours = Math.max(Math.min(Number(contractedHours) || 8, 8), 1);
   const deduction = coeff * DEDUCTION_PER_COEFFICIENT;
-  const fullMin = fromNet(MIN_NET_FBIH_2026, deduction).gross;
+  // SIROVI inverz (ne fromNet: on sad zaokružuje bruto), identično backendu,
+  // da se granica min. osnovice poklapa sa serverskim minBaseApplied flagom.
+  const fullMin = analitickiBrutoIzNeta(MIN_NET_FBIH_2026, deduction);
   let workTimeCategory: WorkTimeCategory;
   let appliedMin: number;
   if (hours >= 8) {

@@ -25,7 +25,7 @@ export type IzvozObracun = {
 };
 
 export type BankProfil = "halcom" | "unicredit" | "elba" | "raiffeisen";
-export type Transliteracija = "yuscii" | "cp1250" | "cp852";
+export type Transliteracija = "yuscii" | "cp1250" | "cp852" | "ascii";
 
 export type IzvozPreskocen = {
   radnik: string;

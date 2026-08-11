@@ -450,9 +450,20 @@ export function KalkulacijaForm({
     setPredpopunaInfo(
       `Predpopunjeno iz kalkulacije ${s.oznaka} (${isoToDisplay(String(s.datum).slice(0, 10))}); izmijenite po potrebi.`,
     );
+    // Neobveznik sa opcijom "dodaj PDV na cijenu": predpopunjena cijena VEĆ
+    // sadrži PDV, a ulazna faktura iskazuje cijene bez PDV-a. Ispiši rastav
+    // (kao kod ručnog unosa) da se cijena može provjeriti prema fakturi.
+    if (!orgObveznik && dodajPdvNaCijenu && !a.oslobodjenPdv && s.cijena > 0) {
+      const bezPdv = r5(s.cijena / 1.17);
+      setPdvNaCijenuInfo(
+        `Cijena ${formatKm(bezPdv, 5)} + PDV 17% = ${formatKm(s.cijena, 5)} (predpopunjena cijena već sadrži PDV; iznos bez PDV-a uporedite sa fakturom).`,
+      );
+    }
     // predpopuna stiže NAKON što je fokus već na količini, pa upis nove
-    // vrijednosti poništi označavanje: označi ponovo da Enter/kucanje radi
-    fokusNaKolicinu();
+    // vrijednosti poništi označavanje. Direktan select() ovdje gubi trku sa
+    // React commitom novih vrijednosti, zato tick okida useEffect koji se
+    // izvršava POSLIJE commita i tada označi količinu.
+    setPredpopunaTick((t) => t + 1);
   }
 
   // zavisni troškovi kalkulacije (KM) → jednak % na svaku stavku
@@ -491,6 +502,15 @@ export function KalkulacijaForm({
     fokusiraj(kolicinaWrapRef);
   }
 
+  // Re-fokus + označavanje količine POSLIJE što React commituje predpopunjene
+  // vrijednosti (vidi predpopuniIzZadnje): tek tada select() hvata novi tekst.
+  const [predpopunaTick, setPredpopunaTick] = useState(0);
+  useEffect(() => {
+    if (predpopunaTick === 0) return;
+    fokusNaKolicinu();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [predpopunaTick]);
+
   // F3 skače pravo na maloprodajnu cijenu (kao u desktop programima): kad je
   // ostalo popunjeno iz predpopune, ne mora se prolaziti kroz sva polja.
   useEffect(() => {
@@ -501,6 +521,51 @@ export function KalkulacijaForm({
     }
     window.addEventListener("keydown", naTipku);
     return () => window.removeEventListener("keydown", naTipku);
+  }, []);
+
+  // PageDown ODMAH doda stavku, bez prolaska kroz preostala polja: za artikle
+  // sa predpopunom (količina, cijena i MPC već stoje) je to jedan pritisak
+  // umjesto niza Entera. Radi samo kad su sve tri vrijednosti popunjene i
+  // artikal izabran; ref drži svježi closure (listener se veže jednom).
+  const pageDownRef = useRef<() => boolean>(() => false);
+  pageDownRef.current = () => {
+    // Globalna tipka: smije raditi SAMO na tabu unosa i dok ništa drugo nije
+    // otvoreno (modali artikla, kartica, inline izmjena reda), inače bi
+    // pritisak tokom drugog posla ubacio neželjeni red iz napunjenog panela.
+    if (
+      view !== "unos" ||
+      noviArtikal ||
+      editArtikalOpen ||
+      karticaArtikalId != null ||
+      rowEdit != null
+    ) {
+      return false;
+    }
+    const k = parseKm(kolicinaS, 3);
+    const c = parseKm(cijenaS, 5);
+    const m = parseKm(mpcS);
+    if (
+      artikal &&
+      k != null && k > 0 &&
+      c != null && c > 0 &&
+      m != null && m > 0
+    ) {
+      dodajStavku();
+      return true;
+    }
+    return false;
+  };
+  useEffect(() => {
+    function naPageDown(e: KeyboardEvent) {
+      if (e.key !== "PageDown") return;
+      // modifikatori su tuđe prečice (Ctrl+PageDown mijenja browser tab)
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      // preventDefault samo kad je stavka stvarno dodana: inače tipka
+      // zadržava normalno ponašanje (skrolanje)
+      if (pageDownRef.current()) e.preventDefault();
+    }
+    window.addEventListener("keydown", naPageDown);
+    return () => window.removeEventListener("keydown", naPageDown);
   }, []);
 
   // Enter u polju: fokus na sljedeće; na MPC-u dodaje stavku
@@ -560,7 +625,14 @@ export function KalkulacijaForm({
   // nabavnu cijenu); vraća novi display string jer setState ne stigne
   // prije parsiranja u dodajStavku
   function primijeniPdvNaCijenu(): string | null {
-    if (orgObveznik || !dodajPdvNaCijenu || !cijenaKucanaRef.current) {
+    // oslobođen artikal: na njega se PDV ne plaća pa nema šta dodavati
+    // (isti guard kao kod predpopuna napomene)
+    if (
+      orgObveznik ||
+      !dodajPdvNaCijenu ||
+      !cijenaKucanaRef.current ||
+      artikal?.oslobodjenPdv
+    ) {
       return null;
     }
     const c = parseKm(cijenaS, 5);
@@ -1047,7 +1119,9 @@ export function KalkulacijaForm({
               (artikal, količina, cijena, rabat, zavisni, marža, MPC), a na
               polju MPC dodaje stavku i vraća vas na artikal.{" "}
               <kbd className={kbdCls}>F3</kbd> skače pravo na maloprodajnu
-              cijenu.
+              cijenu. <kbd className={kbdCls}>PageDown</kbd> odmah dodaje
+              stavku kad su količina, cijena i MPC popunjeni (predpopunjeni
+              artikli: jedan pritisak umjesto niza Entera).
             </p>
             <div className="grid grid-cols-2 lg:grid-cols-9 gap-3 items-end">
               <div className="col-span-2 lg:col-span-3">
@@ -1059,6 +1133,7 @@ export function KalkulacijaForm({
                     onSelect={(a) => {
                       setArtikalId(a?.id ?? null);
                       setPredpopunaInfo(null);
+                      setPdvNaCijenuInfo(null);
                       predpopunaZaRef.current = null;
                       if (a) void predpopuniIzZadnje(a);
                     }}
@@ -1093,7 +1168,18 @@ export function KalkulacijaForm({
                   </button>
                 </div>
               </div>
-              <div ref={kolicinaWrapRef}>
+              <div
+                ref={kolicinaWrapRef}
+                onFocusCapture={(e) => {
+                  // označi sve pri svakom ulasku u polje (kao kod cijene):
+                  // setTimeout da select prođe POSLIJE internih focus handlera
+                  // i predpopune koja zna stići poslije fokusa
+                  const t = e.target as HTMLInputElement;
+                  if (t && typeof t.select === "function") {
+                    setTimeout(() => t.select(), 0);
+                  }
+                }}
+              >
                 <label className={labelCls}>Količina</label>
                 <PkAmountInput
                   value={kolicinaS}
@@ -1105,7 +1191,16 @@ export function KalkulacijaForm({
                   onKeyDown={enterNa(cijenaWrapRef)}
                 />
               </div>
-              <div ref={cijenaWrapRef}>
+              <div
+                ref={cijenaWrapRef}
+                onFocusCapture={(e) => {
+                  // isto kao količina: ulazak u polje označi vrijednost
+                  const t = e.target as HTMLInputElement;
+                  if (t && typeof t.select === "function") {
+                    setTimeout(() => t.select(), 0);
+                  }
+                }}
+              >
                 <label className={labelCls}>Cijena</label>
                 <PkAmountInput
                   value={cijenaS}

@@ -33,11 +33,12 @@ const DEFAULT_TRANSLIT: Record<BankProfil, Transliteracija> = {
   halcom: "yuscii",
   unicredit: "cp1250",
   elba: "cp1250",
-  raiffeisen: "cp852",
+  raiffeisen: "ascii",
 };
 
 // Transliteracija se ručno mijenja samo kod TKDIS profila (test); ELBA je
-// uvijek cp1250, Raiffeisen uvijek cp852.
+// uvijek cp1250, Raiffeisen uvijek ascii (novo online bankarstvo odbija
+// CP852 bajtove, pa se kvačice transliteriraju: Č→C, Đ→DJ...).
 const TRANSLIT_ZAKLJUCAN: Record<BankProfil, boolean> = {
   halcom: false,
   unicredit: false,
@@ -264,7 +265,8 @@ export default function AdminIzvozNaloga() {
                   options: [
                     { value: "yuscii", label: "YUSCII, za Halcom (Ž→@, Š→[, Ć→])" },
                     { value: "cp1250", label: "Windows-1250, za UniCredit i ELBA-u" },
-                    { value: "cp852", label: "CP852, za Raiffeisen" },
+                    { value: "cp852", label: "CP852 (staro, ne koristiti)" },
+                    { value: "ascii", label: "ASCII, za Raiffeisen (Č→C)" },
                   ],
                 },
               ]}

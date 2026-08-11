@@ -1422,7 +1422,14 @@ kasnije veže lager lista.
   Unesena stavka se **uređuje direktno u tabeli** (olovka pretvara red u
   polja, kvačica sprema), ne vraća se u panel. Iznad panela stoji
   napomena o tipkovnici, a **F3** skače pravo na polje MPC (kad je
-  ostalo predpopunjeno iz prethodnog unosa artikla).
+  ostalo predpopunjeno iz prethodnog unosa artikla). **PageDown** odmah
+  dodaje stavku čim su količina, cijena i MPC popunjeni (predpopunjeni
+  artikli: izbor artikla + količina + PageDown, bez niza Entera). Ulazak
+  u polje količine označi postojeću vrijednost (kao kod cijene), pa
+  kucanje piše preko nje. Za neobveznika sa opcijom "Automatski dodaj
+  PDV na cijenu" rastav "cijena bez PDV-a + 17% = upisana" se ispisuje i
+  za PREDPOPUNJENU cijenu (ne samo ručno unesenu), da se cijena može
+  provjeriti prema ulaznoj fakturi koja iskazuje cijene bez PDV-a.
 - **Izbor artikla ne izlistava cijeli šifarnik**: prazno polje (strelica)
   nudi **zadnjih 10 korištenih** artikala (`zadnjaUpotreba` = MAX datum
   kalkulacije po artiklu, računa se u `listArtikli`), a kucanje pretražuje

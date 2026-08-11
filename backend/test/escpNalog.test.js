@@ -176,6 +176,24 @@ test("mapper: podjela teksta, predugačka riječ se tvrdo reže", () => {
   assert.deepStrictEqual(prazan, ["", ""]);
 });
 
+test("fajl počinje TAČNO sa 1B 40, bez ZoneTransfer/ZoneId sadržaja", () => {
+  // Regresija za Mark of the Web: "[ZoneTransfer]" tekst na papiru pomjeri
+  // top-of-form. Sadržaj fajla NIKAD ne smije imati ništa prije ESC @ niti
+  // MotW tekst bilo gdje (MotW inače živi u NTFS Zone.Identifier streamu,
+  // ftype komanda u DIO B ga briše prije kopiranja na pisač).
+  for (const kodna of ["pc852", "ascii"]) {
+    const buf = mod.buildPrn(
+      [mod.testNalogValues(), mod.testNalogValues()],
+      { kodnaStranica: kodna, pomakKolona: 2, pomakLinija: 1 },
+    );
+    assert.strictEqual(buf[0], 0x1b, `prvi bajt nije ESC (${kodna})`);
+    assert.strictEqual(buf[1], 0x40, `drugi bajt nije @ (${kodna})`);
+    const tekst = Buffer.from(buf).toString("latin1");
+    assert.ok(!tekst.includes("ZoneTransfer"), `ZoneTransfer u izlazu (${kodna})`);
+    assert.ok(!tekst.includes("ZoneId"), `ZoneId u izlazu (${kodna})`);
+  }
+});
+
 test("tekst nema 0x00 ni višebajtnih UTF-8 sekvenci (ascii mod)", () => {
   // 0x00 legitimno postoji SAMO kao parametar escape sekvenci (npr. ESC $ n2=0
   // za kolone lijevo od 52). Prošetaj tok, preskoči poznate escape sekvence i

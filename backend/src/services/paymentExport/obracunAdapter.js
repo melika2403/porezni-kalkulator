@@ -19,6 +19,7 @@ const {
   VRSTA_SVRHA_MAP,
 } = require("../../controllers/payrollController");
 const { FOND_INVALIDI_RATE } = require("../../utils/payrollUplatnice");
+const { pttZaGrad } = require("./pttBrojevi");
 
 // TKDIS traži mjesto primaoca koje uplatnice nemaju. Do registra stalnih
 // primaoca (sa Halcom kraticama) važi ugrađena mapa: federalni primaoci su u
@@ -170,6 +171,15 @@ function buildTkdisIzObracuna(input) {
         // adresa treba samo Raiffeisen SM zaglavlju; TKDIS i ELBA je ignorišu
         adresa: org.address || "",
         mjesto: org.city || "",
+        // Raiffeisen SM piše mjesto SA poštanskim brojem ("77220 CAZIN",
+        // potvrđeno u Com_Soft datotekama koje novo online bankarstvo prima).
+        // Odvojeno polje da se TKDIS/ELBA tok (bez PTT) uopšte ne dira.
+        mjestoSaPtt: (() => {
+          const grad = String(org.city || "").trim();
+          if (/^\d/.test(grad)) return grad; // PTT već upisan uz grad
+          const ptt = pttZaGrad(grad);
+          return ptt ? `${ptt} ${grad}` : grad;
+        })(),
       },
       datumValute,
       nalozi,

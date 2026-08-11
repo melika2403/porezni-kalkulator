@@ -5,3 +5,5 @@ backend/test/fixtures/izvoz_naloga.txt -text
 backend/test/fixtures/MAX_COP.txt -text
 backend/test/fixtures/raiffeisen_platavlasnik_161.txt -text
 backend/test/fixtures/raiffeisen_plataradnici_161.txt -text
+backend/test/fixtures/raiffeisen_platavlasnik_161_novo.txt -text
+backend/test/fixtures/raiffeisen_platasviradnici_198.txt -text
