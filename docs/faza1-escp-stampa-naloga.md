@@ -125,14 +125,18 @@ Postavke → Bluetooth i uređaji → Štampači i skeneri → EPSON LX-350 → 
 Napomena: ime reda za štampu koje koristi stari program (npr. "EPSON LX-350" u vDos configu) NE dirati. Share je samo dodatno mrežno ime, ništa postojeće se ne mijenja.
 
 **2. Nauči Windows šta sa .prn fajlovima:**
-Start → ukucaj `cmd` → desni klik na Command Prompt → Run as administrator. Zalijepi ove dvije linije (Enter poslije svake):
+Start → ukucaj `cmd` → desni klik na Command Prompt → Run as administrator. U drugoj komandi PRIJE lijepljenja zamijeni `IME-RACUNARA` imenom računara (vidi se komandom `hostname`) i `LX350` imenom share-a iz koraka 1. Imena se pišu obično, BEZ znakova `%`; jedino `"%1"` ostaje tačno kako piše (oznaka za fajl koji se štampa). Zalijepi obje linije (Enter poslije svake):
 
 ```
 assoc .prn=PKNalog
-ftype PKNalog=cmd /c copy /b "%1" "\\%COMPUTERNAME%\LX350"
+ftype PKNalog=cmd /c (type nul ^> "%1:Zone.Identifier") 2^>nul ^& copy /b "%1" "\\IME-RACUNARA\LX350"
 ```
 
-Šta rade: prva kaže da su `.prn` fajlovi tip "PKNalog", druga da se taj tip "otvara" sirovim kopiranjem na podijeljeni pisač LX350. Ovo su dva zapisa u Windows registru, ništa se ne instalira.
+VAŽNO: znakovi `^` su obavezni. Bez njih cmd pri lijepljenju ODMAH izvrši `>` i `&` (copy krene istog trena, u registar sjedne skraćena, nefunkcionalna komanda, a u folderu nastane junk fajl imena `%1`). Sa `^` se u registar upišu literalni `>` i `&`. Provjera `ftype PKNalog` zato ispisuje komandu BEZ kapica, to je ispravno stanje.
+
+Šta rade: prva kaže da su `.prn` fajlovi tip "PKNalog", druga da se taj tip "otvara" tako što se prvo obriše browserova oznaka preuzimanja pa se fajl sirovo kopira na podijeljeni pisač LX350. Ovo su dva zapisa u Windows registru, ništa se ne instalira.
+
+Zašto brisanje oznake: browser uz svaki preuzeti fajl upiše Mark of the Web (NTFS Zone.Identifier stream sa tekstom `[ZoneTransfer]` / `ZoneId=3`). Sadržaj samog `.prn` fajla je čist (počinje tačno sa ESC @, pokriveno testom), ali se na nekim mašinama ta oznaka nađe na putu do pisača i odštampa kao dva reda teksta prije naloga, što pomjeri papir i trajno pokvari top-of-form za sve naloge u nizu. `(type nul > "%1:Zone.Identifier") 2>nul` je isprazni (bezopasno i kad je nema), pa tek onda ide kopiranje.
 
 Provjera odmah: u cmd ukucaj `ftype PKNalog` i mora ispisati gornju komandu.
 
@@ -148,9 +152,9 @@ Od tog trenutka: klik na "Štampaj naloge" u PK → pisač kreće sam. To je cil
 
 - **Novi računar / reinstalacija Windowsa:** ponoviti korake 1, 2 i 4 na toj mašini.
 - **Chrome/Edge nekad ne nude "Always open" za neke tipove:** ako opcije nema, klijent ostaje na dva klika (dugme u PK + klik na fajl u traci). I to je prihvatljivo.
-- **Ime računara sa našim slovima ili razmacima:** ako `%COMPUTERNAME%` pravi problem u koraku 2, upisati ime ručno: `ftype PKNalog=cmd /c copy /b "%1" "\\IME-RACUNARA\LX350"`.
-- **Pisač na drugom računaru u mreži:** isti princip, samo se u ftype komandi upiše `\\RACUNAR-SA-PISACEM\LX350` (share se pravi na računaru gdje je pisač).
+- **Pisač na drugom računaru u mreži:** isti princip, samo se kao `IME-RACUNARA` upiše ime računara na kojem je pisač (share se pravi tamo).
 - **Štampa ne kreće, a fajl se otvara:** provjeriti da share `LX350` postoji (korak 1) i da pisač nije pauziran u redu za štampu.
+- **Na papiru izađe `[ZoneTransfer]` / `ZoneId=3` prije naloga:** stanica ima staru verziju ftype komande (bez brisanja oznake preuzimanja), ponoviti korak 2 sa gornjom komandom.
 - **"Access is denied" pri kopiranju iako share postoji:** u Windows firewallu uključiti "File and printer sharing" za privatnu mrežu, i provjeriti da "Password protected sharing" (Advanced sharing settings) ne blokira pristup; ako blokira, isključiti ga ili share otvoriti za Everyone (samo print).
 - **Promjena imena računara:** ftype u registru drži staro ime (cmd ga ekspandira pri upisu), pa poslije preimenovanja ponoviti korak 2.
 - **Naša slova izlaze pogrešno (kvačice):** PK šalje izbor PC852 tabele u samom fajlu; ako pisač to ignoriše, u Default Settings pisača postaviti Character Table na PC852, ili u PK isključiti opciju "Naša slova" (ASCII transliteracija).
