@@ -38,7 +38,9 @@ const {
 // TKDIS profili (Halcom, UniCredit) + ELBA platforma (BBI, ASA, Sparkasse)
 // + Raiffeisen RBBHnet (vlastiti 345 format, samo javni prihodi).
 const PROFILI = new Set(["halcom", "unicredit", "elba", "raiffeisen"]);
-const TRANSLITERACIJE = new Set(["yuscii", "cp1250", "cp852"]);
+// "ascii" = Raiffeisen: čisti ASCII sa transliteracijom (novo online
+// bankarstvo odbija CP852 bajtove, staro prima oboje).
+const TRANSLITERACIJE = new Set(["yuscii", "cp1250", "cp852", "ascii"]);
 // Kodna stranica po banci za korisnički izvoz (admin harness može override
 // radi testiranja): Halcom banke traže YUSCII, UniCredit i ELBA cp1250,
 // Raiffeisen cp852.
@@ -46,7 +48,7 @@ const PROFIL_TRANSLIT = {
   halcom: "yuscii",
   unicredit: "cp1250",
   elba: "cp1250",
-  raiffeisen: "cp852",
+  raiffeisen: "ascii",
 };
 // Banke sa ekrana (BBI/ASA/Sparkasse dijele elba profil): pamti se zadnji
 // izbor po organizaciji (Organization.bankExportBank) za predpopunu modala.
@@ -59,6 +61,12 @@ const BANKA_PROFIL = {
   bbi: "elba",
   asa: "elba",
   sparkasse: "elba",
+  // Intesa, ProCredit i PBS koriste istu PING ELBA platformu kao
+  // BBI/ASA/Sparkasse (potvrđeno: elba2.intesasanpaolobanka.ba, PING objava
+  // o ProCredit implementaciji, org.ping.pbs.elba.mobile aplikacija).
+  intesa: "elba",
+  procredit: "elba",
+  pbs: "elba",
 };
 
 // "YYYY-MM-DD" → Date, ali samo za stvaran kalendarski datum: JS Date tiho
@@ -217,29 +225,14 @@ async function generisiDatoteku({
   if (!gradnja.ok) return gradnja;
   const { file, preskoceni, brojPayrolla } = gradnja;
 
-  // Raiffeisen format podržava samo javne prihode (kao stari program): lične
-  // isplate se preskaču uz jasan razlog dok banka ne potvrdi format prenosa.
-  if (profil === "raiffeisen") {
-    for (const n of file.nalozi) {
-      if (n.tip === "prenos") {
-        preskoceni.push({
-          radnik: n.naziv,
-          // "Isplata neto plate za 07/2026, Ime" → "Isplata neto plate"
-          stavka: n.svrha.replace(/ za \d{2}\/\d{4}.*$/, ""),
-          iznosKm: +(n.iznosFeninga / 100).toFixed(2),
-          razlog: "Raiffeisen izvoz za sada podržava samo javne prihode",
-        });
-      }
-    }
-    file.nalozi = file.nalozi.filter((n) => n.tip === "javniPrihod");
-  }
   if (file.nalozi.length === 0) {
     return { ok: false, status: 400, error: "NEMA_NALOGA", preskoceni };
   }
 
-  // ELBA je uvijek cp1250, Raiffeisen cp852; TKDIS prati traženu opciju.
+  // ELBA je uvijek cp1250, Raiffeisen ascii (novo online bankarstvo odbija
+  // CP852 bajtove); TKDIS prati traženu opciju.
   const translitEff =
-    profil === "elba" ? "cp1250" : profil === "raiffeisen" ? "cp852" : transliteracija;
+    profil === "elba" ? "cp1250" : profil === "raiffeisen" ? "ascii" : transliteracija;
   let buffer;
   try {
     buffer =
@@ -346,12 +339,15 @@ async function generisi(req, res) {
         transliteracija: r.translitEff,
         combineKantonal,
         // ELBA je delimitirani format (TAB/CR), nema fiksnu širinu ni lenjir;
-        // TKDIS je 336, Raiffeisen 345 znakova po redu.
+        // TKDIS je 336. Raiffeisen: UJ redovi su 345, ali UO (prenosi) 313 i
+        // SM 211, pa lenjir ima smisla samo za datoteku bez prenosa.
         rowLen:
           profil === "elba"
             ? null
             : profil === "raiffeisen"
-              ? RAIFFEISEN_RECORD_LEN
+              ? r.file.nalozi.some((n) => n.tip === "prenos")
+                ? null
+                : RAIFFEISEN_RECORD_LEN
               : ROW_LEN,
         brojRedova: rows.length,
         brojNaloga: r.file.nalozi.length,

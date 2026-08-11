@@ -280,8 +280,18 @@ export default function AdminTestNalog() {
 // klik na Štampaj u PK → pisač krene sam, bez ikakve instalacije. Sažetak
 // DIO B iz docs/faza1-escp-stampa-naloga.md, tu je i puna verzija sa svim
 // rubnim slučajevima.
+// ftype prvo obriše browserovu "oznaku preuzimanja" (Mark of the Web,
+// NTFS Zone.Identifier stream): na nekim mašinama se nađe na putu do pisača
+// i odštampa kao "[ZoneTransfer] ZoneId=3" prije naloga, što pomjeri papir
+// 2 reda i pokvari top-of-form. Brisanje je bezopasno (2>nul guta grešku ako
+// oznake nema), pa tek onda sirovo kopiranje na pisač.
+// IME-RACUNARA i LX350 su placeholderi koje support upiše ručno (bez %
+// znakova); "%1" se ostavlja TAČNO kako piše.
+// KAPICE (^) su OBAVEZNE: bez njih cmd pri lijepljenju odmah IZVRŠI > i &
+// (copy krene istog trena, u registar sjedne skraćena komanda). ^> ^& u
+// registar upišu literalne > i & (empirijski provjereno kroz cmd stdin).
 const FTYPE_KOMANDE = `assoc .prn=PKNalog
-ftype PKNalog=cmd /c copy /b "%1" "\\\\%COMPUTERNAME%\\LX350"`;
+ftype PKNalog=cmd /c (type nul ^> "%1:Zone.Identifier") 2^>nul ^& copy /b "%1" "\\\\IME-RACUNARA\\LX350"`;
 
 function PodesavanjeStanice() {
   const [otvoreno, setOtvoreno] = useState(false);
@@ -368,8 +378,13 @@ function PodesavanjeStanice() {
           {h("2. Nauči Windows šta sa .prn fajlovima")}
           <div>
             Start → ukucaj <strong>cmd</strong> → desni klik na Command Prompt
-            → <strong>Run as administrator</strong> → zalijepi ove dvije linije
-            (Enter poslije svake):
+            → <strong>Run as administrator</strong>. U drugoj komandi PRIJE
+            lijepljenja zamijeni: <strong>IME-RACUNARA</strong> imenom ovog
+            računara (vidiš ga kad u cmd ukucaš <strong>hostname</strong>) i{" "}
+            <strong>LX350</strong> imenom share-a iz koraka 1. Imena se pišu
+            obično, BEZ znakova %. Jedino <strong>&quot;%1&quot;</strong>{" "}
+            ostavi tačno kako piše (to je oznaka za fajl koji se štampa).
+            Zalijepi obje linije (Enter poslije svake):
           </div>
           <div
             style={{
@@ -408,9 +423,14 @@ function PodesavanjeStanice() {
             </button>
           </div>
           <div style={{ color: "var(--mid, #7a8a7d)" }}>
-            Provjera odmah: ukucaj <strong>ftype PKNalog</strong> i mora
-            ispisati gornju komandu. Ovo su samo dva zapisa u registru, ništa
-            se ne instalira.
+            Znakovi <strong>^</strong> u komandi su obavezni (bez njih cmd
+            odmah izvrši dio komande umjesto da je zapamti). Provjera odmah:
+            ukucaj <strong>ftype PKNalog</strong> i mora ispisati komandu, ali
+            BEZ ^ znakova (to je ispravno: ^ služi samo pri upisu). Ovo su
+            samo dva zapisa u registru, ništa se ne instalira. Prvi dio
+            komande briše browserovu oznaku preuzimanja sa fajla (inače na
+            nekim mašinama na papiru izađe &quot;[ZoneTransfer]&quot; prije
+            naloga), drugi sirovo kopira na pisač.
           </div>
 
           {h("3. Test štampe")}
@@ -436,9 +456,8 @@ function PodesavanjeStanice() {
               sharing&quot; ne blokira.
             </li>
             <li>
-              Pisač na drugom računaru u mreži: u ftype komandi umjesto
-              %COMPUTERNAME% upiši ime računara sa pisačem (share se pravi
-              tamo).
+              Pisač na drugom računaru u mreži: kao IME-RACUNARA upiši ime
+              računara na kojem je pisač (share se pravi tamo).
             </li>
             <li>
               Fajl se otvara a štampa ne kreće: provjeri da share LX350
@@ -447,6 +466,12 @@ function PodesavanjeStanice() {
             <li>
               Kvačice izlaze pogrešno: u Default Settings pisača postavi
               Character Table na PC852, ili gore isključi opciju Naša slova.
+            </li>
+            <li>
+              Na papiru izađe &quot;[ZoneTransfer]&quot; / &quot;ZoneId=3&quot;
+              prije naloga: stanica ima staru verziju komande iz koraka 2,
+              ponovi korak 2 (nova komanda briše oznaku preuzimanja prije
+              kopiranja).
             </li>
             <li>
               Drugi model pisača štampa gluposti umjesto naloga: pisač je

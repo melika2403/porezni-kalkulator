@@ -141,6 +141,9 @@ const IZVOZ_BANKE: {
   { value: "bbi", label: "BBI banka (eBBI)", profil: "elba" },
   { value: "asa", label: "ASA banka (ELBA)", profil: "elba" },
   { value: "sparkasse", label: "Sparkasse banka (ELBA)", profil: "elba" },
+  { value: "intesa", label: "Intesa Sanpaolo banka (ELBA)", profil: "elba" },
+  { value: "procredit", label: "ProCredit Bank (ELBA)", profil: "elba" },
+  { value: "pbs", label: "Privredna banka Sarajevo (ELBA)", profil: "elba" },
 ];
 
 const IZVOZ_GRESKE: Record<string, string> = {
@@ -2049,7 +2052,10 @@ function MonthlyPanel({
   const openIzvoz = () => {
     const d = new Date();
     const danas = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    setIzvozDatum(/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) ? paymentDate : danas);
+    // Uvijek današnji datum (odluka vlasnika): datum valute u prošlosti banka
+    // odbija, a i budući datum isplate zna biti stariji plan. Korisnik ga po
+    // potrebi promijeni u modalu.
+    setIzvozDatum(danas);
     const zapamcena =
       (orgId ? izvozBankaByOrgRef.current[orgId] : null) ??
       organization?.bankExportBank ??
@@ -3852,7 +3858,7 @@ function MonthlyPanel({
             disabled={!organization || !canGenerate}
             title={
               canGenerate
-                ? "Datoteka sa nalozima mjeseca za uvoz u e-bankarstvo (Halcom, UniCredit, Raiffeisen, BBI, ASA, Sparkasse)"
+                ? "Datoteka sa nalozima mjeseca za uvoz u e-bankarstvo (Halcom, Raiffeisen, UniCredit i ELBA banke: BBI, ASA, Sparkasse, Intesa, ProCredit, PBS)"
                 : "Dostupno uz Pro pretplatu"
             }
             style={{
@@ -5080,6 +5086,12 @@ function PayrollModal({
   const [netoUgovorDisplay, setNetoUgovorDisplay] = useState<string>("");
   const [netoIsplataDisplay, setNetoIsplataDisplay] = useState<string>("");
   const lastEditRef = useRef<"gross" | "netoUgovor" | "netoIsplata">("gross");
+  // Da li je korisnik RUČNO kucao u polje "Cilj neto za isplatu" u ovom
+  // otvaranju modala. Ako nije, kao cilj se serveru šalje iznos iz PROFILA
+  // radnika (salaryNeto), ne auto-popunjeni preview: preview zna biti fening
+  // pored serverskog neta, pa bi fening-search zakucao pogrešan cilj
+  // (1.030,00 → 1.029,99) i neto bi "šetao" pri svakom pojedinačnom obračunu.
+  const ciljRucnoRef = useRef(false);
   const [minuliRad, setMinuliRad] = useState<string>(() => {
     if (existing?.minuliRadRate != null) return String(existing.minuliRadRate);
     return String(worker.minuliRadRate ?? 0.4);
@@ -5319,11 +5331,13 @@ function PayrollModal({
     // Vidi WORK_DAYS_IN_MONTH_AVG u backend payrollController.
     const hourly =
       base / ((worker.contractedHours ?? 8) * WORK_DAYS_IN_MONTH_AVG);
-    const ot = parseNum(overtime) * hourly * (parseNum(overtimeRate) / 100);
-    const nt = parseNum(night) * hourly * (parseNum(nightRate) / 100);
-    const su = parseNum(sunday) * hourly * (parseNum(sundayRate) / 100);
-    const ho = parseNum(holiday) * hourly * (parseNum(holidayRate) / 100);
-    const uvecanja = ot + nt + su + ho;
+    // Ogledalo backend snapshot zaokruživanja: svaki iznos na 2 decimale pa
+    // zbir na 2 decimale, da preview pokazuje tačno ono što server snima.
+    const ot = +(parseNum(overtime) * hourly * (parseNum(overtimeRate) / 100)).toFixed(2);
+    const nt = +(parseNum(night) * hourly * (parseNum(nightRate) / 100)).toFixed(2);
+    const su = +(parseNum(sunday) * hourly * (parseNum(sundayRate) / 100)).toFixed(2);
+    const ho = +(parseNum(holiday) * hourly * (parseNum(holidayRate) / 100)).toFixed(2);
+    const uvecanja = +(ot + nt + su + ho).toFixed(2);
     return {
       base,
       overtimeAmt: ot,
@@ -5355,12 +5369,14 @@ function PayrollModal({
 
   // Efektivni bruto za TAJ mjesec = (osnovica × proRate) + minuli rad + uvećanja.
   // Koristi se za doprinose, porez, neto za isplatu i logiku min osnovice.
+  // Ogledalo backend snapshot koraka: skalirana osnovica r2, minuli rad r2,
+  // pa zbir r2 (bez ovoga preview zna biti fening pored snimljenog).
   const effectiveGross = useMemo(() => {
     const base = parseMoney(gross);
     if (base <= 0 || !previewBreakdown) return 0;
-    const scaledBase = base * effectiveProRate;
-    const minuliAmt = scaledBase * minuliMultiplier;
-    return scaledBase + minuliAmt + previewBreakdown.uvecanja;
+    const scaledBase = +(base * effectiveProRate).toFixed(2);
+    const minuliAmt = +(scaledBase * minuliMultiplier).toFixed(2);
+    return +(scaledBase + minuliAmt + previewBreakdown.uvecanja).toFixed(2);
   }, [gross, effectiveProRate, minuliMultiplier, previewBreakdown]);
 
   // Preview za STVARNI mjesečni obračun (sa minulim radom + uvećanjima
@@ -5425,12 +5441,15 @@ function PayrollModal({
 
   // Cilj-neto preview (osnovica × (1+M) → take-home, BEZ uvećanja). Ovo je
   // ono što radnik prima u "normalan" mjesec bez prekovremenih. Predstavlja
-  // anker za tip NETO_ISPLATA.
+  // anker za tip NETO_ISPLATA. Minuli rad se zaokruži posebno pa sabere,
+  // identično backend snapshotu (r2(base) + r2(base×M)), da preview i server
+  // uvijek vide isti bruto.
   const ciljNetoPreview = useMemo(() => {
     const base = parseMoney(gross);
     if (base <= 0) return null;
     const ded = deductionFromCoefficient(parseNum(coeff));
-    return fromGross(base * (1 + minuliMultiplier), ded);
+    const minuliIznos = +(base * minuliMultiplier).toFixed(2);
+    return fromGross(+(base + minuliIznos).toFixed(2), ded);
   }, [gross, coeff, minuliMultiplier]);
 
   // Sync sva 3 polja kad se promijeni gross OSNOVICA. lastEditRef sprečava
@@ -5444,6 +5463,10 @@ function PayrollModal({
       );
     }
     if (edited !== "netoIsplata") {
+      // auto-preview pregazi polje: ono više NE drži ručno ukucanu vrijednost,
+      // pa se resetuje i flag (inače bi se auto-vrijednost poslala serveru
+      // kao "ručni" cilj i neto opet šetao za fening)
+      ciljRucnoRef.current = false;
       setNetoIsplataDisplay(
         ciljNetoPreview && ciljNetoPreview.net > 0
           ? fmtMoneyInput(ciljNetoPreview.net)
@@ -5473,6 +5496,7 @@ function PayrollModal({
 
   const handleNetoIsplataChange = (v: string) => {
     lastEditRef.current = "netoIsplata";
+    ciljRucnoRef.current = true;
     const formatted = formatMoneyLive(v);
     setNetoIsplataDisplay(formatted);
     const targetNet = parseMoney(formatted);
@@ -5503,12 +5527,27 @@ function PayrollModal({
           grossBase: parseMoney(gross),
           minuliRadRate: parseNum(minuliRad),
           taxCoefficient: parseNum(coeff),
-          // "Cilj neto za isplatu": pošalji ciljni neto (iz polja koje user vidi)
-          // pa backend fening-search prilagodi bruto da finalni neto bude tačan.
-          // Backend primijeni samo bez uvećanja i za pun mjesec.
-          ...(worker.salaryType === "NETO_ISPLATA" &&
-          parseMoney(netoIsplataDisplay) > 0
-            ? { targetNet: parseMoney(netoIsplataDisplay) }
+          // "Cilj neto za isplatu": backend fening-search prilagodi bruto da
+          // finalni neto bude TAČNO ciljni (samo bez uvećanja i pun mjesec).
+          // Cilj je iznos iz PROFILA radnika; ono što piše u polju na ekranu
+          // šaljemo samo ako ga je korisnik u ovom otvaranju RUČNO ukucao
+          // (auto-popunjeni preview zna biti fening pored serverskog neta).
+          // NAMJERNO: ručna izmjena BRUTA čiji neto padne unutar ~10 feninga
+          // od profila se privuče tačno na profilni cilj (to je semantika
+          // NETO_ISPLATA tipa: cilj je sidro); ko želi baš određeni bruto/
+          // neto, ukuca cilj ručno i on pobjeđuje.
+          ...(worker.salaryType === "NETO_ISPLATA"
+            ? (() => {
+                const ukucani = parseMoney(netoIsplataDisplay);
+                const izProfila = Number(worker.salaryNeto) || 0;
+                const cilj =
+                  ciljRucnoRef.current && ukucani > 0
+                    ? ukucani
+                    : izProfila > 0
+                      ? izProfila
+                      : ukucani;
+                return cilj > 0 ? { targetNet: cilj } : {};
+              })()
             : {}),
           // Pro-rate factor (0..1) — automatski za mid-month, user može
           // isključiti checkbox-om. Backend skalira osnovicu, minuli rad,

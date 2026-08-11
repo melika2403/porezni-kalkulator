@@ -239,3 +239,17 @@ test("cijela datoteka iz adaptera se formatira bez greške (oba profila)", () =>
   assert.equal(zbirnaRed.substr(63, 15), String(suma).padStart(15, "0"));
   assert.equal(zbirnaRed.substr(78, 5), String(file.nalozi.length).padStart(5, "0"));
 });
+
+test("platilac.mjestoSaPtt: poštanski broj iz šifarnika, bez dupliranja", () => {
+  const { file } = sintetickiUlaz(false);
+  // org city "Bihać" → PTT 77000 ispred grada (za Raiffeisen SM zaglavlje)
+  assert.equal(file.platilac.mjestoSaPtt, "77000 Bihać");
+  // mjesto bez PTT ostaje netaknuto za TKDIS/ELBA tok
+  assert.equal(file.platilac.mjesto, "Bihać");
+
+  const { pttZaGrad } = require("../src/services/paymentExport/pttBrojevi");
+  assert.equal(pttZaGrad("Cazin"), "77220");
+  assert.equal(pttZaGrad("ŠIROKI BRIJEG"), "88220");
+  assert.equal(pttZaGrad("cazin"), "77220");
+  assert.equal(pttZaGrad("Nepoznati Grad XYZ"), null);
+});

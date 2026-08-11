@@ -1,12 +1,10 @@
-// Raiffeisen RBBHnet format platnih naloga (SM zaglavlje 211 + UJ redovi 345).
+// Raiffeisen RBBHnet format platnih naloga (SM zaglavlje 211 + UJ/UO redovi).
 //
 // Zvanična specifikacija NIJE javna: format je rekonstruisan bajt po bajt iz
 // ORIGINALNIH izvoznih datoteka starog programa koje RBBHnet dokazano prima
-// (test/fixtures/raiffeisen_*.txt, obračun 06/2026 za MELY OBRT). Potvrđeno
-// na originalima: SM slog 211 znakova (opis je polje širine 35), UJ slogovi
-// 345, CRLF završeci, BEZ EOF markera, CP852 (Ž = 0xA6). EKSPERIMENTALNO
-// ostaje samo dok probni uvoz u RBBHnet ne prođe; format naloga za neto
-// isplate je nepoznat (stari program izvozi SAMO javne prihode, pa i mi).
+// (test/fixtures/raiffeisen_*.txt: 06/2026 MELY OBRT, 08/2026 URBANLINE za
+// novo online bankarstvo, te platasviradnici sa UO prenosima). CRLF završeci,
+// BEZ EOF markera.
 //
 // Slogovi:
 //   SM (zaglavlje, 1x, 211 znakova): 1-2 "SM", 3-18 račun platioca (16),
@@ -14,29 +12,40 @@
 //     PTT brojem (35), 143-159 ukupan iznos u feninzima (desno, razmaci),
 //     160-164 broj naloga (desno), 165-167 "BAM", 168-176 razmaci,
 //     177-211 opis (35, stari program piše skraćeno "PLATE ZA 2026060").
-//   UJ (javni prihod, po nalogu): 1-2 "UJ", 3-11 redni broj (desno), 12-19
+//   UJ (javni prihod, 345 znakova): 1-2 "UJ", 3-11 redni broj (desno), 12-19
 //     konstanta "8888 01 " (uočena u svim redovima; 01 je šifra plaćanja),
 //     20-124 naziv primaoca (105), 125-140 račun primaoca (16), 141-176 iznos
 //     u feninzima (desno, razmaci), 177-184 datum valute GGGGMMDD, 185-289
 //     svrha (105), 290-299 poziv na broj (10), 300-312 JIB (13), 313 vrsta
 //     uplate, 314-319 vrsta prihoda, 320-322 šifra općine, 323-329 budžetska
 //     organizacija, 330-337 period od GGGGMMDD, 338-345 period do GGGGMMDD.
+//   UO (prenos/isplata plate, 313 znakova): identičan UJ rasporedu do kraja
+//     svrhe + 24 razmaka (mjesto poziva, JIB-a i vrste uplate), BEZ poreskog
+//     repa. Konstanta je "8889 07 ". U datoteci prenosi idu PRIJE javnih
+//     prihoda (redoslijed iz originala), redni brojevi teku kroz sve naloge.
 //
-// Encoding: CP852 (potvrđeno u fixture: Ž = 0xA6 u "BUDŽET USK"), sve
-// uppercase. Iznosi isključivo cijeli feninzi. Nepodržan znak ili pogrešna
-// dužina ID polja baca grešku sa kontekstom.
+// Encoding: ČISTI ASCII, sve uppercase, kvačice se TRANSLITERIRAJU (Č/Ć→C,
+// Š→S, Ž→Z, Đ→DJ). Com_Soft datoteke su praktično čist ASCII (u dva originala
+// ukupno JEDAN CP852 bajt, došao iz njihovog registra primalaca); staro
+// desktop RBBHnet bankarstvo toleriše CP852 bajtove, ali ih NOVO online
+// bankarstvo odbija (uvoz padne bez broja naloga), pa je ASCII jedini format
+// koji dokazano prolazi na OBA. Iznosi isključivo cijeli feninzi. Nepodržan
+// znak ili pogrešna dužina ID polja baca grešku sa kontekstom.
 
-const RECORD_LEN = 345; // UJ slogovi
+const RECORD_LEN = 345; // UJ slogovi (javni prihodi)
+const UO_LEN = 313; // UO slogovi (prenosi/plate, bez poreskog repa)
 const SM_LEN = 211; // SM zaglavlje (opis 177-211, širina 35)
 const CRLF = Buffer.from([0x0d, 0x0a]);
 
-// CP852 bajtovi za naša slova (uppercase; tekst se prvo diže u velika slova).
-const CP852_MAPA = {
-  "Č": 0xac,
-  "Ć": 0x8f,
-  "Ž": 0xa6,
-  "Š": 0xe6,
-  "Đ": 0xd1,
+// ASCII transliteracija naših slova (uppercase; tekst se prvo diže u velika
+// slova). Đ→DJ smije produžiti tekst: polja se poslije enkodiranja režu na
+// svoju širinu pa pomaka pozicija nema.
+const ASCII_MAPA = {
+  "Č": "C",
+  "Ć": "C",
+  "Ž": "Z",
+  "Š": "S",
+  "Đ": "DJ",
 };
 
 class RaiffeisenGreska extends Error {}
@@ -49,13 +58,13 @@ function enkodiraj(text, ctx) {
       bajtovi.push(kod);
       continue;
     }
-    const zamjena = CP852_MAPA[znak];
+    const zamjena = ASCII_MAPA[znak];
     if (zamjena === undefined) {
       throw new RaiffeisenGreska(
         `Nepodržan znak ${JSON.stringify(znak)} u ${ctx.polje} (${ctx.nalog}): ${JSON.stringify(String(text))}`,
       );
     }
-    bajtovi.push(zamjena);
+    for (const z of zamjena) bajtovi.push(z.charCodeAt(0));
   }
   return bajtovi;
 }
@@ -125,10 +134,10 @@ function upisi(red, pozicija, bajtovi) {
 
 /**
  * @param {{
- *   platilac: { racun: string, naziv: string, adresa?: string, mjesto: string },
+ *   platilac: { racun: string, naziv: string, adresa?: string, mjesto: string, mjestoSaPtt?: string },
  *   datumValute: Date,
- *   opis?: string,        // SM opis; default "PLATE ZA GGGGMM" iz perioda prvog naloga
- *   nalozi: Array<Object>, // SAMO tip "javniPrihod" (kao stari program)
+ *   opis?: string,        // SM opis; default "PLATE ZA GGGGMM0" iz perioda prvog naloga
+ *   nalozi: Array<Object>, // tip "javniPrihod" (UJ) i "prenos" (UO)
  * }} file
  * @returns {Buffer}
  */
@@ -140,23 +149,30 @@ function formatRaiffeisen(file) {
     throw new RaiffeisenGreska("Datoteka bez ijednog naloga nema smisla");
   }
   for (const [i, n] of file.nalozi.entries()) {
-    if (n.tip !== "javniPrihod") {
+    if (n.tip !== "javniPrihod" && n.tip !== "prenos") {
       throw new RaiffeisenGreska(
-        `Raiffeisen izvoz za sada podržava samo javne prihode; nalog ${i + 1} je ${JSON.stringify(n.tip)} (format prenosa potvrditi sa bankom)`,
+        `Nepoznat tip naloga ${JSON.stringify(n.tip)} (nalog ${i + 1})`,
       );
     }
   }
+  // Redoslijed kao u originalima: prenosi (UO) prije javnih prihoda (UJ),
+  // unutar grupe zadržan zadani redoslijed. Redni brojevi teku kroz sve.
+  const nalozi = [...file.nalozi].sort(
+    (a, b) => (a.tip === "prenos" ? 0 : 1) - (b.tip === "prenos" ? 0 : 1),
+  );
 
   const hCtx = { nalog: "SM zaglavlje" };
   let suma = 0;
-  for (const n of file.nalozi) suma += Number(n.iznosFeninga) || 0;
+  for (const n of nalozi) suma += Number(n.iznosFeninga) || 0;
 
-  // Stari program u opis piše skraćeni oblik ("PLATE ZA 2026060"); naš
-  // default je čitljiviji "PLATE ZA GGGGMM", a golden test opis zadaje sam.
-  const prviOd = file.nalozi[0].periodOd;
+  // Opis identičan starom programu: "PLATE ZA GGGGMM0" (završna nula
+  // potvrđena u OBA Com_Soft originala: "PLATE ZA 2026060" za juni i
+  // "PLATE ZA 2026070" za juli). Period se čita sa prvog naloga koji ga ima
+  // (prenosi ga nemaju, a poslije sortiranja idu prvi).
+  const prviOd = (nalozi.find((n) => n.periodOd instanceof Date) || {}).periodOd;
   const defaultOpis =
     prviOd instanceof Date && !Number.isNaN(prviOd.getTime())
-      ? `PLATE ZA ${prviOd.getFullYear()}${String(prviOd.getMonth() + 1).padStart(2, "0")}`
+      ? `PLATE ZA ${prviOd.getFullYear()}${String(prviOd.getMonth() + 1).padStart(2, "0")}0`
       : "PLATE";
 
   const sm = noviRed(SM_LEN);
@@ -164,15 +180,39 @@ function formatRaiffeisen(file) {
   upisi(sm, 3, racun16(file.platilac.racun, { ...hCtx, polje: "račun platioca" }));
   upisi(sm, 38, tekst(file.platilac.naziv, 35, { ...hCtx, polje: "naziv platioca" }));
   upisi(sm, 73, tekst(file.platilac.adresa || "", 35, { ...hCtx, polje: "adresa platioca" }));
-  upisi(sm, 108, tekst(file.platilac.mjesto, 35, { ...hCtx, polje: "mjesto platioca" }));
+  // Mjesto SA poštanskim brojem ("77220 CAZIN") kad ga adapter izvede
+  // (mjestoSaPtt); golden test zadaje mjesto direktno pa ostaje netaknut.
+  upisi(
+    sm,
+    108,
+    tekst(file.platilac.mjestoSaPtt || file.platilac.mjesto, 35, {
+      ...hCtx,
+      polje: "mjesto platioca",
+    }),
+  );
   upisi(sm, 143, iznosDesno(suma, 17, { ...hCtx, polje: "ukupan iznos" }));
-  upisi(sm, 160, desno(file.nalozi.length, 5));
+  upisi(sm, 160, desno(nalozi.length, 5));
   upisi(sm, 165, enkodiraj("BAM", hCtx));
   upisi(sm, 177, tekst(file.opis || defaultOpis, SM_LEN - 176, { ...hCtx, polje: "opis" }));
 
   const redovi = [sm];
-  file.nalozi.forEach((nalog, i) => {
+  nalozi.forEach((nalog, i) => {
     const ctx = { nalog: `nalog ${i + 1}` };
+    if (nalog.tip === "prenos") {
+      // UO slog: isti raspored kao UJ do kraja svrhe, pa 24 razmaka
+      // (bez poziva na broj, JIB-a, vrste uplate ni poreskog repa).
+      const red = noviRed(UO_LEN);
+      upisi(red, 1, enkodiraj("UO", { ...ctx, polje: "prefiks" }));
+      upisi(red, 3, desno(i + 1, 9));
+      upisi(red, 12, enkodiraj("8889 07 ", ctx));
+      upisi(red, 20, tekst(nalog.naziv, 105, { ...ctx, polje: "naziv primaoca" }));
+      upisi(red, 125, racun16(nalog.racun, { ...ctx, polje: "račun primaoca" }));
+      upisi(red, 141, iznosDesno(nalog.iznosFeninga, 36, { ...ctx, polje: "iznos" }));
+      upisi(red, 177, datumGGGGMMDD(file.datumValute, { ...ctx, polje: "datum valute" }));
+      upisi(red, 185, tekst(nalog.svrha, 105, { ...ctx, polje: "svrha" }));
+      redovi.push(red);
+      return;
+    }
     const red = noviRed();
     upisi(red, 1, enkodiraj("UJ", { ...ctx, polje: "prefiks" }));
     upisi(red, 3, desno(i + 1, 9));
@@ -200,9 +240,8 @@ function formatRaiffeisen(file) {
   return Buffer.concat(dijelovi);
 }
 
-// Mapa za dekodiranje cp852 bajtova nazad u slova (pregled u admin harnessu).
-const CP852_U_SLOVO = new Map(
-  Object.entries(CP852_MAPA).map(([slovo, bajt]) => [bajt, slovo]),
-);
+// Izlaz je čisti ASCII pa dekodiranje za pregled ne treba mapu; prazna mapa
+// ostaje radi kompatibilnosti sa admin harness pregledom (cp852 legacy izbor).
+const CP852_U_SLOVO = new Map();
 
 module.exports = { formatRaiffeisen, RaiffeisenGreska, RECORD_LEN, CP852_U_SLOVO };

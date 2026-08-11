@@ -41,6 +41,8 @@ export const kalkulacije: Upustvo = {
             "Enter prebacuje na sljedeće polje: artikal, količina, cijena, rabat, zavisni trošak, marža, MPC.",
             "Enter na polju MPC dodaje stavku i vraća vas na unos artikla.",
             "F3 skače pravo na maloprodajnu cijenu, kad je ostalo već popunjeno iz prethodnog unosa.",
+            "PageDown odmah dodaje stavku čim su količina, cijena i MPC popunjeni: za predpopunjene artikle jedan pritisak umjesto niza Entera.",
+            "Ulazak u polje količine ili cijene označi postojeću vrijednost, pa kucanje odmah piše preko nje.",
             "Strelica uz polje artikla otvara zadnjih 10 korištenih artikala; kucanjem se traži po cijelom šifarniku.",
           ],
         },
@@ -98,7 +100,11 @@ export const kalkulacije: Upustvo = {
   faq: [
     {
       p: "Kako da brzo unesem puno artikala?",
-      o: "Enter vodi kroz polja i na MPC-u dodaje stavku, pa se cijela kalkulacija može otkucati bez miša. F3 skače pravo na maloprodajnu cijenu.",
+      o: "Enter vodi kroz polja i na MPC-u dodaje stavku, pa se cijela kalkulacija može otkucati bez miša. F3 skače pravo na maloprodajnu cijenu, a PageDown odmah dodaje stavku čim su količina, cijena i MPC popunjeni (kod predpopunjenih artikala: izaberete artikal, ukucate količinu, PageDown).",
+    },
+    {
+      p: "Obrt nije u PDV-u: kako da provjerim predpopunjenu cijenu prema fakturi?",
+      o: "Uz uključenu opciju Automatski dodaj PDV na cijenu, ispod polja se i za predpopunjenu cijenu ispiše rastav: cijena bez PDV-a + 17% = upisana cijena. Iznos bez PDV-a poredite sa ulaznom fakturom (dobavljači cijene iskazuju bez PDV-a).",
     },
     {
       p: "Kako da odštampam kalkulaciju kojoj je račun već plaćen?",
