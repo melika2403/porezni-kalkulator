@@ -1708,22 +1708,36 @@ async function ensureUtf8Mb4() {
     // Predračun tabele — buyerName i ostala polja sadrže bosanske znakove (ć,š…).
     "predracuni",
     "predracun_counters",
+    // In-app obavijesti: title/body nose nazive obrta i tekst na bosanskom
+    // ("...još nije preuzet"), pa latin1 tabela obara INSERT u dnevnom jobu.
+    "user_notifications",
+    // Inbox: admin obavijesti (title/body) i live chat podrške (subject/body) —
+    // sve slobodan tekst koji korisnik i admin kucaju na bosanskom.
+    "announcements",
+    "support_tickets",
+    "support_messages",
   ];
   for (const t of tables) {
-    const [rows] = await sequelize.query(
-      `SELECT CCSA.character_set_name AS cs
-       FROM information_schema.TABLES T
-       JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
-         ON CCSA.collation_name = T.table_collation
-       WHERE T.table_schema = DATABASE() AND T.table_name = ?`,
-      { replacements: [t] },
-    );
-    const cs = rows?.[0]?.cs;
-    if (cs && cs !== "utf8mb4") {
-      console.log(`Konvertujem ${t} -> utf8mb4 (bilo: ${cs})...`);
-      await sequelize.query(
-        `ALTER TABLE \`${t}\` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    // Neuspjela konverzija jedne tabele NE smije oboriti start backenda: ova
+    // funkcija je u .then() lancu čiji .catch() radi process.exit(1).
+    try {
+      const [rows] = await sequelize.query(
+        `SELECT CCSA.character_set_name AS cs
+         FROM information_schema.TABLES T
+         JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
+           ON CCSA.collation_name = T.table_collation
+         WHERE T.table_schema = DATABASE() AND T.table_name = ?`,
+        { replacements: [t] },
       );
+      const cs = rows?.[0]?.cs;
+      if (cs && cs !== "utf8mb4") {
+        console.log(`Konvertujem ${t} -> utf8mb4 (bilo: ${cs})...`);
+        await sequelize.query(
+          `ALTER TABLE \`${t}\` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+        );
+      }
+    } catch (e) {
+      console.warn(`Konverzija ${t} -> utf8mb4 nije uspjela: ${e.message}`);
     }
   }
 }

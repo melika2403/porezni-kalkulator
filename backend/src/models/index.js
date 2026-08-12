@@ -2175,6 +2175,10 @@ const Announcement = sequelize.define(
   {
     tableName: "announcements",
     timestamps: true,
+    // title/body su slobodan tekst na bosanskom (č, ć, š, ž, đ); postojeću
+    // tabelu konvertuje ensureUtf8Mb4 u app.js.
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
     indexes: [{ fields: ["active"] }, { fields: ["audience"] }],
   },
 );
@@ -2227,6 +2231,11 @@ const UserNotification = sequelize.define(
   {
     tableName: "user_notifications",
     timestamps: true,
+    // title/body nose nazive obrta i tekst na bosanskom (č, ć, š, ž, đ) —
+    // bez ovoga tabela pokupi default charset baze i INSERT pukne na "Incorrect
+    // string value". Postojeću tabelu konvertuje ensureUtf8Mb4 u app.js.
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
     indexes: [{ fields: ["userId", "readAt"] }, { fields: ["userId", "createdAt"] }],
   },
 );
@@ -2287,6 +2296,9 @@ const SupportTicket = sequelize.define(
   {
     tableName: "support_tickets",
     timestamps: true,
+    // subject kuca korisnik, na bosanskom
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
     indexes: [{ fields: ["userId"] }, { fields: ["status"] }],
   },
 );
@@ -2311,6 +2323,10 @@ const SupportMessage = sequelize.define(
   {
     tableName: "support_messages",
     timestamps: true,
+    // body je slobodan tekst razgovora; ovdje realno ulijeću i emoji, što je
+    // baš ono što utf8 (3-bajtni) ne prima a utf8mb4 prima
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
     indexes: [{ fields: ["ticketId"] }],
   },
 );

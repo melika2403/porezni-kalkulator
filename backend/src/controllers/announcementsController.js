@@ -7,6 +7,7 @@ const {
   USER_PREF_DEFAULTS,
   orgPrefs,
   userPrefs,
+  citajPrefs,
 } = require("../services/notificationsService");
 const { OrganizationMember, User } = require("../models/index");
 
@@ -81,16 +82,21 @@ async function putPrefs(req, res) {
       }
     }
 
+    // citajPrefs, a ne sirovi member.notifPrefs: ako je u koloni ostao JSON kao
+    // string, spread stringa bi upisao {"0":"{","1":"\"",…} i trajno pokvario
+    // postavke; ako getter pukne na neispravnom JSON-u, snimanje bi vratilo 500.
     if (Object.keys(orgPatch).length) {
       await member.update({
-        notifPrefs: { ...(member.notifPrefs || {}), ...orgPatch },
+        notifPrefs: { ...(citajPrefs(member) || {}), ...orgPatch },
       });
     }
     const u = await User.findByPk(req.user.id, {
       attributes: ["id", "notifPrefs"],
     });
     if (Object.keys(userPatch).length) {
-      await u.update({ notifPrefs: { ...(u.notifPrefs || {}), ...userPatch } });
+      await u.update({
+        notifPrefs: { ...(citajPrefs(u) || {}), ...userPatch },
+      });
     }
     return ok(res, { org: orgPrefs(member), user: userPrefs(u) });
   } catch (e) {
