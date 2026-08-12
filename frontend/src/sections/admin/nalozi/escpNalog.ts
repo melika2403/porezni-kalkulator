@@ -19,7 +19,9 @@ export type NalogField = { key: string; line: number; col: number };
 export type NalogValues = Record<string, string>;
 
 // Mapa polja, obrazac tip 1. Kolone VEĆ uključuju "horizontalni pomak" (+4) iz
-// starog programa — ne dodavati ga ponovo.
+// starog programa, ne dodavati ga ponovo. Linije srednjeg pojasa (mjesto/
+// datum/period/vrsta prihoda) i kolona budžetske organizacije su korigovane
+// 12.8.2026. po poređenju sa referentnim Com_Soft ispisom na papiru.
 export const FIELD_MAP_TIP1: NalogField[] = [
   { key: "uplatio1", line: 1, col: 21 },
   { key: "uplatio2", line: 2, col: 4 },
@@ -36,13 +38,13 @@ export const FIELD_MAP_TIP1: NalogField[] = [
   { key: "primalac3", line: 9, col: 4 },
   { key: "brojObveznika", line: 10, col: 47 },
   { key: "vrstaUplate", line: 10, col: 77 },
-  { key: "mjestoUplate", line: 11, col: 8 },
-  { key: "datumUplate", line: 11, col: 26 },
-  { key: "periodOd", line: 11, col: 70 },
-  { key: "vrstaPrihoda", line: 12, col: 47 },
-  { key: "periodDo", line: 13, col: 70 },
+  { key: "mjestoUplate", line: 12, col: 8 },
+  { key: "datumUplate", line: 12, col: 26 },
+  { key: "periodOd", line: 12, col: 70 },
+  { key: "vrstaPrihoda", line: 13, col: 47 },
+  { key: "periodDo", line: 14, col: 70 },
   { key: "opcina", line: 16, col: 47 },
-  { key: "budzetskaOrg", line: 16, col: 63 },
+  { key: "budzetskaOrg", line: 16, col: 61 },
   { key: "pozivNaBroj", line: 18, col: 47 },
 ];
 
@@ -223,31 +225,35 @@ export function buildPrn(nalozi: NalogValues[], opts: PrnOpts = {}): Uint8Array 
   return Uint8Array.from(out);
 }
 
-// Test vrijednosti (X-evi i 9-ke, kao F3 test iz starog programa). Digit-polja
-// su 9-ke tačne dužine; tekst-polja X-evi ograničene dužine da ne pregaze
-// susjedno polje na istoj liniji.
+// Test vrijednosti (X-evi i 9-ke, kao F3 test iz starog programa). Dužine
+// X-eva su TAČNE max dužine polja izbrojane sa referentnog Com_Soft ispisa:
+// sve linije lijevog bloka završavaju na koloni 34 (npr. uplatio1: 21+13,
+// svrha1: 12+22, primalac1: 14+20, ostale: 4+30). Računi u grupama 3+3+8+2,
+// porezni period u parovima; datum ostaje naš format (odluka vlasnika).
+const X = (n: number) => "X".repeat(n);
+
 export function testNalogValues(): NalogValues {
   return {
-    uplatio1: "XXXXXXXXXXXXXXXXXXXX",
-    uplatio2: "XXXXXXXXXXXXXXXXXXXXXXXXX",
-    uplatio3: "XXXXXXXXXXXXXXXXXXXXXXXXX",
-    racunPosiljaoca: "9999999999999999",
-    svrha1: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    svrha2: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    racunPrimaoca: "9999999999999999",
-    svrha3: "XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    primalac1: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    uplatio1: X(13),
+    uplatio2: X(30),
+    uplatio3: X(30),
+    racunPosiljaoca: "999 999 99999999 99",
+    svrha1: X(22),
+    svrha2: X(30),
+    racunPrimaoca: "999 999 99999999 99",
+    svrha3: X(30),
+    primalac1: X(20),
     iznos: "999.999.999.999,00",
     hitno: "X",
-    primalac2: "XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    primalac3: "XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    primalac2: X(30),
+    primalac3: X(30),
     brojObveznika: "9999999999999", // JIB 13 cifara
     vrstaUplate: "9",
-    mjestoUplate: "XXXXXXXXXXXXXX",
+    mjestoUplate: X(14),
     datumUplate: "99.99.9999",
-    periodOd: "999999", // DDMMGG
+    periodOd: "99 99 99", // DD MM GG
     vrstaPrihoda: "999999",
-    periodDo: "999999",
+    periodDo: "99 99 99",
     opcina: "999",
     budzetskaOrg: "9999999",
     pozivNaBroj: "9999999999",

@@ -250,8 +250,9 @@ export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
       city: form.city.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
-      activityCode: form.activityCode.trim() || undefined,
-      activityName: form.activityName.trim() || undefined,
+      // prazno = null (obriši); undefined bi se izostavio pa brisanje ne bi prošlo
+      activityCode: form.activityCode.trim() || null,
+      activityName: form.activityName.trim() || null,
       defaultSalaryType: form.defaultSalaryType,
       mealAllowancePerDay: form.mealAllowancePerDay.trim()
         ? parseKm(form.mealAllowancePerDay)

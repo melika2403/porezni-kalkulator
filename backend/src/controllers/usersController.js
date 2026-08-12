@@ -29,11 +29,12 @@ function validateUserUpdatePayload(body) {
     data.lastName = lastName.trim();
   }
 
-  if (phone != null) {
-    if (!isNonEmptyString(phone)) {
-      return { ok: false, message: "phone must be a non-empty string" };
+  if (phone !== undefined) {
+    if (phone != null && typeof phone !== "string") {
+      return { ok: false, message: "phone must be a string" };
     }
-    data.phone = phone.trim();
+    // null ili prazno = obriši broj telefona
+    data.phone = phone?.trim() || null;
   }
 
   if (address !== undefined) {

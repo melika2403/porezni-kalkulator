@@ -27,9 +27,10 @@ async function request<T>(
 export type ProfileUpdatePayload = {
   firstName?: string;
   lastName?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
+  // null = obriši vrijednost; undefined/izostavljeno = ne diraj postojeću.
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
   jmbg?: string | null;
   idCardNumber?: string | null;
 };
@@ -283,21 +284,22 @@ export type Organization = {
 export type OrgPayload = {
   name: string;
   type: "COMPANY" | "BUSINESS";
-  taxNumber?: string;
-  pdvNumber?: string;
+  // null = obriši vrijednost; undefined/izostavljeno = ne diraj postojeću.
+  taxNumber?: string | null;
+  pdvNumber?: string | null;
   isPdvObveznik?: boolean;
   pdvObveznikOd?: string | null;
   pdvObveznikDo?: string | null;
   kprPazarIzKp?: boolean;
   jurisdiction?: Jurisdiction | null;
   taxRegime?: TaxRegime | null;
-  activityCode?: string;
-  activityName?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  bankAccount?: string;
+  activityCode?: string | null;
+  activityName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  bankAccount?: string | null;
   /** Lista svih žiro računa; backend prvi tretira kao glavni (bankAccount). */
   bankAccounts?: string[] | null;
   taxCategory?: TaxCategory | null;
@@ -624,13 +626,14 @@ export type WorkerPayload = {
   firstName: string;
   lastName: string;
   role?: "VLASNIK" | "RADNIK";
-  jmbg?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  idCardNumber?: string;
-  bankAccount?: string;
+  // null = obriši vrijednost; undefined/izostavljeno = ne diraj postojeću.
+  jmbg?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  idCardNumber?: string | null;
+  bankAccount?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   defaultStartTime?: string | null;

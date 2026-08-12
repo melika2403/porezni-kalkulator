@@ -780,10 +780,12 @@ function ProfilTab({
     mutation.mutate({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      phone: phone.trim() || undefined,
-      address: address.trim() || undefined,
-      city: city.trim() || undefined,
-      ...(jmbg.trim() && { jmbg: jmbg.trim() }),
+      // Prazno se šalje kao null (ne undefined): backend ažurira samo poslana
+      // polja, pa izostavljeno polje ne bi moglo biti obrisano.
+      phone: phone.trim() || null,
+      address: address.trim() || null,
+      city: city.trim() || null,
+      jmbg: jmbg.trim() || null,
       idCardNumber: idCardNumber.trim() || null,
     });
   };
@@ -2057,15 +2059,19 @@ function orgFormToPayload(
   return {
     name: f.name.trim(),
     type: f.type,
-    ...(f.taxNumber.trim() && { taxNumber: f.taxNumber.trim() }),
-    ...(f.pdvNumber.trim() && { pdvNumber: f.pdvNumber.trim() }),
-    activityCode: f.activityCode.trim() || undefined,
-    activityName: f.activityName.trim() || undefined,
-    ...(f.email.trim() && { email: f.email.trim() }),
-    ...(f.phone.trim() && { phone: f.phone.trim() }),
-    ...(f.address.trim() && { address: f.address.trim() }),
-    ...(f.city.trim() && { city: f.city.trim() }),
-    ...(f.bankAccount.trim() && { bankAccount: f.bankAccount.trim() }),
+    // Prazno se šalje kao null (ne izostavlja se): backend ažurira samo
+    // poslana polja, pa se izostavljeno polje na editu ne bi moglo obrisati.
+    // Edit forme se pune iz postojeće organizacije, tako da neizmijenjena
+    // polja nose staru vrijednost i ništa se ne gubi.
+    taxNumber: f.taxNumber.trim() || null,
+    pdvNumber: f.pdvNumber.trim() || null,
+    activityCode: f.activityCode.trim() || null,
+    activityName: f.activityName.trim() || null,
+    email: f.email.trim() || null,
+    phone: f.phone.trim() || null,
+    address: f.address.trim() || null,
+    city: f.city.trim() || null,
+    bankAccount: f.bankAccount.trim() || null,
     // Režim i kategorija (samo za BUSINESS / obrt)
     taxRegime: f.type === "BUSINESS" ? (f.taxRegime || null) : null,
     taxCategory:
