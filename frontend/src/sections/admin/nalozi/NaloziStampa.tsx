@@ -72,29 +72,38 @@ const OBRAZAC_LABELE: { text: string; line: number; col: number }[] = [
   { text: "HITNO", line: 6.25, col: 70 },
   { text: "BROJ OBVEZNIKA", line: 9.25, col: 47 },
   { text: "VRSTA UPLATE", line: 9.25, col: 68 },
-  { text: "MJESTO I DATUM UPLATE", line: 10.25, col: 8 },
-  { text: "PERIOD OD", line: 10.25, col: 70 },
-  { text: "VRSTA PRIHODA", line: 11.25, col: 47 },
-  { text: "PERIOD DO", line: 12.25, col: 70 },
+  { text: "MJESTO I DATUM UPLATE", line: 11.25, col: 8 },
+  { text: "PERIOD OD", line: 11.25, col: 70 },
+  { text: "VRSTA PRIHODA", line: 12.25, col: 47 },
+  { text: "PERIOD DO", line: 13.25, col: 70 },
   { text: "OPĆINA", line: 15.25, col: 47 },
-  { text: "BUDŽ. ORGANIZACIJA", line: 15.25, col: 63 },
+  { text: "BUDŽ. ORGANIZACIJA", line: 15.25, col: 61 },
   { text: "POZIV NA BROJ", line: 17.25, col: 47 },
 ];
 
-const OBRAZAC_KUCICE: { line: number; col: number; w: number }[] = [
-  { line: 3, col: 48, w: 16 }, // račun pošiljaoca
-  { line: 5, col: 48, w: 16 }, // račun primaoca
-  { line: 7, col: 48, w: 19 }, // iznos
-  { line: 7, col: 70, w: 3 }, // hitno
-  { line: 10, col: 47, w: 13 }, // broj obveznika (JIB)
-  { line: 10, col: 77, w: 2 }, // vrsta uplate
-  { line: 11, col: 70, w: 6 }, // period od
-  { line: 12, col: 47, w: 6 }, // vrsta prihoda
-  { line: 13, col: 70, w: 6 }, // period do
-  { line: 16, col: 47, w: 3 }, // općina
-  { line: 16, col: 63, w: 7 }, // budžetska organizacija
-  { line: 18, col: 47, w: 10 }, // poziv na broj
-];
+// Kućice desnog bloka: samo širina po polju, a linija i kolona se ČITAJU iz
+// FIELD_MAP_TIP1, da se pregled ne može razići sa stvarnom mrežom štampe.
+const KUCICA_SIRINA: Record<string, number> = {
+  racunPosiljaoca: 19, // grupe 3+3+8+2
+  racunPrimaoca: 19,
+  iznos: 19,
+  hitno: 3,
+  brojObveznika: 13, // JIB
+  vrstaUplate: 2,
+  periodOd: 8, // "DD MM GG"
+  vrstaPrihoda: 6,
+  periodDo: 8,
+  opcina: 3,
+  budzetskaOrg: 7,
+  pozivNaBroj: 10,
+};
+
+const OBRAZAC_KUCICE: { line: number; col: number; w: number }[] =
+  FIELD_MAP_TIP1.filter((f) => KUCICA_SIRINA[f.key] != null).map((f) => ({
+    line: f.line,
+    col: f.col,
+    w: KUCICA_SIRINA[f.key],
+  }));
 
 function NalogPapir({ values, naslov }: { values: NalogValues; naslov: string }) {
   return (

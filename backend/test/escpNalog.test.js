@@ -150,30 +150,114 @@ test("mapper: formati vrijednosti (iznos, datumi, računi, JIB)", () => {
     periodDo: "2026-07-31",
   };
   const v = mapper.nalogUVrijednosti(nalog, platilac, "2026-08-14");
-  assert.strictEqual(v.racunPosiljaoca, "3232323232323232");
-  assert.strictEqual(v.racunPrimaoca, "1020500000106698");
+  // računi u grupama kućica 3+3+8+2, period u parovima (Com_Soft referenca)
+  assert.strictEqual(v.racunPosiljaoca, "323 232 32323232 32");
+  assert.strictEqual(v.racunPrimaoca, "102 050 00001066 98");
   assert.strictEqual(v.iznos, "312,39");
-  assert.strictEqual(v.datumUplate, "14.08.2026");
-  assert.strictEqual(v.periodOd, "010726");
-  assert.strictEqual(v.periodDo, "310726");
+  assert.strictEqual(v.datumUplate, "14.08.2026"); // naš format, namjerno
+  assert.strictEqual(v.periodOd, "01 07 26");
+  assert.strictEqual(v.periodDo, "31 07 26");
   assert.strictEqual(v.brojObveznika, "8888888888888");
   assert.strictEqual(v.vrstaUplate, "");
   assert.strictEqual(v.mjestoUplate, "Cazin");
-  // svrha se prelije po granicama riječi bez sječenja riječi
-  assert.strictEqual(v.svrha1, "Vlasnik, Doprinos za PIO/MIO");
-  assert.strictEqual(v.svrha2, "za 07/2026");
-  assert.ok(v.svrha1.length <= 30 && v.svrha2.length <= 40);
+  // uplatilac: naziv, adresa i mjesto teku kao jedan tekst kroz 13/30/30
+  assert.strictEqual(v.uplatio1, "Test obrta,");
+  assert.strictEqual(v.uplatio2, "Ulica 2, Cazin");
+  assert.strictEqual(v.uplatio3, "");
+  // primalac: naziv kroz 20/30, mjesto u trećem redu
+  assert.strictEqual(v.primalac1, "Budžet Federacije");
+  assert.strictEqual(v.primalac2, "BiH");
+  assert.strictEqual(v.primalac3, "SARAJEVO");
+  // svrha se prelije po granicama riječi bez sječenja riječi (22/30/30)
+  assert.strictEqual(v.svrha1, "Vlasnik, Doprinos za");
+  assert.strictEqual(v.svrha2, "PIO/MIO za 07/2026");
   // veliki iznos sa tačkama hiljada
   const v2 = mapper.nalogUVrijednosti({ ...nalog, iznosKm: 1234567.8 }, platilac, "2026-08-14");
   assert.strictEqual(v2.iznos, "1.234.567,80");
 });
 
-test("mapper: podjela teksta, predugačka riječ se tvrdo reže", () => {
+test("Com_Soft referenca: max dužine i pozicije (korekcije 12.8.2026.)", () => {
+  // Sve linije lijevog tekstualnog bloka završavaju TAČNO na koloni 34:
+  // broj X-eva izbrojan sa referentnog ispisa = 34 - početna kolona polja.
+  const t = mod.testNalogValues();
+  const mapa = Object.fromEntries(mod.FIELD_MAP_TIP1.map((f) => [f.key, f]));
+  const lijeviBlok = [
+    "uplatio1", "uplatio2", "uplatio3",
+    "svrha1", "svrha2", "svrha3",
+    "primalac1", "primalac2", "primalac3",
+  ];
+  for (const key of lijeviBlok) {
+    assert.strictEqual(
+      mapa[key].col + t[key].length,
+      34,
+      `${key}: kolona ${mapa[key].col} + ${t[key].length} X-eva mora dati 34`,
+    );
+  }
+  assert.strictEqual(t.uplatio1.length, 13);
+  assert.strictEqual(t.svrha1.length, 22);
+  assert.strictEqual(t.primalac1.length, 20);
+  // srednji pojas jednu liniju niže; JIB i vrsta uplate OSTAJU na liniji 10
+  assert.strictEqual(mapa.mjestoUplate.line, 12);
+  assert.strictEqual(mapa.datumUplate.line, 12);
+  assert.strictEqual(mapa.periodOd.line, 12);
+  assert.strictEqual(mapa.vrstaPrihoda.line, 13);
+  assert.strictEqual(mapa.periodDo.line, 14);
+  assert.strictEqual(mapa.brojObveznika.line, 10);
+  assert.strictEqual(mapa.vrstaUplate.line, 10);
+  assert.strictEqual(mapa.opcina.line, 16);
+  assert.strictEqual(mapa.pozivNaBroj.line, 18);
+  // budžetska organizacija: ista linija, 2 kolone lijevo (63 → 61)
+  assert.strictEqual(mapa.budzetskaOrg.line, 16);
+  assert.strictEqual(mapa.budzetskaOrg.col, 61);
+  // formati testnih vrijednosti: računi 3+3+8+2, period parovi
+  assert.strictEqual(t.racunPosiljaoca, "999 999 99999999 99");
+  assert.strictEqual(t.racunPrimaoca, "999 999 99999999 99");
+  assert.strictEqual(t.periodOd, "99 99 99");
+  assert.strictEqual(t.periodDo, "99 99 99");
+  assert.strictEqual(t.datumUplate, "99.99.9999");
+  // sve vrijednosti staju u tvrdi limit generatora (ništa se ne reže)
+  for (const [key, val] of Object.entries(t)) {
+    assert.ok(
+      val.length <= mod.MAX_DUZINA[key],
+      `${key}: ${val.length} > tvrdi limit ${mod.MAX_DUZINA[key]}`,
+    );
+  }
+});
+
+test("mapper: podjela teksta, predugačka riječ se prelama u sljedeći red", () => {
+  // Riječ koja ne stane ni u prazan red nastavlja u sljedećem: znak iz SREDINE
+  // teksta se ne smije izgubiti. Otpada samo višak preko zadnjeg reda.
   const r = mapper.podijeliTekst("ABCDEFGHIJKLMNOPQRSTUVWXYZ123456 kratko", [10, 10, 10]);
-  assert.strictEqual(r[0], "ABCDEFGHIJ");
-  assert.strictEqual(r[1], "kratko");
+  assert.deepStrictEqual(r, ["ABCDEFGHIJ", "KLMNOPQRST", "UVWXYZ1234"]);
   const prazan = mapper.podijeliTekst("", [5, 5]);
   assert.deepStrictEqual(prazan, ["", ""]);
+});
+
+test("mapper: dug naziv firme se ne odštampa pogrešno napisan", () => {
+  // Prvi red uplatioca ima samo 13 znakova, pa je naziv duži od toga pravilo,
+  // ne izuzetak. Regresija: raniji tvrdi rez je gutao slova iz SREDINE naziva
+  // ("KNJIGOVODSTVENA AGENCIJA" → "KNJIGOVODSTVE AGENCIJA").
+  const platilac = {
+    racun: "3232323232323232",
+    naziv: "KNJIGOVODSTVENA AGENCIJA MARIC",
+    adresa: "Trg 1",
+    mjesto: "Cazin",
+  };
+  const nalog = {
+    tip: "prenos", naziv: "Radnik", mjesto: "Cazin", racun: "1613000119843555",
+    svrha: "Neto plata", iznosKm: 1030, jib: "", vrstaPrihoda: "", opcina: "",
+    budzetskaOrganizacija: "", pozivNaBroj: "", periodOd: "", periodDo: "",
+  };
+  const v = mapper.nalogUVrijednosti(nalog, platilac, "2026-08-14");
+  // naziv se prelama preko reda (uredno na papiru), ali bez ijednog izgubljenog
+  // slova: rastavljeni redovi bez razmaka daju tačno polazni tekst
+  assert.strictEqual(v.uplatio1, "KNJIGOVODSTVE");
+  assert.strictEqual(v.uplatio1 + v.uplatio2.split(" ")[0], "KNJIGOVODSTVENA");
+  const bezRazmaka = (s) => s.replace(/\s+/g, "");
+  assert.strictEqual(
+    bezRazmaka(v.uplatio1 + v.uplatio2 + v.uplatio3),
+    bezRazmaka("KNJIGOVODSTVENA AGENCIJA MARIC, Trg 1, Cazin"),
+  );
 });
 
 test("fajl počinje TAČNO sa 1B 40, bez ZoneTransfer/ZoneId sadržaja", () => {

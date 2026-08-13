@@ -177,3 +177,13 @@ Sve iz DIO A implementirano, u admin panelu (/admin/nalozi, "Štampa naloga"):
 - **Testovi:** backend/test/escpNalog.test.js (13 testova: init bajtovi, ESC $ za kolone 4 i 77, 21 CRLF + FF, filtriranje, transliteracija, PC852 bajtovi, rezanje, kalibracija, formati mappera, čistoća toka).
 - **Kompatibilnost:** nije vezano za LX-350; radi na svakom matričnom pisaču sa Epson ESC/P emulacijom (vidi "Kompatibilnost pisača" u DIO B). Admin stranica to i naglašava da klijente sa drugim modelom ne odvrati od probe.
 - **OSTAJE:** probna štampa na stvarnom LX-350 (kalibracija pomaka, provjera PC852 izbora tabele na konkretnom primjerku pisača), vrijednost polja "vrsta uplate".
+
+## Korekcije po referentnom ispisu (12.08.2026)
+
+Probna štampa na Grafis obrascu upoređena sa Com_Soft test ispisom na istom papiru; mreža korigovana po stvarnom papiru (ovo nadjačava mjere iz Faza 0 za navedena polja):
+
+- **Max dužine višerednih polja (broj X-eva sa Com_Soft testa):** uplatio 13/30/30, svrha 22/30/30, primalac 20/30/30. Sve linije lijevog bloka završavaju TAČNO na koloni 34 (početna kolona + max = 34), što je nezavisno potvrdilo i brojanja i mapu kolona. GRANICE u nalogVrijednosti.ts i test X-evi postavljeni na tačne max dužine.
+- **Formati:** računi "999 999 99999999 99" (grupe 3+3+8+2), porezni period od/do "99 99 99" (parovi). Datum uplate OSTAJE "DD.MM.GGGG" (odluka vlasnika: naš format je ispravniji od Com_Soft-ovog).
+- **Pozicije, srednji pojas jednu liniju niže:** mjesto uplate 11→12, datum uplate 11→12, period od 11→12, vrsta prihoda 12→13, period do 13→14. Linije 1-10 (uključujući JIB i vrstu uplate na 10), općina (16) i poziv na broj (18) NEPROMIJENJENI. Budžetska organizacija: ostaje linija 16, kolona 63→61.
+- **Sastavljanje uplatioca:** naziv+adresa+mjesto se spajaju zarezima u jedan tekst i prelamaju po riječima kroz 13/30/30 (prva linija od 13 znakova ne može primiti naziv; Com_Soft isto slaže "Ime, adresa, i tel." kroz tri reda). Primalac: naziv teče kroz 20/30, mjesto ostaje treći red.
+- **Testovi:** mapper očekivanja ažurirana + novi test "Com_Soft referenca" (kolona+X-evi=34 za svih 9 linija lijevog bloka, pozicije srednjeg pojasa, formati, sve test vrijednosti unutar tvrdih limita).
