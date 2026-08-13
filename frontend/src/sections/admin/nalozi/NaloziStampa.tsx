@@ -73,11 +73,11 @@ const OBRAZAC_LABELE: { text: string; line: number; col: number }[] = [
   { text: "BROJ OBVEZNIKA", line: 9.25, col: 47 },
   { text: "VRSTA UPLATE", line: 9.25, col: 68 },
   { text: "MJESTO I DATUM UPLATE", line: 11.25, col: 8 },
-  { text: "PERIOD OD", line: 11.25, col: 70 },
+  { text: "PERIOD OD", line: 11.25, col: 68 },
   { text: "VRSTA PRIHODA", line: 12.25, col: 47 },
-  { text: "PERIOD DO", line: 13.25, col: 70 },
+  { text: "PERIOD DO", line: 13.25, col: 68 },
   { text: "OPĆINA", line: 15.25, col: 47 },
-  { text: "BUDŽ. ORGANIZACIJA", line: 15.25, col: 61 },
+  { text: "BUDŽ. ORGANIZACIJA", line: 15.25, col: 62 },
   { text: "POZIV NA BROJ", line: 17.25, col: 47 },
 ];
 
@@ -90,11 +90,11 @@ const KUCICA_SIRINA: Record<string, number> = {
   hitno: 3,
   brojObveznika: 13, // JIB
   vrstaUplate: 2,
-  periodOd: 8, // "DD MM GG"
+  periodOd: 10, // "DD  MM  GG"
   vrstaPrihoda: 6,
-  periodDo: 8,
+  periodDo: 10,
   opcina: 3,
-  budzetskaOrg: 7,
+  budzetskaOrg: 13, // cifra po kućici, "9 9 9 9 9 9 9"
   pozivNaBroj: 10,
 };
 

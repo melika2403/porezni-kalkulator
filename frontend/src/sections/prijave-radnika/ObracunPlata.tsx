@@ -1473,6 +1473,13 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// "datoteke" uz 1-4, "datoteka" uz 5 i više (naših paketa ima najviše 5).
+function datotekaPadez(n: number): string {
+  return n % 10 >= 1 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)
+    ? "datoteke"
+    : "datoteka";
+}
+
 // Lista kartica koja je po defaultu sažeta: prikaže prve par, ostatak zamuti
 // (gradient) sa dugmetom "Prikaži sve". Otvoreno → "Sakrij sve" istim dugmetom.
 function FadePreviewList({ cards }: { cards: React.ReactNode[] }) {
@@ -2026,15 +2033,27 @@ function MonthlyPanel({
         if (pres?.length) setIzvozPreskoceni(pres);
         throw new Error(IZVOZ_GRESKE[r.error] || r.error);
       }
-      // Download u mutationFn: neispravan base64 (server bug) završi kao
-      // error state, a ne kao izuzetak POSLIJE prikazanog "preuzeto".
-      const bytes = Uint8Array.from(atob(r.data.base64), (c) =>
-        c.charCodeAt(0),
-      );
-      triggerBlobDownload(
-        new Blob([bytes], { type: "text/plain" }),
-        r.data.fileName,
-      );
+      // Dekodiranje SVIH datoteka prije ijednog downloada: neispravan base64
+      // (server bug) završi kao error state, a ne kao izuzetak POSLIJE
+      // prikazanog "preuzeto". Raiffeisen se dijeli u više datoteka (vrsta i
+      // svrha plaćanja se u bankarstvu biraju po paketu); odgovor bez liste
+      // datoteka pada na staro jedno-datotečno ponašanje.
+      const datoteke = r.data.datoteke?.length
+        ? r.data.datoteke
+        : [{ fileName: r.data.fileName, base64: r.data.base64 }];
+      const blobovi = datoteke.map((d) => ({
+        fileName: d.fileName,
+        blob: new Blob(
+          [Uint8Array.from(atob(d.base64), (c) => c.charCodeAt(0))],
+          { type: "text/plain" },
+        ),
+      }));
+      // Razmak između preuzimanja: preglednici odbace niz brzih uzastopnih
+      // klikova (Safari zadrži samo zadnji), pa bi dio paketa tiho izostao.
+      blobovi.forEach((b, i) => {
+        if (i === 0) triggerBlobDownload(b.blob, b.fileName);
+        else setTimeout(() => triggerBlobDownload(b.blob, b.fileName), i * 400);
+      });
       return { data: r.data, banka: banka.value };
     },
     onMutate: () => {
@@ -4443,9 +4462,41 @@ function MonthlyPanel({
                         lineHeight: 1.5,
                       }}
                     >
-                      Datoteka <strong>{izvozRezultat.fileName}</strong> je
-                      preuzeta: {izvozRezultat.meta.brojNaloga} naloga, ukupno{" "}
-                      {fmtKM(izvozRezultat.meta.ukupnoKm)} KM.
+                      {izvozRezultat.datoteke &&
+                      izvozRezultat.datoteke.length > 1 ? (
+                        <>
+                          Pokrenuto je preuzimanje{" "}
+                          {izvozRezultat.datoteke.length}{" "}
+                          {datotekaPadez(izvozRezultat.datoteke.length)} (
+                          {izvozRezultat.meta.brojNaloga} naloga, ukupno{" "}
+                          {fmtKM(izvozRezultat.meta.ukupnoKm)} KM). Ako
+                          preglednik pita za dozvolu preuzimanja više datoteka,
+                          potvrdite je, inače neće sve stići. Svaku uvezite kao
+                          poseban paket:
+                          <ul
+                            style={{
+                              margin: "0.3rem 0 0",
+                              paddingLeft: "1.1rem",
+                            }}
+                          >
+                            {izvozRezultat.datoteke.map((d) => (
+                              <li key={d.fileName}>
+                                <strong>{d.fileName}</strong>
+                                {d.naslov ? `: ${d.naslov}` : ""},{" "}
+                                {d.brojNaloga}{" "}
+                                {d.brojNaloga === 1 ? "nalog" : "naloga"},{" "}
+                                {fmtKM(d.ukupnoKm)} KM
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : (
+                        <>
+                          Datoteka <strong>{izvozRezultat.fileName}</strong> je
+                          preuzeta: {izvozRezultat.meta.brojNaloga} naloga,
+                          ukupno {fmtKM(izvozRezultat.meta.ukupnoKm)} KM.
+                        </>
+                      )}
                     </div>
                   )}
                   {izvozPreskoceni.length > 0 && (
@@ -4502,6 +4553,19 @@ function MonthlyPanel({
                         potpišete.
                       </li>
                     </ol>
+                    {izvozBanka === "raiffeisen" && (
+                      <p style={{ margin: "0 0 0.6rem" }}>
+                        <strong style={{ color: "var(--ink)" }}>
+                          Raiffeisen:
+                        </strong>{" "}
+                        izvoz se dijeli u više datoteka jer se u bankarstvu
+                        vrsta i svrha plaćanja biraju za cijeli paket (dozvolite
+                        pregledniku preuzimanje više datoteka ako pita).
+                        Datoteku <em>doprinosi</em> uvezite kao javne prihode, a
+                        ostale kao plaćanja na tekući račun u banci sa svrhom:
+                        plate 511, topli obrok 518, prevoz 519, regres 110.
+                      </p>
+                    )}
                     Ako uvoz u vaše bankarstvo ne radi, javite nam se na{" "}
                     <a href="mailto:info@poreznikalkulator.ba">
                       info@poreznikalkulator.ba

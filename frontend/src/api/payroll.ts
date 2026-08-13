@@ -482,13 +482,32 @@ export type BankExportPreskocen = {
   razlog: string;
 };
 
-export type BankExportRezultat = {
+export type BankExportDatoteka = {
   fileName: string;
-  /** kompletna datoteka, binarno, za download */
   base64: string;
+  /** Raiffeisen: koji paket i pod kojom vrstom/svrhom se uvozi; ostale banke null */
+  naslov: string | null;
+  brojNaloga: number;
+  ukupnoKm: number;
+};
+
+export type BankExportRezultat = {
+  /** prva (ili jedina) datoteka; kompletna lista je u datoteke[] */
+  fileName: string;
+  base64: string;
+  /** sve datoteke izvoza: Raiffeisen se dijeli po paketu (doprinosi, plate,
+   * topli obrok, prevoz, regres), ostale banke imaju jednu. Opcionalno jer
+   * odgovor servera od prije deploya nema ovo polje (klijent tada koristi
+   * fileName/base64 iznad). */
+  datoteke?: BankExportDatoteka[];
   /** nalozi koji NISU u datoteci (npr. radnik bez žiro računa) + razlog */
   preskoceni: BankExportPreskocen[];
-  meta: { profil: BankExportProfil; brojNaloga: number; ukupnoKm: number };
+  meta: {
+    profil: BankExportProfil;
+    brojNaloga: number;
+    brojDatoteka: number;
+    ukupnoKm: number;
+  };
 };
 
 // Datoteka sa nalozima mjeseca za uvoz u e-bankarstvo (isti nalozi kao zbirne

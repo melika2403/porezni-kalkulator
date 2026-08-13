@@ -46,9 +46,39 @@ const ASCII_MAPA = {
   "Ž": "Z",
   "Š": "S",
   "Đ": "DJ",
+  // Tipografska interpunkcija koja stiže iz naziva prekopiranih iz Worda.
+  // Bez ovoga bi jedna crtica u nazivu firme oborila CIJELI izvoz, a ovo su
+  // display polja gdje je zamjena bezopasna. Ključevi su escape sekvence jer
+  // su ti znakovi ili nevidljivi ili zabranjeni u kodu (em dash).
+  "\u2018": "'", // lijevi jednostruki navodnik
+  "\u2019": "'", // desni jednostruki (apostrof iz Worda)
+  "\u201a": "'", // donji jednostruki
+  "\u2013": "-", // en dash
+  "\u2014": "-", // em dash
+  "\u2015": "-", // horizontalna crta
+  "\u2212": "-", // minus
+  "\u00ad": "-", // meki prelom
+  "\u2022": "-", // bullet
+  "\u2026": "...", // tri tacke
+  "\u00a0": " ", // nedjeljivi razmak
 };
 
+// Navodnici se UKLANJAJU iz tekstualnih polja: novo RBBHnet online bankarstvo
+// odbija uvoz naloga sa navodnicima (potvrđeno 13.8.2026. na stvarnom uvozu:
+// naziv '"ELEKTRO BIKI" OBRT' pao, isti fajl bez navodnika prošao). Uklanjanje
+// ide PRIJE dopune polja razmacima, pa širine slogova ostaju tačne (SM 211).
+const NAVODNICI = /["„“”«»‹›]/g;
+const bezNavodnika = (value) => String(value ?? "").replace(NAVODNICI, "");
+
 class RaiffeisenGreska extends Error {}
+
+// Zadnji pokušaj prije greške: skini dijakritiku Unicode dekompozicijom
+// (Ö→O, É→E, Ç→C). Strano slovo u imenu radnika ne smije oboriti izvoz kad
+// za njega postoji čitljiv ASCII oblik. Vraća undefined ako ga nema.
+function bezDijakritike(znak) {
+  const bez = znak.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return bez && /^[\x20-\x7e]+$/.test(bez) ? bez : undefined;
+}
 
 function enkodiraj(text, ctx) {
   const bajtovi = [];
@@ -58,7 +88,7 @@ function enkodiraj(text, ctx) {
       bajtovi.push(kod);
       continue;
     }
-    const zamjena = ASCII_MAPA[znak];
+    const zamjena = ASCII_MAPA[znak] ?? bezDijakritike(znak);
     if (zamjena === undefined) {
       throw new RaiffeisenGreska(
         `Nepodržan znak ${JSON.stringify(znak)} u ${ctx.polje} (${ctx.nalog}): ${JSON.stringify(String(text))}`,
@@ -70,9 +100,61 @@ function enkodiraj(text, ctx) {
 }
 
 function tekst(value, len, ctx) {
-  const bajtovi = enkodiraj(String(value ?? ""), ctx).slice(0, len);
+  const bajtovi = enkodiraj(bezNavodnika(value), ctx).slice(0, len);
   while (bajtovi.length < len) bajtovi.push(0x20);
   return bajtovi;
+}
+
+// Polje od 105 znakova (naziv primaoca, svrha) je semantički 3 REDA po 35:
+// u oba Com_Soft originala svaki nastavak počinje tačno na offsetu 35 polja
+// i nijedna riječ ne prelazi granicu reda, a novo online bankarstvo pri
+// ručnom unosu isto ograničava "maksimalan broj karaktera po redu je 35".
+// Tekst se zato prelama po riječima u redove od 35 dopunjene razmacima;
+// riječ duža od reda se nastavlja u sljedećem (znak iz sredine se ne smije
+// izgubiti); višak preko trećeg reda otpada.
+//
+// Prelom reda je eksplicitan na "\n" ILI na DVA I VIŠE razmaka: višeredni
+// nazivi iz Com_Softovog registra ("OSIGURANJA I REOSIGURANJA FBIH" +
+// "FOND SOLIDARNOSTI") u jednom tekstu nose upravo dopunu razmacima do 35,
+// pa se tako reprodukuju bajt u bajt (golden fixtures). Jedan razmak je
+// obična granica riječi.
+function tekst35x3(value, ctx) {
+  const redovi = ["", "", ""];
+  let i = 0;
+  const segmenti = bezNavodnika(value)
+    .trim()
+    .split(/\n|[ \t]{2,}/)
+    .filter((s) => s.trim());
+  for (let s = 0; s < segmenti.length && i < 3; s++) {
+    if (s > 0) i++;
+    if (i >= 3) break;
+    const rijeci = segmenti[s]
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((r) => String.fromCharCode(...enkodiraj(r, ctx)));
+    for (const rijec of rijeci) {
+      let r = rijec;
+      while (i < 3 && r) {
+        const kandidat = redovi[i] ? `${redovi[i]} ${r}` : r;
+        if (kandidat.length <= 35) {
+          redovi[i] = kandidat;
+          r = "";
+        } else if (!redovi[i]) {
+          redovi[i] = r.slice(0, 35);
+          r = r.slice(35);
+          i++;
+        } else {
+          i++;
+        }
+      }
+      if (i >= 3) break;
+    }
+  }
+  const bajtovi = [];
+  for (const red of redovi) {
+    for (const c of red.padEnd(35, " ")) bajtovi.push(c.charCodeAt(0));
+  }
+  return bajtovi; // tačno 105
 }
 
 function racun16(value, ctx) {
@@ -205,11 +287,11 @@ function formatRaiffeisen(file) {
       upisi(red, 1, enkodiraj("UO", { ...ctx, polje: "prefiks" }));
       upisi(red, 3, desno(i + 1, 9));
       upisi(red, 12, enkodiraj("8889 07 ", ctx));
-      upisi(red, 20, tekst(nalog.naziv, 105, { ...ctx, polje: "naziv primaoca" }));
+      upisi(red, 20, tekst35x3(nalog.naziv, { ...ctx, polje: "naziv primaoca" }));
       upisi(red, 125, racun16(nalog.racun, { ...ctx, polje: "račun primaoca" }));
       upisi(red, 141, iznosDesno(nalog.iznosFeninga, 36, { ...ctx, polje: "iznos" }));
       upisi(red, 177, datumGGGGMMDD(file.datumValute, { ...ctx, polje: "datum valute" }));
-      upisi(red, 185, tekst(nalog.svrha, 105, { ...ctx, polje: "svrha" }));
+      upisi(red, 185, tekst35x3(nalog.svrha, { ...ctx, polje: "svrha" }));
       redovi.push(red);
       return;
     }
@@ -218,11 +300,11 @@ function formatRaiffeisen(file) {
     upisi(red, 3, desno(i + 1, 9));
     // Konstanta iz svih redova starog programa; "01" je šifra plaćanja.
     upisi(red, 12, enkodiraj("8888 01 ", ctx));
-    upisi(red, 20, tekst(nalog.naziv, 105, { ...ctx, polje: "naziv primaoca" }));
+    upisi(red, 20, tekst35x3(nalog.naziv, { ...ctx, polje: "naziv primaoca" }));
     upisi(red, 125, racun16(nalog.racun, { ...ctx, polje: "račun primaoca" }));
     upisi(red, 141, iznosDesno(nalog.iznosFeninga, 36, { ...ctx, polje: "iznos" }));
     upisi(red, 177, datumGGGGMMDD(file.datumValute, { ...ctx, polje: "datum valute" }));
-    upisi(red, 185, tekst(nalog.svrha, 105, { ...ctx, polje: "svrha" }));
+    upisi(red, 185, tekst35x3(nalog.svrha, { ...ctx, polje: "svrha" }));
     upisi(red, 290, fiksneCifre(nalog.pozivNaBroj, 10, { ...ctx, polje: "poziv na broj" }));
     upisi(red, 300, fiksneCifre(nalog.jib, 13, { ...ctx, polje: "JIB" }));
     upisi(red, 313, enkodiraj("0", ctx)); // vrsta uplate: 0 redovna
@@ -240,8 +322,80 @@ function formatRaiffeisen(file) {
   return Buffer.concat(dijelovi);
 }
 
+// ── Podjela izvoza u zasebne datoteke (pakete) ───────────────────────────────
+// RBBHnet bira VRSTU PLAĆANJA i ŠIFRU SVRHE po paketu pri uvozu (javni
+// prihodi; "plaćanja na tekući račun u banci" sa 511 Plata / 518 Topli obrok /
+// 519 Naknada za prevoz / 110 Uplata), a miješani paket odbija čim sadrži
+// prenos na račun fizičkog lica (probni uvoz 11.8.2026.). Zato se doprinosi i
+// svaka kategorija ličnih isplata izvoze kao ZASEBNE datoteke; prazni dijelovi
+// se izostavljaju. Kategoriju na prenosima postavlja obracunAdapter.
+const RAIFFEISEN_DIJELOVI = [
+  {
+    sufiks: "doprinosi",
+    naslov: "Doprinosi i porezi: uvoz kao javni prihodi",
+    pripada: (n) => n.tip === "javniPrihod",
+  },
+  {
+    sufiks: "plate",
+    naslov: "Neto plate: plaćanja na tekući račun, svrha 511 - Plata",
+    // prenos bez kategorije (npr. ručno sastavljen ulaz) ide sa platama
+    pripada: (n) => n.tip === "prenos" && (n.kategorija === "plata" || !n.kategorija),
+  },
+  {
+    sufiks: "topli-obrok",
+    naslov: "Topli obrok: plaćanja na tekući račun, svrha 518 - Topli obrok",
+    pripada: (n) => n.tip === "prenos" && n.kategorija === "obrok",
+  },
+  {
+    sufiks: "prevoz",
+    naslov: "Putni troškovi: plaćanja na tekući račun, svrha 519 - Naknada za prevoz",
+    pripada: (n) => n.tip === "prenos" && n.kategorija === "prevoz",
+  },
+  {
+    sufiks: "regres",
+    naslov: "Regres: plaćanja na tekući račun, svrha 110 - Uplata",
+    pripada: (n) => n.tip === "prenos" && n.kategorija === "regres",
+  },
+  // Hvatač za nove vrste isplata: nova stavka u obracunAdapter-u (npr.
+  // otpremnina) ne smije oboriti CIJELI izvoz, nego dobija svoj paket a
+  // korisnik joj svrhu izabere pri uvozu. Mora ostati ZADNJI.
+  {
+    sufiks: "ostalo",
+    naslov:
+      "Ostale isplate: plaćanja na tekući račun, svrhu izaberite pri uvozu",
+    pripada: (n) => n.tip === "prenos",
+  },
+];
+
+// Nalozi → neprazni dijelovi [{ sufiks, naslov, nalozi }]. Nalog koji ne
+// pripada nijednom dijelu baca grešku: ništa ne smije tiho ispasti iz izvoza.
+function podijeliZaRaiffeisen(nalozi) {
+  const rasporedjeni = new Set();
+  const dijelovi = [];
+  for (const d of RAIFFEISEN_DIJELOVI) {
+    const grupa = nalozi.filter((n) => !rasporedjeni.has(n) && d.pripada(n));
+    for (const n of grupa) rasporedjeni.add(n);
+    if (grupa.length > 0) {
+      dijelovi.push({ sufiks: d.sufiks, naslov: d.naslov, nalozi: grupa });
+    }
+  }
+  const bezDijela = nalozi.find((n) => !rasporedjeni.has(n));
+  if (bezDijela) {
+    throw new RaiffeisenGreska(
+      `Nalog bez dijela za Raiffeisen podjelu (tip ${JSON.stringify(bezDijela.tip)}, kategorija ${JSON.stringify(bezDijela.kategorija)})`,
+    );
+  }
+  return dijelovi;
+}
+
 // Izlaz je čisti ASCII pa dekodiranje za pregled ne treba mapu; prazna mapa
 // ostaje radi kompatibilnosti sa admin harness pregledom (cp852 legacy izbor).
 const CP852_U_SLOVO = new Map();
 
-module.exports = { formatRaiffeisen, RaiffeisenGreska, RECORD_LEN, CP852_U_SLOVO };
+module.exports = {
+  formatRaiffeisen,
+  podijeliZaRaiffeisen,
+  RaiffeisenGreska,
+  RECORD_LEN,
+  CP852_U_SLOVO,
+};

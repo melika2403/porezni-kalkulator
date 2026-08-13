@@ -40,11 +40,14 @@ export const FIELD_MAP_TIP1: NalogField[] = [
   { key: "vrstaUplate", line: 10, col: 77 },
   { key: "mjestoUplate", line: 12, col: 8 },
   { key: "datumUplate", line: 12, col: 26 },
-  { key: "periodOd", line: 12, col: 70 },
+  // period: parovi sa duplim razmakom (korak 4 znaka = korak kućica obrasca),
+  // početak 2 lijevo od ranijeg; budžetska: razmak između svake cifre, 1 desno
+  // (kalibrisano po probnoj štampi 13.8.2026.)
+  { key: "periodOd", line: 12, col: 68 },
   { key: "vrstaPrihoda", line: 13, col: 47 },
-  { key: "periodDo", line: 14, col: 70 },
+  { key: "periodDo", line: 14, col: 68 },
   { key: "opcina", line: 16, col: 47 },
-  { key: "budzetskaOrg", line: 16, col: 61 },
+  { key: "budzetskaOrg", line: 16, col: 62 },
   { key: "pozivNaBroj", line: 18, col: 47 },
 ];
 
@@ -251,11 +254,11 @@ export function testNalogValues(): NalogValues {
     vrstaUplate: "9",
     mjestoUplate: X(14),
     datumUplate: "99.99.9999",
-    periodOd: "99 99 99", // DD MM GG
+    periodOd: "99  99  99", // DD MM GG, dupli razmak = korak kućica
     vrstaPrihoda: "999999",
-    periodDo: "99 99 99",
+    periodDo: "99  99  99",
     opcina: "999",
-    budzetskaOrg: "9999999",
+    budzetskaOrg: "9 9 9 9 9 9 9", // cifra po kućici
     pozivNaBroj: "9999999999",
   };
 }
