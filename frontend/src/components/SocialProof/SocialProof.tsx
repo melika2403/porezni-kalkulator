@@ -9,8 +9,6 @@ import { useQuery } from "@tanstack/react-query";
 import styles from "./SocialProof.module.css";
 import { getPublicStats, type PublicStats } from "src/api/publicStats";
 
-const nf = new Intl.NumberFormat("bs-BA");
-
 /** Count-up od 0 do target kad element uđe u viewport (jednom). */
 function CountUp({ target }: { target: number }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -50,7 +48,9 @@ function CountUp({ target }: { target: number }) {
 
   return (
     <span ref={ref} className={styles.big}>
-      {nf.format(value)}
+      {/* bez separatora hiljada: "1,000" u serif brojci liči na "1" (odluka
+          vlasnika), čisto "1000" je čitljivije */}
+      {value}
       <sup className={styles.plus}>+</sup>
     </span>
   );

@@ -13,10 +13,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   formatRaiffeisen,
+  podijeliZaRaiffeisen,
   RaiffeisenGreska,
 } = require("../src/services/paymentExport/raiffeisenFormatter");
 
 const FIXTURES = path.join(__dirname, "fixtures");
+
+// Višeredni naziv/svrha iz Com_Softovog registra: u jednom tekstu su redovi
+// dopunjeni razmacima do 35 (tako izgledaju i u originalnim datotekama), pa
+// se ovako zadaju i u goldenima. Formatter to mora prepoznati kao prelom reda.
+const dvaReda = (prvi, drugi) => prvi.padEnd(35, " ") + drugi;
 
 function ucitaj(ime) {
   return fs.readFileSync(path.join(FIXTURES, ime));
@@ -90,7 +96,7 @@ test("golden: raiffeisen platavlasnik (5 naloga vlasnika), bajt po bajt", () => 
     nalozi: [
       jp("FOND ZA PIO", "1020500000106698", "DOPRINOS ZA PIO", 31239, "712112", "124", "5102001"),
       jp("ZA ZDRAVSTVENO OSIGURANJE", "3385002275166153", "DOPRINOS ZA ZDRAV 89 8", 20860, "712111", "019", "0000000"),
-      jp("OSIGURANJA I REOSIGURANJA FBIH     FOND SOLIDARNOSTI", "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 2369, "712111", "124", "0000000"),
+      jp(dvaReda("OSIGURANJA I REOSIGURANJA FBIH", "FOND SOLIDARNOSTI"), "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 2369, "712111", "124", "0000000"),
       jp("ZAPOSLJAVANJE USK A", "3380002210012958", "OD NEZAPOSLENOSTI 70", 2243, "712113", "019", "0000000"),
       jp("ZAPOSLJAVANJE", "1610000028570003", "OD NEZAPOSLENOSTI 30", 961, "712113", "124", "0000000"),
     ],
@@ -105,7 +111,7 @@ test("golden: raiffeisen plataradnici (8 naloga radnika), bajt po bajt", () => {
     opis: "PLATE ZA 2026060",
     nalozi: [
       jp("FOND ZA PIO", "1020500000106698", "DOPRINOS ZA PIO", 31460, "712112", "124", "5102001"),
-      jp("OSIGURANJA I REOSIGURANJA FBIH     FOND SOLIDARNOSTI", "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 2386, "712111", "124", "0000000"),
+      jp(dvaReda("OSIGURANJA I REOSIGURANJA FBIH", "FOND SOLIDARNOSTI"), "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 2386, "712111", "124", "0000000"),
       jp("ZAPOSLJAVANJE", "1610000028570003", "OD NEZAPOSLENOSTI 30", 968, "712113", "124", "0000000"),
       jp("BUDZET USK A", "3380002210005877", "VODOPRIVREDNA NAKNADA", 516, "722529", "124", "0000000"),
       // BUDŽET sa pravim Ž: ASCII transliteracija mora dati "Z" (original ima
@@ -157,7 +163,7 @@ test("golden: raiffeisen novi original (radi na novom online bankarstvu)", () =>
     nalozi: [
       jp7("FOND ZA PIO", "1020500000106698", "DOPRINOS ZA PIO", 52845, "712112", "5102001"),
       jp7("ZA ZDRAVSTVENO OSIGURANJE", "3385002275166153", "DOPRINOS ZA ZDRAV 89 8", 35287, "712111", "0000000"),
-      jp7("OSIGURANJA I REOSIGURANJA FBIH     FOND SOLIDARNOSTI", "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 4008, "712111", "0000000"),
+      jp7(dvaReda("OSIGURANJA I REOSIGURANJA FBIH", "FOND SOLIDARNOSTI"), "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 4008, "712111", "0000000"),
       jp7("ZAPOSLJAVANJE USK A", "3380002210012958", "OD NEZAPOSLENOSTI 70", 3794, "712113", "0000000"),
       jp7("ZAPOSLJAVANJE", "1610000028570003", "OD NEZAPOSLENOSTI 30", 1626, "712113", "0000000"),
     ],
@@ -227,14 +233,24 @@ test("golden: raiffeisen platasviradnici (3 UO prenosa + 8 UJ), bajt po bajt", (
     nalozi: [
       jp6("FOND ZA PIO", "1020500000106698", "DOPRINOS ZA PIO", 461837, "712112", "5102001"),
       jp6("ZA ZDRAVSTVENO OSIGURANJE", "3385002275166153", "DOPRINOS ZA ZDRAV 89 8", 308389, "712111", "0000000"),
-      jp6("OSIGURANJA I REOSIGURANJA FBIH     FOND SOLIDARNOSTI", "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 35028, "712111", "0000000"),
+      jp6(dvaReda("OSIGURANJA I REOSIGURANJA FBIH", "FOND SOLIDARNOSTI"), "1020500000064018", "DOPRINOS ZA ZDRAV 10 2", 35028, "712111", "0000000"),
       jp6("ZAPOSLJAVANJE USK A", "3380002210012958", "OD NEZAPOSLENOSTI 70", 33158, "712113", "0000000"),
       jp6("ZAPOSLJAVANJE", "1610000028570003", "OD NEZAPOSLENOSTI 30", 14210, "712113", "0000000"),
       jp6("BUDZET USK A", "3380002210005877", "POREZ NA DOHODAK", 88419, "716111", "0000000"),
       jp6("BUDZET USK A", "3380002210005877", "VODOPRIVREDNA NAKNADA", 7729, "722529", "0000000"),
       jp6("BUDŽET USK", "3380002210005877", "PRIRODNIH NESRECA", 7729, "722581", "0000000"),
-      prenos("KIB DD VELIKA KLADUSA              POSLOVNICA CAZIN", "1982010000000083", "PO DOSTAVLJENOM SPISKU             ZA 2026 06 0", 1030506),
-      prenos("UNI CREDIT ZAGREBACKA BANKA        FILIJALA CAZIN", "3385202502482151", "DOSTAVLJENOJ SPECIFIKACIJI         ZA UPOSLENE RADNIKE", 103084),
+      prenos(
+        dvaReda("KIB DD VELIKA KLADUSA", "POSLOVNICA CAZIN"),
+        "1982010000000083",
+        dvaReda("PO DOSTAVLJENOM SPISKU", "ZA 2026 06 0"),
+        1030506,
+      ),
+      prenos(
+        dvaReda("UNI CREDIT ZAGREBACKA BANKA", "FILIJALA CAZIN"),
+        "3385202502482151",
+        dvaReda("DOSTAVLJENOJ SPECIFIKACIJI", "ZA UPOSLENE RADNIKE"),
+        103084,
+      ),
       prenos("DD FILIJALA CAZIN", "1610000000000011", "DOSTAVLJENOM SPISKU 6 RADNIKA", 206112),
     ],
   };
@@ -243,6 +259,138 @@ test("golden: raiffeisen platasviradnici (3 UO prenosa + 8 UJ), bajt po bajt", (
     original.map((b) => (b === 0xa6 ? 0x5a : b === 0x8f ? 0x43 : b)),
   );
   uporedi(formatRaiffeisen(file), ocekivano, "platasviradnici");
+});
+
+// Novo online bankarstvo odbija uvoz naloga sa navodnicima (potvrđeno na
+// stvarnom uvozu 13.8.2026.: '"ELEKTRO BIKI" OBRT' pao, bez navodnika prošao).
+// Navodnici se uklanjaju PRIJE dopune polja: SM slog mora ostati tačno 211.
+test("raiffeisen: navodnici se uklanjaju, SM ostaje 211 znakova", () => {
+  const file = {
+    platilac: {
+      racun: "161-000-01719200-95",
+      naziv: '"ELEKTRO BIKI" OBRT',
+      adresa: "PUSKARI BB",
+      mjesto: "77220 CAZIN",
+    },
+    datumValute: new Date(2026, 7, 13),
+    opis: "PLATE ZA 2026070",
+    nalozi: [
+      jp('DOO "PRIMALAC" TEST', "1020500000106698", 'SVRHA SA „NAVODNICIMA”', 31239, "712112", "124", "5102001"),
+    ],
+  };
+  const buf = formatRaiffeisen(file);
+  const linije = buf.toString("latin1").split("\r\n").filter(Boolean);
+  assert.equal(linije[0].length, 211, "SM slog mora ostati 211 znakova");
+  assert.equal(linije[1].length, 345, "UJ slog mora ostati 345 znakova");
+  assert.ok(!buf.includes(0x22), "izlaz ne smije sadržati navodnike");
+  // naziv počinje odmah bez navodnika, ostala polja nepomjerena
+  assert.equal(linije[0].slice(37, 72).trimEnd(), "ELEKTRO BIKI OBRT");
+  assert.equal(linije[0].slice(164, 167), "BAM");
+  assert.equal(linije[1].slice(19, 54).trimEnd(), "DOO PRIMALAC TEST");
+  assert.equal(linije[1].slice(184, 219).trimEnd(), "SVRHA SA NAVODNICIMA");
+});
+
+// Polja od 105 znakova su 3 reda po 35 (vidljivo u Com_Soft originalima,
+// novo bankarstvo pri ručnom unosu kaže "maksimalan broj karaktera po redu
+// je 35"): riječ ne smije preći granicu reda, nastavak počinje na offsetu 35.
+test("raiffeisen: naziv/svrha se prelamaju u redove od 35 po riječima", () => {
+  const file = {
+    platilac: PLATILAC,
+    datumValute: new Date(2026, 6, 8),
+    opis: "PLATE ZA 2026060",
+    nalozi: [
+      jp(
+        "ZAVOD ZDRAVSTVENOG OSIGURANJA I REOSIGURANJA FBIH",
+        "1020500000064018",
+        "DOPRINOS ZA ZDRAVSTVO (KANTONALNI DIO) ZA 07/2026",
+        2369, "712111", "124", "0000000",
+      ),
+    ],
+  };
+  const buf = formatRaiffeisen(file);
+  const uj = buf.toString("latin1").split("\r\n").filter(Boolean)[1];
+  const nazivPolje = uj.slice(19, 124);
+  const svrhaPolje = uj.slice(184, 289);
+  // red 1 staje na granici riječi, red 2 počinje TAČNO na offsetu 35
+  assert.equal(nazivPolje.slice(0, 35), "ZAVOD ZDRAVSTVENOG OSIGURANJA I    ");
+  assert.equal(nazivPolje.slice(35, 70).trimEnd(), "REOSIGURANJA FBIH");
+  assert.equal(svrhaPolje.slice(0, 35), "DOPRINOS ZA ZDRAVSTVO (KANTONALNI  ");
+  assert.equal(svrhaPolje.slice(35, 70).trimEnd(), "DIO) ZA 07/2026");
+  // ukupna širina polja netaknuta
+  assert.equal(uj.length, 345);
+});
+
+// RBBHnet bira vrstu plaćanja i šifru svrhe PO PAKETU pri uvozu, pa se izvoz
+// dijeli: doprinosi (javni prihodi) pa lične isplate po kategoriji. Miješani
+// paket banka odbija čim sadrži prenos na račun fizičkog lica.
+test("raiffeisen: podjela u datoteke po paketu (doprinosi, plate, obrok...)", () => {
+  const jpN = (i) => ({ tip: "javniPrihod", iznosFeninga: i });
+  const pr = (kategorija, i) => ({ tip: "prenos", kategorija, iznosFeninga: i });
+  const dijelovi = podijeliZaRaiffeisen([
+    pr("plata", 100000),
+    jpN(31239),
+    pr("obrok", 17600),
+    pr("plata", 90000),
+    jpN(20860),
+    pr("prevoz", 3000),
+    pr("regres", 40000),
+  ]);
+  assert.deepEqual(
+    dijelovi.map((d) => [d.sufiks, d.nalozi.length]),
+    [
+      ["doprinosi", 2],
+      ["plate", 2],
+      ["topli-obrok", 1],
+      ["prevoz", 1],
+      ["regres", 1],
+    ],
+  );
+  // naslov nosi uputu koju vrstu/svrhu izabrati pri uvozu
+  assert.ok(dijelovi[1].naslov.includes("511"));
+  assert.ok(dijelovi[2].naslov.includes("518"));
+  assert.ok(dijelovi[3].naslov.includes("519"));
+  assert.ok(dijelovi[4].naslov.includes("110"));
+  // prazni dijelovi se izostavljaju
+  const samoJp = podijeliZaRaiffeisen([jpN(100)]);
+  assert.deepEqual(samoJp.map((d) => d.sufiks), ["doprinosi"]);
+  // prenos bez kategorije ide sa platama
+  const bezKat = podijeliZaRaiffeisen([pr(undefined, 5)]);
+  assert.deepEqual(bezKat.map((d) => d.sufiks), ["plate"]);
+  // NOVA vrsta isplate (npr. otpremnina dodana u obracunAdapter) ne smije
+  // oboriti cijeli izvoz: dobija svoj paket, svrha se bira pri uvozu
+  const novaVrsta = podijeliZaRaiffeisen([jpN(100), pr("otpremnina", 5)]);
+  assert.deepEqual(
+    novaVrsta.map((d) => d.sufiks),
+    ["doprinosi", "ostalo"],
+  );
+  assert.ok(novaVrsta[1].naslov.includes("svrhu izaberite"));
+  // nalog nepoznatog TIPA i dalje baca grešku (ne smije tiho ispasti)
+  assert.throws(
+    () => podijeliZaRaiffeisen([{ tip: "nesto", iznosFeninga: 5 }]),
+    (e) => e instanceof RaiffeisenGreska && e.message.includes("bez dijela"),
+  );
+});
+
+// Podaci iz stvarnih naziva (Word copy/paste, strana slova) ne smiju oboriti
+// izvoz: transliteriraju se, a ne bacaju grešku.
+test("raiffeisen: tipografska interpunkcija i strana slova se transliteriraju", () => {
+  const file = {
+    platilac: {
+      racun: "161-000-01719200-95",
+      naziv: "OBRT – PEKARA ’MALA’",
+      adresa: "TRG 1",
+      mjesto: "77220 CAZIN",
+    },
+    datumValute: new Date(2026, 7, 13),
+    opis: "PLATE ZA 2026070",
+    nalozi: [jp("ÖZLEM ÉCLAIR DOO", "1020500000106698", "NAKNADA… DIO", 31239, "712112", "124", "5102001")],
+  };
+  const buf = formatRaiffeisen(file);
+  for (const b of buf) assert.ok(b < 0x80, `ne-ASCII bajt: 0x${b.toString(16)}`);
+  const tekst = buf.toString("latin1");
+  assert.ok(tekst.includes("OBRT - PEKARA 'MALA'"), "interpunkcija platioca");
+  assert.ok(tekst.includes("OZLEM ECLAIR DOO"), "strana slova u nazivu");
+  assert.ok(tekst.includes("NAKNADA... DIO"), "tri tačke u svrsi");
 });
 
 test("raiffeisen: nepoznat tip naloga baca grešku", () => {

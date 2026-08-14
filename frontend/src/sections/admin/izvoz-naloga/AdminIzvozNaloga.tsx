@@ -69,6 +69,13 @@ function buildRuler(len: number): { brojevi: string; crtice: string } {
   return { brojevi: brojevi.join(""), crtice };
 }
 
+// "datoteke" uz 1-4, "datoteka" uz 5 i više (paketa ima najviše 5).
+function datotekaPadez(n: number): string {
+  return n % 10 >= 1 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)
+    ? "datoteke"
+    : "datoteka";
+}
+
 function downloadBase64(fileName: string, base64: string) {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
   const blob = new Blob([bytes], { type: "application/octet-stream" });
@@ -96,6 +103,14 @@ export default function AdminIzvozNaloga() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rezultat, setRezultat] = useState<IzvozRezultat | null>(null);
+  // Datoteke izvoza; server od prije deploya nema datoteke[] pa se tada
+  // koristi jedna datoteka iz starih fileName/base64 polja.
+  const datoteke: { fileName: string; base64: string; naslov?: string | null; brojNaloga?: number; ukupnoKm?: number }[] =
+    rezultat?.datoteke?.length
+      ? rezultat.datoteke
+      : rezultat
+        ? [{ fileName: rezultat.fileName, base64: rezultat.base64 }]
+        : [];
 
   useEffect(() => {
     void getIzvozOrganizacije().then((r) => {
@@ -317,7 +332,12 @@ export default function AdminIzvozNaloga() {
               <span className={styles.stubBadge}>STUB, nije za banku</span>
             )}
             <span>
-              Datoteka: <span className={styles.metaStrong}>{rezultat.fileName}</span>
+              Datoteka:{" "}
+              <span className={styles.metaStrong}>
+                {datoteke.length > 1
+                  ? `${datoteke.length} ${datotekaPadez(datoteke.length)}`
+                  : rezultat.fileName}
+              </span>
             </span>
             <span>
               Naloga:{" "}
@@ -344,11 +364,48 @@ export default function AdminIzvozNaloga() {
             <button
               type="button"
               className={styles.btnSecondary}
-              onClick={() => downloadBase64(rezultat.fileName, rezultat.base64)}
+              onClick={() => {
+                // Raiffeisen: više datoteka (paket po vrsti plaćanja),
+                // preuzmi sve; ostale banke imaju jednu. Razmak između
+                // preuzimanja, inače preglednik odbaci brze uzastopne klikove.
+                datoteke.forEach((d, i) => {
+                  if (i === 0) downloadBase64(d.fileName, d.base64);
+                  else
+                    setTimeout(
+                      () => downloadBase64(d.fileName, d.base64),
+                      i * 400,
+                    );
+                });
+              }}
             >
-              Preuzmi datoteku
+              {datoteke.length > 1
+                ? `Preuzmi ${datoteke.length} ${datotekaPadez(datoteke.length)}`
+                : "Preuzmi datoteku"}
             </button>
           </div>
+
+          {datoteke.length > 1 && (
+            <ul
+              style={{
+                margin: "0 0 0.75rem",
+                paddingLeft: "1.1rem",
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              {datoteke.map((d) => (
+                <li key={d.fileName}>
+                  <span className={styles.metaStrong}>{d.fileName}</span>
+                  {d.naslov ? `: ${d.naslov}` : ""}, {d.brojNaloga} naloga,{" "}
+                  {(d.ukupnoKm ?? 0).toLocaleString("de-DE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  KM
+                </li>
+              ))}
+            </ul>
+          )}
 
           {rezultat.preskoceni.length > 0 && (
             <div className={styles.warn} style={{ marginBottom: "0.75rem" }}>

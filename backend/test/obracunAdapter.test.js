@@ -226,6 +226,105 @@ test("nepoznat grad organizacije: kantonalni nalozi u preskočene, ne nestaju ti
   }
 });
 
+test("vlasnik obrta: bez naloga lične isplate i BEZ upozorenja o računu", () => {
+  // Vlasnik obrta nema platu (obračun mu služi za doprinose, Obrazac 2002),
+  // pa ne smije dobiti ni nalog isplate ni "nema upisan tekući račun".
+  const org = {
+    type: "BUSINESS",
+    name: "TEST OBRT",
+    city: "Bihać",
+    bankAccount: "198-501-10100197-08",
+    taxNumber: "4200000000005",
+    payrollAccounts: null,
+  };
+  const workers = new Map([
+    [
+      1,
+      { id: 1, firstName: "VLASNIK", lastName: "OBRTA", city: "Bihać", bankAccount: null, role: "VLASNIK" },
+    ],
+    [
+      2,
+      { id: 2, firstName: "PRAVI", lastName: "RADNIK", city: "Bihać", bankAccount: null, role: "RADNIK" },
+    ],
+  ]);
+  const payroll = (workerId, net) => ({
+    workerId,
+    gross: 1200,
+    empPio: 100, erpPio: 50, empZdravstvo: 80, erpZdravstvo: 40,
+    empNezaposlenost: 10, erpNezaposlenost: 5, incomeTax: 30, net,
+    mealAllowance: 0, vacationBonus: 0, travelExpense: 0,
+    vodnaNaknada: 0, naknadaNesrece: 0,
+  });
+  const { file, preskoceni } = buildTkdisIzObracuna({
+    org,
+    payrolls: [payroll(1, 922.75), payroll(2, 800)],
+    workerMap: workers,
+    year: 2026,
+    month: 7,
+    datumValute: new Date(2026, 7, 10),
+    combineKantonal: false,
+  });
+  // vlasnik: ništa (ni nalog ni preskočeno); radnik bez računa: preskočen
+  assert.equal(file.nalozi.filter((n) => n.tip === "prenos").length, 0);
+  assert.deepEqual(
+    preskoceni.filter((p) => p.radnik).map((p) => p.radnik),
+    ["PRAVI RADNIK"],
+  );
+});
+
+test("d.o.o. vlasnik (direktor po ugovoru) ZADRŽAVA nalog isplate plate", () => {
+  // Suprotan slučaj od gornjeg: guard smije preskočiti SAMO vlasnika obrta.
+  // Bez provjere org.type ovaj radnik bi ostao bez isplate u svim bankama.
+  const { file } = buildTkdisIzObracuna({
+    org: {
+      type: "COMPANY",
+      name: "TEST DOO",
+      city: "Bihać",
+      bankAccount: "198-501-10100197-08",
+      taxNumber: "4200000000005",
+      payrollAccounts: null,
+    },
+    payrolls: [
+      {
+        workerId: 1,
+        gross: 1500,
+        empPio: 100, erpPio: 50, empZdravstvo: 80, erpZdravstvo: 40,
+        empNezaposlenost: 10, erpNezaposlenost: 5, incomeTax: 30, net: 1100,
+        mealAllowance: 0, vacationBonus: 0, travelExpense: 0,
+        vodnaNaknada: 0, naknadaNesrece: 0,
+      },
+    ],
+    workerMap: new Map([
+      [
+        1,
+        {
+          id: 1,
+          firstName: "DIREKTOR",
+          lastName: "VLASNIK",
+          city: "Bihać",
+          bankAccount: "552-046-15431156-16",
+          role: "VLASNIK",
+        },
+      ],
+    ]),
+    year: 2026,
+    month: 7,
+    datumValute: new Date(2026, 7, 10),
+    combineKantonal: false,
+  });
+  const prenosi = file.nalozi.filter((n) => n.tip === "prenos");
+  assert.equal(prenosi.length, 1);
+  assert.equal(prenosi[0].iznosFeninga, 110000);
+  assert.equal(prenosi[0].naziv, "DIREKTOR VLASNIK");
+});
+
+test("prenosi nose kategoriju za podjelu Raiffeisen paketa", () => {
+  const { file } = sintetickiUlaz(false);
+  const prenosi = file.nalozi.filter((n) => n.tip === "prenos");
+  assert.ok(prenosi.length > 0);
+  for (const p of prenosi) assert.equal(p.kategorija, "plata");
+});
+
 test("cijela datoteka iz adaptera se formatira bez greške (oba profila)", () => {
   const { file } = sintetickiUlaz(false);
   const halcom = formatTkdis(file, "halcom");
