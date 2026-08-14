@@ -23,6 +23,7 @@ const {
 } = require("../services/paymentExport/elbaFormatter");
 const {
   formatRaiffeisen,
+  podijeliZaRaiffeisen,
   RaiffeisenGreska,
   RECORD_LEN: RAIFFEISEN_RECORD_LEN,
   CP852_U_SLOVO,
@@ -202,10 +203,13 @@ async function sagradiNaloge({ org, year, month, datumValute, combineKantonal })
   return { ok: true, file, preskoceni, brojPayrolla: payrolls.length };
 }
 
-// Zajednička logika generisanja datoteke (admin harness + korisnički izvoz):
-// sagradi naloge pa ih formatira za izabranu banku.
-// Vraća { ok: true, buffer, file, preskoceni, fileName, translitEff,
-// brojPayrolla } ili { ok: false, status, error, preskoceni? }.
+// Zajednička logika generisanja datoteka (admin harness + korisnički izvoz):
+// sagradi naloge pa ih formatira za izabranu banku. Raiffeisen se dijeli u
+// VIŠE datoteka (banka bira vrstu plaćanja i šifru svrhe po paketu pri
+// uvozu, vidi podijeliZaRaiffeisen); ostale banke su jedna datoteka.
+// Vraća { ok: true, datoteke: [{ buffer, fileName, naslov, brojNaloga,
+// ukupnoFeninga }], file, preskoceni, translitEff, brojPayrolla } ili
+// { ok: false, status, error, preskoceni? }.
 async function generisiDatoteku({
   org,
   year,
@@ -233,14 +237,46 @@ async function generisiDatoteku({
   // CP852 bajtove); TKDIS prati traženu opciju.
   const translitEff =
     profil === "elba" ? "cp1250" : profil === "raiffeisen" ? "ascii" : transliteracija;
-  let buffer;
+
+  const mm = String(month).padStart(2, "0");
+  const orgSlug = String(org.name || "org")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "org";
+  const bazaImena = `nalozi-${profil}-${orgSlug}-${year}-${mm}`;
+
+  const datoteke = [];
   try {
-    buffer =
-      profil === "elba"
-        ? formatElba(file)
-        : profil === "raiffeisen"
-          ? formatRaiffeisen(file)
+    if (profil === "raiffeisen") {
+      // SM opis je isti za sve dijelove ("PLATE ZA GGGGMM0" kao stari
+      // program): datoteke samih prenosa nemaju porezni period pa se
+      // default iz formattera za njih ne bi mogao izračunati.
+      const opis = `PLATE ZA ${year}${mm}0`;
+      for (const dio of podijeliZaRaiffeisen(file.nalozi)) {
+        const buffer = formatRaiffeisen({ ...file, opis, nalozi: dio.nalozi });
+        datoteke.push({
+          buffer,
+          fileName: `${bazaImena}-${dio.sufiks}.txt`,
+          naslov: dio.naslov,
+          brojNaloga: dio.nalozi.length,
+          ukupnoFeninga: dio.nalozi.reduce((s, n) => s + n.iznosFeninga, 0),
+        });
+      }
+    } else {
+      const buffer =
+        profil === "elba"
+          ? formatElba(file)
           : formatTkdis(file, profil, { transliteracija: translitEff });
+      datoteke.push({
+        buffer,
+        fileName: `${bazaImena}.txt`,
+        naslov: null,
+        brojNaloga: file.nalozi.length,
+        ukupnoFeninga: file.nalozi.reduce((s, n) => s + n.iznosFeninga, 0),
+      });
+    }
   } catch (e) {
     if (
       e instanceof TkdisGreska ||
@@ -254,24 +290,27 @@ async function generisiDatoteku({
     throw e;
   }
 
-  const mm = String(month).padStart(2, "0");
-  const orgSlug = String(org.name || "org")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "org";
-  const fileName = `nalozi-${profil}-${orgSlug}-${year}-${mm}.txt`;
-
   return {
     ok: true,
-    buffer,
+    datoteke,
     file,
     preskoceni,
-    fileName,
     translitEff,
     brojPayrolla,
   };
+}
+
+// Datoteke iz generisiDatoteku u oblik za klijenta (isti DTO za admin harness
+// i korisnički izvoz). fileName/base64 na vrhu odgovora su prva datoteka i
+// ostaju zbog klijenta koji je učitan prije deploya (nema datoteke[] polje).
+function dtoDatoteke(datoteke) {
+  return datoteke.map((d) => ({
+    fileName: d.fileName,
+    base64: d.buffer.toString("base64"),
+    naslov: d.naslov,
+    brojNaloga: d.brojNaloga,
+    ukupnoKm: d.ukupnoFeninga / 100,
+  }));
 }
 
 // POST /api/admin/izvoz-naloga/generisi
@@ -321,14 +360,26 @@ async function generisi(req, res) {
     });
   }
 
-  const { rows, ima1a } = pregledRedova(r.buffer, r.translitEff);
+  // Pregled: redovi svih datoteka; kod više datoteka (raiffeisen podjela)
+  // svaka sekcija počinje imenom svoje datoteke.
+  const rows = [];
+  let ima1a = false;
+  let ukupnoBajta = 0;
+  for (const d of r.datoteke) {
+    const p = pregledRedova(d.buffer, r.translitEff);
+    if (r.datoteke.length > 1) rows.push(`>>> ${d.fileName}`);
+    rows.push(...p.rows);
+    ima1a = ima1a || p.ima1a;
+    ukupnoBajta += d.buffer.length;
+  }
   const ukupnoFeninga = r.file.nalozi.reduce((s, n) => s + n.iznosFeninga, 0);
 
   return res.json({
     ok: true,
     data: {
-      fileName: r.fileName,
-      base64: r.buffer.toString("base64"),
+      fileName: r.datoteke[0].fileName,
+      base64: r.datoteke[0].buffer.toString("base64"),
+      datoteke: dtoDatoteke(r.datoteke),
       rows,
       preskoceni: r.preskoceni,
       meta: {
@@ -339,20 +390,23 @@ async function generisi(req, res) {
         transliteracija: r.translitEff,
         combineKantonal,
         // ELBA je delimitirani format (TAB/CR), nema fiksnu širinu ni lenjir;
-        // TKDIS je 336. Raiffeisen: UJ redovi su 345, ali UO (prenosi) 313 i
-        // SM 211, pa lenjir ima smisla samo za datoteku bez prenosa.
+        // TKDIS je 336. Raiffeisen: UJ redovi su 345, ali UO (prenosi) 313,
+        // SM 211 i marker redovi ">>>", pa lenjir ima smisla samo za jednu
+        // datoteku bez prenosa.
         rowLen:
           profil === "elba"
             ? null
             : profil === "raiffeisen"
-              ? r.file.nalozi.some((n) => n.tip === "prenos")
+              ? r.datoteke.length > 1 ||
+                r.file.nalozi.some((n) => n.tip === "prenos")
                 ? null
                 : RAIFFEISEN_RECORD_LEN
               : ROW_LEN,
         brojRedova: rows.length,
         brojNaloga: r.file.nalozi.length,
+        brojDatoteka: r.datoteke.length,
         ukupnoKm: ukupnoFeninga / 100,
-        ukupnoBajta: r.buffer.length,
+        ukupnoBajta,
         eof1a: ima1a,
         brojPayrolla: r.brojPayrolla,
       },
@@ -419,12 +473,14 @@ async function bankExport(req, res) {
     return res.json({
       ok: true,
       data: {
-        fileName: r.fileName,
-        base64: r.buffer.toString("base64"),
+        fileName: r.datoteke[0].fileName,
+        base64: r.datoteke[0].buffer.toString("base64"),
+        datoteke: dtoDatoteke(r.datoteke),
         preskoceni: r.preskoceni,
         meta: {
           profil,
           brojNaloga: r.file.nalozi.length,
+          brojDatoteka: r.datoteke.length,
           ukupnoKm: ukupnoFeninga / 100,
         },
       },

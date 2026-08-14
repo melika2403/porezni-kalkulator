@@ -150,15 +150,18 @@ test("mapper: formati vrijednosti (iznos, datumi, računi, JIB)", () => {
     periodDo: "2026-07-31",
   };
   const v = mapper.nalogUVrijednosti(nalog, platilac, "2026-08-14");
-  // računi u grupama kućica 3+3+8+2, period u parovima (Com_Soft referenca)
+  // računi u grupama kućica 3+3+8+2; period u parovima sa duplim razmakom i
+  // budžetska cifra po kućici (kalibrisano po probnoj štampi 13.8.2026.)
   assert.strictEqual(v.racunPosiljaoca, "323 232 32323232 32");
   assert.strictEqual(v.racunPrimaoca, "102 050 00001066 98");
   assert.strictEqual(v.iznos, "312,39");
   assert.strictEqual(v.datumUplate, "14.08.2026"); // naš format, namjerno
-  assert.strictEqual(v.periodOd, "01 07 26");
-  assert.strictEqual(v.periodDo, "31 07 26");
+  assert.strictEqual(v.periodOd, "01  07  26");
+  assert.strictEqual(v.periodDo, "31  07  26");
+  assert.strictEqual(v.budzetskaOrg, "5 1 0 2 0 0 1");
   assert.strictEqual(v.brojObveznika, "8888888888888");
-  assert.strictEqual(v.vrstaUplate, "");
+  // vrsta uplate: "0" (redovna) za javne prihode, potvrđeno iz Raiffeisen UJ
+  assert.strictEqual(v.vrstaUplate, "0");
   assert.strictEqual(v.mjestoUplate, "Cazin");
   // uplatilac: naziv, adresa i mjesto teku kao jedan tekst kroz 13/30/30
   assert.strictEqual(v.uplatio1, "Test obrta,");
@@ -206,14 +209,19 @@ test("Com_Soft referenca: max dužine i pozicije (korekcije 12.8.2026.)", () => 
   assert.strictEqual(mapa.vrstaUplate.line, 10);
   assert.strictEqual(mapa.opcina.line, 16);
   assert.strictEqual(mapa.pozivNaBroj.line, 18);
-  // budžetska organizacija: ista linija, 2 kolone lijevo (63 → 61)
+  // kalibracija po probnoj štampi 13.8.: period na 68 (parovi sa duplim
+  // razmakom), budžetska na 62 (cifra po kućici)
+  assert.strictEqual(mapa.periodOd.col, 68);
+  assert.strictEqual(mapa.periodDo.col, 68);
   assert.strictEqual(mapa.budzetskaOrg.line, 16);
-  assert.strictEqual(mapa.budzetskaOrg.col, 61);
-  // formati testnih vrijednosti: računi 3+3+8+2, period parovi
+  assert.strictEqual(mapa.budzetskaOrg.col, 62);
+  // formati testnih vrijednosti: računi 3+3+8+2, period parovi, budžetska
+  // razmaknuta cifra po kućici
   assert.strictEqual(t.racunPosiljaoca, "999 999 99999999 99");
   assert.strictEqual(t.racunPrimaoca, "999 999 99999999 99");
-  assert.strictEqual(t.periodOd, "99 99 99");
-  assert.strictEqual(t.periodDo, "99 99 99");
+  assert.strictEqual(t.periodOd, "99  99  99");
+  assert.strictEqual(t.periodDo, "99  99  99");
+  assert.strictEqual(t.budzetskaOrg, "9 9 9 9 9 9 9");
   assert.strictEqual(t.datumUplate, "99.99.9999");
   // sve vrijednosti staju u tvrdi limit generatora (ništa se ne reže)
   for (const [key, val] of Object.entries(t)) {

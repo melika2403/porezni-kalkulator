@@ -35,9 +35,19 @@ export type IzvozPreskocen = {
 };
 
 export type IzvozRezultat = {
+  /** prva (ili jedina) datoteka; kompletna lista je u datoteke[] */
   fileName: string;
-  /** kompletna datoteka, binarno, za download */
   base64: string;
+  /** sve datoteke izvoza: Raiffeisen se dijeli po paketu (doprinosi, plate,
+   * topli obrok, prevoz, regres), ostale banke imaju jednu. Opcionalno jer
+   * odgovor servera od prije deploya nema ovo polje. */
+  datoteke?: {
+    fileName: string;
+    base64: string;
+    naslov: string | null;
+    brojNaloga: number;
+    ukupnoKm: number;
+  }[];
   /** redovi za pregled na ekranu (bajt = znak, kontrolni znakovi kao "·") */
   rows: string[];
   /** lične isplate koje NISU u datoteci (radnik bez ispravnog računa) */
@@ -53,6 +63,7 @@ export type IzvozRezultat = {
     rowLen: number | null;
     brojRedova: number;
     brojNaloga: number;
+    brojDatoteka: number;
     ukupnoKm: number;
     ukupnoBajta: number;
     eof1a: boolean;

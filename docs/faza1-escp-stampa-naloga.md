@@ -187,3 +187,11 @@ Probna štampa na Grafis obrascu upoređena sa Com_Soft test ispisom na istom pa
 - **Pozicije, srednji pojas jednu liniju niže:** mjesto uplate 11→12, datum uplate 11→12, period od 11→12, vrsta prihoda 12→13, period do 13→14. Linije 1-10 (uključujući JIB i vrstu uplate na 10), općina (16) i poziv na broj (18) NEPROMIJENJENI. Budžetska organizacija: ostaje linija 16, kolona 63→61.
 - **Sastavljanje uplatioca:** naziv+adresa+mjesto se spajaju zarezima u jedan tekst i prelamaju po riječima kroz 13/30/30 (prva linija od 13 znakova ne može primiti naziv; Com_Soft isto slaže "Ime, adresa, i tel." kroz tri reda). Primalac: naziv teče kroz 20/30, mjesto ostaje treći red.
 - **Testovi:** mapper očekivanja ažurirana + novi test "Com_Soft referenca" (kolona+X-evi=34 za svih 9 linija lijevog bloka, pozicije srednjeg pojasa, formati, sve test vrijednosti unutar tvrdih limita).
+
+## Kalibracija po probnoj štampi (13.08.2026)
+
+Probna štampa na stvarnom pisaču i Grafis papiru: dužine i visine SJEDAJU, ostale su dvije sitnice, kalibrisane ovako:
+
+- **Porezni period Od/Do:** kućice obrasca imaju korak 4 znaka, a parovi su išli na koraku 3 pa je "MM" sjedao na pregradu. Sada: kolona 70 → 68 i dupli razmak između parova ("99  99  99").
+- **Budžetska organizacija:** kućica po cifri (korak 2 znaka), cifre bile zbijene. Sada: kolona 61 → 62 i razmak između svake cifre ("5 1 0 2 0 0 1").
+- **Vrsta uplate:** popunjava se "0" (redovna uplata) za javne prihode, vrijednost potvrđena iz Raiffeisen UJ slogova starog programa; za prenose (neto plate) ostaje prazno.

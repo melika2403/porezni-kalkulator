@@ -1,8 +1,10 @@
 // Mapiranje naloga iz obračuna (JSON sa /api/admin/izvoz-naloga/nalozi) u
 // vrijednosti polja matričnog obrasca (NalogValues za escpNalog.buildPrn).
-// Formati (korigovani po Com_Soft referentnom ispisu 12.8.2026.): iznos
-// 999.999.999.999,00; datum DD.MM.GGGG (naš, namjerno); period "DD MM GG";
-// JIB 13 cifara; računi "999 999 99999999 99".
+// Formati (korigovani po Com_Soft referentnom ispisu 12.8.2026. i probnoj
+// štampi 13.8.2026.): iznos 999.999.999.999,00; datum DD.MM.GGGG (naš,
+// namjerno); period "DD  MM  GG" (dupli razmak, korak kućica); budžetska
+// organizacija cifra po kućici ("5 1 0 2 0 0 1"); JIB 13 cifara; računi
+// "999 999 99999999 99"; vrsta uplate "0" samo za javne prihode.
 // Bez importa (osim type-only): backend testovi učitavaju direktno kroz Node.
 import type { NalogValues } from "./escpNalog";
 
@@ -44,11 +46,16 @@ const ddmmgggg = (iso: string) =>
     ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`
     : "";
 
-// Porezni period na obrascu ide u parove kućica: "DD MM GG".
+// Porezni period na obrascu ide u parove kućica; dupli razmak jer je korak
+// kućica 4 znaka (kalibrisano po probnoj štampi 13.8.2026.).
 const ddmmgg = (iso: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(iso)
-    ? `${iso.slice(8, 10)} ${iso.slice(5, 7)} ${iso.slice(2, 4)}`
+    ? `${iso.slice(8, 10)}  ${iso.slice(5, 7)}  ${iso.slice(2, 4)}`
     : "";
+
+// Budžetska organizacija: kućica po cifri (korak 2 znaka), pa razmak
+// između svake cifre.
+const razmakniCifre = (s: unknown) => cifre(s).split("").join(" ");
 
 // Račun (16 cifara) u grupe kućica obrasca: "999 999 99999999 99". Isto
 // grupisanje 3+3+8+2 kao formatBankAccount (src/lib/bankCodes.ts), samo sa
@@ -145,16 +152,16 @@ export function nalogUVrijednosti(
     iznos: fmtIznos(n.iznosKm),
     hitno: "",
     brojObveznika: cifre(n.jib).slice(0, 13),
-    // vrsta uplate ne postoji u data modelu naloga: ostaje prazno dok se ne
-    // potvrdi vrijednost sa stvarnog naloga (spec: ne izmišljati)
-    vrstaUplate: "",
+    // "0" (redovna uplata) za javne prihode, potvrđeno iz Raiffeisen UJ
+    // slogova starog programa; za prenose (neto plate...) ostaje prazno
+    vrstaUplate: n.tip === "javniPrihod" ? "0" : "",
     mjestoUplate: tekst(platilac.mjesto).slice(0, GRANICE.mjestoUplate),
     datumUplate: ddmmgggg(datumValuteIso),
     periodOd: ddmmgg(n.periodOd),
     periodDo: ddmmgg(n.periodDo),
     vrstaPrihoda: tekst(n.vrstaPrihoda),
     opcina: tekst(n.opcina),
-    budzetskaOrg: tekst(n.budzetskaOrganizacija),
+    budzetskaOrg: razmakniCifre(n.budzetskaOrganizacija),
     pozivNaBroj: tekst(n.pozivNaBroj),
   };
 }

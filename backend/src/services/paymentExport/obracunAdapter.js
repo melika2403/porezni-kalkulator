@@ -126,14 +126,22 @@ function buildTkdisIzObracuna(input) {
   for (const p of payrolls) {
     const w = workerMap.get(p.workerId);
     if (!w) continue;
+    // Vlasnik obrta NEMA platu: njegov obračun je samo za doprinose (Obrazac
+    // 2002, uključeni u javne prihode iznad), pa se za njega ne prave nalozi
+    // ličnih isplata NITI upozorenje o tekućem računu. Kod d.o.o. vlasnik sa
+    // ugovorom o radu ima pravu platu i prolazi normalno.
+    if (org.type === "BUSINESS" && w.role === "VLASNIK") continue;
     const workerName = `${w.firstName || ""} ${w.lastName || ""}`.trim();
+    // kategorija dijeli Raiffeisen izvoz u zasebne datoteke (banka bira
+    // vrstu plaćanja i šifru svrhe po paketu pri uvozu); ostali formati je
+    // ignorišu
     const stavke = [
-      ["Neto plata", Number(p.net) || 0, "Isplata neto plate"],
-      ["Topli obrok", Number(p.mealAllowance) || 0, "Topli obrok (neoporezivi)"],
-      ["Regres", Number(p.vacationBonus) || 0, "Regres za godišnji odmor"],
-      ["Putni trošak", Number(p.travelExpense) || 0, "Putni trošak (neoporezivi)"],
+      ["Neto plata", Number(p.net) || 0, "Isplata neto plate", "plata"],
+      ["Topli obrok", Number(p.mealAllowance) || 0, "Topli obrok (neoporezivi)", "obrok"],
+      ["Regres", Number(p.vacationBonus) || 0, "Regres za godišnji odmor", "regres"],
+      ["Putni trošak", Number(p.travelExpense) || 0, "Putni trošak (neoporezivi)", "prevoz"],
     ];
-    for (const [label, iznosKm, svrha] of stavke) {
+    for (const [label, iznosKm, svrha, kategorija] of stavke) {
       if (!(iznosKm > 0)) continue;
       const racunCifre = String(w.bankAccount || "").replace(/\D/g, "");
       if (racunCifre.length !== 16) {
@@ -151,6 +159,7 @@ function buildTkdisIzObracuna(input) {
       }
       nalozi.push({
         tip: "prenos",
+        kategorija,
         racun: racunCifre,
         naziv: workerName,
         mjesto: w.city || org.city || "",
