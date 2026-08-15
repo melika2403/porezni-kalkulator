@@ -81,7 +81,87 @@ function toPublicWorker(w) {
     koristVoziloSaPdv: rest.koristVoziloSaPdv == null ? true : !!rest.koristVoziloSaPdv,
     koristVoziloOpis: rest.koristVoziloOpis || null,
     evidencijaPodaci: parseEvidencija(rest.evidencijaPodaci),
+    poreznaKarticaPodaci: pkIzBaze(parseEvidencija(rest.poreznaKarticaPodaci)),
   };
+}
+
+// ── PK-1001: podaci o izdržavanim članovima ─────────────────────────────────
+// JMBG radnika se čuva kriptovan, pa i JMBG-ovi njegovih izdržavanih članova
+// (bračni drug, djeca) moraju biti kriptovani: to su lični podaci istog reda.
+// Kriptuje se samo polje jmb unutar liste, ostalo ostaje čitljivo.
+const PK_LISTE = [
+  "bracniDrug",
+  "djeca",
+  "ostali",
+  "alimentacije",
+  "invalidnosti",
+];
+// Zaštita od ogromnog ili pogrešnog sadržaja u JSON koloni.
+const PK_MAX_BAJTA = 20000;
+const PK_MAX_REDOVA = 20;
+const PK_MAX_TEKST = 200;
+
+function mapirajPkJmb(podaci, pretvori) {
+  if (!podaci || typeof podaci !== "object") return podaci;
+  const out = { ...podaci };
+  for (const kljuc of PK_LISTE) {
+    if (!Array.isArray(out[kljuc])) continue;
+    out[kljuc] = out[kljuc].map((clan) => {
+      if (!clan || typeof clan !== "object") return clan;
+      const jmb = clan.jmb;
+      if (typeof jmb !== "string" || !jmb) return clan;
+      return { ...clan, jmb: pretvori(jmb) };
+    });
+  }
+  return out;
+}
+
+function pkZaBazu(podaci) {
+  return mapirajPkJmb(podaci, (jmb) => {
+    // Kriptuje se samo ispravan JMBG; nepotpun unos se čuva kakav jeste da
+    // korisnik ne izgubi ono što je otkucao dok popunjava.
+    const cifre = jmb.replace(/\D/g, "");
+    return cifre.length === 13 ? encryptJmbg(cifre) : jmb;
+  });
+}
+
+function pkIzBaze(podaci) {
+  return mapirajPkJmb(podaci, (jmb) => {
+    // Zapisi od prije uvođenja kriptovanja su čisti brojevi; njih ostavi.
+    if (/^\d{0,13}$/.test(jmb)) return jmb;
+    try {
+      return decryptJmbg(jmb) || "";
+    } catch {
+      return "";
+    }
+  });
+}
+
+// Provjera oblika i veličine prije upisa u bazu.
+function provjeriPkPodatke(v) {
+  if (v === null) return null;
+  if (typeof v !== "object" || Array.isArray(v)) return "INVALID_PK_PODACI";
+  if (JSON.stringify(v).length > PK_MAX_BAJTA) return "PK_PODACI_PREVELIKI";
+  for (const kljuc of PK_LISTE) {
+    const lista = v[kljuc];
+    if (lista === undefined) continue;
+    if (!Array.isArray(lista)) return "INVALID_PK_PODACI";
+    if (lista.length > PK_MAX_REDOVA) return "PK_PODACI_PREVELIKI";
+    for (const clan of lista) {
+      if (!clan || typeof clan !== "object" || Array.isArray(clan)) {
+        return "INVALID_PK_PODACI";
+      }
+      for (const vrijednost of Object.values(clan)) {
+        if (vrijednost != null && typeof vrijednost !== "string") {
+          return "INVALID_PK_PODACI";
+        }
+        if (typeof vrijednost === "string" && vrijednost.length > PK_MAX_TEKST) {
+          return "PK_PODACI_PREVELIKI";
+        }
+      }
+    }
+  }
+  return null;
 }
 
 // MariaDB vraća JSON kolonu kao string; parsiraj u objekat.
@@ -475,6 +555,15 @@ async function update(req, res) {
     data.defaultDaysOff = defaultDaysOff?.trim() || null;
   if (defaultPause !== undefined)
     data.defaultPause = defaultPause?.trim() || null;
+
+  // Podaci obrasca PK-1001 (izdržavani članovi). Snima se cijeli objekat kako
+  // ga forma pošalje; null briše zapis.
+  if (req.body?.poreznaKarticaPodaci !== undefined) {
+    const v = req.body.poreznaKarticaPodaci;
+    const greska = provjeriPkPodatke(v);
+    if (greska) return res.status(400).json({ ok: false, error: greska });
+    data.poreznaKarticaPodaci = v === null ? null : pkZaBazu(v);
+  }
 
   const empErr = pickEmploymentFields(req.body, data);
   if (empErr) return res.status(400).json({ ok: false, error: empErr });

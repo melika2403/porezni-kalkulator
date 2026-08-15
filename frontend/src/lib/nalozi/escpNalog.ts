@@ -5,7 +5,7 @@
 //  obrascu (kontinuirana traktorska traka, korak naloga 4 inča = 24 linije na
 //  6 lpi). Fajl se na klijentskom računaru sirovo kopira na pisač (assoc/ftype
 //  + copy /b, vidi docs/faza1-escp-stampa-naloga.md DIO B), pisač interpretira
-//  kodove svojim ugrađenim fontom kao stari DOS program.
+//  kodove svojim ugrađenim fontom, bez drivera.
 //
 //  Pozicioniranje: jedini izvor istine je mreža (linija, kolona) iz starog
 //  programa (FIELD_MAP_TIP1). Horizontala ide ESC $ apsolutno u 1/60 inča:
@@ -53,6 +53,10 @@ export const FIELD_MAP_TIP1: NalogField[] = [
 
 // Zadnja linija naloga sa sadržajem; poslije nje ide FF (bez dodatnih LF).
 export const LINIJA_MAX = 21;
+/** Dužina forme u linijama (ESC C 24), korak naloga na traci. */
+export const DUZINA_FORME = 24;
+/** Najveći pomak nadolje koji ne gura ispis u sljedeću formu. */
+export const MAX_POMAK_LINIJA = DUZINA_FORME - LINIJA_MAX - 1;
 // Tekst ne smije preko ove kolone (desna ivica obrasca).
 const KOLONA_KRAJ = 81;
 
@@ -189,7 +193,10 @@ const clampInt = (n: number, min: number, max: number) =>
 export function buildPrn(nalozi: NalogValues[], opts: PrnOpts = {}): Uint8Array {
   const kodna: KodnaStranica = opts.kodnaStranica ?? "pc852";
   const pomakK = clampInt(opts.pomakKolona ?? 0, -10, 20);
-  const pomakL = clampInt(opts.pomakLinija ?? 0, 0, 3);
+  // Najviše 2: nalog zauzima 21 liniju, a forma je 24 (ESC C 24). Sa pomakom
+  // 3 se ispiše tačno 24 linije, pisač je već na vrhu sljedeće forme, pa bi
+  // FF preskočio jedan prazan nalog na traci.
+  const pomakL = clampInt(opts.pomakLinija ?? 0, 0, MAX_POMAK_LINIJA);
 
   const out: number[] = [
     0x1b, 0x40, // ESC @  reset (vraća i 6 lpi, pa je ESC C u linijama tačan)

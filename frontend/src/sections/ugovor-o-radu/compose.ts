@@ -115,8 +115,21 @@ export function clanBrojevi(probniRadEnabled: boolean): Record<string, number> {
 
 // Sastavlja paragraf Člana o plati. Ako žiro nije unijet, izostavlja rečenicu
 // o transakcijskom računu (umjesto praznog placeholdera u sredini rečenice).
-export function clanPlate(bruto: string, neto: string, ziro: string): string {
-  const start = `Osnovna bruto plaća Radnika za puni fond radnih sati iznosi ${bruto} KM mjesečno`;
+export function clanPlate(
+  bruto: string,
+  neto: string,
+  ziro: string,
+  /** ugovoreno radno vrijeme u satima dnevno; 8 = puno radno vrijeme */
+  satiDnevno = 8,
+): string {
+  // Kod nepunog radnog vremena plaća se NE odnosi na puni fond sati, pa bi
+  // ta formulacija bila u suprotnosti sa Članom 5 istog ugovora.
+  const n = Math.max(1, Math.min(8, Math.round(satiDnevno || 8)));
+  const fond =
+    n === 8
+      ? "za puni fond radnih sati"
+      : `za ugovoreno nepuno radno vrijeme od ${n} ${satOblik(n)} dnevno`;
+  const start = `Osnovna bruto plaća Radnika ${fond} iznosi ${bruto} KM mjesečno`;
   const netoPart = neto ? `, što odgovara neto iznosu od ${neto} KM` : "";
   const ziroPart = ziro
     ? ` Plaća se isplaćuje na transakcijski račun Radnika broj ${ziro}.`
@@ -124,6 +137,36 @@ export function clanPlate(bruto: string, neto: string, ziro: string): string {
   const end =
     " Radnik ima pravo na naknade i dodatke u skladu sa Zakonom o radu, kolektivnim ugovorom i poreznim propisima Federacije BiH.";
   return `${start}${netoPart}.${ziroPart}${end}`;
+}
+
+// Ugovoreno radno vrijeme (Član 5). Iste opcije kao u kartonu radnika
+// (Worker.contractedHours, 1-8 sati dnevno); 8 sati je puno radno vrijeme,
+// manje je nepuno pa se u ugovoru mora navesti i dnevni i sedmični fond.
+export const RADNO_VRIJEME_OPCIJE = [
+  { value: "8", label: "Puno radno vrijeme (8 sati dnevno, 40 sedmično)" },
+  { value: "7", label: "Nepuno, 7 sati dnevno (35 sedmično)" },
+  { value: "6", label: "Nepuno, 6 sati dnevno (30 sedmično)" },
+  { value: "5", label: "Nepuno, 5 sati dnevno (25 sedmično)" },
+  { value: "4", label: "Nepuno, 4 sata dnevno (20 sedmično)" },
+  { value: "3", label: "Nepuno, 3 sata dnevno (15 sedmično)" },
+  { value: "2", label: "Nepuno, 2 sata dnevno (10 sedmično)" },
+  { value: "1", label: "Nepuno, 1 sat dnevno (5 sedmično)" },
+];
+
+// "1 sat", "2 sata", "5 sati" (uz brojeve 1-8 dovoljno je ovo pravilo).
+function satOblik(broj: number): string {
+  if (broj === 1) return "sat";
+  return broj >= 2 && broj <= 4 ? "sata" : "sati";
+}
+
+export function clanRadnoVrijeme(satiDnevno: number): string {
+  const n = Math.max(1, Math.min(8, Math.round(satiDnevno || 8)));
+  const raspored =
+    " Raspored radnog vremena određuje Poslodavac u skladu sa potrebama procesa rada.";
+  if (n === 8) {
+    return `Radnik će raditi puno radno vrijeme u trajanju od 40 sati sedmično.${raspored}`;
+  }
+  return `Radnik će raditi nepuno radno vrijeme u trajanju od ${n} ${satOblik(n)} dnevno, odnosno ${n * 5} sati sedmično.${raspored}`;
 }
 
 export function naslov2Otkaza(tip: TipPrestanka): string {

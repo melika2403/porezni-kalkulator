@@ -618,6 +618,8 @@ export type Worker = {
   koristVoziloVrijednost: number | null;
   koristVoziloSaPdv: boolean;
   koristVoziloOpis: string | null;
+  /** Podaci za obrazac PK-1001 (izdržavani članovi, ime roditelja, općina). */
+  poreznaKarticaPodaci?: unknown;
   createdAt: string;
   updatedAt: string;
 };
@@ -675,6 +677,8 @@ export type WorkerPayload = {
   // Entitet prebivališta (FBIH/RS) + šifra RS opštine.
   prebivalisteEntitet?: "FBIH" | "RS";
   opcinaKod?: string | null;
+  /** Podaci obrasca PK-1001; null briše zapis. */
+  poreznaKarticaPodaci?: unknown;
 };
 
 export function getWorkers(orgId: number) {

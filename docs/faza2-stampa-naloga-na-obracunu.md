@@ -1,11 +1,11 @@
 # Faza 2: štampa naloga na obračunu plata (za korisnike)
 
-> STATUS: PLAN ODOBREN, ČEKA IZVOĐENJE. Vlasnik je plan prihvatio 13.08.2026. uz
-> dopune za uputstvo (vidi DIO C). Kreće se tek na njegov izričit znak.
+> STATUS: URAĐENO 14.08.2026. Probna štampa je prošla (vlasnik potvrdio da
+> kalibracija sjeda), pa je funkcija izašla iz admin panela i dostupna je svim
+> korisnicima sa Pro planom na obračunu plata.
 >
-> Preduslov koji još nije potvrđen: probna štampa kalibracije od 13.08. (porezni
-> period i budžetska organizacija u svoje kućice, vrsta uplate "0"). Ako ta
-> proba traži još pomaka, prvo se to zaključa pa onda ovo.
+> Odstupanja od plana pri izvođenju su zabilježena u sekciji "Kako je izvedeno"
+> na dnu.
 
 Cilj: štampu naloga na matričnom pisaču, koja sada postoji samo kao admin alat
 (/admin/nalozi, Faza 1), dati korisnicima na obračunu plata. Format .prn i
@@ -212,3 +212,52 @@ Epson modu).
 6. **Dokumentacija**: dopuniti docs/faza1-escp-stampa-naloga.md statusom da je
    funkcija izašla iz admin panela, i docs/pk-office-funkcionalnosti.md ako se
    dugme vidi u PK Office prikazu.
+
+## Kako je izvedeno (14.08.2026)
+
+Raspored fajlova:
+
+- `frontend/src/lib/nalozi/escpNalog.ts` i `nalogVrijednosti.ts` (preseljeni iz
+  sections/admin/nalozi; putanja u `backend/test/escpNalog.test.js` ažurirana).
+- `frontend/src/lib/nalozi/postavke.ts`: tip postavki, granice pomaka,
+  učitavanje i snimanje u localStorage (`pk_nalog_escp`), `preuzmiPrn`,
+  `PORUKA_STAMPA`, `slugFirme`, `stanicaPodesena` (za automatsko otvaranje
+  uputstva prvi put na računaru).
+- `frontend/src/components/StampaNaloga/`: `NalogPapir.tsx` (pregled na
+  obrascu, sada prima i pomake pa pregled prati kalibraciju),
+  `PodesavanjePisaca.tsx` (pomaci + naša slova + test nalog, te izvezeni
+  dijelovi uputstva `UputstvoStanica`, `ZastoCmd`, `AkoZapne`),
+  `StampaNalogaModal.tsx` (korisnički modal).
+- `AdminTestNalog.tsx` i `NaloziStampa.tsx` sada koriste te iste komponente, pa
+  uputstvo i podešavanje postoje samo u jednoj verziji.
+
+Backend: `POST /api/payroll/nalozi-za-stampu` (requireAuth + planGate PRO +
+assertOrgAccess, objedinjavanje kantonalnih prati postavku korisnika). Admin
+ruta ostaje, obje zovu isti `naloziZaStampuOdgovor`.
+
+Odstupanja od plana:
+
+- **Kvačice se pamte obrnuto**: modal drži skup ODZNAČENIH naloga, ne
+  označenih, pa promjena datuma ili firme ne traži usklađivanje stanja sa novim
+  podacima (sve je po defaultu označeno). Usput rješava i lint pravilo protiv
+  setState u efektu.
+- **Učitavanje ide kroz React Query** umjesto ručnog efekta (isti razlog).
+- **Pomaci su sada brojčana polja sa granicama** (kolone -10 do 20, linije 0 do
+  3) i objašnjenjem smjera uz svako, jer je ranije bilo moguće upisati broj koji
+  tiho ne radi ništa (vlasnik je imao upisano -10 u pomak linija, što se
+  odsijecalo na 0).
+- **Default pomaka ostaje 0 i 0**, potvrđeno na stvarnoj štampi.
+- **Test nalog štampa JEDAN nalog** (ne dva), dovoljan za provjeru da polja
+  padaju u kućice.
+- **Uputstvo se otvara samo od sebe dok korisnik SAM ne potvrdi** kvačicom na
+  dnu uputstva ("Podesio sam pisač, ne otvaraj više uputstvo automatski",
+  postavka `uputstvoSakrij`). Prvo rješenje je bilo da se to zaključi iz
+  preuzimanja fajla, ali je vlasnik s pravom primijetio da preuzimanje NIJE
+  dokaz da je pisač odštampao: fajl ode operativnom sistemu i tu se trag gubi.
+  Zato odluku donosi korisnik, a ne naša pretpostavka.
+- **Kontakt za pomoć**: na dnu uputstva stoji poziv da se jave na
+  info@poreznikalkulator.ba ako zapne oko podešavanja.
+- **Polje datuma koristi klasu iz CSS modula** (`StampaNaloga.module.css`,
+  isti izgled kao polja na obračunu), po pravilu da polja ne nose inline stil.
+- **Riječ "DOS program" izbačena** iz svih tekstova ove funkcije (odluka
+  vlasnika: nepotrebna).

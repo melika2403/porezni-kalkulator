@@ -290,6 +290,11 @@ export default function PrijaveRadnikaEdu() {
             ugovora sa auto-popunom iz profila (Business pretplata).
           </li>
           <li>
+            <a href="/porezna-kartica">Porezna kartica (PK-1001)</a>, zahtjev za
+            izdavanje porezne kartice sa izračunom koeficijenta ličnog odbitka
+            koji obračun plate koristi.
+          </li>
+          <li>
             <a href="/sihterica">Šihterica</a>, evidencija radnog vremena za
             tačan obračun sati i prekovremenog rada.
           </li>

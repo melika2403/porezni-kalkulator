@@ -544,6 +544,54 @@ export async function bankExport(payload: {
   return r;
 }
 
+// ── Štampa naloga na matričnom pisaču ───────────────────────────────────────
+
+export type StampaNalog = {
+  rb: number;
+  tip: "javniPrihod" | "prenos";
+  naziv: string;
+  mjesto: string;
+  racun: string;
+  svrha: string;
+  iznosKm: number;
+  jib: string;
+  vrstaPrihoda: string;
+  opcina: string;
+  budzetskaOrganizacija: string;
+  pozivNaBroj: string;
+  /** ISO YYYY-MM-DD, prazno za prenos naloge */
+  periodOd: string;
+  periodDo: string;
+};
+
+export type StampaNalozi = {
+  platilac: { racun: string; naziv: string; adresa: string; mjesto: string };
+  datumValute: string;
+  nalozi: StampaNalog[];
+  preskoceni: BankExportPreskocen[];
+};
+
+// Nalozi mjeseca kao JSON (isti nalozi kao uplatnice i izvoz, bez formatiranja)
+// za pregled i ESC/P štampu na matričnom pisaču. Objedinjavanje kantonalnih
+// prati postavku korisnika, kao i kod izvoza.
+export async function naloziZaStampu(payload: {
+  organizationId: number;
+  year: number;
+  month: number;
+  /** ISO YYYY-MM-DD */
+  datumValute: string;
+}): Promise<ApiResponse<StampaNalozi>> {
+  return request<StampaNalozi>("/api/payroll/nalozi-za-stampu", {
+    method: "POST",
+    body: JSON.stringify({
+      orgId: payload.organizationId,
+      year: payload.year,
+      month: payload.month,
+      datumValute: payload.datumValute,
+    }),
+  });
+}
+
 // Mjesečni platni listići — kombinovani PDF (jedna stranica po radniku)
 export async function generateMonthlyPayslips(
   organizationId: number,

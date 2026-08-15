@@ -23,6 +23,8 @@ export interface UorTemplateData {
   datum_pocetka_rada: string;
   radno_mjesto: string;
   mjesto_rada: string;
+  /** Član o radnom vremenu (puno ili nepuno, sastavlja se u compose.ts) */
+  clan_radno_vrijeme: string;
   clan_plate: string;
   otkazni_rok: string;
   datum_ugovora: string;
