@@ -37,9 +37,11 @@ import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
 import {
   clan1Tekst,
   clanPlate,
+  clanRadnoVrijeme,
   formatDdMmYyyy,
   nacinPrestanka,
   naslov2Otkaza,
+  RADNO_VRIJEME_OPCIJE,
   RAZLOZI_OTKAZA,
   razlogById,
   type RazlogOtkazaId,
@@ -153,6 +155,8 @@ function UgovorORaduApp() {
   const [probniRadMjeseci, setProbniRadMjeseci] = useState(3);
   const [radnoMjesto, setRadnoMjesto] = useState("");
   const [mjestoRada, setMjestoRada] = useState("");
+  // Ugovoreno radno vrijeme u satima dnevno (isto polje kao u kartonu radnika).
+  const [satiDnevno, setSatiDnevno] = useState("8");
   const [brutoPlata, setBrutoPlata] = useState("");
   const [netoPlata, setNetoPlata] = useState("");
   const [datumUgovoraIso, setDatumUgovoraIso] = useState(todayIso());
@@ -296,6 +300,7 @@ function UgovorORaduApp() {
       setProbniRadMjeseci(3);
     }
     setOtkazniRok(w.noticePeriod ?? "30 dana");
+    setSatiDnevno(w.contractedHours != null ? String(w.contractedHours) : "8");
     setBrojUgovoraUor(w.contractNumber ?? "");
 
     // Otkaz tab
@@ -347,7 +352,13 @@ function UgovorORaduApp() {
       datum_pocetka_rada: formatDdMmYyyy(datumPocetkaIso),
       radno_mjesto: radnoMjesto,
       mjesto_rada: mjestoRada || grad,
-      clan_plate: clanPlate(brutoPlata, netoPlata, ziroRadnika),
+      clan_radno_vrijeme: clanRadnoVrijeme(Number(satiDnevno) || 8),
+      clan_plate: clanPlate(
+        brutoPlata,
+        netoPlata,
+        ziroRadnika,
+        Number(satiDnevno) || 8,
+      ),
       otkazni_rok: otkazniRok.trim() || "30 dana",
       datum_ugovora: formatDdMmYyyy(datumUgovoraIso),
     };
@@ -409,6 +420,8 @@ function UgovorORaduApp() {
       startDate: datumPocetkaIso || null,
       probationMonths: probniRadEnabled ? probniRadMjeseci : 0,
       noticePeriod: otkazniRok.trim() || null,
+      // isto polje kao u kartonu radnika, pa ostaje usklađeno u oba smjera
+      contractedHours: Number(satiDnevno) || 8,
       contractNumber: brojUgovoraUor.trim() || null,
       bankAccount: ziroRadnika.trim() || undefined,
     };
@@ -1109,6 +1122,19 @@ function UgovorORaduApp() {
                 />
                 <p className={styles.hint}>
                   Ako je prazno, koristi se sjedište poslodavca.
+                </p>
+              </label>
+              <label className={`${styles.field} ${styles.fieldFull}`}>
+                <span className={styles.fieldLabel}>Ugovoreno radno vrijeme</span>
+                <StyledSelect
+                  value={satiDnevno}
+                  onChange={(v) => setSatiDnevno(String(v ?? "8"))}
+                  groups={[{ options: RADNO_VRIJEME_OPCIJE }]}
+                  ariaLabel="Ugovoreno radno vrijeme"
+                />
+                <p className={styles.hint}>
+                  Ide u Član 5. ugovora. Povlači se iz kartona radnika, a
+                  promjena ovdje se snima nazad na radnika.
                 </p>
               </label>
               <label className={styles.field}>

@@ -19,6 +19,8 @@ router.get("/monthly-summary", requireAuth, ctrl.monthlySummary);
 router.post("/monthly-uplatnice", requireAuth, planGate, ctrl.generateMonthlyUplatnice);
 // Izvoz naloga mjeseca u datoteku za e-bankarstvo (isti nalozi kao uplatnice).
 router.post("/bank-export", requireAuth, planGate, exportCtrl.bankExport);
+// Nalozi mjeseca kao JSON za štampu na matričnom pisaču (isti nalozi).
+router.post("/nalozi-za-stampu", requireAuth, planGate, exportCtrl.naloziZaStampu);
 router.post("/mark-month-paid", requireAuth, planGate, ctrl.markMonthPaid);
 router.post("/payment-date", requireAuth, planGate, ctrl.setPaymentDate);
 router.post("/mark-mip-downloaded", requireAuth, planGate, ctrl.markMipDownloaded);

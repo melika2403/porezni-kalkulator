@@ -27,7 +27,13 @@ export default function FaqSection({ items, title = "Često postavljena pitanja"
             >
               {item.q}
             </button>
-            {open === i && <div className={styles.answer}>{item.a}</div>}
+            {/* Odgovor je UVIJEK u HTML-u, samo skriven: stranice uz ovaj FAQ
+                prijavljuju FAQPage strukturirane podatke, a Google traži da
+                taj tekst zaista postoji na stranici. Uslovno renderovanje ga
+                je ostavljalo samo u JSON-LD-u. */}
+            <div className={styles.answer} hidden={open !== i}>
+              {item.a}
+            </div>
           </div>
         ))}
       </div>
