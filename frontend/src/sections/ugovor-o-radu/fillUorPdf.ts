@@ -145,10 +145,7 @@ export async function fillUorPdf(data: UorTemplateData): Promise<Uint8Array> {
   writeBlock(`Mjesto rada je sjedište Poslodavca u ${data.mjesto_rada}.`, { gapAfter: 8 });
 
   writeHeading("Član 5.");
-  writeBlock(
-    "Radnik će raditi puno radno vrijeme u trajanju od 40 sati sedmično. Raspored radnog vremena određuje Poslodavac u skladu sa potrebama procesa rada.",
-    { gapAfter: 8 },
-  );
+  writeBlock(data.clan_radno_vrijeme, { gapAfter: 8 });
 
   writeHeading("Član 6.");
   writeBlock(data.clan_plate, { gapAfter: 8 });

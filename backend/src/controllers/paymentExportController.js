@@ -500,28 +500,19 @@ function isoLokalno(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// POST /api/admin/izvoz-naloga/nalozi  (ADMIN)
-// Body: { orgId, year, month, datumValute (YYYY-MM-DD), combineKantonal }
-// Nalozi obračuna kao JSON za ekran pregleda i ESC/P štampu na matričnom
-// pisaču (Faza 1): isti adapter kao izvoz datoteka, bez formatiranja.
-// Spec: docs/faza1-escp-stampa-naloga.md
-async function listNaloziZaStampu(req, res) {
-  const orgId = parseId(req.body?.orgId);
+// Zajednička validacija + gradnja naloga za štampu (admin i korisnik dijele
+// posao, razlikuje se samo kako se dolazi do organizacije).
+async function naloziZaStampuOdgovor(req, res, org, combineKantonal) {
   const year = Number(req.body?.year);
   const month = Number(req.body?.month);
   const datumValute = String(req.body?.datumValute || "");
-  const combineKantonal = !!req.body?.combineKantonal;
 
-  if (!orgId) return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
   if (!Number.isInteger(year) || year < 2000 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) {
     return res.status(400).json({ ok: false, error: "INVALID_PERIOD" });
   }
   if (!parsirajDatumValute(datumValute)) {
     return res.status(400).json({ ok: false, error: "INVALID_DATUM_VALUTE" });
   }
-
-  const org = await Organization.findByPk(orgId);
-  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
 
   const r = await sagradiNaloge({ org, year, month, datumValute, combineKantonal });
   if (!r.ok) {
@@ -554,10 +545,45 @@ async function listNaloziZaStampu(req, res) {
   });
 }
 
+// POST /api/admin/izvoz-naloga/nalozi  (ADMIN)
+// Body: { orgId, year, month, datumValute (YYYY-MM-DD), combineKantonal }
+// Nalozi obračuna kao JSON za ekran pregleda i ESC/P štampu na matričnom
+// pisaču: isti adapter kao izvoz datoteka, bez formatiranja. Admin harness
+// bira firmu i objedinjavanje ručno (kalibracija).
+// Spec: docs/faza1-escp-stampa-naloga.md
+async function listNaloziZaStampu(req, res) {
+  const orgId = parseId(req.body?.orgId);
+  if (!orgId) return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+  const org = await Organization.findByPk(orgId);
+  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
+  return naloziZaStampuOdgovor(req, res, org, !!req.body?.combineKantonal);
+}
+
+// POST /api/payroll/nalozi-za-stampu (requireAuth + plan gate u payrollRoutes)
+// Korisnička varijanta: pristup samo vlastitim organizacijama, objedinjavanje
+// kantonalnih prati postavku korisnika (ista koju koriste uplatnice i izvoz).
+// Spec: docs/faza2-stampa-naloga-na-obracunu.md
+async function naloziZaStampu(req, res) {
+  try {
+    const orgId = parseId(req.body?.orgId);
+    if (!orgId) return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
+    const org = await assertOrgAccess(orgId, req.user.id);
+    if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+    const combineKantonal = await getCombineKantonal(req.user.id);
+    return await naloziZaStampuOdgovor(req, res, org, combineKantonal);
+  } catch (e) {
+    console.error("naloziZaStampu error:", e);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Greška pri učitavanju naloga" });
+  }
+}
+
 module.exports = {
   listOrganizacije,
   listObracuni,
   generisi,
   bankExport,
   listNaloziZaStampu,
+  naloziZaStampu,
 };

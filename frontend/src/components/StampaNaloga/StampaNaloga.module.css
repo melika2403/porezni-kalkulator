@@ -1,0 +1,26 @@
+/* Polje za unos u modalu štampe naloga. Isti izgled kao polja na obračunu
+   plata (js3100.module.css .fieldInput), jer modal živi na toj stranici. */
+.fieldInput {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  outline: none;
+  width: 100%;
+}
+
+.fieldInput:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-pale);
+}
+
+.fieldInput::placeholder {
+  color: var(--mid);
+  opacity: 0.6;
+}

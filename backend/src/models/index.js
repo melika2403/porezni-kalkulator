@@ -406,6 +406,10 @@ const Worker = sequelize.define(
     // ispit, datum ugovora, pripravnički/beneficirani staž, radna sposobnost,
     // razdoblja mirovanja, razlog prestanka, mjesto rada, sedmično radno vrijeme.
     evidencijaPodaci: { type: DataTypes.JSON, allowNull: true },
+    // Podaci za obrazac PK-1001 (izdržavani članovi, ime roditelja, općina).
+    // Čuvaju se da se zahtjev za poreznu karticu ne kuca ponovo pri svakoj
+    // izmjeni (novo dijete, supružnik se zaposlio).
+    poreznaKarticaPodaci: { type: DataTypes.JSON, allowNull: true },
     // ── Korist u naravi: korištenje službenog vozila u privatne svrhe ──
     // Vezano za konkretno vozilo i osobu iz Odluke poslodavca. Većina radnika
     // nema. Povećava osnovicu za doprinose i porez (ne i neto), čl. 10 Zakona o

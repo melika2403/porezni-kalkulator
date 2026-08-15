@@ -12,8 +12,7 @@ const MOD_PATH = path.join(
   "..",
   "frontend",
   "src",
-  "sections",
-  "admin",
+  "lib",
   "nalozi",
   "escpNalog.ts",
 );

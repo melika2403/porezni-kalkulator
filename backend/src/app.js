@@ -935,6 +935,12 @@ async function ensureColumns() {
       column: "evidencijaPodaci",
       ddl: "ALTER TABLE workers ADD COLUMN evidencijaPodaci JSON NULL",
     },
+    // Podaci za obrazac PK-1001 (izdržavani članovi za poreznu karticu).
+    {
+      table: "workers",
+      column: "poreznaKarticaPodaci",
+      ddl: "ALTER TABLE workers ADD COLUMN poreznaKarticaPodaci JSON NULL",
+    },
   ];
   for (const c of checks) {
     const [rows] = await sequelize.query(

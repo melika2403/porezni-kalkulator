@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useLastOrg } from "src/hooks/useLastOrg";
+import styles from "./RadniciTabBar.module.css";
 
 type ActiveKey =
   | "js3100"
   | "obracun"
+  | "porezna-kartica"
   | "aktivni"
   | "ugovori"
   | "rjesenja"
@@ -16,6 +18,7 @@ function detectActive(pathname: string | null, tab: string | null): ActiveKey {
   if (pathname?.startsWith("/ugovor-o-radu")) return "ugovori";
   if (pathname?.startsWith("/cesije-i-kompenzacije")) return "cesije";
   if (pathname?.startsWith("/rjesenja-i-odluke")) return "rjesenja";
+  if (pathname?.startsWith("/porezna-kartica")) return "porezna-kartica";
   if (pathname?.startsWith("/aktivni-radnici")) return "aktivni";
   if (tab === "obracun") return "obracun";
   return "js3100";
@@ -52,6 +55,11 @@ export default function RadniciTabBar() {
       href: `/prijave-radnika?${["tab=obracun", orgQs].filter(Boolean).join("&")}`,
     },
     {
+      key: "porezna-kartica",
+      label: "Porezna kartica",
+      href: `/porezna-kartica${orgQs ? `?${orgQs}` : ""}`,
+    },
+    {
       key: "aktivni",
       label: "Aktivni radnici",
       href: `/aktivni-radnici${orgQs ? `?${orgQs}` : ""}`,
@@ -84,20 +92,7 @@ export default function RadniciTabBar() {
         borderBottom: "1px solid #d4cfc4",
       }}
     >
-      <nav
-        role="tablist"
-        aria-label="Radnici i plate"
-        style={{
-          maxWidth: 1080,
-          margin: "0 auto",
-          padding: "0 1.5rem",
-          display: "flex",
-          gap: "0.4rem",
-          flexWrap: "nowrap",
-          overflowX: "auto",
-          overflowY: "hidden",
-        }}
-      >
+      <nav role="tablist" aria-label="Radnici i plate" className={styles.nav}>
         {tabs.map((t) => {
           const isActive = active === t.key;
           return (
@@ -107,19 +102,7 @@ export default function RadniciTabBar() {
               role="tab"
               aria-selected={isActive}
               scroll={false}
-              style={{
-                padding: "0.7rem 1rem",
-                fontSize: "0.92rem",
-                fontWeight: isActive ? 600 : 500,
-                color: isActive ? "#111" : "#666",
-                cursor: "pointer",
-                borderBottom: `2px solid ${isActive ? "#3a5c42" : "transparent"}`,
-                marginBottom: -1,
-                fontFamily: "inherit",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
+              className={`${styles.tab} ${isActive ? styles.tabActive : ""}`}
             >
               {t.label}
             </Link>

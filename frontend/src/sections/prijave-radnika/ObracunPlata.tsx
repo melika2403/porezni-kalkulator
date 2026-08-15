@@ -56,6 +56,7 @@ import {
 } from "src/utils/payrollFbih";
 import { parseDecimal, sanitizeDecimalInput } from "src/utils/parseDecimal";
 import DateInput from "src/components/DateInput/DateInput";
+import StampaNalogaModal from "src/components/StampaNaloga/StampaNalogaModal";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useNotice } from "src/components/Notice/Notice";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
@@ -2001,6 +2002,8 @@ function MonthlyPanel({
   // (opcija "uvoz naloga") i samo potpiše naloge.
   const [izvozOpen, setIzvozOpen] = useState(false);
   const [izvozBanka, setIzvozBanka] = useState<string | null>(null);
+  // Štampa naloga na matričnom pisaču (pred-štampani obrazac na traci).
+  const [stampaOpen, setStampaOpen] = useState(false);
   const [izvozDatum, setIzvozDatum] = useState("");
   const [izvozRezultat, setIzvozRezultat] =
     useState<BankExportRezultat | null>(null);
@@ -3942,6 +3945,40 @@ function MonthlyPanel({
               ? "Generišem…"
               : "Lista naloga"}
           </button>
+          <button
+            type="button"
+            className={styles.btnTintBlue}
+            onClick={() => setStampaOpen(true)}
+            disabled={!organization || !canGenerate}
+            title={
+              canGenerate
+                ? "Štampa naloga na matričnom pisaču, na pred-štampani obrazac (traka)"
+                : "Dostupno uz Pro pretplatu"
+            }
+            style={{
+              padding: "0.75rem 1.5rem",
+              fontSize: "0.95rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              width="16"
+              height="16"
+            >
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Štampa naloga
+          </button>
           <div
             ref={bankMenuRef}
             style={{
@@ -4625,6 +4662,15 @@ function MonthlyPanel({
                   </div>
                 </div>
               </div>
+            )}
+            {stampaOpen && organization && (
+              <StampaNalogaModal
+                organizationId={orgId}
+                organizationName={organization.name || ""}
+                year={year}
+                month={month}
+                onClose={() => setStampaOpen(false)}
+              />
             )}
             <DocRow label="Porezna uprava">
           {radniciFbih.length > 0 && (

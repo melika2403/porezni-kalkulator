@@ -39,6 +39,7 @@ export const CONTENT_META: Record<string, ContentMeta> = {
   "/fakture": { reviewed: "2026-06-03" },
   "/fakture/nova": { reviewed: "2026-06-03" },
   "/prijave-radnika": { reviewed: "2026-06-03", taxYear: 2026 },
+  "/porezna-kartica": { reviewed: "2026-08-15", taxYear: 2026 },
   "/sifre-djelatnosti": { reviewed: "2026-06-03" },
   "/javni-prihodi": { reviewed: "2026-06-03", taxYear: 2026 },
   "/o-nama": { reviewed: "2026-06-03" },
