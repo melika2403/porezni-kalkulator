@@ -22,6 +22,8 @@ export type AuthUser = {
   trialUsedAt: string | null;
   /** Kraj PK Office probe; postavljen = proba je iskorištena (jednokratna). */
   pkOfficeTrialEndsAt?: string | null;
+  /** Naziv na platnom listiću: null/izostavljeno = "PLATNI LISTIĆ". */
+  payslipNaziv?: "PLATNA_LISTA" | null;
   /** Stanje dvofaktorske prijave; detalji su na /api/2fa/status. */
   twoFactor?: { enabled: boolean; method: "EMAIL" | "TOTP" | null };
   subscription: {
@@ -29,12 +31,16 @@ export type AuthUser = {
     startDate: string;
     endDate: string;
     isActive: boolean;
-    plan: "PRO" | "BUSINESS" | null;
+    /** pro | business | office_2 | office_10 | office_25 | office_50 | free
+        (backend šalje malim slovima; stari tip "PRO"|"BUSINESS" je lagao) */
+    plan: string | null;
     billingCycle: "monthly" | "yearly" | null;
   } | null;
 };
 
-export type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
+export type ApiResponse<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
 
 const BACKEND_URL = getBackendUrl();
 
@@ -92,9 +98,12 @@ export function register(payload: RegisterPayload) {
 }
 
 export function verifyEmail(token: string) {
-  return request<null>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
-    method: "GET",
-  });
+  return request<null>(
+    `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+    {
+      method: "GET",
+    },
+  );
 }
 
 export function resendVerification(email: string) {

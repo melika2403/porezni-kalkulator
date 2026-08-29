@@ -82,6 +82,7 @@ function toPublicWorker(w) {
     koristVoziloOpis: rest.koristVoziloOpis || null,
     evidencijaPodaci: parseEvidencija(rest.evidencijaPodaci),
     poreznaKarticaPodaci: pkIzBaze(parseEvidencija(rest.poreznaKarticaPodaci)),
+    obustave: obustaveIzBaze(rest.obustave),
   };
 }
 
@@ -162,6 +163,52 @@ function provjeriPkPodatke(v) {
     }
   }
   return null;
+}
+
+// ── Obustave na platu (trajne, npr. rata kredita) ───────────────────────────
+// Lista { naziv, iznos, aktivna } na radniku; ne diraju neto, samo isplatu.
+const OBUSTAVE_MAX_REDOVA = 20;
+const OBUSTAVE_MAX_TEKST = 200;
+const OBUSTAVE_MAX_IZNOS = 1000000;
+
+function provjeriObustave(v) {
+  if (v === null) return null;
+  if (!Array.isArray(v)) return "INVALID_OBUSTAVE";
+  if (v.length > OBUSTAVE_MAX_REDOVA) return "OBUSTAVE_PREVELIKE";
+  for (const red of v) {
+    if (!red || typeof red !== "object" || Array.isArray(red)) return "INVALID_OBUSTAVE";
+    if (typeof red.naziv !== "string" || red.naziv.length > OBUSTAVE_MAX_TEKST)
+      return "INVALID_OBUSTAVE";
+    const iznos = Number(red.iznos);
+    if (!Number.isFinite(iznos) || iznos < 0 || iznos > OBUSTAVE_MAX_IZNOS)
+      return "INVALID_OBUSTAVE";
+    if (red.aktivna !== undefined && typeof red.aktivna !== "boolean")
+      return "INVALID_OBUSTAVE";
+  }
+  return null;
+}
+
+// Očisti listu prije upisa: bez praznih redova, iznos na 2 decimale.
+function obustaveZaBazu(v) {
+  if (!Array.isArray(v)) return null;
+  const ciste = v
+    .map((red) => ({
+      naziv: String(red.naziv || "").trim(),
+      iznos: Math.round(Number(red.iznos) * 100) / 100,
+      aktivna: red.aktivna !== false,
+    }))
+    .filter((red) => red.naziv || red.iznos > 0);
+  return ciste.length ? ciste : null;
+}
+
+function obustaveIzBaze(v) {
+  const lista = parseEvidencija(v);
+  if (!Array.isArray(lista)) return null;
+  return lista.map((red) => ({
+    naziv: String(red?.naziv || ""),
+    iznos: Number(red?.iznos) || 0,
+    aktivna: red?.aktivna !== false,
+  }));
 }
 
 // MariaDB vraća JSON kolonu kao string; parsiraj u objekat.
@@ -481,6 +528,12 @@ async function create(req, res) {
     idCardNumber: idCardNumber?.trim() ? idCardNumber.trim().slice(0, 9) : null,
     bankAccount: bankAccount?.trim() || null,
   };
+  if (req.body?.obustave !== undefined) {
+    const greskaObustave = provjeriObustave(req.body.obustave);
+    if (greskaObustave) return res.status(400).json({ ok: false, error: greskaObustave });
+    payload.obustave = req.body.obustave === null ? null : obustaveZaBazu(req.body.obustave);
+  }
+
   const empErr = pickEmploymentFields(req.body, payload);
   if (empErr) return res.status(400).json({ ok: false, error: empErr });
 
@@ -563,6 +616,13 @@ async function update(req, res) {
     const greska = provjeriPkPodatke(v);
     if (greska) return res.status(400).json({ ok: false, error: greska });
     data.poreznaKarticaPodaci = v === null ? null : pkZaBazu(v);
+  }
+
+  // Trajne obustave na platu; null ili prazna lista brišu zapis.
+  if (req.body?.obustave !== undefined) {
+    const greskaObustave = provjeriObustave(req.body.obustave);
+    if (greskaObustave) return res.status(400).json({ ok: false, error: greskaObustave });
+    data.obustave = req.body.obustave === null ? null : obustaveZaBazu(req.body.obustave);
   }
 
   const empErr = pickEmploymentFields(req.body, data);

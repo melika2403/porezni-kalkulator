@@ -7,11 +7,13 @@ import { useQuery } from "@tanstack/react-query";
 import {
   IconBuilding,
   IconCoins,
+  IconDownload,
   IconFileText,
   IconClipboardList,
   IconId,
   IconPencil,
   IconTrash,
+  IconUpload,
   IconUserOff,
 } from "@tabler/icons-react";
 import {
@@ -28,6 +30,8 @@ import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegis
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
+import { UvozRadnikaModal } from "src/sections/zaposlenici/UvozRadnikaModal";
+import { napraviIzvjestajCsv } from "src/sections/zaposlenici/radniciCsv";
 import {
   WorkersTable,
   nedostajePodaci,
@@ -135,6 +139,7 @@ export default function AktivniRadnici() {
   const [deleteTarget, setDeleteTarget] = useState<Worker | null>(null);
   // Karton obračuna: plate radnika po mjesecima (isti modal kao PK Office)
   const [kartonWorker, setKartonWorker] = useState<Worker | null>(null);
+  const [uvozOpen, setUvozOpen] = useState(false);
   const router = useRouter();
 
   const orgsQuery = useQuery({
@@ -227,6 +232,33 @@ export default function AktivniRadnici() {
     odjavljeni: radnici.filter((w) => w.employmentStatus === "ODJAVLJEN").length,
   };
 
+  // CSV izvoz prikazanih radnika: isti fajl kao PK Office (dijeljeni helper).
+  function izvozCsv() {
+    if (filtered.length === 0) return;
+    const plataText = (w: Worker): string => {
+      if (w.role === "VLASNIK" && isObrt) return "obrtnik, doprinosi po režimu";
+      if (w.salaryType === "BRUTO" && w.salaryBruto != null) {
+        return `${fmtPlata(Number(w.salaryBruto))} bruto`;
+      }
+      if (w.salaryNeto != null) return `${fmtPlata(Number(w.salaryNeto))} neto`;
+      if (w.salaryBruto != null) return `${fmtPlata(Number(w.salaryBruto))} bruto`;
+      return "plata nije unesena";
+    };
+    const statusText = (w: Worker): string => {
+      if (w.employmentStatus === "PRIJAVLJEN") return "prijavljen";
+      if (w.employmentStatus === "ODJAVLJEN") return "odjavljen";
+      return "u izradi";
+    };
+    const csv = napraviIzvjestajCsv(filtered, plataText, statusText);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Spisak-radnika-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (!isLoggedIn) {
     // Zadrži tab-bar i u preview (neulogovanom) stanju da korisnik može preći
     // na druge funkcije (Obračun plata, Ugovori...) bez vraćanja na početnu.
@@ -279,6 +311,29 @@ export default function AktivniRadnici() {
               flexWrap: "wrap",
             }}
           >
+            <button
+              type="button"
+              className={styles.backLink}
+              style={{ marginBottom: 0, cursor: "pointer", fontFamily: "inherit" }}
+              onClick={izvozCsv}
+              disabled={filtered.length === 0}
+              title="Izvoz prikazanih radnika u CSV za Excel"
+            >
+              <IconDownload size={15} />
+              Izvoz (CSV)
+            </button>
+            {canCreateWorker && (
+              <button
+                type="button"
+                className={styles.backLink}
+                style={{ marginBottom: 0, cursor: "pointer", fontFamily: "inherit" }}
+                onClick={() => setUvozOpen(true)}
+                title="Uvoz novih radnika iz CSV fajla (šablon se preuzima u prozoru)"
+              >
+                <IconUpload size={15} />
+                Uvoz (CSV)
+              </button>
+            )}
             {/* Pregled organizacije: kartica sa radnicima + pristup korisnicima */}
             <Link
               href={`/organizacija/${orgId}`}
@@ -435,6 +490,15 @@ export default function AktivniRadnici() {
             orgType={selectedOrg?.type ?? null}
             worker={workerModal.worker}
             onClose={() => setWorkerModal(null)}
+          />
+        </div>
+      )}
+      {uvozOpen && orgId && (
+        <div className="pk-scope">
+          <UvozRadnikaModal
+            orgId={orgId}
+            postojeci={allWorkers}
+            onClose={() => setUvozOpen(false)}
           />
         </div>
       )}

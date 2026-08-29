@@ -27,7 +27,7 @@ const userInclude = [
 const userAttributes = [
   "id", "email", "jmbg", "idCardNumber", "firstName", "lastName",
   "phone", "address", "city", "role", "createdAt", "updatedAt", "isEmailVerified",
-  "trialUsedAt", "pkOfficeTrialEndsAt",
+  "trialUsedAt", "pkOfficeTrialEndsAt", "payslipNaziv",
 ];
 
 function toPublicUser(user) {

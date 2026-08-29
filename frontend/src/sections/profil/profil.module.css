@@ -1124,6 +1124,12 @@
   color: #b91c1c;
 }
 
+/* PK Office paket (Office Start/Tim/Agencija/Agencija+) */
+.roleChipOffice {
+  background: #3a5c42;
+  color: #fff;
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 /* ── Sigurnost tab ───────────────────────────────────────────── */
 .verifiedBadge {

@@ -80,7 +80,9 @@ import {
 } from "src/api/profile";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import OrganizationLogoUpload from "./OrganizationLogoUpload";
+import OrganizationMemorandumUpload from "./OrganizationMemorandumUpload";
 import CitySelect, { CityNote } from "src/components/CitySelect/CitySelect";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import { useCityLookup } from "src/hooks/useCities";
 import DateInput from "src/components/DateInput/DateInput";
 import { useRole } from "src/hooks/useRole";
@@ -860,11 +862,7 @@ function ProfilTab({
                 {user.email && (
                   <div className={styles.profileHeadEmail}>{user.email}</div>
                 )}
-                <span
-                  className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}
-                >
-                  {user.role}
-                </span>
+                <PaketChip user={user} />
               </div>
               <button
                 type="button"
@@ -1089,6 +1087,8 @@ function ProfilTab({
         <MyEmploymentCard ownOrgs={ownOrgs} />
       )}
 
+      {section !== "djelatnost" && <PostavkeDokumenataCard user={user} />}
+
       {section !== "licni" && (
       <div className={styles.card} style={section === "all" ? { marginTop: "1.5rem" } : undefined}>
         <div className={styles.cardHeader}>
@@ -1244,6 +1244,10 @@ function ProfilTab({
               )}
               <RoleGuard roles={["PRO", "BUSINESS", "ADMIN"]} mode="hide">
                 <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+                <OrganizationMemorandumUpload
+                  orgId={org.id}
+                  memorandumUrl={org.memorandumUrl ?? null}
+                />
               </RoleGuard>
             </Modal>
           );
@@ -3188,7 +3192,13 @@ function DjelatnostTab({
                 </div>
               )}
               {(org.memberRole === "OWNER" || org.memberRole === "ADMIN") && (
-                <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+                <>
+                  <OrganizationLogoUpload orgId={org.id} logoUrl={org.logoUrl} />
+                  <OrganizationMemorandumUpload
+                    orgId={org.id}
+                    memorandumUrl={org.memorandumUrl ?? null}
+                  />
+                </>
               )}
             </Modal>
           );
@@ -4167,6 +4177,143 @@ function HistorijaTab() {
   );
 }
 
+// ─── Bedž paketa na profilu ───────────────────────────────────────────────────
+// Aktivni PK Office paket ima prednost nad rolom iz baze: office paketi rolu
+// namjerno NE mijenjaju (ona služi gate-ovima i zna biti BUSINESS/USER iz
+// historije), pa je office korisniku umjesto "BUSINESS" prikazan njegov paket.
+const OFFICE_BEDZ: Record<string, string> = {
+  office_2: "Office Start",
+  office_10: "Office Tim",
+  office_25: "Office Agencija",
+  office_50: "Office Agencija+",
+};
+
+function PaketChip({ user }: { user: AuthUser }) {
+  const plan = String(user.subscription?.plan ?? "").toLowerCase();
+  let tekst: string = user.role;
+  let klasa = "";
+  if (user.role === "ADMIN") {
+    klasa = styles.roleChipAdmin;
+  } else if (user.subscription?.isActive && plan.startsWith("office")) {
+    tekst = OFFICE_BEDZ[plan] ?? "PK Office";
+    klasa = styles.roleChipOffice;
+  } else if (user.role === "PRO") {
+    klasa = styles.roleChipPro;
+  } else if (user.role === "BUSINESS") {
+    klasa = styles.roleChipBusiness;
+  }
+  return <span className={`${styles.roleChip} ${klasa}`}>{tekst}</span>;
+}
+
+// ─── Postavke dokumenata (profil, vrijedi za sve organizacije) ────────────────
+// Naziv na platnom listiću: neki klijenti insistiraju na "Platna lista".
+// Snima se odmah pri izboru (bez posebnog dugmeta), na users.payslipNaziv.
+function PostavkeDokumenataCard({ user }: { user: AuthUser }) {
+  const queryClient = useQueryClient();
+  // Lokalni prikaz izbora (optimistički): select odmah pokaže izabrano, a
+  // "me" query se osvježi u pozadini. Na grešku se vraća snimljeno stanje.
+  const [naziv, setNaziv] = useState<"LISTIC" | "PLATNA_LISTA">(
+    user.payslipNaziv === "PLATNA_LISTA" ? "PLATNA_LISTA" : "LISTIC",
+  );
+  const [saved, setSaved] = useState(false);
+  const mutation = useMutation({
+    mutationFn: (payslipNaziv: "PLATNA_LISTA" | null) =>
+      unwrap(updateProfile(user.id, { payslipNaziv })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    },
+    onError: () => {
+      setNaziv(
+        user.payslipNaziv === "PLATNA_LISTA" ? "PLATNA_LISTA" : "LISTIC",
+      );
+    },
+  });
+
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardHeader}>
+        <p className={styles.cardTitle}>Postavke dokumenata</p>
+      </div>
+      {saved && <div className={styles.successMsg}>Postavka sačuvana.</div>}
+      {mutation.isError && (
+        <div className={styles.errorMsg}>
+          Greška pri snimanju, pokušajte ponovo.
+        </div>
+      )}
+      <div
+        style={{
+          border: "1px solid var(--border, #d4cfc4)",
+          borderRadius: 12,
+          background: "var(--paper, #faf8f3)",
+          padding: "1rem 1.15rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            background: "var(--sage-soft, #d6e8d9)",
+            color: "var(--sage, #3a5c42)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: "0 0 auto",
+          }}
+        >
+          <LuFileText size={19} />
+        </span>
+        <div style={{ flex: "1 1 240px", minWidth: 220 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.95rem",
+              fontWeight: 600,
+              color: "var(--ink, #0f1a12)",
+            }}
+          >
+            Naziv dokumenta plate
+          </p>
+          <p
+            className={styles.fieldHint}
+            style={{ margin: "0.25rem 0 0", maxWidth: 440, lineHeight: 1.5 }}
+          >
+            Naslov na PDF-u i u emailu radniku. Vrijedi za sve vaše
+            organizacije.
+          </p>
+        </div>
+        <StyledSelect
+          ariaLabel="Naziv dokumenta plate"
+          value={naziv}
+          onChange={(v) => {
+            const novi = v === "PLATNA_LISTA" ? "PLATNA_LISTA" : "LISTIC";
+            if (novi === naziv) return;
+            setNaziv(novi);
+            mutation.mutate(novi === "PLATNA_LISTA" ? "PLATNA_LISTA" : null);
+          }}
+          groups={[
+            {
+              options: [
+                { value: "LISTIC", label: "Platni listić (standardno)" },
+                { value: "PLATNA_LISTA", label: "Platna lista" },
+              ],
+            },
+          ]}
+          disabled={mutation.isPending}
+          wrapStyle={{ flex: "0 0 auto", width: 250 }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Sigurnost tab ────────────────────────────────────────────────────────────
 
 function SigurnostTab({ user }: { user: AuthUser }) {
@@ -4582,11 +4729,7 @@ export default function Profil() {
             <div className={styles.sidebarFootName}>
               {user.firstName} {user.lastName}
             </div>
-            <span
-              className={`${styles.roleChip} ${user.role === "PRO" ? styles.roleChipPro : user.role === "BUSINESS" ? styles.roleChipBusiness : user.role === "ADMIN" ? styles.roleChipAdmin : ""}`}
-            >
-              {user.role}
-            </span>
+            <PaketChip user={user} />
           </div>
         </div>
       </aside>
@@ -4644,6 +4787,10 @@ const ACT_NAMES: Record<string, string> = {
   PLATNI_LISTIC_GENERATE: "Platni listić", NALOG_KNJIZENJE_GENERATE: "Nalog za knjiženje",
   LISTA_NALOGA_GENERATE: "Lista naloga", SPECIFIKACIJE_GENERATE: "Specifikacije",
   IZVOZ_BANKA_GENERATE: "Izvoz za e-bankarstvo",
+  REKAPITULACIJA_GENERATE: "Rekapitulacija isplata",
+  ISPLATE_PO_BANKAMA_GENERATE: "Isplate po bankama",
+  SPISAK_BANKE_GENERATE: "Spisak za banku",
+  PK1001_GENERATE: "Porezna kartica",
   OFFICE_IZVOD_UCITAN: "Izvod učitan", OFFICE_IZVOD_RUCNI: "Ručni izvod",
   OFFICE_ULAZNI_RACUN: "Ulazni račun", OFFICE_KALKULACIJA: "Kalkulacija",
   OFFICE_BLAGAJNA_NALOG: "Blagajnički nalog", OFFICE_PUTNI_NALOG: "Putni nalog",

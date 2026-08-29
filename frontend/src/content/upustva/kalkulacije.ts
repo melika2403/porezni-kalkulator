@@ -49,6 +49,20 @@ export const kalkulacije: Upustvo = {
       ],
     },
     {
+      naslov: "Uvoz i izvoz šifarnika artikala",
+      blokovi: [
+        {
+          t: "koraci",
+          stavke: [
+            "Na kartici Artikli, dugme Uvoz prima XML izvoz iz drugih programa (npr. Com_Soft) ili CSV fajl.",
+            "Za ručne liste preuzmite šablon u prozoru uvoza, popunite ga u Excelu (obavezni su šifra i naziv) i ubacite fajl.",
+            "Prije upisa se prikaže pregled po redovima: novi, preskočen (šifra već postoji, ništa se ne mijenja) ili greška sa razlogom.",
+            "Dugme Izvoz (CSV) preuzima cijeli šifarnik sa stanjem i MPC cijenama sa lagera.",
+          ],
+        },
+      ],
+    },
+    {
       naslov: "Izbor artikla",
       blokovi: [
         {

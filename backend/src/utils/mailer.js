@@ -507,6 +507,7 @@ ${renewUrl}
 }
 
 // ── PAYSLIP MAILER (preko invoice mailbox-a noreply@) ───────────────────────
+// nazivDokumenta: "PLATNA_LISTA" (postavka profila) ili null = "platni listić".
 async function sendPayslipEmail({
   to,
   workerName,
@@ -515,6 +516,7 @@ async function sendPayslipEmail({
   month,
   netAmount,
   pdfBuffer,
+  nazivDokumenta = null,
 }) {
   const transporter = createInvoiceTransporter();
   const fromAddr = process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
@@ -524,28 +526,31 @@ async function sendPayslipEmail({
   const yyyy = String(year);
   const periodHr = `${MJESECI[month - 1] || mm}. ${yyyy}.`;
   const netoStr = Number(netAmount || 0).toFixed(2).replace(".", ",");
+  const jeLista = nazivDokumenta === "PLATNA_LISTA";
+  const nazivVeliki = jeLista ? "Platna lista" : "Platni listić";
+  const nazivMali = jeLista ? "platna lista" : "platni listić";
 
   await transporter.sendMail({
     from,
     to,
-    subject: `Platni listić, ${periodHr}, ${workerName}`,
+    subject: `${nazivVeliki}, ${periodHr}, ${workerName}`,
     text:
 `Poštovani${workerName ? ` ${workerName}` : ""},
 
-U prilogu se nalazi platni listić za ${periodHr}${organizationName ? ` od ${organizationName}` : ""}.
+U prilogu se nalazi ${nazivMali} za ${periodHr}${organizationName ? ` od ${organizationName}` : ""}.
 
-Neto za isplatu: ${netoStr} KM
+Ukupno za isplatu: ${netoStr} KM
 
 , ${displayName}`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
-        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Platni listić</h2>
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${nazivVeliki}</h2>
         <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
           Poštovani${workerName ? ` <strong>${workerName}</strong>` : ""},<br/>
-          u prilogu se nalazi platni listić za <strong>${periodHr}</strong>${organizationName ? ` od <strong>${organizationName}</strong>` : ""}.
+          u prilogu se nalazi ${nazivMali} za <strong>${periodHr}</strong>${organizationName ? ` od <strong>${organizationName}</strong>` : ""}.
         </p>
         <div style="background:#f5f2eb; border:1px solid #d4cfc4; border-radius:8px; padding:16px 20px; margin: 20px 0;">
-          <div style="font-size:12px; color:#7a8a7d; text-transform:uppercase; letter-spacing:.06em;">Neto za isplatu</div>
+          <div style="font-size:12px; color:#7a8a7d; text-transform:uppercase; letter-spacing:.06em;">Ukupno za isplatu</div>
           <div style="font-size:28px; font-weight:600; color:#3a5c42; margin-top:4px;">${netoStr} KM</div>
         </div>
         <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
@@ -556,7 +561,7 @@ Neto za isplatu: ${netoStr} KM
     `,
     attachments: [
       {
-        filename: `Platni-listic-${mm}-${yyyy}.pdf`,
+        filename: `${jeLista ? "Platna-lista" : "Platni-listic"}-${mm}-${yyyy}.pdf`,
         content: pdfBuffer,
         contentType: "application/pdf",
       },
@@ -578,6 +583,7 @@ async function sendPayslipsBundleEmail({
   month,
   count,
   pdfBuffer,
+  nazivDokumenta = null,
 }) {
   const transporter = createInvoiceTransporter();
   const fromAddr = process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
@@ -586,12 +592,16 @@ async function sendPayslipsBundleEmail({
   const mm = String(month).padStart(2, "0");
   const yyyy = String(year);
   const periodHr = `${MJESECI[month - 1] || mm}. ${yyyy}.`;
-  const brojStr = `${count} ${count === 1 ? "platni listić" : count < 5 ? "platna listića" : "platnih listića"}`;
+  const jeLista = nazivDokumenta === "PLATNA_LISTA";
+  const brojStr = jeLista
+    ? `${count} ${count === 1 ? "platna lista" : count < 5 ? "platne liste" : "platnih lista"}`
+    : `${count} ${count === 1 ? "platni listić" : count < 5 ? "platna listića" : "platnih listića"}`;
+  const naslovMnozina = jeLista ? "Platne liste" : "Platni listići";
 
   await transporter.sendMail({
     from,
     to,
-    subject: `Platni listići, ${periodHr}${organizationName ? `, ${organizationName}` : ""}`,
+    subject: `${naslovMnozina}, ${periodHr}${organizationName ? `, ${organizationName}` : ""}`,
     text:
 `Poštovani,
 
@@ -602,7 +612,7 @@ Dokument je namijenjen za štampu i uručenje radnicima.
 , ${displayName}`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
-        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Platni listići</h2>
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${naslovMnozina}</h2>
         <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
           Poštovani,<br/>
           u prilogu je <strong>${brojStr}</strong> za <strong>${periodHr}</strong>${organizationName ? ` (<strong>${organizationName}</strong>)` : ""}, u jednom PDF dokumentu.
@@ -618,7 +628,7 @@ Dokument je namijenjen za štampu i uručenje radnicima.
     `,
     attachments: [
       {
-        filename: `Platni-listici-${mm}-${yyyy}.pdf`,
+        filename: `${jeLista ? "Platne-liste" : "Platni-listici"}-${mm}-${yyyy}.pdf`,
         content: pdfBuffer,
         contentType: "application/pdf",
       },

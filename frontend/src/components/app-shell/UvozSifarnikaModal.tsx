@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import {
   IconAlertTriangle,
   IconCheck,
+  IconDownload,
   IconFileUpload,
   IconLoader2,
 } from "@tabler/icons-react";
@@ -22,6 +23,15 @@ export type UvozRezultat = {
   napomene?: string[];
 };
 
+/** Stavka pregleda prije upisa (isti obrazac kao uvoz radnika). */
+export type PregledStavka = {
+  /** šifra ili oznaka reda */
+  kljuc: string;
+  naziv: string;
+  status: "novi" | "preskocen" | "greska";
+  razlog?: string;
+};
+
 export function UvozSifarnikaModal<T>({
   open,
   onClose,
@@ -29,6 +39,8 @@ export function UvozSifarnikaModal<T>({
   opis,
   parse,
   uvezi,
+  sablon,
+  pregled,
 }: {
   open: boolean;
   onClose: () => void;
@@ -37,10 +49,15 @@ export function UvozSifarnikaModal<T>({
   opis: string;
   parse: (file: File) => Promise<T[]>;
   uvezi: (rows: T[]) => Promise<UvozRezultat>;
+  /** opcioni CSV šablon za ručno popunjavanje (dugme "Preuzmi šablon") */
+  sablon?: { imeFajla: string; sadrzaj: () => string };
+  /** opcioni pregled po redovima prije upisa (novi / preskočen / greška) */
+  pregled?: (rows: T[]) => PregledStavka[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<T[] | null>(null);
+  const [stavke, setStavke] = useState<PregledStavka[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rezultat, setRezultat] = useState<UvozRezultat | null>(null);
@@ -48,10 +65,24 @@ export function UvozSifarnikaModal<T>({
   function reset() {
     setFileName(null);
     setRows(null);
+    setStavke(null);
     setError(null);
     setBusy(false);
     setRezultat(null);
     if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function preuzmiSablon() {
+    if (!sablon) return;
+    const blob = new Blob([sablon.sadrzaj()], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = sablon.imeFajla;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function close() {
@@ -72,6 +103,7 @@ export function UvozSifarnikaModal<T>({
         setError("U fajlu nije pronađena nijedna stavka.");
       } else {
         setRows(parsed);
+        setStavke(pregled ? pregled(parsed) : null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Fajl se ne može pročitati.");
@@ -87,6 +119,7 @@ export function UvozSifarnikaModal<T>({
     try {
       setRezultat(await uvezi(rows));
       setRows(null);
+      setStavke(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Uvoz nije uspio.");
     } finally {
@@ -100,6 +133,16 @@ export function UvozSifarnikaModal<T>({
         {!rezultat && (
           <>
             <p className="text-[13px] leading-6 text-text-secondary">{opis}</p>
+            {sablon && (
+              <button
+                type="button"
+                onClick={preuzmiSablon}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors"
+              >
+                <IconDownload size={14} />
+                Preuzmi šablon (CSV)
+              </button>
+            )}
             <input
               ref={fileRef}
               type="file"
@@ -130,12 +173,67 @@ export function UvozSifarnikaModal<T>({
           </div>
         )}
 
-        {rows && !rezultat && (
+        {rows && !rezultat && !stavke && (
           <div className="rounded-lg bg-cream-200 px-3 py-2.5 text-[13px] text-text-primary">
             U fajlu je pronađeno <strong>{rows.length}</strong>{" "}
             {mnozina(rows.length, "stavka", "stavke", "stavki")}. Postojeće
             stavke se ne mijenjaju: sve što već postoji biće preskočeno uz
             obrazloženje.
+          </div>
+        )}
+
+        {rows && !rezultat && stavke && (
+          <div className="space-y-2">
+            <div className="rounded-lg bg-cream-200 px-3 py-2.5 text-[13px] text-text-primary">
+              U fajlu je <strong>{stavke.length}</strong>{" "}
+              {mnozina(stavke.length, "stavka", "stavke", "stavki")}: za uvoz{" "}
+              <strong>
+                {stavke.filter((s) => s.status === "novi").length}
+              </strong>
+              , preskočenih{" "}
+              <strong>
+                {stavke.filter((s) => s.status === "preskocen").length}
+              </strong>
+              , sa greškom{" "}
+              <strong>
+                {stavke.filter((s) => s.status === "greska").length}
+              </strong>
+              . Postojeće stavke se ne mijenjaju.
+            </div>
+            <ul className="max-h-[280px] overflow-y-auto rounded-lg border border-cream-300 divide-y divide-cream-300">
+              {stavke.map((s, i) => (
+                <li
+                  key={`${s.kljuc}-${i}`}
+                  className="flex items-start justify-between gap-3 px-3 py-2 text-[12.5px] leading-5"
+                >
+                  <span className="text-text-primary min-w-0">
+                    <span className="tabular-nums">{s.kljuc} · </span>
+                    {s.naziv || "(bez naziva)"}
+                    {s.razlog && (
+                      <span className="block text-[11.5px] text-text-tertiary">
+                        {s.razlog}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={
+                      "shrink-0 inline-block px-2 py-0.5 rounded-full text-[11px] font-medium " +
+                      (s.status === "novi"
+                        ? "bg-brand-100 text-brand-700"
+                        : s.status === "preskocen"
+                          ? "bg-cream-200 text-text-tertiary"
+                          : "bg-accent-500/10 text-accent-500")
+                    }
+                  >
+                    {s.status === "novi"
+                      ? "novi"
+                      : s.status === "preskocen"
+                        ? "preskočen"
+                        : "greška"}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -202,17 +300,24 @@ export function UvozSifarnikaModal<T>({
           >
             {rezultat ? "Zatvori" : "Odustani"}
           </button>
-          {rows && !rezultat && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={pokreniUvoz}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {busy && <IconLoader2 size={15} className="animate-spin" />}
-              Uvezi {rows.length} {rows.length === 1 ? "stavku" : "stavki"}
-            </button>
-          )}
+          {rows && !rezultat && (() => {
+            // Sa pregledom se broje samo novi redovi; bez njega svi iz fajla.
+            const brojZaUvoz = stavke
+              ? stavke.filter((s) => s.status === "novi").length
+              : rows.length;
+            return (
+              <button
+                type="button"
+                disabled={busy || brojZaUvoz === 0}
+                onClick={pokreniUvoz}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {busy && <IconLoader2 size={15} className="animate-spin" />}
+                Uvezi {brojZaUvoz}{" "}
+                {mnozina(brojZaUvoz, "stavku", "stavke", "stavki")}
+              </button>
+            );
+          })()}
         </div>
       </div>
     </Modal>

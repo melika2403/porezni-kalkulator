@@ -47,8 +47,18 @@ function isXml(text: string): boolean {
   return text.trimStart().startsWith("<");
 }
 
-/** CSV red sa ";" separatorom i standardnim navodnicima ("" = navodnik). */
+/**
+ * CSV red sa standardnim navodnicima ("" = navodnik). Separator je ";" (tako
+ * snima Com_Soft i Excel na našim postavkama), ali se prepoznaje i "," jer
+ * korisnik popunjava naš šablon u programu sa engleskim postavkama; bez toga
+ * bi cijeli red završio u jednoj ćeliji.
+ */
 function parseCsv(text: string): string[][] {
+  const prviRed = text.split(/\r?\n/, 1)[0] ?? "";
+  const sep =
+    (prviRed.match(/;/g)?.length ?? 0) >= (prviRed.match(/,/g)?.length ?? 0)
+      ? ";"
+      : ",";
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -66,9 +76,9 @@ function parseCsv(text: string): string[][] {
       } else {
         cell += ch;
       }
-    } else if (ch === '"') {
+    } else if (ch === '"' && cell === "") {
       inQuotes = true;
-    } else if (ch === ";") {
+    } else if (ch === sep) {
       row.push(cell);
       cell = "";
     } else if (ch === "\n" || ch === "\r") {
@@ -106,16 +116,25 @@ function headerIndex(header: string[], ...needles: string[]): number {
   return -1;
 }
 
+// Excel trik ="..." iz našeg šablona (tekst kolone za šifru i barkod, da
+// Excel ne pojede vodeće nule): skini omotač kad se šablon uveze direktno.
+function bezExcelFormule(v: string): string {
+  const m = /^="(.*)"$/.exec(v.trim());
+  return m ? m[1] : v;
+}
+
 function csvBool(v: string | undefined): boolean {
   const s = (v ?? "").trim().toLowerCase();
   // Com_Soft: "Potvrđeno"/"Nepotvrđeno" (u 1250 dekodiranju uvijek čitljivo)
   return s.startsWith("potvr") || s === "true" || s === "da";
 }
 
-/** "17,00" → 17 */
-function csvNum(v: string | undefined): number {
-  const n = Number((v ?? "").trim().replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
+/** "17,00" → 17, "17%" → 17; prazno ili neprepoznato → null (NEPOZNATO). */
+function csvNum(v: string | undefined): number | null {
+  const s = (v ?? "").trim().replace(/%/g, "");
+  if (!s) return null;
+  const n = Number(s.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : null;
 }
 
 function xmlDoc(text: string): Document {
@@ -174,22 +193,68 @@ function parseArtikliCsv(text: string): UvozArtikal[] {
       'CSV zaglavlje nije prepoznato (očekujem kolone "Šifra" i "Naziv artikla").',
     );
   }
+  if (iSifra === iNaziv) {
+    // Ista kolona za oba znači da red nije razdvojen (pogrešan separator), pa
+    // bi se cijeli red upisao kao šifra i naziv artikla.
+    throw new Error(
+      "CSV nije ispravno razdvojen na kolone. Snimite fajl kao CSV sa tačka-zarezom (;) ili preuzmite naš šablon.",
+    );
+  }
   const iJm = headerIndex(header, "j/m", "jedinica");
   const iStopa = headerIndex(header, "stopa pdv");
   const iBarkod = headerIndex(header, "bar kod", "barkod");
   const iAktivan = headerIndex(header, "aktivan");
   const iVrsta = headerIndex(header, "vrsta");
   return rows.slice(1).map((r) => ({
-    sifra: (r[iSifra] ?? "").trim(),
+    sifra: bezExcelFormule((r[iSifra] ?? "").trim()),
     naziv: (r[iNaziv] ?? "").trim(),
     tip: (iVrsta >= 0 && (r[iVrsta] ?? "").trim().toUpperCase() === "U"
       ? "USLUGA"
       : "ROBA") as "ROBA" | "USLUGA",
     jm: iJm >= 0 ? (r[iJm] ?? "").trim() : undefined,
-    barkod: iBarkod >= 0 ? (r[iBarkod] ?? "").trim() : undefined,
+    barkod: iBarkod >= 0 ? bezExcelFormule((r[iBarkod] ?? "").trim()) : undefined,
+    // PRAZNA stopa je NEPOZNATO, ne 0: prazna ćelija u našem šablonu je
+    // normalna, a "oslobodjenPdv: true" bi dala pogrešan PDV na kalkulaciji
+    // i u KUF-u. Isti guard postoji i u XML grani iznad.
     oslobodjenPdv: iStopa >= 0 ? csvNum(r[iStopa]) === 0 : false,
-    aktivan: iAktivan >= 0 ? csvBool(r[iAktivan]) : true,
+    // Prazno "Aktivan" znači aktivan (default), inače bi uvezeni artikli
+    // bili nevidljivi u šifarniku i pri unosu kalkulacije.
+    aktivan:
+      iAktivan >= 0 && (r[iAktivan] ?? "").trim() !== ""
+        ? csvBool(r[iAktivan])
+        : true,
   }));
+}
+
+// ── šablon za ručni uvoz artikala ────────────────────────────────────────────
+// CSV koji korisnik preuzme, popuni u Excelu i vrati (za liste koje ne dolaze
+// iz Com_Softa). Zaglavlja odgovaraju parseArtikliCsv prepoznavanju; šifra i
+// barkod idu kao ="..." da ih Excel drži kao tekst (vodeće nule).
+export function sablonArtikalaCsv(): string {
+  const esc = (v: string) =>
+    /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const zaglavlje = [
+    "Šifra*",
+    "Naziv artikla*",
+    "Vrsta (R = roba, U = usluga)",
+    "J/M",
+    "Stopa PDV",
+    "Bar kod",
+    "Aktivan",
+  ];
+  const primjer = [
+    '="0001"',
+    "Testni artikal",
+    "R",
+    "KOM",
+    "17",
+    '="3859123456789"',
+    "da",
+  ];
+  return (
+    "﻿" +
+    [zaglavlje, primjer].map((r) => r.map(esc).join(";")).join("\r\n")
+  );
 }
 
 // ── lager lista (uvoz početnog stanja zaliha) ────────────────────────────────

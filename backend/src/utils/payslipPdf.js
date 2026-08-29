@@ -102,7 +102,7 @@ const FOND_INVALIDI_RATE = 0.005;
  * @param {string} paymentDateIso - YYYY-MM-DD (datum isplate)
  * @param {Object} fonts - { reg, bold } - već embedovani fontovi
  */
-function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, fonts) {
+function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, fonts, opcije = {}) {
   const PAGE_W = 595.28;
   const PAGE_H = 841.89;
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
@@ -147,40 +147,69 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   const MARGIN = 40;
   let cursorY = PAGE_H - MARGIN;
 
-  // ── HEADER: firma ─────────────────────────────────────────────────────────
-  drawText(organization.name || "–", MARGIN, cursorY, { size: 13, bold: true });
-  cursorY -= 16;
+  // ── HEADER: memorandum klijenta ILI standardno zaglavlje firme ───────────
+  // Memorandum (slika zaglavlja, po organizaciji) MIJENJA cijeli tekstualni
+  // header (naziv, adresa, kanton, ID, PDV): klijent želi svoj izgled.
+  // Ugrađena slika stiže kroz opcije.memorandumImage (vidi embedMemorandum).
+  if (opcije.memorandumImage) {
+    const img = opcije.memorandumImage;
+    // Preko cijele širine strane (memorandumi su tako dizajnirani),
+    // srazmjerno skalirano. Visina je ograničena na 100 pt jer listić ispod
+    // ima fiksni sadržaj: standardno zaglavlje troši ~94 pt, pa viši
+    // memorandum gura potpise ispod ivice stranice (mjereno). Slika viša od
+    // toga se smanjuje i centrira, ne reže se.
+    const MAX_H = 100;
+    let imgW = PAGE_W;
+    let imgH = (img.height / img.width) * imgW;
+    if (imgH > MAX_H) {
+      imgH = MAX_H;
+      imgW = (img.width / img.height) * imgH;
+    }
+    page.drawImage(img, {
+      x: (PAGE_W - imgW) / 2,
+      y: PAGE_H - imgH,
+      width: imgW,
+      height: imgH,
+    });
+    cursorY = PAGE_H - imgH - 20;
+  } else {
+    drawText(organization.name || "–", MARGIN, cursorY, { size: 13, bold: true });
+    cursorY -= 16;
 
-  const orgParts = [];
-  if (organization.address) orgParts.push(organization.address);
-  if (organization.city) orgParts.push(organization.city);
-  if (orgParts.length) {
-    drawText(orgParts.join(", "), MARGIN, cursorY, { size: 9, color: mid });
-    cursorY -= 12;
-  }
+    const orgParts = [];
+    if (organization.address) orgParts.push(organization.address);
+    if (organization.city) orgParts.push(organization.city);
+    if (orgParts.length) {
+      drawText(orgParts.join(", "), MARGIN, cursorY, { size: 9, color: mid });
+      cursorY -= 12;
+    }
 
-  // Kanton iz lookup-a
-  const kantonInfo = kantonForOpcina(organization.city || "");
-  if (kantonInfo) {
-    drawText(kantonInfo.kantonData.ime, MARGIN, cursorY, { size: 9, color: mid });
-    cursorY -= 12;
-  }
+    // Kanton iz lookup-a
+    const kantonInfo = kantonForOpcina(organization.city || "");
+    if (kantonInfo) {
+      drawText(kantonInfo.kantonData.ime, MARGIN, cursorY, { size: 9, color: mid });
+      cursorY -= 12;
+    }
 
-  if (organization.taxNumber) {
-    drawText(`ID broj: ${organization.taxNumber}`, MARGIN, cursorY, { size: 9, color: mid });
-    cursorY -= 12;
-  }
-  if (organization.pdvNumber) {
-    drawText(`PDV broj: ${organization.pdvNumber}`, MARGIN, cursorY, { size: 9, color: mid });
-    cursorY -= 12;
-  }
+    if (organization.taxNumber) {
+      drawText(`ID broj: ${organization.taxNumber}`, MARGIN, cursorY, { size: 9, color: mid });
+      cursorY -= 12;
+    }
+    if (organization.pdvNumber) {
+      drawText(`PDV broj: ${organization.pdvNumber}`, MARGIN, cursorY, { size: 9, color: mid });
+      cursorY -= 12;
+    }
 
-  cursorY -= 8;
-  drawLine(MARGIN, cursorY, PAGE_W - MARGIN, cursorY, accent, 1.2);
-  cursorY -= 22;
+    cursorY -= 8;
+    drawLine(MARGIN, cursorY, PAGE_W - MARGIN, cursorY, accent, 1.2);
+    cursorY -= 22;
+  }
 
   // ── TITLE ─────────────────────────────────────────────────────────────────
-  const title = "PLATNI LISTIĆ";
+  // Naziv je postavka profila korisnika (users.payslipNaziv): neki klijenti
+  // insistiraju na "platna lista" umjesto "platni listić".
+  const title =
+    opcije.nazivDokumenta === "PLATNA_LISTA" ? "PLATNA LISTA" : "PLATNI LISTIĆ";
   const titleSize = 18;
   const titleW = fonts.bold.widthOfTextAtSize(title, titleSize);
   drawText(title, (PAGE_W - titleW) / 2, cursorY, { size: titleSize, bold: true, color: accent });
@@ -384,12 +413,21 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
   drawLine(MARGIN, cursorY - 18, PAGE_W - MARGIN, cursorY - 18, borderStrong, 0.9);
   cursorY -= 30;
 
-  // ── DODACI (neoporezivi) ──────────────────────────────────────────────────
+  // ── DODACI (neoporezivi) + OBUSTAVE ──────────────────────────────────────
   const hasMeal = Number(payroll.mealAllowance) > 0;
   const hasVac = Number(payroll.vacationBonus) > 0;
   const hasTravel = Number(payroll.travelExpense) > 0;
-  if (hasMeal || hasVac || hasTravel) {
-    drawText("Naknade radniku", MARGIN, cursorY, { size: 10, bold: true, color: accent });
+  // Obustave (rate kredita i sl.): ne diraju neto, umanjuju samo isplatu.
+  const obustaveVal = Math.max(0, Number(payroll.obustave) || 0);
+  if (hasMeal || hasVac || hasTravel || obustaveVal > 0) {
+    // Naslov prati sadržaj: obustave su odbici, ne naknade.
+    const naslovSekcije =
+      obustaveVal > 0
+        ? hasMeal || hasVac || hasTravel
+          ? "Naknade i obustave"
+          : "Obustave na platu"
+        : "Naknade radniku";
+    drawText(naslovSekcije, MARGIN, cursorY, { size: 10, bold: true, color: accent });
     cursorY -= 13;
     if (hasMeal) {
       drawSummaryRow("Topli obrok", payroll.mealAllowance, cursorY);
@@ -403,18 +441,91 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
       drawSummaryRow("Putni trošak", payroll.travelExpense, cursorY);
       cursorY -= 13;
     }
+    let obustaveNapomena = null;
+    if (obustaveVal > 0) {
+      // Raščlamba po stavkama samo kad se stavke slažu sa zbirom I kad na
+      // stranici stvarno ima mjesta; inače jedan zbirni red. Listić je fiksno
+      // jednostranični, pa svaki dodatni red ide na račun potpisa na dnu.
+      let stavke = payroll.obustaveStavke;
+      if (typeof stavke === "string") {
+        try {
+          stavke = JSON.parse(stavke);
+        } catch {
+          stavke = null;
+        }
+      }
+      const stavkeLista = Array.isArray(stavke)
+        ? stavke.filter((s) => s && Number(s.iznos) > 0)
+        : [];
+      const zbirStavki = stavkeLista.reduce((s, r) => s + Number(r.iznos), 0);
+      // Fiksni trošak ispod ovog bloka: UKUPNO ZA ISPLATU (36) + obaveze
+      // poslodavca (128) + korist ako je ima (46) + ukupan trošak (28) +
+      // podnožje sa potpisima (52). Raščlamba se crta samo iz viška.
+      const ispodBloka =
+        36 + 128 + (koristBrutoVal > 0 ? 46 : 0) + 28 + 52 + MARGIN;
+      const slobodno = cursorY - ispodBloka;
+      const staneRasclamba = stavkeLista.length * 13 <= slobodno;
+      const stavkeVazece =
+        stavkeLista.length > 0 &&
+        stavkeLista.length <= 4 &&
+        Math.abs(zbirStavki - obustaveVal) < 0.005;
+      if (stavkeVazece && staneRasclamba) {
+        for (const s of stavkeLista) {
+          drawSummaryRow(`Obustava: ${String(s.naziv || "").trim() || "obustava na platu"}`, -Number(s.iznos), cursorY);
+          cursorY -= 13;
+        }
+      } else {
+        drawSummaryRow("Obustave na platu", -obustaveVal, cursorY);
+        cursorY -= 13;
+        // Kad raščlamba po redovima ne stane, stavke idu u jedan sitan red
+        // da radnik ipak vidi šta mu je obustavljeno.
+        if (stavkeVazece && slobodno >= 12) {
+          let opis = stavkeLista
+            .map(
+              (s) =>
+                `${String(s.naziv || "").trim() || "obustava"} ${fmtKM(Number(s.iznos))}`,
+            )
+            .join(" · ");
+          // Jedan red, bez prelamanja: predugačak spisak se skraćuje da ne
+          // pobjegne preko desne ivice.
+          const maxW = PAGE_W - 2 * MARGIN - 10;
+          if (fonts.reg.widthOfTextAtSize(opis, 7.5) > maxW) {
+            while (
+              opis.length > 3 &&
+              fonts.reg.widthOfTextAtSize(`${opis}…`, 7.5) > maxW
+            ) {
+              opis = opis.slice(0, -1);
+            }
+            opis = `${opis}…`;
+          }
+          drawText(opis, MARGIN + 10, cursorY + 2, { size: 7.5, color: mid });
+          cursorY -= 11;
+        }
+      }
+    }
     cursorY -= 6;
 
-    const totalToWorker =
+    const osnovaZaIsplatu =
       Number(payroll.net || 0) +
       Number(payroll.mealAllowance || 0) +
       Number(payroll.vacationBonus || 0) +
       Number(payroll.travelExpense || 0);
+    // Isplata ne može biti negativna: banka u tom slučaju dobija 0 za platu
+    // (vidi obracunAdapter), pa i listić mora pokazati stvarno stanje, a
+    // neizmireni dio obustave se navede kao napomena da se brojevi slažu.
+    const totalToWorker = Math.max(0, +(osnovaZaIsplatu - obustaveVal).toFixed(2));
+    if (obustaveVal > osnovaZaIsplatu + 0.005) {
+      obustaveNapomena = `Obustave prelaze iznos za isplatu za ${fmtKM(obustaveVal - osnovaZaIsplatu)}; taj dio nije izmiren ovom platom.`;
+    }
     drawLine(MARGIN, cursorY + 7, PAGE_W - MARGIN, cursorY + 7, borderStrong, 0.9);
     drawText("UKUPNO ZA ISPLATU", MARGIN + 4, cursorY - 7, { size: 12, bold: true, color: accent });
     drawRightText(fmtKM(totalToWorker), PAGE_W - MARGIN - 4, cursorY - 7, { size: 12, bold: true, color: accent });
     drawLine(MARGIN, cursorY - 18, PAGE_W - MARGIN, cursorY - 18, borderStrong, 0.9);
     cursorY -= 30;
+    if (obustaveNapomena) {
+      drawText(obustaveNapomena, MARGIN, cursorY, { size: 8, color: mid });
+      cursorY -= 14;
+    }
   }
 
   // ── DOPRINOSI NA PLATU (poslodavac) + naknade ────────────────────────────
@@ -473,7 +584,10 @@ function addPayslipPage(pdfDoc, payroll, organization, worker, paymentDateIso, f
     cursorY,
     { size: 10, bold: true },
   );
-  cursorY -= 50;
+  // Razmak do potpisa se skuplja kad je stranica puna (obustave, korist,
+  // memorandum), da potpisi nikad ne padnu ispod ivice. Nikad ispod 22 pt,
+  // koliko treba da se stane potpisati iznad linije.
+  cursorY -= Math.max(22, Math.min(50, cursorY - MARGIN - 22));
 
   // Potpisi: dvije linije
   const sigW = 180;
@@ -509,18 +623,34 @@ async function embedFonts(pdfDoc) {
  * @param {string} paymentDateIso
  * @returns {Promise<Buffer>}
  */
-async function generatePayslipsCombined(items, organization, paymentDateIso) {
+async function generatePayslipsCombined(items, organization, paymentDateIso, opcije = {}) {
   const pdf = await PDFDocument.create();
   const fonts = await embedFonts(pdf);
   for (const { payroll, worker } of items) {
-    addPayslipPage(pdf, payroll, organization, worker, paymentDateIso, fonts);
+    addPayslipPage(pdf, payroll, organization, worker, paymentDateIso, fonts, opcije);
   }
   return Buffer.from(await pdf.save());
+}
+
+// Memorandum klijenta: ugradi sliku (PNG/JPG) jednom po PDF dokumentu, pa je
+// addPayslipPage crta na svakoj strani preko opcije.memorandumImage. Bilo
+// koja greška vraća null: listić tada nosi standardno zaglavlje, nikad ne pada.
+async function embedMemorandum(pdfDoc, memorandum) {
+  if (!memorandum?.bytes) return null;
+  try {
+    return memorandum.tip === "png"
+      ? await pdfDoc.embedPng(memorandum.bytes)
+      : await pdfDoc.embedJpg(memorandum.bytes);
+  } catch (e) {
+    console.warn("embedMemorandum failed:", e?.message || e);
+    return null;
+  }
 }
 
 module.exports = {
   addPayslipPage,
   embedFonts,
+  embedMemorandum,
   generatePayslipsCombined,
   // izvezeno za testove
   workStazLabel,

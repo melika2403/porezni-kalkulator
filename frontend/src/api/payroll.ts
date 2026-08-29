@@ -85,6 +85,11 @@ export type Payroll = {
   vacationBonus: number;
   travelExpense: number;
 
+  // Obustave na platu (rate kredita i sl.): umanjuju samo iznos za isplatu,
+  // ne diraju neto/doprinose/porez. Stavke su snapshot za platni listić.
+  obustave: number;
+  obustaveStavke: { naziv: string; iznos: number }[] | null;
+
   totalCost: number;
 
   bankAccount: string | null;
@@ -125,6 +130,8 @@ export type CalculatePayload = {
   mealAllowance?: number;
   vacationBonus?: number;
   travelExpense?: number;
+  obustave?: number;
+  obustaveStavke?: { naziv: string; iznos: number }[] | null;
   // Pro-rate factor 0..1 — koristi se za mid-month prijavu/odjavu radnika
   // i vlasnika. Backend skalira osnovicu, minuli rad i min doprinosnu osnovu.
   // Default 1 (puni mjesec). Vidi computeProRateFactor u ObracunPlata.tsx.
@@ -209,6 +216,8 @@ export type SaveInputsPayload = {
   mealAllowance?: number;
   vacationBonus?: number;
   travelExpense?: number;
+  obustave?: number;
+  obustaveStavke?: { naziv: string; iznos: number }[] | null;
   taxCoefficient?: number;
   minuliRadRate?: number;
   koristVoziloAktivna?: boolean;
@@ -380,6 +389,8 @@ export type MonthlyPerWorker = {
   mealAllowance: number;
   vacationBonus: number;
   travelExpense: number;
+  obustave: number;
+  obustaveStavke: { naziv: string; iznos: number }[] | null;
   status: PayrollStatus;
 };
 
@@ -408,6 +419,9 @@ export type MonthlySummary = {
     meal: number;
     vacation: number;
     travel: number;
+    obustave: number;
+    // Neto + dodaci - obustave: novac koji stvarno ide radnicima.
+    zaIsplatu: number;
     totalCost: number;
   };
   uplatnice: MonthlyUplatnicaSummary[];

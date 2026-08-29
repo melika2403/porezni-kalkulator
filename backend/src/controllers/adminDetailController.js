@@ -334,7 +334,7 @@ async function userDetail(req, res) {
     attributes: [
       "id", "firstName", "lastName", "email", "phone", "address", "city",
       "role", "isEmailVerified", "trialUsedAt", "utmSource", "utmCampaign",
-      "pkOfficeTrialEndsAt", "createdAt",
+      "pkOfficeTrialEndsAt", "createdAt", "officeMaxObrta",
     ],
   });
   if (!user) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
@@ -412,11 +412,17 @@ async function userDetail(req, res) {
         : null,
     trialEndsAt: user.pkOfficeTrialEndsAt,
     trialAktivan,
-    maxObrta: officePlanAktivan
-      ? (planInfo?.maxObrta ?? null)
-      : trialAktivan
-        ? 10
-        : null,
+    // Poseban dogovor (users.officeMaxObrta) ima prednost nad limitom
+    // paketa, isto pravilo kao gate (samo broj > 0 se računa).
+    maxObrta: (() => {
+      const poseban =
+        user.officeMaxObrta != null && Number(user.officeMaxObrta) > 0
+          ? Number(user.officeMaxObrta)
+          : null;
+      if (officePlanAktivan) return poseban ?? planInfo?.maxObrta ?? null;
+      if (trialAktivan) return poseban ?? 10;
+      return null;
+    })(),
     aktivnihObrta: [...orgMap.values()].filter((o) => o.pkOfficeEnabled)
       .length,
   };
