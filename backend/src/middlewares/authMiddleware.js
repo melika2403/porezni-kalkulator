@@ -36,6 +36,12 @@ async function requireAuth(req, res, next) {
     const secret = getJwtSecret();
     const payload = jwt.verify(token, secret);
 
+    // 2FA challenge token dokazuje samo da je lozinka bila tačna, NE prijavu.
+    // Bez ove provjere bi challenge cookie sam po sebi otvarao cijelu aplikaciju.
+    if (payload.purpose === "2fa") {
+      return res.status(401).json({ ok: false, error: "INVALID_TOKEN" });
+    }
+
     userId = Number(payload.sub);
     if (!Number.isInteger(userId) || userId <= 0) {
       return res.status(401).json({ ok: false, error: "INVALID_TOKEN" });
@@ -268,6 +274,7 @@ async function optionalAuth(req, _res, next) {
     const token = getTokenFromRequest(req);
     if (token) {
       const payload = jwt.verify(token, getJwtSecret());
+      if (payload.purpose === "2fa") return next(); // challenge nije prijava
       const userId = Number(payload.sub);
       if (Number.isInteger(userId) && userId > 0) {
         const user = await User.findByPk(userId, {

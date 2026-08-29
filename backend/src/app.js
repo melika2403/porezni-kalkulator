@@ -14,6 +14,7 @@ const {
 } = require("./services/bankStatements/bankCodes");
 const KD_BIH_NAMES = require("./data/kdBihNames.json");
 const authRoutes = require("./routes/authRoutes");
+const twoFactorRoutes = require("./routes/twoFactorRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 const organizationsRoutes = require("./routes/organizationsRoutes");
 const formsRoutes = require("./routes/formsRoutes");
@@ -90,6 +91,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/2fa", twoFactorRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/organizations", organizationsRoutes);
 app.use("/api/forms", formsRoutes);

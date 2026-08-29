@@ -47,6 +47,7 @@ import { getMojePostavke } from "src/api/vijestiKomentari";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import OfficeTrialCta, { useOfficeTrial } from "src/components/OfficeTrialCta/OfficeTrialCta";
 import { Modal } from "src/components/app-shell/Modal";
+import DvofaktorskaKartica from "./DvofaktorskaKartica";
 import {
   updateProfile,
   getOrganization,
@@ -4301,6 +4302,9 @@ function SigurnostTab({ user }: { user: AuthUser }) {
           </div>
         </div>
       )}
+
+      {/* Dvofaktorska prijava (opciona, defaultno isključena) */}
+      <DvofaktorskaKartica user={user} />
 
       {/* Change password */}
       {user.hasPassword && (

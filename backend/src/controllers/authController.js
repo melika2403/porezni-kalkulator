@@ -20,12 +20,15 @@ const subscriptionRepository = require("../repositories/subscriptionRepository")
 const { dodijeliOfficeTrial } = require("./pkOfficeGateController");
 const { getEffectiveRole } = require("../services/tierService");
 const { logEvent } = require("./activityController");
+const twoFactorService = require("../services/twoFactorService");
+const {
+  getCookieDomain,
+  setAuthCookie,
+  clearAuthCookie,
+} = require("../utils/authCookies");
 
 const GOOGLE_STATE_COOKIE = "g_oauth_state";
-const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 365 * 10; // 10 godina
 const REMEMBER_ME_JWT_EXPIRES = "87600h"; // 10 godina
-// Default sesija (bez "zapamti me") — 24h. JWT i cookie u istom trajanju.
-const DEFAULT_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24;
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -40,50 +43,6 @@ function getJwtSecret() {
 function getJwtExpiresIn() {
   // Default — kratka sesija (24h). Za "zapamti me" se koristi REMEMBER_ME_JWT_EXPIRES.
   return process.env.JWT_EXPIRES_IN || "24h";
-}
-
-function getCookieDomain() {
-  const domain = process.env.COOKIE_DOMAIN;
-  return domain && domain.trim() ? domain.trim() : undefined;
-}
-
-function setAuthCookie(res, token, rememberMe = false) {
-  const isProd = process.env.NODE_ENV === "production";
-  const domain = getCookieDomain();
-  // Kad koristimo domain cookie (.poreznikalkulator.ba), prvo obrišemo eventualni
-  // stari host-only access_token (postavljen bez domaina, prije konfiguracije).
-  // Bez ovoga browser zadrži oba i šalje ih oba na api subdomenu, pa server
-  // pročita stari (nevažeći) token. Clear bez domaina cilja host-only varijantu.
-  if (domain) {
-    res.clearCookie("access_token", {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      path: "/",
-    });
-  }
-  res.cookie("access_token", token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax",
-    path: "/",
-    ...(domain ? { domain } : {}),
-    maxAge: rememberMe ? REMEMBER_ME_DURATION_MS : DEFAULT_COOKIE_MAX_AGE,
-  });
-}
-
-function clearAuthCookie(res) {
-  const isProd = process.env.NODE_ENV === "production";
-  const domain = getCookieDomain();
-  // Atributi se MORAJU poklapati sa setAuthCookie (secure + sameSite + domain),
-  // inače browser ne obriše cross-subdomain Secure; SameSite=None cookie.
-  res.clearCookie("access_token", {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax",
-    path: "/",
-    ...(domain ? { domain } : {}),
-  });
 }
 
 const userAttributes = [
@@ -251,6 +210,34 @@ async function login(req, res) {
     if (!user.isEmailVerified)
       return res.status(403).json({ ok: false, error: "EMAIL_NOT_VERIFIED" });
 
+    // Drugi faktor. Traži se tek OVDJE, poslije tačne lozinke: prije toga se ne
+    // smije odati ni da nalog postoji ni da ima 2FA. Uređaj kojem je korisnik
+    // ranije vjerovao ("Zapamti me") preskače korak.
+    const twoFactor = await twoFactorService.getEnabledTwoFactor(user.id);
+    if (twoFactor && !(await twoFactorService.isTrustedDevice(req, user.id))) {
+      if (twoFactor.method === "EMAIL") {
+        // Ćutke: neuspjelo slanje ne smije zaustaviti prijavu jer korisnik i
+        // dalje može ući rezervnim kodom. Cooldown vraća PRECESTO_SLANJE kad je
+        // kod maločas već poslan, a taj kod i dalje važi.
+        try {
+          await twoFactorService.issueEmailOtp(user, twoFactor);
+        } catch (mailErr) {
+          console.error("2FA kod na mail nije poslan:", mailErr?.message || mailErr);
+        }
+      }
+      const challenge = twoFactorService.signChallenge({
+        userId: user.id,
+        rememberMe: Boolean(rememberMe),
+        method: twoFactor.method,
+      });
+      twoFactorService.setChallengeCookie(res, challenge);
+      return res.status(200).json({
+        ok: false,
+        error: "2FA_REQUIRED",
+        data: { method: twoFactor.method },
+      });
+    }
+
     const secret = getJwtSecret();
     const expiresIn = rememberMe ? REMEMBER_ME_JWT_EXPIRES : getJwtExpiresIn();
     const token = jwt.sign({ role: user.role }, secret, {
@@ -273,7 +260,118 @@ async function login(req, res) {
 
 async function logout(_req, res) {
   clearAuthCookie(res);
+  // tfa_device se NAMJERNO ne briše: odjava ne znači da uređaj više nije
+  // korisnikov. Povjerenje se poništava dugmetom u profilu.
   return res.status(200).json({ ok: true });
+}
+
+/**
+ * Drugi korak prijave: challenge cookie iz /login plus kod (metodski ili
+ * rezervni). Tek ovdje se postavlja access_token.
+ */
+async function verifyTwoFactor(req, res) {
+  const challenge = twoFactorService.readChallenge(req);
+  if (!challenge) {
+    twoFactorService.clearChallengeCookie(res);
+    return res.status(401).json({ ok: false, error: "CHALLENGE_ISTEKAO" });
+  }
+
+  const { code } = req.body ?? {};
+  if (!isNonEmptyString(code))
+    return res.status(400).json({ ok: false, error: "NEISPRAVAN_KOD" });
+
+  try {
+    const row = await twoFactorService.getEnabledTwoFactor(challenge.userId);
+    if (!row) {
+      // 2FA je u međuvremenu isključen; challenge više nema smisla.
+      twoFactorService.clearChallengeCookie(res);
+      return res.status(401).json({ ok: false, error: "CHALLENGE_ISTEKAO" });
+    }
+
+    const rezultat = await twoFactorService.verifyCode(row, code);
+    if (!rezultat.ok) {
+      void logEvent({
+        userId: challenge.userId,
+        action: "2FA_NEUSPJEH",
+        label: rezultat.error,
+      });
+      return res.status(400).json({
+        ok: false,
+        error: rezultat.error,
+        data:
+          rezultat.preostaloPokusaja != null
+            ? { preostaloPokusaja: rezultat.preostaloPokusaja }
+            : null,
+      });
+    }
+
+    const user = await User.findByPk(challenge.userId, {
+      attributes: ["id", "role"],
+    });
+    if (!user)
+      return res.status(401).json({ ok: false, error: "CHALLENGE_ISTEKAO" });
+
+    const expiresIn = challenge.rememberMe
+      ? REMEMBER_ME_JWT_EXPIRES
+      : getJwtExpiresIn();
+    const token = jwt.sign({ role: user.role }, getJwtSecret(), {
+      subject: String(user.id),
+      expiresIn,
+    });
+    setAuthCookie(res, token, challenge.rememberMe);
+    twoFactorService.clearChallengeCookie(res);
+
+    // "Zapamti me" pokriva i drugi faktor: na ovom uređaju se kod više ne traži.
+    if (challenge.rememberMe) {
+      await twoFactorService.rememberDevice(req, res, user.id);
+    }
+
+    void logEvent({
+      userId: user.id,
+      action: "PRIJAVA",
+      label: rezultat.usedBackupCode
+        ? "Email i lozinka, rezervni kod"
+        : "Email i lozinka, 2FA",
+    });
+
+    const safeUser = await findUserWithSub({ id: user.id });
+    return res.status(200).json({ ok: true, data: toPublicUser(safeUser) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
+}
+
+/** Novi kod na mail tokom prijave (za TOTP nema smisla, kod se generiše lokalno). */
+async function resendTwoFactor(req, res) {
+  const challenge = twoFactorService.readChallenge(req);
+  if (!challenge)
+    return res.status(401).json({ ok: false, error: "CHALLENGE_ISTEKAO" });
+
+  try {
+    const row = await twoFactorService.getEnabledTwoFactor(challenge.userId);
+    if (!row || row.method !== "EMAIL")
+      return res.status(400).json({ ok: false, error: "NEDOSTUPNO" });
+
+    const user = await User.findByPk(challenge.userId, {
+      attributes: ["id", "email", "firstName"],
+    });
+    if (!user)
+      return res.status(401).json({ ok: false, error: "CHALLENGE_ISTEKAO" });
+
+    const rezultat = await twoFactorService.issueEmailOtp(user, row);
+    if (!rezultat.ok) {
+      return res.status(429).json({
+        ok: false,
+        error: rezultat.error,
+        data: { retryAfter: rezultat.retryAfter ?? null },
+      });
+    }
+    return res.status(200).json({ ok: true, data: null });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
 }
 
 async function me(req, res) {
@@ -338,11 +436,19 @@ async function me(req, res) {
   // (useMaxAccessibleTier) čita ovo polje.
   const effectiveRole = await getEffectiveRole(user);
 
+  // Stanje 2FA ide uz /me da profil ne mora zvati poseban endpoint pri svakom
+  // otvaranju; detalji (rezervni kodovi, uređaji) su na /api/2fa/status.
+  const twoFactorRow = await twoFactorService.getEnabledTwoFactor(userId);
+
   return res.status(200).json({
     ok: true,
     data: {
       ...toPublicUser(user),
       effectiveRole,
+      twoFactor: {
+        enabled: !!twoFactorRow,
+        method: twoFactorRow ? twoFactorRow.method : null,
+      },
       organizations,
       activeOrganization,
       preferences: preferences
@@ -725,6 +831,8 @@ module.exports = {
   register,
   login,
   logout,
+  verifyTwoFactor,
+  resendTwoFactor,
   me,
   forgotPassword,
   resetPassword,

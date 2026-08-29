@@ -2277,3 +2277,61 @@
 .panelBox .toolCard .toolTitle { font-size: 14px; }
 .panelBox .toolCard .toolDesc { font-size: 12px; }
 
+
+/* ── Dvofaktorska prijava: rezervni kodovi ───────────────────── */
+.backupCodes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--paper, #f5f2eb);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.backupCode {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-align: center;
+  padding: 0.35rem 0;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  user-select: all;
+}
+
+@media (max-width: 520px) {
+  .backupCodes { grid-template-columns: 1fr; }
+}
+
+/* ── Dvofaktorska prijava: QR i ključ za aplikaciju ──────────── */
+.qrBox {
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.qrBox img {
+  display: block;
+  width: 220px;
+  height: 220px;
+  max-width: 100%;
+}
+
+.secretBox {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  padding: 0.7rem 0.9rem;
+  background: var(--paper, #f5f2eb);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  word-break: break-all;
+  user-select: all;
+}

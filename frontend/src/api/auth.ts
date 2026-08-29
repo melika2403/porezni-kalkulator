@@ -22,6 +22,8 @@ export type AuthUser = {
   trialUsedAt: string | null;
   /** Kraj PK Office probe; postavljen = proba je iskorištena (jednokratna). */
   pkOfficeTrialEndsAt?: string | null;
+  /** Stanje dvofaktorske prijave; detalji su na /api/2fa/status. */
+  twoFactor?: { enabled: boolean; method: "EMAIL" | "TOTP" | null };
   subscription: {
     id: number;
     startDate: string;
@@ -102,11 +104,40 @@ export function resendVerification(email: string) {
   });
 }
 
-export function login(email: string, password: string, rememberMe = false) {
+/**
+ * Prijava ima dva ishoda pored greške: gotovo (`ok`), ili traži drugi faktor
+ * (`error === "2FA_REQUIRED"`, uz metodu u `data`). U drugom slučaju backend je
+ * postavio kratkotrajni challenge cookie i čeka /api/auth/2fa/verify.
+ */
+export type LoginResult =
+  | { ok: true; data: AuthUser }
+  | { ok: false; error: string; data?: { method?: "EMAIL" | "TOTP" } | null };
+
+export function login(
+  email: string,
+  password: string,
+  rememberMe = false,
+): Promise<LoginResult> {
   return request<AuthUser>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password, rememberMe }),
-  });
+  }) as Promise<LoginResult>;
+}
+
+/** Drugi korak prijave: metodski ili rezervni kod. */
+export type VerifyTwoFactorResult =
+  | { ok: true; data: AuthUser }
+  | { ok: false; error: string; data?: { preostaloPokusaja?: number } | null };
+
+export function verifyTwoFactor(code: string): Promise<VerifyTwoFactorResult> {
+  return request<AuthUser>("/api/auth/2fa/verify", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  }) as Promise<VerifyTwoFactorResult>;
+}
+
+export function resendTwoFactorCode() {
+  return request<null>("/api/auth/2fa/resend", { method: "POST" });
 }
 
 export function forgotPassword(email: string) {

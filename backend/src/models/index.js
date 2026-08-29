@@ -1247,6 +1247,78 @@ const UserPreference = sequelize.define(
   { tableName: "user_preferences", timestamps: true },
 );
 
+// ─── 2FA (dvofaktorska prijava) ──────────────────────────────────────────────
+// Odvojena tabela, ne kolone na `users`: users je na MySQL granici od 64
+// indeksa, a tajne ovako ne putuju kroz `userAttributes` na svaki /me poziv.
+// Red postoji i dok podešavanje traje; `enabled` pada na true tek kad korisnik
+// potvrdi kod i preuzme rezervne kodove.
+const UserTwoFactor = sequelize.define(
+  "UserTwoFactor",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      unique: true,
+    },
+    method: {
+      type: DataTypes.ENUM("EMAIL", "TOTP"),
+      allowNull: false,
+      defaultValue: "EMAIL",
+    },
+    enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // Metoda koja se upravo podešava. Odvojena od `method` da promjena metode
+    // kod korisnika koji VEĆ ima 2FA ne obori prijavu dok podešavanje traje;
+    // prelazi u `method` tek kad korisnik potvrdi kod.
+    pendingMethod: { type: DataTypes.ENUM("EMAIL", "TOTP"), allowNull: true },
+    pendingTotpSecret: { type: DataTypes.STRING(255), allowNull: true },
+    // AES-GCM (isti helper kao JMBG); null dok metoda nije TOTP
+    totpSecret: { type: DataTypes.STRING(255), allowNull: true },
+    // Zadnji iskorišten TOTP korak: isti kod ne prolazi dvaput unutar prozora.
+    lastTotpStep: { type: DataTypes.BIGINT, allowNull: true },
+    // Jednokratni kod poslan mailom: u bazi samo sha256.
+    otpHash: { type: DataTypes.CHAR(64), allowNull: true },
+    otpExpiresAt: { type: DataTypes.DATE, allowNull: true },
+    otpAttempts: {
+      type: DataTypes.TINYINT.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    otpSentAt: { type: DataTypes.DATE, allowNull: true },
+    // Niz bcrypt hasheva rezervnih kodova; potrošeni se brišu iz niza.
+    backupCodes: { type: DataTypes.JSON, allowNull: true },
+    enabledAt: { type: DataTypes.DATE, allowNull: true },
+    lastUsedAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  { tableName: "user_two_factor", timestamps: true },
+);
+
+// Uređaj kojem korisnik vjeruje: poslije tačnog koda uz "Zapamti me" se 2FA
+// korak na njemu više ne traži. Trajanje je isto kao remember-me sesija (10
+// godina), po odluci vlasnika. Odjava NE briše povjerenje (inače bi svaka
+// odjava vraćala pitanje za kod); briše ga dugme u profilu.
+const UserTrustedDevice = sequelize.define(
+  "UserTrustedDevice",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // sha256 nasumičnog tokena iz cookieja; sirovi token nikad ne ide u bazu
+    tokenHash: { type: DataTypes.CHAR(64), allowNull: false, unique: true },
+    label: { type: DataTypes.STRING(160), allowNull: true },
+    lastSeenAt: { type: DataTypes.DATE, allowNull: true },
+    expiresAt: { type: DataTypes.DATE, allowNull: false },
+  },
+  { tableName: "user_trusted_devices", timestamps: true },
+);
+
 // ─── INVOICE ITEM TEMPLATE (per-user "biblioteka stavki") ─────────────────────
 const InvoiceItemTemplate = sequelize.define(
   "InvoiceItemTemplate",
@@ -3188,6 +3260,22 @@ AnnouncementRead.belongsTo(Announcement, {
 });
 AnnouncementRead.belongsTo(User, { foreignKey: "userId", as: "user" });
 
+// 2FA associations
+User.hasOne(UserTwoFactor, {
+  foreignKey: "userId",
+  as: "twoFactor",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+UserTwoFactor.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasMany(UserTrustedDevice, {
+  foreignKey: "userId",
+  as: "trustedDevices",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+UserTrustedDevice.belongsTo(User, { foreignKey: "userId", as: "user" });
+
 module.exports = {
   sequelize,
   User,
@@ -3226,6 +3314,8 @@ module.exports = {
   OtherIncome,
   ActivityLog,
   UserPreference,
+  UserTwoFactor,
+  UserTrustedDevice,
   BankStatement,
   BankTransaction,
   BankMatchRule,

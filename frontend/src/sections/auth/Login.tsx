@@ -4,7 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import styles from "./auth.module.css";
-import { login, me, resendVerification, unwrap } from "src/api/auth";
+import {
+  login,
+  me,
+  resendVerification,
+  resendTwoFactorCode,
+  unwrap,
+  verifyTwoFactor,
+} from "src/api/auth";
+import { twoFactorErrorText } from "src/api/twoFactor";
 import { getBackendUrl } from "src/utils/backendUrl";
 
 // Whitelist: dozvoli interne (relative) putanje ili apsolutne URL-ove na
@@ -36,6 +44,13 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  // Drugi korak prijave. Ostaje na istoj ruti (ne /prijava/2fa) da ?next= i
+  // stanje forme prežive; identitet u međukoraku nosi challenge cookie.
+  const [korak, setKorak] = useState<"lozinka" | "kod">("lozinka");
+  const [metoda, setMetoda] = useState<"EMAIL" | "TOTP">("EMAIL");
+  const [kod, setKod] = useState("");
+  const [kodGreska, setKodGreska] = useState<string | null>(null);
+  const [kodPoslan, setKodPoslan] = useState(false);
 
   // Ako je već ulogovan, preusmjeri na ?next= ili početnu.
   const meQuery = useQuery({
@@ -50,25 +65,88 @@ export default function Login() {
     }
   }, [meQuery.isLoading, meQuery.data, nextUrl, router]);
 
+  const zavrsiPrijavu = () => {
+    queryClient.invalidateQueries({ queryKey: ["me"] });
+    // Cross-host (npr. app.localhost) zahtijeva full reload, router.push
+    // ne ide kroz Next runtime na drugu subdomenu.
+    if (/^https?:\/\//.test(nextUrl)) {
+      window.location.href = nextUrl;
+    } else {
+      router.push(nextUrl);
+      router.refresh();
+    }
+  };
+
   const mutation = useMutation({
-    mutationFn: ({ email, password, rememberMe }: { email: string; password: string; rememberMe: boolean }) =>
-      unwrap(login(email, password, rememberMe)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["me"] });
-      // Cross-host (npr. app.localhost) zahtijeva full reload — router.push
-      // ne ide kroz Next runtime na drugu subdomenu.
-      if (/^https?:\/\//.test(nextUrl)) {
-        window.location.href = nextUrl;
-      } else {
-        router.push(nextUrl);
-        router.refresh();
+    mutationFn: async ({
+      email,
+      password,
+      rememberMe,
+    }: {
+      email: string;
+      password: string;
+      rememberMe: boolean;
+    }) => {
+      const res = await login(email, password, rememberMe);
+      if (!res.ok) {
+        // Nije greška nego međukorak: lozinka je bila tačna, treba drugi faktor.
+        if (res.error === "2FA_REQUIRED") {
+          return { trebaKod: true as const, metoda: res.data?.method ?? "EMAIL" };
+        }
+        throw new Error(res.error);
       }
+      return { trebaKod: false as const };
     },
+    onSuccess: (r) => {
+      if (r.trebaKod) {
+        setMetoda(r.metoda);
+        setKorak("kod");
+        setKodPoslan(r.metoda === "EMAIL");
+        return;
+      }
+      zavrsiPrijavu();
+    },
+  });
+
+  const kodMutation = useMutation({
+    mutationFn: async (uneseniKod: string) => {
+      const res = await verifyTwoFactor(uneseniKod);
+      if (!res.ok) {
+        const preostalo = res.data?.preostaloPokusaja;
+        const tekst = twoFactorErrorText(res.error);
+        throw new Error(
+          res.error === "NEISPRAVAN_KOD" && typeof preostalo === "number" && preostalo > 0
+            ? `${tekst} Preostalo pokušaja: ${preostalo}.`
+            : tekst,
+        );
+      }
+      return res.data;
+    },
+    onSuccess: () => zavrsiPrijavu(),
+    onError: (err: Error) => setKodGreska(err.message),
+  });
+
+  const ponovoKodMutation = useMutation({
+    mutationFn: async () => {
+      const res = await resendTwoFactorCode();
+      if (!res.ok) throw new Error(twoFactorErrorText(res.error));
+    },
+    onSuccess: () => {
+      setKodPoslan(true);
+      setKodGreska(null);
+    },
+    onError: (err: Error) => setKodGreska(err.message),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     mutation.mutate({ email: email.trim(), password, rememberMe });
+  };
+
+  const handleKodSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setKodGreska(null);
+    kodMutation.mutate(kod.trim());
   };
 
   const handleGoogle = () => {
@@ -101,6 +179,110 @@ export default function Login() {
   // Skoči blank dok provjeravamo session, ili kad je već ulogovan pa ide redirect.
   if (meQuery.isLoading || meQuery.data) {
     return <div className={styles.page} />;
+  }
+
+  // ─── Drugi korak: kod ──────────────────────────────────────────────────────
+  if (korak === "kod") {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className={styles.label}>Potvrda prijave</div>
+          <h1 className={styles.h1}>
+            Unesite <em>kod</em>
+          </h1>
+          <p className={styles.lead}>
+            {metoda === "EMAIL"
+              ? `Poslali smo šestocifreni kod na ${email.trim()}. Kod važi 10 minuta.`
+              : "Otvorite aplikaciju za kodove i unesite šestocifreni kod."}
+          </p>
+        </div>
+
+        <form className={styles.form} onSubmit={handleKodSubmit}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="kod">
+              Kod
+            </label>
+            <input
+              id="kod"
+              className={styles.input}
+              type="text"
+              inputMode="text"
+              placeholder="123456"
+              value={kod}
+              onChange={(e) => {
+                setKod(e.target.value);
+                setKodGreska(null);
+              }}
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              style={{ letterSpacing: "0.15em" }}
+            />
+            <p className={styles.lead} style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>
+              Nemate pristup uređaju? Unesite jedan od rezervnih kodova.
+            </p>
+          </div>
+
+          {kodGreska && <div className={styles.errorMsg}>{kodGreska}</div>}
+
+          {rememberMe && (
+            <div className={styles.infoBox}>
+              <p>
+                Označili ste &quot;Zapamti me&quot;, pa na ovom uređaju kod
+                nećemo više tražiti.
+              </p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className={styles.submit}
+            disabled={kodMutation.isPending}
+          >
+            {kodMutation.isPending ? "Provjera..." : "Potvrdi i prijavi se"}
+          </button>
+
+          {metoda === "EMAIL" && (
+            <button
+              type="button"
+              className={styles.googleBtn}
+              disabled={ponovoKodMutation.isPending}
+              onClick={() => ponovoKodMutation.mutate()}
+            >
+              {ponovoKodMutation.isPending
+                ? "Slanje..."
+                : kodPoslan
+                  ? "Pošalji novi kod"
+                  : "Pošalji kod"}
+            </button>
+          )}
+        </form>
+
+        <div className={styles.footer}>
+          <button
+            type="button"
+            onClick={() => {
+              setKorak("lozinka");
+              setKod("");
+              setKodGreska(null);
+              setPassword("");
+              mutation.reset();
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              font: "inherit",
+              color: "inherit",
+              textDecoration: "underline",
+            }}
+          >
+            Nazad na prijavu
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
