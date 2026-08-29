@@ -88,6 +88,13 @@ const User = sequelize.define(
       allowNull: false,
       defaultValue: false,
     },
+    // Naziv dokumenta na platnom listiću (postavka profila, vrijedi za sve
+    // org-e korisnika): NULL = "PLATNI LISTIĆ" (default), "PLATNA_LISTA" =
+    // klijenti koji insistiraju na tom nazivu.
+    payslipNaziv: { type: DataTypes.STRING(20), allowNull: true },
+    // Poseban dogovor za PK Office: individualni limit obrta sa prednošću nad
+    // limitom paketa (NULL = važi paket). Upisuje isključivo admin.
+    officeMaxObrta: { type: DataTypes.INTEGER, allowNull: true },
   },
   { tableName: "users", timestamps: true },
 );
@@ -203,6 +210,9 @@ const Organization = sequelize.define(
     // Prijedlog se više ne nudi ako mu se poklopi račun ILI naziv.
     partnerSuggestionHides: { type: DataTypes.JSON, allowNull: true },
     logoUrl: { type: DataTypes.STRING(500), allowNull: true },
+    // Memorandum (slika zaglavlja) klijenta: štampa se na vrhu platne liste
+    // umjesto standardnog tekstualnog zaglavlja. Postavka po organizaciji.
+    memorandumUrl: { type: DataTypes.STRING(500), allowNull: true },
     // Konfiguracija računa primalaca i vrsta prihoda za uplatnice doprinosa/poreza.
     // JSON struktura: { pio: { account, vrstaPrihoda, primalac }, ... }
     // Ako prazno, koristi se default iz utils/uplatnicaPdf.js.
@@ -410,6 +420,10 @@ const Worker = sequelize.define(
     // Čuvaju se da se zahtjev za poreznu karticu ne kuca ponovo pri svakoj
     // izmjeni (novo dijete, supružnik se zaposlio).
     poreznaKarticaPodaci: { type: DataTypes.JSON, allowNull: true },
+    // Trajne obustave na platu (rate kredita radnika koje firma uplaćuje):
+    // lista { naziv, iznos, aktivna }. Ne diraju bruto/doprinose/porez/neto,
+    // samo umanjuju iznos za isplatu radniku; prenose se u svaki mjesec.
+    obustave: { type: DataTypes.JSON, allowNull: true },
     // ── Korist u naravi: korištenje službenog vozila u privatne svrhe ──
     // Vezano za konkretno vozilo i osobu iz Odluke poslodavca. Većina radnika
     // nema. Povećava osnovicu za doprinose i porez (ne i neto), čl. 10 Zakona o
@@ -515,6 +529,11 @@ const Payroll = sequelize.define(
     mealAllowance: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
     vacationBonus: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
     travelExpense: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+
+    // Obustave na platu (snapshot za ovaj mjesec): zbir + stavke za listić.
+    // Umanjuju samo iznos za isplatu radniku, nikad neto/doprinose/porez.
+    obustave: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+    obustaveStavke: { type: DataTypes.JSON, allowNull: true },
 
     // Ukupan trošak poslodavca (gross + erpTotal + vodna + nesrece + dodaci)
     totalCost: { type: DataTypes.DECIMAL(12, 2), allowNull: false },

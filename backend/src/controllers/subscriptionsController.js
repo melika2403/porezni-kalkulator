@@ -48,9 +48,29 @@ async function upsert(req, res) {
     return res.status(400).json({ ok: false, error: "Invalid user id" });
   }
 
-  const { startDate, endDate, isActive, plan, billingCycle } = req.body ?? {};
+  const { startDate, endDate, isActive, plan, billingCycle, officeMaxObrta } =
+    req.body ?? {};
 
   const data = {};
+
+  // Poseban dogovor za PK Office (ruta je ADMIN-only): individualni limit
+  // obrta na users.officeMaxObrta. undefined = ne diraj; null/"" = skini
+  // (vrati na limit paketa); inače cijeli broj 1-1000.
+  let officeMaxObrtaUpdate;
+  if (officeMaxObrta !== undefined) {
+    if (officeMaxObrta === null || officeMaxObrta === "") {
+      officeMaxObrtaUpdate = null;
+    } else {
+      const n = Number(officeMaxObrta);
+      if (!Number.isInteger(n) || n < 1 || n > 1000) {
+        return res.status(400).json({
+          ok: false,
+          error: "officeMaxObrta mora biti cijeli broj 1-1000 ili prazno",
+        });
+      }
+      officeMaxObrtaUpdate = n;
+    }
+  }
 
   if (startDate !== undefined) {
     const d = parseDate(startDate);
@@ -115,13 +135,17 @@ async function upsert(req, res) {
     data.endDate = new Date();
   }
 
-  if (Object.keys(data).length === 0) {
+  if (Object.keys(data).length === 0 && officeMaxObrtaUpdate === undefined) {
     return res.status(400).json({ ok: false, error: "No fields to update" });
   }
 
   // upsert requires startDate + endDate on create
   const existing = await subscriptionRepository.getByUserId(userId);
-  if (!existing && (!data.startDate || !data.endDate)) {
+  if (
+    !existing &&
+    Object.keys(data).length > 0 &&
+    (!data.startDate || !data.endDate)
+  ) {
     return res.status(400).json({
       ok: false,
       error: "startDate and endDate are required when creating a subscription",
@@ -142,7 +166,15 @@ async function upsert(req, res) {
   }
 
   try {
-    const sub = await subscriptionRepository.upsert(userId, data);
+    let sub = existing;
+    if (Object.keys(data).length > 0) {
+      sub = await subscriptionRepository.upsert(userId, data);
+    }
+    if (officeMaxObrtaUpdate !== undefined) {
+      await userRepository.updateUserById(userId, {
+        officeMaxObrta: officeMaxObrtaUpdate,
+      });
+    }
     // Office paketi NE mijenjaju rolu: pristup ide preko effectiveRole
     // (tierService) i getOfficeAccess, rola u bazi ostaje kakva jeste.
     if (data.isActive === true && !isOfficePlan) {
@@ -427,6 +459,7 @@ async function adminList(_req, res) {
             "email",
             "role",
             "pkOfficeTrialEndsAt",
+            "officeMaxObrta",
           ],
           raw: true,
         })
@@ -486,7 +519,18 @@ async function adminList(_req, res) {
           isActive: !!s.isActive,
           isTrial: !!s.isTrial,
           officeSlotovi: office
-            ? { zauzeto: slotCount.get(s.userId) || 0, max: office.maxObrta }
+            ? {
+                zauzeto: slotCount.get(s.userId) || 0,
+                // Poseban dogovor (users.officeMaxObrta) ima prednost nad
+                // limitom paketa; poseban=true da UI označi red. Isto pravilo
+                // kao gate: samo broj > 0 se računa (0/negativno = paket).
+                max:
+                  u?.officeMaxObrta != null && Number(u.officeMaxObrta) > 0
+                    ? Number(u.officeMaxObrta)
+                    : office.maxObrta,
+                poseban:
+                  u?.officeMaxObrta != null && Number(u.officeMaxObrta) > 0,
+              }
             : null,
         };
       }),

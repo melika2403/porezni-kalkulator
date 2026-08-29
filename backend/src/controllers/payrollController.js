@@ -415,7 +415,38 @@ const VRSTA_SVRHA_MAP = {
   zdrRS: "Doprinos za zdravstvo (Budžet RS)",
   nezapRS: "Doprinos za nezaposlenost (Budžet RS)",
 };
-const { addPayslipPage, embedFonts } = require("../utils/payslipPdf");
+const { addPayslipPage, embedFonts, embedMemorandum } = require("../utils/payslipPdf");
+const { absPathFor } = require("../utils/uploads");
+
+// Memorandum organizacije (slika zaglavlja platne liste): pročitaj fajl sa
+// diska. Bilo koja greška = null, listić tada nosi standardno zaglavlje.
+function ucitajMemorandum(org) {
+  try {
+    const url = org?.memorandumUrl;
+    if (!url) return null;
+    const p = absPathFor(url);
+    if (!p || !fs.existsSync(p)) return null;
+    const bytes = fs.readFileSync(p);
+    // Tip se određuje po SADRŽAJU, ne po ekstenziji: browser tip fajla izvodi
+    // iz imena, pa PNG nazvan .jpg prođe filter i onda embedJpg pukne, a
+    // memorandum tiho nestane sa listića.
+    const jePng =
+      bytes.length > 8 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47;
+    const jeJpg =
+      bytes.length > 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff;
+    if (!jePng && !jeJpg) return null;
+    return { bytes, tip: jePng ? "png" : "jpg" };
+  } catch {
+    return null;
+  }
+}
 const { PDFDocument } = require("pdf-lib");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 const { UPLOADS_ROOT, safeUnlink } = require("../utils/uploads");
@@ -544,6 +575,25 @@ async function getCombineKantonal(userId) {
   return !!u?.combineKantonalUplatnice;
 }
 
+// Iznos koji radnik stvarno prima: neto + neoporezivi dodaci - obustave,
+// nikad ispod nule. Isti broj koji stoji na dnu platnog listića, pa email i
+// dokument ne pokazuju dvije različite cifre.
+function iznosZaIsplatu(p) {
+  const osnova =
+    (Number(p.net) || 0) +
+    (Number(p.mealAllowance) || 0) +
+    (Number(p.vacationBonus) || 0) +
+    (Number(p.travelExpense) || 0);
+  return Math.max(0, +(osnova - Math.max(0, Number(p.obustave) || 0)).toFixed(2));
+}
+
+// Naziv dokumenta platnog listića (postavka profila): "PLATNA_LISTA" ili
+// null (= default "PLATNI LISTIĆ"). Vrijedi za sve org-e korisnika.
+async function getPayslipNaziv(userId) {
+  const u = await User.findByPk(userId, { attributes: ["payslipNaziv"] });
+  return u?.payslipNaziv === "PLATNA_LISTA" ? "PLATNA_LISTA" : null;
+}
+
 function toPublicPayroll(p) {
   if (!p) return null;
   const plain = p.toJSON ? p.toJSON() : p;
@@ -569,6 +619,7 @@ function toPublicPayroll(p) {
     "mealAllowance",
     "vacationBonus",
     "travelExpense",
+    "obustave",
     "totalCost",
     "overtimeHours",
     "nightHours",
@@ -597,7 +648,94 @@ function toPublicPayroll(p) {
   if (plain.paymentDate) {
     plain.paymentDate = String(plain.paymentDate).slice(0, 10);
   }
+  plain.obustaveStavke = normalizujObustaveStavke(plain.obustaveStavke);
   return plain;
+}
+
+// Prenos obustave u naredne mjesece (sticky, kao topli obrok): ručno unesena
+// obustava u obračunu se upiše na karton radnika kao trajna obustava, pa se
+// idući mjesec sama predloži označena. NE dira ručno održavan karton: mijenja
+// samo prazan karton ili jedinu aktivnu stavku koju je ovaj tok ranije
+// kreirao (prepoznaje se po generičkom nazivu). Vraća novu listu za upis,
+// null za brisanje, ili undefined kad karton ne treba dirati.
+const OBUSTAVA_AUTO_NAZIV = "Obustava na platu";
+
+// Sticky se smije pisati SAMO iz najnovijeg mjeseca radnika. Ponovni obračun
+// ranijeg mjeseca (npr. ispravka jula u septembru ili "Obračunaj sve" preko
+// starih mjeseci) nosi iznos koji NIJE trenutno stanje: bez ove provjere bi
+// nula iz starog obračuna obrisala aktivnu obustavu sa kartona.
+async function postojiNovijiObracun(workerId, year, month) {
+  const noviji = await Payroll.findOne({
+    where: {
+      workerId,
+      [Op.or]: [{ year: { [Op.gt]: year } }, { year, month: { [Op.gt]: month } }],
+    },
+    attributes: ["id"],
+  });
+  return !!noviji;
+}
+function obustaveKartonaSticky(workerObustave, iznos) {
+  let lista = workerObustave;
+  if (typeof lista === "string") {
+    try {
+      lista = JSON.parse(lista);
+    } catch {
+      lista = null;
+    }
+  }
+  if (!Array.isArray(lista)) lista = [];
+  const iznosR = +(Number(iznos) || 0).toFixed(2);
+  // Naša stavka se prepoznaje po nazivu, BEZ obzira na aktivnost: ranije je
+  // neaktivna istoimena stavka propuštala kreiranje nove i gomilala duplikate.
+  const jeAuto = (o) => o && o.naziv === OBUSTAVA_AUTO_NAZIV;
+  const aktivneRucne = lista.filter(
+    (o) => o && o.aktivna !== false && Number(o.iznos) > 0 && !jeAuto(o),
+  );
+  // Ručno vođen karton se NIKAD ne dira: izmjena u obračunu vrijedi samo za
+  // taj mjesec, a stavke sa svojim nazivima ostaju kakve ih je korisnik unio.
+  if (aktivneRucne.length > 0) return undefined;
+
+  const autoStavke = lista.filter(jeAuto);
+  const ostale = lista.filter((o) => !jeAuto(o));
+
+  if (iznosR > 0) {
+    const prva = autoStavke[0];
+    const vecOdgovara =
+      autoStavke.length === 1 &&
+      prva.aktivna !== false &&
+      Math.abs(Number(prva.iznos) - iznosR) <= 0.005;
+    if (vecOdgovara) return undefined;
+    // Uvijek ostaje TAČNO jedna naša stavka (eventualni stari duplikati se
+    // sažimaju), na kraju liste da redoslijed korisnikovih stavki ostane.
+    return [...ostale, { naziv: OBUSTAVA_AUTO_NAZIV, iznos: iznosR, aktivna: true }];
+  }
+
+  // Iznos 0 (korisnik skinuo obustavu): ukloni našu stavku, tuđe ostavi.
+  if (autoStavke.length === 0) return undefined;
+  return ostale.length ? ostale : null;
+}
+
+// Stavke obustava na obračunu (snapshot liste sa radnika ili ručni unos za
+// mjesec). MariaDB vraća JSON kolonu kao string; normalizuj u listu ili null.
+function normalizujObustaveStavke(v) {
+  let lista = v;
+  if (typeof lista === "string") {
+    try {
+      lista = JSON.parse(lista);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(lista)) return null;
+  const ciste = lista
+    .slice(0, 20)
+    .filter((red) => red && typeof red === "object" && !Array.isArray(red))
+    .map((red) => ({
+      naziv: String(red.naziv || "").slice(0, 200),
+      iznos: +(Number(red.iznos) || 0).toFixed(2),
+    }))
+    .filter((red) => red.naziv || red.iznos > 0);
+  return ciste.length ? ciste : null;
 }
 
 // Cijele godine staža između dvije ISO datume (npr. "2020-03-15" → "2026-05-31")
@@ -765,6 +903,17 @@ function computePayrollSnapshot(input) {
   // godišnji pa se ne dira.
   const travelExpense = +(Number(input.travelExpense) || 0).toFixed(2);
 
+  // Obustave na platu (rate kredita radnika): raspolaganje već obračunatim
+  // neto iznosom. Ne diraju bruto/doprinose/porez/neto NI trošak poslodavca
+  // (firma isti novac isplati, samo dio kreditoru umjesto radniku); umanjuju
+  // jedino iznos za isplatu radniku.
+  // Gornja granica prati DECIMAL(12,2) u bazi: bez nje "1e30" iz body-ja
+  // ruši upis sa 500 umjesto jasne poruke.
+  const obustave = +Math.min(
+    Math.max(0, Number(input.obustave) || 0),
+    9999999999,
+  ).toFixed(2);
+
   // totalCost = stvarni trošak poslodavca. Neto-bazirana formula da bude tačna
   // i kad ima koristi (nenovčani neto dio koristi se NE plaća u kešu, pa ne ide
   // u trošak). Bez koristi je identična staroj (grossInput = net + empTotal + tax).
@@ -817,6 +966,7 @@ function computePayrollSnapshot(input) {
       mealAllowance,
       vacationBonus,
       travelExpense,
+      obustave,
       totalCost: mealAllowance + vacationBonus + travelExpense,
     };
   }
@@ -856,6 +1006,7 @@ function computePayrollSnapshot(input) {
     mealAllowance,
     vacationBonus,
     travelExpense,
+    obustave,
     totalCost,
   };
 }
@@ -929,6 +1080,8 @@ async function calculate(req, res) {
     mealAllowance,
     vacationBonus,
     travelExpense,
+    obustave,
+    obustaveStavke,
     proRateFactor,
     targetNet,
     notes,
@@ -1035,6 +1188,12 @@ async function calculate(req, res) {
   const effectiveMeal = pick(mealAllowance, "mealAllowance", 0);
   const effectiveVacation = pick(vacationBonus, "vacationBonus", 0);
   const effectiveTravel = pick(travelExpense, "travelExpense", 0);
+  const effectiveObustave = pick(obustave, "obustave", 0);
+  // Stavke prate poslani zbir; kad body ne šalje ništa, čuva se postojeći snapshot.
+  const effectiveObustaveStavke =
+    obustaveStavke !== undefined
+      ? normalizujObustaveStavke(obustaveStavke)
+      : normalizujObustaveStavke(existing?.obustaveStavke);
 
   // Minuli rad: stopa iz body-ja, fallback na worker default
   const effectiveMinuliRate =
@@ -1139,6 +1298,7 @@ async function calculate(req, res) {
     mealAllowance: effectiveMeal,
     vacationBonus: effectiveVacation,
     travelExpense: effectiveTravel,
+    obustave: effectiveObustave,
     koristNetValue: effKoristNetValue,
   };
 
@@ -1227,6 +1387,7 @@ async function calculate(req, res) {
         : existing
           ? existing.notes
           : null,
+    obustaveStavke: effectiveObustaveStavke,
     ...snapshot,
   };
 
@@ -1247,6 +1408,15 @@ async function calculate(req, res) {
   // koeficijent (npr. povratak na rad nakon porodiljskog), ta vrijednost
   // ostaje samo u Payroll.taxCoefficient za taj mjesec. Master vrijednost
   // se mijenja preko Profila / Aktivnih radnika.
+  // Karton radnika se dira samo kad je korisnik u OVOM zahtjevu poslao iznos
+  // (modal ili batch za novi obračun) i samo iz najnovijeg mjeseca radnika.
+  const smijeSticky =
+    obustave !== undefined &&
+    obustave !== null &&
+    !(await postojiNovijiObracun(workerId, year, month));
+  const stickyObustave = smijeSticky
+    ? obustaveKartonaSticky(worker.obustave, Number(effectiveObustave) || 0)
+    : undefined;
   await worker.update({
     minuliRadRate: effectiveMinuliRate,
     overtimeRate: effOvertimeRate,
@@ -1255,6 +1425,9 @@ async function calculate(req, res) {
     holidayRate: effHolidayRate,
     defaultMealAllowance: Number(effectiveMeal) || 0,
     defaultTravelExpense: Number(effectiveTravel) || 0,
+    // Obustava se pamti na kartonu radnika (prenos u idući mjesec), osim kad
+    // korisnik ručno održava listu na kartonu — vidi obustaveKartonaSticky.
+    ...(stickyObustave !== undefined ? { obustave: stickyObustave } : {}),
     // Korist u naravi je per-radnik konfiguracija (vezana za konkretno vozilo iz
     // Odluke poslodavca), pa je pamtimo na workeru kao master.
     koristVoziloAktivna: effKoristAktivna,
@@ -1296,6 +1469,8 @@ async function saveInputs(req, res) {
       mealAllowance,
       vacationBonus,
       travelExpense,
+      obustave,
+      obustaveStavke,
       taxCoefficient,
       minuliRadRate,
       koristVoziloAktivna,
@@ -1351,6 +1526,11 @@ async function saveInputs(req, res) {
       mealAllowance: Number(pick(mealAllowance, "mealAllowance", 0)) || 0,
       vacationBonus: Number(pick(vacationBonus, "vacationBonus", 0)) || 0,
       travelExpense: Number(pick(travelExpense, "travelExpense", 0)) || 0,
+      obustave: Math.max(0, Number(pick(obustave, "obustave", 0)) || 0),
+      obustaveStavke:
+        obustaveStavke !== undefined
+          ? normalizujObustaveStavke(obustaveStavke)
+          : normalizujObustaveStavke(existing?.obustaveStavke),
       // Koeficijent 0 je validan (lični odbitak 0), pa NE smije `|| 1.0` koji
       // bi falsy-nulu vratio na 1. Fallback na 1.0 samo ako nije validan broj.
       taxCoefficient: (() => {
@@ -1401,6 +1581,15 @@ async function saveInputs(req, res) {
     // Sticky defaults: stope i naknade se pamte na worker-u za sljedeći mjesec.
     // Regres se NE pamti. taxCoefficient se NE upisuje natrag — worker profil
     // je master, vidi calculate() iznad.
+    // Isti guard kao u calculate(): karton se dira samo kad je iznos stvarno
+    // poslan i samo iz najnovijeg mjeseca radnika.
+    const smijeSticky =
+      obustave !== undefined &&
+      obustave !== null &&
+      !(await postojiNovijiObracun(workerId, year, month));
+    const stickyObustave = smijeSticky
+      ? obustaveKartonaSticky(worker.obustave, Number(update.obustave) || 0)
+      : undefined;
     await worker.update({
       minuliRadRate: update.minuliRadRate,
       overtimeRate: update.overtimeRate,
@@ -1409,6 +1598,7 @@ async function saveInputs(req, res) {
       holidayRate: update.holidayRate,
       defaultMealAllowance: Number(update.mealAllowance) || 0,
       defaultTravelExpense: Number(update.travelExpense) || 0,
+      ...(stickyObustave !== undefined ? { obustave: stickyObustave } : {}),
       koristVoziloAktivna: skAktivna,
       koristVoziloMetoda: skMetoda,
       koristVoziloVrijednost: Number(skVrijednost) || 0,
@@ -1607,6 +1797,15 @@ async function importPayrolls(req, res) {
         imported: true,
         notes: existing ? existing.notes : null,
         ...snapshot,
+        // Uvoz ranijih plata ne poznaje obustave (snapshot ih uvijek vrati 0),
+        // pa ponovni uvoz istog mjeseca ne smije obrisati ono što je već
+        // upisano na postojećem obračunu.
+        ...(existing
+          ? {
+              obustave: existing.obustave,
+              obustaveStavke: existing.obustaveStavke,
+            }
+          : {}),
       };
 
       if (existing) {
@@ -1652,6 +1851,7 @@ async function patch(req, res) {
     mealAllowance: body.mealAllowance !== undefined ? body.mealAllowance : payroll.mealAllowance,
     vacationBonus: body.vacationBonus !== undefined ? body.vacationBonus : payroll.vacationBonus,
     travelExpense: body.travelExpense !== undefined ? body.travelExpense : payroll.travelExpense,
+    obustave: body.obustave !== undefined ? body.obustave : payroll.obustave,
   });
 
   const update = {
@@ -1672,6 +1872,8 @@ async function patch(req, res) {
     update.status = body.status;
   }
   if (body.notes !== undefined) update.notes = typeof body.notes === "string" ? body.notes : null;
+  if (body.obustaveStavke !== undefined)
+    update.obustaveStavke = normalizujObustaveStavke(body.obustaveStavke);
 
   await payroll.update(update);
   return res.json({ ok: true, data: toPublicPayroll(payroll) });
@@ -1889,6 +2091,7 @@ async function monthlySummary(req, res) {
       meal = 0,
       vacation = 0,
       travel = 0,
+      obustaveTot = 0,
       totalCost = 0;
 
     for (const p of payrolls) {
@@ -1897,6 +2100,14 @@ async function monthlySummary(req, res) {
         net += Number(p.net) || 0;
         gross += Number(p.gross) || 0;
         porez += Number(p.incomeTax) || 0;
+        // Obustava se broji najviše do iznosa koji radnik stvarno prima:
+        // višak se ne isplaćuje iz tuđe plate, pa ne smije umanjiti zbir.
+        const primanjaRadnika =
+          (Number(p.net) || 0) +
+          (Number(p.mealAllowance) || 0) +
+          (Number(p.vacationBonus) || 0) +
+          (Number(p.travelExpense) || 0);
+        obustaveTot += Math.min(Math.max(0, Number(p.obustave) || 0), primanjaRadnika);
       }
       empPio += Number(p.empPio) || 0;
       erpPio += Number(p.erpPio) || 0;
@@ -1978,6 +2189,8 @@ async function monthlySummary(req, res) {
         mealAllowance: round(Number(p.mealAllowance) || 0),
         vacationBonus: round(Number(p.vacationBonus) || 0),
         travelExpense: round(Number(p.travelExpense) || 0),
+        obustave: round(Number(p.obustave) || 0),
+        obustaveStavke: normalizujObustaveStavke(p.obustaveStavke),
         status: p.status,
       };
     });
@@ -2008,6 +2221,10 @@ async function monthlySummary(req, res) {
           meal: round(meal),
           vacation: round(vacation),
           travel: round(travel),
+          obustave: round(obustaveTot),
+          // Novac koji stvarno ide radnicima na račune (neto + neoporezivi
+          // dodaci - obustave). Trošak poslodavca se obustavama NE mijenja.
+          zaIsplatu: round(net + meal + vacation + travel - obustaveTot),
           totalCost: round(totalCost + invalidi),
         },
         uplatnice,
@@ -2151,7 +2368,14 @@ async function generateMonthlyUplatnice(req, res) {
       const workerRecipient = [workerName, workerAddress || ""];
 
       const personalItems = [
-        ["Neto plata", Number(p.net) || 0, "Isplata neto plate"],
+        // Neto se isplaćuje umanjen za obustave (rate kredita radnika), isto
+        // kao u izvozu naloga i štampi: uplatnica mora glasiti na iznos koji
+        // radnik stvarno dobija, inače se dva dokumenta razilaze.
+        [
+          "Neto plata",
+          Math.max(0, +((Number(p.net) || 0) - (Number(p.obustave) || 0)).toFixed(2)),
+          "Isplata neto plate",
+        ],
         ["Topli obrok", Number(p.mealAllowance) || 0, "Topli obrok (neoporezivi)"],
         ["Regres", Number(p.vacationBonus) || 0, "Regres za godišnji odmor"],
         ["Putni trošak", Number(p.travelExpense) || 0, "Putni trošak (neoporezivi)"],
@@ -2197,7 +2421,7 @@ async function generateMonthlyUplatnice(req, res) {
 // payroll-e (radnik obrisan) i vlasnike obrta (oni idu u Obrazac 2002).
 // Vraća { pdfBytes, pages, paymentDate } ili null kad nema nijednog listića.
 // Koristi ga i download (monthly-payslips) i slanje svega na jedan email.
-async function buildMonthlyPayslipsBundle(org, year, month, queryPaymentDate) {
+async function buildMonthlyPayslipsBundle(org, year, month, queryPaymentDate, nazivDokumenta = null) {
   const organizationId = org.id;
   const isObrt = org.type === "BUSINESS";
   const existingWorkers = await Worker.findAll({
@@ -2233,6 +2457,8 @@ async function buildMonthlyPayslipsBundle(org, year, month, queryPaymentDate) {
   const orgPlain = org.toJSON ? org.toJSON() : org;
   const pdf = await PDFDocument.create();
   const fonts = await embedFonts(pdf);
+  // Memorandum klijenta: jedna ugradnja po dokumentu, ista slika za sve strane.
+  const memorandumImage = await embedMemorandum(pdf, ucitajMemorandum(orgPlain));
 
   let pages = 0;
   for (const p of payrolls) {
@@ -2243,7 +2469,10 @@ async function buildMonthlyPayslipsBundle(org, year, month, queryPaymentDate) {
       try { workerPlain.jmbg = decryptJmbg(workerPlain.jmbg); }
       catch { workerPlain.jmbg = ""; }
     }
-    addPayslipPage(pdf, p.toJSON(), orgPlain, workerPlain, paymentDate, fonts);
+    addPayslipPage(pdf, p.toJSON(), orgPlain, workerPlain, paymentDate, fonts, {
+      nazivDokumenta,
+      memorandumImage,
+    });
     pages++;
   }
 
@@ -2269,17 +2498,21 @@ async function generateMonthlyPayslips(req, res) {
     const org = await assertOrgAccess(organizationId, req.user.id);
     if (!org) return res.status(403).json({ ok: false, error: "FORBIDDEN" });
 
+    const nazivDokumenta = await getPayslipNaziv(req.user.id);
     const bundle = await buildMonthlyPayslipsBundle(
       org,
       year,
       month,
       queryPaymentDate,
+      nazivDokumenta,
     );
     if (!bundle) {
       return res.status(404).json({ ok: false, error: "NO_PAYROLLS" });
     }
     const { pdfBytes, pages } = bundle;
-    const fname = `platni-listici-${year}-${String(month).padStart(2, "0")}.pdf`;
+    const fnamePrefix =
+      nazivDokumenta === "PLATNA_LISTA" ? "platne-liste" : "platni-listici";
+    const fname = `${fnamePrefix}-${year}-${String(month).padStart(2, "0")}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
@@ -2335,13 +2568,20 @@ async function generateWorkerPayslip(req, res) {
       catch { workerPlain.jmbg = ""; }
     }
 
+    const nazivDokumenta = await getPayslipNaziv(req.user.id);
     const pdf = await PDFDocument.create();
     const fonts = await embedFonts(pdf);
-    addPayslipPage(pdf, payroll.toJSON(), org.toJSON(), workerPlain, paymentDate, fonts);
+    const memorandumImage = await embedMemorandum(pdf, ucitajMemorandum(org));
+    addPayslipPage(pdf, payroll.toJSON(), org.toJSON(), workerPlain, paymentDate, fonts, {
+      nazivDokumenta,
+      memorandumImage,
+    });
     const pdfBytes = Buffer.from(await pdf.save());
 
     const workerName = `${worker.firstName}_${worker.lastName}`.replace(/[^A-Za-z0-9_]/g, "_");
-    const fname = `platni-listic-${workerName}-${payroll.year}-${String(payroll.month).padStart(2, "0")}.pdf`;
+    const fnamePrefix =
+      nazivDokumenta === "PLATNA_LISTA" ? "platna-lista" : "platni-listic";
+    const fname = `${fnamePrefix}-${workerName}-${payroll.year}-${String(payroll.month).padStart(2, "0")}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
@@ -2359,7 +2599,7 @@ async function generateWorkerPayslip(req, res) {
 //
 // Vraća null ako ne postoji ili je vlasnik obrta (skip-language). Caller
 // može razlikovati skip vs error provjerom skipReason u rezultatu.
-async function buildPayslipPdf(payroll, paymentDate) {
+async function buildPayslipPdf(payroll, paymentDate, nazivDokumenta = null) {
   const org = await Organization.findByPk(payroll.organizationId);
   if (!org) return null;
   const worker = await Worker.findOne({
@@ -2377,7 +2617,11 @@ async function buildPayslipPdf(payroll, paymentDate) {
   }
   const pdf = await PDFDocument.create();
   const fonts = await embedFonts(pdf);
-  addPayslipPage(pdf, payroll.toJSON(), org.toJSON(), workerPlain, paymentDate, fonts);
+  const memorandumImage = await embedMemorandum(pdf, ucitajMemorandum(org));
+  addPayslipPage(pdf, payroll.toJSON(), org.toJSON(), workerPlain, paymentDate, fonts, {
+    nazivDokumenta,
+    memorandumImage,
+  });
   const pdfBytes = Buffer.from(await pdf.save());
   return { pdfBytes, org, worker };
 }
@@ -2402,7 +2646,8 @@ async function emailWorkerPayslip(req, res) {
         ? String(payroll.paymentDate).slice(0, 10)
         : new Date(payroll.year, payroll.month, 0).toISOString().slice(0, 10);
 
-    const built = await buildPayslipPdf(payroll, paymentDate);
+    const nazivDokumenta = await getPayslipNaziv(req.user.id);
+    const built = await buildPayslipPdf(payroll, paymentDate, nazivDokumenta);
     if (!built) return res.status(404).json({ ok: false, error: "Worker not found" });
     if (built.skipReason === "VLASNIK_OBRT") {
       return res.status(400).json({
@@ -2428,8 +2673,9 @@ async function emailWorkerPayslip(req, res) {
       organizationName: org.name,
       year: payroll.year,
       month: payroll.month,
-      netAmount: Number(payroll.net) || 0,
+      netAmount: iznosZaIsplatu(payroll),
       pdfBuffer: pdfBytes,
+      nazivDokumenta,
     });
 
     return res.json({ ok: true, data: { sentTo: worker.email.trim() } });
@@ -2466,11 +2712,13 @@ async function emailMonthlyPayslipsBulk(req, res) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmailRaw)) {
         return res.status(400).json({ ok: false, error: "INVALID_EMAIL" });
       }
+      const nazivBundlea = await getPayslipNaziv(req.user.id);
       const bundle = await buildMonthlyPayslipsBundle(
         org,
         year,
         month,
         queryPaymentDate,
+        nazivBundlea,
       );
       if (!bundle) {
         return res
@@ -2485,6 +2733,7 @@ async function emailMonthlyPayslipsBulk(req, res) {
         month,
         count: bundle.pages,
         pdfBuffer: bundle.pdfBytes,
+        nazivDokumenta: nazivBundlea,
       });
       return res.json({
         ok: true,
@@ -2515,13 +2764,14 @@ async function emailMonthlyPayslipsBulk(req, res) {
     }
 
     const { sendPayslipEmail } = require("../utils/mailer");
+    const nazivDokumenta = await getPayslipNaziv(req.user.id);
     let sent = 0;
     const skipped = [];
     const failed = [];
 
     for (const p of payrolls) {
       try {
-        const built = await buildPayslipPdf(p, paymentDate);
+        const built = await buildPayslipPdf(p, paymentDate, nazivDokumenta);
         if (!built) {
           failed.push({ workerId: p.workerId, name: "?", reason: "Radnik ne postoji" });
           continue;
@@ -2548,8 +2798,9 @@ async function emailMonthlyPayslipsBulk(req, res) {
           organizationName: org.name,
           year: p.year,
           month: p.month,
-          netAmount: Number(p.net) || 0,
+          netAmount: iznosZaIsplatu(p),
           pdfBuffer: pdfBytes,
+          nazivDokumenta,
         });
         sent += 1;
       } catch (e) {
@@ -2945,6 +3196,7 @@ module.exports = {
   // exported for tests / future reuse
   computePayrollSnapshot,
   STANDARD_MONTHLY_MINUTES,
+  obustaveKartonaSticky,
   // TKDIS izvoz naloga (services/paymentExport/obracunAdapter) SAMO ČITA ove
   // helpere da nalozi budu identični uplatnicama; ne mijenja ih.
   buildAllUplatnice,

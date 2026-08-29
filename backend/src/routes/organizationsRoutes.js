@@ -10,7 +10,7 @@ const organizationsController = require("../controllers/organizationsController"
 const workersController = require("../controllers/workersController");
 const membersController = require("../controllers/membersController");
 const organizationRepository = require("../repositories/organizationRepository");
-const { logoUpload } = require("../utils/uploads");
+const { logoUpload, memorandumUpload } = require("../utils/uploads");
 
 const router = express.Router();
 
@@ -71,6 +71,34 @@ router.delete(
   requireOrgRole("OWNER", "ADMIN"),
   requireOwnerTier("PRO", "BUSINESS"),
   organizationsController.removeLogo,
+);
+
+// Memorandum klijenta (slika zaglavlja platne liste) — iste dozvole kao logo
+router.post(
+  "/:id/memorandum",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  requireOwnerTier("PRO", "BUSINESS"),
+  (req, res, next) => {
+    memorandumUpload.single("memorandum")(req, res, (err) => {
+      if (err) {
+        const code =
+          err?.message === "INVALID_IMAGE_TYPE"
+            ? "INVALID_IMAGE_TYPE"
+            : "UPLOAD_ERROR";
+        return res.status(400).json({ ok: false, error: code });
+      }
+      next();
+    });
+  },
+  organizationsController.uploadMemorandum,
+);
+router.delete(
+  "/:id/memorandum",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  requireOwnerTier("PRO", "BUSINESS"),
+  organizationsController.removeMemorandum,
 );
 
 // Members — only OWNER may manage; owner's plan must be BUSINESS

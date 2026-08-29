@@ -27,7 +27,7 @@ import { unwrap } from "src/api/auth";
 import { formatKm } from "src/lib/amountInput";
 import { downloadTablePdf } from "src/sections/lager/robaPdf";
 import { ArtikalKarticaModal } from "src/sections/lager/ArtikalKarticaModal";
-import { parseArtikliFile } from "src/lib/comsoftUvoz";
+import { parseArtikliFile, sablonArtikalaCsv } from "src/lib/comsoftUvoz";
 import { ArtikalModal } from "./ArtikalModal";
 
 const thCls =
@@ -420,8 +420,48 @@ export function ArtikliTab({ orgId }: { orgId: number | null }) {
         open={uvozOpen}
         onClose={() => setUvozOpen(false)}
         title="Uvoz artikala"
-        opis="Uvoz šifarnika artikala iz drugih programa (XML ili CSV fajl). Artikli čija šifra već postoji se preskaču i ništa im se ne mijenja."
+        opis="Uvoz šifarnika artikala iz drugih programa (XML ili CSV fajl), ili ručno: preuzmite šablon, popunite ga u Excelu i ubacite. Obavezni su šifra i naziv; artikli čija šifra već postoji se preskaču i ništa im se ne mijenja."
         parse={parseArtikliFile}
+        sablon={{ imeFajla: "Sablon-uvoz-artikala.csv", sadrzaj: sablonArtikalaCsv }}
+        pregled={(parsed) => {
+          // Novi / preskočen / greška po redu PRIJE upisa (isti obrazac kao
+          // uvoz radnika); backend svejedno preskače duplikate pri upisu.
+          const postojece = new Set(
+            (artikli ?? []).map((a) => a.sifra.trim().toLowerCase()),
+          );
+          const uFajlu = new Set<string>();
+          return parsed.map((a, i) => {
+            const sifra = a.sifra.trim();
+            const kljuc = sifra || `red ${i + 2}`;
+            if (!sifra || !a.naziv.trim()) {
+              return {
+                kljuc,
+                naziv: a.naziv || "",
+                status: "greska" as const,
+                razlog: "nedostaje šifra ili naziv",
+              };
+            }
+            const k = sifra.toLowerCase();
+            if (postojece.has(k)) {
+              return {
+                kljuc,
+                naziv: a.naziv,
+                status: "preskocen" as const,
+                razlog: "šifra već postoji u šifarniku",
+              };
+            }
+            if (uFajlu.has(k)) {
+              return {
+                kljuc,
+                naziv: a.naziv,
+                status: "preskocen" as const,
+                razlog: "dupla šifra u fajlu",
+              };
+            }
+            uFajlu.add(k);
+            return { kljuc, naziv: a.naziv, status: "novi" as const };
+          });
+        }}
         uvezi={async (parsed) => {
           const r = await unwrap(uvozArtikala(orgId as number, parsed));
           qc.invalidateQueries({ queryKey: ["artikli", orgId] });

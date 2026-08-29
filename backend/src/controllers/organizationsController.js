@@ -1,3 +1,4 @@
+const fs = require("fs");
 const organizationRepository = require("../repositories/organizationRepository");
 const { getPlan, planFromRole } = require("../config/plans");
 const { getEffectiveRole } = require("../services/tierService");
@@ -838,6 +839,101 @@ async function removeLogo(req, res) {
   res.status(200).json({ ok: true, data: { id, logoUrl: null } });
 }
 
+// ── Memorandum klijenta (slika zaglavlja platne liste) ──────────────────────
+// Isti mehanizam kao logo, zaseban fajl i kolona: memorandum mijenja CIJELO
+// standardno zaglavlje platne liste, dok logo ide na fakture/predračune.
+
+// Provjera SADRŽAJA otpremljene slike (ne ekstenzije, koju browser izvodi iz
+// imena fajla). Vraća poruku greške ili null. PNG se dodatno ograničava po
+// dimenzijama: pdf-lib ga pri svakom listiću dekompresuje u punoj veličini.
+const MEMO_MAX_W = 4000;
+const MEMO_MAX_H = 2000;
+function provjeriMemorandumFajl(putanja) {
+  let bytes;
+  try {
+    bytes = fs.readFileSync(putanja);
+  } catch {
+    return "UPLOAD_ERROR";
+  }
+  const jePng =
+    bytes.length > 24 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47;
+  const jeJpg =
+    bytes.length > 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff;
+  if (!jePng && !jeJpg) return "INVALID_IMAGE_TYPE";
+  if (jePng) {
+    // IHDR: širina i visina su 4+4 bajta od offseta 16.
+    const w = bytes.readUInt32BE(16);
+    const h = bytes.readUInt32BE(20);
+    if (w > MEMO_MAX_W || h > MEMO_MAX_H) return "IMAGE_TOO_LARGE";
+  }
+  return null;
+}
+
+async function uploadMemorandum(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+  if (!req.file)
+    return res.status(400).json({ ok: false, error: "Nedostaje fajl" });
+
+  const org = await organizationRepository.getOrganizationForUser(
+    id,
+    req.user.id,
+  );
+  if (!org) {
+    safeUnlink(req.file.path);
+    return res
+      .status(404)
+      .json({ ok: false, error: "Organizacija nije pronađena" });
+  }
+
+  const greskaSlike = provjeriMemorandumFajl(req.file.path);
+  if (greskaSlike) {
+    safeUnlink(req.file.path);
+    return res.status(400).json({ ok: false, error: greskaSlike });
+  }
+
+  const oldRow = await Organization.findByPk(id);
+  const oldUrl = oldRow?.memorandumUrl || null;
+
+  const newUrl = publicUrlFor("memorandumi", req.file.filename);
+  await Organization.update({ memorandumUrl: newUrl }, { where: { id } });
+
+  if (oldUrl) safeUnlink(absPathFor(oldUrl));
+
+  res.status(200).json({ ok: true, data: { id, memorandumUrl: newUrl } });
+}
+
+async function removeMemorandum(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0)
+    return res.status(400).json({ ok: false, error: "Invalid id" });
+
+  const org = await organizationRepository.getOrganizationForUser(
+    id,
+    req.user.id,
+  );
+  if (!org)
+    return res
+      .status(404)
+      .json({ ok: false, error: "Organizacija nije pronađena" });
+
+  const row = await Organization.findByPk(id);
+  if (row?.memorandumUrl) {
+    safeUnlink(absPathFor(row.memorandumUrl));
+    await Organization.update({ memorandumUrl: null }, { where: { id } });
+  }
+
+  res.status(200).json({ ok: true, data: { id, memorandumUrl: null } });
+}
+
 // Postavlja aktivnu organizaciju za PK Office (sidebar org switcher).
 // Provjerava da user ima membership prije aktivacije.
 async function activate(req, res) {
@@ -888,5 +984,7 @@ module.exports = {
   adminListAll,
   uploadLogo,
   removeLogo,
+  uploadMemorandum,
+  removeMemorandum,
   activate,
 };

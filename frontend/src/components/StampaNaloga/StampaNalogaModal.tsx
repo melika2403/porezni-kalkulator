@@ -6,7 +6,7 @@
 // Sve se generiše u pregledniku, ništa se ne šalje nazad na server.
 // Spec: docs/faza2-stampa-naloga-na-obracunu.md
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import DateInput from "src/components/DateInput/DateInput";
 import { naloziZaStampu } from "src/api/payroll";
@@ -113,6 +113,9 @@ export default function StampaNalogaModal({
 }) {
   // Uvijek današnji datum (isto pravilo kao izvoz za e-bankarstvo).
   const [datum, setDatum] = useState(danasIso());
+  // Zatvaranje samo kad i mousedown I mouseup padnu na pozadinu: povlačenje
+  // miša iz polja (npr. selekcija datuma) van okvira ne smije zatvoriti modal.
+  const backdropMouseDownRef = useRef(false);
   // Pamte se ODZNAČENI nalozi, ne označeni: novi podaci (druga firma ili
   // datum) tako ne traže usklađivanje stanja, sve je po defaultu označeno.
   const [odznaceni, setOdznaceni] = useState<Set<number>>(new Set());
@@ -230,7 +233,15 @@ export default function StampaNalogaModal({
         zIndex: 1000,
         padding: "1rem",
       }}
-      onClick={onClose}
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (backdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
