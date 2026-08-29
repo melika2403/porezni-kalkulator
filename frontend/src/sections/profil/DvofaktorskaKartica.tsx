@@ -175,6 +175,7 @@ export default function DvofaktorskaKartica({ user }: { user: AuthUser }) {
       {noviKodoviOtvoreni && (
         <NoviKodoviModal
           user={user}
+          metoda={status?.method ?? "EMAIL"}
           onClose={() => setNoviKodoviOtvoreni(false)}
           onDone={osvjezi}
         />
@@ -604,21 +605,25 @@ function RezervniKodovi({
 
 function NoviKodoviModal({
   user,
+  metoda,
   onClose,
   onDone,
 }: {
   user: AuthUser;
+  metoda: TwoFactorMethod;
   onClose: () => void;
   onDone: () => void;
 }) {
   const [lozinka, setLozinka] = useState("");
+  const [kod, setKod] = useState("");
   const [kodovi, setKodovi] = useState<string[]>([]);
   const [sacuvao, setSacuvao] = useState(false);
   const [greska, setGreska] = useState<string | null>(null);
+  const [kodPoslan, setKodPoslan] = useState(false);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const r = await regenerateBackupCodes(lozinka);
+      const r = await regenerateBackupCodes(lozinka, kod.trim());
       if (!r.ok) throw new Error(twoFactorErrorText(r.error));
       return r.data;
     },
@@ -626,6 +631,18 @@ function NoviKodoviModal({
       setGreska(null);
       setKodovi(data.backupCodes);
       onDone();
+    },
+    onError: (e: Error) => setGreska(e.message),
+  });
+
+  const posaljiKodMutation = useMutation({
+    mutationFn: async () => {
+      const r = await sendCurrentMethodCode();
+      if (!r.ok) throw new Error(twoFactorErrorText(r.error));
+    },
+    onSuccess: () => {
+      setKodPoslan(true);
+      setGreska(null);
     },
     onError: (e: Error) => setGreska(e.message),
   });
@@ -642,7 +659,8 @@ function NoviKodoviModal({
           }}
         >
           <p className={styles.verifyHint}>
-            Novi set poništava sve postojeće rezervne kodove.
+            Novi set poništava sve postojeće rezervne kodove. Zato traži isto
+            što i isključivanje: {user.hasPassword ? "lozinku i " : ""}važeći kod.
           </p>
           {user.hasPassword && (
             <div className={styles.field}>
@@ -658,6 +676,37 @@ function NoviKodoviModal({
               />
             </div>
           )}
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              {metoda === "EMAIL"
+                ? "Kod iz emaila ili rezervni kod"
+                : "Kod iz aplikacije ili rezervni kod"}
+            </label>
+            <input
+              type="text"
+              className={styles.input}
+              value={kod}
+              onChange={(e) => setKod(e.target.value)}
+              placeholder="123456"
+              autoComplete="one-time-code"
+              required
+            />
+            {metoda === "EMAIL" && (
+              <button
+                type="button"
+                className={styles.btnEditInline}
+                style={{ marginTop: "0.5rem", alignSelf: "flex-start" }}
+                disabled={posaljiKodMutation.isPending}
+                onClick={() => posaljiKodMutation.mutate()}
+              >
+                {posaljiKodMutation.isPending
+                  ? "Slanje…"
+                  : kodPoslan
+                    ? "Pošalji novi kod na email"
+                    : "Pošalji kod na email"}
+              </button>
+            )}
+          </div>
           {greska && <div className={styles.errorMsg}>{greska}</div>}
           <div className={styles.formActions}>
             <button type="button" className={styles.btnGhost} onClick={onClose}>

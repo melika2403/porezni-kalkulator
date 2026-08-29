@@ -252,8 +252,11 @@ async function verifyEmailOtp(row, unos) {
   }
 
   if (!safeEqualHex(hashOtp(normalizeOtpInput(unos)), row.otpHash)) {
+    // update() upisuje vrijednost i na instancu, pa je row.otpAttempts poslije
+    // njega VEĆ uvećan. Dodavanje još jedan bi korisniku javilo da je ostao bez
+    // pokušaja dok jedan još ima.
     await row.update({ otpAttempts: row.otpAttempts + 1 });
-    const preostalo = OTP_MAX_ATTEMPTS - (row.otpAttempts + 1);
+    const preostalo = OTP_MAX_ATTEMPTS - row.otpAttempts;
     return { ok: false, error: "NEISPRAVAN_KOD", preostaloPokusaja: preostalo };
   }
 

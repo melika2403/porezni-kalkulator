@@ -37,6 +37,30 @@ async function provjeriLozinku(userId, password) {
   return { ok: true, user };
 }
 
+/**
+ * Step-up DRUGIM FAKTOROM. Radnje koje mijenjaju 2FA postavke kod korisnika koji
+ * ga već ima moraju tražiti i važeći kod, ne samo lozinku. Bez ovoga su novi
+ * rezervni kodovi i zamjena metode put da se isključivanje (koje kod traži)
+ * potpuno zaobiđe: napadač sa sesijom i lozinkom uzme svjež set kodova pa
+ * jednim od njih ugasi 2FA, a da nikad nije vidio korisnikov telefon ni inbox.
+ *
+ * Kad 2FA nije uključen nema šta da se provjerava, pa vraća { ok, row: null }.
+ */
+async function provjeriTrenutniFaktor(userId, code) {
+  const row = await UserTwoFactor.findOne({ where: { userId, enabled: true } });
+  if (!row) return { ok: true, row: null };
+
+  if (!isNonEmptyString(code)) return { ok: false, error: "KOD_OBAVEZAN" };
+  const rezultat = await twoFactorService.verifyCode(row, code);
+  if (!rezultat.ok) return { ok: false, error: rezultat.error };
+
+  // Kod je upravo potrošen, a korisnik je dokazao da je to on. Cooldown na
+  // slanju ne smije blokirati kod koji ista radnja treba odmah poslije (zamjena
+  // metode sa email na email).
+  if (row.otpSentAt) await row.update({ otpSentAt: null });
+  return { ok: true, row };
+}
+
 async function status(req, res) {
   try {
     const userId = req.user.id;
@@ -65,7 +89,7 @@ async function status(req, res) {
  * kod. Ne mijenja ništa što bi oborilo postojeći 2FA (piše u pending polja).
  */
 async function setupStart(req, res) {
-  const { method, password } = req.body ?? {};
+  const { method, password, code } = req.body ?? {};
   if (!PODRZANE_METODE.includes(method))
     return res.status(400).json({ ok: false, error: "NEDOSTUPNA_METODA" });
 
@@ -77,6 +101,12 @@ async function setupStart(req, res) {
 
     if (method === "EMAIL" && !user.email)
       return res.status(400).json({ ok: false, error: "NEMA_EMAILA" });
+
+    // Zamjena metode kod korisnika koji već ima 2FA traži i trenutni kod.
+    // Prvo uključenje ga nema čime dati, pa helper tada propušta.
+    const stepUp = await provjeriTrenutniFaktor(user.id, code);
+    if (!stepUp.ok)
+      return res.status(400).json({ ok: false, error: stepUp.error });
 
     const [row] = await UserTwoFactor.findOrCreate({
       where: { userId: user.id },
@@ -237,9 +267,12 @@ async function regenerateBackupCodes(req, res) {
     if (!provjera.ok)
       return res.status(400).json({ ok: false, error: provjera.error });
 
-    const row = await UserTwoFactor.findOne({
-      where: { userId: req.user.id, enabled: true },
-    });
+    // Novi set poništava stare i vraća se u čistom tekstu, pa mora biti barem
+    // jednako težak kao isključivanje: lozinka i važeći kod.
+    const stepUp = await provjeriTrenutniFaktor(req.user.id, req.body?.code);
+    if (!stepUp.ok)
+      return res.status(400).json({ ok: false, error: stepUp.error });
+    const row = stepUp.row;
     if (!row) return res.status(400).json({ ok: false, error: "2FA_NIJE_UKLJUCEN" });
 
     const { plain, hashes } = await generateBackupCodes();
@@ -275,16 +308,12 @@ async function disable(req, res) {
     if (!provjera.ok)
       return res.status(400).json({ ok: false, error: provjera.error });
 
-    const row = await UserTwoFactor.findOne({
-      where: { userId: req.user.id, enabled: true },
-    });
+    // Ista provjera kao kod novih rezervnih kodova i zamjene metode.
+    const stepUp = await provjeriTrenutniFaktor(req.user.id, code);
+    if (!stepUp.ok)
+      return res.status(400).json({ ok: false, error: stepUp.error });
+    const row = stepUp.row;
     if (!row) return res.status(400).json({ ok: false, error: "2FA_NIJE_UKLJUCEN" });
-
-    if (!isNonEmptyString(code))
-      return res.status(400).json({ ok: false, error: "NEISPRAVAN_KOD" });
-    const rezultat = await twoFactorService.verifyCode(row, code);
-    if (!rezultat.ok)
-      return res.status(400).json({ ok: false, error: rezultat.error });
 
     await row.destroy();
     await twoFactorService.forgetAllDevices(req.user.id, res);
@@ -325,6 +354,9 @@ async function resendSetupCode(req, res) {
 }
 
 module.exports = {
+  // izvezeno i radi testa: ovo je pravilo koje čuva da se isključivanje 2FA ne
+  // može zaobići kroz nove rezervne kodove ili zamjenu metode
+  provjeriTrenutniFaktor,
   status,
   setupStart,
   setupConfirm,

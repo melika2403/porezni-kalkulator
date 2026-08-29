@@ -48,10 +48,19 @@ export type SetupStartData = {
   secret?: string;
 };
 
-export function setupStart(method: TwoFactorMethod, password?: string) {
+/**
+ * `code` je potreban samo kad korisnik VEĆ ima 2FA i mijenja metodu: server
+ * tada traži i važeći kod trenutne metode, ne samo lozinku. Pri prvom
+ * uključenju ostaje prazan.
+ */
+export function setupStart(
+  method: TwoFactorMethod,
+  password?: string,
+  code?: string,
+) {
   return request<SetupStartData>("/api/2fa/setup/start", {
     method: "POST",
-    body: JSON.stringify({ method, password }),
+    body: JSON.stringify({ method, password, code }),
   });
 }
 
@@ -72,10 +81,11 @@ export function sendCurrentMethodCode() {
   return request<null>("/api/2fa/send-code", { method: "POST" });
 }
 
-export function regenerateBackupCodes(password?: string) {
+/** Traži i lozinku i važeći kod: novi set poništava stare i vraća se otvoreno. */
+export function regenerateBackupCodes(password?: string, code?: string) {
   return request<{ backupCodes: string[] }>("/api/2fa/backup-codes", {
     method: "POST",
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, code }),
   });
 }
 
@@ -99,6 +109,8 @@ export function twoFactorErrorText(error: string): string {
       return "Unesite trenutnu lozinku.";
     case "NEISPRAVAN_KOD":
       return "Kod nije ispravan.";
+    case "KOD_OBAVEZAN":
+      return "Unesite važeći kod ili jedan od rezervnih kodova.";
     case "ISTEKAO_KOD":
       return "Kod je istekao. Zatražite novi.";
     case "PREVISE_POKUSAJA":
