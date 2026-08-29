@@ -7,6 +7,7 @@ const entities = require("../controllers/adminEntitiesController");
 const detail = require("../controllers/adminDetailController");
 const subscriptions = require("../controllers/subscriptionsController");
 const paymentExport = require("../controllers/paymentExportController");
+const twoFactor = require("../controllers/twoFactorController");
 const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
@@ -51,6 +52,11 @@ router.post("/users/:id/trial-invite", requireAuth, requireRole("ADMIN"), entiti
 
 // Ručna verifikacija emaila (korisniku mail nije stigao).
 router.post("/users/:id/verify-email", requireAuth, requireRole("ADMIN"), entities.verifyUserEmail);
+
+// Otključavanje naloga kojem je 2FA postao brava: korisnik je izgubio i uređaj
+// i rezervne kodove. Jedini put kojim se tuđi drugi faktor gasi bez ijednog
+// dokaza od vlasnika, pa je i sam kontroler još jednom provjeri rolu.
+router.post("/users/:id/2fa/disable", requireAuth, requireRole("ADMIN"), twoFactor.adminDisable);
 
 // Sve pretplate (paketi, periodi, office slotovi) — admin lista.
 router.get(

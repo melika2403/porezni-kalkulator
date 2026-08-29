@@ -835,9 +835,56 @@ Podešavanja obavijesti: ${settingsUrl}`,
   });
 }
 
+// Jednokratni kod za dvofaktorsku prijavu. Kod ide i u tekstualnu verziju jer
+// ga korisnici često čitaju iz notifikacije na telefonu.
+async function send2faCodeEmail(to, firstName, code, { svrha = "prijava" } = {}) {
+  const transporter = createTransporter();
+  const displayName = process.env.SMTP_FROM || "Porezni Kalkulator";
+  const from = `"${displayName}" <${process.env.SMTP_USER}>`;
+
+  const naslov =
+    svrha === "aktivacija"
+      ? "Kod za uključivanje dvofaktorske prijave"
+      : "Kod za prijavu";
+  const uvod =
+    svrha === "aktivacija"
+      ? "Unesite ovaj kod da potvrdite email kao drugi faktor prijave."
+      : "Unesite ovaj kod da završite prijavu na svoj nalog.";
+  const upozorenje =
+    svrha === "aktivacija"
+      ? "Ako niste vi tražili uključivanje dvofaktorske prijave, ignorišite ovaj email i promijenite lozinku."
+      : "Ako se niste vi prijavljivali, neko zna vašu lozinku. Odmah je promijenite.";
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: `${naslov}, Porezni Kalkulator`,
+    text: `Zdravo ${firstName || ""},\n\n${uvod}\n\nKod: ${code}\n\nKod važi 10 minuta.\n\n${upozorenje}`,
+    html: `
+      <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${naslov}</h2>
+        <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+          Zdravo <strong>${firstName || "korisniče"}</strong>, ${uvod}
+        </p>
+        <div style="display: inline-block; background: #f5f2eb; border: 1px solid #d4cfc4; border-radius: 10px;
+                    padding: 16px 28px; font-size: 30px; font-weight: 600; letter-spacing: 8px; color: #0f1a12;">
+          ${code}
+        </div>
+        <p style="color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+          Kod važi <strong>10 minuta</strong> i može se iskoristiti samo jednom.
+        </p>
+        <p style="color: #999; font-size: 13px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          ${upozorenje}
+        </p>
+      </div>
+    `,
+  });
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendVerificationEmail,
+  send2faCodeEmail,
   sendContactEmail,
   sendPredracunEmail,
   sendInvoiceEmail,

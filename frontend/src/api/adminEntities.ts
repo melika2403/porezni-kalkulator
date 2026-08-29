@@ -90,3 +90,23 @@ export async function adminVerifyUserEmail(
     return { ok: false, error: "NETWORK_ERROR" };
   }
 }
+
+// Otključavanje naloga: gasi 2FA korisniku koji je izgubio i uređaj i rezervne
+// kodove. Ruta je na serveru iza requireRole("ADMIN"); ovo je samo poziv.
+export async function adminDisableTwoFactor(
+  userId: number,
+): Promise<ApiResponse<{ userId: number }>> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/admin/users/${userId}/2fa/disable`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const json = (await res.json().catch(() => null)) as ApiResponse<{
+      userId: number;
+    }> | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}

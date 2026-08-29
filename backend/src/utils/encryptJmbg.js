@@ -47,4 +47,11 @@ function decryptJmbg(ciphertext) {
   }
 }
 
-module.exports = { encryptJmbg, decryptJmbg };
+// Isti AES-GCM par pod neutralnim imenom: koristi ga i 2FA za TOTP tajnu.
+// Stara imena ostaju jer ih zove dvadesetak mjesta.
+module.exports = {
+  encryptJmbg,
+  decryptJmbg,
+  encrypt: encryptJmbg,
+  decrypt: decryptJmbg,
+};
