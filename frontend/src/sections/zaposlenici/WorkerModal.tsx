@@ -73,6 +73,8 @@ export type WorkerFormState = {
   travelAllowancePerMonth: string;
   prebivalisteEntitet: "FBIH" | "RS";
   opcinaKod: string;
+  // Trajne obustave na platu (rata kredita i sl.); iznos je display string.
+  obustave: { naziv: string; iznos: string; aktivna: boolean }[];
 };
 
 export const emptyWorkerForm = (): WorkerFormState => ({
@@ -110,6 +112,7 @@ export const emptyWorkerForm = (): WorkerFormState => ({
   travelAllowancePerMonth: "",
   prebivalisteEntitet: "FBIH",
   opcinaKod: "",
+  obustave: [],
 });
 
 export function workerToForm(w: Worker): WorkerFormState {
@@ -167,6 +170,11 @@ export function workerToForm(w: Worker): WorkerFormState {
         : "",
     prebivalisteEntitet: w.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod: w.opcinaKod ?? "",
+    obustave: (w.obustave ?? []).map((o) => ({
+      naziv: o.naziv ?? "",
+      iznos: o.iznos > 0 ? formatKm(Number(o.iznos)) : "",
+      aktivna: o.aktivna !== false,
+    })),
   };
 }
 
@@ -232,6 +240,17 @@ function formToPayload(f: WorkerFormState): WorkerPayload {
     prebivalisteEntitet: f.prebivalisteEntitet === "RS" ? "RS" : "FBIH",
     opcinaKod:
       f.prebivalisteEntitet === "RS" ? f.opcinaKod.trim() || null : null,
+    // Prazni redovi se ne šalju; prazna lista se šalje kao null (briše zapis).
+    obustave: (() => {
+      const lista = f.obustave
+        .map((o) => ({
+          naziv: o.naziv.trim(),
+          iznos: parseKm(o.iznos) ?? 0,
+          aktivna: o.aktivna,
+        }))
+        .filter((o) => o.naziv || o.iznos > 0);
+      return lista.length ? lista : null;
+    })(),
   };
 }
 
@@ -976,6 +995,101 @@ export function WorkerModal({
                 našoj firmi. Popunite jedno od dva polja; ako je popunjeno
                 oboje, staž prije firme ima prednost. Prazno = minuli rad od
                 datuma prijave u našu firmu.
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* ── Obustave na platu ── */}
+        {!isObrtVlasnik && (
+          <>
+            <SectionTitle>Obustave na platu</SectionTitle>
+            <div className="sm:col-span-2 space-y-2">
+              {form.obustave.map((o, i) => (
+                <div key={i} className="flex flex-wrap items-end gap-2">
+                  <div className="flex-1 min-w-[150px]">
+                    <label className={labelCls}>Naziv</label>
+                    <input
+                      className={inputCls}
+                      value={o.naziv}
+                      onChange={(e) => {
+                        const naziv = e.target.value;
+                        setForm((s) => ({
+                          ...s,
+                          obustave: s.obustave.map((r, j) =>
+                            j === i ? { ...r, naziv } : r,
+                          ),
+                        }));
+                        setError(null);
+                      }}
+                      placeholder="Npr. rata kredita UniCredit"
+                    />
+                  </div>
+                  <div className="w-[130px]">
+                    <label className={labelCls}>Iznos (KM)</label>
+                    <PkAmountInput
+                      value={o.iznos}
+                      onChange={(v) =>
+                        setForm((s) => ({
+                          ...s,
+                          obustave: s.obustave.map((r, j) =>
+                            j === i ? { ...r, iznos: v } : r,
+                          ),
+                        }))
+                      }
+                      ariaLabel="Iznos obustave"
+                    />
+                  </div>
+                  <label className="flex items-center gap-1.5 pb-2.5 text-[12.5px] text-text-primary select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={o.aktivna}
+                      onChange={(e) => {
+                        const aktivna = e.target.checked;
+                        setForm((s) => ({
+                          ...s,
+                          obustave: s.obustave.map((r, j) =>
+                            j === i ? { ...r, aktivna } : r,
+                          ),
+                        }));
+                      }}
+                    />
+                    Aktivna
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((s) => ({
+                        ...s,
+                        obustave: s.obustave.filter((_, j) => j !== i),
+                      }))
+                    }
+                    className="mb-0.5 px-3 py-1.5 rounded-lg border border-accent-500/40 bg-accent-500/10 text-[12px] text-accent-500 hover:bg-accent-500/20 transition-colors"
+                  >
+                    Ukloni
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setForm((s) => ({
+                    ...s,
+                    obustave: [
+                      ...s.obustave,
+                      { naziv: "", iznos: "", aktivna: true },
+                    ],
+                  }))
+                }
+                className="px-3 py-1.5 rounded-lg border border-cream-300 bg-cream-100 text-[12.5px] text-text-primary hover:bg-cream-200 transition-colors"
+              >
+                + Dodaj obustavu
+              </button>
+              <p className={hintCls}>
+                Rata kredita ili druga obustava koju firma uplaćuje umjesto
+                radnika. Aktivne obustave se svaki mjesec automatski predlažu u
+                obračunu plate i umanjuju iznos za isplatu radniku (neto plata,
+                doprinosi i porez se ne mijenjaju).
               </p>
             </div>
           </>

@@ -1,7 +1,7 @@
 const { Op } = require("sequelize");
 const {
   sequelize, User, Subscription, Organization, OrganizationMember, Client, Form,
-  InvoiceCounter, InvoiceItemTemplate, KarticaMember, AmsIsplatilac,
+  InvoiceCounter, InvoiceItemTemplate, KarticaMember, AmsIsplatilac, UserTwoFactor,
 } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 const cascade = require("../services/adminCascade");
@@ -27,7 +27,7 @@ const userInclude = [
 const userAttributes = [
   "id", "email", "jmbg", "idCardNumber", "firstName", "lastName",
   "phone", "address", "city", "role", "createdAt", "updatedAt", "isEmailVerified",
-  "trialUsedAt", "pkOfficeTrialEndsAt",
+  "trialUsedAt", "pkOfficeTrialEndsAt", "payslipNaziv",
 ];
 
 function toPublicUser(user) {
@@ -99,7 +99,24 @@ async function listUsers({
     ...(subQuery === false ? { subQuery: false } : {}),
   });
 
-  return { items: items.map(toPublicUser), total };
+  // Stanje 2FA za prikaz u admin listi. Odvojen upit umjesto include-a: gornja
+  // logika za office filtere se oslanja na subQuery: false i dodatni join bi je
+  // lako pokvario. Jedan SELECT po stranici (najviše 100 redova).
+  const publicItems = items.map(toPublicUser);
+  if (publicItems.length) {
+    const dvofaktor = await UserTwoFactor.findAll({
+      where: { userId: publicItems.map((u) => u.id), enabled: true },
+      attributes: ["userId", "method"],
+      raw: true,
+    });
+    const poKorisniku = new Map(dvofaktor.map((r) => [r.userId, r.method]));
+    for (const u of publicItems) {
+      u.twoFactorEnabled = poKorisniku.has(u.id);
+      u.twoFactorMethod = poKorisniku.get(u.id) ?? null;
+    }
+  }
+
+  return { items: publicItems, total };
 }
 
 async function getUserById(id) {

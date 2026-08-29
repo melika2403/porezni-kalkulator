@@ -232,6 +232,17 @@ export async function obracunOrgPayrolls(input: {
     } else if (isNewPayroll) {
       travelDefault = 0;
     }
+    // Obustave na platu: zbir aktivnih obustava sa kartona radnika, samo za
+    // NOVI obračun. Postojeći obračun se ne dira: backend pick zadržava
+    // snimljenu vrijednost, pa ručna izmjena za taj mjesec preživi bulk.
+    const obustaveAktivne = (w.obustave ?? []).filter(
+      (o) => o.aktivna !== false && Number(o.iznos) > 0,
+    );
+    const obustaveDefault = isNewPayroll
+      ? Math.round(
+          obustaveAktivne.reduce((s, o) => s + Number(o.iznos), 0) * 100,
+        ) / 100
+      : null;
     try {
       await unwrap(
         calculatePayroll({
@@ -261,6 +272,15 @@ export async function obracunOrgPayrolls(input: {
             : {}),
           ...(travelDefault !== null
             ? { travelExpense: travelDefault }
+            : {}),
+          ...(obustaveDefault !== null && obustaveDefault > 0
+            ? {
+                obustave: obustaveDefault,
+                obustaveStavke: obustaveAktivne.map((o) => ({
+                  naziv: o.naziv,
+                  iznos: Number(o.iznos),
+                })),
+              }
             : {}),
         }),
       );

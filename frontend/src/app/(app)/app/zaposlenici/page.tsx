@@ -13,6 +13,7 @@ import {
   IconPlus,
   IconReceipt,
   IconTrash,
+  IconUpload,
 } from "@tabler/icons-react";
 import { HelpButton } from "src/components/app-shell/HelpButton";
 import { formatBAM, formatDate } from "src/lib/format";
@@ -22,6 +23,8 @@ import { unwrap } from "src/api/auth";
 import { getOsnovica, REZIM_LABELS } from "src/utils/obrtniciFbih";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
+import { UvozRadnikaModal } from "src/sections/zaposlenici/UvozRadnikaModal";
+import { napraviIzvjestajCsv } from "src/sections/zaposlenici/radniciCsv";
 import {
   WorkersTable,
   nedostajePodaci,
@@ -120,6 +123,7 @@ export default function ZaposleniciPage() {
 
   // modal: null = zatvoreno; { worker: null } = novi radnik
   const [modal, setModal] = useState<{ worker: Worker | null } | null>(null);
+  const [uvozOpen, setUvozOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Worker | null>(null);
   const [kartonWorker, setKartonWorker] = useState<Worker | null>(null);
   const [evidencijaWorker, setEvidencijaWorker] = useState<Worker | null>(
@@ -282,34 +286,8 @@ export default function ZaposleniciPage() {
 
   function izvozCsv() {
     if (rows.length === 0) return;
-    const esc = (c: string) =>
-      /[";\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c;
-    const linije: string[][] = [
-      [
-        "R.br",
-        "Ime i prezime",
-        "Radno mjesto",
-        "JMBG",
-        "Grad",
-        "Prijava",
-        "Odjava",
-        "Status",
-        "Plata",
-      ],
-      ...rows.map((w, i) => [
-        `${i + 1}.`,
-        `${w.firstName} ${w.lastName}`,
-        w.role === "VLASNIK" ? "vlasnik" : (w.position ?? ""),
-        w.jmbg ?? "",
-        w.city ?? "",
-        w.prijavaDate ? formatDate(w.prijavaDate) : "",
-        w.odjavaDate ? formatDate(w.odjavaDate) : "",
-        statusText(w),
-        pdfPlata(w),
-      ]),
-    ];
-    const csv =
-      "\uFEFF" + linije.map((l) => l.map(esc).join(";")).join("\r\n");
+    // Dijeljeni helper: isti CSV i na marketing strani (/aktivni-radnici).
+    const csv = napraviIzvjestajCsv(rows, pdfPlata, statusText);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -411,6 +389,17 @@ export default function ZaposleniciPage() {
             <IconDownload size={15} />
             Izvoz (CSV)
           </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setUvozOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-cream-300 text-[13px] text-text-primary hover:bg-cream-200 transition-colors"
+              title="Uvoz novih radnika iz CSV fajla (šablon se preuzima u prozoru)"
+            >
+              <IconUpload size={15} />
+              Uvoz (CSV)
+            </button>
+          )}
           <button
             type="button"
             onClick={preuzmiPdf}
@@ -572,6 +561,15 @@ export default function ZaposleniciPage() {
           orgType={fullOrg?.type ?? activeOrg?.type ?? null}
           worker={modal.worker}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {/* Uvoz radnika iz CSV fajla */}
+      {uvozOpen && orgId != null && (
+        <UvozRadnikaModal
+          orgId={orgId}
+          postojeci={workers ?? []}
+          onClose={() => setUvozOpen(false)}
         />
       )}
 

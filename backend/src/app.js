@@ -14,6 +14,7 @@ const {
 } = require("./services/bankStatements/bankCodes");
 const KD_BIH_NAMES = require("./data/kdBihNames.json");
 const authRoutes = require("./routes/authRoutes");
+const twoFactorRoutes = require("./routes/twoFactorRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 const organizationsRoutes = require("./routes/organizationsRoutes");
 const formsRoutes = require("./routes/formsRoutes");
@@ -90,6 +91,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/2fa", twoFactorRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/organizations", organizationsRoutes);
 app.use("/api/forms", formsRoutes);
@@ -929,6 +931,27 @@ async function ensureColumns() {
       column: "combineKantonalUplatnice",
       ddl: "ALTER TABLE users ADD COLUMN combineKantonalUplatnice TINYINT(1) NOT NULL DEFAULT 0",
     },
+    // Naziv na platnom listiću po profilu: NULL = "PLATNI LISTIĆ",
+    // "PLATNA_LISTA" za klijente koji traže taj naziv.
+    {
+      table: "users",
+      column: "payslipNaziv",
+      ddl: "ALTER TABLE users ADD COLUMN payslipNaziv VARCHAR(20) NULL",
+    },
+    // Memorandum klijenta (slika zaglavlja) za platne liste, po organizaciji.
+    {
+      table: "organizations",
+      column: "memorandumUrl",
+      ddl: "ALTER TABLE organizations ADD COLUMN memorandumUrl VARCHAR(500) NULL",
+    },
+    // Poseban dogovor za PK Office: individualni limit obrta koji ima
+    // prednost nad limitom paketa (npr. 100 obrta po cijeni OFFICE_50).
+    // NULL = važi limit paketa; upisuje ga admin u listi pretplata.
+    {
+      table: "users",
+      column: "officeMaxObrta",
+      ddl: "ALTER TABLE users ADD COLUMN officeMaxObrta INT NULL",
+    },
     // Dodatni podaci matične evidencije o radniku (JSON, uređuje se u evidenciji).
     {
       table: "workers",
@@ -940,6 +963,24 @@ async function ensureColumns() {
       table: "workers",
       column: "poreznaKarticaPodaci",
       ddl: "ALTER TABLE workers ADD COLUMN poreznaKarticaPodaci JSON NULL",
+    },
+    // Trajne obustave na platu radnika (rate kredita i sl.): lista
+    // { naziv, iznos, aktivna }. Umanjuju samo "za isplatu", ne neto.
+    {
+      table: "workers",
+      column: "obustave",
+      ddl: "ALTER TABLE workers ADD COLUMN obustave JSON NULL",
+    },
+    // Snapshot obustava na mjesečnom obračunu: zbir + stavke za platnu listu.
+    {
+      table: "payrolls",
+      column: "obustave",
+      ddl: "ALTER TABLE payrolls ADD COLUMN obustave DECIMAL(12,2) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "payrolls",
+      column: "obustaveStavke",
+      ddl: "ALTER TABLE payrolls ADD COLUMN obustaveStavke JSON NULL",
     },
   ];
   for (const c of checks) {

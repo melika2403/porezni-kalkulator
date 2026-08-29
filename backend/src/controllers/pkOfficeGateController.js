@@ -141,6 +141,14 @@ async function getOfficeAccess(userId) {
     };
   }
 
+  // Poseban dogovor (users.officeMaxObrta, upisuje admin): individualni limit
+  // sa prednošću nad limitom paketa. Cijena i paket ostaju netaknuti, pa
+  // predračuni i obnove rade kao i do sada.
+  const posebniLimit =
+    user.officeMaxObrta != null && Number(user.officeMaxObrta) > 0
+      ? Number(user.officeMaxObrta)
+      : null;
+
   const sub = await Subscription.findOne({ where: { userId } });
   const danas = new Date();
   danas.setHours(0, 0, 0, 0);
@@ -149,16 +157,23 @@ async function getOfficeAccess(userId) {
     const vrijedi = !sub.endDate || new Date(sub.endDate) >= danas;
     if (info && vrijedi) {
       const aktivnih = await brojAktivnihObrta(userId);
+      const maxObrta = posebniLimit ?? info.maxObrta;
+      // Labela paketa nosi "(do N obrta)": uz poseban limit se ispiše stvarni
+      // broj, da UI ne tvrdi 50 dok gate pušta 100.
+      const planNaziv =
+        posebniLimit != null
+          ? info.label.replace(/do \d+ obrta/, `do ${maxObrta} obrta`)
+          : info.label;
       return {
         ...nista,
         hasOffice: true,
         scope: "vlastiti",
         plan: String(sub.plan),
-        planNaziv: info.label,
-        maxObrta: info.maxObrta,
+        planNaziv,
+        maxObrta,
         trial: Boolean(sub.isTrial),
         aktivnihObrta: aktivnih,
-        prekoLimita: info.maxObrta != null && aktivnih > info.maxObrta,
+        prekoLimita: maxObrta != null && aktivnih > maxObrta,
       };
     }
   }
@@ -167,7 +182,9 @@ async function getOfficeAccess(userId) {
     new Date(user.pkOfficeTrialEndsAt) >= new Date()
   ) {
     const info = officePlanInfo(TRIAL_PLAN_KEY);
-    const maxObrta = info?.maxObrta ?? 10;
+    // Poseban limit važi i tokom probe: klijent sa dogovorenih 100 obrta ne
+    // smije na trialu biti spušten na 10.
+    const maxObrta = posebniLimit ?? info?.maxObrta ?? 10;
     const aktivnih = await brojAktivnihObrta(userId);
     return {
       ...nista,

@@ -100,6 +100,21 @@ import {
   fillSpecifikacije,
   type SpecifikacijeData,
 } from "./fillSpecifikacije";
+import {
+  fillRekapitulacija,
+  type RekapitulacijaData,
+} from "./fillRekapitulacija";
+import {
+  fillIsplatePoBankama,
+  type IsplatePoBankamaData,
+} from "./fillIsplatePoBankama";
+import {
+  SPISAK_PROFILI,
+  tabelaZaProfil,
+  type SpisakProfil,
+  type SpisakRadnik,
+} from "./spisakBanke";
+import { napraviXlsxBlob } from "./spisakBankeXlsx";
 import { kantonForOpcina, bankFromAccount } from "src/data/uplatni-racuni";
 import { fillObrazac2002Template } from "./fillObrazac2002";
 import { UvozPlataPkModal } from "./UvozPlataPkModal";
@@ -2001,6 +2016,10 @@ function MonthlyPanel({
   // format po izabranoj banci. Korisnik datoteku uveze u svoje bankarstvo
   // (opcija "uvoz naloga") i samo potpiše naloge.
   const [izvozOpen, setIzvozOpen] = useState(false);
+  // Zatvaranje izvoz modala samo kad i mousedown I mouseup padnu na pozadinu:
+  // povlačenje miša iz polja (npr. selekcija datuma valute) van okvira ne
+  // smije zatvoriti modal (isti obrazac kao PayrollModal backdrop).
+  const izvozBackdropMouseDownRef = useRef(false);
   const [izvozBanka, setIzvozBanka] = useState<string | null>(null);
   // Štampa naloga na matričnom pisaču (pred-štampani obrazac na traci).
   const [stampaOpen, setStampaOpen] = useState(false);
@@ -2308,7 +2327,8 @@ function MonthlyPanel({
         perWorker: summaryQuery.data.perWorker.map((p) => ({
           workerName: p.workerName,
           bankAccount: p.bankAccount,
-          net: p.net,
+          // Zbirni red PRENOS PLATE prati stvarne prenose: neto - obustave.
+          net: Math.max(0, +(p.net - (p.obustave || 0)).toFixed(2)),
           mealAllowance: p.mealAllowance,
           vacationBonus: p.vacationBonus,
           travelExpense: p.travelExpense,
@@ -2394,11 +2414,15 @@ function MonthlyPanel({
         perWorker: filtered.map((p) => ({
           workerName: p.workerName,
           bankAccount: p.bankAccount,
-          net: p.net,
+          // Specifikacija prati stvarne prenose: neto umanjen za obustave.
+          net: Math.max(0, +(p.net - (p.obustave || 0)).toFixed(2)),
           mealAllowance: p.mealAllowance,
           vacationBonus: p.vacationBonus,
           travelExpense: p.travelExpense,
         })),
+        obustaveUkupno: +filtered
+          .reduce((s, p) => s + (p.obustave || 0), 0)
+          .toFixed(2),
       };
       const bytes = await fillSpecifikacije(data);
       const mm = String(month).padStart(2, "0");
@@ -2414,6 +2438,170 @@ function MonthlyPanel({
     },
     onSuccess: ({ bytes, filename }) => {
       const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // Rekapitulacija isplata: jedna tabela za mjesec (zahtjev klijenta), sa
+  // kolonama neto / obrok / prevoz (/ regres) / obustave / ZA ISPLATU + UKUPNO.
+  const rekapitulacijaMutation = useMutation({
+    mutationFn: async () => {
+      if (!summaryQuery.data || !organization) {
+        throw new Error("Nedostaju podaci o organizaciji ili obračunu");
+      }
+      const data: RekapitulacijaData = {
+        organizationId: orgId,
+        organization: {
+          name: organization.name || "",
+          taxNumber: organization.taxNumber,
+          pdvNumber: organization.pdvNumber,
+          address: organization.address,
+          city: organization.city,
+          bankAccount: organization.bankAccount,
+          activityCode: organization.activityCode,
+        },
+        year,
+        month,
+        perWorker: summaryQuery.data.perWorker.map((p) => ({
+          workerName: p.workerName,
+          net: p.net,
+          mealAllowance: p.mealAllowance,
+          travelExpense: p.travelExpense,
+          vacationBonus: p.vacationBonus,
+          obustave: p.obustave || 0,
+        })),
+      };
+      const bytes = await fillRekapitulacija(data);
+      const mm = String(month).padStart(2, "0");
+      return { bytes, filename: `Rekapitulacija-isplata-${year}-${mm}.pdf` };
+    },
+    onSuccess: ({ bytes, filename }) => {
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // Isplate po bankama: pregled grupisan po banci radnika (naziv iz prve 3
+  // cifre računa); radnik bez računa ide u posebnu grupu, nikad tiho ispušten.
+  const isplatePoBankamaMutation = useMutation({
+    mutationFn: async () => {
+      if (!summaryQuery.data || !organization) {
+        throw new Error("Nedostaju podaci o organizaciji ili obračunu");
+      }
+      const data: IsplatePoBankamaData = {
+        organizationId: orgId,
+        organization: {
+          name: organization.name || "",
+          taxNumber: organization.taxNumber,
+          pdvNumber: organization.pdvNumber,
+          address: organization.address,
+          city: organization.city,
+          bankAccount: organization.bankAccount,
+          activityCode: organization.activityCode,
+        },
+        year,
+        month,
+        perWorker: summaryQuery.data.perWorker.map((p) => ({
+          workerName: p.workerName,
+          bankAccount: p.bankAccount,
+          net: p.net,
+          mealAllowance: p.mealAllowance,
+          travelExpense: p.travelExpense,
+          vacationBonus: p.vacationBonus,
+          obustave: p.obustave || 0,
+        })),
+        bankName: (acc) => bankFromAccount(acc),
+      };
+      const bytes = await fillIsplatePoBankama(data);
+      const mm = String(month).padStart(2, "0");
+      return { bytes, filename: `Isplate-po-bankama-${year}-${mm}.pdf` };
+    },
+    onSuccess: ({ bytes, filename }) => {
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      triggerBlobDownload(blob, filename);
+    },
+  });
+
+  // Spisak primanja za banku (XLSX): profil replicira STVARNU tabelu banke
+  // (UniCredit / Raiffeisen / Intesa); ulaze radnici sa računom te banke.
+  const spisakBankeMutation = useMutation({
+    mutationFn: async (profil: SpisakProfil) => {
+      if (!summaryQuery.data || !organization) {
+        throw new Error("Nedostaju podaci o organizaciji ili obračunu");
+      }
+      const meta = SPISAK_PROFILI.find((p) => p.kljuc === profil)!;
+      const workerById = new Map(radnici.map((w) => [w.id, w]));
+      const lista: SpisakRadnik[] = [];
+      const bezJmbg: string[] = [];
+      // Radnici koji ne ulaze ni u jedan spisak: bez računa ili sa računom
+      // koji nema 16 cifara. Bez ovoga bi tiho ispali i ostali bez isplate.
+      const bezRacuna: string[] = [];
+      const losRacun: string[] = [];
+      for (const p of summaryQuery.data.perWorker) {
+        const cifre = (p.bankAccount || "").replace(/\D/g, "");
+        const imaIznos =
+          Math.max(0, p.net - (p.obustave || 0)) +
+            p.mealAllowance +
+            p.travelExpense +
+            p.vacationBonus >
+          0;
+        if (imaIznos) {
+          if (!cifre) bezRacuna.push(p.workerName);
+          else if (cifre.length !== 16) losRacun.push(p.workerName);
+        }
+        if (!cifre.startsWith(meta.prefix)) continue;
+        const w = workerById.get(p.workerId);
+        const netoZaIsplatu = Math.max(
+          0,
+          +(p.net - (p.obustave || 0)).toFixed(2),
+        );
+        if (
+          netoZaIsplatu + p.mealAllowance + p.travelExpense + p.vacationBonus <=
+          0
+        ) {
+          continue;
+        }
+        if (profil === "intesa" && !w?.jmbg) bezJmbg.push(p.workerName);
+        lista.push({
+          ime: p.workerName,
+          imeSamo: w?.firstName || p.workerName.split(" ")[0] || "",
+          prezime: w?.lastName || p.workerName.split(" ").slice(1).join(" "),
+          racun: p.bankAccount || "",
+          jmbg: w?.jmbg || "",
+          netoZaIsplatu,
+          obrok: p.mealAllowance,
+          prevoz: p.travelExpense,
+          regres: p.vacationBonus,
+        });
+      }
+      if (lista.length === 0) {
+        throw new Error(`Nema radnika sa računom u banci: ${meta.naziv}`);
+      }
+      lista.sort((a, b) => a.ime.localeCompare(b.ime, "bs"));
+      const jib = String(organization.taxNumber || "").replace(/\D/g, "");
+      const tabela = tabelaZaProfil(profil, {
+        jib,
+        nazivFirme: organization.name || "",
+        year,
+        month,
+        radnici: lista,
+      });
+      const blob = napraviXlsxBlob(tabela);
+      trackEvent("SPISAK_BANKE_GENERATE", meta.naziv, orgId);
+      // Naziv fajla po obrascu iz stvarnog UniCredit primjera:
+      // "4201509550000 07-26 Unicredit.xlsx" (JIB, mjesec-godina, banka).
+      const mm = String(month).padStart(2, "0");
+      const gg = String(year % 100).padStart(2, "0");
+      return {
+        blob,
+        filename: `${jib || "spisak"} ${mm}-${gg} ${meta.datoteka}.xlsx`,
+        bezJmbg,
+        bezRacuna,
+        losRacun,
+        bezJiba: !jib,
+      };
+    },
+    onSuccess: ({ blob, filename }) => {
       triggerBlobDownload(blob, filename);
     },
   });
@@ -3157,6 +3345,14 @@ function MonthlyPanel({
           <span className={styles.summaryLabel}>Putni trošak</span>
           <span className={styles.summaryValue}>{fmtKM(s.totals.travel)} KM</span>
         </div>
+        {(s.totals.obustave || 0) > 0 && (
+          <div className={styles.summaryItem}>
+            <span className={styles.summaryLabel}>Obustave na plate</span>
+            <span className={styles.summaryValue}>
+              -{fmtKM(s.totals.obustave)} KM
+            </span>
+          </div>
+        )}
         {organization?.type !== "BUSINESS" && (
           <div className={styles.summaryItem}>
             <span className={styles.summaryLabel}>Fond invalida</span>
@@ -3238,6 +3434,10 @@ function MonthlyPanel({
             const cards = s.perWorker.flatMap((w, idx) => {
               const items: React.ReactNode[] = [];
               if (w.net > 0) {
+                // Kartica prikazuje ono što stvarno ide na račun: neto
+                // umanjen za obustave (rate kredita i sl.).
+                const obust = w.obustave || 0;
+                const netIsplata = Math.max(0, +(w.net - obust).toFixed(2));
                 items.push(
                   <div key={`${w.workerId}-net`} className={styles.uplCard}>
                     <span className={styles.uplCardWorker}>{w.workerName}</span>
@@ -3245,9 +3445,13 @@ function MonthlyPanel({
                       <div className={styles.uplCardTitle}>Neto plata</div>
                       <div className={styles.uplCardSub}>
                         {w.bankAccount || "Žiro račun nije unesen za radnika"}
+                        {obust > 0 &&
+                          ` · obustave -${fmtKM(obust)} KM (neto ${fmtKM(w.net)} KM)`}
                       </div>
                     </div>
-                    <span className={styles.uplCardIznos}>{fmtKM(w.net)} KM</span>
+                    <span className={styles.uplCardIznos}>
+                      {fmtKM(netIsplata)} KM
+                    </span>
                   </div>,
                 );
               }
@@ -3302,10 +3506,11 @@ function MonthlyPanel({
             <span className={styles.totalCostLabel}>Zbir isplata radnicima</span>
             <span className={styles.totalCostValue}>
               {fmtKM(
-                s.totals.net +
-                  s.totals.meal +
-                  s.totals.vacation +
-                  s.totals.travel,
+                s.totals.zaIsplatu ??
+                  s.totals.net +
+                    s.totals.meal +
+                    s.totals.vacation +
+                    s.totals.travel,
               )}{" "}
               KM
             </span>
@@ -4033,12 +4238,12 @@ function MonthlyPanel({
               className={styles.btnTintBlue}
               onClick={() => setBankMenuOpen((v) => !v)}
               disabled={
-                specifikacijeMutation.isPending ||
-                !organization ||
-                !canGenerate ||
-                banksInPayroll.length === 0
+                specifikacijeMutation.isPending || !organization || !canGenerate
               }
-              title="Filter po banci"
+              // Meni nosi i dokumente kojima žiro račun ne treba
+              // (rekapitulacija) ili koji baš prikazuju radnike bez računa,
+              // pa se NE smije zaključati kad niko nema upisan račun.
+              title="Rekapitulacija, isplate po bankama i spiskovi za banku"
               style={{
                 padding: "0.75rem 0.7rem",
                 fontSize: "0.95rem",
@@ -4154,6 +4359,122 @@ function MonthlyPanel({
                       style={{ color: "var(--mid, #6c6862)", marginLeft: 6 }}
                     >
                       ({b.count})
+                    </span>
+                  </button>
+                ))}
+                <div
+                  style={{
+                    height: 1,
+                    background: "var(--border, #d4cfc4)",
+                    margin: "0.3rem 0",
+                  }}
+                />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setBankMenuOpen(false);
+                    rekapitulacijaMutation.mutate();
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "0.5rem 0.7rem",
+                    background: "transparent",
+                    border: 0,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    fontFamily: "inherit",
+                    color: "inherit",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                  title="Jedna tabela za mjesec: neto, obrok, prevoz, obustave i ZA ISPLATU po radniku"
+                >
+                  <strong>Rekapitulacija isplata</strong>
+                  <span style={{ color: "var(--mid, #6c6862)", marginLeft: 6 }}>
+                    (jedna tabela, PDF)
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setBankMenuOpen(false);
+                    isplatePoBankamaMutation.mutate();
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "0.5rem 0.7rem",
+                    background: "transparent",
+                    border: 0,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    fontFamily: "inherit",
+                    color: "inherit",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                  title="Pregled primanja grupisan po banci radnika (iz žiro računa)"
+                >
+                  <strong>Isplate po bankama</strong>
+                  <span style={{ color: "var(--mid, #6c6862)", marginLeft: 6 }}>
+                    (PDF)
+                  </span>
+                </button>
+                {SPISAK_PROFILI.filter((sp) =>
+                  banksInPayroll.some((b) => b.prefix === sp.prefix),
+                ).map((sp) => (
+                  <button
+                    key={sp.kljuc}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setBankMenuOpen(false);
+                      spisakBankeMutation.mutate(sp.kljuc);
+                    }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.5rem 0.7rem",
+                      background: "transparent",
+                      border: 0,
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: "0.88rem",
+                      fontFamily: "inherit",
+                      color: "inherit",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                    title={`Spisak primanja u formatu tabele koju traži ${sp.naziv} (prelazni račun)`}
+                  >
+                    Spisak za banku: {sp.naziv}
+                    <span
+                      style={{ color: "var(--mid, #6c6862)", marginLeft: 6 }}
+                    >
+                      (XLSX,{" "}
+                      {banksInPayroll.find((b) => b.prefix === sp.prefix)
+                        ?.count ?? 0}
+                      )
                     </span>
                   </button>
                 ))}
@@ -4362,7 +4683,20 @@ function MonthlyPanel({
                   zIndex: 1000,
                   padding: "1rem",
                 }}
-                onClick={() => !izvozMutation.isPending && setIzvozOpen(false)}
+                onMouseDown={(e) => {
+                  izvozBackdropMouseDownRef.current =
+                    e.target === e.currentTarget;
+                }}
+                onMouseUp={(e) => {
+                  if (
+                    izvozBackdropMouseDownRef.current &&
+                    e.target === e.currentTarget &&
+                    !izvozMutation.isPending
+                  ) {
+                    setIzvozOpen(false);
+                  }
+                  izvozBackdropMouseDownRef.current = false;
+                }}
               >
                 <div
                   onClick={(e) => e.stopPropagation()}
@@ -5024,6 +5358,9 @@ function MonthlyPanel({
         obrazac2001Mutation.isError ||
         listaNalogaMutation.isError ||
         specifikacijeMutation.isError ||
+        rekapitulacijaMutation.isError ||
+        isplatePoBankamaMutation.isError ||
+        spisakBankeMutation.isError ||
         mip1023Mutation.isError ||
         mip1023XmlMutation.isError ||
         gip1022Mutation.isError ||
@@ -5035,6 +5372,9 @@ function MonthlyPanel({
             obrazac2001Mutation.error?.message ||
             listaNalogaMutation.error?.message ||
             specifikacijeMutation.error?.message ||
+            rekapitulacijaMutation.error?.message ||
+            isplatePoBankamaMutation.error?.message ||
+            spisakBankeMutation.error?.message ||
             mip1023Mutation.error?.message ||
             mip1023XmlMutation.error?.message ||
             gip1022Mutation.error?.message ||
@@ -5043,6 +5383,42 @@ function MonthlyPanel({
             "Greška pri generisanju dokumenata"}
         </div>
       )}
+
+      {spisakBankeMutation.data &&
+        (spisakBankeMutation.data.bezJmbg.length > 0 ||
+          spisakBankeMutation.data.bezRacuna.length > 0 ||
+          spisakBankeMutation.data.losRacun.length > 0 ||
+          spisakBankeMutation.data.bezJiba) && (
+          <div className={styles.warning} style={{ marginTop: "0.6rem" }}>
+            Spisak je preuzet, ali provjerite sljedeće prije predaje banci:
+            <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.1rem" }}>
+              {spisakBankeMutation.data.bezJiba && (
+                <li>
+                  Organizacija nema upisan ID broj (JIB), pa je kolona JIB
+                  prazna. Dopunite ga u podacima organizacije.
+                </li>
+              )}
+              {spisakBankeMutation.data.bezRacuna.length > 0 && (
+                <li>
+                  Bez žiro računa, pa NISU ni u jednom spisku:{" "}
+                  {spisakBankeMutation.data.bezRacuna.join(", ")}.
+                </li>
+              )}
+              {spisakBankeMutation.data.losRacun.length > 0 && (
+                <li>
+                  Žiro račun nema 16 cifara, banka će takav red odbiti:{" "}
+                  {spisakBankeMutation.data.losRacun.join(", ")}.
+                </li>
+              )}
+              {spisakBankeMutation.data.bezJmbg.length > 0 && (
+                <li>
+                  Bez JMBG-a (Intesa tabela ga traži):{" "}
+                  {spisakBankeMutation.data.bezJmbg.join(", ")}.
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
 
       {kontaOpen && <PostingAccountsModal onClose={() => setKontaOpen(false)} />}
     </section>
@@ -5271,6 +5647,42 @@ function PayrollModal({
     if (existing) return fmtMoneyInput(Number(existing.travelExpense));
     return ""; // novi obračun: popuniće efekt kad stigne šihterica
   });
+  // ── Obustave na platu (rate kredita radnika) ──
+  // Zbir aktivnih trajnih obustava sa radnika se prenosi svaki mjesec kao
+  // auto-prijedlog (isti obrazac kao topli obrok); ručna izmjena vrijedi samo
+  // za taj mjesec, "vrati na auto" vraća zbir sa radnika. Ne ovisi o
+  // šihterici, pa se popunjava odmah pri otvaranju (bez efekta).
+  const obustaveStavkeRadnika = useMemo(
+    () =>
+      (worker.obustave ?? []).filter(
+        (o) => o.aktivna !== false && Number(o.iznos) > 0,
+      ),
+    [worker.obustave],
+  );
+  const obustaveAuto = useMemo(() => {
+    if (obustaveStavkeRadnika.length === 0) return null;
+    return (
+      Math.round(
+        obustaveStavkeRadnika.reduce((s, o) => s + Number(o.iznos), 0) * 100,
+      ) / 100
+    );
+  }, [obustaveStavkeRadnika]);
+  const [obustave, setObustave] = useState<string>(() => {
+    if (existing)
+      return Number(existing.obustave) > 0
+        ? fmtMoneyInput(Number(existing.obustave))
+        : "";
+    return obustaveAuto != null ? fmtMoneyInput(obustaveAuto) : "";
+  });
+  // Sekcija je sklopljena (kao korist u naravi) dok radnik nema obustava;
+  // otvara se sama kad postoji snimljeni iznos ili trajne obustave sa kartona.
+  // Gašenje checkboxa prazni polje (obustava 0 za taj mjesec) ali pamti unos,
+  // pa ponovno paljenje vraća zapamćeni iznos (fallback: auto sa kartona).
+  const [obustaveAktivne, setObustaveAktivne] = useState<boolean>(() => {
+    if (existing) return Number(existing.obustave) > 0;
+    return obustaveAuto != null;
+  });
+  const zapamcenaObustavaRef = useRef<string>("");
   // ── Korist u naravi (službeno vozilo) ──
   // Konfiguracija je per-radnik (master na workeru). Aktivnost prefilluje iz
   // postojećeg obračuna (koristBruto > 0) ako postoji, inače iz workera.
@@ -5356,6 +5768,32 @@ function PayrollModal({
   // parseNum: opšti decimalni parser (parseDecimal heuristika) za polja gdje je
   // tačka decimalni separator (koeficijent, stope, sati: "0.4", "1.5").
   const parseNum = parseDecimal;
+
+  // Snapshot stavki obustava za platni listić: raščlamba sa radnika se šalje
+  // samo kad se iznos u polju poklapa sa zbirom aktivnih obustava; ručni
+  // override za mjesec ide bez stavki (na listiću jedan zbirni red).
+  // Vraća `undefined` kad snapshot NE treba dirati: ključ se tada ne šalje i
+  // backend zadrži postojeću raščlambu. Bez toga bi ponovno snimanje starog
+  // mjeseca (npr. ispravka sati) prepisalo historijsku raščlambu današnjim
+  // stanjem kartona ili je obrisalo.
+  const obustaveStavkeZaSlanje = ():
+    | { naziv: string; iznos: number }[]
+    | null
+    | undefined => {
+    const iznos = parseMoneyInput(obustave) ?? 0;
+    const iznosNepromijenjen =
+      existing != null &&
+      Math.abs(iznos - (Number(existing.obustave) || 0)) < 0.005;
+    if (iznosNepromijenjen) return undefined;
+    if (!(iznos > 0)) return null;
+    if (obustaveAuto != null && Math.abs(iznos - obustaveAuto) < 0.005) {
+      return obustaveStavkeRadnika.map((o) => ({
+        naziv: o.naziv,
+        iznos: Number(o.iznos),
+      }));
+    }
+    return null;
+  };
   // parseMoney: za novčana polja koja se PRIKAZUJU thousands-formatom
   // (formatMoneyLive: "1030" -> "1.030"). Kod njih je tačka separator hiljada, a
   // zarez decimala, pa "1.030" = 1030 (ne 1,03). parseDecimal bi jednu tačku
@@ -5679,6 +6117,8 @@ function PayrollModal({
           mealAllowance: parseMoney(meal),
           vacationBonus: parseMoney(vacation),
           travelExpense: parseMoney(travel),
+          obustave: parseMoney(obustave),
+          obustaveStavke: obustaveStavkeZaSlanje(),
           koristVoziloAktivna: koristAktivna,
           koristVoziloMetoda: koristMetoda,
           koristVoziloVrijednost: koristAktivna ? (parseMoneyInput(koristVrijednost) ?? 0) : 0,
@@ -5784,6 +6224,7 @@ function PayrollModal({
       meal: parseMoney(meal),
       vacation: parseMoney(vacation),
       travel: parseMoney(travel),
+      obustave: parseMoney(obustave),
       koristAktivna,
       koristVrijednost: koristAktivna ? (parseMoneyInput(koristVrijednost) ?? 0) : 0,
       koristMetoda,
@@ -5833,6 +6274,11 @@ function PayrollModal({
       travel: existing?.travelExpense != null
         ? Number(existing.travelExpense)
         : Number(worker.travelAllowancePerMonth ?? 0),
+      // Novi obračun kreće od auto-zbira sa radnika (isto što i init state),
+      // pa netaknut modal nije dirty.
+      obustave: existing?.obustave != null
+        ? Number(existing.obustave)
+        : (obustaveAuto ?? 0),
       koristAktivna: existing
         ? Number(existing.koristBruto) > 0
         : !!worker.koristVoziloAktivna,
@@ -5864,6 +6310,7 @@ function PayrollModal({
       cur.meal !== orig.meal ||
       cur.vacation !== orig.vacation ||
       cur.travel !== orig.travel ||
+      cur.obustave !== orig.obustave ||
       cur.koristAktivna !== orig.koristAktivna ||
       cur.koristVrijednost !== orig.koristVrijednost ||
       cur.koristMetoda !== orig.koristMetoda ||
@@ -5873,7 +6320,7 @@ function PayrollModal({
   }, [
     gross, coeff, minuliRad, workedHours, sickDays, vacationDays, overtime, night, sunday, holiday,
     overtimeRate, nightRate, sundayRate, holidayRate,
-    meal, vacation, travel, existing, worker,
+    meal, vacation, travel, obustave, obustaveAuto, existing, worker,
     koristAktivna, koristVrijednost, koristMetoda, koristSaPdv, koristOpis,
   ]);
 
@@ -5906,6 +6353,8 @@ function PayrollModal({
             mealAllowance: parseMoney(meal),
             vacationBonus: parseMoney(vacation),
             travelExpense: parseMoney(travel),
+            obustave: parseMoney(obustave),
+            obustaveStavke: obustaveStavkeZaSlanje(),
             taxCoefficient: parseNum(coeff),
             minuliRadRate: parseNum(minuliRad),
             koristVoziloAktivna: koristAktivna,
@@ -6529,6 +6978,124 @@ function PayrollModal({
           </div>
 
           <div className={styles.section}>
+            <div className={styles.sectionTitle}>Obustave na platu (KM)</div>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.55rem",
+                cursor: "pointer",
+                marginBottom: obustaveAktivne ? "0.75rem" : 0,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={obustaveAktivne}
+                onChange={(e) => {
+                  const ukljuceno = e.target.checked;
+                  setObustaveAktivne(ukljuceno);
+                  if (!ukljuceno) {
+                    // Zapamti unos da ponovno označavanje vrati staru vrijednost.
+                    zapamcenaObustavaRef.current = obustave;
+                    setObustave("");
+                  } else if (zapamcenaObustavaRef.current) {
+                    setObustave(zapamcenaObustavaRef.current);
+                  } else if (obustaveAuto != null) {
+                    setObustave(fmtMoneyInput(obustaveAuto));
+                  }
+                }}
+                style={{ width: 17, height: 17, accentColor: "var(--sage, #3a5c42)" }}
+              />
+              <span style={{ fontSize: 13.5 }}>
+                Radnik ima obustave na platu (rata kredita i sl.)
+              </span>
+            </label>
+            {obustaveAktivne && (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "1rem",
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div className={styles.field} style={{ flex: "0 0 200px" }}>
+                    <label className={styles.fieldLabel}>Ukupno obustava</label>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      inputMode="decimal"
+                      value={obustave}
+                      onChange={(e) =>
+                        setObustave(formatMoneyLive(e.target.value))
+                      }
+                      onBlur={(e) => setObustave(formatMoneyBlur(e.target.value))}
+                    />
+                  </div>
+                  {/* Objašnjenje desno od polja, da sekcija bude niska. */}
+                  <div
+                    className={styles.note}
+                    style={{ flex: 1, minWidth: 220, marginTop: 4 }}
+                  >
+                    {obustaveAuto != null ? (
+                      <>
+                        Aktivne obustave sa kartona radnika:{" "}
+                        {fmtKM(obustaveAuto)} KM
+                        {Math.abs(parseMoney(obustave) - obustaveAuto) >
+                          0.005 && (
+                          <button
+                            type="button"
+                            className={styles.linkInline}
+                            onClick={() =>
+                              setObustave(fmtMoneyInput(obustaveAuto))
+                            }
+                          >
+                            vrati na auto
+                          </button>
+                        )}
+                        {obustaveStavkeZaSlanje() != null &&
+                          obustaveStavkeRadnika.map((o, i) => (
+                            <div key={i}>
+                              {o.naziv || "obustava"}: {fmtKM(Number(o.iznos))}{" "}
+                              KM
+                            </div>
+                          ))}
+                      </>
+                    ) : (
+                      <>
+                        Rata kredita ili druga obustava; umanjuje samo iznos za
+                        isplatu, ne neto plaću. Iznos se pamti na radniku i sam
+                        se predlaže idući mjesec; više stavki sa nazivima
+                        možete voditi u kartonu radnika.
+                      </>
+                    )}
+                  </div>
+                </div>
+                {preview != null &&
+                  parseMoney(obustave) > 0 &&
+                  parseMoney(obustave) >= preview.net && (
+                    <div className={styles.warning}>
+                      Obustave su veće ili jednake neto plati: nalog za isplatu
+                      plate se neće generisati u izvozu ni štampi (biće naveden
+                      u preskočenima sa razlogom).
+                    </div>
+                  )}
+                {preview != null &&
+                  parseMoney(obustave) > preview.net / 3 &&
+                  parseMoney(obustave) < preview.net && (
+                    <div className={styles.warning}>
+                      Obustave prelaze trećinu neto plate. Zakon o radu FBiH za
+                      prisilne obustave dozvoljava najviše 1/3 plaće (1/2 samo
+                      za zakonsko izdržavanje); dobrovoljne obustave uz
+                      saglasnost radnika mogu biti i veće.
+                    </div>
+                  )}
+              </>
+            )}
+          </div>
+
+          <div className={styles.section}>
             <div className={styles.sectionTitle}>Korist u naravi, službeno vozilo</div>
             <label
               style={{
@@ -6682,6 +7249,41 @@ function PayrollModal({
                 <span className={`${styles.value} ${styles.strong}`}>
                   {fmtKM(preview.net)} KM
                 </span>
+
+                {parseMoney(obustave) > 0 && (
+                  <>
+                    <span className={styles.label}>Obustave na platu</span>
+                    <span className={styles.value}>
+                      -{fmtKM(parseMoney(obustave))} KM
+                    </span>
+                  </>
+                )}
+
+                {parseMoney(meal) +
+                  parseMoney(vacation) +
+                  parseMoney(travel) +
+                  parseMoney(obustave) >
+                  0 && (
+                  <>
+                    <span className={`${styles.label} ${styles.strong}`}>
+                      Ukupno za isplatu radniku
+                    </span>
+                    <span className={`${styles.value} ${styles.strong}`}>
+                      {/* Nikad negativno: banka u tom slučaju dobija 0. */}
+                      {fmtKM(
+                        Math.max(
+                          0,
+                          preview.net +
+                            parseMoney(meal) +
+                            parseMoney(vacation) +
+                            parseMoney(travel) -
+                            parseMoney(obustave),
+                        ),
+                      )}{" "}
+                      KM
+                    </span>
+                  </>
+                )}
 
                 <span className={styles.label}>Doprinosi na platu (5%)</span>
                 <span className={styles.value}>{fmtKM(preview.erpTotal)} KM</span>

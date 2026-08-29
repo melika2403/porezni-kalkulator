@@ -34,6 +34,20 @@ const logoUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
 });
 
+// Memorandum (zaglavlje) klijenta za platne liste: SAMO PNG/JPG jer pdf-lib
+// ne zna ugraditi webp u PDF platnog listića.
+const memorandumFileFilter = (_req, file, cb) => {
+  const ok = ["image/png", "image/jpeg"].includes(file.mimetype);
+  if (!ok) return cb(new Error("INVALID_IMAGE_TYPE"));
+  cb(null, true);
+};
+
+const memorandumUpload = multer({
+  storage: makeStorage("memorandumi"),
+  fileFilter: memorandumFileFilter,
+  limits: { fileSize: 3 * 1024 * 1024 }, // 3 MB
+});
+
 // Slike u vijestima i vodičima (naslovna + slike u tekstu). Veći limit jer su
 // naslovne slike krupnije od logotipa; smanjivanje radi next/image pri prikazu.
 const vijestiUpload = multer({
@@ -102,6 +116,7 @@ function safeUnlink(absPath) {
 module.exports = {
   UPLOADS_ROOT,
   logoUpload,
+  memorandumUpload,
   vijestiUpload,
   avatarUpload,
   workerDocUpload,

@@ -33,6 +33,8 @@ export type ProfileUpdatePayload = {
   city?: string | null;
   jmbg?: string | null;
   idCardNumber?: string | null;
+  /** Naziv na platnom listiću: "PLATNA_LISTA" ili null (= "PLATNI LISTIĆ"). */
+  payslipNaziv?: "PLATNA_LISTA" | null;
 };
 
 export type Subscription = {
@@ -65,6 +67,9 @@ export type Users = {
   isEmailVerified: boolean;
   trialUsedAt: string | null;
   pkOfficeTrialEndsAt?: string | null;
+  /** Ima li korisnik uključenu dvofaktorsku prijavu (za admin otključavanje). */
+  twoFactorEnabled?: boolean;
+  twoFactorMethod?: "EMAIL" | "TOTP" | null;
   subscription: Subscription | null;
 };
 
@@ -84,6 +89,8 @@ export type SubscriptionPayload = {
   /** PRO | BUSINESS | office_2 | office_10 | office_25 | office_50 */
   plan?: string;
   billingCycle?: "monthly" | "yearly";
+  /** Poseban PK Office limit obrta (dogovor); null skida i vraća limit paketa. */
+  officeMaxObrta?: number | null;
 };
 
 export function updateProfile(userId: number, payload: ProfileUpdatePayload) {
@@ -259,6 +266,9 @@ export type Organization = {
   /** Zadnja izabrana banka za izvoz naloga u e-bankarstvo (predpopuna). */
   bankExportBank?: string | null;
   logoUrl: string | null;
+  /** Memorandum klijenta (slika zaglavlja): štampa se na vrhu platne liste
+      umjesto standardnog zaglavlja. */
+  memorandumUrl?: string | null;
   taxCategory: TaxCategory | null;
   // Default tip plate za nove radnike u ovoj org-i. Vidi SalaryType u Worker.
   defaultSalaryType: SalaryType;
@@ -620,8 +630,17 @@ export type Worker = {
   koristVoziloOpis: string | null;
   /** Podaci za obrazac PK-1001 (izdržavani članovi, ime roditelja, općina). */
   poreznaKarticaPodaci?: unknown;
+  // Trajne obustave na platu (rate kredita i sl.). Umanjuju samo iznos za
+  // isplatu u obračunu; prenose se svaki mjesec dok se ne izmijene.
+  obustave: WorkerObustava[] | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type WorkerObustava = {
+  naziv: string;
+  iznos: number;
+  aktivna: boolean;
 };
 
 export type WorkerPayload = {
@@ -679,6 +698,8 @@ export type WorkerPayload = {
   opcinaKod?: string | null;
   /** Podaci obrasca PK-1001; null briše zapis. */
   poreznaKarticaPodaci?: unknown;
+  /** Trajne obustave na platu; null ili prazna lista brišu zapis. */
+  obustave?: WorkerObustava[] | null;
 };
 
 export function getWorkers(orgId: number) {

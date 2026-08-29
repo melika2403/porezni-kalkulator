@@ -35,6 +35,12 @@ export interface SpecifikacijeData {
   year: number;
   month: number;
   perWorker: WorkerPayItem[];
+  /**
+   * Ukupne obustave na plate (rate kredita radnika). Iznosi u perWorker.net
+   * su VEĆ umanjeni za obustave (specifikacija prati stvarne prenose); ovo
+   * polje služi samo za napomenu ispod ukupnog zbira.
+   */
+  obustaveUkupno?: number;
 }
 
 const fmt2 = (n: number): string =>
@@ -444,7 +450,13 @@ export async function fillSpecifikacije(
       page = doc.addPage([PAGE_W, PAGE_H]);
       y = PAGE_H - MARGIN;
     }
-    drawGrandTotal(page, y, grandTotal, bold);
+    y = drawGrandTotal(page, y, grandTotal, bold);
+    if ((data.obustaveUkupno ?? 0) > 0) {
+      page.drawText(
+        `Napomena: neto plate su umanjene za obustave na platu (ukupno ${fmt2(data.obustaveUkupno!)} KM); raščlamba je na platnim listićima.`,
+        { x: MARGIN, y: y - 14, size: 8.5, font: reg, color: rgb(0.3, 0.3, 0.3) },
+      );
+    }
   }
 
   return await doc.save();

@@ -420,6 +420,39 @@ export function removeOrganizationLogo(orgId: number) {
   });
 }
 
+// ── Memorandum klijenta (slika zaglavlja platne liste) ─────────────────────
+export async function uploadOrganizationMemorandum(
+  orgId: number,
+  file: File,
+): Promise<ApiResponse<{ id: number; memorandumUrl: string }>> {
+  const fd = new FormData();
+  fd.append("memorandum", file);
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/organizations/${orgId}/memorandum`,
+      {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      },
+    );
+    const json = (await res.json().catch(() => null)) as
+      | ApiResponse<{ id: number; memorandumUrl: string }>
+      | null;
+    if (!json) return { ok: false, error: `HTTP ${res.status}` };
+    return json;
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+}
+
+export function removeOrganizationMemorandum(orgId: number) {
+  return request<{ id: number; memorandumUrl: null }>(
+    `/api/organizations/${orgId}/memorandum`,
+    { method: "DELETE" },
+  );
+}
+
 export function backendUrl() {
   return BACKEND_URL;
 }
