@@ -3,7 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LuPencil, LuCheck, LuX, LuTrash2, LuMail } from "react-icons/lu";
+import {
+  LuPencil,
+  LuCheck,
+  LuX,
+  LuTrash2,
+  LuMail,
+  LuShieldOff,
+} from "react-icons/lu";
 import styles from "./korisnici.module.css";
 import {
   getUsers,
@@ -13,7 +20,11 @@ import {
   type Users,
   type UsersListResponse,
 } from "src/api/profile";
-import { sendTrialInvite, adminVerifyUserEmail } from "src/api/adminEntities";
+import {
+  sendTrialInvite,
+  adminVerifyUserEmail,
+  adminDisableTwoFactor,
+} from "src/api/adminEntities";
 import { unwrap } from "src/api/auth";
 import RoleGuard from "@/src/components/RoleGuard/RoleGuard";
 import DateInput from "src/components/DateInput/DateInput";
@@ -426,6 +437,27 @@ function UserRow({ user }: { user: Users }) {
     },
   });
 
+  // ── otključavanje naloga (2FA) ──
+  // Za korisnika koji je izgubio i uređaj i rezervne kodove, jer bez ovoga u
+  // nalog ne može niko. Ista dvoklik potvrda kao kod verifikacije: prvi klik
+  // naoruža dugme, drugi ga izvrši. Zaštita je na serveru (requireRole ADMIN),
+  // ovaj ekran je samo pogodnost.
+  const [confirm2fa, setConfirm2fa] = useState(false);
+  const [greska2fa, setGreska2fa] = useState<string | null>(null);
+  const disable2faMutation = useMutation({
+    mutationFn: async () => {
+      const r = await adminDisableTwoFactor(user.id);
+      if (!r.ok) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: () => {
+      setConfirm2fa(false);
+      setGreska2fa(null);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (e: Error) => setGreska2fa(e.message),
+  });
+
   // ── poziv na probu (samo za korisnike koji je još nisu aktivirali) ──
   // Postoji jedna proba: PK Office 30 dana, uz nju i sve Business funkcije.
   const [trialSent, setTrialSent] = useState(false);
@@ -786,6 +818,24 @@ function UserRow({ user }: { user: Users }) {
               {trialSent ? <LuCheck /> : <LuMail />}
             </button>
           )}
+          {!editing && user.twoFactorEnabled && (
+            <button
+              className={`${styles.btnIcon} ${confirm2fa ? styles.btnIconDanger : ""}`}
+              title={
+                confirm2fa
+                  ? "Kliknite ponovo da isključite 2FA ovom korisniku"
+                  : `Otključaj nalog: isključi 2FA (${
+                      user.twoFactorMethod === "TOTP" ? "aplikacija" : "email"
+                    })`
+              }
+              onClick={() =>
+                confirm2fa ? disable2faMutation.mutate() : setConfirm2fa(true)
+              }
+              disabled={disable2faMutation.isPending}
+            >
+              {confirm2fa ? <LuCheck /> : <LuShieldOff />}
+            </button>
+          )}
           <button
             className={styles.btnIcon}
             title={editing ? "Zatvori uređivanje" : "Uredi"}
@@ -805,6 +855,7 @@ function UserRow({ user }: { user: Users }) {
         </span>
 
         {trialError && <div className={styles.errorMsg}>{trialError}</div>}
+        {greska2fa && <div className={styles.errorMsg}>{greska2fa}</div>}
       </td>
     </tr>
     {editing && (

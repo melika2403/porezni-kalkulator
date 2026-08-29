@@ -260,6 +260,65 @@ async function sendCurrentMethodCode(req, res) {
   }
 }
 
+/**
+ * ADMIN: isključi 2FA tuđem nalogu. Za korisnika koji je izgubio i uređaj i
+ * rezervne kodove, jer bez ovoga nema načina da uđe.
+ *
+ * Zaštita je OVDJE na serveru, ne u admin panelu: ruta ide iza requireAuth i
+ * requireRole("ADMIN"), a rola se u requireAuth čita iz BAZE, ne iz tokena.
+ * Dodatna provjera u kontroleru je namjerno duplirana: ovo je jedini put u
+ * aplikaciji kojim se tuđi drugi faktor gasi bez ijednog dokaza od vlasnika
+ * naloga, pa ne smije zavisiti od toga da je neko rutu tačno zakačio.
+ *
+ * Radnja se upisuje u dnevnik DVAPUT: kod korisnika (da se vidi u njegovoj
+ * historiji) i kod admina koji ju je izveo.
+ */
+async function adminDisable(req, res) {
+  if (req.user?.role !== "ADMIN") {
+    return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+  }
+
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ ok: false, error: "NEISPRAVAN_ID" });
+  }
+
+  try {
+    const korisnik = await User.findByPk(userId, {
+      attributes: ["id", "email", "firstName", "lastName"],
+    });
+    if (!korisnik)
+      return res.status(404).json({ ok: false, error: "KORISNIK_NIJE_NADEN" });
+
+    const row = await UserTwoFactor.findOne({ where: { userId } });
+    if (!row || !row.enabled)
+      return res.status(400).json({ ok: false, error: "2FA_NIJE_UKLJUCEN" });
+
+    await row.destroy();
+    // I povjereni uređaji: inače bi napadačev uređaj koji je nekad prošao 2FA
+    // preživio otključavanje.
+    await twoFactorService.forgetAllDevices(userId);
+
+    const oznaka = `${korisnik.firstName} ${korisnik.lastName} (${korisnik.email || "bez emaila"})`;
+    void logEvent({
+      userId,
+      action: "2FA_ISKLJUCEN",
+      label: `Admin otključavanje (admin id ${req.user.id})`,
+    });
+    void logEvent({
+      userId: req.user.id,
+      action: "ADMIN_2FA_ISKLJUCEN",
+      label: oznaka,
+    });
+
+    return res.status(200).json({ ok: true, data: { userId } });
+  } catch (error) {
+    console.error("admin 2FA disable failed:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ ok: false, error: message });
+  }
+}
+
 /** Novi set rezervnih kodova; stari prestaju važiti odmah. */
 async function regenerateBackupCodes(req, res) {
   try {
@@ -365,4 +424,5 @@ module.exports = {
   regenerateBackupCodes,
   clearTrustedDevices,
   disable,
+  adminDisable,
 };

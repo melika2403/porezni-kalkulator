@@ -271,6 +271,52 @@ test("step-up: bez uključenog 2FA propušta (prvo uključenje)", async () => {
   });
 });
 
+// ─── Admin otključavanje ─────────────────────────────────────────────────────
+
+function lazniRes() {
+  return {
+    kod: null,
+    tijelo: null,
+    status(s) {
+      this.kod = s;
+      return this;
+    },
+    json(b) {
+      this.tijelo = b;
+      return this;
+    },
+  };
+}
+
+test("admin otključavanje: ne-admin ne prolazi ni kad ruta ne bi štitila", async () => {
+  process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret-za-2fa";
+  const { adminDisable } = require("../src/controllers/twoFactorController");
+
+  for (const rola of ["USER", "PRO", "BUSINESS", undefined]) {
+    const res = lazniRes();
+    await adminDisable({ user: { id: 5, role: rola }, params: { id: "9" } }, res);
+    assert.equal(res.kod, 403, `rola ${rola} ne smije proći`);
+    assert.equal(res.tijelo.error, "FORBIDDEN");
+  }
+
+  // i bez req.user (kad bi neko rutu zakačio bez requireAuth)
+  const res = lazniRes();
+  await adminDisable({ params: { id: "9" } }, res);
+  assert.equal(res.kod, 403);
+});
+
+test("admin otključavanje: neispravan id se odbija prije baze", async () => {
+  process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret-za-2fa";
+  const { adminDisable } = require("../src/controllers/twoFactorController");
+
+  for (const id of ["0", "-3", "abc", undefined]) {
+    const res = lazniRes();
+    await adminDisable({ user: { id: 1, role: "ADMIN" }, params: { id } }, res);
+    assert.equal(res.kod, 400, `id "${id}" mora pasti`);
+    assert.equal(res.tijelo.error, "NEISPRAVAN_ID");
+  }
+});
+
 // ─── Challenge token ─────────────────────────────────────────────────────────
 // Najvažnije pravilo cijele funkcije: challenge NIJE prijava.
 

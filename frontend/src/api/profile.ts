@@ -67,6 +67,9 @@ export type Users = {
   isEmailVerified: boolean;
   trialUsedAt: string | null;
   pkOfficeTrialEndsAt?: string | null;
+  /** Ima li korisnik uključenu dvofaktorsku prijavu (za admin otključavanje). */
+  twoFactorEnabled?: boolean;
+  twoFactorMethod?: "EMAIL" | "TOTP" | null;
   subscription: Subscription | null;
 };
 
