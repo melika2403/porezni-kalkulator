@@ -22,12 +22,16 @@ export type AuthUser = {
   trialUsedAt: string | null;
   /** Kraj PK Office probe; postavljen = proba je iskorištena (jednokratna). */
   pkOfficeTrialEndsAt?: string | null;
+  /** Naziv na platnom listiću: null/izostavljeno = "PLATNI LISTIĆ". */
+  payslipNaziv?: "PLATNA_LISTA" | null;
   subscription: {
     id: number;
     startDate: string;
     endDate: string;
     isActive: boolean;
-    plan: "PRO" | "BUSINESS" | null;
+    /** pro | business | office_2 | office_10 | office_25 | office_50 | free
+        (backend šalje malim slovima; stari tip "PRO"|"BUSINESS" je lagao) */
+    plan: string | null;
     billingCycle: "monthly" | "yearly" | null;
   } | null;
 };

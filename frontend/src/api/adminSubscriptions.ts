@@ -20,8 +20,9 @@ export type AdminSubscription = {
   endDate: string | null;
   isActive: boolean;
   isTrial: boolean;
-  /** samo za office pakete: aktivirani obrti / limit paketa */
-  officeSlotovi: { zauzeto: number; max: number } | null;
+  /** samo za office pakete: aktivirani obrti / limit; poseban = individualni
+      dogovor (users.officeMaxObrta) umjesto limita paketa */
+  officeSlotovi: { zauzeto: number; max: number; poseban?: boolean } | null;
 };
 
 export async function getAdminSubscriptions(): Promise<

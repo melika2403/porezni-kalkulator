@@ -339,6 +339,26 @@ function SubRow({
 }) {
   const [error, setError] = useState<string | null>(null);
   const paket = paketOd(s);
+  // Poseban PK Office limit obrta (dogovor van cjenovnika, npr. 100 po
+  // cijeni Agencija+ paketa). null = forma zatvorena.
+  const [limitForma, setLimitForma] = useState<string | null>(null);
+
+  const snimiLimit = useMutation({
+    mutationFn: async () => {
+      const t = (limitForma ?? "").trim();
+      const n = t === "" ? null : Number(t);
+      if (n !== null && (!Number.isInteger(n) || n < 1 || n > 1000)) {
+        throw new Error("Limit mora biti cijeli broj 1-1000, ili prazno.");
+      }
+      await unwrap(upsertSubscription(s.userId, { officeMaxObrta: n }));
+    },
+    onSuccess: () => {
+      setError(null);
+      setLimitForma(null);
+      onChanged();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
 
   const produzi = useMutation({
     mutationFn: async () => {
@@ -409,9 +429,52 @@ function SubRow({
         {s.officeSlotovi ? (
           <span className={styles.sentInfo}>
             {s.officeSlotovi.zauzeto} / {s.officeSlotovi.max} obrta
+            {s.officeSlotovi.poseban && (
+              <span
+                className={styles.trialBadge}
+                style={{ marginLeft: 6 }}
+                title="Poseban dogovor: individualni limit umjesto limita paketa"
+              >
+                poseban
+              </span>
+            )}
           </span>
         ) : (
           <span className={styles.notSent}>–</span>
+        )}
+        {s.officeSlotovi && limitForma !== null && (
+          <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center" }}>
+            <input
+              value={limitForma}
+              onChange={(e) => setLimitForma(e.target.value.replace(/\D/g, ""))}
+              placeholder={`paket: ${s.officeSlotovi.max}`}
+              inputMode="numeric"
+              style={{
+                width: 90,
+                padding: "0.3rem 0.5rem",
+                border: "1px solid var(--border, #d4cfc4)",
+                borderRadius: 6,
+                fontSize: 12.5,
+                fontFamily: "inherit",
+              }}
+            />
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              disabled={snimiLimit.isPending}
+              onClick={() => snimiLimit.mutate()}
+              title="Prazno polje skida poseban limit i vraća limit paketa"
+            >
+              {snimiLimit.isPending ? "…" : "Sačuvaj"}
+            </button>
+            <button
+              type="button"
+              className={styles.trialChip}
+              onClick={() => setLimitForma(null)}
+            >
+              Otkaži
+            </button>
+          </div>
         )}
         {error && <div className={styles.errorMsg}>{error}</div>}
       </td>
@@ -445,6 +508,20 @@ function SubRow({
               onClick={() => deaktiviraj.mutate()}
             >
               {deaktiviraj.isPending ? "…" : "Deaktiviraj"}
+            </button>
+          )}
+          {s.officeSlotovi && limitForma === null && (
+            <button
+              type="button"
+              className={styles.trialChip}
+              onClick={() =>
+                setLimitForma(
+                  s.officeSlotovi?.poseban ? String(s.officeSlotovi.max) : "",
+                )
+              }
+              title="Poseban dogovor: individualni limit obrta umjesto limita paketa (npr. 100 po cijeni Agencija+)"
+            >
+              Limit obrta
             </button>
           )}
         </div>

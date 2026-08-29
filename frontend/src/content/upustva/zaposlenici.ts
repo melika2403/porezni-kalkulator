@@ -27,6 +27,20 @@ export const zaposlenici: Upustvo = {
         },
       ],
     },
+    {
+      naslov: "Izvoz i uvoz radnika (CSV)",
+      blokovi: [
+        {
+          t: "koraci",
+          stavke: [
+            "Izvoz (CSV) preuzima spisak prikazanih radnika za Excel; prati aktivni filter i pretragu.",
+            "Uvoz (CSV): u prozoru preuzmite šablon, popunite ga u Excelu (jedan red po radniku) i ubacite fajl.",
+            "Prije upisa vidite pregled: koji redovi su novi, koji se preskaču i koji imaju grešku sa razlogom.",
+            "Uvoz samo dodaje nove radnike; postojeći (isti JMBG ili ime i prezime) se preskaču i ne mijenjaju.",
+          ],
+        },
+      ],
+    },
   ],
   faq: [
     {

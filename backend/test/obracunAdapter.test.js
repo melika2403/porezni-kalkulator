@@ -318,6 +318,61 @@ test("d.o.o. vlasnik (direktor po ugovoru) ZADRŽAVA nalog isplate plate", () =>
   assert.equal(prenosi[0].naziv, "DIREKTOR VLASNIK");
 });
 
+test("obustave umanjuju nalog neto plate; obustava >= neto ide u preskočene", () => {
+  const org = {
+    type: "COMPANY",
+    name: "TEST FIRMA DOO",
+    city: "Bihać",
+    bankAccount: "198-501-10100197-08",
+    taxNumber: "4200000000005",
+    payrollAccounts: null,
+  };
+  const worker = (id, ime) => [
+    id,
+    {
+      id,
+      firstName: ime,
+      lastName: "RADNIK",
+      city: "Bihać",
+      bankAccount: "552-046-15431156-16",
+      role: "RADNIK",
+    },
+  ];
+  const payroll = (workerId, net, obustave) => ({
+    workerId,
+    gross: 1500,
+    empPio: 100, erpPio: 50, empZdravstvo: 80, erpZdravstvo: 40,
+    empNezaposlenost: 10, erpNezaposlenost: 5, incomeTax: 30, net,
+    mealAllowance: 100, vacationBonus: 0, travelExpense: 0,
+    obustave,
+    vodnaNaknada: 0, naknadaNesrece: 0,
+  });
+  const { file, preskoceni } = buildTkdisIzObracuna({
+    org,
+    payrolls: [payroll(1, 1000, 250), payroll(2, 800, 800)],
+    workerMap: new Map([worker(1, "SA_OBUSTAVOM"), worker(2, "POJEDENA_PLATA")]),
+    year: 2026,
+    month: 7,
+    datumValute: new Date(2026, 7, 10),
+    combineKantonal: false,
+  });
+  const prenosi = file.nalozi.filter((n) => n.tip === "prenos");
+  // Radnik 1: neto nalog 1000 - 250 = 750; radnik 2: neto naloga NEMA.
+  const neto1 = prenosi.filter((n) => n.svrha.startsWith("Isplata neto plate"));
+  assert.equal(neto1.length, 1);
+  assert.equal(neto1[0].naziv, "SA_OBUSTAVOM RADNIK");
+  assert.equal(neto1[0].iznosFeninga, 75000);
+  // Topli obrok se NE umanjuje: oba radnika ga zadržavaju.
+  const obroci = prenosi.filter((n) => n.kategorija === "obrok");
+  assert.equal(obroci.length, 2);
+  // Radnik 2: eksplicitno preskočen sa jasnim razlogom, nikad tiho.
+  assert.equal(preskoceni.length, 1);
+  assert.equal(preskoceni[0].radnik, "POJEDENA_PLATA RADNIK");
+  assert.equal(preskoceni[0].stavka, "Neto plata");
+  assert.equal(preskoceni[0].iznosKm, 800);
+  assert.ok(preskoceni[0].razlog.includes("veće ili jednake neto plati"));
+});
+
 test("prenosi nose kategoriju za podjelu Raiffeisen paketa", () => {
   const { file } = sintetickiUlaz(false);
   const prenosi = file.nalozi.filter((n) => n.tip === "prenos");

@@ -74,6 +74,15 @@ function validateUserUpdatePayload(body) {
     data.idCardNumber = idCardNumber ? String(idCardNumber).trim().slice(0, 9) : null;
   }
 
+  // Naziv na platnom listiću: null = default "PLATNI LISTIĆ".
+  const { payslipNaziv } = body ?? {};
+  if (payslipNaziv !== undefined) {
+    if (payslipNaziv != null && payslipNaziv !== "PLATNA_LISTA") {
+      return { ok: false, message: "payslipNaziv must be PLATNA_LISTA or null" };
+    }
+    data.payslipNaziv = payslipNaziv ?? null;
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "No fields to update" };
   }

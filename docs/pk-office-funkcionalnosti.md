@@ -737,6 +737,35 @@ Stranica: Zaposlenici → Zaposlenici.
 - **Spisak radnika PDF i CSV**: dugmad u traci filtera; izvoz prati
   aktivne filtere (ime, radno mjesto, JMBG, prijava/odjava, status,
   plata; CSV ima i grad).
+- **Memorandum klijenta na platnim listama** (postavka po organizaciji):
+  u uređivanju organizacije, ispod loga, otprema se slika zaglavlja
+  (PNG/JPG, maks. 3 MB i 4000x2000 px, provjera po sadržaju fajla, ne po
+  ekstenziji). Kad postoji, štampa se na vrhu platne liste UMJESTO
+  standardnog zaglavlja (naziv, adresa, ID broj); visina je ograničena na
+  100 pt jer listić nema više rezerve, viša slika se srazmjerno smanji.
+  Bez memoranduma sve ostaje kao prije. Vrijedi samo za platne liste.
+- **Naziv dokumenta plate je postavka profila** (Profil → Postavke
+  dokumenata): "Platni listić" (standardno) ili "Platna lista". Mijenja
+  naslov na PDF-u, naziv fajla i tekst emaila radniku, za sve organizacije
+  tog korisnika. Kolona `users.payslipNaziv` (NULL = standardno).
+- **Uvoz artikala je dograđen na isti obrazac** (30.08.2026.): u
+  postojećem modalu uvoza (Kalkulacije → Artikli → Uvoz, XML iz
+  Com_Softa ili CSV) sad postoji "Preuzmi šablon (CSV)" za ručne liste
+  (obavezni šifra i naziv; šifra i barkod u šablonu kao tekst da Excel
+  ne pojede vodeće nule) i pregled po redovima PRIJE upisa
+  (novi / preskočen / greška sa razlogom). UvozSifarnikaModal je dobio
+  opcione propove `sablon` i `pregled` (partneri nepromijenjeni).
+- **Uvoz radnika (CSV)**: dugme "Uvoz (CSV)" pored izvoza otvara modal
+  sa preuzimanjem šablona (Ime*, Prezime*, JMBG, grad, adresa, kontakt,
+  žiro račun, radno mjesto, Datum prijave*, neto/bruto plata,
+  koeficijent, sati dnevno, staž). Fajl se parsira uz obavezan PREGLED
+  prije upisa (novi / preskočen / greška sa razlogom po redu); uvoz
+  SAMO DODAJE nove radnike, postojeći (isti JMBG ili ime i prezime) se
+  preskaču i ne mijenjaju. Upis ide kroz standardni endpoint kreiranja
+  radnika (sve validacije + limit paketa), tolerišu se ";" i ",",
+  UTF-8 i windows-1250, domaći datumi i iznosi. Ista dva dugmeta
+  (izvoz + uvoz, dijeljene komponente) postoje i na marketing strani
+  na /aktivni-radnici.
 - **Karton radnika** (kebab meni, i za vlasnika kao "Karton
   obračuna"): modal sa obračunima po mjesecima izabrane godine (bruto,
   doprinosi iz osnovice, porez, neto, status obračuna, oznaka za

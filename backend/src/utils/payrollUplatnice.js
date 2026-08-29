@@ -163,8 +163,12 @@ async function generateAllUplatnice(payroll, organization, worker) {
   const datum = new Date().toISOString().slice(0, 10);
   const monthYear = `${String(payroll.month).padStart(2, "0")}/${payroll.year}`;
 
-  // Iznosi iz snapshot-a
-  const net = Number(payroll.net) || 0;
+  // Iznosi iz snapshot-a. Neto uplatnica glasi na iznos koji radnik stvarno
+  // dobija: neto umanjen za obustave (rate kredita), isto kao izvoz naloga i
+  // štampa naloga. Doprinosi i porez se obustavama NE mijenjaju.
+  const netPuni = Number(payroll.net) || 0;
+  const obustave = Math.max(0, Number(payroll.obustave) || 0);
+  const net = Math.max(0, +(netPuni - obustave).toFixed(2));
   const empPio = Number(payroll.empPio) || 0;
   const erpPio = Number(payroll.erpPio) || 0;
   const empZdr = Number(payroll.empZdravstvo) || 0;

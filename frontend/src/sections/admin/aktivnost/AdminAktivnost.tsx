@@ -46,6 +46,10 @@ const ACTION_LABELS: Record<string, string> = {
   LISTA_NALOGA_GENERATE: "Lista naloga za plaćanje",
   IZVOZ_BANKA_GENERATE: "Izvoz naloga za e-bankarstvo",
   SPECIFIKACIJE_GENERATE: "Specifikacije plata",
+  REKAPITULACIJA_GENERATE: "Rekapitulacija isplata",
+  ISPLATE_PO_BANKAMA_GENERATE: "Isplate po bankama",
+  SPISAK_BANKE_GENERATE: "Spisak za banku (XLSX)",
+  PK1001_GENERATE: "Porezna kartica (PK-1001)",
   EVIDENCIJA_GENERATE: "Matična evidencija",
   // prijave korisnika (backend logEvent; ne ulaze u javni brojač dokumenata)
   PRIJAVA: "Prijava korisnika",

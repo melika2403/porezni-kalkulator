@@ -105,6 +105,8 @@ const userAttributes = [
   "trialUsedAt",
   // PK Office proba: frontend po ovom polju zna smije li ponuditi trial
   "pkOfficeTrialEndsAt",
+  // Postavka naziva na platnom listiću (null = "PLATNI LISTIĆ")
+  "payslipNaziv",
 ];
 
 async function findUserWithSub(where) {

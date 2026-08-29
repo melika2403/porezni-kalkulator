@@ -132,11 +132,25 @@ function buildTkdisIzObracuna(input) {
     // ugovorom o radu ima pravu platu i prolazi normalno.
     if (org.type === "BUSINESS" && w.role === "VLASNIK") continue;
     const workerName = `${w.firstName || ""} ${w.lastName || ""}`.trim();
+    // Neto plata se isplaćuje umanjena za obustave (rate kredita radnika).
+    // Obustava >= neto: nalog za platu se ne pravi, uz jasan razlog u
+    // preskočenima (guard iznosKm > 0 ispod bi ga inače tiho progutao).
+    const netKm = Number(p.net) || 0;
+    const obustaveKm = Math.max(0, Number(p.obustave) || 0);
+    const netZaIsplatu = +(netKm - obustaveKm).toFixed(2);
+    if (netKm > 0 && obustaveKm >= netKm) {
+      preskoceni.push({
+        radnik: workerName,
+        stavka: "Neto plata",
+        iznosKm: +netKm.toFixed(2),
+        razlog: `obustave (${obustaveKm.toFixed(2).replace(".", ",")} KM) su veće ili jednake neto plati, nalog nije generisan`,
+      });
+    }
     // kategorija dijeli Raiffeisen izvoz u zasebne datoteke (banka bira
     // vrstu plaćanja i šifru svrhe po paketu pri uvozu); ostali formati je
     // ignorišu
     const stavke = [
-      ["Neto plata", Number(p.net) || 0, "Isplata neto plate", "plata"],
+      ["Neto plata", netZaIsplatu, "Isplata neto plate", "plata"],
       ["Topli obrok", Number(p.mealAllowance) || 0, "Topli obrok (neoporezivi)", "obrok"],
       ["Regres", Number(p.vacationBonus) || 0, "Regres za godišnji odmor", "regres"],
       ["Putni trošak", Number(p.travelExpense) || 0, "Putni trošak (neoporezivi)", "prevoz"],
