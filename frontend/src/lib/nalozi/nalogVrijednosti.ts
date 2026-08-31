@@ -1,4 +1,4 @@
-// Mapiranje naloga iz obračuna (JSON sa /api/admin/izvoz-naloga/nalozi) u
+// Mapiranje naloga iz obračuna (JSON sa /api/payroll/nalozi-za-stampu) u
 // vrijednosti polja matričnog obrasca (NalogValues za escpNalog.buildPrn).
 // Formati (korigovani po Com_Soft referentnom ispisu 12.8.2026. i probnoj
 // štampi 13.8.2026.): iznos 999.999.999.999,00; datum DD.MM.GGGG (naš,

@@ -2,7 +2,7 @@
 
 // Podešavanje matričnog pisača za štampu naloga: kalibracioni pomaci + naša
 // slova + test nalog, pa uputstvo za prvo podešavanje računara.
-// Dijeli ga korisnički modal na obračunu i admin stranica /admin/nalozi.
+// Koristi ga korisnički modal štampe naloga na obračunu.
 // Spec: docs/faza2-stampa-naloga-na-obracunu.md (DIO B i DIO C).
 
 import { useState } from "react";

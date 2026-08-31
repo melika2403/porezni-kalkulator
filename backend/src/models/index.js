@@ -3279,6 +3279,71 @@ AnnouncementRead.belongsTo(Announcement, {
 });
 AnnouncementRead.belongsTo(User, { foreignKey: "userId", as: "user" });
 
+// ─── UPLATNI RAČUNI JAVNIH PRIHODA (admin-uredivi šifarnik) ──────────────────
+// Izvor istine u runtime-u za račune na koje idu uplatnice (obračun plata,
+// ugovor o djelu, AMS, kantonalni obrasci). Seed iz uplatniRacuniData.json
+// radi racuniService pri startu; izmjene idu isključivo kroz admin panel.
+const UplatniRacun = sequelize.define(
+  "UplatniRacun",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    // Stabilni ključ slota, npr. "USK.zo", "FBIH.budzet", "RS.budzet", "KOMORA.KS"
+    kljuc: { type: DataTypes.STRING(40), allowNull: false, unique: true },
+    // kanton | federalni | rs | komora
+    grupa: { type: DataTypes.STRING(16), allowNull: false },
+    kanton: { type: DataTypes.STRING(8), allowNull: true },
+    korisnik: { type: DataTypes.STRING(180), allowNull: false },
+    // Informativno: vrste prihoda koje najčešće idu na račun ("712111 zdravstvo")
+    vrstaPrihoda: { type: DataTypes.STRING(120), allowNull: true },
+    // Uvijek 16 cifara bez crtica; prikazni format se izvodi (3-3-8-2)
+    racun: { type: DataTypes.STRING(16), allowNull: false },
+    banka: { type: DataTypes.STRING(120), allowNull: true },
+    vaziOd: { type: DataTypes.DATEONLY, allowNull: true },
+    // Obavezan pri izmjeni: broj Službenih novina FBiH i tačka pravilnika
+    izvor: { type: DataTypes.STRING(240), allowNull: true },
+    datumProvjere: { type: DataTypes.DATEONLY, allowNull: true },
+    updatedByUserId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "uplatni_racuni",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+  },
+);
+
+// Audit trag izmjena i provjera šifarnika (ništa se ne briše).
+const UplatniRacunLog = sequelize.define(
+  "UplatniRacunLog",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    kljuc: { type: DataTypes.STRING(40), allowNull: false },
+    // izmjena | provjera
+    akcija: { type: DataTypes.STRING(16), allowNull: false },
+    stariRacun: { type: DataTypes.STRING(16), allowNull: true },
+    noviRacun: { type: DataTypes.STRING(16), allowNull: true },
+    izvor: { type: DataTypes.STRING(240), allowNull: true },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    userEmail: { type: DataTypes.STRING(160), allowNull: true },
+  },
+  {
+    tableName: "uplatni_racuni_log",
+    timestamps: true,
+    updatedAt: false,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["kljuc"] }],
+  },
+);
+
 // 2FA associations
 User.hasOne(UserTwoFactor, {
   foreignKey: "userId",
@@ -3363,4 +3428,6 @@ module.exports = {
   AnnouncementRead,
   UserNotification,
   NotificationLog,
+  UplatniRacun,
+  UplatniRacunLog,
 };

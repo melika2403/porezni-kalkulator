@@ -261,8 +261,8 @@ const NAV_ITEMS: {
     ),
   },
   {
-    href: "/admin/nalozi",
-    label: "Štampa naloga",
+    href: "/admin/uplatni-racuni",
+    label: "Uplatni računi",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -272,29 +272,10 @@ const NAV_ITEMS: {
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <rect x="6" y="3" width="12" height="18" rx="1" />
-        <line x1="9" y1="8" x2="15" y2="8" />
-        <line x1="9" y1="12" x2="15" y2="12" />
-        <line x1="9" y1="16" x2="13" y2="16" />
-      </svg>
-    ),
-  },
-  {
-    href: "/admin/izvoz-naloga",
-    label: "Izvoz naloga",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <path d="M12 11v6" />
-        <path d="M9.5 14.5 12 17l2.5-2.5" />
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+        <line x1="6" y1="15" x2="10" y2="15" />
+        <line x1="14" y1="15" x2="18" y2="15" />
       </svg>
     ),
   },

@@ -40,7 +40,9 @@ function extractObject(text, startMarker) {
 }
 
 function extractConst(text, name) {
-  const re = new RegExp(`export const ${name}\\s*=\\s*"([^"]+)"`);
+  // "let" jer su federalni skalari sada žive (mutabilne) vrijednosti koje
+  // primijeniZiveRacune prepiše stanjem iz baze; ovdje čitamo seed vrijednost.
+  const re = new RegExp(`export (?:const|let) ${name}\\s*=\\s*"([^"]+)"`);
   const m = text.match(re);
   if (!m) throw new Error(`Missing constant ${name}`);
   return m[1];

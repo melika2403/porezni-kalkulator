@@ -6,10 +6,14 @@ import {
   BUDZETSKE_ORGANIZACIJE,
 } from "src/data/javni-prihodi";
 import {
-  FEDERALNI_RACUNI,
-  KANTONALNI_BUDZETI,
-  KANTONALNI_ZZO,
-  KANTONALNE_SLUZBE_ZAPOSLJAVANJE,
+  federalniRacuni,
+  kantonalniBudzeti,
+  kantonalniZzo,
+  kantonalneSluzbeZaposljavanje,
+  bankFromAccount,
+  FBIH_BUDZET_RACUN,
+  FBIH_ZO_RACUN,
+  FBIH_NEZAP_RACUN,
 } from "src/data/uplatni-racuni";
 import { OPCINE_GROUPS } from "src/data/opcine";
 
@@ -17,10 +21,10 @@ const PAGE_URL = "https://www.poreznikalkulator.ba/javni-prihodi";
 
 const totalVrste = VRSTE_PRIHODA_GROUPS.reduce((a, g) => a + g.items.length, 0);
 const totalRacuni =
-  FEDERALNI_RACUNI.length +
-  KANTONALNI_BUDZETI.length +
-  KANTONALNI_ZZO.length +
-  KANTONALNE_SLUZBE_ZAPOSLJAVANJE.length;
+  federalniRacuni().length +
+  kantonalniBudzeti().length +
+  kantonalniZzo().length +
+  kantonalneSluzbeZaposljavanje().length;
 const totalOpcina = OPCINE_GROUPS.reduce((a, g) => a + g.opcine.length, 0);
 
 export const metadata: Metadata = {
@@ -113,7 +117,7 @@ const faqSchema = {
       name: "Koja je šifra vrste prihoda za doprinos PIO/MIO?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Doprinos za penzijsko i invalidsko osiguranje iz plaća i na plaće ima šifru 712112. Uplaćuje se na račun Budžeta Federacije: 102-050-00001066-98 (Union banka d.d. Sarajevo).",
+        text: `Doprinos za penzijsko i invalidsko osiguranje iz plaća i na plaće ima šifru 712112. Uplaćuje se na račun Budžeta Federacije: ${FBIH_BUDZET_RACUN} (${bankFromAccount(FBIH_BUDZET_RACUN)}).`,
       },
     },
     {
@@ -121,7 +125,7 @@ const faqSchema = {
       name: "Koje su šifre vrste prihoda za doprinose za zdravstveno osiguranje?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Doprinos za zdravstveno osiguranje iz plate i na platu ima šifru 712111. Iznos se dijeli: 89,8% na kantonalni ZZO prema prebivalištu radnika, 10,2% na ZZO i reosiguranja FBiH (račun 102-050-00000640-18).",
+        text: `Doprinos za zdravstveno osiguranje iz plate i na platu ima šifru 712111. Iznos se dijeli: 89,8% na kantonalni ZZO prema prebivalištu radnika, 10,2% na ZZO i reosiguranja FBiH (račun ${FBIH_ZO_RACUN}).`,
       },
     },
     {
@@ -129,7 +133,7 @@ const faqSchema = {
       name: "Koja je šifra vrste prihoda za doprinos za nezaposlenost?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Doprinos za osiguranje od nezaposlenosti ima šifru 712113. Dijeli se: 30% na račun Federalnog zavoda za zapošljavanje (161-000-00285700-03), 70% na kantonalnu službu za zapošljavanje prema prebivalištu radnika.",
+        text: `Doprinos za osiguranje od nezaposlenosti ima šifru 712113. Dijeli se: 30% na račun Federalnog zavoda za zapošljavanje (${FBIH_NEZAP_RACUN}), 70% na kantonalnu službu za zapošljavanje prema prebivalištu radnika.`,
       },
     },
     {
@@ -145,7 +149,7 @@ const faqSchema = {
       name: "Koji je račun Budžeta Federacije BiH?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Račun javnih prihoda Budžeta Federacije BiH je 102-050-00001066-98 (Union banka d.d. Sarajevo). Na njega se uplaćuju federalni porezi, doprinos PIO/MIO, opća vodna naknada, naknada za zaštitu od prirodnih nesreća i drugi federalni prihodi.",
+        text: `Račun javnih prihoda Budžeta Federacije BiH je ${FBIH_BUDZET_RACUN} (${bankFromAccount(FBIH_BUDZET_RACUN)}). Na njega se uplaćuju federalni porezi, doprinos PIO/MIO, opća vodna naknada, naknada za zaštitu od prirodnih nesreća i drugi federalni prihodi.`,
       },
     },
     {

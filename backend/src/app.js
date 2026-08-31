@@ -14,6 +14,7 @@ const {
 } = require("./services/bankStatements/bankCodes");
 const KD_BIH_NAMES = require("./data/kdBihNames.json");
 const authRoutes = require("./routes/authRoutes");
+const uplatniRacuniRoutes = require("./routes/uplatniRacuniRoutes");
 const twoFactorRoutes = require("./routes/twoFactorRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 const organizationsRoutes = require("./routes/organizationsRoutes");
@@ -91,6 +92,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/uplatni-racuni", uplatniRacuniRoutes);
 app.use("/api/2fa", twoFactorRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/organizations", organizationsRoutes);
@@ -1908,6 +1910,8 @@ sequelize
       "broj",
     ]),
   )
+  // Uplatni računi javnih prihoda: seed nedostajućih slotova + učitavanje u keš.
+  .then(() => require("./services/racuniService").init())
   .then(() => {
     console.log("Database synced successfully");
     // http.Server je potreban da bi Socket.IO (live chat podrška) mogao dijeliti
