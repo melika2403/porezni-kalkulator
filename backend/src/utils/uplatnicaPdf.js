@@ -3,15 +3,15 @@
 //  template-a koji ima 113 imenovanih polja (payer_*, recipient_*,
 //  sender_account_NN, period_*, itd). Forma se popuni i flatten-uje.
 //
-//  Računi (KANTONI + federalni) se čitaju iz uplatniRacuniData.json koji je
-//  auto-generisan iz frontend/src/data/uplatni-racuni.ts (single source of
-//  truth). Re-generisanje: node scripts/sync-racuni-backend.mjs
+//  Računi (KANTONI + federalni) se čitaju iz racuniService-a (baza + admin
+//  panel "Uplatni računi", fallback na seed snapshot). Uvijek se čita
+//  trenutni() na mjestu upotrebe da admin izmjena odmah važi, bez restarta.
 // ──────────────────────────────────────────────────────────────────────────────
 const fs = require("fs");
 const path = require("path");
 const { PDFDocument } = require("pdf-lib");
 const fontkit = require("@pdf-lib/fontkit");
-const RACUNI = require("./uplatniRacuniData.json");
+const racuniService = require("../services/racuniService");
 
 const TEMPLATE_PATH = path.join(
   __dirname,
@@ -22,15 +22,6 @@ const TEMPLATE_PATH = path.join(
 );
 const FONT_PATH = path.join(__dirname, "..", "assets", "fonts", "arial.ttf");
 
-
-// ── KANTONI + federalni računi ─────────────────────────────────────────────
-// Single source of truth: frontend/src/data/uplatni-racuni.ts
-// Re-generate JSON: node scripts/sync-racuni-backend.mjs
-const KANTONI = RACUNI.KANTONI;
-const FBIH_BUDZET_RACUN = RACUNI.FBIH_BUDZET_RACUN;
-const FBIH_ZO_RACUN = RACUNI.FBIH_ZO_RACUN;
-const FBIH_NEZAP_RACUN = RACUNI.FBIH_NEZAP_RACUN;
-const FOND_INVALIDI_RACUN = RACUNI.FOND_INVALIDI_RACUN;
 
 // Pronađi kantonski ključ na osnovu naziva općine (case-insensitive)
 function kantonForOpcina(opcinaIme) {
@@ -45,7 +36,7 @@ function kantonForOpcina(opcinaIme) {
       .trim();
   const target = normalize(opcinaIme);
   if (!target) return null;
-  for (const [key, k] of Object.entries(KANTONI)) {
+  for (const [key, k] of Object.entries(racuniService.trenutni().KANTONI)) {
     for (const o of k.opcine) {
       if (normalize(o.ime) === target) {
         return { kantonKey: key, kantonData: k, opcinaKod: o.kod };
@@ -337,12 +328,10 @@ async function generateUplatniceCombined(optsList) {
   return Buffer.from(await out.save());
 }
 
+// Račune više ne izvozimo odavde: potrošači čitaju racuniService.trenutni()
+// na mjestu upotrebe, da izmjena u admin panelu odmah važi (bez zamrznutih
+// kopija kroz destrukturiranje pri require-u).
 module.exports = {
-  KANTONI,
-  FBIH_BUDZET_RACUN,
-  FBIH_ZO_RACUN,
-  FBIH_NEZAP_RACUN,
-  FOND_INVALIDI_RACUN,
   kantonForOpcina,
   generateUplatnica,
   generateUplatniceCombined,

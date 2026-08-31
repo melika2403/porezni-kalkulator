@@ -1,10 +1,8 @@
-// Izvoz platnih naloga u e-bankarstvo.
-// - Admin test harness (listOrganizacije/listObracuni/generisi): ADMIN-only
-//   rute u adminDashboardRoutes, sa pregledom bajtova i override opcijama
-//   (transliteracija, combineKantonal) za kalibraciju formata.
-// - Korisnički izvoz (bankExport): ruta u payrollRoutes (requireAuth + plan
-//   gate kao uplatnice), pristup samo vlastitim organizacijama, transliteracija
-//   automatska po banci, objedinjavanje kantonalnih prati postavku korisnika.
+// Izvoz platnih naloga u e-bankarstvo (korisnički tok na obračunu).
+// bankExport: ruta u payrollRoutes (requireAuth + plan gate kao uplatnice),
+// pristup samo vlastitim organizacijama, transliteracija automatska po banci,
+// objedinjavanje kantonalnih prati postavku korisnika. Admin test harness
+// (Faza 0/1) je uklonjen 31.08.2026. kad je kalibracija formata završena.
 // Ništa ne piše u bazu: čita Payroll snapshotove, generiše datoteku u
 // memoriji i vraća je kao base64.
 // Spec: docs/faza0-tkdis-izvoz-halcom.md
@@ -13,20 +11,15 @@ const { Organization, Payroll, Worker } = require("../models/index");
 const {
   formatTkdis,
   TkdisGreska,
-  ROW_LEN,
-  CP1250_U_SLOVO,
 } = require("../services/paymentExport/tkdisFormatter");
 const {
   formatElba,
   ElbaGreska,
-  CP1250_U_SLOVO: CP1250_U_SLOVO_ELBA,
 } = require("../services/paymentExport/elbaFormatter");
 const {
   formatRaiffeisen,
   podijeliZaRaiffeisen,
   RaiffeisenGreska,
-  RECORD_LEN: RAIFFEISEN_RECORD_LEN,
-  CP852_U_SLOVO,
 } = require("../services/paymentExport/raiffeisenFormatter");
 const {
   buildTkdisIzObracuna,
@@ -39,12 +32,8 @@ const {
 // TKDIS profili (Halcom, UniCredit) + ELBA platforma (BBI, ASA, Sparkasse)
 // + Raiffeisen RBBHnet (vlastiti 345 format, samo javni prihodi).
 const PROFILI = new Set(["halcom", "unicredit", "elba", "raiffeisen"]);
-// "ascii" = Raiffeisen: čisti ASCII sa transliteracijom (novo online
-// bankarstvo odbija CP852 bajtove, staro prima oboje).
-const TRANSLITERACIJE = new Set(["yuscii", "cp1250", "cp852", "ascii"]);
-// Kodna stranica po banci za korisnički izvoz (admin harness može override
-// radi testiranja): Halcom banke traže YUSCII, UniCredit i ELBA cp1250,
-// Raiffeisen cp852.
+// Kodna stranica po banci za korisnički izvoz: Halcom banke traže YUSCII,
+// UniCredit i ELBA cp1250, Raiffeisen cp852.
 const PROFIL_TRANSLIT = {
   halcom: "yuscii",
   unicredit: "cp1250",
@@ -85,86 +74,6 @@ function parsirajDatumValute(s) {
 function parseId(raw) {
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-// GET /api/admin/izvoz-naloga/organizacije
-// Organizacije koje imaju bar jedan payroll (samo one imaju šta izvesti).
-async function listOrganizacije(req, res) {
-  const rows = await Payroll.findAll({
-    attributes: ["organizationId"],
-    group: ["organizationId"],
-    raw: true,
-  });
-  const ids = rows.map((r) => r.organizationId);
-  if (ids.length === 0) return res.json({ ok: true, data: [] });
-  const orgs = await Organization.findAll({
-    where: { id: ids },
-    attributes: ["id", "name", "type", "city", "bankAccount"],
-    order: [["name", "ASC"]],
-  });
-  return res.json({ ok: true, data: orgs });
-}
-
-// GET /api/admin/izvoz-naloga/obracuni?orgId=N
-// Mjeseci sa obračunima za izabranu organizaciju, najnoviji prvi.
-async function listObracuni(req, res) {
-  const orgId = parseId(req.query.orgId);
-  if (!orgId) return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
-  const payrolls = await Payroll.findAll({
-    where: { organizationId: orgId },
-    attributes: ["year", "month", "status", "totalCost"],
-    raw: true,
-  });
-  const poMjesecu = new Map();
-  for (const p of payrolls) {
-    const key = `${p.year}-${p.month}`;
-    const cur = poMjesecu.get(key) || {
-      year: p.year,
-      month: p.month,
-      ukupno: 0,
-      obracunato: 0,
-      trosak: 0,
-    };
-    cur.ukupno += 1;
-    if (p.status === "OBRACUNATO" || p.status === "ISPLACENO") {
-      cur.obracunato += 1;
-      cur.trosak += Number(p.totalCost) || 0;
-    }
-    poMjesecu.set(key, cur);
-  }
-  const data = [...poMjesecu.values()]
-    .sort((a, b) => b.year - a.year || b.month - a.month)
-    .map((m) => ({ ...m, trosak: Math.round(m.trosak * 100) / 100 }));
-  return res.json({ ok: true, data });
-}
-
-// Pregled datoteke za ekran: bajt = jedan znak (kolona). ASCII se prikazuje
-// direktno (YUSCII slova se namjerno vide kao @ [ ] ^ \, tako izgleda i u
-// banci), dijakritika se dekodira mapom KODNE STRANICE datoteke (cp1250 i
-// cp852 dijele bajtove sa različitim značenjem, npr. 0xE6 je ć u cp1250 a
-// Š u cp852, pa se mapa bira po transliteraciji), TAB (ELBA separator polja)
-// postaje "⇥", ostali kontrolni bajtovi "·". CR i LF lome red.
-function pregledRedova(buffer, transliteracija) {
-  const dekodMapa =
-    transliteracija === "cp852"
-      ? CP852_U_SLOVO
-      : new Map([...CP1250_U_SLOVO, ...CP1250_U_SLOVO_ELBA]);
-  const ima1a = buffer.length > 0 && buffer[buffer.length - 1] === 0x1a;
-  const tijelo = ima1a ? buffer.subarray(0, buffer.length - 1) : buffer;
-  const rows = [];
-  let red = "";
-  for (const bajt of tijelo) {
-    if (bajt === 0x0d || bajt === 0x0a) {
-      if (red.length > 0) rows.push(red);
-      red = "";
-      continue;
-    }
-    if (bajt === 0x09) red += "⇥";
-    else if (bajt >= 0x20 && bajt <= 0x7e) red += String.fromCharCode(bajt);
-    else red += dekodMapa.get(bajt) || "·";
-  }
-  if (red.length > 0) rows.push(red);
-  return { rows, ima1a };
 }
 
 // Učita payroll-e mjeseca (isti izbor kao mjesečne uplatnice: svi zapisi,
@@ -300,8 +209,7 @@ async function generisiDatoteku({
   };
 }
 
-// Datoteke iz generisiDatoteku u oblik za klijenta (isti DTO za admin harness
-// i korisnički izvoz). fileName/base64 na vrhu odgovora su prva datoteka i
+// Datoteke iz generisiDatoteku u oblik za klijenta (korisnički izvoz). fileName/base64 na vrhu odgovora su prva datoteka i
 // ostaju zbog klijenta koji je učitan prije deploya (nema datoteke[] polje).
 function dtoDatoteke(datoteke) {
   return datoteke.map((d) => ({
@@ -311,107 +219,6 @@ function dtoDatoteke(datoteke) {
     brojNaloga: d.brojNaloga,
     ukupnoKm: d.ukupnoFeninga / 100,
   }));
-}
-
-// POST /api/admin/izvoz-naloga/generisi
-// Body: { orgId, year, month, datumValute (YYYY-MM-DD), profil,
-//         transliteracija, combineKantonal }
-// Vraća datoteku (base64 za download) + pregled po redovima za ekran.
-async function generisi(req, res) {
-  const orgId = parseId(req.body?.orgId);
-  const year = Number(req.body?.year);
-  const month = Number(req.body?.month);
-  const datumValute = String(req.body?.datumValute || "");
-  const profil = String(req.body?.profil || "");
-  const transliteracija = String(req.body?.transliteracija || "");
-  const combineKantonal = !!req.body?.combineKantonal;
-
-  if (!orgId) return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
-  if (!Number.isInteger(year) || year < 2000 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) {
-    return res.status(400).json({ ok: false, error: "INVALID_PERIOD" });
-  }
-  if (!parsirajDatumValute(datumValute)) {
-    return res.status(400).json({ ok: false, error: "INVALID_DATUM_VALUTE" });
-  }
-  if (!PROFILI.has(profil)) {
-    return res.status(400).json({ ok: false, error: "INVALID_PROFIL" });
-  }
-  if (!TRANSLITERACIJE.has(transliteracija)) {
-    return res.status(400).json({ ok: false, error: "INVALID_TRANSLITERACIJA" });
-  }
-
-  const org = await Organization.findByPk(orgId);
-  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
-
-  const r = await generisiDatoteku({
-    org,
-    year,
-    month,
-    datumValute,
-    profil,
-    transliteracija,
-    combineKantonal,
-  });
-  if (!r.ok) {
-    return res.status(r.status).json({
-      ok: false,
-      error: r.error,
-      ...(r.preskoceni ? { preskoceni: r.preskoceni } : {}),
-    });
-  }
-
-  // Pregled: redovi svih datoteka; kod više datoteka (raiffeisen podjela)
-  // svaka sekcija počinje imenom svoje datoteke.
-  const rows = [];
-  let ima1a = false;
-  let ukupnoBajta = 0;
-  for (const d of r.datoteke) {
-    const p = pregledRedova(d.buffer, r.translitEff);
-    if (r.datoteke.length > 1) rows.push(`>>> ${d.fileName}`);
-    rows.push(...p.rows);
-    ima1a = ima1a || p.ima1a;
-    ukupnoBajta += d.buffer.length;
-  }
-  const ukupnoFeninga = r.file.nalozi.reduce((s, n) => s + n.iznosFeninga, 0);
-
-  return res.json({
-    ok: true,
-    data: {
-      fileName: r.datoteke[0].fileName,
-      base64: r.datoteke[0].buffer.toString("base64"),
-      datoteke: dtoDatoteke(r.datoteke),
-      rows,
-      preskoceni: r.preskoceni,
-      meta: {
-        stub: false,
-        format:
-          profil === "elba" ? "elba" : profil === "raiffeisen" ? "raiffeisen" : "tkdis",
-        profil,
-        transliteracija: r.translitEff,
-        combineKantonal,
-        // ELBA je delimitirani format (TAB/CR), nema fiksnu širinu ni lenjir;
-        // TKDIS je 336. Raiffeisen: UJ redovi su 345, ali UO (prenosi) 313,
-        // SM 211 i marker redovi ">>>", pa lenjir ima smisla samo za jednu
-        // datoteku bez prenosa.
-        rowLen:
-          profil === "elba"
-            ? null
-            : profil === "raiffeisen"
-              ? r.datoteke.length > 1 ||
-                r.file.nalozi.some((n) => n.tip === "prenos")
-                ? null
-                : RAIFFEISEN_RECORD_LEN
-              : ROW_LEN,
-        brojRedova: rows.length,
-        brojNaloga: r.file.nalozi.length,
-        brojDatoteka: r.datoteke.length,
-        ukupnoKm: ukupnoFeninga / 100,
-        ukupnoBajta,
-        eof1a: ima1a,
-        brojPayrolla: r.brojPayrolla,
-      },
-    },
-  });
 }
 
 // POST /api/payroll/bank-export (requireAuth + plan gate u payrollRoutes)
@@ -545,20 +352,6 @@ async function naloziZaStampuOdgovor(req, res, org, combineKantonal) {
   });
 }
 
-// POST /api/admin/izvoz-naloga/nalozi  (ADMIN)
-// Body: { orgId, year, month, datumValute (YYYY-MM-DD), combineKantonal }
-// Nalozi obračuna kao JSON za ekran pregleda i ESC/P štampu na matričnom
-// pisaču: isti adapter kao izvoz datoteka, bez formatiranja. Admin harness
-// bira firmu i objedinjavanje ručno (kalibracija).
-// Spec: docs/faza1-escp-stampa-naloga.md
-async function listNaloziZaStampu(req, res) {
-  const orgId = parseId(req.body?.orgId);
-  if (!orgId) return res.status(400).json({ ok: false, error: "INVALID_ORG_ID" });
-  const org = await Organization.findByPk(orgId);
-  if (!org) return res.status(404).json({ ok: false, error: "ORG_NOT_FOUND" });
-  return naloziZaStampuOdgovor(req, res, org, !!req.body?.combineKantonal);
-}
-
 // POST /api/payroll/nalozi-za-stampu (requireAuth + plan gate u payrollRoutes)
 // Korisnička varijanta: pristup samo vlastitim organizacijama, objedinjavanje
 // kantonalnih prati postavku korisnika (ista koju koriste uplatnice i izvoz).
@@ -580,10 +373,6 @@ async function naloziZaStampu(req, res) {
 }
 
 module.exports = {
-  listOrganizacije,
-  listObracuni,
-  generisi,
   bankExport,
-  listNaloziZaStampu,
   naloziZaStampu,
 };

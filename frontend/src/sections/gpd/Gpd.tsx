@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import Link from "next/link";
 import styles from "./gpd.module.css";
 import FaqSection from "src/components/FaqSection/FaqSection";
@@ -189,6 +190,8 @@ const isoToFormatted = (isoDate: string): string => {
 /* ── Component ── */
 
 export default function GpdForm() {
+  // Živi uplatni računi: povuci trenutno stanje šifarnika (admin izmjene)
+  useUplatniRacuni();
   const { findByName: findCity } = useCityLookup();
   const formRef = useRef<HTMLFormElement | null>(null);
   const refundRequiredRef = useRef<HTMLInputElement | null>(null);

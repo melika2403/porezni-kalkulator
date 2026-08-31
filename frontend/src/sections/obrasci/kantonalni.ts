@@ -1,7 +1,7 @@
 // Kantonalni podaci za obrasce ČOK i ONŠ: porezni uredi, obrtničke komore
 // (nazivi + žiro računi za članarinu gdje su poznati) i vrste prihoda.
 // Kanton se izvodi iz sjedišta obrta preko šifarnika općina (KANTONI).
-import { KANTONI, type KantonKey } from "src/data/uplatni-racuni";
+import { KANTONI, KOMORA_RACUNI, type KantonKey } from "src/data/uplatni-racuni";
 
 export type { KantonKey };
 
@@ -24,13 +24,10 @@ export const ONS_VRSTA_PRIHODA = "722471";
 /** Vrsta prihoda za članarinu obrtničkoj komori (ČOK). */
 export const COK_VRSTA_PRIHODA = "722567";
 
-/** Žiro računi kantonalnih obrtničkih komora za uplatu članarine.
- *  Poznati: USK (dostavio vlasnik), KS (okks.ba). Ostale dopuniti kad
- *  komore dostave/objave račune; null = prikaz bez podataka za uplatu. */
-export const KOMORA_RACUNI: Partial<Record<KantonKey, string>> = {
-  USK: "1020220000053653",
-  KS: "3387302220433691",
-};
+/** Žiro računi kantonalnih obrtničkih komora: žive u centralnom šifarniku
+ *  (src/data/uplatni-racuni.ts + admin panel), ovdje samo re-export radi
+ *  postojećih importa. */
+export { KOMORA_RACUNI };
 
 /** Naziv kantonalne obrtničke komore (za zaglavlje ČOK obrasca). */
 export function komoraNaziv(kanton: KantonKey): string {

@@ -10,14 +10,17 @@ import {
 } from "src/data/javni-prihodi";
 import { OPCINE_GROUPS, type OpcinaRacuni } from "src/data/opcine";
 import {
-  FEDERALNI_RACUNI,
-  KANTONALNI_BUDZETI,
-  KANTONALNI_ZZO,
-  KANTONALNE_SLUZBE_ZAPOSLJAVANJE,
+  federalniRacuni,
+  kantonalniBudzeti,
+  kantonalniZzo,
+  kantonalneSluzbeZaposljavanje,
   FBIH_BUDZET_RACUN,
   FBIH_ZO_RACUN,
+  FBIH_NEZAP_RACUN,
+  bankFromAccount,
   type Racun,
 } from "src/data/uplatni-racuni";
+import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import styles from "./javni-prihodi.module.css";
 
 function normalize(s: string): string {
@@ -100,8 +103,8 @@ const RELATED_TOOLS = [
   { href: "/fakture", label: "Fakture i predračuni", desc: "Generator faktura" },
 ];
 
-// Quick access items (most-searched)
-const QUICK_ACCESS = [
+// Quick access items (most-searched); funkcija da računi budu živi
+const quickAccess = () => [
   { kind: "vrsta", code: "712112", label: "PIO/MIO doprinos" },
   { kind: "vrsta", code: "712111", label: "Zdravstveni doprinos" },
   { kind: "vrsta", code: "712113", label: "Doprinos nezaposlenost" },
@@ -116,6 +119,14 @@ export default function JavniPrihodi() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // Živi šifarnik: povuci trenutno stanje iz baze (admin izmjene) + meta za
+  // liniju "podaci usklađeni sa…"; verzija forsira ponovno računanje nizova.
+  const { verzija: racuniVerzija, meta: racuniMeta } = useUplatniRacuni();
+  const QUICK_ACCESS = useMemo(quickAccess, [racuniVerzija]);
+  const fedRacuni = useMemo(federalniRacuni, [racuniVerzija]);
+  const kantBudzeti = useMemo(kantonalniBudzeti, [racuniVerzija]);
+  const kantZzo = useMemo(kantonalniZzo, [racuniVerzija]);
+  const kantSluzbe = useMemo(kantonalneSluzbeZaposljavanje, [racuniVerzija]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 160);
@@ -147,10 +158,10 @@ export default function JavniPrihodi() {
 
   const allItems: Hit[] = useMemo(() => {
     const hits: Hit[] = [];
-    for (const it of FEDERALNI_RACUNI) hits.push({ kind: "racun", item: it, group: "Federalni računi i fondovi" });
-    for (const it of KANTONALNI_BUDZETI) hits.push({ kind: "racun", item: it, group: "Kantonalni budžeti" });
-    for (const it of KANTONALNI_ZZO) hits.push({ kind: "racun", item: it, group: "Kantonalni ZZO" });
-    for (const it of KANTONALNE_SLUZBE_ZAPOSLJAVANJE) hits.push({ kind: "racun", item: it, group: "Kantonalne službe za zapošljavanje" });
+    for (const it of fedRacuni) hits.push({ kind: "racun", item: it, group: "Federalni računi i fondovi" });
+    for (const it of kantBudzeti) hits.push({ kind: "racun", item: it, group: "Kantonalni budžeti" });
+    for (const it of kantZzo) hits.push({ kind: "racun", item: it, group: "Kantonalni ZZO" });
+    for (const it of kantSluzbe) hits.push({ kind: "racun", item: it, group: "Kantonalne službe za zapošljavanje" });
     for (const g of OPCINE_GROUPS) {
       for (const o of g.opcine) hits.push({ kind: "opcina", item: o, kantonNaziv: g.kantonNaziv });
     }
@@ -159,7 +170,7 @@ export default function JavniPrihodi() {
     }
     for (const it of BUDZETSKE_ORGANIZACIJE) hits.push({ kind: "budzetska", item: it });
     return hits;
-  }, []);
+  }, [fedRacuni, kantBudzeti, kantZzo, kantSluzbe]);
 
   const results = useMemo(() => {
     if (!debounced) return [];
@@ -330,10 +341,16 @@ export default function JavniPrihodi() {
               Brojevi depozitnih računa za uplatu javnih prihoda, federalni, kantonalni i fondovski.
               Za uplate doprinosa, poreza, naknada i drugih javnih obaveza.
             </p>
+            {racuniMeta?.datum ? (
+              <p className={styles.uskladjenost}>
+                Podaci usklađeni sa: {racuniMeta.izvor || "službenim šifarnikom uplatnih računa"},
+                na dan {racuniMeta.datum.split("-").reverse().join(".")}.
+              </p>
+            ) : null}
 
             <AccountGroup
               title="Federalni računi i fondovi"
-              items={FEDERALNI_RACUNI}
+              items={fedRacuni}
               icon={
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4" />
@@ -342,7 +359,7 @@ export default function JavniPrihodi() {
             />
             <AccountGroup
               title="Kantonalni budžeti"
-              items={KANTONALNI_BUDZETI}
+              items={kantBudzeti}
               icon={
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6z" />
@@ -351,7 +368,7 @@ export default function JavniPrihodi() {
             />
             <AccountGroup
               title="Kantonalni zavodi zdravstvenog osiguranja"
-              items={KANTONALNI_ZZO}
+              items={kantZzo}
               icon={
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2v20M2 12h20" />
@@ -361,7 +378,7 @@ export default function JavniPrihodi() {
             />
             <AccountGroup
               title="Kantonalne službe za zapošljavanje"
-              items={KANTONALNE_SLUZBE_ZAPOSLJAVANJE}
+              items={kantSluzbe}
               icon={
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -584,7 +601,7 @@ export default function JavniPrihodi() {
           <p>
             Doprinos za penzijsko i invalidsko osiguranje iz plaća i na plaće ima šifru{" "}
             <strong>712112</strong>. Uplaćuje se na račun Budžeta Federacije:{" "}
-            <strong>102-050-00001066-98</strong> (Union banka d.d. Sarajevo).
+            <strong>{FBIH_BUDZET_RACUN}</strong> ({bankFromAccount(FBIH_BUDZET_RACUN)}).
           </p>
         </details>
         <details className={styles.faqItem}>
@@ -592,14 +609,14 @@ export default function JavniPrihodi() {
           <p>
             Doprinos za zdravstvo iz plate (<strong>712111</strong>) dijeli se: <strong>89,8%</strong> na
             kantonalni Zavod zdravstvenog osiguranja prema mjestu prebivališta radnika, i{" "}
-            <strong>10,2%</strong> na federalni ZZO (<strong>102-050-00000640-18</strong>).
+            <strong>10,2%</strong> na federalni ZZO (<strong>{FBIH_ZO_RACUN}</strong>).
           </p>
         </details>
         <details className={styles.faqItem}>
           <summary>Kako se dijeli doprinos za nezaposlenost?</summary>
           <p>
             Doprinos za nezaposlenost (<strong>712113</strong>): <strong>30%</strong> na račun
-            Federalnog zavoda za zapošljavanje (<strong>161-000-00285700-03</strong>) i{" "}
+            Federalnog zavoda za zapošljavanje (<strong>{FBIH_NEZAP_RACUN}</strong>) i{" "}
             <strong>70%</strong> na kantonalnu službu za zapošljavanje prema prebivalištu radnika.
           </p>
         </details>

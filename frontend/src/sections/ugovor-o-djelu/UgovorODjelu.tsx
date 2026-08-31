@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import styles from "./uod.module.css";
 import {
   calcFromBruto,
@@ -13,7 +14,12 @@ import {
 } from "./uodCalc";
 import { fillUodUplatnice } from "./fillUodUplatnice";
 import { fillPdn1033 } from "./fillPdn1033";
-import { KANTONI, type KantonKey } from "src/sections/ams/fillUplatnica";
+import {
+  KANTONI,
+  FBIH_ZO_RACUN,
+  FBIH_BUDZET_RACUN,
+  type KantonKey,
+} from "src/sections/ams/fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import { iznosUSlova } from "./iznosSlovima";
@@ -135,6 +141,8 @@ export default function UgovorODjelu() {
 }
 
 function UgovorODjeluApp() {
+  // Živi uplatni računi: povuci trenutno stanje šifarnika (admin izmjene)
+  useUplatniRacuni();
   const { hasAccessToTier } = useMaxAccessibleTier();
   const { role } = useRole();
   const isLoggedIn = !!role;
@@ -1208,7 +1216,7 @@ function UgovorODjeluApp() {
               },
               {
                 title: "Zdravstveno osiguranje, FBiH",
-                racun: "102-050-00000640-18",
+                racun: FBIH_ZO_RACUN,
                 primalac: "ZZO FBiH",
                 vrsta: "712116",
                 iznos: calc.zdravstvenoFbih,
@@ -1222,7 +1230,7 @@ function UgovorODjeluApp() {
               },
               {
                 title: "PIO/MIO doprinos",
-                racun: "102-050-00001066-98",
+                racun: FBIH_BUDZET_RACUN,
                 primalac: "Budžet Federacije BiH",
                 vrsta: "712126",
                 iznos: calc.pio,

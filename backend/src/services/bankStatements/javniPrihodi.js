@@ -1,10 +1,13 @@
 // Lookup računa javnih prihoda → kategorija transakcije.
-// Računi se čitaju iz postojećeg šifarnika (uplatniRacuniData.json, sinhronizovan
-// iz frontend/src/data/uplatni-racuni.ts). Ovdje su SAMO dodatni računi koji
-// nisu u šifarniku uplatnica (UIO za indirektne poreze), jer šifarnik služi
-// uplatnicama pa ga ne proširujemo matching-only stavkama.
+// Računi se čitaju iz živog šifarnika (racuniService: baza + admin panel,
+// fallback seed snapshot) i lookup se automatski pregradi kad admin promijeni
+// broj. Uz trenutne brojeve prepoznaju se i RANIJI brojevi istog slota (iz
+// audit loga), jer izvodi iz perioda prije izmjene nose uplate na stari račun.
+// Ovdje su SAMO dodatni računi koji nisu u šifarniku uplatnica (UIO za
+// indirektne poreze), jer šifarnik služi uplatnicama pa ga ne proširujemo
+// matching-only stavkama.
 
-const RACUNI = require("../../utils/uplatniRacuniData.json");
+const racuniService = require("../../services/racuniService");
 
 /** račun "338-500-22751661-53" → "3385002275166153" */
 function normalizeAccount(acc) {
@@ -29,41 +32,61 @@ const UIO_RACUNI = [
  * (vidi vlasnikDoprinosi.js): isti račun prima i jedno i drugo.
  */
 function buildLookup() {
+  const t = racuniService.trenutni();
   const map = new Map();
-  const add = (acc, naziv, category, fond) => {
+  // kljuc → info, da bi i raniji brojevi slota dobili isto prepoznavanje
+  const infoPoSlotu = new Map();
+  const add = (kljuc, acc, naziv, category, fond) => {
+    const info = { naziv, category, fond: fond || null };
     const n = normalizeAccount(acc);
-    if (n) map.set(n, { naziv, category, fond: fond || null });
+    if (n) map.set(n, info);
+    if (kljuc) infoPoSlotu.set(kljuc, info);
   };
 
-  for (const [, k] of Object.entries(RACUNI.KANTONI || {})) {
+  for (const [key, k] of Object.entries(t.KANTONI || {})) {
     // zdravstveno i nezaposlenost = doprinosi; kantonalni budžet najčešće
     // prima porez na dohodak (716111/716116) za obrtnike
-    add(k.zoRacun, `ZZO ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA", "ZDR_KANTON");
-    add(k.nezapRacun, `Zavod za zapošljavanje ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA", "NEZAP_KANTON");
-    add(k.budzet, `Budžet ${k.genitiv || k.ime}`, "POREZ_DOHODAK_VLASNIKA");
+    add(`${key}.zo`, k.zoRacun, `ZZO ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA", "ZDR_KANTON");
+    add(`${key}.nezap`, k.nezapRacun, `Zavod za zapošljavanje ${k.genitiv || k.ime}`, "DOPRINOSI_PODUZETNIKA", "NEZAP_KANTON");
+    add(`${key}.budzet`, k.budzet, `Budžet ${k.genitiv || k.ime}`, "POREZ_DOHODAK_VLASNIKA");
   }
 
   // Budžet FBiH prima PIO/MIO (i vodnu naknadu, nesreće) → doprinosi
-  add(RACUNI.FBIH_BUDZET_RACUN, "Budžet FBiH (PIO/MIO)", "DOPRINOSI_PODUZETNIKA", "PIO");
-  add(RACUNI.FBIH_ZO_RACUN, "Federalni ZZO", "DOPRINOSI_PODUZETNIKA", "ZDR_FED");
-  add(RACUNI.FBIH_NEZAP_RACUN, "Federalni zavod za zapošljavanje", "DOPRINOSI_PODUZETNIKA", "NEZAP_FED");
-  add(RACUNI.FOND_INVALIDI_RACUN, "Fond za rehabilitaciju OSI", "OSTALI_RASHODI");
-  if (RACUNI.JRT_TREZOR_BIH_RACUN) {
-    add(RACUNI.JRT_TREZOR_BIH_RACUN, "JRT Trezor BiH", "PDV_UIO");
+  add("FBIH.budzet", t.FBIH_BUDZET_RACUN, "Budžet FBiH (PIO/MIO)", "DOPRINOSI_PODUZETNIKA", "PIO");
+  add("FBIH.zo", t.FBIH_ZO_RACUN, "Federalni ZZO", "DOPRINOSI_PODUZETNIKA", "ZDR_FED");
+  add("FBIH.nezap", t.FBIH_NEZAP_RACUN, "Federalni zavod za zapošljavanje", "DOPRINOSI_PODUZETNIKA", "NEZAP_FED");
+  add("FOND.invalidi", t.FOND_INVALIDI_RACUN, "Fond za rehabilitaciju OSI", "OSTALI_RASHODI");
+  if (t.JRT_TREZOR_BIH_RACUN) {
+    add("JRT.trezor", t.JRT_TREZOR_BIH_RACUN, "JRT Trezor BiH", "PDV_UIO");
   }
   for (const acc of UIO_RACUNI) {
-    add(acc, "UIO BiH (indirektni porezi)", "PDV_UIO");
+    add(null, acc, "UIO BiH (indirektni porezi)", "PDV_UIO");
+  }
+
+  // Raniji brojevi slotova: stari izvodi nose uplate na stari račun. Trenutni
+  // broj ima prednost ako se ikad preklope (postavljen je prvi, ne prepisujemo).
+  for (const [kljuc, brojevi] of racuniService.stariBrojevi()) {
+    const info = infoPoSlotu.get(kljuc);
+    if (!info) continue;
+    for (const n of brojevi) {
+      if (!map.has(n)) map.set(n, info);
+    }
   }
 
   return map;
 }
 
-const LOOKUP = buildLookup();
+let lookup = null;
+let lookupVerzija = -1;
 
 /** Vrati { naziv, category } za račun javnih prihoda, ili null. */
 function lookupJavniPrihod(account) {
   if (!account) return null;
-  return LOOKUP.get(normalizeAccount(account)) || null;
+  if (!lookup || lookupVerzija !== racuniService.getVerzija()) {
+    lookup = buildLookup();
+    lookupVerzija = racuniService.getVerzija();
+  }
+  return lookup.get(normalizeAccount(account)) || null;
 }
 
 module.exports = { lookupJavniPrihod, normalizeAccount };

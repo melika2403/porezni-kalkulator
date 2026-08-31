@@ -5,15 +5,10 @@
 //    UPLATNICA_NEZAP, UPLATNICA_POREZ, UPLATNICA_VODNA, UPLATNICA_NESRECE,
 //    UPLATNICA_INVALIDI
 // ──────────────────────────────────────────────────────────────────────────────
-const {
-  KANTONI,
-  FBIH_BUDZET_RACUN,
-  FBIH_ZO_RACUN,
-  FBIH_NEZAP_RACUN,
-  FOND_INVALIDI_RACUN,
-  kantonForOpcina,
-  generateUplatnica,
-} = require("./uplatnicaPdf");
+const { kantonForOpcina, generateUplatnica } = require("./uplatnicaPdf");
+// Računi se čitaju u trenutku generisanja (racuniService.trenutni()), ne pri
+// require-u, da izmjena u admin panelu "Uplatni računi" odmah važi.
+const racuniService = require("../services/racuniService");
 
 // Stopa za fond invalida — 0,5% × ukupne bruto plate (po radniku se obračunava
 // na nivou organizacije, ali za sad generišemo po radniku).
@@ -23,6 +18,13 @@ const FOND_INVALIDI_RATE = 0.005;
 // Sve vrste prihoda i računi za FBiH. Korisnik može override-ati per-organization
 // preko Organization.payrollAccounts JSON polja.
 function buildDefaults(kantonKey) {
+  const {
+    KANTONI,
+    FBIH_BUDZET_RACUN,
+    FBIH_ZO_RACUN,
+    FBIH_NEZAP_RACUN,
+    FOND_INVALIDI_RACUN,
+  } = racuniService.trenutni();
   const k = KANTONI[kantonKey];
   return {
     pio: {

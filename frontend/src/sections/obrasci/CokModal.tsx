@@ -5,6 +5,7 @@
 // mjeseci, stopa 0,50%. Default se vuče iz vlasnikovih obračuna doprinosa,
 // fallback je režimska osnovica; sve editabilno. Spremanje + PDF.
 import { useState } from "react";
+import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconDownload, IconLoader2 } from "@tabler/icons-react";
 import { Modal } from "src/components/app-shell/Modal";
@@ -163,6 +164,8 @@ function CokModalBody({
   saved: CokSaved | null;
   onClose: () => void;
 }) {
+  // Živi uplatni računi (komora/kantonalni budžet iz admin šifarnika)
+  useUplatniRacuni();
   const qc = useQueryClient();
   const ownerName =
     obrtnikDefault ||

@@ -1,9 +1,12 @@
-// Ručno održavano iz PUFBiH dokumenta "Naputak o uplatnim računima" —
+// Ručno održavano iz PUFBiH dokumenta "Uputstvo o uplatnim računima" -
 // sekcija 12.1.3 Računi budžeta jedinica lokalne samouprave.
 // Verzija: najnoviji dokument koji je korisnik dostavio (2025).
 // Šifre općina (kod) iz interne DB tabele cities (cross-checked).
 //
 // Kad se publishuje noviji dokument, samo izmijeni ovaj fajl.
+// 31.08.2026.: ispravljeno 6 zastarjelih računa po FMF 5/2024
+// (Velika Kladuša, Gračanica, Živinice, Pale (FBiH), Konjic, Ilijaš).
+// 31.08.2026.: Grad Sarajevo prebačen na BBI račun iz priručnika.
 
 export type OpcinaRacuni = {
   name: string;
@@ -31,7 +34,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
       { name: "Cazin", kod: "019", postalCode: "77220", banka: "Bosna Bank International BH d.d.", racuni: ["141-411-0000539-571"] },
       { name: "Ključ", kod: "048", postalCode: "79280", banka: "Sparkasse Bank d.d.", racuni: ["199-044-0002050-484"] },
       { name: "Sanski Most", kod: "076", postalCode: "79260", banka: "UniCredit Bank d.d.", racuni: ["338-540-2200036-917"] },
-      { name: "Velika Kladuša", kod: "097", postalCode: "77230", banka: "UniCredit Bank d.d.", racuni: ["338-000-2211423-047"] },
+      { name: "Velika Kladuša", kod: "097", postalCode: "77230", banka: "MF Banka a.d.", racuni: ["572-496-0000056-066"] },
     ],
   },
   {
@@ -48,7 +51,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
     kantonNaziv: "Tuzlanski kanton",
     opcine: [
       { name: "Banovići", kod: "001", postalCode: "75290", banka: "NLB Banka d.d.", racuni: ["132-130-0296100-059"] },
-      { name: "Gračanica", kod: "035", postalCode: "75320", banka: "UniCredit Bank d.d.", racuni: ["338-620-2226941-185"] },
+      { name: "Gračanica", kod: "035", postalCode: "75320", banka: "NLB Banka d.d.", racuni: ["132-300-2027053-625"] },
       { name: "Gradačac", kod: "036", postalCode: "76250", banka: "NLB Banka d.d.", racuni: ["132-190-0290000-087"] },
       { name: "Kalesija", kod: "044", postalCode: "75260", banka: "UniCredit Bank d.d.", racuni: ["338-650-2246644-295"] },
       { name: "Kladanj", kod: "047", postalCode: "75280", banka: "NLB Banka d.d.", racuni: ["132-160-0295000-064"] },
@@ -56,7 +59,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
       { name: "Lukavac", kod: "057", postalCode: "75300", banka: "Nova Banka a.d.", racuni: ["555-500-0052325-157"] },
       { name: "Srebrenik", kod: "085", postalCode: "75350", banka: "NLB Banka d.d.", racuni: ["132-150-0299280-097"] },
       { name: "Tuzla", kod: "094", postalCode: "75000", banka: "NLB Banka d.d.", racuni: ["132-100-0185060-197"] },
-      { name: "Živinice", kod: "106", postalCode: "75270", banka: "Sberbank BH d.d.", racuni: ["140-403-0310000-145"] },
+      { name: "Živinice", kod: "106", postalCode: "75270", banka: "ASA Banka d.d.", racuni: ["134-001-0310001-309"] },
       { name: "Doboj-Istok", kod: "128", postalCode: "74207", banka: "NLB Banka d.d.", racuni: ["132-280-0309230-874"] },
       { name: "Sapna", kod: "138", postalCode: "75411", banka: "NLB Banka d.d.", racuni: ["132-290-0309208-559"] },
       { name: "Teočak", kod: "142", postalCode: "75414", banka: "NLB Banka d.d.", racuni: ["132-270-0309269-485"] },
@@ -85,7 +88,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
     kantonNaziv: "Bosansko-podrinjski kanton",
     opcine: [
       { name: "Goražde", kod: "033", postalCode: "73000", banka: "Union banka d.d.", racuni: ["102-840-0000002-222"] },
-      { name: "Pale (FBiH)", kod: "136", postalCode: "73334", banka: "Union banka d.d.", racuni: ["102-007-0000018-886"] },
+      { name: "Pale (FBiH)", kod: "136", postalCode: "73334", banka: "Privredna banka Sarajevo d.d.", racuni: ["101-140-0078109-024"] },
       { name: "Foča (FBiH)", kod: "134", postalCode: "73312", banka: "Privredna banka Sarajevo d.d.", racuni: ["101-140-0000595-742"] },
     ],
   },
@@ -114,7 +117,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
       { name: "Čapljina", kod: "021", postalCode: "88300", banka: "Addiko Bank d.d.", racuni: ["306-007-0001035-102"] },
       { name: "Čitluk", kod: "023", postalCode: "88260", banka: "UniCredit Bank d.d.", racuni: ["338-000-2200014-877"] },
       { name: "Jablanica", kod: "041", postalCode: "88420", banka: "Privredna banka Sarajevo d.d.", racuni: ["101-151-0073817-981"] },
-      { name: "Konjic", kod: "049", postalCode: "88400", banka: "Vakufska banka d.d.", racuni: ["160-460-0346331-506"] },
+      { name: "Konjic", kod: "049", postalCode: "88400", banka: "ASA Banka d.d.", racuni: ["134-672-1007044-865"] },
       { name: "Prozor-Rama", kod: "073", postalCode: "88440", banka: "UniCredit Bank d.d.", racuni: ["338-000-2200013-907"] },
       { name: "Stolac", kod: "086", postalCode: "88360", banka: "UniCredit Bank d.d.", racuni: ["338-000-2200020-018"] },
       { name: "Neum", kod: "107", postalCode: "88390", banka: "UniCredit Bank d.d.", racuni: ["338-000-2200021-958"] },
@@ -137,7 +140,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
     kantonNaziv: "Kanton Sarajevo",
     opcine: [
       { name: "Hadžići", kod: "038", postalCode: "71240", banka: "UniCredit Bank d.d.", racuni: ["338-000-2210025-471"] },
-      { name: "Ilijaš", kod: "040", postalCode: "71380", banka: "Vakufska banka d.d.", racuni: ["160-200-0000710-645"] },
+      { name: "Ilijaš", kod: "040", postalCode: "71380", banka: "Raiffeisen Bank d.d. BiH", racuni: ["161-000-0091470-429"] },
       { name: "Centar Sarajevo", kod: "077", postalCode: "71000", banka: "UniCredit Bank d.d.", racuni: ["338-690-2296575-219"] },
       { name: "Ilidža", kod: "078", postalCode: "71210", banka: "UniCredit Bank d.d.", racuni: ["338-000-2210024-598"] },
       { name: "Novo Sarajevo", kod: "079", postalCode: "71000", banka: "Bosna Bank International d.d.", racuni: ["141-196-5320011-288"] },
@@ -145,7 +148,7 @@ export const OPCINE_GROUPS: OpcineKanton[] = [
       { name: "Trnovo (FBiH)", kod: "093", postalCode: "71223", banka: "Union banka d.d.", racuni: ["102-839-0000014-396"] },
       { name: "Novi Grad Sarajevo", kod: "108", postalCode: "71000", banka: "UniCredit Bank d.d.", racuni: ["338-000-2210032-552"] },
       { name: "Stari Grad Sarajevo", kod: "109", postalCode: "71000", banka: "Privredna banka Sarajevo d.d.", racuni: ["101-000-0071133-630"] },
-      { name: "Grad Sarajevo", kod: "–", postalCode: "71000", banka: "Raiffeisen Bank d.d. BiH", racuni: ["161-000-0017920-082"] },
+      { name: "Grad Sarajevo", kod: "–", postalCode: "71000", banka: "Bosna Bank International d.d.", racuni: ["141-196-0000000-698"] },
     ],
   },
   {
