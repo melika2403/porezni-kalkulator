@@ -1,8 +1,14 @@
 "use client";
 import { useMemo, useState, useCallback } from "react";
+import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import styles from "./ams.module.css";
 import { fillAmsTemplate, type AmsData } from "./fillAms";
-import { fillUplatnice, KANTONI, type KantonKey } from "./fillUplatnica";
+import {
+  fillUplatnice,
+  KANTONI,
+  FBIH_ZO_RACUN,
+  type KantonKey,
+} from "./fillUplatnica";
 import DateInput from "src/components/DateInput/DateInput";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import CitySelect from "src/components/CitySelect/CitySelect";
@@ -96,6 +102,8 @@ const downloadPdf = (bytes: Uint8Array, filename: string) => {
 /* ── Component ── */
 
 export default function AmsForm() {
+  // Živi uplatni računi: povuci trenutno stanje šifarnika (admin izmjene)
+  useUplatniRacuni();
   const { findByName: findCity } = useCityLookup();
   // Dio 1
   const [imeIPrezime, setImeIPrezime] = useState("");
@@ -793,7 +801,7 @@ export default function AmsForm() {
                 Zdravstveno osiguranje, FBiH
               </div>
               <div className={styles.uplCardSub}>
-                102-050-00000640-18 · ZZO FBiH
+                {FBIH_ZO_RACUN} · ZZO FBiH
               </div>
             </div>
             {hasAmount && (

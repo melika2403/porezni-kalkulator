@@ -4,6 +4,7 @@
 // period, naknada za općekorisne funkcije šuma 0,07%, 100% budžet kantona.
 // Sve auto-popunjeno i editabilno; spremanje na profil + PDF za štampu.
 import { useState } from "react";
+import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconDownload, IconLoader2, IconRefresh } from "@tabler/icons-react";
 import { Modal } from "src/components/app-shell/Modal";
@@ -124,6 +125,8 @@ function OnsModalBody({
   saved: OnsSaved | null;
   onClose: () => void;
 }) {
+  // Živi uplatni računi (komora/kantonalni budžet iz admin šifarnika)
+  useUplatniRacuni();
   const qc = useQueryClient();
   const [periodOd, setPeriodOd] = useState(saved?.periodOd ?? `01.01.${year}.`);
   const [periodDo, setPeriodDo] = useState(saved?.periodDo ?? `31.12.${year}.`);

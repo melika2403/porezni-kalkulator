@@ -1,15 +1,19 @@
 // ──────────────────────────────────────────────────────────────────────────────
-//  Single source of truth za uplatne račune koje koristimo u obrascima.
-//  Verifikovani podaci sa zvanične PUFBiH stranice:
-//    https://www.pufbih.ba/servisi-za-obveznike/uplatni-racuni
+//  SEED + FALLBACK za uplatne račune javnih prihoda.
 //
-//  Frontend (AMS, GPD, UoD, JavniPrihodi page) importuje direktno.
-//  Backend (payroll PDF generator) čita preko skripte
-//    scripts/sync-racuni-backend.mjs koja generiše
-//    backend/src/utils/uplatniRacuniData.json.
+//  Izvor istine u RUNTIME-u je baza (admin panel "Uplatni računi"): frontend
+//  preko useUplatniRacuni()/osvjeziUplatneRacune() (uplatniRacuniLive.ts)
+//  povuče živo stanje sa GET /api/uplatni-racuni i primijeni ga OVDJE
+//  (primijeniZiveRacune mutira KANTONI/skalare u mjestu), pa svi potrošači
+//  (AMS, GPD, UoD, ČOK/ONŠ, JavniPrihodi) automatski vide novi broj.
 //
-//  Kad mijenjaš račune, izmijeni samo ovaj fajl pa pokreni:
-//    node scripts/sync-racuni-backend.mjs
+//  Vrijednosti u ovom fajlu su početni seed za bazu i fallback dok se živo
+//  stanje ne učita (ili ako backend nije dostupan). Backend seed/fallback čita
+//  preko skripte scripts/sync-racuni-backend.mjs koja generiše
+//  backend/src/utils/uplatniRacuniData.json.
+//
+//  Račune NE mijenjati ovdje nego u admin panelu. Ovaj fajl se mijenja samo
+//  kad se dodaje novi slot (pa pokreni: node scripts/sync-racuni-backend.mjs).
 // ──────────────────────────────────────────────────────────────────────────────
 
 export type KantonKey =
@@ -117,7 +121,7 @@ export const KANTONI: Record<KantonKey, KantonData> = {
     genitiv: "Središnjobosanskog kantona",
     zoRacun: "134-481-10082431-53",
     budzet: "134-113-0360000-194",
-    nezapRacun: "338-000-22100281-87",
+    nezapRacun: "154-921-20263733-54",
     opcine: [
       { ime: "Bugojno", kod: "017" },
       { ime: "Busovača", kod: "018" },
@@ -200,11 +204,59 @@ export const KANTONI: Record<KantonKey, KantonData> = {
 };
 
 // ── Federalni i fondovski računi ────────────────────────────────────────────
-export const FBIH_BUDZET_RACUN = "102-050-00001066-98";   // Budžet FBiH (PIO/MIO, federalni porezi…)
-export const FBIH_ZO_RACUN = "102-050-00000640-18";       // Zavod zdravstvenog osiguranja FBiH (10,2%)
-export const FBIH_NEZAP_RACUN = "161-000-00285700-03";    // Federalni zavod za zapošljavanje (30%)
-export const FOND_INVALIDI_RACUN = "338-690-22963585-21"; // Fond za prof. rehabilitaciju i zapošljavanje OSI
-export const JRT_TREZOR_BIH_RACUN = "338-000-22100183-90"; // JRT Trezor BiH, administrativne takse (UniCredit Banka d.d. Mostar)
+// "let" namjerno: primijeniZiveRacune ih prepiše vrijednostima iz baze, a ES
+// module live-binding garantuje da svaki importer vidi novu vrijednost.
+export let FBIH_BUDZET_RACUN = "102-050-00001066-98";   // Budžet FBiH (PIO/MIO, federalni porezi…)
+export let FBIH_ZO_RACUN = "102-050-00000640-18";       // Zavod zdravstvenog osiguranja FBiH (10,2%)
+export let FBIH_NEZAP_RACUN = "161-000-00285700-03";    // Federalni zavod za zapošljavanje (30%)
+export let FOND_INVALIDI_RACUN = "338-690-22963585-21"; // Fond za prof. rehabilitaciju i zapošljavanje OSI
+export let JRT_TREZOR_BIH_RACUN = "338-000-22100183-90"; // JRT Trezor BiH, administrativne takse (UniCredit Banka d.d. Mostar)
+
+// ── Žiro računi kantonalnih obrtničkih komora (članarina, ČOK obrazac) ──────
+// Poznati: USK (dostavio vlasnik), KS (okks.ba). Ostale dopuniti kad komore
+// dostave/objave račune; nedostaje = prikaz bez podataka za uplatu.
+export const KOMORA_RACUNI: Partial<Record<KantonKey, string>> = {
+  USK: "1020220000053653",
+  KS: "3387302220433691",
+};
+
+// ── Primjena živog stanja iz baze (GET /api/uplatni-racuni) ─────────────────
+export type ZiviRacuni = {
+  kantoni?: Record<string, { zo?: string; budzet?: string; nezap?: string }>;
+  federalni?: {
+    budzet?: string;
+    zo?: string;
+    nezap?: string;
+    fondInvalidi?: string;
+    jrtTrezor?: string;
+  };
+  komore?: Record<string, string>;
+};
+
+/** Prepiše seed vrijednosti živim stanjem iz baze. KANTONI/KOMORA_RACUNI se
+ *  mutiraju u mjestu (svi postojeći importi i reference ostaju važeći), a
+ *  skalari se reassignuju (live binding). Prazne vrijednosti se ignorišu. */
+export function primijeniZiveRacune(d: ZiviRacuni): void {
+  for (const key of Object.keys(KANTONI) as KantonKey[]) {
+    const z = d.kantoni?.[key];
+    if (!z) continue;
+    if (z.zo) KANTONI[key].zoRacun = z.zo;
+    if (z.budzet) KANTONI[key].budzet = z.budzet;
+    if (z.nezap) KANTONI[key].nezapRacun = z.nezap;
+  }
+  if (d.federalni) {
+    if (d.federalni.budzet) FBIH_BUDZET_RACUN = d.federalni.budzet;
+    if (d.federalni.zo) FBIH_ZO_RACUN = d.federalni.zo;
+    if (d.federalni.nezap) FBIH_NEZAP_RACUN = d.federalni.nezap;
+    if (d.federalni.fondInvalidi) FOND_INVALIDI_RACUN = d.federalni.fondInvalidi;
+    if (d.federalni.jrtTrezor) JRT_TREZOR_BIH_RACUN = d.federalni.jrtTrezor;
+  }
+  if (d.komore) {
+    for (const [k, r] of Object.entries(d.komore)) {
+      if (r && k in KANTONI) KOMORA_RACUNI[k as KantonKey] = r;
+    }
+  }
+}
 
 // ── Helper: kanton → opcina mapping ────────────────────────────────────────
 const normalizeOpcina = (s: string) =>
@@ -282,60 +334,71 @@ export function bankFromAccount(acc: string): string {
   return BANK_PREFIXES[acc.slice(0, 3)] || "–";
 }
 
+// Napomena: ovo su FUNKCIJE (ne module-level nizovi) da svaki poziv pročita
+// trenutne (žive) vrijednosti računa nakon primijeniZiveRacune.
+
 // Federalni / fondovski računi za JavniPrihodi page
-export const FEDERALNI_RACUNI: Racun[] = [
-  {
-    naziv: "Budžet Federacije BiH",
-    banka: bankFromAccount(FBIH_BUDZET_RACUN),
-    racun: FBIH_BUDZET_RACUN,
-    napomena: "Doprinos PIO/MIO, federalni porezi",
-  },
-  {
-    naziv: "Zavod zdravstvenog osiguranja i reosiguranja FBiH",
-    banka: bankFromAccount(FBIH_ZO_RACUN),
-    racun: FBIH_ZO_RACUN,
-    napomena: "Federalni dio zdravstvenog osiguranja (10,2%)",
-  },
-  {
-    naziv: "Federalni zavod za zapošljavanje",
-    banka: bankFromAccount(FBIH_NEZAP_RACUN),
-    racun: FBIH_NEZAP_RACUN,
-    napomena: "Federalni dio doprinosa za nezaposlenost (30%)",
-  },
-  {
-    naziv: "Fond za prof. rehabilitaciju i zapošljavanje osoba s invaliditetom",
-    banka: bankFromAccount(FOND_INVALIDI_RACUN),
-    racun: FOND_INVALIDI_RACUN,
-    napomena: "0,5% bruto plata svih radnika",
-  },
-  {
-    naziv: "JRT Trezor BiH, depozitni račun",
-    banka: "UniCredit Banka d.d. Mostar",
-    racun: JRT_TREZOR_BIH_RACUN,
-    napomena: "Administrativne takse (federalne)",
-  },
-];
+export function federalniRacuni(): Racun[] {
+  return [
+    {
+      naziv: "Budžet Federacije BiH",
+      banka: bankFromAccount(FBIH_BUDZET_RACUN),
+      racun: FBIH_BUDZET_RACUN,
+      napomena: "Doprinos PIO/MIO, federalni porezi",
+    },
+    {
+      naziv: "Zavod zdravstvenog osiguranja i reosiguranja FBiH",
+      banka: bankFromAccount(FBIH_ZO_RACUN),
+      racun: FBIH_ZO_RACUN,
+      napomena: "Federalni dio zdravstvenog osiguranja (10,2%)",
+    },
+    {
+      naziv: "Federalni zavod za zapošljavanje",
+      banka: bankFromAccount(FBIH_NEZAP_RACUN),
+      racun: FBIH_NEZAP_RACUN,
+      napomena: "Federalni dio doprinosa za nezaposlenost (30%)",
+    },
+    {
+      naziv: "Fond za prof. rehabilitaciju i zapošljavanje osoba s invaliditetom",
+      banka: bankFromAccount(FOND_INVALIDI_RACUN),
+      racun: FOND_INVALIDI_RACUN,
+      napomena: "0,5% bruto plata svih radnika",
+    },
+    {
+      naziv: "JRT Trezor BiH, depozitni račun",
+      banka: bankFromAccount(JRT_TREZOR_BIH_RACUN),
+      racun: JRT_TREZOR_BIH_RACUN,
+      napomena: "Administrativne takse (federalne)",
+    },
+  ];
+}
 
 // Kantonalni budžeti za JavniPrihodi page
-export const KANTONALNI_BUDZETI: Racun[] = (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
-  naziv: `Budžet ${KANTONI[k].genitiv}`,
-  banka: bankFromAccount(KANTONI[k].budzet),
-  racun: KANTONI[k].budzet,
-  napomena: "Porez na dohodak, kantonalne naknade",
-}));
+export function kantonalniBudzeti(): Racun[] {
+  return (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
+    naziv: `Budžet ${KANTONI[k].genitiv}`,
+    banka: bankFromAccount(KANTONI[k].budzet),
+    racun: KANTONI[k].budzet,
+    napomena: "Porez na dohodak, kantonalne naknade",
+  }));
+}
 
 // Kantonalni ZZO za JavniPrihodi page
-export const KANTONALNI_ZZO: Racun[] = (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
-  naziv: `Zavod zdravstvenog osiguranja, ${KANTONI[k].genitiv}`,
-  banka: bankFromAccount(KANTONI[k].zoRacun),
-  racun: KANTONI[k].zoRacun,
-  napomena: "Kantonalni dio zdravstvenog osiguranja (89,8%)",
-}));
+export function kantonalniZzo(): Racun[] {
+  return (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
+    naziv: `Zavod zdravstvenog osiguranja, ${KANTONI[k].genitiv}`,
+    banka: bankFromAccount(KANTONI[k].zoRacun),
+    racun: KANTONI[k].zoRacun,
+    napomena: "Kantonalni dio zdravstvenog osiguranja (89,8%)",
+  }));
+}
 
 // Kantonalne službe za zapošljavanje za JavniPrihodi page
-export const KANTONALNE_SLUZBE_ZAPOSLJAVANJE: Racun[] = (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
-  naziv: `Kantonalna služba za zapošljavanje, ${KANTONI[k].genitiv}`,
-  banka: bankFromAccount(KANTONI[k].nezapRacun),
-  racun: KANTONI[k].nezapRacun,
-  napomena: "Kantonalni dio doprinosa za nezaposlenost (70%)",
-}));
+export function kantonalneSluzbeZaposljavanje(): Racun[] {
+  return (Object.keys(KANTONI) as KantonKey[]).map((k) => ({
+    naziv: `Kantonalna služba za zapošljavanje, ${KANTONI[k].genitiv}`,
+    banka: bankFromAccount(KANTONI[k].nezapRacun),
+    racun: KANTONI[k].nezapRacun,
+    napomena: "Kantonalni dio doprinosa za nezaposlenost (70%)",
+  }));
+}

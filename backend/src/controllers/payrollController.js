@@ -47,8 +47,9 @@ const {
   generateUplatnica,
   generateUplatniceCombined,
   kantonForOpcina,
-  KANTONI,
 } = require("../utils/uplatnicaPdf");
+// Računi javnih prihoda (uklj. Budžet RS): živi šifarnik iz baze/admin panela.
+const racuniService = require("../services/racuniService");
 
 // ──────────────────────────────────────────────────────────────────────────────
 //  Helper: agregacija uplatnica po (kanton, opcina) radnika
@@ -341,24 +342,20 @@ function buildAllUplatnice(payrolls, workerMap, firm, opts = {}) {
 
 // Budžet RS: za radnike sa prebivalištem u RS, kantonalni dio zdravstva (89,8%)
 // i nezaposlenosti (70%) ne ide na kanton FBiH nego na Budžet Republike Srpske.
-// Vrste prihoda i budžetska organizacija su fiksni (Poreska uprava RS).
-const RS_BUDGET_ACCOUNT = "5620990000055687";
+// Vrste prihoda i budžetska organizacija su fiksni (Poreska uprava RS); sam
+// račun se čita iz živog šifarnika (racuniService) u trenutku upotrebe.
 const RS_BUDGET_ORG = "9999999";
 const RS_PRIMALAC = ["Budžet Republike Srpske"];
-const RS_ACCOUNTS = {
-  zdrRS: {
-    account: RS_BUDGET_ACCOUNT,
-    vrstaPrihoda: "712149",
+const RS_VRSTE = { zdrRS: "712149", nezapRS: "712113" };
+function rsAccountInfo(vrsta) {
+  if (!RS_VRSTE[vrsta]) return null;
+  return {
+    account: racuniService.trenutni().RS_BUDZET_RACUN,
+    vrstaPrihoda: RS_VRSTE[vrsta],
     budgetOrg: RS_BUDGET_ORG,
     primalac: RS_PRIMALAC,
-  },
-  nezapRS: {
-    account: RS_BUDGET_ACCOUNT,
-    vrstaPrihoda: "712113",
-    budgetOrg: RS_BUDGET_ORG,
-    primalac: RS_PRIMALAC,
-  },
-};
+  };
+}
 
 // Mapa šifra opštine RS -> naziv (za labele uplatnica).
 const RS_OPCINA_NAZIV = new Map(
@@ -367,8 +364,9 @@ const RS_OPCINA_NAZIV = new Map(
 
 // Helper: dohvati account/vrstaPrihoda/budgetOrg/primalac za datu vrsta + kanton
 function getAccountInfo(vrsta, kantonKey, payrollAccounts) {
-  // RS vrste imaju fiksan Budžet RS račun, ne zavise od kantona/override-a.
-  if (RS_ACCOUNTS[vrsta]) return RS_ACCOUNTS[vrsta];
+  // RS vrste idu na Budžet RS, ne zavise od kantona/override-a.
+  const rs = rsAccountInfo(vrsta);
+  if (rs) return rs;
   const { buildDefaults, mergePayrollAccounts } = require("../utils/payrollUplatnice");
   const defaults = buildDefaults(kantonKey);
   const merged = mergePayrollAccounts(defaults, payrollAccounts);

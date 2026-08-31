@@ -115,7 +115,14 @@ import {
   type SpisakRadnik,
 } from "./spisakBanke";
 import { napraviXlsxBlob } from "./spisakBankeXlsx";
-import { kantonForOpcina, bankFromAccount } from "src/data/uplatni-racuni";
+import {
+  kantonForOpcina,
+  bankFromAccount,
+  KANTONI,
+  FBIH_BUDZET_RACUN,
+  FBIH_ZO_RACUN,
+  FBIH_NEZAP_RACUN,
+} from "src/data/uplatni-racuni";
 import { fillObrazac2002Template } from "./fillObrazac2002";
 import { UvozPlataPkModal } from "./UvozPlataPkModal";
 import PostingAccountsModal from "./PostingAccountsModal";
@@ -7446,7 +7453,7 @@ const MOCK_UPLATNICE: Array<{
     title: "PIO/MIO doprinos",
     sifra: "712112",
     iznos: 1322.5,
-    racun: "102-050-00001066-86",
+    racun: FBIH_BUDZET_RACUN,
     primalac: ["Budžet Federacije BiH", "Doprinos za PIO/MIO"],
     budzetOrg: "5102001",
   },
@@ -7454,7 +7461,7 @@ const MOCK_UPLATNICE: Array<{
     title: "Zdravstvo, kantonalni (89,8%), Kanton Sarajevo",
     sifra: "712111",
     iznos: 851.98,
-    racun: "154-921-20146172-45",
+    racun: KANTONI.KS.zoRacun,
     primalac: ["Zavod zdravstvenog osiguranja", "Kantona Sarajevo"],
     budzetOrg: "0000000",
   },
@@ -7462,7 +7469,7 @@ const MOCK_UPLATNICE: Array<{
     title: "Zdravstvo, federalni (10,2%)",
     sifra: "712111",
     iznos: 96.77,
-    racun: "102-050-00000640-18",
+    racun: FBIH_ZO_RACUN,
     primalac: ["Zavod zdravstvenog osiguranja i reosiguranja FBiH"],
     budzetOrg: "0000000",
   },
@@ -7470,7 +7477,7 @@ const MOCK_UPLATNICE: Array<{
     title: "Nezaposlenost, kantonalni (70%), Kanton Sarajevo",
     sifra: "712113",
     iznos: 80.5,
-    racun: "154-921-20101710-56",
+    racun: KANTONI.KS.nezapRacun,
     primalac: ["Kantonalna služba za zapošljavanje", "Kantona Sarajevo"],
     budzetOrg: "0000000",
   },
@@ -7478,7 +7485,7 @@ const MOCK_UPLATNICE: Array<{
     title: "Nezaposlenost, federalni (30%)",
     sifra: "712113",
     iznos: 34.5,
-    racun: "161-000-00285700-03",
+    racun: FBIH_NEZAP_RACUN,
     primalac: ["Federalni zavod za zapošljavanje"],
     budzetOrg: "0000000",
   },
@@ -7486,7 +7493,7 @@ const MOCK_UPLATNICE: Array<{
     title: "Porez na dohodak, Kanton Sarajevo (Centar)",
     sifra: "716111",
     iznos: 306.75,
-    racun: "141-196-53200084-75",
+    racun: KANTONI.KS.budzet,
     primalac: ["Budžet Kantona Sarajevo", "Općina Centar"],
     budzetOrg: "0077001",
   },
@@ -7494,7 +7501,7 @@ const MOCK_UPLATNICE: Array<{
     title: "Opća vodna naknada, Kanton Sarajevo",
     sifra: "722529",
     iznos: 28.75,
-    racun: "141-196-53200084-75",
+    racun: KANTONI.KS.budzet,
     primalac: ["Budžet Kantona Sarajevo"],
     budzetOrg: "0077001",
   },
@@ -7502,7 +7509,7 @@ const MOCK_UPLATNICE: Array<{
     title: "Zaštita od prirodnih i drugih nesreća, Kanton Sarajevo",
     sifra: "722581",
     iznos: 28.75,
-    racun: "141-196-53200084-75",
+    racun: KANTONI.KS.budzet,
     primalac: ["Budžet Kantona Sarajevo"],
     budzetOrg: "0077001",
   },
