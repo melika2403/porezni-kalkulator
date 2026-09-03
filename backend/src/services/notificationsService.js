@@ -24,6 +24,23 @@ const {
   sendNotifikacijaEmail,
   sendSubscriptionReminderEmail,
 } = require("../utils/mailer");
+const {
+  FreelancerUplata,
+  PreparedInvoice,
+  PreparedInvoiceItem,
+  InvoiceItem,
+  sequelize,
+} = require("../models/index");
+const { getFreelancerAccess } = require("./freelancerAccess");
+const { getOrgOwnerRole } = require("./tierService");
+const { createInvoiceRecord } = require("../controllers/invoicesController");
+const { generateInvoicePdf } = require("../utils/invoicePdf");
+const { sendInvoiceEmail } = require("../utils/mailer");
+const {
+  rokPredaje,
+  danaDoRoka,
+  pomjeriDan,
+} = require("./freelancerUplate");
 
 const FRONTEND =
   process.env.FRONTEND_URL || "https://www.poreznikalkulator.ba";
@@ -41,6 +58,9 @@ const ORG_PREF_DEFAULTS = {
 };
 const USER_PREF_DEFAULTS = {
   podrskaEmail: true,
+  // PK Freelancer (po korisniku, ne po obrtu): rok za predaju AMS-a i GPD u martu
+  freelancerRok: true,
+  freelancerGpd: true,
 };
 
 // ── Greške ───────────────────────────────────────────────────────────────────
@@ -602,19 +622,41 @@ async function pretplataZaJednu(sub, todayMs) {
 // pretplataJob ne vidi. Bez ovoga korisnik izgubi pristup modulima bez ijedne
 // najave. Preskačemo one koji su u međuvremenu kupili office paket, njima
 // proba više ništa ne znači.
-const DANI_PROBE = [7, 0];
+// Slijed poruka uz probu: sredina probe (15 dana prije kraja), 7 dana prije,
+// zadnji dan; poslije isteka još 3 i 14 dana kasnije (officeProbaIsteklaJob).
+const DANI_PROBE = [15, 7, 0];
+const DANI_POSLIJE_PROBE = [3, 14];
+// Prozor upita mora pokriti NAJDALJI dan iz sekvence, inače korisnik sa 15 dana
+// do kraja nikad ne uđe u listu i poruka sa polovine probe se ne pošalje.
+const PROZOR_PROBE_DANA = Math.max(...DANI_PROBE) + 1;
+
+/** Link na formu predračuna sa preporučenim paketom (jedan klik do predračuna). */
+async function preporukaZaMail(userId) {
+  try {
+    // lazy require: gate kontroler vuče modele i cjenovnik, ne treba pri startu
+    const { preporuceniPlanZa } = require("../controllers/pkOfficeGateController");
+    const p = await preporuceniPlanZa(userId);
+    return {
+      naziv: p.naziv,
+      url: `${FRONTEND}/pretplate?plan=${p.kljuc}&cycle=yearly#pk-office`,
+    };
+  } catch (e) {
+    logGreska("preporuka paketa za mail nije uspjela", e, { userId });
+    return { naziv: null, url: `${FRONTEND}/pretplate#pk-office` };
+  }
+}
 
 async function officeProbaJob(now) {
   const todayMs = new Date(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T00:00:00`,
   ).getTime();
-  // samo probe u prozoru koji nas zanima (danas do +8 dana), da job ne vuče
-  // sve korisnike koji su ikad imali probu
+  // samo probe u prozoru sekvence (danas do najdaljeg dana iz DANI_PROBE), da
+  // job ne vuče sve korisnike koji su ikad imali probu
   const korisnici = await User.findAll({
     where: {
       pkOfficeTrialEndsAt: {
         [Op.gte]: new Date(todayMs),
-        [Op.lt]: new Date(todayMs + 8 * 86400000),
+        [Op.lt]: new Date(todayMs + PROZOR_PROBE_DANA * 86400000),
       },
     },
     attributes: ["id", "email", "firstName", "pkOfficeTrialEndsAt"],
@@ -652,24 +694,470 @@ async function officeProbaJob(now) {
       const [y, m, d] = endStr.split("-");
       const datum = `${d}.${m}.${y}.`;
       const danas = daysLeft === 0;
+      const sredina = daysLeft === 15;
+      const preporuka = await preporukaZaMail(u.id);
+      const ime = u.firstName || "korisniče";
+      const paketRecenica = preporuka.naziv
+        ? ` Po broju obrta i načinu rada preporučujemo paket ${preporuka.naziv}; klik ispod otvara predračun za njega, a na cjenovniku možete izabrati i drugi.`
+        : " Zatražite predračun za paket po broju obrta.";
       const ok = await posaljiEmailSigurno({
         to: u.email,
         subject: danas
           ? "PK Office proba ističe danas"
-          : "PK Office proba ističe za 7 dana",
+          : sredina
+            ? "Pola probe je prošlo: kako vam ide?"
+            : "PK Office proba ističe za 7 dana",
         title: danas
           ? "Probni period ističe danas"
-          : "Probni period ističe za 7 dana",
+          : sredina
+            ? "Pola probnog perioda je prošlo"
+            : "Probni period ističe za 7 dana",
         intro: danas
-          ? `Zdravo ${u.firstName || "korisniče"}, vaš probni period ističe danas (${datum}). Svi podaci koje ste unijeli (obrti, izvodi, knjige, fakture, plate) ostaju sačuvani, ali pristup PK Office modulima i Business funkcijama prestaje dok ne aktivirate paket.`
-          : `Zdravo ${u.firstName || "korisniče"}, vaš probni period ističe ${datum}. Uz njega koristite PK Office i sve Business funkcije. Ako želite nastaviti bez prekida, zatražite predračun za paket po broju obrta; sve što ste unijeli ostaje na svom mjestu.`,
-        ctaUrl: `${FRONTEND}/pretplate#pk-office`,
-        ctaLabel: "Pogledaj PK Office pakete",
+          ? `Zdravo ${ime}, vaš probni period ističe danas (${datum}). Svi podaci koje ste unijeli (obrti, izvodi, knjige, fakture, plate) ostaju sačuvani, ali pristup PK Office modulima i Business funkcijama prestaje dok ne aktivirate paket.${paketRecenica}`
+          : sredina
+            ? `Zdravo ${ime}, prošlo je pola probe PK Office-a, ističe ${datum}. Ako ste učitali izvode i izdali fakture, knjige se već vode same. Ako niste stigli, ovo je dobar trenutak: učitajte prvi izvod i pogledajte mjesečnu listu obaveza.${preporuka.naziv ? ` Kad odlučite nastaviti, preporučeni paket je ${preporuka.naziv}, predračun je jedan klik.` : ""}`
+            : `Zdravo ${ime}, vaš probni period ističe ${datum}. Uz njega koristite PK Office i sve Business funkcije. Ako želite nastaviti bez prekida, zatražite predračun sada; sve što ste unijeli ostaje na svom mjestu.${paketRecenica}`,
+        ctaUrl: preporuka.url,
+        ctaLabel: preporuka.naziv ? `Zatraži predračun: ${preporuka.naziv}` : "Pogledaj PK Office pakete",
       });
       // email je jedini kanal za ovo: na neuspjeh vrati dedup, da se pokuša opet
       if (!ok) await ponistiDedup(u.id, "OFFICE_PROBA", `${endStr}:d${daysLeft}`);
     } catch (e) {
       logGreska("officeProbaJob: korisnik preskočen", e, { userId: u.id });
+    }
+  }
+}
+
+// ── 6b) Poslije isteka probe: 3 i 14 dana kasnije, samo ko nije uzeo paket ──
+// Podaci ostaju sačuvani, pa je poruka "sve vas čeka", sa preporučenim paketom
+// i direktnim linkom na predračun. Dedup po korisniku, kraju probe i danu.
+async function officeProbaIsteklaJob(now) {
+  const todayMs = new Date(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T00:00:00`,
+  ).getTime();
+  const najdalje = Math.max(...DANI_POSLIJE_PROBE);
+  const korisnici = await User.findAll({
+    where: {
+      pkOfficeTrialEndsAt: {
+        [Op.gte]: new Date(todayMs - (najdalje + 1) * 86400000),
+        [Op.lt]: new Date(todayMs),
+      },
+    },
+    attributes: ["id", "email", "firstName", "pkOfficeTrialEndsAt"],
+  });
+  if (korisnici.length === 0) return;
+  const paketi = await Subscription.findAll({
+    where: {
+      userId: { [Op.in]: korisnici.map((u) => u.id) },
+      isActive: true,
+      plan: { [Op.like]: "office%" },
+    },
+    attributes: ["userId", "endDate"],
+    raw: true,
+  });
+  const saPaketom = new Set(
+    paketi
+      .filter((s) => !s.endDate || new Date(s.endDate).getTime() >= todayMs)
+      .map((s) => s.userId),
+  );
+  for (const u of korisnici) {
+    try {
+      if (!u.email || saPaketom.has(u.id)) continue;
+      const kraj = new Date(u.pkOfficeTrialEndsAt);
+      const endStr = `${kraj.getFullYear()}-${String(kraj.getMonth() + 1).padStart(2, "0")}-${String(kraj.getDate()).padStart(2, "0")}`;
+      const daysAfter = Math.round(
+        (todayMs - new Date(`${endStr}T00:00:00`).getTime()) / 86400000,
+      );
+      if (!DANI_POSLIJE_PROBE.includes(daysAfter)) continue;
+      if (!(await prviPut(u.id, "OFFICE_PROBA", `${endStr}:p${daysAfter}`))) continue;
+      const preporuka = await preporukaZaMail(u.id);
+      const ime = u.firstName || "korisniče";
+      const prvi = daysAfter === DANI_POSLIJE_PROBE[0];
+      const ok = await posaljiEmailSigurno({
+        to: u.email,
+        subject: prvi ? "Vaši podaci u PK Office-u vas čekaju" : "Još uvijek možete nastaviti gdje ste stali",
+        title: prvi ? "Podaci vas čekaju" : "Nastavite gdje ste stali",
+        intro: prvi
+          ? `Zdravo ${ime}, proba PK Office-a je istekla prije ${daysAfter} dana. Ništa nije obrisano: obrti, izvodi, knjige i fakture stoje na svom mjestu i otključavaju se čim aktivirate paket.${preporuka.naziv ? ` Po onome što ste vodili preporučujemo ${preporuka.naziv}; predračun je jedan klik, plaćanje po predračunu bez kartice.` : ""}`
+          : `Zdravo ${ime}, prošle su dvije sedmice od isteka probe PK Office-a, a vaši podaci su i dalje sačuvani. Ako vam je nešto zasmetalo ili nedostajalo, odgovorite na ovaj mail, čitamo svaki.${preporuka.naziv ? ` Ako želite nastaviti, preporučeni paket je ${preporuka.naziv}.` : ""}`,
+        ctaUrl: preporuka.url,
+        ctaLabel: preporuka.naziv ? `Zatraži predračun: ${preporuka.naziv}` : "Pogledaj PK Office pakete",
+      });
+      if (!ok) await ponistiDedup(u.id, "OFFICE_PROBA", `${endStr}:p${daysAfter}`);
+    } catch (e) {
+      logGreska("officeProbaIsteklaJob: korisnik preskočen", e, { userId: u.id });
+    }
+  }
+}
+
+// ── 7) PK Freelancer: rok za AMS (5 dana), GPD u martu, istek probe ─────────
+// Evidencija je po korisniku (fizičko lice), pa postavke idu iz users.notifPrefs
+// (freelancerRok, freelancerGpd), ne iz članstva u obrtu.
+const FREELANCER_GPD_DANI = [1, 20];
+const frlKm = (n) =>
+  Number(n || 0).toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+const frlDatum = (iso) => {
+  const [y, m, d] = String(iso).slice(0, 10).split("-");
+  return `${d}.${m}.${y}.`;
+};
+
+// Rok = primitak + 5 dana. Javljamo dan prije roka i na dan roka, samo za
+// uplate koje još nisu predane (status OBRACUNATO; PREDANO i PLACENO znače da
+// je obrazac predan); jedan email po korisniku po danu.
+async function freelancerRokovi(danas) {
+  const uplate = await FreelancerUplata.findAll({
+    where: {
+      status: "OBRACUNATO",
+      datumPrimitka: { [Op.between]: [pomjeriDan(danas, -5), pomjeriDan(danas, -4)] },
+    },
+    attributes: ["id", "userId", "datumPrimitka", "isplatilacNaziv", "iznosKm", "status"],
+    raw: true,
+  });
+  if (!uplate.length) return;
+  const poKorisniku = new Map();
+  for (const u of uplate) {
+    if (!poKorisniku.has(u.userId)) poKorisniku.set(u.userId, []);
+    poKorisniku.get(u.userId).push(u);
+  }
+  const korisnici = await User.findAll({
+    where: { id: { [Op.in]: [...poKorisniku.keys()] } },
+    attributes: ["id", "email", "firstName", "notifPrefs"],
+  });
+  for (const u of korisnici) {
+    try {
+      if (!u.email || !userPrefs(u).freelancerRok) continue;
+      // podsjetnici su dio PK Freelancer paketa (tako su i prodati u aplikaciji)
+      if (!(await getFreelancerAccess(u)).hasAccess) continue;
+      const stavke = poKorisniku.get(u.id) || [];
+      const linije = stavke.map((s) => {
+        const dana = danaDoRoka(s.datumPrimitka, danas);
+        const kad = dana <= 0 ? "rok je danas" : "rok je sutra";
+        return `${s.isplatilacNaziv}, ${frlKm(s.iznosKm)} KM primljeno ${frlDatum(s.datumPrimitka)}: ${kad} (${frlDatum(rokPredaje(s.datumPrimitka))})`;
+      });
+      if (!(await prviPut(u.id, "FREELANCER_ROK", danas))) continue;
+      const naslov =
+        stavke.length === 1
+          ? "Rok za predaju AMS-1035 obrasca"
+          : `Rok za predaju AMS-1035: ${stavke.length} uplate`;
+      const emailOk = await posaljiEmailSigurno({
+        to: u.email,
+        subject: naslov,
+        title: naslov,
+        intro: `Zdravo ${u.firstName || "korisniče"}, po evidenciji u PK Freelanceru ove uplate još nisu označene kao predane. AMS-1035 se predaje poreznoj ispostavi u roku od 5 dana od primitka.`,
+        lines: linije,
+        ctaUrl: `${FRONTEND}/freelancer?tab=uplate`,
+        ctaLabel: "Otvori evidenciju",
+      });
+      const inAppOk = await pushInApp({
+        userId: u.id,
+        type: "FREELANCER_ROK",
+        title: naslov,
+        body: linije.join("\n"),
+        link: "/freelancer?tab=uplate",
+      });
+      if (!emailOk && !inAppOk) await ponistiDedup(u.id, "FREELANCER_ROK", danas);
+    } catch (e) {
+      logGreska("freelancerRokovi: korisnik preskočen", e, { userId: u.id });
+    }
+  }
+}
+
+// GPD-1051 do 31.3.: 1. i 20. marta svima koji u evidenciji imaju uplate
+// iz prethodne godine.
+async function freelancerGpd(now, danas) {
+  if (now.getMonth() !== 2 || !FREELANCER_GPD_DANI.includes(now.getDate())) return;
+  const prosla = now.getFullYear() - 1;
+  const grupe = await FreelancerUplata.findAll({
+    where: { datumPrimitka: { [Op.between]: [`${prosla}-01-01`, `${prosla}-12-31`] } },
+    attributes: ["userId", [FreelancerUplata.sequelize.fn("COUNT", FreelancerUplata.sequelize.col("id")), "n"]],
+    group: ["userId"],
+    raw: true,
+  });
+  if (!grupe.length) return;
+  const brojPoKorisniku = new Map(grupe.map((g) => [g.userId, Number(g.n)]));
+  const korisnici = await User.findAll({
+    where: { id: { [Op.in]: [...brojPoKorisniku.keys()] } },
+    attributes: ["id", "email", "firstName", "notifPrefs"],
+  });
+  const kljuc = `${prosla}:d${now.getDate()}`;
+  for (const u of korisnici) {
+    try {
+      if (!u.email || !userPrefs(u).freelancerGpd) continue;
+      // isto kao rok za AMS: podsjetnik ide samo korisnicima sa pristupom paketu
+      if (!(await getFreelancerAccess(u)).hasAccess) continue;
+      if (!(await prviPut(u.id, "FREELANCER_GPD", kljuc))) continue;
+      const n = brojPoKorisniku.get(u.id) || 0;
+      const naslov = `GPD-1051 za ${prosla}. godinu do 31. marta`;
+      const emailOk = await posaljiEmailSigurno({
+        to: u.email,
+        subject: naslov,
+        title: naslov,
+        intro: `Zdravo ${u.firstName || "korisniče"}, u evidenciji PK Freelancera imate ${n} ${n === 1 ? "uplatu" : "uplate"} iz inostranstva u ${prosla}. godini. Godišnja prijava poreza na dohodak (GPD-1051) predaje se do 31. marta, a u PK Freelanceru se popunjava iz evidencije jednim klikom.`,
+        lines: [],
+        ctaUrl: `${FRONTEND}/freelancer?tab=godisnji`,
+        ctaLabel: "Popuni GPD iz evidencije",
+      });
+      const inAppOk = await pushInApp({
+        userId: u.id,
+        type: "FREELANCER_GPD",
+        title: naslov,
+        body: `${n} ${n === 1 ? "uplata" : "uplate"} iz ${prosla}. godine čeka godišnju prijavu.`,
+        link: "/freelancer?tab=godisnji",
+      });
+      if (!emailOk && !inAppOk) await ponistiDedup(u.id, "FREELANCER_GPD", kljuc);
+    } catch (e) {
+      logGreska("freelancerGpd: korisnik preskočen", e, { userId: u.id });
+    }
+  }
+}
+
+// Istek Freelancer probe: na polovini (15 dana), 7 dana prije i na dan isteka,
+// istom sekvencom (DANI_PROBE) kao i Office proba.
+async function freelancerProba(danas) {
+  const todayMs = new Date(`${danas}T00:00:00`).getTime();
+  const korisnici = await User.findAll({
+    where: {
+      freelancerTrialEndsAt: {
+        [Op.gte]: new Date(todayMs),
+        [Op.lt]: new Date(todayMs + PROZOR_PROBE_DANA * 86400000),
+      },
+    },
+    attributes: ["id", "email", "firstName", "freelancerTrialEndsAt"],
+  });
+  for (const u of korisnici) {
+    try {
+      if (!u.email) continue;
+      const kraj = new Date(u.freelancerTrialEndsAt);
+      const endStr = `${kraj.getFullYear()}-${String(kraj.getMonth() + 1).padStart(2, "0")}-${String(kraj.getDate()).padStart(2, "0")}`;
+      const daysLeft = Math.round((new Date(`${endStr}T00:00:00`).getTime() - todayMs) / 86400000);
+      if (!DANI_PROBE.includes(daysLeft)) continue;
+      // ko je u međuvremenu kupio paket (ili ima viši), probu ne spominjemo
+      const pristup = await getFreelancerAccess(u);
+      if (pristup.hasAccess && pristup.izvor !== "proba") continue;
+      const kljuc = `${endStr}:d${daysLeft}`;
+      if (!(await prviPut(u.id, "FREELANCER_PROBA", kljuc))) continue;
+      const danasIstice = daysLeft === 0;
+      const sredina = daysLeft === Math.max(...DANI_PROBE);
+      const ok = await posaljiEmailSigurno({
+        to: u.email,
+        subject: danasIstice
+          ? "PK Freelancer proba ističe danas"
+          : sredina
+            ? "Pola probe je prošlo: je li evidencija popunjena?"
+            : "PK Freelancer proba ističe za 7 dana",
+        title: danasIstice
+          ? "Probni period ističe danas"
+          : sredina
+            ? "Pola probnog perioda je prošlo"
+            : "Probni period ističe za 7 dana",
+        intro: danasIstice
+          ? `Zdravo ${u.firstName || "korisniče"}, vaša PK Freelancer proba ističe danas (${frlDatum(endStr)}). Evidencija uplata ostaje sačuvana, a bez paketa možete sačuvati do 3 uplate godišnje. Paket košta 50 KM godišnje sa PDV-om.`
+          : sredina
+            ? `Zdravo ${u.firstName || "korisniče"}, prošlo je pola probe PK Freelancera, ističe ${frlDatum(endStr)}. Ako još niste, unesite uplate od početka godine: tako vam u martu GPD-1051 bude popunjen iz evidencije, a pregled prihoda spreman za banku.`
+            : `Zdravo ${u.firstName || "korisniče"}, vaša PK Freelancer proba ističe ${frlDatum(endStr)}. Ako želite nastaviti bez prekida, zatražite predračun; paket košta 50 KM godišnje sa PDV-om, a sve što ste unijeli ostaje na svom mjestu.`,
+        lines: [],
+        ctaUrl: sredina
+          ? `${FRONTEND}/freelancer?tab=uplate`
+          : `${FRONTEND}/pretplate?plan=FREELANCER`,
+        ctaLabel: sredina ? "Otvori evidenciju" : "Zatraži predračun",
+      });
+      if (!ok) await ponistiDedup(u.id, "FREELANCER_PROBA", kljuc);
+    } catch (e) {
+      logGreska("freelancerProba: korisnik preskočen", e, { userId: u.id });
+    }
+  }
+}
+
+async function freelancerJob(now) {
+  const danas = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  await freelancerRokovi(danas);
+  await freelancerGpd(now, danas);
+  await freelancerProba(danas);
+}
+
+// ── 8) Ponavljajuće fakture (PK Office Solo) ────────────────────────────────
+// Šablon (pripremljeni račun) sa autoDan se na taj dan u mjesecu sam
+// fakturiše: MONTHLY svaki mjesec, QUARTERLY u januaru/aprilu/julu/oktobru,
+// YEARLY u januaru; WEEKLY ostaje ručno. Uz autoEmail faktura odmah ide kupcu,
+// a vlasnik obrta u svakom slučaju dobije in-app obavijest.
+//
+// Idempotencija: mjesečni ključ u notification_log (tip FAKTURA_AUTO, periodKey
+// "<sablonId>:<godina>-<mjesec>") preko istog helpera prviPut kao ostali
+// poslovi. Ključ je jedinstven indeks u bazi, pa ni dva paralelna procesa ni
+// ponovljeni prolaz dnevnog posla ne mogu napraviti drugu fakturu istom kupcu.
+// lastInvoicedAt se upisuje U ISTOJ transakciji u kojoj faktura nastaje, pa je
+// i sekundarna provjera (već fakturisano ovog mjeseca) uvijek tačna.
+//
+// Nadoknada: uslov je "dan je došao ili prošao", ne tačan dan. Ako proces tog
+// dana ne otkuca (hosting uspava aplikaciju, kratak ispad), faktura nastane
+// prvog sljedećeg prolaza u istom mjesecu umjesto da propadne.
+const FAKTURA_AUTO_TIP = "FAKTURA_AUTO";
+function fakturaAutoKljuc(sablonId, now) {
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `${sablonId}:${now.getFullYear()}-${mm}`;
+}
+
+async function ponavljajuceFaktureJob(now) {
+  const dan = now.getDate();
+  const mjesec = now.getMonth() + 1;
+  const danaUMjesecu = new Date(now.getFullYear(), mjesec, 0).getDate();
+  const pocetakMjeseca = new Date(now.getFullYear(), now.getMonth(), 1);
+  const sabloni = await PreparedInvoice.findAll({
+    where: { active: true, autoDan: { [Op.ne]: null } },
+    include: [{ model: PreparedInvoiceItem, as: "items" }],
+  });
+  // paket vlasnika obrta (ista provjera kao ručno fakturisanje), po obrtu jednom
+  const paketPoObrtu = new Map();
+  const obrtImaPaket = async (organizationId) => {
+    if (!paketPoObrtu.has(organizationId)) {
+      const tier = await getOrgOwnerRole(organizationId);
+      paketPoObrtu.set(organizationId, ["PRO", "BUSINESS", "ADMIN"].includes(tier));
+    }
+    return paketPoObrtu.get(organizationId);
+  };
+  for (const p of sabloni) {
+    try {
+      if (dan < Math.min(Number(p.autoDan), danaUMjesecu)) continue;
+      if (p.frequency === "WEEKLY") continue;
+      if (p.frequency === "QUARTERLY" && ![1, 4, 7, 10].includes(mjesec)) continue;
+      if (p.frequency === "YEARLY" && mjesec !== 1) continue;
+      if (p.lastInvoicedAt && new Date(p.lastInvoicedAt) >= pocetakMjeseca) continue;
+      // obrt bez važeće pretplate ne izdaje fakture ni automatski
+      if (!(await obrtImaPaket(p.organizationId))) continue;
+
+      const org = await Organization.findByPk(p.organizationId);
+      if (!org) continue;
+      const seller = {
+        name: org.name,
+        address: org.address,
+        city: org.city,
+        phone: org.phone,
+        email: org.email,
+        taxNumber: org.taxNumber,
+        vatNumber: org.pdvNumber,
+        bankAccount: org.bankAccount || null,
+        logoUrl: org.logoUrl,
+      };
+      const items = (p.items || [])
+        .slice()
+        .sort((a, b) => a.ordinal - b.ordinal)
+        .map((it) => ({
+          name: it.name,
+          unit: it.unit,
+          quantity: Number(it.quantity),
+          unitPrice: Number(it.unitPrice),
+          discountPct: Number(it.discountPct),
+          vatPct: Number(it.vatPct),
+        }));
+      if (items.length === 0) continue;
+      const issueDate = now;
+      const dueDate = new Date(now.getTime() + 15 * 86400000);
+
+      // Atomsko zaključavanje mjeseca: ključ pada na jedinstvenom indeksu ako
+      // ga je bilo koji drugi prolaz (ili proces) već uzeo. Sve provjere iznad
+      // su jeftine, pa se ključ troši tek kad faktura zaista treba nastati.
+      const kljuc = fakturaAutoKljuc(p.id, now);
+      if (!(await prviPut(RUN_MARKER_USER, FAKTURA_AUTO_TIP, kljuc))) continue;
+
+      let inv;
+      try {
+        inv = await sequelize.transaction(async (t) => {
+          const kreirana = await createInvoiceRecord(
+            {
+              organizationId: p.organizationId,
+              userId: p.userId,
+              type: "INVOICE",
+              docType: "STANDARD",
+              issueDate,
+              dueDate,
+              applyVat: !!p.applyVat,
+              vrstaIsporuke: p.vrstaIsporuke,
+              currency: p.currency,
+              jezik: p.jezik || "bs",
+              seller,
+              buyer: {
+                name: p.buyerName,
+                address: p.buyerAddress,
+                city: p.buyerCity,
+                postalCode: p.buyerPostalCode,
+                phone: p.buyerPhone,
+                email: p.buyerEmail,
+                idNumber: p.buyerIdNumber,
+                vatNumber: p.buyerVatNumber,
+              },
+              items,
+              notes: p.notes,
+            },
+            t,
+          );
+          // isti transakcijski okvir: ili su i faktura i oznaka zapisane, ili nijedno
+          await p.update({ lastInvoicedAt: new Date() }, { transaction: t });
+          return kreirana;
+        });
+      } catch (e) {
+        // faktura nije nastala, pa ključ mora nazad da se pokuša na sljedećem prolazu
+        await ponistiDedup(RUN_MARKER_USER, FAKTURA_AUTO_TIP, kljuc);
+        throw e;
+      }
+
+      let poslano = false;
+      if (p.autoEmail && p.buyerEmail) {
+        try {
+          const puna = await Invoice.findByPk(inv.id, {
+            include: [{ model: InvoiceItem, as: "items" }],
+          });
+          const buf = await generateInvoicePdf(puna.get({ plain: true }));
+          await sendInvoiceEmail({
+            to: p.buyerEmail,
+            replyTo: org.email || null,
+            isProforma: false,
+            fullNumber: inv.fullNumber,
+            sellerName: org.name,
+            buyerName: p.buyerName,
+            gross: inv.grossTotal,
+            currency: p.currency || "BAM",
+            dueDate,
+            pdfBuffer: buf,
+            jezik: p.jezik || "bs",
+          });
+          await puna.update({ emailSentAt: new Date(), emailSentTo: p.buyerEmail });
+          poslano = true;
+        } catch (e) {
+          logGreska("ponavljajuceFaktureJob: email nije poslan", e, { preparedId: p.id });
+        }
+      }
+
+      const vlasnici = await OrganizationMember.findAll({
+        where: { organizationId: p.organizationId, role: "OWNER" },
+        attributes: ["userId"],
+        raw: true,
+      });
+      const valuta = p.currency === "EUR" ? "EUR" : "KM";
+      // slanje je traženo (kvačica + adresa kupca) ali nije uspjelo: vlasnik to
+      // mora vidjeti, inače misli da je kupac obaviješten
+      const slanjeTrazeno = !!p.autoEmail && !!p.buyerEmail;
+      const emailStatus = poslano
+        ? ", poslana kupcu emailom"
+        : slanjeTrazeno
+          ? `. Slanje na ${p.buyerEmail} NIJE uspjelo, pošaljite fakturu ručno`
+          : "";
+      for (const v of vlasnici) {
+        await pushInApp({
+          userId: v.userId,
+          organizationId: p.organizationId,
+          type: "FAKTURA_AUTO",
+          title: slanjeTrazeno && !poslano
+            ? `Faktura ${inv.fullNumber} je kreirana, email nije poslan`
+            : `Faktura ${inv.fullNumber} je kreirana automatski`,
+          body: `${p.buyerName}: ${frlKm(inv.grossTotal)} ${valuta}${emailStatus}.`,
+          link: "/app/fakture",
+        });
+      }
+    } catch (e) {
+      logGreska("ponavljajuceFaktureJob: šablon preskočen", e, { preparedId: p.id });
     }
   }
 }
@@ -746,6 +1234,9 @@ async function runDaily(now = new Date()) {
     ["digest", () => digestJob(now, korisnici)],
     ["pretplata", () => pretplataJob(now)],
     ["officeProba", () => officeProbaJob(now)],
+    ["officeProbaIstekla", () => officeProbaIsteklaJob(now)],
+    ["freelancer", () => freelancerJob(now)],
+    ["ponavljajuceFakture", () => ponavljajuceFaktureJob(now)],
   ];
 
   // Jedan posao koji padne ne smije oboriti ostale: bez ovoga je npr. pad na
@@ -857,4 +1348,8 @@ module.exports = {
   logGreska,
   podrskaOfflineEmail,
   izvodUcitanEvent,
+  // izloženo zbog testova (idempotencija i nadoknada ponavljajućih faktura)
+  ponavljajuceFaktureJob,
+  fakturaAutoKljuc,
+  FAKTURA_AUTO_TIP,
 };

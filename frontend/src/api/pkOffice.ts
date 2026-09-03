@@ -7,6 +7,23 @@ export type OrgRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 export type TaxRegime = "PAUSALAC" | "SLOBODNO_ZANIMANJE" | null;
 export type OrgType = "COMPANY" | "BUSINESS";
 
+/** Moduli koje Solo upitnik pali (PDV ide preko isPdvObveznik). */
+export type SoloModuli = {
+  radnici: boolean;
+  roba: boolean;
+  blagajna: boolean;
+  putniNalozi: boolean;
+  stalnaSredstva: boolean;
+};
+
+export const SOLO_MODULI_PRAZNO: SoloModuli = {
+  radnici: false,
+  roba: false,
+  blagajna: false,
+  putniNalozi: false,
+  stalnaSredstva: false,
+};
+
 export type OrganizationSummary = {
   id: number;
   name: string;
@@ -16,6 +33,11 @@ export type OrganizationSummary = {
   logoUrl: string | null;
   isClientOrg: boolean;
   role: OrgRole;
+  /** PK Office Solo: "vodim sam sebi" (suženi meni, lista obaveza) */
+  soloMode?: boolean;
+  /** null = upitnik još nije popunjen */
+  soloModuli?: SoloModuli | null;
+  isPdvObveznik?: boolean;
 };
 
 export type UserPreferences = {
@@ -113,6 +135,11 @@ export type PkOfficePristup = {
   /** paket manji od broja aktivnih obrta (downgrade): moduli su blokirani
       dok se višak obrta ne deaktivira; deaktivacija tada odmah oslobađa slot */
   prekoLimita: boolean;
+  /** nivo probe: "office_1" = Solo proba, null = Office Tim */
+  trialPlan?: "office_1" | null;
+  /** paket koji sistem preporučuje po broju obrta i načinu rada (ključ cjenovnika, npr. OFFICE_1) */
+  preporuceniPlan?: string | null;
+  preporuceniPlanNaziv?: string | null;
   /** max null = bez limita (npr. admin) */
   slotovi: { zauzeto: number; max: number | null } | null;
   organizations: {
@@ -143,9 +170,18 @@ export function deaktivirajObrtUPkOffice(orgId: number) {
   );
 }
 
-export function startPkOfficeTrial() {
-  return request<{ trialEndsAt: string }>("/api/pk-office/trial", {
+export function startPkOfficeTrial(plan?: "office_1" | null) {
+  return request<{ trialEndsAt: string; trialPlan: "office_1" | null }>("/api/pk-office/trial", {
     method: "POST",
+    body: JSON.stringify({ plan: plan ?? null }),
+  });
+}
+
+/** Mijenja nivo AKTIVNE probe: "office_1" (Solo, jedan obrt) ili null (Office Tim). */
+export function setPkOfficeTrialPlan(plan: "office_1" | null) {
+  return request<{ trialPlan: "office_1" | null }>("/api/pk-office/trial/plan", {
+    method: "POST",
+    body: JSON.stringify({ plan }),
   });
 }
 

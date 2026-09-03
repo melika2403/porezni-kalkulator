@@ -82,19 +82,23 @@ const PLAN_LABELS: Record<Subscription["plan"], string> = {
   free: "Besplatan",
   pro: "Pro",
   business: "Business",
+  office_1: "PK Office Solo (1 obrt)",
   office_2: "PK Office Start (do 2 obrta)",
   office_10: "PK Office Tim (do 10 obrta)",
   office_25: "PK Office Agencija (do 25 obrta)",
   office_50: "PK Office Agencija+ (do 50 obrta)",
+  freelancer: "PK Freelancer (50 KM godišnje sa PDV-om)",
 };
 
-// office paket → plan predračuna za obnovu
+// office/freelancer paket → plan predračuna za obnovu
 const OFFICE_TO_PREDRACUN: Partial<Record<Subscription["plan"], PredracunPlan>> =
   {
+    office_1: "OFFICE_1",
     office_2: "OFFICE_2",
     office_10: "OFFICE_10",
     office_25: "OFFICE_25",
     office_50: "OFFICE_50",
+    freelancer: "FREELANCER",
   };
 
 // label plana sa predračuna (PRO/BUSINESS/OFFICE_*, historijski zapisi)
@@ -398,7 +402,9 @@ export function PretplataPanel() {
             href={
               sub.plan.startsWith("office")
                 ? "/pretplate#pk-office"
-                : "/pretplate?upgrade=true"
+                : sub.plan === "freelancer"
+                  ? "/pretplate?plan=FREELANCER"
+                  : "/pretplate?upgrade=true"
             }
             className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-[13.5px] font-medium transition-colors shadow-[0_4px_14px_-4px_rgba(58,92,66,0.4)]"
           >
@@ -809,7 +815,9 @@ function RenewalSection({
               href={
                 plan.startsWith("OFFICE")
                   ? "/pretplate#pk-office"
-                  : `/pretplate?plan=${plan}&cycle=${cycle}`
+                  : plan === "FREELANCER"
+                    ? "/pretplate?plan=FREELANCER"
+                    : `/pretplate?plan=${plan}&cycle=${cycle}`
               }
               className="text-[13px] font-medium text-brand-700 hover:text-brand-600"
             >

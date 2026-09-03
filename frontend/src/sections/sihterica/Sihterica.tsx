@@ -21,6 +21,8 @@ import {
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import GeneratePaywall from "src/components/GeneratePaywall/GeneratePaywall";
 import { useRole } from "src/hooks/useRole";
+import { usePamcenaOrg } from "src/hooks/useLastOrg";
+import { sortirajRadnike } from "src/lib/radniciSort";
 import { me, unwrap } from "src/api/auth";
 import { fillSihterica, type DayEntry } from "./fillSihterica";
 import SaveToast from "src/components/SaveToast/SaveToast";
@@ -493,7 +495,9 @@ function SihtericaApp() {
     return Number.isFinite(n) && n > 0 ? n : null;
   })();
 
-  const [orgId, setOrgId] = useState<number | null>(urlOrg);
+  // Org koja prati korisnika kroz stranice (URL → localStorage → izbor);
+  // dijeljeni obrazac, vidi usePamcenaOrg.
+  const { orgId, setOrgId, hydrated: orgHydrated } = usePamcenaOrg(urlOrg);
   const [workerId, setWorkerId] = useState<number | null>(null);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -557,12 +561,12 @@ function SihtericaApp() {
 
   // Auto-select organization if user has only one
   useEffect(() => {
-    if (orgId) return;
+    if (!orgHydrated || orgId) return;
     const orgs = orgsQuery.data;
     if (orgs && orgs.length === 1) {
       setOrgId(orgs[0].id);
     }
-  }, [orgsQuery.data, orgId]);
+  }, [orgHydrated, orgsQuery.data, orgId]);
 
   const workersQuery = useQuery({
     queryKey: ["workers", orgId],
@@ -573,6 +577,10 @@ function SihtericaApp() {
       return res.data;
     },
     enabled: !!orgId,
+    // Redanje kao na aktivnim radnicima: prijavljeni po datumu prijave,
+    // odjavljeni na dno po datumu odjave. Važi za sidebar, auto-izbor prvog
+    // radnika i redoslijed grupno generisanih šihterica.
+    select: sortirajRadnike,
   });
 
   // Auto-select first worker when workers list loads

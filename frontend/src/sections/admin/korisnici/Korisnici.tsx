@@ -60,11 +60,23 @@ function isForeverEnd(iso: string | null | undefined): boolean {
 const PLAN_LABELS: Record<string, string> = {
   pro: "Pro",
   business: "Business",
+  office_1: "Office Solo",
   office_2: "Office Start",
   office_10: "Office Tim",
   office_25: "Office Agencija",
   office_50: "Office Agencija+",
+  freelancer: "PK Freelancer",
 };
+
+/** Oznaka Office probe, razdvojeno po nivou (Solo se ne miješa sa Timom). */
+function officeProbaOznaka(user: Users, kraj: string) {
+  const solo = String(user.pkOfficeTrialPlan ?? "").toLowerCase() === "office_1";
+  return {
+    label: solo ? "Office Solo trial" : "Office trial",
+    cls: solo ? "planTrialSolo" : "planTrial",
+    title: `${solo ? "Trial paketa Office Solo (1 obrt)" : "Trial paketa Office Tim"} ističe ${formatDate(kraj)}.`,
+  };
+}
 
 function aktivniPaket(
   user: Users,
@@ -80,9 +92,11 @@ function aktivniPaket(
       label: PLAN_LABELS[plan],
       cls: plan.startsWith("office")
         ? "planOffice"
-        : plan === "business"
-          ? "roleBusiness"
-          : "rolePro",
+        : plan === "freelancer"
+          ? "planFreelancer"
+          : plan === "business"
+            ? "roleBusiness"
+            : "rolePro",
     };
   }
   // legacy pretplate bez plana: paket izvedi iz role
@@ -97,10 +111,16 @@ function aktivniPaket(
     : "";
   if (trialEnd && trialEnd >= today) {
     // kratka labela da ne razvlači tabelu; datum isteka je u tooltipu
+    return officeProbaOznaka(user, trialEnd);
+  }
+  const frlTrialEnd = user.freelancerTrialEndsAt
+    ? toInputDate(user.freelancerTrialEndsAt)
+    : "";
+  if (frlTrialEnd && frlTrialEnd >= today) {
     return {
-      label: "Office trial",
-      cls: "planTrial",
-      title: `Ističe ${formatDate(trialEnd)}.`,
+      label: "Freelancer trial",
+      cls: "planFreelancerTrial",
+      title: `Trial PK Freelancera ističe ${formatDate(frlTrialEnd)}.`,
     };
   }
   return null;
@@ -289,10 +309,17 @@ export default function Korisnici() {
                       label: "PK Office paketi",
                       options: [
                         { value: "office", label: "PK Office (svi)" },
+                        { value: "office_1", label: "Office Solo" },
                         { value: "office_2", label: "Office Start" },
                         { value: "office_10", label: "Office Tim" },
                         { value: "office_25", label: "Office Agencija" },
                         { value: "office_50", label: "Office Agencija+" },
+                      ],
+                    },
+                    {
+                      label: "PK Freelancer",
+                      options: [
+                        { value: "freelancer", label: "PK Freelancer (paket ili proba)" },
                       ],
                     },
                   ]}
@@ -481,7 +508,9 @@ function UserRow({ user }: { user: Users }) {
   // Pro/Business, a u pozadini prave pretplatu (rola u bazi se ne dira).
   const sub = user.subscription;
   const activeOfficePlan =
-    sub?.isActive && (sub.plan ?? "").toLowerCase().startsWith("office")
+    sub?.isActive &&
+    ((sub.plan ?? "").toLowerCase().startsWith("office") ||
+      (sub.plan ?? "").toLowerCase() === "freelancer")
       ? (sub.plan as string).toLowerCase()
       : null;
   const [firstName, setFirstName] = useState(user.firstName);
@@ -507,6 +536,11 @@ function UserRow({ user }: { user: Users }) {
     : null;
   const officeTrialActive =
     !!officeTrialEnd && officeTrialEnd >= todayInputDate();
+  // proba PK Freelancera se vodi na svojoj koloni i prikazuje zasebno
+  const frlTrialEnd = user.freelancerTrialEndsAt
+    ? toInputDate(user.freelancerTrialEndsAt)
+    : "";
+  const frlTrialActive = !!frlTrialEnd && frlTrialEnd >= todayInputDate();
   // admin-postavljena AKTIVNA pretplata ima prednost i u pristupu i u
   // prikazu: njeni datumi se vide odmah, trial prozor samo kad pretplate nema
   // "free" nije pretplata: backend kreira taj red čim korisnik otvori tab
@@ -517,15 +551,18 @@ function UserRow({ user }: { user: Users }) {
     !!sub?.isActive &&
     subPlacena &&
     (!sub.endDate || toInputDate(sub.endDate) >= todayInputDate());
-  const prikaziTrialProzor = officeTrialActive && !subAktivna;
-  const officeTrialStart =
-    officeTrialActive && officeTrialEnd
-      ? new Date(new Date(officeTrialEnd).getTime() - 30 * 86400000)
-          .toISOString()
-          .slice(0, 10)
-      : null;
+  // Prozor triala u kolonama Datum od/do: Office trial ima prednost, inače
+  // Freelancer trial (i on traje 30 dana i ističe sam, kao Office).
+  const pocetakTriala = (kraj: string) =>
+    new Date(new Date(kraj).getTime() - 30 * 86400000).toISOString().slice(0, 10);
+  const trialProzor =
+    !subAktivna && officeTrialActive && officeTrialEnd
+      ? { od: pocetakTriala(officeTrialEnd), do: officeTrialEnd }
+      : !subAktivna && frlTrialActive
+        ? { od: pocetakTriala(frlTrialEnd), do: frlTrialEnd }
+        : null;
   const isPackageValue = (v: string) =>
-    v === "PRO" || v === "BUSINESS" || v.startsWith("office_");
+    v === "PRO" || v === "BUSINESS" || v.startsWith("office_") || v === "freelancer";
   const canEditDates =
     editing && !isAdmin && (isActive || isPackageValue(role));
 
@@ -544,9 +581,10 @@ function UserRow({ user }: { user: Users }) {
 
   const updateUser = useMutation({
     mutationFn: async () => {
-      if (role.startsWith("office_")) {
-        // office paket: rola se NE dira (effectiveRole je diže na BUSINESS),
-        // paket i period žive u pretplati
+      if (role.startsWith("office_") || role === "freelancer") {
+        // paket (office ili PK Freelancer): rola se NE dira, jer nije rola nego
+        // plan pretplate. Ranije je "freelancer" padao u else granu i slao se
+        // kao rola, pa je baza vraćala grešku i pretplata se nikad nije kreirala.
         await unwrap(adminUpdateUser(user.id, { firstName, lastName }));
         await unwrap(
           upsertSubscription(user.id, {
@@ -695,7 +733,7 @@ function UserRow({ user }: { user: Users }) {
         </Link>
       </td>
 
-      <td>{user.email || "–"}</td>
+      <td className={styles.emailCell}>{user.email || "–"}</td>
 
       <td>{formatDate(user.createdAt)}</td>
 
@@ -739,11 +777,14 @@ function UserRow({ user }: { user: Users }) {
           </span>
         ) : paket ? (
           <span
+            // više oznaka (paket + proba) ide JEDNA ISPOD DRUGE: u redu bi
+            // širile kolonu, pa bi se imena u svim ostalim redovima lomila u
+            // dva reda; ovako raste samo red tog korisnika
             style={{
               display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              flexWrap: "wrap",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              gap: 4,
             }}
           >
             <span
@@ -756,12 +797,26 @@ function UserRow({ user }: { user: Users }) {
             </span>
             {/* postojeći pretplatnik (npr. Business) sa aktivnim Office
                 trialom: trial se inače ne bi vidio jer paket ima prednost */}
-            {officeTrialActive && paket.cls !== "planTrial" && (
+            {officeTrialActive && !paket.cls.startsWith("planTrial") && (
               <span
-                className={`${styles.orgBadge} ${styles.planTrial}`}
-                title={`Office trial ističe ${formatDate(officeTrialEnd)}.`}
+                className={`${styles.orgBadge} ${
+                  styles[
+                    officeProbaOznaka(user, officeTrialEnd).cls as keyof typeof styles
+                  ] ?? ""
+                }`}
+                title={officeProbaOznaka(user, officeTrialEnd).title}
               >
-                Office trial
+                {officeProbaOznaka(user, officeTrialEnd).label}
+              </span>
+            )}
+            {/* proba PK Freelancera je zasebna: vidi se i uz paket i uz
+                Office probu, u šljiva boji proizvoda */}
+            {frlTrialActive && paket.cls !== "planFreelancerTrial" && (
+              <span
+                className={`${styles.orgBadge} ${styles.planFreelancerTrial}`}
+                title={`Trial PK Freelancera ističe ${formatDate(frlTrialEnd)}.`}
+              >
+                Freelancer trial
               </span>
             )}
           </span>
@@ -779,16 +834,16 @@ function UserRow({ user }: { user: Users }) {
       <td>
         {isAdmin
           ? "–"
-          : prikaziTrialProzor
-            ? formatDate(officeTrialStart)
+          : trialProzor
+            ? formatDate(trialProzor.od)
             : formatDate(sub?.startDate)}
       </td>
 
       <td>
         {isAdmin
           ? "–"
-          : prikaziTrialProzor
-            ? formatDate(officeTrialEnd)
+          : trialProzor
+            ? formatDate(trialProzor.do)
             : isForeverEnd(endDateToDisplay)
               ? "trajno"
               : formatDate(endDateToDisplay)}
@@ -902,6 +957,7 @@ function UserRow({ user }: { user: Users }) {
                   {
                     label: "PK Office paketi",
                     options: [
+                      { value: "office_1", label: "Office Solo (1 obrt)" },
                       { value: "office_2", label: "Office Start (do 2 obrta)" },
                       { value: "office_10", label: "Office Tim (do 10 obrta)" },
                       {
@@ -912,6 +968,12 @@ function UserRow({ user }: { user: Users }) {
                         value: "office_50",
                         label: "Office Agencija+ (do 50 obrta)",
                       },
+                    ],
+                  },
+                  {
+                    label: "PK Freelancer",
+                    options: [
+                      { value: "freelancer", label: "PK Freelancer (50 KM godišnje)" },
                     ],
                   },
                 ]}

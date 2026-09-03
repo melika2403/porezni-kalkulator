@@ -227,10 +227,11 @@ export default function Pricing() {
                 Kompletno knjigovodstvo obrta. Cijena po broju obrta.
               </h3>
               <p className={styles.officeText}>
-                <strong>Office Start</strong> daje sve funkcije za do 2 obrta,
-                a paketi <strong>Tim i veći</strong> uz PK Office uključuju i{" "}
-                <strong>kompletan Business bez ograničenja</strong>. Biraš
-                samo koliko obrta vodiš.
+                <strong>Office Solo</strong> je za obrtnika koji vodi knjige
+                sam sebi, <strong>Office Start</strong> daje sve funkcije za
+                do 2 obrta, a paketi <strong>Tim i veći</strong> uz PK Office
+                uključuju i <strong>kompletan Business bez ograničenja</strong>.
+                Biraš samo koliko obrta vodiš.
               </p>
               <ul className={styles.officeList}>
                 <li>Grupni uvoz izvoda: svi obrti odjednom</li>
@@ -266,7 +267,7 @@ export default function Pricing() {
                 <div key={p.id} className={styles.officeTier}>
                   <div className={styles.officeTierName}>{p.naziv}</div>
                   <div className={styles.officeTierObrta}>
-                    do {p.maxObrta} obrta
+                    {p.maxObrta === 1 ? "1 obrt" : `do ${p.maxObrta} obrta`}
                   </div>
                   <div className={styles.officeTierPrice}>
                     {formatKm(PLAN_PRICING[p.id][cycle])} KM

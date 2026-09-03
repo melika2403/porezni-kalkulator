@@ -153,7 +153,8 @@
 /* ── Plan picker grid ── */
 .plansGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* tri kartice: PK Freelancer, Pro, Business */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 3rem;
 }
@@ -319,9 +320,28 @@
 
 .officeGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* pet paketa: Solo, Start, Tim, Agencija, Agencija+ */
+  grid-template-columns: repeat(5, 1fr);
   gap: 14px;
   margin-bottom: 1.5rem;
+}
+/* pet kartica u redu: iznos u jednom redu, "+ PDV" ispod (kartice su uske) */
+.officeGrid .price {
+  font-size: 1.7rem;
+  white-space: nowrap;
+}
+.officeGrid .vatSuffix {
+  display: block;
+  margin-left: 0;
+  margin-top: 4px;
+}
+@media (max-width: 1150px) {
+  .officeGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .officeGrid .price {
+    font-size: 2.1rem;
+  }
 }
 
 .officeObrta {
@@ -1220,4 +1240,32 @@ button.officeTrialBtn:disabled {
 /* mjesečni ekvivalent uz godišnju cijenu */
 .monthlyEq::before {
   content: " · ";
+}
+
+/* PK Freelancer: šljiva, da se ne miješa sa PK Office (tamnozelena + terakota) */
+.featuredFreelancer {
+  background: var(--plum);
+  border-color: var(--plum);
+  color: white;
+  padding: 1.6rem 1.4rem 1.25rem;
+}
+.featuredFreelancer .tier {
+  color: var(--plum-light);
+  opacity: 1;
+}
+.featuredFreelancer .price {
+  font-size: 1.9rem;
+}
+.featuredFreelancer .saveNote {
+  color: #e6d4f5;
+}
+.featuredFreelancer .selectIndicator {
+  background: rgba(138, 95, 194, 0.32);
+}
+.cardActive.featuredFreelancer .selectIndicator {
+  background: var(--plum-mid);
+  color: #fff;
+}
+.featuredFreelancer .popularTag {
+  background: var(--plum-mid);
 }

@@ -22,6 +22,10 @@ const {
   RaiffeisenGreska,
 } = require("../services/paymentExport/raiffeisenFormatter");
 const {
+  formatMfXml,
+  MfGreska,
+} = require("../services/paymentExport/mfXmlFormatter");
+const {
   buildTkdisIzObracuna,
 } = require("../services/paymentExport/obracunAdapter");
 const {
@@ -31,7 +35,7 @@ const {
 
 // TKDIS profili (Halcom, UniCredit) + ELBA platforma (BBI, ASA, Sparkasse)
 // + Raiffeisen RBBHnet (vlastiti 345 format, samo javni prihodi).
-const PROFILI = new Set(["halcom", "unicredit", "elba", "raiffeisen"]);
+const PROFILI = new Set(["halcom", "unicredit", "elba", "raiffeisen", "mfbanka"]);
 // Kodna stranica po banci za korisnički izvoz: Halcom banke traže YUSCII,
 // UniCredit i ELBA cp1250, Raiffeisen cp852.
 const PROFIL_TRANSLIT = {
@@ -39,6 +43,8 @@ const PROFIL_TRANSLIT = {
   unicredit: "cp1250",
   elba: "cp1250",
   raiffeisen: "ascii",
+  // MF banka: XML u UTF-16, diakritika ide izravno, transliteracije nema
+  mfbanka: null,
 };
 // Banke sa ekrana (BBI/ASA/Sparkasse dijele elba profil): pamti se zadnji
 // izbor po organizaciji (Organization.bankExportBank) za predpopunu modala.
@@ -57,6 +63,7 @@ const BANKA_PROFIL = {
   intesa: "elba",
   procredit: "elba",
   pbs: "elba",
+  mf: "mfbanka",
 };
 
 // "YYYY-MM-DD" → Date, ali samo za stvaran kalendarski datum: JS Date tiho
@@ -173,6 +180,16 @@ async function generisiDatoteku({
           ukupnoFeninga: dio.nalozi.reduce((s, n) => s + n.iznosFeninga, 0),
         });
       }
+    } else if (profil === "mfbanka") {
+      // jedan XML fajl sa svim nalozima (pmtorder maxoccurs = unbounded)
+      const buffer = formatMfXml(file);
+      datoteke.push({
+        buffer,
+        fileName: `${bazaImena}.xml`,
+        naslov: null,
+        brojNaloga: file.nalozi.length,
+        ukupnoFeninga: file.nalozi.reduce((s, n) => s + n.iznosFeninga, 0),
+      });
     } else {
       const buffer =
         profil === "elba"
@@ -190,7 +207,8 @@ async function generisiDatoteku({
     if (
       e instanceof TkdisGreska ||
       e instanceof ElbaGreska ||
-      e instanceof RaiffeisenGreska
+      e instanceof RaiffeisenGreska ||
+      e instanceof MfGreska
     ) {
       // Greška validacije/encodinga nosi kontekst (polje, nalog, vrijednost):
       // prikazuje se direktno (admin za kalibraciju, korisnik da zna šta fali).

@@ -121,6 +121,7 @@ const PLATE_ROWS = [
 
 // PK Office paketi (cijene iz src/data/pricing.ts, neto bez PDV-a)
 const PLAN_TIERS = [
+  { naziv: "Office Solo", obrta: "1 obrt", cijena: "10 KM" },
   { naziv: "Office Start", obrta: "do 2 obrta", cijena: "20 KM" },
   { naziv: "Office Tim", obrta: "do 10 obrta", cijena: "80 KM" },
   { naziv: "Office Agencija", obrta: "do 25 obrta", cijena: "175 KM" },
@@ -478,9 +479,10 @@ export default function PkOfficeLanding() {
           </span>
           <h2>Sve funkcije. Cijena po broju obrta.</h2>
           <p className={styles.planLead}>
-            Office Start pokriva sve za do 2 obrta, a paketi Tim i veći uz PK
-            Office uključuju i kompletan Business bez ograničenja. Biraš samo
-            koliko obrta vodiš.
+            Office Solo je za obrtnika koji vodi knjige sam sebi, Office Start
+            pokriva sve za do 2 obrta, a paketi Tim i veći uz PK Office
+            uključuju i kompletan Business bez ograničenja. Biraš samo koliko
+            obrta vodiš.
           </p>
           <div className={styles.planTiers}>
             {PLAN_TIERS.map((t) => (

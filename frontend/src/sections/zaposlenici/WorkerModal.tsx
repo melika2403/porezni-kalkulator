@@ -25,6 +25,7 @@ import {
   type Worker,
   type WorkerPayload,
 } from "src/api/profile";
+import ZanimanjeSelect from "src/components/ZanimanjeSelect/ZanimanjeSelect";
 import { isoToDisplay, parseDateInput } from "src/lib/dateInput";
 import { formatKm, parseKm } from "src/lib/amountInput";
 import { isJmbgValid, parseJmbg, spolFromJmbg } from "src/utils/jmbg";
@@ -64,6 +65,10 @@ export type WorkerFormState = {
   odjavaDate: string; // display
   spol: "" | "M" | "Z";
   strucnaSpremaIdx: string;
+  // Klasifikacija zanimanja FBiH (KZBiH-08): naziv + šifra 7 cifara bez
+  // tačke, ide u JS3100 (Zanimanje, Opis / Šifra)
+  zanimanjeOpis: string;
+  zanimanjeSifra: string;
   contractedHours: string;
   taxCoefficient: string;
   firstEmploymentDate: string; // display
@@ -103,6 +108,8 @@ export const emptyWorkerForm = (): WorkerFormState => ({
   odjavaDate: "",
   spol: "",
   strucnaSpremaIdx: "",
+  zanimanjeOpis: "",
+  zanimanjeSifra: "",
   contractedHours: "8",
   taxCoefficient: "1.0",
   firstEmploymentDate: "",
@@ -147,6 +154,8 @@ export function workerToForm(w: Worker): WorkerFormState {
     spol: w.spol ?? "",
     strucnaSpremaIdx:
       w.strucnaSpremaIdx == null ? "" : String(w.strucnaSpremaIdx),
+    zanimanjeOpis: w.zanimanjeOpis ?? "",
+    zanimanjeSifra: w.zanimanjeSifra ?? "",
     contractedHours: w.contractedHours == null ? "8" : String(w.contractedHours),
     taxCoefficient: w.taxCoefficient != null ? String(w.taxCoefficient) : "1.0",
     firstEmploymentDate: disp(w.firstEmploymentDate),
@@ -213,6 +222,8 @@ function formToPayload(f: WorkerFormState): WorkerPayload {
     spol: f.spol === "" ? null : f.spol,
     strucnaSpremaIdx:
       f.strucnaSpremaIdx === "" ? null : Number(f.strucnaSpremaIdx),
+    zanimanjeOpis: f.zanimanjeOpis.trim() || null,
+    zanimanjeSifra: f.zanimanjeSifra.trim() || null,
     contractedHours: f.contractedHours === "" ? 8 : Number(f.contractedHours),
     taxCoefficient: (() => {
       // 0 je validno (radnik bez porezne kartice); default 1.0 samo za
@@ -647,6 +658,37 @@ export function WorkerModal({
             value={form.odjavaDate}
             onChange={(v) => set("odjavaDate", v)}
             ariaLabel="Datum odjave"
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Zanimanje (klasifikacija FBiH)</label>
+          <ZanimanjeSelect
+            className={inputCls}
+            value={form.zanimanjeOpis}
+            onChange={(v) => set("zanimanjeOpis", v)}
+            onPick={(z) =>
+              setForm((s) => ({
+                ...s,
+                zanimanjeOpis: z.naziv,
+                zanimanjeSifra: z.sifra,
+              }))
+            }
+          />
+          <p className={hintCls}>
+            Izbor sa liste popuni i šifru; ide u JS3100 obrazac.
+          </p>
+        </div>
+        <div>
+          <label className={labelCls}>Zanimanje, šifra (7 cifara)</label>
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            maxLength={7}
+            value={form.zanimanjeSifra}
+            onChange={(e) =>
+              set("zanimanjeSifra", e.target.value.replace(/\D/g, "").slice(0, 7))
+            }
+            placeholder="npr. 5131002"
           />
         </div>
         {!isObrtVlasnik && (

@@ -63,10 +63,47 @@ const ACTION_LABELS: Record<string, string> = {
   OFFICE_POPIS: "PK Office: popis (inventura)",
   OFFICE_PREBIJANJE: "PK Office: kompenzacija/cesija",
   OFFICE_BACKFILL: "PK Office: tehnički zapis (backfill)",
+  OFFICE_BACKFILL_V2: "PK Office: tehnički zapis (backfill v2)",
+  // PK Freelancer (marketing i evidencija)
+  FREELANCER_PROMO_KLIK: "PK Freelancer: klik na reklamu",
+  FREELANCER_PROBA_START: "PK Freelancer: pokrenuta proba",
+  FREELANCER_UPLATA_SACUVANA: "PK Freelancer: uplata sačuvana",
+  FREELANCER_INTERES: "PK Freelancer: iskazan interes (staro)",
+  FREELANCER_INTERES_KLIK: "PK Freelancer: klik na ponudu (staro)",
+  OFFICE_SOLO_PROMO_KLIK: "PK Office Solo: klik na reklamu",
+  OFFICE_PROMO_KLIK: "PK Office za knjigovođe: klik na reklamu",
+  // Sigurnost naloga (dvofaktorska prijava)
+  "2FA_UKLJUCEN": "Dvofaktorska prijava uključena",
+  "2FA_ISKLJUCEN": "Dvofaktorska prijava isključena",
+  "2FA_NEUSPJEH": "Dvofaktorska prijava: pogrešan kod",
+  "2FA_NOVI_KODOVI": "Dvofaktorska prijava: novi rezervni kodovi",
+  ADMIN_2FA_ISKLJUCEN: "Administrator isključio dvofaktorsku prijavu",
+};
+
+// Izvor akcije (kolona label) je kratki kod iz koda, npr. "ams" ili "cta".
+const IZVOR_LABELS: Record<string, string> = {
+  ams: "AMS generator",
+  cta: "poziv na probu",
+  "ams-sidebar": "reklama uz AMS obrazac",
+  "ams-nakon-generisanja": "reklama poslije preuzimanja AMS-a",
+  gpd: "reklama uz GPD obrazac",
+  "freelancer-sidebar": "reklama u evidenciji",
+  "spr-sidebar": "reklama uz SPR obrazac",
+  "spr-traka": "traka ispod SPR obrasca",
+  "gpd-sidebar": "reklama uz GPD obrazac",
+  "gpd-traka": "traka ispod GPD obrasca",
+  freelancer: "stranica PK Freelancer",
+  landing: "landing stranica",
 };
 
 function actionLabel(action: string) {
   return ACTION_LABELS[action] ?? action;
+}
+
+/** Čitljiv izvor uz akciju; nepoznat kod ostaje kakav jeste. */
+function izvorLabel(label: string | null | undefined) {
+  if (!label) return null;
+  return IZVOR_LABELS[label.toLowerCase()] ?? label;
 }
 
 function formatDateTime(iso: string) {
@@ -367,7 +404,7 @@ export default function AdminAktivnost() {
                         {actionLabel(it.action)}
                       </span>
                       {it.label && it.label !== actionLabel(it.action) && (
-                        <span className={styles.docSub}> · {it.label}</span>
+                        <span className={styles.docSub}> · {izvorLabel(it.label)}</span>
                       )}
                     </td>
                     <td>
@@ -515,7 +552,7 @@ function UserActivityModal({
                         {actionLabel(it.action)}
                       </span>
                       {it.label && it.label !== actionLabel(it.action) && (
-                        <span className={styles.docSub}> · {it.label}</span>
+                        <span className={styles.docSub}> · {izvorLabel(it.label)}</span>
                       )}
                     </td>
                   </tr>

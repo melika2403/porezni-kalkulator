@@ -648,3 +648,19 @@
   font-size: 13px;
 }
 .addItemBtn:hover { background: #eef3eb; }
+
+/* Solo obrt: prekidač za napredna polja fakture (vrsta isporuke, valuta, jezik) */
+.naprednoBtn {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--sage);
+  background: var(--sage-pale);
+  border: 1px solid color-mix(in srgb, var(--sage) 20%, transparent);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+}
+.naprednoBtn:hover {
+  background: color-mix(in srgb, var(--sage) 18%, transparent);
+}

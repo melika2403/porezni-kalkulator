@@ -22,10 +22,12 @@ export function PrviObrtModal() {
   // bez pristupa se prikazuje upsell (AppShell), pa modal ne treba
   const zakljucano = Boolean(pristup?.enforced && !pristup.hasOffice);
   const nemaObrta = isSuccess && (me?.organizations?.length ?? 0) === 0;
-  // na postavkama ne smeta: tamo je i forma za novi obrt
+  // na postavkama ne smeta: tamo je i forma za novi obrt; na naslovnici je
+  // forma za prvi obrt ugrađena u samu stranicu (ulaz bez odlaska ikud)
   const naPostavkama = Boolean(pathname?.startsWith("/app/postavke"));
+  const naNaslovnici = Boolean(pathname?.startsWith("/app/dashboard"));
 
-  const open = nemaObrta && !zakljucano && !naPostavkama && !dismissed;
+  const open = nemaObrta && !zakljucano && !naPostavkama && !naNaslovnici && !dismissed;
 
   function dodajObrt() {
     setDismissed(true);

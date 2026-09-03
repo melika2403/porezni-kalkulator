@@ -30,6 +30,24 @@ export default function ResourceTeasers() {
             <span className={styles.cardLink}>Otvori listu šifri →</span>
           </Link>
 
+          <Link href="/sifre-zanimanja" className={styles.card}>
+            <div className={styles.icon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M19 8v6" />
+                <path d="M22 11h-6" />
+              </svg>
+            </div>
+            <h3 className={styles.cardTitle}>Šifre zanimanja FBiH</h3>
+            <p className={styles.cardLead}>
+              Klasifikacija zanimanja KZBiH-08: 4.193 zanimanja sa
+              sedmocifrenim šiframa, spremno za JS3100 prijavu radnika.
+              Pretraga po nazivu ili šifri.
+            </p>
+            <span className={styles.cardLink}>Otvori šifre zanimanja →</span>
+          </Link>
+
           <Link href="/javni-prihodi" className={styles.card}>
             <div className={styles.icon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

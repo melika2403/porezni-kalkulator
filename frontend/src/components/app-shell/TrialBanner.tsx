@@ -87,11 +87,20 @@ export function TrialBanner() {
         >
           Upravljaj pretplatom
         </a>
+        {/* pravo na formu sa preporučenim paketom (po broju obrta i načinu
+            rada), da predračun bude jedan klik */}
         <a
-          href={`${MARKETING_URL}/pretplate#pk-office`}
+          href={
+            pristup?.preporuceniPlan
+              ? `${MARKETING_URL}/pretplate?plan=${pristup.preporuceniPlan}&cycle=yearly#pk-office`
+              : `${MARKETING_URL}/pretplate#pk-office`
+          }
           className="px-3 py-1 rounded-full text-[12px] font-medium bg-brand-600 text-white hover:opacity-90 transition-opacity"
         >
           Zatraži predračun
+          {pristup?.preporuceniPlanNaziv
+            ? `: ${pristup.preporuceniPlanNaziv.replace(/^PK Office /, "").replace(/\s*\(.*\)$/, "")}`
+            : ""}
         </a>
         <button
           type="button"

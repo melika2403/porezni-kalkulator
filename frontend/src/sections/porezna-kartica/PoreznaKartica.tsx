@@ -21,7 +21,7 @@ import { unwrap } from "src/api/auth";
 import { trackEvent } from "src/api/activity";
 import { useRole } from "src/hooks/useRole";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
-import { useLastOrg } from "src/hooks/useLastOrg";
+import { usePamcenaOrg } from "src/hooks/useLastOrg";
 import {
   getOrganization,
   getWorkers,
@@ -279,22 +279,13 @@ export default function PoreznaKartica() {
   const { hasAccessToTier } = useMaxAccessibleTier();
   const canGenerate = hasAccessToTier("PRO");
   const queryClient = useQueryClient();
-  const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
 
-  const [sidebarOrgId, setSidebarOrgIdInternal] = useState<number | null>(null);
+  // Org koja prati korisnika kroz stranice; dijeljeni obrazac (usePamcenaOrg).
+  const { orgId: sidebarOrgId, setOrgId: setSidebarOrgId } = usePamcenaOrg();
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(null);
   const [radnik, setRadnik] = useState<Worker | null>(null);
 
-  const setSidebarOrgId = (id: number | null) => {
-    setSidebarOrgIdInternal(id);
-    if (id) setLastOrgId(id);
-  };
 
-  useEffect(() => {
-    if (lastOrgLoaded && lastOrgId && sidebarOrgId == null) {
-      setSidebarOrgIdInternal(lastOrgId);
-    }
-  }, [lastOrgLoaded, lastOrgId, sidebarOrgId]);
 
   const { data: organizacija } = useQuery({
     queryKey: ["organization", sidebarOrgId],

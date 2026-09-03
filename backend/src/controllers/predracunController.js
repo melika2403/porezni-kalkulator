@@ -15,8 +15,13 @@ const {
   calcAmounts,
   formatBroj,
 } = require("../utils/predracunPdf");
-const { isKnownPlan, ALL_PLANS } = require("../config/pricing");
+const {
+  isKnownPlan,
+  ALL_PLANS,
+  SAMO_GODISNJE,
+} = require("../config/pricing");
 const { sendPredracunEmail } = require("../utils/mailer");
+const { aktivirajIzPredracuna } = require("../services/aktivacijaPaketa");
 
 const isStr = (v) => typeof v === "string" && v.trim().length > 0;
 
@@ -28,9 +33,12 @@ function validate(body) {
     errors.push(`Plan mora biti jedan od: ${ALL_PLANS.join(", ")}.`);
   }
   // billingCycle: "monthly" | "yearly" (default yearly za back-compat).
-  const billingCycle = String(body?.billingCycle || "yearly").toLowerCase() === "monthly"
-    ? "monthly"
-    : "yearly";
+  // Planovi koji se prodaju samo godišnje (PK Freelancer) ignorišu mjesečno.
+  const billingCycle =
+    !SAMO_GODISNJE.has(plan) &&
+    String(body?.billingCycle || "yearly").toLowerCase() === "monthly"
+      ? "monthly"
+      : "yearly";
   const b = body?.buyer || {};
   if (!isStr(b.name)) errors.push("Naziv kupca je obavezan.");
   if (!isStr(b.email)) errors.push("Email kupca je obavezan.");
@@ -145,6 +153,8 @@ async function create(req, res) {
         idNumber: record.buyerIdNumber,
         vatNumber: record.buyerVatNumber,
         email: record.buyerEmail,
+        // PK Freelancer kupuju fizička lica: bez ID/PDV broja na predračunu
+        fizickoLice: plan === "FREELANCER" || buyer.fizickoLice === true,
       },
     });
 
@@ -299,8 +309,21 @@ async function updateStatus(req, res) {
         .status(404)
         .json({ ok: false, error: "Predračun nije pronađen." });
     }
+    const prethodni = record.status;
     record.status = status;
     await record.save();
+    // Prelaz na "plaćeno" odmah aktivira paket iz podataka predračuna, da
+    // korisnik ne čeka drugi ručni korak. Neuspjeh aktivacije ne poništava
+    // oznaku plaćanja, nego se vraća adminu u odgovoru.
+    let aktivacija = null;
+    if (status === "PAID" && prethodni !== "PAID") {
+      try {
+        aktivacija = await aktivirajIzPredracuna(record);
+      } catch (e) {
+        console.error("aktivacija paketa iz predračuna nije uspjela:", e);
+        aktivacija = { ok: false, razlog: e?.message || "GRESKA" };
+      }
+    }
     return res.status(200).json({
       ok: true,
       data: {
@@ -308,6 +331,7 @@ async function updateStatus(req, res) {
         fullNumber: record.fullNumber,
         status: record.status,
         updatedAt: record.updatedAt,
+        aktivacija,
       },
     });
   } catch (e) {
@@ -338,6 +362,10 @@ async function pdf(req, res) {
       fullNumber: r.fullNumber,
       issueDate: r.issueDate,
       dueDate: r.dueDate,
+      // PK Freelancer se prodaje fizičkim licima, pa predračun nema redove za
+      // ID i PDV broj. Bez ovoga je ponovno preuzimanje davalo drugačiji
+      // dokument od onog koji je kupac dobio (prazni redovi umjesto nijednog).
+      fizickoLice: String(r.plan || "").toUpperCase() === "FREELANCER",
       buyer: {
         code: r.buyerCode,
         name: r.buyerName,

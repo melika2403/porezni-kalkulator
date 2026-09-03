@@ -156,15 +156,133 @@ function intToWords(n) {
   if (rest > 0) out += hundreds(rest);
   return out;
 }
-function amountInWords(value, currency = "BAM") {
+// oznaka: kad je zadana, njome se ispisuje valuta (dvojezična faktura koristi
+// "BAM" i u bosanskom redu, da se ne miješa sa "KM" iz totala)
+function amountInWords(value, currency = "BAM", oznaka = null) {
   const km = Math.floor(value);
   const fen = Math.round((value - km) * 100);
   const isEur = currency === "EUR";
-  const main = isEur ? "EUR" : "KM";
+  const main = oznaka || (isEur ? "EUR" : "KM");
   const sub = isEur ? "centi" : "feninga";
   let s = intToWords(km) + " " + main;
   if (fen > 0) s += " i " + intToWords(fen) + " " + sub;
   return s;
+}
+
+// ── IN WORDS (engleski) ─────────────────────────────────────────────────────
+const EN_ONES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+  "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+  "eighteen", "nineteen"];
+const EN_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+function enHundreds(n) {
+  let out = "";
+  const h = Math.floor(n / 100);
+  const r = n % 100;
+  if (h) out += EN_ONES[h] + " hundred";
+  if (r) {
+    if (out) out += " ";
+    out += r < 20 ? EN_ONES[r] : EN_TENS[Math.floor(r / 10)] + (r % 10 ? "-" + EN_ONES[r % 10] : "");
+  }
+  return out;
+}
+function intToWordsEn(n) {
+  if (n === 0) return "zero";
+  const parts = [];
+  const mil = Math.floor(n / 1_000_000);
+  const tho = Math.floor((n % 1_000_000) / 1000);
+  const rest = n % 1000;
+  if (mil) parts.push(enHundreds(mil) + " million");
+  if (tho) parts.push(enHundreds(tho) + " thousand");
+  if (rest) parts.push(enHundreds(rest));
+  return parts.join(" ");
+}
+function amountInWordsEn(value, currency = "BAM", oznaka = null) {
+  const main = Math.floor(value);
+  const cents = Math.round((value - main) * 100);
+  const cur = oznaka || (currency === "EUR" ? "euro" : "BAM");
+  const sub = currency === "EUR" ? "cents" : "fenings";
+  const w = intToWordsEn(main);
+  let s = w.charAt(0).toUpperCase() + w.slice(1) + " " + cur;
+  if (cents > 0) s += " and " + intToWordsEn(cents) + " " + sub;
+  return s;
+}
+
+// ── JEZIK ISPISA ────────────────────────────────────────────────────────────
+// "bs" (default), "en" i "bs-en" (dvojezično za inostrane kupce). Dvojezične
+// labele su ručno skraćene da stanu u kolone; duži tekstovi (napomene o PDV-u,
+// podnožje, slovima) idu u dva reda kroz L.multi().
+const TXT_BS = {
+  kupac: "KUPAC:", telefon: "Telefon:", idKupca: "ID broj kupca:", pdvKupca: "PDV broj kupca:",
+  faktura: "Faktura", predracun: "Predračun", avansna: "Avansna faktura",
+  stornoAvansne: "Storno avansne fakture", ko: "Knjižna obavijest", pazar: "Evidencija pazara",
+  br: "br.", datumIzdavanja: "Datum izdavanja:", datumDospijeca: "Datum dospijeća:",
+  poAvansnoj: "Po avansnoj fakturi:", uzFakturu: "Uz fakturu broj:", nacinPlacanja: "Način plaćanja:",
+  avansnaUplata: "Avansna uplata", gotovina: "Gotovina", ziralno: "Žiralno",
+  rb: "R/B", naziv: "NAZIV ROBE - USLUGE", jm: "J/M", kolicina: "Količina", cijena: "Cijena",
+  rabat: "Rabat", pdv: "PDV", iznos: "Iznos", bezPdv: "(bez PDV-a)", posto: "(%)",
+  bruto: "Bruto iznos:", minusRabat: "- Rabat:", osnovica: "Osnovica (bez PDV-a):", plusPdv: "+ PDV:",
+  zaNaplatu: "ZA NAPLATU:", umanjenje: "UKUPNO UMANJENJE:", slovima: "SLOVIMA:",
+  napomena: "Napomena:", tel: "Tel:", id: "ID:", pdvBr: "PDV:", tr: "TR:", email: "e-mail:",
+  pdvObracunat: ["PDV obračunat u skladu sa Zakonom o PDV-u", "(Sl. glasnik BiH, broj 9/05 i 35/05)"],
+  nijeObveznik: ["Obveznik nije u sistemu PDV-a, PDV nije obračunat."],
+  izvoz: ["PDV nije obračunat: promet inostranom kupcu (izvoz), u skladu sa Zakonom o PDV-u BiH."],
+  oslobodjena: ["PDV nije obračunat: oslobođena isporuka, u skladu sa Zakonom o PDV-u BiH."],
+  koNapomena: ["Kupac PDV obveznik je dužan po ovoj knjižnoj obavijesti izvršiti", "ispravku (smanjenje) odbitka ulaznog PDV-a (član 20. stav 11. Zakona o PDV-u)."],
+  punovaznaF: "Faktura je punovažna bez potpisa i pečata.",
+  punovaznaP: "Predračun je punovažan bez potpisa i pečata.",
+  punovaznaD: "Dokument je punovažan bez potpisa i pečata.",
+};
+const TXT_EN = {
+  kupac: "BILL TO:", telefon: "Phone:", idKupca: "Buyer ID no.:", pdvKupca: "Buyer VAT no.:",
+  faktura: "Invoice", predracun: "Proforma invoice", avansna: "Advance invoice",
+  stornoAvansne: "Advance invoice reversal", ko: "Credit note", pazar: "Daily sales record",
+  br: "No.", datumIzdavanja: "Issue date:", datumDospijeca: "Due date:",
+  poAvansnoj: "Per advance invoice:", uzFakturu: "To invoice no.:", nacinPlacanja: "Payment method:",
+  avansnaUplata: "Advance payment", gotovina: "Cash", ziralno: "Bank transfer",
+  rb: "No.", naziv: "DESCRIPTION OF GOODS / SERVICES", jm: "Unit", kolicina: "Qty", cijena: "Price",
+  rabat: "Discount", pdv: "VAT", iznos: "Amount", bezPdv: "(ex VAT)", posto: "(%)",
+  bruto: "Gross amount:", minusRabat: "- Discount:", osnovica: "Net amount (ex VAT):", plusPdv: "+ VAT:",
+  zaNaplatu: "TOTAL DUE:", umanjenje: "TOTAL CREDIT:", slovima: "IN WORDS:",
+  napomena: "Note:", tel: "Phone:", id: "ID:", pdvBr: "VAT:", tr: "Account:", email: "e-mail:",
+  pdvObracunat: ["VAT charged in accordance with the VAT Law of Bosnia and Herzegovina", "(Official Gazette of BiH, no. 9/05 and 35/05)"],
+  nijeObveznik: ["The issuer is not registered for VAT; VAT is not charged."],
+  izvoz: ["VAT not charged: supply to a foreign customer (export), pursuant to the VAT Law of Bosnia and Herzegovina."],
+  oslobodjena: ["VAT not charged: VAT-exempt supply pursuant to the VAT Law of Bosnia and Herzegovina."],
+  koNapomena: ["The VAT-registered buyer is required to reduce its input VAT deduction", "based on this credit note (Article 20(11) of the VAT Law)."],
+  punovaznaF: "This invoice is valid without signature and stamp.",
+  punovaznaP: "This proforma invoice is valid without signature and stamp.",
+  punovaznaD: "This document is valid without signature and stamp.",
+};
+// dvojezično: kratke labele "bs / en", skraćene da stanu u kolone i desni blok
+const TXT_BSEN = {
+  ...TXT_BS,
+  kupac: "KUPAC / BILL TO:", telefon: "Telefon / Phone:", idKupca: "ID broj / ID no.:", pdvKupca: "PDV broj / VAT no.:",
+  faktura: "Faktura / Invoice", predracun: "Predračun / Proforma", avansna: "Avansna faktura / Advance invoice",
+  stornoAvansne: "Storno avansne / Reversal", ko: "Knjižna obavijest / Credit note", pazar: "Evidencija pazara",
+  br: "br. / No.", datumIzdavanja: "Datum / Issue date:", datumDospijeca: "Dospijeće / Due date:",
+  poAvansnoj: "Po avansnoj / Per advance:", uzFakturu: "Uz fakturu / To invoice:", nacinPlacanja: "Plaćanje / Payment:",
+  avansnaUplata: "Avans / Advance", gotovina: "Gotovina / Cash", ziralno: "Žiralno / Bank transfer",
+  bruto: "Bruto / Gross:", minusRabat: "- Rabat / Discount:", osnovica: "Osnovica / Net:", plusPdv: "+ PDV / VAT:",
+  zaNaplatu: "ZA NAPLATU / TOTAL DUE:", umanjenje: "UMANJENJE / CREDIT:",
+  napomena: "Napomena / Note:", tel: "Tel:", id: "ID:", pdvBr: "PDV / VAT:", tr: "TR / Account:",
+};
+function labelsFor(jezik) {
+  const j = String(jezik || "bs").toLowerCase();
+  const base = j === "en" ? TXT_EN : j === "bs-en" ? TXT_BSEN : TXT_BS;
+  return {
+    ...base,
+    jezik: j,
+    dvojezicno: j === "bs-en",
+    // duži tekstovi: en samo engleski, bs-en oba jezika (bs pa en), bs samo bosanski
+    multi(key) {
+      const bs = TXT_BS[key];
+      const en = TXT_EN[key];
+      const toArr = (v) => (Array.isArray(v) ? v : [v]);
+      if (j === "en") return toArr(en);
+      if (j === "bs-en") return [...toArr(bs), ...toArr(en)];
+      return toArr(bs);
+    },
+  };
 }
 
 // ── LOGO ────────────────────────────────────────────────────────────────────
@@ -198,17 +316,19 @@ async function generateInvoicePdf(invoice, opts = {}) {
   }
   const isProforma = invoice.type === "PROFORMA";
   const docType = invoice.docType || "STANDARD";
+  // jezik ispisa (bs / en / bs-en); brojevi i obračun su isti
+  const L = labelsFor(invoice.jezik);
   const docTitle = isProforma
-    ? "Predračun"
+    ? L.predracun
     : docType === "AVANSNA"
-      ? "Avansna faktura"
+      ? L.avansna
       : docType === "STORNO_AVANSNE"
-        ? "Storno avansne fakture"
+        ? L.stornoAvansne
         : docType === "KNJIZNA_OBAVIJEST"
-          ? "Knjižna obavijest"
+          ? L.ko
           : docType === "PAZAR"
-            ? "Evidencija pazara"
-            : "Faktura";
+            ? L.pazar
+            : L.faktura;
   // storno i knjižna obavijest se ISPISUJU negativno (u bazi su pozitivni,
   // predznak nosi vrsta dokumenta, isto kao u KIF-u i PDV prijavi)
   const sign =
@@ -255,6 +375,42 @@ async function generateInvoicePdf(invoice, opts = {}) {
     const w = f.widthOfTextAtSize(s, opts.size ?? 9);
     drawText(s, xR - w, y, opts);
   };
+  // Prelamanje teksta na zadanu širinu (koristi ga i napomena i red "slovima").
+  // Riječ duža od raspoložive širine se lomi po znakovima — iznos slovima je
+  // jedna jedina riječ ("DevetstoDevedeset...Hiljada..."), pa bez toga ne bi
+  // stao ni u jedan red.
+  const wrapLines = (text, maxW, size = 9, font = fontReg) => {
+    const out = [];
+    for (const raw of String(text ?? "").split(/\r?\n/)) {
+      let line = "";
+      for (const word of raw.split(/\s+/).filter(Boolean)) {
+        const probe = line ? `${line} ${word}` : word;
+        if (font.widthOfTextAtSize(probe, size) <= maxW) {
+          line = probe;
+          continue;
+        }
+        if (line) out.push(line);
+        line = "";
+        // riječ sama po sebi šira od reda: lomi je po znakovima
+        if (font.widthOfTextAtSize(word, size) > maxW) {
+          let dio = "";
+          for (const ch of word) {
+            if (font.widthOfTextAtSize(dio + ch, size) > maxW && dio) {
+              out.push(dio);
+              dio = ch;
+            } else {
+              dio += ch;
+            }
+          }
+          line = dio;
+        } else {
+          line = word;
+        }
+      }
+      if (line) out.push(line);
+    }
+    return out.length ? out : [""];
+  };
   const hLine = (x1, x2, y, t = 0.5, c = ink) => {
     page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness: t, color: c });
   };
@@ -286,36 +442,38 @@ async function generateInvoicePdf(invoice, opts = {}) {
 
   const addrLine = [invoice.sellerAddress, invoice.sellerCity].filter(Boolean).join(", ");
   if (addrLine) { drawCenter(addrLine, firmaCx, yH, { size: 10 }); yH -= 12; }
-  if (invoice.sellerPhone) { drawCenter(`Tel: ${invoice.sellerPhone}`, firmaCx, yH, { size: 10 }); yH -= 12; }
+  if (invoice.sellerPhone) { drawCenter(`${L.tel} ${invoice.sellerPhone}`, firmaCx, yH, { size: 10 }); yH -= 12; }
   const idLine = [
-    invoice.sellerTaxNumber ? `ID: ${invoice.sellerTaxNumber}` : null,
-    invoice.sellerVatNumber ? `PDV: ${invoice.sellerVatNumber}` : null,
+    invoice.sellerTaxNumber ? `${L.id} ${invoice.sellerTaxNumber}` : null,
+    invoice.sellerVatNumber ? `${L.pdvBr} ${invoice.sellerVatNumber}` : null,
   ].filter(Boolean).join("    ");
   if (idLine) { drawCenter(idLine, firmaCx, yH, { size: 10, bold: true }); yH -= 12; }
-  if (invoice.sellerBankAccount) { drawCenter(`TR: ${invoice.sellerBankAccount}`, firmaCx, yH, { size: 10 }); yH -= 12; }
-  if (invoice.sellerEmail) { drawCenter(`e-mail: ${invoice.sellerEmail}`, firmaCx, yH, { size: 10 }); yH -= 12; }
+  if (invoice.sellerBankAccount) { drawCenter(`${L.tr} ${invoice.sellerBankAccount}`, firmaCx, yH, { size: 10 }); yH -= 12; }
+  if (invoice.sellerEmail) { drawCenter(`${L.email} ${invoice.sellerEmail}`, firmaCx, yH, { size: 10 }); yH -= 12; }
 
   const yDivider = Math.min(LOGO_Y, yH - 6);
   hLine(ML, MR, yDivider, 0.6);
 
   // ── KUPAC blok (lijevo) ────────────────────────────────────────────────
   let yL = yDivider - 14;
-  drawText("KUPAC:", ML, yL, { size: 9 });
+  drawText(L.kupac, ML, yL, { size: 9 });
   yL -= 14;
   drawText(invoice.buyerName || "", ML, yL, { size: 11, bold: true });
   yL -= 14;
   if (invoice.buyerAddress) { drawText(invoice.buyerAddress, ML, yL, { size: 10 }); yL -= 12; }
   const cityLine = [invoice.buyerPostalCode, invoice.buyerCity].filter(Boolean).join("  ");
   if (cityLine) { drawText(cityLine, ML, yL, { size: 10 }); yL -= 12; }
-  if (invoice.buyerPhone) { drawText(`Telefon: ${invoice.buyerPhone}`, ML, yL, { size: 9 }); yL -= 12; }
+  if (invoice.buyerPhone) { drawText(`${L.telefon} ${invoice.buyerPhone}`, ML, yL, { size: 9 }); yL -= 12; }
+  // dvojezične labele su šire, pa vrijednost ide dalje udesno
+  const KUPAC_VAL_X = ML + (L.dvojezicno ? 112 : 92);
   if (invoice.buyerIdNumber) {
-    drawText("ID broj kupca:", ML, yL, { size: 9 });
-    drawText(invoice.buyerIdNumber, ML + 92, yL, { size: 9, bold: true });
+    drawText(L.idKupca, ML, yL, { size: 9 });
+    drawText(invoice.buyerIdNumber, KUPAC_VAL_X, yL, { size: 9, bold: true });
     yL -= 12;
   }
   if (invoice.buyerVatNumber) {
-    drawText("PDV broj kupca:", ML, yL, { size: 9 });
-    drawText(invoice.buyerVatNumber, ML + 92, yL, { size: 9, bold: true });
+    drawText(L.pdvKupca, ML, yL, { size: 9 });
+    drawText(invoice.buyerVatNumber, KUPAC_VAL_X, yL, { size: 9, bold: true });
     yL -= 12;
   }
 
@@ -326,13 +484,14 @@ async function generateInvoicePdf(invoice, opts = {}) {
 
   // Naslov dokumenta — prvi (na vrhu desnog bloka); duži naslovi (avansna,
   // storno, knjižna obavijest) idu u dva reda da ne izađu iz margine
-  if (docType === "STANDARD" || isProforma) {
-    drawText(`${docTitle} br.  ${invoice.fullNumber}`, RIGHT_LBL_X, yR, { size: 14, bold: true });
+  // dvojezični naslov je duži, pa ide u dva reda kao i ostali dugi naslovi
+  if ((docType === "STANDARD" || isProforma) && !L.dvojezicno) {
+    drawText(`${docTitle} ${L.br}  ${invoice.fullNumber}`, RIGHT_LBL_X, yR, { size: 14, bold: true });
     yR -= 22;
   } else {
     drawText(docTitle, RIGHT_LBL_X, yR, { size: 13, bold: true });
     yR -= 16;
-    drawText(`br.  ${invoice.fullNumber}`, RIGHT_LBL_X, yR, { size: 12, bold: true });
+    drawText(`${L.br}  ${invoice.fullNumber}`, RIGHT_LBL_X, yR, { size: 12, bold: true });
     yR -= 20;
   }
 
@@ -341,18 +500,18 @@ async function generateInvoicePdf(invoice, opts = {}) {
     drawText(val, RIGHT_VAL_X, yR, { size: 9, bold: true });
     yR -= 14;
   };
-  drawRow("Datum izdavanja:", fmtDate(invoice.issueDate));
-  if (invoice.dueDate) drawRow("Datum dospijeća:", fmtDate(invoice.dueDate));
+  drawRow(L.datumIzdavanja, fmtDate(invoice.issueDate));
+  if (invoice.dueDate) drawRow(L.datumDospijeca, fmtDate(invoice.dueDate));
   // veza na izvorni dokument (storno → avansna, KO → faktura)
   if (invoice.linkedFullNumber) {
     drawRow(
-      docType === "STORNO_AVANSNE" ? "Po avansnoj fakturi:" : "Uz fakturu broj:",
+      docType === "STORNO_AVANSNE" ? L.poAvansnoj : L.uzFakturu,
       invoice.linkedFullNumber,
     );
   }
-  if (docType === "AVANSNA") drawRow("Način plaćanja:", "Avansna uplata");
-  else if (docType === "PAZAR") drawRow("Način plaćanja:", "Gotovina");
-  else if (sign > 0) drawRow("Način plaćanja:", "Žiralno");
+  if (docType === "AVANSNA") drawRow(L.nacinPlacanja, L.avansnaUplata);
+  else if (docType === "PAZAR") drawRow(L.nacinPlacanja, L.gotovina);
+  else if (sign > 0) drawRow(L.nacinPlacanja, L.ziralno);
 
   // ── TABELA ─────────────────────────────────────────────────────────────
   let y = Math.min(yL, yR) - 24;
@@ -371,19 +530,49 @@ async function generateInvoicePdf(invoice, opts = {}) {
   const COL_PDV = ML + 470;     // right-aligned (%)
   const COL_BRUTO = MR - 4;     // right-aligned (gap od PDV = 85)
 
-  drawText("R/B", COL_RB, y, { size: 8, bold: true });
-  drawText("NAZIV ROBE - USLUGE", COL_NAZIV, y, { size: 8, bold: true });
-  drawText("J/M", COL_JM, y, { size: 8, bold: true });
-  drawRight("Količina", COL_KOL, y, { size: 8, bold: true });
-  drawRight("Cijena", COL_CIJ, y, { size: 8, bold: true });
-  drawRight("Rabat", COL_RAB, y, { size: 8, bold: true });
-  drawRight("PDV", COL_PDV, y, { size: 8, bold: true });
-  drawRight("Iznos", COL_BRUTO, y, { size: 8, bold: true });
+  drawText(L.rb, COL_RB, y, { size: 8, bold: true });
+  drawText(L.naziv, COL_NAZIV, y, { size: 8, bold: true });
+  drawText(L.jm, COL_JM, y, { size: 8, bold: true });
+  drawRight(L.kolicina, COL_KOL, y, { size: 8, bold: true });
+  drawRight(L.cijena, COL_CIJ, y, { size: 8, bold: true });
+  drawRight(L.rabat, COL_RAB, y, { size: 8, bold: true });
+  drawRight(L.pdv, COL_PDV, y, { size: 8, bold: true });
+  drawRight(L.iznos, COL_BRUTO, y, { size: 8, bold: true });
   y -= 9;
-  drawRight("(bez PDV-a)", COL_CIJ, y, { size: 7 });
-  drawRight("(%)", COL_RAB, y, { size: 7 });
-  drawRight("(%)", COL_PDV, y, { size: 7 });
-  drawRight("(bez PDV-a)", COL_BRUTO, y, { size: 7 });
+  // Drugi red zaglavlja: svaki natpis mora stati između svoje i lijeve kolone.
+  // Engleski natpisi ("Amount ex VAT") su duži od bosanskih, pa se cijeli red
+  // po potrebi ispisuje manjim slovima — nikad se ne prelijeva u susjednu
+  // kolonu. GAP je razmak koji ostaje između dva natpisa.
+  const GAP_ZAGLAVLJA = 4;
+  const drugiRed = L.dvojezicno
+    ? [
+        { txt: TXT_EN.naziv, x: COL_NAZIV, lijevo: true, maxW: COL_JM - COL_NAZIV - GAP_ZAGLAVLJA },
+        { txt: TXT_EN.jm, x: COL_JM, lijevo: true, maxW: COL_KOL - COL_JM - GAP_ZAGLAVLJA },
+        { txt: TXT_EN.kolicina, x: COL_KOL, maxW: COL_KOL - COL_JM - GAP_ZAGLAVLJA },
+        { txt: `${TXT_EN.cijena} (net)`, x: COL_CIJ, maxW: COL_CIJ - COL_KOL - GAP_ZAGLAVLJA },
+        { txt: `${TXT_EN.rabat} %`, x: COL_RAB, maxW: COL_RAB - COL_CIJ - GAP_ZAGLAVLJA },
+        { txt: `${TXT_EN.pdv} %`, x: COL_PDV, maxW: COL_PDV - COL_RAB - GAP_ZAGLAVLJA },
+        { txt: `${TXT_EN.iznos} (net)`, x: COL_BRUTO, maxW: COL_BRUTO - COL_PDV - GAP_ZAGLAVLJA },
+      ]
+    : [
+        { txt: L.bezPdv, x: COL_CIJ, maxW: COL_CIJ - COL_KOL - GAP_ZAGLAVLJA },
+        { txt: L.posto, x: COL_RAB, maxW: COL_RAB - COL_CIJ - GAP_ZAGLAVLJA },
+        { txt: L.posto, x: COL_PDV, maxW: COL_PDV - COL_RAB - GAP_ZAGLAVLJA },
+        { txt: L.bezPdv, x: COL_BRUTO, maxW: COL_BRUTO - COL_PDV - GAP_ZAGLAVLJA },
+      ];
+  let zaglavljeSize = 7;
+  for (const c of drugiRed) {
+    while (
+      zaglavljeSize > 5 &&
+      fontReg.widthOfTextAtSize(String(c.txt), zaglavljeSize) > c.maxW
+    ) {
+      zaglavljeSize -= 0.25;
+    }
+  }
+  for (const c of drugiRed) {
+    if (c.lijevo) drawText(c.txt, c.x, y, { size: zaglavljeSize });
+    else drawRight(c.txt, c.x, y, { size: zaglavljeSize });
+  }
 
   y -= 6;
   dashLine(ML, MR, y);
@@ -441,7 +630,10 @@ async function generateInvoicePdf(invoice, opts = {}) {
 
   // ── TOTALI desno ───────────────────────────────────────────────────────
   const currency = invoice.currency === "EUR" ? "EUR" : "BAM";
-  const currencyLabel = currency === "EUR" ? "EUR" : "KM";
+  // Oznaka valute prati jezik ispisa: domaća faktura "KM", engleska i
+  // dvojezična "BAM" (međunarodna oznaka), isto kao u iznosu slovima i mailu.
+  const currencyLabel =
+    currency === "EUR" ? "EUR" : L.jezik === "bs" ? "KM" : "BAM";
   const TOT_L = 340;
   const TOT_VAL_R = MR - 28;
   const TOT_KM_X = MR - 4;
@@ -454,63 +646,85 @@ async function generateInvoicePdf(invoice, opts = {}) {
     yT -= 14;
   };
   // storno/KO: "za naplatu" nema smisla, iznos je odobrenje kupcu
-  const totalLbl = sign < 0 ? "UKUPNO UMANJENJE:" : "ZA NAPLATU:";
+  const totalLbl = sign < 0 ? L.umanjenje : L.zaNaplatu;
   if (invoice.applyVat) {
-    totRow("Bruto iznos:", sign * (totals.netTotal + totals.discountTotal));
-    if (totals.discountTotal > 0) totRow("- Rabat:", sign * totals.discountTotal);
-    totRow("Osnovica (bez PDV-a):", sign * totals.netTotal);
-    totRow("+ PDV:", sign * totals.vatTotal);
+    totRow(L.bruto, sign * (totals.netTotal + totals.discountTotal));
+    if (totals.discountTotal > 0) totRow(L.minusRabat, sign * totals.discountTotal);
+    totRow(L.osnovica, sign * totals.netTotal);
+    totRow(L.plusPdv, sign * totals.vatTotal);
     totRow(totalLbl, sign * totals.grossTotal, true);
   } else {
-    totRow("Bruto iznos:", sign * (totals.netTotal + totals.discountTotal));
-    if (totals.discountTotal > 0) totRow("- Rabat:", sign * totals.discountTotal);
+    totRow(L.bruto, sign * (totals.netTotal + totals.discountTotal));
+    if (totals.discountTotal > 0) totRow(L.minusRabat, sign * totals.discountTotal);
     totRow(totalLbl, sign * totals.grossTotal, true);
   }
 
-  // Slovima blok lijevo (uvijek apsolutni iznos, predznak nose totali)
+  // Slovima blok lijevo (uvijek apsolutni iznos, predznak nose totali);
+  // dvojezično: bosanski pa engleski red
   let yS = y - 14;
-  drawText(`SLOVIMA: (${amountInWords(totals.grossTotal, currency)} )`, ML, yS, { size: 9 });
-  yS -= 16;
-  if (invoice.applyVat) {
-    drawText("PDV obračunat u skladu sa Zakonom o PDV-u", ML, yS, { size: 8, color: grey });
-    yS -= 11;
-    drawText("(Sl. glasnik BiH, broj 9/05 i 35/05)", ML, yS, { size: 8, color: grey });
-  } else {
-    drawText("Obveznik nije u sistemu PDV-a, PDV nije obračunat.", ML, yS, { size: 8, color: grey });
+  const oznakaSlovima = currency === "EUR" ? null : currencyLabel;
+  const slovimaRedovi =
+    L.jezik === "en"
+      ? [`${TXT_EN.slovima} (${amountInWordsEn(totals.grossTotal, currency)} )`]
+      : L.jezik === "bs-en"
+        ? [
+            `${TXT_BS.slovima} (${amountInWords(totals.grossTotal, currency, oznakaSlovima)} )`,
+            `${TXT_EN.slovima} (${amountInWordsEn(totals.grossTotal, currency)} )`,
+          ]
+        : [`${TXT_BS.slovima} (${amountInWords(totals.grossTotal, currency)} )`];
+  // Blok "slovima" stoji lijevo od kolone totala (TOT_L), pa se prelama na
+  // raspoloživu širinu: na velikim iznosima je red duži od pola stranice i bez
+  // prelamanja bi ušao u iznose (dvojezično čak u dva reda).
+  const SLOVIMA_MAX_W = TOT_L - 8 - ML;
+  for (const red of slovimaRedovi) {
+    for (const linija of wrapLines(red, SLOVIMA_MAX_W, 9)) {
+      drawText(linija, ML, yS, { size: 9 });
+      yS -= 12;
+    }
   }
+  yS -= 4;
+  // napomena o PDV-u zavisi od vrste isporuke: izvoz i oslobođena isporuka
+  // nisu "neobveznik", pa dobijaju svoj tekst
+  const pdvKljuc = invoice.applyVat
+    ? "pdvObracunat"
+    : invoice.vrstaIsporuke === "IZVOZ"
+      ? "izvoz"
+      : invoice.vrstaIsporuke === "OSLOBODJENA"
+        ? "oslobodjena"
+        : "nijeObveznik";
+  const pdvRedovi = L.multi(pdvKljuc);
+  pdvRedovi.forEach((red, i) => {
+    drawText(red, ML, yS, { size: 8, color: grey });
+    if (i < pdvRedovi.length - 1) yS -= 11;
+  });
   if (docType === "KNJIZNA_OBAVIJEST" && invoice.applyVat) {
     yS -= 14;
-    drawText("Kupac PDV obveznik je dužan po ovoj knjižnoj obavijesti izvršiti", ML, yS, { size: 8, color: grey });
-    yS -= 11;
-    drawText("ispravku (smanjenje) odbitka ulaznog PDV-a (član 20. stav 11. Zakona o PDV-u).", ML, yS, { size: 8, color: grey });
+    const koRedovi = L.multi("koNapomena");
+    koRedovi.forEach((red, i) => {
+      drawText(red, ML, yS, { size: 8, color: grey });
+      if (i < koRedovi.length - 1) yS -= 11;
+    });
   }
 
   // ── Notes ──────────────────────────────────────────────────────────────
   if (invoice.notes && String(invoice.notes).trim()) {
     yS -= 18;
-    drawText("Napomena:", ML, yS, { size: 9, bold: true });
+    drawText(L.napomena, ML, yS, { size: 9, bold: true });
     yS -= 12;
-    const noteWords = String(invoice.notes).split(/\s+/);
-    let line = "";
-    const maxW = MR - ML;
-    for (const w of noteWords) {
-      const t = line ? line + " " + w : w;
-      if (fontReg.widthOfTextAtSize(t, 9) <= maxW) line = t;
-      else { drawText(line, ML, yS, { size: 9 }); yS -= 11; line = w; }
-    }
-    if (line) drawText(line, ML, yS, { size: 9 });
+    const noteLines = wrapLines(invoice.notes, MR - ML, 9);
+    noteLines.forEach((linija, i) => {
+      drawText(linija, ML, yS, { size: 9 });
+      if (i < noteLines.length - 1) yS -= 11;
+    });
   }
 
   // ── FOOTER ─────────────────────────────────────────────────────────────
   hLine(ML, MR, 110, 0.6);
-  drawText(
-    isProforma
-      ? "Predračun je punovažan bez potpisa i pečata."
-      : docType === "STANDARD"
-        ? "Faktura je punovažna bez potpisa i pečata."
-        : "Dokument je punovažan bez potpisa i pečata.",
-    ML, 96, { size: 8, color: grey },
-  );
+  const podnozjeKljuc = isProforma ? "punovaznaP" : docType === "STANDARD" ? "punovaznaF" : "punovaznaD";
+  const podnozje = L.multi(podnozjeKljuc);
+  podnozje.forEach((red, i) => {
+    drawText(red, ML, 96 - i * 10, { size: 8, color: grey });
+  });
   drawRight("1/1", MR, 96, { size: 8, color: grey });
 
   return Buffer.from(await pdf.save());
@@ -522,4 +736,6 @@ module.exports = {
   computeItem,
   computeTotals,
   amountInWords,
+  amountInWordsEn,
+  labelsFor,
 };

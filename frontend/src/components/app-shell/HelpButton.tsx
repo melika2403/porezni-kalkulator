@@ -9,18 +9,22 @@ export function HelpButton({
   slug,
   label = "Uputstvo",
   className = "",
+  uTok = false,
 }: {
   /** Segment rute, npr. "bankovni-izvodi". Mora postojati u registru upustava. */
   slug: string;
   /** Tekst dugmeta; default "Uputstvo". Npr. "Kako početi" za vodič. */
   label?: string;
   className?: string;
+  /** Uz naslov dugme ide desno (ml-auto). Kad ih je više u nizu (vodiči na
+      naslovnici) ostaju u toku jedno uz drugo, inače se razbacaju po redu. */
+  uTok?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={() => openUpustvo(slug)}
-      className={`inline-flex items-center gap-1.5 ml-auto px-3.5 py-1.5 rounded-full bg-info-bg text-info border border-info/40 text-[13px] font-semibold hover:bg-[#c9ddee] transition-colors ${className}`}
+      className={`inline-flex items-center gap-1.5 ${uTok ? "" : "ml-auto"} px-3.5 py-1.5 rounded-full bg-info-bg text-info border border-info/40 text-[13px] font-semibold hover:bg-[#c9ddee] transition-colors ${className}`}
     >
       <IconHelpCircle size={16} />
       {label}

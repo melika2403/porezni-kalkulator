@@ -3,7 +3,7 @@ const { sequelize, Organization, Worker, OrganizationMember, User, Client, Form,
 const { decryptJmbg } = require("../utils/encryptJmbg");
 const { officeUserIds, getEffectiveRole } = require("../services/tierService");
 
-const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "pdvObveznikOd", "pdvObveznikDo", "kprPazarIzKp", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "bankAccounts", "bankExportBank", "logoUrl", "memorandumUrl", "mealAllowancePerDay", "kalkulacijePotpisnik", "ownerType", "ownerIsDirector", "directorEngagement", "directorWorkerId", "ownerInfo", "createdAt", "updatedAt"];
+const orgAttributes = ["id", "name", "type", "taxNumber", "pdvNumber", "isPdvObveznik", "pdvObveznikOd", "pdvObveznikDo", "kprPazarIzKp", "jurisdiction", "taxRegime", "taxCategory", "activityCode", "activityName", "email", "phone", "address", "city", "bankAccount", "bankAccounts", "bankExportBank", "logoUrl", "memorandumUrl", "mealAllowancePerDay", "kalkulacijePotpisnik", "ownerType", "ownerIsDirector", "directorEngagement", "directorWorkerId", "ownerInfo", "soloMode", "soloModuli", "createdAt", "updatedAt"];
 
 // MariaDB vraća JSON kolone kao string (Sequelize ih ne parsira).
 function parseJsonArray(raw) {

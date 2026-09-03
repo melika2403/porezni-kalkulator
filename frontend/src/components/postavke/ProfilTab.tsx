@@ -119,7 +119,15 @@ const EMPTY: FormState = {
 // createMode: ista forma, ali prazna i "Snimi" KREIRA obrt (umjesto update):
 // izbor moj obrt / obrt klijenta, kreiranje, aktivacija u PK Office slot i
 // prebacivanje na novi obrt. Jedan izvor istine za polja i validacije.
-export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
+export function ProfilTab({
+  createMode = false,
+  afterCreateHref,
+}: {
+  createMode?: boolean;
+  /** kuda poslije kreiranja (default: postavke novog obrta); Solo ulaz vodi na
+      naslovnicu sa upitnikom */
+  afterCreateHref?: string;
+}) {
   const me = usePkOfficeMe();
   const router = useRouter();
   const qc = useQueryClient();
@@ -374,9 +382,10 @@ export function ProfilTab({ createMode = false }: { createMode?: boolean }) {
         return;
       }
 
-      // prebaci se na novi obrt i otvori njegove postavke
+      // prebaci se na novi obrt i otvori njegove postavke (ili gdje kaže
+      // pozivalac, npr. naslovnica sa Solo upitnikom)
       await activateOrg.mutateAsync(orgId);
-      router.replace("/app/postavke?tab=profil");
+      router.replace(afterCreateHref ?? "/app/postavke?tab=profil");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Greška pri kreiranju obrta.");
     } finally {
@@ -1050,6 +1059,8 @@ function mapCreateError(e: string): string {
       return "Dostignut je limit vlastitih organizacija za tvoj paket.";
     case "OFFICE_START_LIMIT":
       return "Office Start paket pokriva ukupno 2 obrta. Za više obrta nadogradi na Office Tim ili veći paket.";
+    case "OFFICE_SOLO_LIMIT":
+      return "Office Solo pokriva jedan obrt. Za više obrta nadogradi na Office Start ili veći paket.";
     default:
       return e;
   }

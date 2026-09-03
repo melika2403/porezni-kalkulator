@@ -21,6 +21,7 @@ import OrgFillSelect, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 import { trackEvent } from "src/api/activity";
+import OfficeSidebarPromo from "src/components/OfficeSidebarPromo/OfficeSidebarPromo";
 
 /* ── Helpers ── */
 
@@ -32,7 +33,9 @@ const num = (v: string) => {
 const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
   if (e.key !== "Enter") return;
   const target = e.target as HTMLElement;
-  if (target.tagName === "TEXTAREA" || target.tagName === "BUTTON") return;
+  // linkovi moraju ostati linkovi: bez "A" u ovoj listi preventDefault ispod
+  // guta Enter na fokusiranom linku (reklama, "Povezani alati"), pa se ne otvara
+  if (["TEXTAREA", "BUTTON", "A"].includes(target.tagName)) return;
   e.preventDefault();
   const focusable = Array.from(
     e.currentTarget.querySelectorAll<HTMLElement>(
@@ -1158,6 +1161,10 @@ export default function SprForm() {
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* PK Office reklama (Solo + knjigovođe): bočno na širokim ekranima,
+          traka ovdje ispod preuzimanja na užim i mobitelu */}
+      <OfficeSidebarPromo stranica="spr" />
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>

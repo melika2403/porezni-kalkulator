@@ -1,5 +1,14 @@
 "use client";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { me, unwrap } from "src/api/auth";
+import { createUplata, getKurs, getPostavke, updateUplata } from "src/api/freelancer";
+import { EUR_KURS, fmtDatum, kursGreskaTekst, VALUTE } from "src/sections/freelancer/format";
+import FreelancerTrialCta, {
+  FREELANCER_QUERY_KEY,
+  useFreelancerPristup,
+} from "src/components/FreelancerTrialCta/FreelancerTrialCta";
 import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import styles from "./ams.module.css";
 import { fillAmsTemplate, type AmsData } from "./fillAms";
@@ -21,6 +30,7 @@ import AmsIsplatioci, {
   type IsplatilacFill,
 } from "src/components/AmsIsplatioci/AmsIsplatioci";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import PkFreelancerPromo from "src/components/PkFreelancerPromo/PkFreelancerPromo";
 import { trackEvent } from "src/api/activity";
 
 /* ── Helpers ── */
@@ -128,13 +138,84 @@ export default function AmsForm() {
 
   // Dio 3
   const [iznosUplate, setIznosUplate] = useState("");
-  const [eurInput, setEurInput] = useState("");
+  // Iznos u stranoj valuti, kao u ručnom unosu PK Freelancera: EUR je fiksan
+  // (currency board) i preračunava se dok kucaš; ostale valute idu po srednjem
+  // kursu CBBiH na datum isplate, koji se povuče na klik. Kurs vrijedi samo
+  // za taj par valuta + datum.
+  const [valuta, setValuta] = useState("EUR");
+  const [iznosValutaInput, setIznosValutaInput] = useState("");
+  const [kursCbbh, setKursCbbh] = useState<{
+    kurs: number;
+    datumListe: string;
+    izvor: string;
+  } | null>(null);
+  const [kursGreska, setKursGreska] = useState<string | null>(null);
   const [odbitakPct, setOdbitakPct] = useState("20");
   const [porezniKredit, setPorezniKredit] = useState("");
+
+  const uKm = (iznos: number, kurs: number) =>
+    fmtInput(String(r2(iznos * kurs)).replace(".", ","));
+  // promjena valute ili datuma poništava kurs; KM izveden iz tog kursa se
+  // briše da ne ostane iznos koji više ne odgovara
+  const ponistiKurs = () => {
+    if (kursCbbh && num(iznosValutaInput) > 0) setIznosUplate("");
+    setKursCbbh(null);
+    setKursGreska(null);
+  };
+  const promijeniValutu = (v: string) => {
+    ponistiKurs();
+    setValuta(v);
+    const iznos = num(iznosValutaInput);
+    if (iznos > 0) setIznosUplate(v === "EUR" ? uKm(iznos, EUR_KURS) : "");
+  };
+  const promijeniDatumIsplate = (v: string) => {
+    setDatumIsplate(v);
+    if (valuta !== "EUR") ponistiKurs();
+  };
+  // Kurs vrijedi samo za par valuta + datum sa kojim je zatražen. Ako korisnik
+  // promijeni valutu ili datum dok zahtjev traje, odgovor se odbacuje, inače bi
+  // se iznos preračunao po kursu druge valute.
+  const povuciKurs = useMutation({
+    mutationFn: (t: { valuta: string; datum: string }) => unwrap(getKurs(t.valuta, t.datum)),
+    onSuccess: (k, t) => {
+      if (t.valuta !== valuta || t.datum !== datumIsplate) return;
+      setKursCbbh(k);
+      setKursGreska(null);
+      const iznos = num(iznosValutaInput);
+      if (iznos > 0) setIznosUplate(uKm(iznos, k.kurs));
+    },
+    onError: (e, t) => {
+      if (t.valuta !== valuta || t.datum !== datumIsplate) return;
+      setKursGreska(
+        kursGreskaTekst(e, "Kurs CBBiH za taj datum nije dostupan, upišite iznos u KM ručno."),
+      );
+    },
+  });
+  const iznosStrano = num(iznosValutaInput);
+  const kursValute = valuta === "EUR" ? EUR_KURS : (kursCbbh?.kurs ?? 0);
+  const trebaPreracun = valuta !== "EUR" && iznosStrano > 0 && !kursCbbh;
 
   // Dio 4
   const [datum, setDatum] = useState(() => getTodayIso());
   const [loading, setLoading] = useState(false);
+  // PK Freelancer poziv se pokaže tek kad je obrazac generisan: tad je
+  // korisnik upravo uradio posao koji bi mu asistent pamtio
+  // PK Freelancer evidencija: preuzimanje obrasca ili uplatnica prijavljenom
+  // korisniku samo upiše uplatu (nema posebnog klika). Jedan obrazac = jedan
+  // zapis: ponovno preuzimanje poslije ispravke AŽURIRA isti zapis (sacuvanaId),
+  // ne pravi duplikat. isplatilacId = veza na adresar ako je isplatilac biran.
+  // sacuvanaId stoji u ref-u, ne u stanju: dva brza klika (obrazac pa uplatnice)
+  // idu kroz isti red (upisRed), pa drugi upis vidi id koji je prvi dobio.
+  const [isplatilacId, setIsplatilacId] = useState<number | null>(null);
+  const sacuvanaIdRef = useRef<number | null>(null);
+  const upisRed = useRef<Promise<void>>(Promise.resolve());
+  // pretplatnik (ili proba) uz preuzimanje dobija i prečicu u svoju evidenciju
+  const { hasAccess: frlPristup } = useFreelancerPristup();
+  const [evidencija, setEvidencija] = useState<{
+    stanje: "idle" | "saved" | "limit" | "error";
+    azurirano?: boolean;
+    poruka?: string;
+  }>({ stanje: "idle" });
 
   // Dio 5 — Uplatnice
   const [kanton, setKanton] = useState<KantonKey | "">("");
@@ -166,6 +247,7 @@ export default function AmsForm() {
     setAdresaIsplatioca(data.adresa);
     setGradIsplatioca(data.grad);
     setDrzava(data.drzava);
+    setIsplatilacId(data.id ?? null);
   }, []);
 
   /* ── Computed ── */
@@ -182,6 +264,7 @@ export default function AmsForm() {
     const zdravstvenoKanton = r2(zdravstveno * 0.898);
     const zdravstvenoFbih = r2(zdravstveno * 0.102);
     return {
+      pct,
       rashodi,
       iznosDohotka,
       zdravstveno,
@@ -254,6 +337,9 @@ export default function AmsForm() {
         `AMS-1035_${periodMjesec || "XX"}_${parsedYear ?? "XXXX"}.pdf`,
       );
       trackEvent("AMS_GENERATE", "AMS-1035");
+      // PK Freelancer: preuzet obrazac = upisana uplata (poslije preuzimanja,
+      // da greška upisa nikad ne zaustavi PDF)
+      upisiAkoTreba();
     } finally {
       setLoading(false);
     }
@@ -269,6 +355,142 @@ export default function AmsForm() {
   const parsedMonth = /^\d{1,2}$/.test(periodMjesec)
     ? parseInt(periodMjesec)
     : null;
+
+  /* ── PK Freelancer: sačuvaj ovu uplatu u evidenciju ── */
+  const qc = useQueryClient();
+  // null = gost, undefined = još se učitava
+  const { data: prijavljeni } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()).catch(() => null),
+    staleTime: 5 * 60 * 1000,
+  });
+  // Prebivalište iz postavki PK Freelancera: kanton i općina se predpopune
+  // dok su polja prazna, korisnik ih i dalje može promijeniti za ovu uplatu.
+  const { data: frlPostavke } = useQuery({
+    queryKey: ["freelancer-postavke"],
+    queryFn: () => unwrap(getPostavke()),
+    enabled: !!prijavljeni,
+    staleTime: 5 * 60 * 1000,
+  });
+  useEffect(() => {
+    if (!frlPostavke?.kanton || kanton) return;
+    if (!(frlPostavke.kanton in KANTONI)) return;
+    setKanton(frlPostavke.kanton as KantonKey);
+    if (frlPostavke.opcina) setOpcina(frlPostavke.opcina);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frlPostavke]);
+  // Pretplatnik PK Freelancera (ili proba): Dio 1 se popuni iz profila čim se
+  // obrazac otvori, dok su polja prazna. "Popuni podatke" i dalje radi za
+  // popunu iz klijenta ili radnika, i prepisuje ovo.
+  useEffect(() => {
+    if (!frlPristup || !prijavljeni) return;
+    if (imeIPrezime || jmbg || adresa || grad) return;
+    fillPersonal({
+      jmbg: prijavljeni.jmbg,
+      firstName: prijavljeni.firstName,
+      lastName: prijavljeni.lastName,
+      address: prijavljeni.address,
+      city: prijavljeni.city,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frlPristup, prijavljeni]);
+  const adresaPrimaoca = formatAddress(adresa, grad, findCity(grad)?.postalCode);
+  const buildUplataPayload = () => {
+    // u valuti se evidentira samo kad je kurs poznat (EUR fiksni, ostale sa
+    // CBBiH liste); inače je to iznos unesen direktno u KM. Server provjerava
+    // da se iznosKm slaže sa iznosValuta x kurs.
+    const uValuti = iznosStrano > 0 && kursValute > 0;
+    return {
+      datumPrimitka: datumIsplate,
+      periodMjesec: parsedMonth,
+      periodGodina: parsedYear,
+      primalacIme: imeIPrezime,
+      primalacJmbg: jmbg,
+      primalacAdresa: adresaPrimaoca,
+      isplatilacId,
+      isplatilacNaziv: naziv,
+      isplatilacAdresa: adresaIsplatioca,
+      isplatilacGrad: gradIsplatioca,
+      isplatilacDrzava: drzava,
+      valuta: uValuti ? valuta : "BAM",
+      iznosValuta: uValuti ? iznosStrano : num(iznosUplate),
+      kurs: uValuti ? kursValute : 1,
+      iznosKm: num(iznosUplate),
+      // stvarno unesena stopa (server je ograničava na 0 do 100), da evidencija
+      // i GPD računaju po istoj stopi po kojoj je obrazac predan
+      stopaRashoda: computed.pct,
+      porezniKredit: num(porezniKredit),
+      kantonKey: kanton || null,
+      opcinaKod: opcina || null,
+      opcinaIme: opcinaData?.ime ?? null,
+      ziroRacun: ziroRacun || null,
+      // snimci iz kojih se isti PDF-ovi kasnije ponovo generišu
+      amsPodaci: buildAmsData(),
+      uplatnicaPodaci:
+        kanton && opcina && opcinaData
+          ? {
+              imeIPrezime,
+              adresa: adresaPrimaoca,
+              jmbg,
+              periodMjesec,
+              periodGodina,
+              zdravstvenoKanton: computed.zdravstvenoKanton,
+              zdravstvenoFbih: computed.zdravstvenoFbih,
+              porez: computed.razlika,
+              kantonKey: kanton,
+              opcinaKod: opcina,
+              opcinaIme: opcinaData.ime,
+              datum,
+              ziroRacun: ziroRacun || undefined,
+            }
+          : null,
+    };
+  };
+  // upis ima smisla tek kad obrazac ima iznos i isplatioca (prazan obrazac se
+  // smije preuzeti, ali se ne evidentira)
+  const mozeUpisati =
+    num(iznosUplate) > 0 && naziv.trim().length > 0 && parsedYear !== null;
+  // Obrazac i uplatnice zovu isti upis. Umjesto preskakanja kad je upis "u
+  // toku" (što je pravilo duplikat ili gubilo kanton i općinu), upisi se nižu:
+  // drugi sačeka prvi i onda dopuni isti zapis.
+  const upisiAkoTreba = () => {
+    if (!prijavljeni || !mozeUpisati) return;
+    const payload = buildUplataPayload();
+    upisRed.current = upisRed.current
+      .catch(() => undefined)
+      .then(async () => {
+        const id = sacuvanaIdRef.current;
+        const res = id
+          ? await updateUplata(id, payload)
+          : await createUplata(payload);
+        if (!res.ok) {
+          const msg = res.error || "";
+          setEvidencija(
+            msg === "LIMIT_BESPLATNO"
+              ? { stanje: "limit" }
+              : {
+                  stanje: "error",
+                  poruka: msg || "Upis u evidenciju nije uspio.",
+                },
+          );
+          return;
+        }
+        sacuvanaIdRef.current = res.data.id;
+        setEvidencija({ stanje: "saved", azurirano: id !== null });
+        if (id === null) trackEvent("FREELANCER_UPLATA_SACUVANA", "ams");
+        qc.invalidateQueries({ queryKey: FREELANCER_QUERY_KEY });
+      });
+  };
+  // izmjena poslije upisa sklanja poruku; sljedeće preuzimanje ažurira isti zapis
+  useEffect(() => {
+    setEvidencija({ stanje: "idle" });
+  }, [iznosUplate, naziv, datumIsplate]);
+  // Ispravka iznosa ili sitnih podataka ažurira isti zapis, ali drugi
+  // isplatilac ili drugi datum isplate su NOVA uplata: veza na zapis se kida
+  // da sljedeće preuzimanje ne prepiše prvu uplatu podacima druge.
+  useEffect(() => {
+    sacuvanaIdRef.current = null;
+  }, [naziv, isplatilacId, datumIsplate]);
 
   /* ── Export Uplatnice ── */
   const handleExportUplatnice = async () => {
@@ -294,6 +516,8 @@ export default function AmsForm() {
         bytes,
         `Uplatnice_${periodMjesec || "XX"}_${periodGodina || "XXXX"}.pdf`,
       );
+      // i uplatnice upisuju/ažuriraju isti zapis (donose kanton i općinu)
+      upisiAkoTreba();
     } finally {
       setLoadingUpl(false);
     }
@@ -324,6 +548,9 @@ export default function AmsForm() {
         </p>
       </div>
 
+      {/* Dvije kolone od 1200px: obrazac + bočna PK Freelancer kartica */}
+      <div className={styles.layout}>
+      <div className={styles.glavno}>
       {/* Dio 1 */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
@@ -358,7 +585,7 @@ export default function AmsForm() {
             <DateInput
               className={styles.fieldInput}
               value={datumIsplate}
-              onValueChange={setDatumIsplate}
+              onValueChange={promijeniDatumIsplate}
             />
           </div>
           <div className={styles.fieldGroup}>
@@ -493,29 +720,77 @@ export default function AmsForm() {
               value={iznosUplate}
               onChange={(e) => {
                 setIznosUplate(fmtInput(e.target.value));
-                setEurInput("");
+                // ručno upisan KM više nije preračun iz valute
+                setIznosValutaInput("");
+                setKursGreska(null);
               }}
             />
             <div className={styles.eurRow}>
-              <span className={styles.eurLabel}>ili unesi u EUR</span>
+              <span className={styles.eurLabel}>ili unesi u valuti</span>
+              <div className={styles.valutaWrap}>
+                <StyledSelect
+                  value={valuta}
+                  onChange={(v) => promijeniValutu(String(v ?? "EUR"))}
+                  ariaLabel="Valuta"
+                  className={styles.valutaSelect}
+                  groups={[
+                    {
+                      options: VALUTE.filter((v) => v !== "BAM").map((v) => ({
+                        value: v,
+                        label: v,
+                      })),
+                    },
+                  ]}
+                />
+              </div>
               <input
                 className={styles.eurInput}
                 inputMode="decimal"
-                placeholder="0,00 €"
-                value={eurInput}
+                placeholder={`0,00 ${valuta}`}
+                aria-label={`Iznos u ${valuta}`}
+                value={iznosValutaInput}
                 onChange={(e) => {
                   const raw = fmtInput(e.target.value);
-                  setEurInput(raw);
-                  const eur = num(raw);
-                  if (eur > 0)
-                    setIznosUplate(
-                      fmtInput(String(r2(eur * 1.95583)).replace(".", ",")),
-                    );
-                  else setIznosUplate("");
+                  setIznosValutaInput(raw);
+                  const iznos = num(raw);
+                  // EUR i valuta sa povučenim kursom se preračunavaju dok
+                  // kucaš; bez kursa KM čeka klik na preračun
+                  if (kursValute > 0) setIznosUplate(iznos > 0 ? uKm(iznos, kursValute) : "");
                 }}
               />
-              <span className={styles.eurRate}>1 € = 1,95583 KM</span>
+              {valuta === "EUR" ? (
+                <span className={styles.eurRate}>1 € = 1,95583 KM</span>
+              ) : trebaPreracun ? (
+                <button
+                  type="button"
+                  className={styles.kursBtn}
+                  onClick={() => povuciKurs.mutate({ valuta, datum: datumIsplate })}
+                  disabled={povuciKurs.isPending}
+                  title="Srednji kurs CBBiH na datum isplate"
+                >
+                  {povuciKurs.isPending ? "Povlačim kurs..." : "Preračunaj po kursu CBBiH"}
+                </button>
+              ) : null}
             </div>
+            {kursCbbh && valuta !== "EUR" && iznosStrano > 0 && (
+              <div className={styles.hint}>
+                {fmt(iznosStrano)} {valuta} ×{" "}
+                {kursCbbh.kurs.toLocaleString("de-DE", {
+                  minimumFractionDigits: 4,
+                  maximumFractionDigits: 6,
+                })}{" "}
+                = {fmt(r2(iznosStrano * kursCbbh.kurs))} KM, srednji kurs CBBiH, lista od{" "}
+                {fmtDatum(kursCbbh.datumListe)}
+              </div>
+            )}
+            {/* bez preračuna obrazac nema iznos: promjena valute ili datuma
+                poništi kurs, pa korisnik mora znati zašto je polje prazno */}
+            {trebaPreracun && !povuciKurs.isPending && (
+              <div className={styles.kursNapomena}>
+                Iznos u KM se upiše tek kad preračunate po kursu za datum isplate.
+              </div>
+            )}
+            {kursGreska && <div className={styles.kursGreska}>{kursGreska}</div>}
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Odbitak (rashodi)</label>
@@ -705,7 +980,51 @@ export default function AmsForm() {
           </svg>
           {loading ? "Generisanje..." : "Preuzmi AMS-1035 PDF"}
         </button>
+        {frlPristup && (
+          <Link href="/freelancer?tab=uplate" className={styles.freelancerBtn}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <rect x="3" y="7" width="18" height="13" rx="2" />
+              <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" />
+            </svg>
+            Uđi u PK Freelancer
+          </Link>
+        )}
       </div>
+
+      {prijavljeni && evidencija.stanje === "saved" && (
+        <div className={styles.evidBox} role="status">
+          {evidencija.azurirano
+            ? "Zapis u PK Freelancer evidenciji je ažuriran prema ovom obrascu."
+            : "Uplata je upisana u PK Freelancer evidenciju: AMS i uplatnice možete ponovo preuzeti, a rok za predaju i GPD prate se automatski."}{" "}
+          <Link href="/freelancer?tab=uplate">Otvori evidenciju</Link>
+        </div>
+      )}
+      {prijavljeni && evidencija.stanje === "limit" && (
+        <div className={styles.evidBoxWarn}>
+          Obrazac je preuzet, ali nije upisan u evidenciju: besplatno se čuvaju
+          do 3 uplate godišnje. Za više uplata, podsjetnike i GPD iz evidencije
+          treba PK Freelancer.
+          <FreelancerTrialCta
+            variant="inline"
+            what="Evidencija bez ograničenja, podsjetnici na rok, GPD i potvrda o prihodima"
+          />
+        </div>
+      )}
+      {prijavljeni && evidencija.stanje === "error" && (
+        <div className={styles.evidBoxWarn}>
+          Obrazac je preuzet, ali upis u evidenciju nije uspio: {evidencija.poruka}
+        </div>
+      )}
+      {prijavljeni === null && (
+        <p className={styles.evidHint}>
+          Uz besplatnu registraciju svaki preuzeti obrazac se sam upisuje u{" "}
+          <Link href="/registracija?next=/ams">PK Freelancer evidenciju</Link>, pa
+          AMS i uplatnice preuzimate ponovo i pratite rok za predaju.
+        </p>
+      )}
+      {/* Kompaktne trake poslije generisanja više nema: bočna kartica sada na
+          uskim ekranima stoji odmah ispod naslova, pa bi traka bila ista
+          reklama drugi put na istom ekranu. */}
 
       {/* Dio 5, Uplatnice */}
       <section className={styles.section}>
@@ -852,10 +1171,22 @@ export default function AmsForm() {
         </div>
       </section>
 
-      <p className={styles.dataNapomena}>
-        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
-        Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
-      </p>
+      {/* Napomena o podacima: gostu je obrazac stvarno bez traga, prijavljenom
+          se preuzeta uplata upisuje u njegovu PK Freelancer evidenciju. */}
+      {prijavljeni ? (
+        <p className={styles.dataNapomena}>
+          Preuzimanjem obrasca ili uplatnica ova uplata se upisuje u vašu PK
+          Freelancer evidenciju, da AMS i uplatnice možete preuzeti ponovo i da
+          se prati rok za predaju. Zapis vidite i brišete u{" "}
+          <Link href="/freelancer?tab=uplate">evidenciji uplata</Link>. Nakon
+          spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        </p>
+      ) : (
+        <p className={styles.dataNapomena}>
+          Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
+          Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        </p>
+      )}
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>
@@ -1066,6 +1397,11 @@ export default function AmsForm() {
           ))}
         </div>
       </section>
+      </div>
+      <aside className={styles.bocno} aria-label="PK Freelancer">
+        <PkFreelancerPromo izvor="ams-sidebar" />
+      </aside>
+      </div>
     </main>
   );
 }

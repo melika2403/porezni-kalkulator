@@ -47,6 +47,7 @@ import { usePartners } from "src/hooks/usePartners";
 import { useArtikli } from "src/hooks/useKalkulacije";
 import { ArtikalModal } from "src/sections/kalkulacije/ArtikalModal";
 import type { Artikal } from "src/api/kalkulacije";
+import { JEZIK_LABEL, type InvoiceJezik } from "src/api/invoices";
 import { PkSelect } from "src/components/app-shell/PkSelect";
 import type { Partner } from "src/api/partners";
 import {
@@ -164,6 +165,11 @@ export default function InvoiceForm({
   >("OPOREZIVA");
   const [currency, setCurrency] = useState<"BAM" | "EUR">("BAM");
   const currencyLabel = currency === "EUR" ? "EUR" : "KM";
+  // jezik ispisa PDF-a i emaila (bs / en / dvojezično), za inostrane kupce
+  const [jezik, setJezik] = useState<InvoiceJezik>("bs");
+  // Solo obrt: jednostavna forma, napredna polja (vrsta isporuke, valuta,
+  // jezik) iza prekidača; "Inostrani kupac" ih postavlja odjednom
+  const [napredno, setNapredno] = useState(false);
   const [issueDate, setIssueDate] = useState(todayIso());
   const [dueDate, setDueDate] = useState(plusDaysIso(30));
   const [notes, setNotes] = useState("");
@@ -473,6 +479,22 @@ export default function InvoiceForm({
   useEffect(() => {
     if (lockedOrg) pickSellerOrg(lockedOrg);
   }, [lockedOrg]);
+  const solo = Boolean(lockedOrg?.soloMode);
+  const inostrani = vrstaIsporuke === "IZVOZ" && currency === "EUR";
+  const postaviInostranog = (on: boolean) => {
+    vatTouchedRef.current = true;
+    if (on) {
+      setVrstaIsporuke("IZVOZ");
+      setApplyVat(false);
+      setCurrency("EUR");
+      setJezik("bs-en");
+    } else {
+      setVrstaIsporuke("OPOREZIVA");
+      setCurrency("BAM");
+      setJezik("bs");
+      setApplyVat(sellerIsPdv ?? true);
+    }
+  };
 
   // Marketing dio: pre-popuni prodavca kad korisnik ima tačno jednu org-u
   useEffect(() => {
@@ -507,6 +529,7 @@ export default function InvoiceForm({
       setApplyVat(inv.applyVat);
       setVrstaIsporuke(inv.vrstaIsporuke ?? "OPOREZIVA");
       setCurrency(inv.currency);
+      setJezik(inv.jezik ?? "bs");
       setIssueDate(todayIso());
       setDueDate(plusDaysIso(30));
       setNotes(inv.notes || "");
@@ -577,6 +600,7 @@ export default function InvoiceForm({
       setApplyVat(inv.applyVat);
       setVrstaIsporuke(inv.vrstaIsporuke ?? "OPOREZIVA");
       setCurrency(inv.currency);
+      setJezik(inv.jezik ?? "bs");
       setIssueDate((inv.issueDate || "").slice(0, 10) || todayIso());
       setDueDate((inv.dueDate || "").slice(0, 10) || plusDaysIso(30));
       setNotes(inv.notes || "");
@@ -737,6 +761,7 @@ export default function InvoiceForm({
         applyVat,
         vrstaIsporuke: isAvans ? "OPOREZIVA" : vrstaIsporuke,
         currency,
+        jezik,
         issueDate,
         dueDate: isAvans ? null : dueDate || null,
         notes: notes.trim() || null,
@@ -966,6 +991,29 @@ export default function InvoiceForm({
               />
               {isAvans ? "Avans sadrži PDV (17/117)" : "Obračunavam PDV"}
             </label>
+            {/* Solo: jedan prekidač za inostranog kupca, ostalo iza "Napredno" */}
+            {solo && !isAvans && (
+              <>
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={inostrani}
+                    onChange={(e) => postaviInostranog(e.target.checked)}
+                  />
+                  Inostrani kupac (izvoz bez PDV-a, EUR, dvojezična faktura)
+                </label>
+                <button
+                  type="button"
+                  className={styles.naprednoBtn}
+                  onClick={() => setNapredno((v) => !v)}
+                  aria-expanded={napredno}
+                >
+                  {napredno ? "Sakrij napredno" : "Napredno"}
+                </button>
+              </>
+            )}
+            {(!solo || napredno) && (
+            <>
             {/* vrsta isporuke: puni KIF i PDV prijavu (izvoz/oslobođeno bez PDV) */}
             {!isAvans && (
             <div
@@ -1027,6 +1075,24 @@ export default function InvoiceForm({
                 EUR
               </button>
             </div>
+            {/* jezik ispisa: PK Office (PkSelect), za inostrane kupce */}
+            {isPkOffice && !isAvans && (
+              <div className={styles.field} style={{ minWidth: 190 }}>
+                <label>Jezik fakture</label>
+                <PkSelect
+                  ariaLabel="Jezik fakture"
+                  value={jezik}
+                  onChange={(v) => setJezik((v as InvoiceJezik) || "bs")}
+                  options={(Object.keys(JEZIK_LABEL) as InvoiceJezik[]).map((k) => ({
+                    value: k,
+                    label: JEZIK_LABEL[k],
+                  }))}
+                  wrapStyle={{ width: "100%" }}
+                />
+              </div>
+            )}
+            </>
+            )}
             <div className={styles.field} style={{ flex: 1, minWidth: 160 }}>
               <label>Datum izdavanja</label>
               <DateInput

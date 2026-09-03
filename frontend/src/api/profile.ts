@@ -67,6 +67,10 @@ export type Users = {
   isEmailVerified: boolean;
   trialUsedAt: string | null;
   pkOfficeTrialEndsAt?: string | null;
+  /** Nivo Office probe: "office_1" = Solo, prazno = Tim. */
+  pkOfficeTrialPlan?: string | null;
+  /** Kraj probe PK Freelancera (zasebna od Office probe). */
+  freelancerTrialEndsAt?: string | null;
   /** Ima li korisnik uključenu dvofaktorsku prijavu (za admin otključavanje). */
   twoFactorEnabled?: boolean;
   twoFactorMethod?: "EMAIL" | "TOTP" | null;
@@ -280,6 +284,15 @@ export type Organization = {
   ownerIsDirector?: boolean;
   directorEngagement?: DirectorEngagement;
   directorWorkerId?: number | null;
+  /** PK Office Solo: režim "vodim sam sebi" i moduli iz upitnika. */
+  soloMode?: boolean;
+  soloModuli?: {
+    radnici: boolean;
+    roba: boolean;
+    blagajna: boolean;
+    putniNalozi: boolean;
+    stalnaSredstva: boolean;
+  } | null;
   owner: OrgOwner | null;
   // Razriješeni potpisnik poslodavca (vlasnik ili radnik-direktor).
   signer?: OrgSigner;
@@ -319,6 +332,14 @@ export type OrgPayload = {
   ownerIsDirector?: boolean;
   directorEngagement?: DirectorEngagement;
   directorWorkerId?: number | null;
+  soloMode?: boolean;
+  soloModuli?: {
+    radnici: boolean;
+    roba: boolean;
+    blagajna: boolean;
+    putniNalozi: boolean;
+    stalnaSredstva: boolean;
+  } | null;
   ownerData?: OrgOwnerPayload;
 };
 

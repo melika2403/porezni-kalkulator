@@ -17,25 +17,30 @@ import {
 import { getUsers, upsertSubscription } from "src/api/profile";
 import { toggleRenewalTrial } from "src/api/renewals";
 import { unwrap } from "src/api/auth";
+import { mnozina } from "src/lib/format";
 import styles from "../obnove/obnove.module.css";
 
 const PLAN_OPTIONS = [
   { value: "PRO", label: "Pro" },
   { value: "BUSINESS", label: "Business" },
+  { value: "office_1", label: "Office Solo (1 obrt)" },
   { value: "office_2", label: "Office Start (do 2 obrta)" },
   { value: "office_10", label: "Office Tim (do 10 obrta)" },
   { value: "office_25", label: "Office Agencija (do 25 obrta)" },
   { value: "office_50", label: "Office Agencija+ (do 50 obrta)" },
+  { value: "freelancer", label: "PK Freelancer (50 KM godišnje)" },
 ];
 
 const PLAN_LABEL: Record<string, string> = {
   free: "Besplatno",
   pro: "Pro",
   business: "Business",
+  office_1: "Office Solo",
   office_2: "Office Start",
   office_10: "Office Tim",
   office_25: "Office Agencija",
   office_50: "Office Agencija+",
+  freelancer: "PK Freelancer",
 };
 
 function planLabel(plan: string | null) {
@@ -46,10 +51,22 @@ function planLabel(plan: string | null) {
 function planBadgeClass(plan: string | null) {
   const p = (plan ?? "").toLowerCase();
   if (p.startsWith("office")) return styles.planOffice;
+  if (p === "freelancer") return styles.planFreelancer;
   if (p === "business") return styles.planBusiness;
   if (p === "pro") return styles.planPro;
   return styles.planUser;
 }
+
+// Probe (Office Tim, Office Solo, PK Freelancer) su odvojene oznake: svaka
+// nosi boju svog proizvoda, da se u listi na prvi pogled razlikuju.
+const PROBA_OZNAKA: Record<
+  NonNullable<AdminSubscription["proba"]>,
+  { label: string; cls: string }
+> = {
+  office: { label: "Office trial", cls: "planTrialSoft" },
+  office_solo: { label: "Office Solo trial", cls: "planTrialSolo" },
+  freelancer: { label: "Freelancer trial", cls: "planFreelancerTrial" },
+};
 
 // Paket za prikaz: pravi plan iz pretplate; za stare zapise (plan prazan ili
 // "free" a rola PRO/BUSINESS, dodijeljeno prije uvođenja planova) izvedi iz role.
@@ -79,7 +96,7 @@ function nextDay(iso: string) {
 
 // planovi koje backend prihvata pri dodjeli; "free" (trial) se ne šalje,
 // produženje takvog reda samo pomjera period (produži trial)
-const ASSIGNABLE_PLAN = /^(pro|business|office_(2|10|25|50))$/i;
+const ASSIGNABLE_PLAN = /^(pro|business|freelancer|office_(1|2|10|25|50))$/i;
 
 function istekla(s: AdminSubscription) {
   if (!s.isActive) return true;
@@ -106,6 +123,8 @@ export default function AdminAktivnePretplate() {
     if (statusFilter === "istekle") rows = rows.filter(istekla);
     if (planFilter === "office") {
       rows = rows.filter((s) => (paketOd(s) ?? "").startsWith("office"));
+    } else if (planFilter === "proba") {
+      rows = rows.filter((s) => !!s.proba);
     } else if (planFilter) {
       rows = rows.filter((s) => (paketOd(s) ?? "") === planFilter);
     }
@@ -277,10 +296,13 @@ export default function AdminAktivnePretplate() {
                     { value: "pro", label: "Pro" },
                     { value: "business", label: "Business" },
                     { value: "office", label: "PK Office (svi)" },
+                    { value: "office_1", label: "Office Solo" },
                     { value: "office_2", label: "Office Start" },
                     { value: "office_10", label: "Office Tim" },
                     { value: "office_25", label: "Office Agencija" },
                     { value: "office_50", label: "Office Agencija+" },
+                    { value: "freelancer", label: "PK Freelancer" },
+                    { value: "proba", label: "Samo probe" },
                   ],
                 },
               ]}
@@ -288,7 +310,13 @@ export default function AdminAktivnePretplate() {
           </div>
           <div className={styles.summary} style={{ marginLeft: "auto" }}>
             <span className={styles.summaryValue}>{items.length}</span>
-            <span className={styles.summaryLabel}>pretplata</span>
+            <span className={styles.summaryLabel}>
+              {(() => {
+                const probe = items.filter((s) => s.proba).length;
+                if (!probe) return "pretplata";
+                return `${mnozina(items.length, "red", "reda", "redova")} (${items.length - probe} ${mnozina(items.length - probe, "pretplata", "pretplate", "pretplata")}, ${probe} ${mnozina(probe, "proba", "probe", "proba")})`;
+              })()}
+            </span>
           </div>
         </div>
 
@@ -312,7 +340,9 @@ export default function AdminAktivnePretplate() {
               <tbody>
                 {items.map((s) => (
                   <SubRow
-                    key={s.userId}
+                    // isti korisnik može imati paket, Office probu i Freelancer
+                    // probu istovremeno (tri reda), pa ključ mora nositi i vrstu
+                    key={`${s.proba ?? "paket"}-${s.userId}`}
                     s={s}
                     onChanged={() =>
                       queryClient.invalidateQueries({
@@ -413,10 +443,23 @@ function SubRow({
         <div className={styles.userContact}>{s.user?.email || "–"}</div>
       </td>
       <td>
-        <span className={`${styles.planBadge} ${planBadgeClass(paket)}`}>
-          {paket ? planLabel(paket) : "Besplatno"}
-        </span>
-        {s.isTrial && <span className={styles.trialBadge}>Trial</span>}
+        {s.proba ? (
+          <span
+            className={`${styles.planBadge} ${
+              styles[PROBA_OZNAKA[s.proba].cls as keyof typeof styles] ?? ""
+            }`}
+            title="Probni period, ne pretplata: ističe sam, ništa se ne naplaćuje"
+          >
+            {PROBA_OZNAKA[s.proba].label}
+          </span>
+        ) : (
+          <>
+            <span className={`${styles.planBadge} ${planBadgeClass(paket)}`}>
+              {paket ? planLabel(paket) : "Besplatno"}
+            </span>
+            {s.isTrial && <span className={styles.trialBadge}>Trial</span>}
+          </>
+        )}
       </td>
       <td>{s.billingCycle === "yearly" ? "godišnje" : s.billingCycle === "monthly" ? "mjesečno" : "–"}</td>
       <td>
@@ -479,6 +522,11 @@ function SubRow({
         {error && <div className={styles.errorMsg}>{error}</div>}
       </td>
       <td className={styles.actionCol}>
+        {/* Proba nije pretplata: nema šta da se produžava ni deaktivira, pa red
+            stoji samo kao informacija dok proba traje. */}
+        {s.proba ? (
+          <span className={styles.sentInfo}>trial, ističe sam</span>
+        ) : (
         <div className={styles.actionStack}>
           <button
             type="button"
@@ -525,6 +573,7 @@ function SubRow({
             </button>
           )}
         </div>
+        )}
       </td>
     </tr>
   );

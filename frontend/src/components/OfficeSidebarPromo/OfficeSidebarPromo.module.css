@@ -1,0 +1,197 @@
+/* PK Office reklama uz SPR i GPD (dva bloka: Solo i knjigovođe). Vizuelni
+   jezik je isti kao PkOfficePromo i SoloReklama: tamnozelena kartica,
+   terakota akcenat. Dvije forme: bočna kolona (široki ekrani) i traka ispod
+   dugmeta za preuzimanje (uži ekrani i mobitel). */
+
+/* ── bočna kolona: IZVAN okvira stranice (860px), desno, prati skrol ── */
+.bocno {
+  display: none;
+}
+/* 1440px = okvir 860 + sa obje strane po (24 razmak + 250 kolona + 16 rub),
+   da kolona cijela stane u ekran, a okvir ostane centriran */
+@media (min-width: 1440px) {
+  .bocno {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: fixed;
+    top: 96px;
+    left: calc(50% + 430px + 24px);
+    width: 250px;
+    z-index: 5;
+  }
+}
+/* niži ekrani (npr. 1536x864): kolona je fiksna pa se ne može skrolati,
+   zato se skraćuje umjesto da se donji blok odsiječe. Prag mora biti veći od
+   pune visine kolone (96px vrh + sadržaj = oko 756px), inače se dno odsiječe. */
+@media (max-height: 780px) {
+  .bocno .lista {
+    display: none;
+  }
+}
+
+.blok {
+  background: #14241b;
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e08a52;
+}
+
+.naslov {
+  font-family: "DM Serif Display", serif;
+  font-size: 17px;
+  line-height: 1.3;
+  color: #fff;
+  margin: 0;
+}
+.naslov em {
+  font-style: italic;
+  color: #e08a52;
+}
+
+.iznos {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.55rem;
+  line-height: 1;
+  color: #fff;
+}
+.iznos small {
+  display: block;
+  font-family: "DM Sans", sans-serif;
+  font-size: 11.5px;
+  line-height: 1.4;
+  opacity: 0.8;
+  margin-top: 0.3rem;
+}
+.nb {
+  white-space: nowrap;
+}
+
+.lista {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.lista li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+}
+.kvacica {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  color: #7fb08a;
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #14241b;
+  background: #e08a52;
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.cta:hover {
+  background: #e89a68;
+}
+.strelica {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* ── traka ispod obrasca: dva dijela jedan uz drugi ── */
+.traka {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #14241b;
+  color: #fff;
+  border-radius: var(--radius-lg);
+  margin: 0 0 1.5rem;
+  overflow: hidden;
+}
+@media (min-width: 1440px) {
+  .traka {
+    display: none;
+  }
+}
+.trakaDio {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+.trakaDio + .trakaDio {
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+.trakaTekst {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+}
+.trakaDno {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+.trakaCijena {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.05rem;
+}
+/* .cta je pune širine u koloni; u traci stoji uz cijenu */
+.ctaUsko {
+  width: auto;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .traka {
+    grid-template-columns: 1fr;
+  }
+  .trakaDio + .trakaDio {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .ctaUsko {
+    width: 100%;
+  }
+}
+
+@media print {
+  .bocno,
+  .traka {
+    display: none !important;
+  }
+}

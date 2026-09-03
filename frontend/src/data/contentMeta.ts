@@ -25,6 +25,8 @@ export const CONTENT_META: Record<string, ContentMeta> = {
   "/gpd/upute": { reviewed: "2026-06-03", taxYear: 2026 },
   "/zo3": { reviewed: "2026-06-03", taxYear: 2026 },
   "/ams": { reviewed: "2026-06-03", taxYear: 2026 },
+  // 2026-09-02: dodato uputstvo "Kako radi, korak po korak" (rokovi provjereni)
+  "/freelancer": { reviewed: "2026-09-02", taxYear: 2026 },
   "/amortizacija": { reviewed: "2026-06-03", taxYear: 2026 },
   "/preracun-neto-bruto": { reviewed: "2026-06-03", taxYear: 2026 },
   "/pdv-kalkulator": { reviewed: "2026-06-03", taxYear: 2026 },

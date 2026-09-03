@@ -239,6 +239,9 @@
 
 .workerName {
   font-weight: 500;
+  /* ime u jednoj liniji: kolone se šire po sadržaju, pa bi se inače lomilo
+     čim neki red dobije dvije oznake ili datume */
+  white-space: nowrap;
 }
 
 .workerJmbg {
@@ -254,6 +257,13 @@
   white-space: nowrap;
 }
 
+/* Kad zafali mjesta popušta email (dug tekst bez razmaka), ne ime: inače se
+   svaki red sa datumima ili oznakom podeblja. Ime je nowrap uz .workerName. */
+.emailCell {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 /* ── Badges (pills) ───────────────────────────────────────────────────── */
 .activeBadge,
 .inactiveBadge,
@@ -267,7 +277,10 @@
 .roleBusiness,
 .roleAdmin,
 .planOffice,
-.planTrial {
+.planTrial,
+.planTrialSolo,
+.planFreelancer,
+.planFreelancerTrial {
   display: inline-block;
   font-size: 11px;
   font-weight: 500;
@@ -402,6 +415,23 @@
 .planTrial {
   background: #f2dec0;
   color: #8a4f10;
+}
+
+/* Office Solo proba: ista porodica boja kao Office, ali odvojena od Tima */
+.planTrialSolo {
+  background: #f6ddd0;
+  color: #a04a19;
+}
+
+/* PK Freelancer nosi šljivu, boju tog proizvoda */
+.planFreelancer {
+  background: var(--plum-mid);
+  color: #fff;
+}
+
+.planFreelancerTrial {
+  background: var(--plum-pale);
+  color: var(--plum-text);
 }
 
 /* ── Inputs (inline edit) ─────────────────────────────────────────────── */

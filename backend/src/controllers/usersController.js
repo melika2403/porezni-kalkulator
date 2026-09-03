@@ -2,6 +2,9 @@ const userRepository = require("../repositories/userRepository");
 const { encryptJmbg } = require("../utils/encryptJmbg");
 const ownerIdentitySync = require("../services/ownerIdentitySync");
 
+// Dozvoljene role (mora pratiti ENUM users.role u modelu).
+const ROLE_VRIJEDNOSTI = ["USER", "PRO", "BUSINESS", "ADMIN"];
+
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -66,7 +69,18 @@ function validateUserUpdatePayload(body) {
     if (!isNonEmptyString(role)) {
       return { ok: false, message: "role must be a non-empty string" };
     }
-    data.role = role.trim();
+    // Rola je ENUM sa četiri vrijednosti. Bez ove provjere je naziv paketa
+    // (npr. "freelancer" ili "office_1") stizao do baze i rušio zahtjev sa
+    // "Data truncated for column 'role'", umjesto jasne poruke.
+    const trimovana = role.trim();
+    if (!ROLE_VRIJEDNOSTI.includes(trimovana)) {
+      return {
+        ok: false,
+        message:
+          "role mora biti USER, PRO, BUSINESS ili ADMIN. Paketi se dodjeljuju kroz pretplatu, ne kroz rolu.",
+      };
+    }
+    data.role = trimovana;
   }
 
   const { idCardNumber } = body ?? {};

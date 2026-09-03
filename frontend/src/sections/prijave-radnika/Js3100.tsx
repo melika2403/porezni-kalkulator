@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import styles from "./js3100.module.css";
 import uorStyles from "src/sections/ugovor-o-radu/uor.module.css";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
+import ZanimanjeSelect from "src/components/ZanimanjeSelect/ZanimanjeSelect";
 import {
   createWorker,
   getOrganization,
@@ -36,7 +37,7 @@ import { useRole } from "src/hooks/useRole";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 import { trackEvent } from "src/api/activity";
-import { useLastOrg } from "src/hooks/useLastOrg";
+import { usePamcenaOrg } from "src/hooks/useLastOrg";
 
 /* ── Helpers ── */
 function getTodayIso() {
@@ -128,7 +129,6 @@ function Js3100App() {
   const isLoggedIn = !!role;
   const canGenerate = hasRole("PRO", "BUSINESS", "ADMIN");
 
-  const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
 
   const urlOrgInit = (() => {
     const v = searchParams.get("org");
@@ -147,10 +147,10 @@ function Js3100App() {
   /* ── Sidebar state ── */
   // orgId se hidrira u 2 faze: URL → odmah, inače čekamo localStorage hidraciju.
   // Vidi AktivniRadnici / ObracunPlata za isti pattern.
-  const [sidebarOrgId, setSidebarOrgIdInternal] = useState<number | null>(
-    urlOrgInit,
-  );
-  const [hydratedOrg, setHydratedOrg] = useState<boolean>(urlOrgInit != null);
+  // Org koja prati korisnika kroz stranice (URL → localStorage → izbor);
+  // dijeljeni obrazac, vidi usePamcenaOrg.
+  const { orgId: sidebarOrgId, setOrgId: setSidebarOrgId } =
+    usePamcenaOrg(urlOrgInit);
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(
     initialWorkerId,
   );
@@ -160,23 +160,7 @@ function Js3100App() {
     "DRAFT" | "PRIJAVLJEN" | "ODJAVLJEN" | null
   >(null);
 
-  // Perzistira odabranu organizaciju u localStorage da Obračun plata / Aktivni
-  // radnici otvore istu organizaciju bez ponovnog odabira.
-  const setSidebarOrgId = useCallback(
-    (id: number | null) => {
-      setSidebarOrgIdInternal(id);
-      if (id != null) setLastOrgId(id);
-    },
-    [setLastOrgId],
-  );
 
-  // Faza 2 hidracije: usvoji lastOrgId čim localStorage hidrira.
-  useEffect(() => {
-    if (hydratedOrg) return;
-    if (!lastOrgLoaded) return;
-    if (lastOrgId != null) setSidebarOrgIdInternal(lastOrgId);
-    setHydratedOrg(true);
-  }, [hydratedOrg, lastOrgLoaded, lastOrgId]);
 
   /* ── Vrsta prijave ── */
   const [vrsta, setVrsta] = useState<Js3100Vrsta>(initialVrsta);
@@ -1111,11 +1095,18 @@ function Js3100App() {
                 {/* Red 3: Zanimanje */}
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>Zanimanje, Opis</label>
-                  <input
+                  <ZanimanjeSelect
                     className={styles.fieldInput}
                     value={treci.zanimanjeOpis}
-                    onChange={(e) =>
-                      setTreci((p) => ({ ...p, zanimanjeOpis: e.target.value }))
+                    onChange={(v) =>
+                      setTreci((p) => ({ ...p, zanimanjeOpis: v }))
+                    }
+                    onPick={(z) =>
+                      setTreci((p) => ({
+                        ...p,
+                        zanimanjeOpis: z.naziv,
+                        zanimanjeSifra: z.sifra,
+                      }))
                     }
                   />
                 </div>

@@ -85,20 +85,40 @@ function validateBody(body) {
     if (it.quantity <= 0) errors.push(`Stavka ${i + 1}: količina mora biti veća od 0.`);
     if (it.unitPrice < 0) errors.push(`Stavka ${i + 1}: cijena ne može biti negativna.`);
   });
+  // dan izvan opsega se ne smije tiho progutati: korisnik upiše 30, snimi se
+  // bez ijedne poruke, a automatika nikad ne proradi
+  if (upisan(body?.autoDan) && autoDanIz(body.autoDan) === null) {
+    errors.push("Dan za automatsko fakturisanje mora biti cijeli broj od 1 do 28.");
+  }
+  // automatsko slanje bez adrese kupca bi svaki mjesec pravilo fakturu koja
+  // nikad nikome ne ode
+  if (body?.autoEmail === true && !isStr(body?.buyer?.email)) {
+    errors.push("Za automatsko slanje fakture unesite email adresu kupca.");
+  }
   return { errors, freq, items };
 }
 
-function commonFields(body, freq) {
+// postojeci: kod izmjene se valuta i vrsta isporuke zadržavaju ako ih zahtjev
+// ne nosi (bez ovoga bi svako snimanje vratilo BAM i domaću oporezivu isporuku)
+function commonFields(body, freq, postojeci = null) {
   const buyer = buyerFromBody(body);
+  const vrste = ["OPOREZIVA", "IZVOZ", "OSLOBODJENA"];
   return {
     partnerId: parseId(body.partnerId) || null,
     frequency: freq,
     active: body.active === false ? false : true,
     applyVat: body.applyVat !== false,
-    vrstaIsporuke: ["OPOREZIVA", "IZVOZ", "OSLOBODJENA"].includes(body.vrstaIsporuke)
+    vrstaIsporuke: vrste.includes(body.vrstaIsporuke)
       ? body.vrstaIsporuke
-      : "OPOREZIVA",
-    currency: body.currency === "EUR" ? "EUR" : "BAM",
+      : vrste.includes(postojeci?.vrstaIsporuke)
+        ? postojeci.vrstaIsporuke
+        : "OPOREZIVA",
+    currency:
+      body.currency === "EUR" || body.currency === "BAM"
+        ? body.currency
+        : postojeci?.currency === "EUR"
+          ? "EUR"
+          : "BAM",
     buyerName: buyer.name,
     buyerAddress: buyer.address,
     buyerCity: buyer.city,
@@ -108,7 +128,42 @@ function commonFields(body, freq) {
     buyerIdNumber: buyer.idNumber,
     buyerVatNumber: buyer.vatNumber,
     notes: trimOrNull(body.notes),
+    // automatsko fakturisanje: dan 1-28 (28 da svaki mjesec ima taj dan)
+    autoDan: autoDanIz(body.autoDan),
+    autoEmail: body.autoEmail === true,
+    jezik: ["bs", "en", "bs-en"].includes(String(body.jezik || "").toLowerCase())
+      ? String(body.jezik).toLowerCase()
+      : "bs",
   };
+}
+
+// "upisano" = korisnik je nešto stvarno unio (prazno polje i izostanak polja
+// znače "samo ručno", to nije greška)
+function upisan(v) {
+  return v !== null && v !== undefined && String(v).trim() !== "";
+}
+
+function autoDanIz(v) {
+  if (!upisan(v)) return null;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1 || n > 28) return null;
+  return n;
+}
+
+// Početak tekućeg perioda za datu frekvenciju: sve fakturisano od tog trenutka
+// je "već fakturisano u ovom periodu".
+function pocetakPerioda(freq, datum) {
+  const d = new Date(datum);
+  const g = d.getFullYear();
+  if (freq === "YEARLY") return new Date(g, 0, 1);
+  if (freq === "QUARTERLY") return new Date(g, Math.floor(d.getMonth() / 3) * 3, 1);
+  if (freq === "WEEKLY") {
+    const pon = new Date(g, d.getMonth(), d.getDate());
+    // sedmica počinje ponedjeljkom (getDay: 0 = nedjelja)
+    pon.setDate(pon.getDate() - ((pon.getDay() + 6) % 7));
+    return pon;
+  }
+  return new Date(g, d.getMonth(), 1);
 }
 
 function publicPrepared(p) {
@@ -144,6 +199,9 @@ function publicPrepared(p) {
     buyerVatNumber: p.buyerVatNumber,
     notes: p.notes,
     lastInvoicedAt: p.lastInvoicedAt,
+    autoDan: p.autoDan ?? null,
+    autoEmail: !!p.autoEmail,
+    jezik: p.jezik || "bs",
     netTotal: totals.netTotal,
     vatTotal: totals.vatTotal,
     grossTotal: totals.grossTotal,
@@ -215,11 +273,15 @@ async function create(req, res) {
 async function update(req, res) {
   const ctx = await loadOwned(req);
   if (ctx.error) return res.status(ctx.status).json({ ok: false, error: ctx.error });
+  // izmjena uključuje i automatsko izdavanje i slanje, pa traži paket kao i
+  // kreiranje i grupno fakturisanje (članstvo u obrtu nije dovoljno)
+  const gate = await tierGate(req.user.id, req.user.role, ctx.p.organizationId);
+  if (gate) return res.status(403).json({ ok: false, error: gate });
   const { errors, freq, items } = validateBody(req.body);
   if (errors.length) return res.status(400).json({ ok: false, error: errors.join(" ") });
   try {
     const updated = await sequelize.transaction(async (t) => {
-      await ctx.p.update(commonFields(req.body, freq), { transaction: t });
+      await ctx.p.update(commonFields(req.body, freq, ctx.p), { transaction: t });
       await PreparedInvoiceItem.destroy({
         where: { preparedInvoiceId: ctx.p.id },
         transaction: t,
@@ -307,10 +369,27 @@ async function invoiceBatch(req, res) {
     return res.status(400).json({ ok: false, error: "NEMA_AKTIVNIH" });
   }
 
+  // Šablon koji je u tekućem periodu već fakturisan (ručno ranije ili sam od
+  // sebe, preko autoDan) se preskače: bez toga kupac dobije dvije fakture za
+  // isti mjesec. Šta je "period" određuje frekvencija.
+  const odKad = pocetakPerioda(freq, issueDate);
+  const zaFakturisanje = [];
+  const skipped = [];
+  for (const p of prepared) {
+    if (p.lastInvoicedAt && new Date(p.lastInvoicedAt) >= odKad) {
+      skipped.push({ id: p.id, buyerName: p.buyerName, lastInvoicedAt: p.lastInvoicedAt });
+    } else {
+      zaFakturisanje.push(p);
+    }
+  }
+  if (zaFakturisanje.length === 0) {
+    return res.json({ ok: true, data: { count: 0, created: [], skipped } });
+  }
+
   const created = [];
   try {
     await sequelize.transaction(async (t) => {
-      for (const p of prepared) {
+      for (const p of zaFakturisanje) {
         const items = (p.items || [])
           .slice()
           .sort((a, b) => a.ordinal - b.ordinal)
@@ -333,6 +412,7 @@ async function invoiceBatch(req, res) {
             applyVat: !!p.applyVat,
             vrstaIsporuke: p.vrstaIsporuke,
             currency: p.currency,
+            jezik: p.jezik || "bs",
             seller,
             buyer: {
               name: p.buyerName,
@@ -358,7 +438,7 @@ async function invoiceBatch(req, res) {
     return res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
 
-  res.json({ ok: true, data: { count: created.length, created } });
+  res.json({ ok: true, data: { count: created.length, created, skipped } });
 }
 
 module.exports = { list, create, update, patch, remove, invoiceBatch };

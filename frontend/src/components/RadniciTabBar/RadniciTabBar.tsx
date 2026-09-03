@@ -33,11 +33,14 @@ export default function RadniciTabBar() {
   const searchParams = useSearchParams();
   const { lastOrgId } = useLastOrg();
 
+  // Zadnja odabrana org ima PREDNOST nad ?org= iz URL-a: URL zna biti
+  // zastario (korisnik promijeni org u sidebaru, query param ostane stari),
+  // a lastOrgId se upisuje na svaku efektivnu promjenu (usePamcenaOrg).
   const urlOrg = searchParams.get("org");
-  const orgParam = urlOrg && Number(urlOrg) > 0
-    ? urlOrg
-    : lastOrgId
-      ? String(lastOrgId)
+  const orgParam = lastOrgId
+    ? String(lastOrgId)
+    : urlOrg && Number(urlOrg) > 0
+      ? urlOrg
       : null;
   const orgQs = orgParam ? `org=${orgParam}` : "";
 
