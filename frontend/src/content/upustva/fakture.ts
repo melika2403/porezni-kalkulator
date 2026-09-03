@@ -98,6 +98,37 @@ export const fakture: Upustvo = {
         },
       ],
     },
+    {
+      naslov: "Automatsko izdavanje i slanje",
+      blokovi: [
+        {
+          t: "p",
+          text: "Pripremljeni račun ne mora se fakturisati ručno. U polje \"Automatski, dan u mjesecu\" upišite dan i program tog dana sam izda fakturu: mjesečni šablon svaki mjesec, kvartalni u januaru, aprilu, julu i oktobru, godišnji u januaru. Sedmični šabloni ostaju ručni. Prazno polje znači da se fakturiše samo ručno.",
+        },
+        {
+          t: "koraci",
+          stavke: [
+            "Otvorite Pripremljeni računi i uredite šablon (ili dodajte novi).",
+            "Upišite dan u mjesecu, najviše 28, da ga ima i februar.",
+            "Za automatsko slanje unesite email kupca pa označite \"odmah pošalji kupcu emailom\"; bez adrese kvačica se ne može uključiti.",
+            "Izaberite jezik fakture (bosanski, engleski ili dvojezično) i, za stranog kupca, valutu i vrstu isporuke.",
+            "Sačuvajte: prvog dolaska tog dana faktura nastaje sama i ulazi u KIF, PDV i karticu kupca.",
+          ],
+        },
+        {
+          t: "p",
+          text: "Vlasnik obrta o svakoj automatskoj fakturi dobije obavijest u aplikaciji. Ako je slanje traženo a email nije prošao, obavijest to izričito kaže, pa fakturu pošaljete ručno sa liste.",
+        },
+        {
+          t: "savjet",
+          text: "Ako program taj dan ne otkuca (na primjer zbog kratkog ispada), faktura se nadoknadi prvog sljedećeg dana u istom periodu. Dupla faktura nije moguća: svaki šablon ima najviše jednu automatsku fakturu po periodu, a dugme \"Fakturiši sve\" preskoči šablone koji su u tom periodu već fakturisani i to javi u poruci.",
+        },
+        {
+          t: "p",
+          text: "Jezik, valuta i vrsta isporuke sa šablona prelaze na svaku fakturu koja iz njega nastane: engleska ili dvojezična faktura ide sa oznakom BAM i engleskim mailom, izvoz i oslobođena isporuka nose svoju napomenu o PDV-u.",
+        },
+      ],
+    },
   ],
   faq: [
     {
@@ -130,7 +161,23 @@ export const fakture: Upustvo = {
     },
     {
       p: "Kako da fakturišem stalne klijente svaki mjesec?",
-      o: "Dugmetom Pripremljeni računi dodajte šablon (kupac i stavke) pod odgovarajuću frekvenciju. Kad je vrijeme, u tom tabu kliknite Fakturiši sve i unesite datum i dospijeće; od svih aktivnih se naprave prave fakture (KIF, PDV i kartica kupca standardno).",
+      o: "Dugmetom Pripremljeni računi dodajte šablon (kupac i stavke) pod odgovarajuću frekvenciju. Ručno: u tom tabu kliknite Fakturiši sve i unesite datum i dospijeće; od svih aktivnih se naprave prave fakture (KIF, PDV i kartica kupca standardno). Automatski: upišite dan u mjesecu na šablonu i faktura tog dana nastane sama.",
+    },
+    {
+      p: "Šta znači dan u mjesecu na pripremljenom računu?",
+      o: "To je dan kad program sam izda fakturu iz tog šablona: mjesečni svaki mjesec, kvartalni u januaru, aprilu, julu i oktobru, godišnji u januaru. Najveći dan je 28 da ga ima i februar. Prazno polje znači da se šablon fakturiše samo ručno, a sedmični šabloni su uvijek ručni.",
+    },
+    {
+      p: "Može li program sam poslati fakturu kupcu?",
+      o: "Da. Unesite email kupca i označite \"odmah pošalji kupcu emailom\" na šablonu; bez adrese se kvačica ne može uključiti. Faktura ide kupcu sa PDF prilogom čim nastane, na jeziku koji je izabran na šablonu, a vi dobijete obavijest u aplikaciji. Ako slanje ne uspije, obavijest to kaže i fakturu pošaljete ručno sa liste.",
+    },
+    {
+      p: "Može li kupac dobiti dvije fakture za isti mjesec?",
+      o: "Ne. Svaki šablon ima najviše jednu automatsku fakturu po periodu, a Fakturiši sve preskoči šablone koji su u tom periodu već fakturisani i navede ih u poruci. Ako program taj dan ne otkuca, faktura se nadoknadi prvog sljedećeg dana u istom periodu.",
+    },
+    {
+      p: "Kako izdajem fakturu stranom kupcu na engleskom?",
+      o: "Na šablonu (ili na samoj fakturi) izaberite jezik engleski ili dvojezično, valutu i vrstu isporuke. Engleska i dvojezična faktura koriste oznaku BAM, izvoz i oslobođena isporuka nose svoju napomenu o PDV-u, a email kupcu ide na engleskom.",
     },
     {
       p: "Kako da storniram ili obrišem izdatu fakturu?",

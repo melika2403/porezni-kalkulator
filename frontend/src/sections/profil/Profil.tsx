@@ -4182,10 +4182,12 @@ function HistorijaTab() {
 // namjerno NE mijenjaju (ona služi gate-ovima i zna biti BUSINESS/USER iz
 // historije), pa je office korisniku umjesto "BUSINESS" prikazan njegov paket.
 const OFFICE_BEDZ: Record<string, string> = {
+  office_1: "Office Solo",
   office_2: "Office Start",
   office_10: "Office Tim",
   office_25: "Office Agencija",
   office_50: "Office Agencija+",
+  freelancer: "PK Freelancer",
 };
 
 function PaketChip({ user }: { user: AuthUser }) {
@@ -4194,7 +4196,10 @@ function PaketChip({ user }: { user: AuthUser }) {
   let klasa = "";
   if (user.role === "ADMIN") {
     klasa = styles.roleChipAdmin;
-  } else if (user.subscription?.isActive && plan.startsWith("office")) {
+  } else if (
+    user.subscription?.isActive &&
+    (plan.startsWith("office") || plan === "freelancer")
+  ) {
     tekst = OFFICE_BEDZ[plan] ?? "PK Office";
     klasa = styles.roleChipOffice;
   } else if (user.role === "PRO") {

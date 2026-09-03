@@ -30,11 +30,13 @@ const LOGO_CANDIDATES = [path.join(__dirname, "..", "assets", "logo.jpg")];
 // Brojevi dolaze iz config/pricing.js (jedan izvor istine); ovdje dodajemo labele.
 const {
   PLAN_PRICES: PRICE_NUMBERS,
+  PLAN_BRUTO_FIKSNO,
+  PLAN_LABELS,
   OFFICE_PLANS,
 } = require("../config/pricing");
 // naziv plana u stavci predračuna ("Godišnja pretplata <naziv> na ...")
 function planDisplayName(plan) {
-  return OFFICE_PLANS[plan]?.label ?? plan;
+  return PLAN_LABELS[plan] ?? OFFICE_PLANS[plan]?.label ?? plan;
 }
 const PLAN_PRICES = Object.fromEntries(
   Object.entries(PRICE_NUMBERS).map(([plan, p]) => [
@@ -163,6 +165,15 @@ function calcAmounts(plan, cycle) {
   const cfg = planCfg[normalizeCycle(cycle)];
   if (!cfg) throw new Error(`Unknown billing cycle: ${cycle}`);
   const net = +Number(cfg.net).toFixed(2);
+  // Bruto-fiksni planovi (PK Freelancer, fizička lica): kupcu je obećana
+  // okrugla cijena sa PDV-om, pa PDV ide unazad (bruto - neto), inače bi
+  // zaokruživanje dalo 50,01.
+  const fiksno = PLAN_BRUTO_FIKSNO[plan]?.[normalizeCycle(cycle)];
+  if (fiksno) {
+    const gross = +Number(fiksno).toFixed(2);
+    const vat = +(gross - net).toFixed(2);
+    return { net, vat, gross, label: cfg.label };
+  }
   const vat = +(net * VAT_RATE).toFixed(2);
   const gross = +(net + vat).toFixed(2);
   return { net, vat, gross, label: cfg.label };
@@ -452,11 +463,18 @@ async function generatePredracunPdf({
   }
   drawText(`Telefon: ${buyer.phone || ""}`, MARGIN_L, yL, { size: 9 });
   yL -= 12;
-  drawText("ID broj kupca:", MARGIN_L, yL, { size: 9 });
-  drawText(buyer.idNumber || "", MARGIN_L + 90, yL, { size: 9, bold: true });
-  yL -= 12;
-  drawText("PDV broj kupca:", MARGIN_L, yL, { size: 9 });
-  drawText(buyer.vatNumber || "", MARGIN_L + 90, yL, { size: 9, bold: true });
+  // Fizičko lice (PK Freelancer) nema ID ni PDV broj: redovi se ne ispisuju
+  // prazni, da predračun ne izgleda nepotpuno.
+  if (buyer.fizickoLice) {
+    drawText("Kupac: fizičko lice", MARGIN_L, yL, { size: 9 });
+    yL -= 12;
+  } else {
+    drawText("ID broj kupca:", MARGIN_L, yL, { size: 9 });
+    drawText(buyer.idNumber || "", MARGIN_L + 90, yL, { size: 9, bold: true });
+    yL -= 12;
+    drawText("PDV broj kupca:", MARGIN_L, yL, { size: 9 });
+    drawText(buyer.vatNumber || "", MARGIN_L + 90, yL, { size: 9, bold: true });
+  }
 
   // ── BARKOD (Code 39) — kod = "001" + buyer.code (npr. "00109000001") ──────
   const barcodeText = `00109${(buyer.code || "000000").padStart(6, "0")}`;

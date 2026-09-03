@@ -45,6 +45,21 @@ const User = sequelize.define(
     // PK Office trial (30 dana, nivo Office Tim): postoji datum = iskorišten;
     // aktivan dok datum nije prošao. Odvojeno od PRO trial-a (trialUsedAt).
     pkOfficeTrialEndsAt: { type: DataTypes.DATE, allowNull: true },
+    // nivo probe: null = Office Tim (podrazumijevano), "office_1" = Solo proba
+    // (zatražena sa /freelancer landinga ili izborom "vodim sam" za jedan obrt)
+    pkOfficeTrialPlan: { type: DataTypes.STRING(20), allowNull: true },
+    // PK Freelancer proba (30 dana), zasebna od Office probe: aktivira se
+    // jednim klikom na /ams ili /freelancer. Postoji datum = iskorištena.
+    freelancerTrialEndsAt: { type: DataTypes.DATE, allowNull: true },
+    // Lični odbitak iz porezne kartice (PK-1001) za PK Freelancer: koeficijent
+    // i broj mjeseci u kojima je kartica važila. Odbitak = koeficijent x 300 KM
+    // x mjeseci, i tako ulazi u red 18 obrasca GPD-1051.
+    freelancerKoeficijent: { type: DataTypes.DECIMAL(4, 2), allowNull: true },
+    freelancerOdbitakMjeseci: { type: DataTypes.INTEGER, allowNull: true },
+    // Prebivalište za uplatnice (kanton + šifra općine): AMS generator i ručni
+    // unos ih predpopune, da se ne biraju kod svake uplate.
+    freelancerKanton: { type: DataTypes.STRING(10), allowNull: true },
+    freelancerOpcina: { type: DataTypes.STRING(10), allowNull: true },
     // Korisnik se registrovao klikom na trial CTA -> trial se auto-aktivira pri
     // verifikaciji maila, i NE šaljemo mu "aktiviraj trial" welcome mail.
     wantsTrial: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
@@ -125,10 +140,13 @@ const Subscription = sequelize.define(
         "free",
         "pro",
         "business",
+        "office_1",
         "office_2",
         "office_10",
         "office_25",
         "office_50",
+        // PK Freelancer (fizička lica, AMS evidencija); ne diže rolu
+        "freelancer",
       ),
       allowNull: false,
       defaultValue: "free",
@@ -189,6 +207,27 @@ const Organization = sequelize.define(
     // Office paketu). Deaktivacija oslobađa slot tek od NAREDNOG mjeseca
     // (pkOfficeDisabledAt u tekućem mjesecu = slot i dalje zauzet), da se
     // slotovi ne rotiraju. Podaci se deaktivacijom NE brišu.
+    // PK Office Solo: obrtnik vodi knjige sam sebi. soloMode sužava meni i
+    // mijenja naslovnicu (lista obaveza), soloModuli su odgovori na upitnik
+    // (radnici, roba, blagajna, putniNalozi, stalnaSredstva) koji pale
+    // dodatne module; null = upitnik još nije popunjen. Logika obračuna se
+    // NIKAD ne mijenja, samo koji se ekrani vide.
+    soloMode: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    soloModuli: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      // na MariaDB/starijem MySQL-u je JSON zapravo LONGTEXT pa Sequelize
+      // vrati string; getter uvijek daje objekat (isti problem kao notifPrefs)
+      get() {
+        const v = this.getDataValue("soloModuli");
+        if (typeof v !== "string") return v ?? null;
+        try {
+          return JSON.parse(v);
+        } catch {
+          return null;
+        }
+      },
+    },
     pkOfficeEnabled: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -918,10 +957,12 @@ const Predracun = sequelize.define(
       type: DataTypes.ENUM(
         "PRO",
         "BUSINESS",
+        "OFFICE_1",
         "OFFICE_2",
         "OFFICE_10",
         "OFFICE_25",
         "OFFICE_50",
+        "FREELANCER",
       ),
       allowNull: false,
     },
@@ -1064,6 +1105,9 @@ const Invoice = sequelize.define(
     // izvozna faktura (tip 04): jedinstvena carinska isprava
     kifJciBroj: { type: DataTypes.STRING(30), allowNull: true },
     kifJciDatum: { type: DataTypes.DATEONLY, allowNull: true },
+    // jezik ispisa PDF-a i emaila: "bs" (default), "en", "bs-en" (dvojezično,
+    // za inostrane kupce); brojevi i obračun su isti
+    jezik: { type: DataTypes.STRING(5), allowNull: false, defaultValue: "bs" },
 
     currency: {
       type: DataTypes.ENUM("BAM", "EUR"),
@@ -1200,6 +1244,13 @@ const PreparedInvoice = sequelize.define(
 
     notes: { type: DataTypes.TEXT, allowNull: true },
     lastInvoicedAt: { type: DataTypes.DATE, allowNull: true },
+    // automatsko fakturisanje (PK Office Solo): dan u mjesecu (1-28) kad
+    // dnevni job sam napravi fakturu; null = samo ručno "Fakturiši sve".
+    // autoEmail: odmah je pošalje kupcu na buyerEmail.
+    autoDan: { type: DataTypes.TINYINT.UNSIGNED, allowNull: true },
+    autoEmail: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // jezik fakture koja nastaje iz šablona
+    jezik: { type: DataTypes.STRING(5), allowNull: false, defaultValue: "bs" },
   },
   {
     tableName: "prepared_invoices",
@@ -1690,6 +1741,138 @@ const AmsIsplatilac = sequelize.define(
     charset: "utf8mb4",
     collate: "utf8mb4_unicode_ci",
     indexes: [{ fields: ["userId"] }],
+  },
+);
+
+// ─── PK FREELANCER: EVIDENCIJA UPLATA ────────────────────────────────────────
+// Po korisniku (fizičko lice), NE po organizaciji. Jedan red = jedna uplata iz
+// inostranstva sa SNIMKOM obračuna AMS-1035 u trenutku unosa: kasnija izmjena
+// pravila ili isplatioca ne smije mijenjati već predani obrazac (isto pravilo
+// kao kod plata). amsPodaci/uplatnicaPodaci su JSON snimci iz kojih frontend
+// ponovo generiše identične PDF-ove. Iznosi su DECIMAL (stringovi iz MySQL-a),
+// kontroler ih pretvara u brojeve.
+const NOVAC = { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 };
+const FreelancerUplata = sequelize.define(
+  "FreelancerUplata",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    datumPrimitka: { type: DataTypes.DATEONLY, allowNull: false },
+    periodMjesec: { type: DataTypes.TINYINT.UNSIGNED, allowNull: false },
+    periodGodina: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+    // primalac (Dio 1 obrasca) u trenutku unosa
+    primalacIme: { type: DataTypes.STRING(255), allowNull: true },
+    primalacJmbg: { type: DataTypes.STRING(13), allowNull: true },
+    primalacAdresa: { type: DataTypes.STRING(255), allowNull: true },
+    // isplatilac: veza na adresar + snimak (adresar se smije mijenjati/brisati)
+    isplatilacId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    isplatilacNaziv: { type: DataTypes.STRING(255), allowNull: false },
+    isplatilacAdresa: { type: DataTypes.STRING(255), allowNull: true },
+    isplatilacGrad: { type: DataTypes.STRING(120), allowNull: true },
+    isplatilacDrzava: { type: DataTypes.STRING(120), allowNull: true },
+    // valuta i kurs na dan primitka; iznosKm je osnova obračuna
+    valuta: { type: DataTypes.STRING(3), allowNull: false, defaultValue: "BAM" },
+    iznosValuta: { ...NOVAC },
+    kurs: { type: DataTypes.DECIMAL(14, 6), allowNull: false, defaultValue: 1 },
+    iznosKm: { ...NOVAC },
+    // obračun (snimak): normirani rashodi 20/30%, zdravstvo 4%, porez 10%
+    stopaRashoda: { type: DataTypes.TINYINT.UNSIGNED, allowNull: false, defaultValue: 20 },
+    rashodi: { ...NOVAC },
+    dohodak: { ...NOVAC },
+    zdravstveno: { ...NOVAC },
+    zdravstvenoKanton: { ...NOVAC },
+    zdravstvenoFbih: { ...NOVAC },
+    osnovica: { ...NOVAC },
+    porez: { ...NOVAC },
+    porezniKredit: { ...NOVAC },
+    razlika: { ...NOVAC },
+    neto: { ...NOVAC },
+    // uplatnice: kanton/općina prebivališta
+    kantonKey: { type: DataTypes.STRING(10), allowNull: true },
+    opcinaKod: { type: DataTypes.STRING(10), allowNull: true },
+    opcinaIme: { type: DataTypes.STRING(120), allowNull: true },
+    ziroRacun: { type: DataTypes.STRING(40), allowNull: true },
+    // tok: obračunato -> plaćeno (uplatnice) -> predano (ovjeren AMS)
+    status: {
+      type: DataTypes.ENUM("OBRACUNATO", "PLACENO", "PREDANO"),
+      allowNull: false,
+      defaultValue: "OBRACUNATO",
+    },
+    datumPlacanja: { type: DataTypes.DATEONLY, allowNull: true },
+    datumPredaje: { type: DataTypes.DATEONLY, allowNull: true },
+    napomena: { type: DataTypes.TEXT, allowNull: true },
+    // JSON snimci; na MariaDB stižu kao string pa getter parsira
+    amsPodaci: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      get() {
+        const v = this.getDataValue("amsPodaci");
+        if (typeof v !== "string") return v ?? null;
+        try {
+          return JSON.parse(v);
+        } catch {
+          return null;
+        }
+      },
+    },
+    uplatnicaPodaci: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      get() {
+        const v = this.getDataValue("uplatnicaPodaci");
+        if (typeof v !== "string") return v ?? null;
+        try {
+          return JSON.parse(v);
+        } catch {
+          return null;
+        }
+      },
+    },
+  },
+  {
+    tableName: "freelancer_uplate",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [
+      { fields: ["userId", "datumPrimitka"] },
+      { fields: ["userId", "status"] },
+    ],
+  },
+);
+
+// Prilozi uz uplatu (ovjeren AMS sa šaltera, dokaz uplate iz banke). Fajlovi
+// žive u PRIVATNOM folderu (uploads-private), nikad pod javnim /uploads.
+const FreelancerPrilog = sequelize.define(
+  "FreelancerPrilog",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    uplataId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    vrsta: {
+      type: DataTypes.ENUM("OVJEREN_AMS", "DOKAZ_UPLATE", "OSTALO"),
+      allowNull: false,
+      defaultValue: "OSTALO",
+    },
+    filename: { type: DataTypes.STRING(255), allowNull: false },
+    originalName: { type: DataTypes.STRING(255), allowNull: false },
+    mimeType: { type: DataTypes.STRING(120), allowNull: false },
+    sizeBytes: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+  },
+  {
+    tableName: "freelancer_prilozi",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["uplataId"] }, { fields: ["userId"] }],
   },
 );
 
@@ -3023,6 +3206,10 @@ InvoiceItemTemplate.belongsTo(User, { foreignKey: "userId", as: "user" });
 
 User.hasMany(AmsIsplatilac, { foreignKey: "userId", as: "amsIsplatioci" });
 AmsIsplatilac.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasMany(FreelancerUplata, { foreignKey: "userId", as: "freelancerUplate" });
+FreelancerUplata.belongsTo(User, { foreignKey: "userId", as: "user" });
+FreelancerUplata.hasMany(FreelancerPrilog, { foreignKey: "uplataId", as: "prilozi" });
+FreelancerPrilog.belongsTo(FreelancerUplata, { foreignKey: "uplataId", as: "uplata" });
 
 VijestClanak.belongsTo(User, { foreignKey: "autorId", as: "autor" });
 
@@ -3384,6 +3571,8 @@ module.exports = {
   WorkerDocument,
   InvoiceItemTemplate,
   AmsIsplatilac,
+  FreelancerUplata,
+  FreelancerPrilog,
   VijestClanak,
   VijestPregled,
   VijestKomentar,

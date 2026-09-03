@@ -9,6 +9,7 @@ import DateInput from "src/components/DateInput/DateInput";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import UgovorFillSelect from "src/components/PersonFillSelect/UgovorFillSelect";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
+import { usePamcenaOrg } from "src/hooks/useLastOrg";
 import { useRole } from "src/hooks/useRole";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import { useCityLookup } from "src/hooks/useCities";
@@ -126,7 +127,10 @@ function UgovorORaduApp() {
   })();
 
   // ── Sidebar state ──
-  const [sidebarOrgId, setSidebarOrgId] = useState<number | null>(initialOrgId);
+  // Org koja prati korisnika kroz stranice (URL → localStorage → izbor);
+  // dijeljeni obrazac, vidi usePamcenaOrg.
+  const { orgId: sidebarOrgId, setOrgId: setSidebarOrgId } =
+    usePamcenaOrg(initialOrgId);
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(initialWorkerId);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [postDownloadPrompt, setPostDownloadPrompt] = useState<"prijava" | "odjava" | null>(null);
@@ -303,10 +307,17 @@ function UgovorORaduApp() {
     setSatiDnevno(w.contractedHours != null ? String(w.contractedHours) : "8");
     setBrojUgovoraUor(w.contractNumber ?? "");
 
-    // Otkaz tab
+    // Otkaz tab: datum sklapanja ugovora je datum PRIJAVE radnika (kad
+    // prijave nema, početak rada); datum prestanka se povuče samo ako je
+    // radnik već odjavljen (datum odjave), inače ostaje ono što je na
+    // ugovoru (istek) ili prazno, pa ga korisnik upisuje.
     setBrojUgovora(w.contractNumber ?? "");
-    setDatumUgovoraOrigIso(w.startDate ?? "");
-    setDatumPrestankaIso(w.endDate ?? w.odjavaDate ?? "");
+    setDatumUgovoraOrigIso(w.prijavaDate ?? w.startDate ?? "");
+    setDatumPrestankaIso(
+      w.employmentStatus === "ODJAVLJEN"
+        ? (w.odjavaDate ?? w.endDate ?? "")
+        : (w.endDate ?? ""),
+    );
     // Razlog otkaza ne čuvamo na workeru — uvijek reset
     setRazlogOtkazaId("drugo");
     setRazlogOtkazaCustom("");

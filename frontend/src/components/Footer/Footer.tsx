@@ -30,6 +30,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
     title: 'Porezni Kalkulator',
     links: [
       { label: 'PK Office', href: '/pk-office' },
+      { label: 'PK Freelancer', href: '/freelancer' },
       { label: 'Pretplatnički paketi', href: '/pretplate' },
       { label: 'Vijesti', href: '/vijesti' },
       { label: 'O nama', href: '/o-nama' },

@@ -106,6 +106,17 @@ async function adminIzmjena(req, res) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
         return res.status(400).json({ ok: false, error: "Neispravan datum 'važi od'." });
       }
+      // Šifarnik nema vremenske verzije: uvijek se koristi trenutni broj računa.
+      // Budući datum je zato bio obmana, jer bi novi račun odmah otišao na sve
+      // uplatnice, izvoze i naloge, pa bi se uplate vraćale do dana primjene.
+      const danas = new Date().toISOString().slice(0, 10);
+      if (iso > danas) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Datum 'važi od' ne može biti u budućnosti. Izmjena računa važi odmah svuda, pa novi račun upišite na dan kad počinje primjena.",
+        });
+      }
       vaziOd = iso;
     }
 

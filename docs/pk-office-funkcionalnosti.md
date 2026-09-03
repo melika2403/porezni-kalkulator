@@ -707,7 +707,9 @@ Stranica: Zaposlenici → Zaposlenici.
   formom): lični podaci (JMBG sa validacijom i auto-spolom, lična,
   stručna sprema), adresa i banka (FBiH grad sa liste ili RS opština,
   račun sa maskom, email za platne listiće), JS3100 prijava/odjava
-  (datumi su master, status derivat), ugovor o radu i plata (vrsta i
+  (datumi su master, status derivat; zanimanje iz Klasifikacije
+  zanimanja FBiH: picker puni naziv i sedmocifrenu šifru za JS3100
+  obrazac), ugovor o radu i plata (vrsta i
   trajanje ugovora, radno vrijeme, topli obrok, putni trošak, tip
   plate bruto/neto, probni rad, otkazni rok, broj ugovora), porezni
   koeficijent i minuli rad (datum prvog zaposljenja ili staž prije
@@ -808,6 +810,12 @@ Stranica: Zaposlenici → Obračuni plata.
   knjiženje (PDF)** (konta po agencijskoj konvenciji), **Rekapitulacija
   (PDF)** (tabela po radnicima: bruto, doprinosi iz i na, porez, neto,
   naknade, ukupan trošak, sa sumama; vlasnik nije u njoj, on ima 2002),
+  **Izvoz u e-bankarstvo** (od 03.09.2026.; isti `POST /api/payroll/bank-export`
+  i isti nalozi kao na marketing obračunu, u PK Office modalu
+  `IzvozBankaModal`: banka sa predpopunom zadnjeg izbora po obrtu
+  `organizations.bankExportBank`, datum valute uvijek današnji, više datoteka
+  za Raiffeisen, lista preskočenih stavki; šifarnik banaka i poruke dijeljeni u
+  `src/lib/bankExport.ts`),
   **Pošalji listiće email-om** (modal sa dva načina: svakom radniku na
   njegov email, bez email-a se preskaču i navedu u rezimeu; ILI svi
   listići mjeseca u JEDNOM PDF-u na jednu upisanu adresu, npr. email
@@ -1101,9 +1109,18 @@ ne prikazuje). Launch naplate = uključiti flag.
   već vodi ("klijenti su već tu, nema migracije").
 - **Probni period**: JEDINA proba na platformi (od 24.07.2026. stari PRO
   trial se više ne nudi). Jednom po korisniku (users.pkOfficeTrialEndsAt),
-  na nivou paketa Office Tim (10 obrta), a uz nju idu i SVE Business
-  funkcije na marketing dijelu (efektivna rola BUSINESS): ugovori, plate
-  bez limita, fakture, neograničeni klijenti. Zato je isti CTA ispravan i
+  podrazumijevano na nivou paketa Office Tim (10 obrta), a uz nju idu i SVE
+  Business funkcije na marketing dijelu (efektivna rola BUSINESS): ugovori,
+  plate bez limita, fakture, neograničeni klijenti.
+  **Nivo probe** (users.pkOfficeTrialPlan, od 03.09.2026.): prazno znači Tim,
+  "office_1" znači Solo proba (1 obrt). Solo se dodjeljuje SAMO na izričit
+  zahtjev: dugme u bloku "PK Office Solo" na /freelancer landingu
+  (`?officeTrial=auto&trialPlan=solo`) ili odgovor "vodim knjige sam sebi" u
+  Solo upitniku / Postavke → Način rada, i to samo dok korisnik ima najviše
+  jedan obrt (POST /api/pk-office/trial/plan, 409 VISE_OBRTA inače). Opšte
+  CTA-ove i dalje daju Tim probu, da knjigovođa isproba sve klijente.
+  Anti-rotacija prati nivo: na Tim probi deaktivacija oslobađa slot odmah, na
+  Solo probi ne (isto kao plaćeni Solo, jedan obrt je jedan obrt). Zato je isti CTA ispravan i
   za korisnika koji PK Office nikad neće otvoriti (npr. d.o.o.).
   Zajednička komponenta: `src/components/OfficeTrialCta` (tamnozelena
   traka + terakota dugme) i hook `useOfficeTrial()`; koriste je
@@ -1126,9 +1143,32 @@ ne prikazuje). Launch naplate = uključiti flag.
   aktivira automatski (users.wantsOfficeTrial), a /pretplate?officeTrial=auto
   skroluje na PK Office sekciju i pokazuje potvrdu. Pri startu probe se
   SVI obrti korisnika automatski aktiviraju u PK Office ako ih ima do
-  limita (10); sa više od limita korisnik sam bira. U probnom periodu
-  NEMA anti-rotacije: deaktivacija odmah oslobađa slot, da se svi
-  klijenti mogu isprobati prije izbora paketa.
+  limita (10 za Tim, 1 za Solo); sa više od limita korisnik sam bira. Na Tim
+  probi NEMA anti-rotacije (deaktivacija odmah oslobađa slot, da se svi
+  klijenti mogu isprobati); Solo proba taj izuzetak nema.
+- **Kraj probe (od 03.09.2026.)**: korisnik ne ostaje sam sa cjenovnikom.
+  Sistem računa PREPORUČENI paket (preporuceniPlanZa: broj obrta kojima
+  upravlja + Solo režim/proba → OFFICE_1/2/10/25/50) i svuda nudi direktan
+  link na predračun za taj paket (`/pretplate?plan=X&cycle=yearly#pk-office`):
+  u traci probe, na zidu poslije isteka i u mailovima. Sekvenca mailova
+  (notificationsService, dedup po korisniku i danu): na polovini probe
+  (15 dana prije kraja), 7 dana prije, na dan isteka, pa 3 i 14 dana POSLIJE
+  isteka ("podaci vas čekaju"); preskaču se korisnici koji su u međuvremenu
+  kupili office paket. Zid poslije isteka prikazuje i predračun koji čeka
+  uplatu (samo za office pakete) sa linkom na PDF, umjesto da korisnika koji
+  je već naručio opet šalje na cjenovnik.
+- **Probe u admin panelu (od 03.09.2026.)**: probe se ne vode kao pretplate,
+  pa ih /admin/aktivne-pretplate prikazuje kao redove samo za prikaz (bez akcija
+  nad paketom, filter "Samo probe"), a /admin/korisnici kao zasebne oznake:
+  "Office trial" (nepromijenjeno), "Office Solo trial" (terakota, odvojena
+  od Tima) i "Freelancer trial" (šljiva), sa datumima od/do u kolonama kao
+  i Office trial. Paket PK Freelancer u obje liste nosi šljivu.
+- **Automatska aktivacija po uplati** (services/aktivacijaPaketa.js): kad
+  admin označi predračun kao PLAĆEN, pretplata se upiše sama iz podataka
+  predračuna (plan malim slovima, ciklus, period), PRO/BUSINESS usklade i
+  rolu, a korisnik dobija mail "Paket X je aktiviran". Vrijedi za sve
+  planove (office_*, freelancer, pro, business). Neuspjeh aktivacije ne
+  poništava oznaku plaćanja, nego se vraća adminu u odgovoru.
 - **Vidljivost probe za korisnika**: dok trial traje, na vrhu PK Office-a
   stoji traka "Probni period je aktivan, vrijedi do DD.MM.GGGG." sa
   linkovima "Upravljaj pretplatom" (profil, tab Pretplata) i "Zatraži
@@ -1140,8 +1180,9 @@ ne prikazuje). Launch naplate = uključiti flag.
   /app dobija modal dobrodošlice sa pozivom da doda prvi obrt (vodi na
   postojeću formu u Postavkama).
 - Backend: `/api/pk-office/pristup`, `/organizacije/:id/aktiviraj`,
-  `/deaktiviraj`, `/trial` (pkOfficeGateController); kolone
-  organizations.pkOfficeEnabled/ActivatedAt/DisabledAt.
+  `/deaktiviraj`, `/trial`, `/trial/plan` (pkOfficeGateController); kolone
+  organizations.pkOfficeEnabled/ActivatedAt/DisabledAt i
+  users.pkOfficeTrialEndsAt/pkOfficeTrialPlan.
 - **Role i pristupi (agencijski tim)**: office paket kupuje JEDAN korisnik
   (nosilac), a njegov tim NASLJEĐUJE pristup kroz postojeće članstvo u
   obrtu (OrganizationMember): član (bilo koja org rola) obrta koji je
@@ -1932,6 +1973,84 @@ je tipiziran po temi u `src/content/upustva/` (jedan fajl po ruti + registry u
 `index.ts`), bez markdown dependencyja. Nova stranica = novi fajl teme, red u
 registru i `HelpButton slug="..."` uz naslov. Izvor istine za tekst je ovaj
 dokument; panel je njegova uglađena, klijentu okrenuta verzija.
+
+## 29. PK Office Solo (vodim sam sebi)
+
+Paket **Office Solo** (`office_1`, 1 obrt, 100 KM godišnje + PDV, 10 KM
+mjesečno) je za obrtnika koji vodi knjige sam, bez knjigovođe. Isti motor kao
+PK Office, isti obračuni; razlika je samo šta se vidi i kako se vodi za ruku.
+Ulazi u ljestvicu ispod Office Starta (ista cijena po obrtu), viši paketi ga
+uključuju, a Solo uključuje i PK Freelancer (link pod "Ostalo").
+
+**Ulaz bez obrta.** Korisnik koji uđe u /app bez ijednog obrta ne dobija više
+modal koji šalje u Postavke: naslovnica sama prikazuje formu za prvi obrt
+(ista forma kao Postavke > Novi obrt, `ProfilTab createMode`). Obrt se odmah
+aktivira u PK Office i korisnik ostaje na naslovnici sa upitnikom.
+
+**Upitnik (Solo upitnik).** Dva pitanja: ko vodi knjige (ja sam / knjigovođa)
+i šta obrt koristi (radnici, roba i maloprodaja, blagajna, putni nalozi,
+stalna sredstva). Otvara se sam za vlastiti obrt bez popunjenog upitnika na
+Solo paketu ili sa uključenim Solo režimom, i na `/app/dashboard?solo=upitnik`
+poslije kreiranja obrta. Odgovori se čuvaju na obrtu (`organizations.soloMode`,
+`organizations.soloModuli` JSON) i mijenjaju u **Postavke obrta > Način rada**.
+PDV se ne bira ovdje nego kroz status PDV obveznika na Profilu obrta.
+
+**Suženi meni.** U Solo režimu sidebar prikazuje: Početna; "Svaki mjesec"
+(Fakture, Bankovni izvodi, Doprinosi i uplatnice [= Obračuni plata; uz modul
+Radnici vraća se naziv Obračuni plata], PDV evidencije ako je obveznik,
+Blagajna ako je modul); "Knjige i obrasci" (KPR-1041, Obrasci i kraj godine,
+Kupci i dobavljači, Transakcije, Stalna sredstva ako je modul); "Dodatni
+moduli" (Zaposlenici, Putni nalozi, Kalkulacije i Lager, po upitniku);
+"Ostalo" (Inbox, PK Freelancer); Račun. Agencijske stvari (grupni uvoz,
+klijenti, više obrta) se ne vide. Sve ostale stranice su iste kao u punom
+PK Office-u.
+
+**Solo naslovnica.** Umjesto pregleda za knjigovođu: lista **"Šta trebam ovaj
+mjesec"** sa rokom i statusom (gotovo / čeka / kasni) i linkom na ekran gdje se
+rješava: bankovni izvod za prošli mjesec (učitan ove mjeseca), transakcije
+povezane i proknjižene (nema nepovezanih), obračun doprinosa vlasnika
+(Obrazac 2002) za obračunski mjesec (status iz payroll-status), plus
+obaveze iz `obligationsService` (doprinosi, akontacija poreza, PDV) koje se
+zazelene kad potvrđena uplata stigne na izvod. Ispod: brze radnje (Nova
+faktura kao primarna, Kopiraj zadnju fakturu, Učitaj izvod, Doprinosi i
+uplatnice, Obrasci i kraj godine), KPI za mjesec (naplaćeno, plaćeno,
+otvorene fakture, stanje računa), zadnje transakcije i vodiči (Prvi mjesec,
+Kraj godine, Rječnik pojmova).
+
+**Faktura kao glavna radnja.** "Nova faktura" stoji u gornjoj traci na
+svakom ekranu (na mobilnom pluta dolje desno). Forma fakture u Solo režimu
+sakriva napredna polja (vrsta isporuke, valuta, jezik) iza dugmeta
+**Napredno**, a jedan prekidač **Inostrani kupac** postavlja sve odjednom:
+izvoz bez PDV-a, EUR i dvojezičnu fakturu.
+
+**Jezik fakture.** Nova kolona `invoices.jezik` (bs / en / bs-en). PDF
+(`invoicePdf.js`, rječnik labela `labelsFor`) ispisuje sve labele na
+izabranom jeziku; dvojezična verzija ima kratke "bs / en" labele, drugi red
+zaglavlja tabele na engleskom i iznos slovima na oba jezika. Napomena o PDV-u
+sada zavisi od vrste isporuke: obračunat / nije obveznik / izvoz / oslobođena
+isporuka. Email kupcu ide na engleskom kad je jezik en ili bs-en.
+
+**Ponavljajuće fakture.** Pripremljeni računi dobili su `autoDan` (1-28) i
+`autoEmail`: dnevni job (`ponavljajuceFaktureJob` u notificationsService) tog
+dana sam napravi fakturu (mjesečno svaki mjesec, kvartalno u 1/4/7/10,
+godišnje u januaru; sedmični ostaju ručni), idempotentno preko
+`lastInvoicedAt`, po želji je odmah pošalje kupcu, a vlasnik dobije in-app
+obavijest. Ručno "Fakturiši sve" ostaje.
+
+**Uputstva korak po korak.** Četiri Solo teme u sistemu uputstava:
+`solo-pocetna` (mjesečna rutina i "šta ako"), `solo-prvi-mjesec`,
+`solo-kraj-godine`, `solo-rjecnik`. Pisana bez žargona, svaki korak kaže gdje
+se klikne.
+
+**Paket u kodu.** `OFFICE_1` u `config/pricing.js` i `data/pricing.ts`
+(prvi u listi, `officePlanForCount(1)` sada vraća Solo), enumi
+`subscriptions.plan` / `predracuni.plan` prošireni kroz
+`ensureOfficePlanEnums` (novi markeri), regexi paketa u
+subscriptionsController, userRepository i admin listama uključuju `1`.
+Limit kreiranja organizacija je vezan za plan (Solo 1, Start 2; greška
+`OFFICE_SOLO_LIMIT`), a deaktivacija jedinog Solo slota oslobađa slot odmah
+(bez anti-rotacije do 1. u mjesecu). Labela paketa je "PK Office Solo (1 obrt)",
+zamjena uz `officeMaxObrta` hvata i taj oblik.
 
 ## Tehnička bilješka (za razvoj, ne za tutorijal)
 

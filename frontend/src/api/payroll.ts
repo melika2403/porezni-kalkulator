@@ -487,7 +487,12 @@ export async function generateMonthlyUplatnice(
 
 // ── Izvoz naloga za e-bankarstvo ────────────────────────────────────────────
 
-export type BankExportProfil = "halcom" | "unicredit" | "elba" | "raiffeisen";
+export type BankExportProfil =
+  | "halcom"
+  | "unicredit"
+  | "elba"
+  | "raiffeisen"
+  | "mfbanka";
 
 export type BankExportPreskocen = {
   radnik: string;

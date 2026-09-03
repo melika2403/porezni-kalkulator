@@ -16,6 +16,7 @@ import { listPayrolls } from "src/api/payroll";
 import { trackEvent } from "src/api/activity";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
 import WorkersSidebar from "src/components/WorkersSidebar/WorkersSidebar";
+import { usePamcenaOrg } from "src/hooks/useLastOrg";
 import FaqSection from "src/components/FaqSection/FaqSection";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import DateInput from "src/components/DateInput/DateInput";
@@ -330,7 +331,9 @@ const PLACENO_RAZLOZI: { value: string; label: string; phrase: string }[] = [
 
 export default function RjesenjaOdluke() {
   const search = useSearchParams();
-  const initialOrgId = search.get("org") ? Number(search.get("org")) : null;
+  const initialOrgIdRaw = Number(search.get("org"));
+  const initialOrgId =
+    Number.isFinite(initialOrgIdRaw) && initialOrgIdRaw > 0 ? initialOrgIdRaw : null;
   const initialWorkerId = search.get("worker")
     ? Number(search.get("worker"))
     : null;
@@ -342,7 +345,10 @@ export default function RjesenjaOdluke() {
   const [docKey, setDocKey] = useState<DocKey>("godisnji-odmor");
 
   // Sidebar org/worker
-  const [sidebarOrgId, setSidebarOrgId] = useState<number | null>(initialOrgId);
+  // Org koja prati korisnika kroz stranice (URL → localStorage → izbor);
+  // dijeljeni obrazac, vidi usePamcenaOrg.
+  const { orgId: sidebarOrgId, setOrgId: setSidebarOrgId } =
+    usePamcenaOrg(initialOrgId);
   const [sidebarWorkerId, setSidebarWorkerId] = useState<number | null>(
     initialWorkerId,
   );

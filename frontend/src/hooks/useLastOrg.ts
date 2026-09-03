@@ -62,3 +62,35 @@ export function useLastOrg(): {
 
   return { lastOrgId, loaded, setLastOrgId };
 }
+// Kompletan obrazac "org koja prati korisnika" za stranice sa org sidebarom
+// (JS3100, Obračun plata, Aktivni radnici, Šihterica, Ugovori, Rješenja,
+// Porezna kartica…). Ponašanje:
+//   1) URL ?org=X ima prednost (deep-link) i važi odmah.
+//   2) Inače se, čim localStorage hidrira, usvoji zadnja odabrana org.
+//   3) SVAKA efektivna org (eksplicitni izbor, URL, hidracija, auto-select
+//      stranice) se upiše kao zadnja odabrana, pa je ostale stranice prate.
+// hydrated služi stranicama koje imaju auto-select prve org: fallback smije
+// da se pokrene tek poslije hidracije, da ne pregazi upamćenu org.
+export function usePamcenaOrg(urlOrg: number | null = null): {
+  orgId: number | null;
+  setOrgId: (id: number | null) => void;
+  hydrated: boolean;
+} {
+  const { lastOrgId, loaded, setLastOrgId } = useLastOrg();
+  const [orgId, setOrgId] = useState<number | null>(urlOrg);
+  const [hydrated, setHydrated] = useState<boolean>(urlOrg != null);
+
+  // Faza 2 hidracije: usvoji zadnju odabranu org (samo ako URL nije postavio).
+  useEffect(() => {
+    if (hydrated || !loaded) return;
+    if (lastOrgId != null) setOrgId(lastOrgId);
+    setHydrated(true);
+  }, [hydrated, loaded, lastOrgId]);
+
+  // Write-through: šta god je trenutno izabrano postaje "zadnja odabrana org".
+  useEffect(() => {
+    if (orgId != null) setLastOrgId(orgId);
+  }, [orgId, setLastOrgId]);
+
+  return { orgId, setOrgId, hydrated };
+}

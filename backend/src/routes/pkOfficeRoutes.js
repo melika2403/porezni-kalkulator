@@ -12,5 +12,7 @@ router.post("/organizacije/:orgId/aktiviraj", requireAuth, ctrl.aktiviraj);
 router.post("/organizacije/:orgId/deaktiviraj", requireAuth, ctrl.deaktiviraj);
 // 30 dana besplatne probe (nivo Office Tim), jednom po korisniku
 router.post("/trial", requireAuth, ctrl.startOfficeTrial);
+// nivo aktivne probe: Solo (jedan obrt) ili Tim
+router.post("/trial/plan", requireAuth, ctrl.setTrialPlan);
 
 module.exports = router;

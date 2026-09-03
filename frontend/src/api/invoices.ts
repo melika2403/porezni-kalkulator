@@ -144,6 +144,8 @@ export type Invoice = {
   kifJciBroj: string | null;
   kifJciDatum: string | null;
   currency: "BAM" | "EUR";
+  /** jezik ispisa PDF-a i emaila: bs (default), en, bs-en (dvojezično) */
+  jezik?: InvoiceJezik;
   status: InvoiceStatus;
   emailSentAt: string | null;
   emailSentTo: string | null;
@@ -181,6 +183,13 @@ export type Invoice = {
   items?: InvoiceItem[];
 };
 
+export type InvoiceJezik = "bs" | "en" | "bs-en";
+export const JEZIK_LABEL: Record<InvoiceJezik, string> = {
+  bs: "Bosanski",
+  en: "Engleski",
+  "bs-en": "Dvojezično (BS / EN)",
+};
+
 export type CreateInvoicePayload = {
   type: InvoiceType;
   /** direktno se kreira samo STANDARD ili AVANSNA (storno/KO idu iz dokumenta) */
@@ -188,6 +197,7 @@ export type CreateInvoicePayload = {
   applyVat: boolean;
   vrstaIsporuke?: "OPOREZIVA" | "IZVOZ" | "OSLOBODJENA";
   currency?: "BAM" | "EUR";
+  jezik?: InvoiceJezik;
   issueDate?: string;
   dueDate?: string | null;
   notes?: string | null;

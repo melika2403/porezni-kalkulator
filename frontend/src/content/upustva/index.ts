@@ -19,8 +19,17 @@ import { lager } from "./lager";
 import { zaposlenici } from "./zaposlenici";
 import { obracuniPlata } from "./obracuni-plata";
 import { putniNalozi } from "./putni-nalozi";
+import { soloPocetna } from "./solo-pocetna";
+import { soloPrviMjesec } from "./solo-prvi-mjesec";
+import { soloKrajGodine } from "./solo-kraj-godine";
+import { soloRjecnik } from "./solo-rjecnik";
 
 export const UPUSTVA: Record<string, Upustvo> = {
+  // PK Office Solo ("vodim sam sebi"): vodiči korak po korak sa naslovnice
+  "solo-pocetna": soloPocetna,
+  "solo-prvi-mjesec": soloPrviMjesec,
+  "solo-kraj-godine": soloKrajGodine,
+  "solo-rjecnik": soloRjecnik,
   dashboard,
   inbox,
   "bankovni-izvodi": bankovniIzvodi,

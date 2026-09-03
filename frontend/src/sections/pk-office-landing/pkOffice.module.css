@@ -472,7 +472,7 @@
 /* mini kartice paketa u pricing teaseru (naziv, do X obrta, od Y KM) */
 .planTiers {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0.8rem;
   max-width: 760px;
   margin: 1.9rem auto 0;

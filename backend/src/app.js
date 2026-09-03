@@ -33,6 +33,7 @@ const invoicesRoutes = require("./routes/invoicesRoutes");
 const preparedInvoicesRoutes = require("./routes/preparedInvoicesRoutes");
 const invoiceItemTemplatesRoutes = require("./routes/invoiceItemTemplatesRoutes");
 const amsIsplatiociRoutes = require("./routes/amsIsplatiociRoutes");
+const freelancerRoutes = require("./routes/freelancerRoutes");
 const vijestiRoutes = require("./routes/vijestiRoutes");
 const raspraveRoutes = require("./routes/raspraveRoutes");
 const workerDocumentsRoutes = require("./routes/workerDocumentsRoutes");
@@ -112,6 +113,7 @@ app.use("/api/invoices", invoicesRoutes);
 app.use("/api/prepared-invoices", preparedInvoicesRoutes);
 app.use("/api/invoice-item-templates", invoiceItemTemplatesRoutes);
 app.use("/api/ams/isplatioci", amsIsplatiociRoutes);
+app.use("/api/freelancer", freelancerRoutes);
 app.use("/api/vijesti", vijestiRoutes);
 app.use("/api/rasprave", raspraveRoutes);
 app.use("/api/workers", workerDocumentsRoutes);
@@ -396,6 +398,71 @@ async function ensureColumns() {
       table: "users",
       column: "pkOfficeTrialEndsAt",
       ddl: "ALTER TABLE users ADD COLUMN pkOfficeTrialEndsAt DATETIME NULL",
+    },
+    {
+      table: "users",
+      column: "pkOfficeTrialPlan",
+      ddl: "ALTER TABLE users ADD COLUMN pkOfficeTrialPlan VARCHAR(20) NULL",
+    },
+    {
+      table: "users",
+      column: "freelancerTrialEndsAt",
+      ddl: "ALTER TABLE users ADD COLUMN freelancerTrialEndsAt DATETIME NULL",
+    },
+    // PK Freelancer: lični odbitak iz porezne kartice (koeficijent x 300 KM x
+    // broj mjeseci), povlači se u red 18 obrasca GPD-1051
+    {
+      table: "users",
+      column: "freelancerKoeficijent",
+      ddl: "ALTER TABLE users ADD COLUMN freelancerKoeficijent DECIMAL(4,2) NULL",
+    },
+    {
+      table: "users",
+      column: "freelancerOdbitakMjeseci",
+      ddl: "ALTER TABLE users ADD COLUMN freelancerOdbitakMjeseci INT NULL",
+    },
+    // PK Freelancer: kanton i općina prebivališta za uplatnice (predpopuna)
+    {
+      table: "users",
+      column: "freelancerKanton",
+      ddl: "ALTER TABLE users ADD COLUMN freelancerKanton VARCHAR(10) NULL",
+    },
+    {
+      table: "users",
+      column: "freelancerOpcina",
+      ddl: "ALTER TABLE users ADD COLUMN freelancerOpcina VARCHAR(10) NULL",
+    },
+    // PK Office Solo: režim "vodim sam sebi" i moduli iz upitnika, po obrtu
+    {
+      table: "organizations",
+      column: "soloMode",
+      ddl: "ALTER TABLE organizations ADD COLUMN soloMode TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "organizations",
+      column: "soloModuli",
+      ddl: "ALTER TABLE organizations ADD COLUMN soloModuli JSON NULL",
+    },
+    // jezik fakture (bs / en / bs-en) i automatsko fakturisanje šablona
+    {
+      table: "invoices",
+      column: "jezik",
+      ddl: "ALTER TABLE invoices ADD COLUMN jezik VARCHAR(5) NOT NULL DEFAULT 'bs'",
+    },
+    {
+      table: "prepared_invoices",
+      column: "autoDan",
+      ddl: "ALTER TABLE prepared_invoices ADD COLUMN autoDan TINYINT UNSIGNED NULL",
+    },
+    {
+      table: "prepared_invoices",
+      column: "autoEmail",
+      ddl: "ALTER TABLE prepared_invoices ADD COLUMN autoEmail TINYINT(1) NOT NULL DEFAULT 0",
+    },
+    {
+      table: "prepared_invoices",
+      column: "jezik",
+      ddl: "ALTER TABLE prepared_invoices ADD COLUMN jezik VARCHAR(5) NOT NULL DEFAULT 'bs'",
     },
     {
       table: "invoices",
@@ -1210,21 +1277,25 @@ async function ensureMemberRoleEnum() {
 // je legacy LOWERCASE ('free','pro','business'), predracuni.plan UPPERCASE.
 async function ensureOfficePlanEnums() {
   const targets = [
+    // marker = vrijednost koja postoji SAMO u najnovijem ENUM-u (inače bi se
+    // proširenje preskočilo na bazama koje već imaju office vrijednosti).
+    // 1.9.2026: dodan 'freelancer' / 'FREELANCER' (PK Freelancer paket).
+    // 2.9.2026: dodan 'office_1' / 'OFFICE_1' (PK Office Solo, 1 obrt).
     {
       table: "subscriptions",
-      marker: "'office_2'",
+      marker: "'office_1'",
       // subscriptions.plan je dodan kao nullable (ensureColumns), a postojeći
       // redovi (npr. admin upsert samo sa datumima) imaju NULL. MODIFY ... NOT
       // NULL bi na strict MySQL-u pukao na NULL vrijednostima (i srušio startup),
       // a na non-strict ih pretvorio u '' umjesto DEFAULT-a. Zato backfill prije.
       backfill:
         "UPDATE subscriptions SET plan = 'free' WHERE plan IS NULL OR plan = ''",
-      ddl: "ALTER TABLE subscriptions MODIFY COLUMN plan ENUM('free','pro','business','office_2','office_10','office_25','office_50') NOT NULL DEFAULT 'free'",
+      ddl: "ALTER TABLE subscriptions MODIFY COLUMN plan ENUM('free','pro','business','office_1','office_2','office_10','office_25','office_50','freelancer') NOT NULL DEFAULT 'free'",
     },
     {
       table: "predracuni",
-      marker: "'OFFICE_2'",
-      ddl: "ALTER TABLE predracuni MODIFY COLUMN plan ENUM('PRO','BUSINESS','OFFICE_2','OFFICE_10','OFFICE_25','OFFICE_50') NOT NULL",
+      marker: "'OFFICE_1'",
+      ddl: "ALTER TABLE predracuni MODIFY COLUMN plan ENUM('PRO','BUSINESS','OFFICE_1','OFFICE_2','OFFICE_10','OFFICE_25','OFFICE_50','FREELANCER') NOT NULL",
     },
   ];
   for (const t of targets) {

@@ -29,6 +29,7 @@ const FUNCTION_GROUPS: MenuGroup[] = [
       { label: 'GPD-1051', href: '/gpd', desc: 'Godišnja porezna prijava' },
       { label: 'ZO3', href: '/zo3', desc: 'Zdravstveno osiguranje' },
       { label: 'AMS-1035', href: '/ams', desc: 'Akontacija poreza po odbitku' },
+      { label: 'PK Freelancer', href: '/freelancer', desc: 'Evidencija honorara iz inostranstva, AMS i GPD' },
     ],
   },
   {
@@ -230,6 +231,7 @@ export default function Navbar() {
       </Link>
 
       <div className={styles.links}>
+        <div className={styles.linksLeft}>
         {!isHome && (
           <Link
             href="/"
@@ -303,7 +305,9 @@ export default function Navbar() {
         </div>
 
         <Link href="/sifre-djelatnosti">Šifre djelatnosti</Link>
+        <Link href="/sifre-zanimanja">Šifre zanimanja</Link>
         <Link href="/javni-prihodi">Javni prihodi</Link>
+        </div>
         {/* Vijesti su izdvojene kao pilula: sekcija sadržaja, ne još jedan link */}
         <Link href="/vijesti" className={styles.linkVijesti}>
           <svg
@@ -327,9 +331,11 @@ export default function Navbar() {
             </span>
           )}
         </Link>
-        <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
-        <Link href={sectionHref('kako')} className={styles.linkSecondary}>Kako radi</Link>
-        <Link href={sectionHref('faq')} className={styles.linkSecondary}>FAQ</Link>
+        <div className={styles.linksRight}>
+          <Link href={sectionHref('cijene')}>Pretplatnički paketi</Link>
+          <Link href={sectionHref('kako')} className={styles.linkSecondary}>Kako radi</Link>
+          <Link href={sectionHref('faq')} className={styles.linkSecondary}>FAQ</Link>
+        </div>
       </div>
 
       <button
@@ -1009,6 +1015,11 @@ export default function Navbar() {
                 <li>
                   <Link href="/sifre-djelatnosti" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
                     Šifre djelatnosti
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/sifre-zanimanja" className={styles.mobileItem} onClick={() => setMobileOpen(false)}>
+                    Šifre zanimanja
                   </Link>
                 </li>
                 <li>

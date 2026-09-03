@@ -22,12 +22,15 @@ async function request<T>(
 }
 
 export type PlanKey = "free" | "pro" | "business";
-/** PK Office paketi: dodjeljuju se kroz admin/predračun, ne kroz change-plan */
+/** PK Office paketi: dodjeljuju se kroz admin/predračun, ne kroz change-plan.
+    "freelancer" = PK Freelancer (fizička lica, AMS evidencija), isti tok. */
 export type OfficePlanKey =
+  | "office_1"
   | "office_2"
   | "office_10"
   | "office_25"
-  | "office_50";
+  | "office_50"
+  | "freelancer";
 export type SubscriptionStatus =
   | "active"
   | "cancelled"

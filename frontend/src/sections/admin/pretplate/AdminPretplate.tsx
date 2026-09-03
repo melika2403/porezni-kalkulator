@@ -68,7 +68,7 @@ function DetailRow({
 export default function AdminPretplate() {
   const [draftQ, setDraftQ] = useState("");
   const [q, setQ] = useState("");
-  const [plan, setPlan] = useState<"" | "PRO" | "BUSINESS">("");
+  const [plan, setPlan] = useState<"" | "PRO" | "BUSINESS" | "FREELANCER">("");
   const [statusFilter, setStatusFilter] = useState<"" | PredracunStatus>("");
   const [page, setPage] = useState(1);
 
@@ -200,7 +200,7 @@ export default function AdminPretplate() {
           <StyledSelect
             value={plan}
             onChange={(v) => {
-              setPlan(String(v ?? "") as "" | "PRO" | "BUSINESS");
+              setPlan(String(v ?? "") as "" | "PRO" | "BUSINESS" | "FREELANCER");
               setPage(1);
             }}
             ariaLabel="Filter plana"
@@ -211,6 +211,7 @@ export default function AdminPretplate() {
                   { value: "", label: "Svi planovi" },
                   { value: "PRO", label: "Pro" },
                   { value: "BUSINESS", label: "Business" },
+                  { value: "FREELANCER", label: "PK Freelancer" },
                 ],
               },
             ]}
@@ -330,12 +331,12 @@ export default function AdminPretplate() {
                     <td>
                       <span
                         className={`${styles.planBadge} ${
-                          it.plan === "PRO"
+                          it.plan === "PRO" || it.plan === "FREELANCER"
                             ? styles.planPro
                             : styles.planBusiness
                         }`}
                       >
-                        {it.plan}
+                        {it.plan === "FREELANCER" ? "PK Freelancer" : it.plan}
                       </span>
                     </td>
                     <td className={styles.numCell}>

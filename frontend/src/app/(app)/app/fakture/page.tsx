@@ -535,7 +535,9 @@ function InvoiceRow({
         )}
       </div>
       <span className="text-[13.5px] font-semibold tabular-nums whitespace-nowrap">
-        {formatBAM(sign * Number(inv.grossTotal))}
+        {inv.currency === "EUR"
+          ? formatBAM(sign * Number(inv.grossTotal)).replace(/KM$/, "EUR")
+          : formatBAM(sign * Number(inv.grossTotal))}
       </span>
       <div
         className="flex items-center gap-1.5"

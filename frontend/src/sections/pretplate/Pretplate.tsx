@@ -32,8 +32,9 @@ import {
   OFFICE_PLANS,
   officePlanForCount,
   annualSavings,
-  calcVat,
-  calcGross,
+  iznosiZaPlan,
+  SAMO_GODISNJE,
+  obrtaTekst,
   formatKm as fmt,
   type BillingCycle,
 } from "src/data/pricing";
@@ -53,9 +54,26 @@ const PLANS: {
   id: Plan;
   tier: string;
   features: string[];
-  variant: "pro" | "business";
+  variant: "pro" | "business" | "freelancer";
   tag: string;
 }[] = [
+  {
+    // PK Freelancer: fizička lica, cijena BRUTO (sa PDV-om), samo godišnje
+    id: "FREELANCER",
+    tier: "PK Freelancer",
+    variant: "freelancer",
+    tag: "Za freelancere",
+    features: [
+      "Evidencija uplata iz inostranstva bez ograničenja",
+      "AMS-1035 i tri uplatnice iz evidencije, ponovno preuzimanje",
+      "Podsjetnici na rok od 5 dana i na GPD u martu",
+      "Kurs CBBiH po datumu primitka (USD, GBP...)",
+      "GPD-1051 popunjen iz evidencije jednim klikom",
+      "Pregled prihoda (PDF) za banku, ambasadu ili stan",
+      "Arhiva ovjerenih obrazaca i dokaza uplate",
+      "Isplatioci bez ograničenja",
+    ],
+  },
   {
     id: "PRO",
     tier: "Pro",
@@ -102,6 +120,8 @@ function radniDani(n: number): string {
 const PLAN_LABELS: Record<Plan, string> = {
   PRO: "Pro",
   BUSINESS: "Business",
+  FREELANCER: "PK Freelancer",
+  OFFICE_1: "Office Solo (1 obrt)",
   OFFICE_2: "Office Start (do 2 obrta)",
   OFFICE_10: "Office Tim (do 10 obrta)",
   OFFICE_25: "Office Agencija (do 25 obrta)",
@@ -233,7 +253,10 @@ export default function Pretplate() {
     if (userLoading || !user) return;
     officeTrialRef.current = true;
     void (async () => {
-      const res = await startPkOfficeTrial();
+      // ?trialPlan=solo (blok Solo na /freelancer): proba na nivou Sola
+      const res = await startPkOfficeTrial(
+        params.get("trialPlan") === "solo" ? "office_1" : null,
+      );
       if (res.ok) {
         setOfficeTrialStatus("done");
         return;
@@ -297,6 +320,11 @@ export default function Pretplate() {
     initialCycle === "monthly" ? "monthly" : "yearly",
   );
   const priceFor = (plan: Plan) => PLAN_PRICING[plan][cycle];
+  // PK Freelancer: kupac je fizičko lice, samo godišnja naplata, cijena bruto
+  const jeFizicko = selected === "FREELANCER";
+  useEffect(() => {
+    if (SAMO_GODISNJE.includes(selected) && cycle !== "yearly") setCycle("yearly");
+  }, [selected, cycle]);
 
   // forma kupca
   const [buyer, setBuyer] = useState<BuyerInput>({
@@ -379,7 +407,10 @@ export default function Pretplate() {
     e.preventDefault();
     setErrorMsg("");
     setStatus("sending");
-    const res = await createPredracun(selected, cycle, buyer);
+    const res = await createPredracun(selected, cycle, {
+      ...buyer,
+      fizickoLice: jeFizicko,
+    });
     if (!res.ok) {
       setStatus("error");
       setErrorMsg(res.error || "Došlo je do greške.");
@@ -514,6 +545,8 @@ export default function Pretplate() {
           aria-selected={cycle === "monthly"}
           className={`${styles.cycleBtn} ${cycle === "monthly" ? styles.cycleBtnActive : ""}`}
           onClick={() => setCycle("monthly")}
+          disabled={jeFizicko}
+          title={jeFizicko ? "PK Freelancer se plaća samo godišnje" : undefined}
         >
           Mjesečno
         </button>
@@ -541,29 +574,46 @@ export default function Pretplate() {
               className={`${styles.card} ${
                 p.variant === "pro"
                   ? styles.featuredPro
-                  : styles.featuredBusiness
+                  : p.variant === "business"
+                    ? styles.featuredBusiness
+                    : styles.featuredFreelancer
               } ${isActive ? styles.cardActive : styles.cardInactive}`}
               aria-pressed={isActive}
             >
               <div className={styles.popularTag}>{p.tag}</div>
 
               <div className={styles.tier}>{p.tier}</div>
-              <div className={styles.price}>
-                {fmt(priceFor(p.id))} KM
-                <span className={styles.vatSuffix}>+ PDV</span>
-              </div>
-              <div className={styles.period}>
-                {cycle === "monthly" ? "mjesečno" : "godišnje"}
-                {cycle === "yearly" && (
-                  <span className={styles.monthlyEq}>
-                    oko {Math.floor(PLAN_PRICING[p.id].yearly / 12)} KM mjesečno
-                  </span>
-                )}
-              </div>
-              {cycle === "yearly" && (
-                <div className={styles.saveNote}>
-                  2 mjeseca besplatno · ušteda {fmt(annualSavings(p.id))} KM
-                </div>
+              {p.variant === "freelancer" ? (
+                <>
+                  <div className={styles.price}>
+                    {fmt(iznosiZaPlan(p.id, "yearly").gross)} KM
+                    <span className={styles.vatSuffix}>sa PDV-om</span>
+                  </div>
+                  <div className={styles.period}>godišnje, samo godišnja naplata</div>
+                  <div className={styles.saveNote}>
+                    prvih 30 dana besplatno · AMS generator ostaje besplatan
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.price}>
+                    {fmt(priceFor(p.id))} KM
+                    <span className={styles.vatSuffix}>+ PDV</span>
+                  </div>
+                  <div className={styles.period}>
+                    {cycle === "monthly" ? "mjesečno" : "godišnje"}
+                    {cycle === "yearly" && (
+                      <span className={styles.monthlyEq}>
+                        oko {Math.floor(PLAN_PRICING[p.id].yearly / 12)} KM mjesečno
+                      </span>
+                    )}
+                  </div>
+                  {cycle === "yearly" && (
+                    <div className={styles.saveNote}>
+                      2 mjeseca besplatno · ušteda {fmt(annualSavings(p.id))} KM
+                    </div>
+                  )}
+                </>
               )}
 
               <div className={styles.divider} />
@@ -625,6 +675,8 @@ export default function Pretplate() {
             Kompletno knjigovodstvo obrta. Cijena po broju obrta.
           </h2>
           <p className={styles.officeLead}>
+            <strong>Office Solo</strong> je za obrtnika koji vodi knjige sam
+            sebi (jedan obrt, jednostavan meni i mjesečna lista obaveza),{" "}
             <strong>Office Start</strong> daje sve funkcije za do 2 obrta, a
             paketi <strong>Tim i veći</strong> uz PK Office knjigovodstvo
             uključuju i <strong>kompletan Business bez ograničenja</strong>{" "}
@@ -777,7 +829,7 @@ export default function Pretplate() {
                   <div className={styles.popularTag}>Preporučeno za tebe</div>
                 )}
                 <div className={styles.tier}>{p.naziv}</div>
-                <div className={styles.officeObrta}>do {p.maxObrta} obrta</div>
+                <div className={styles.officeObrta}>{obrtaTekst(p.maxObrta)}</div>
                 <div className={styles.price}>
                   {fmt(cijena)} KM
                   <span className={styles.vatSuffix}>+ PDV</span>
@@ -791,12 +843,20 @@ export default function Pretplate() {
                   </div>
                 )}
                 <div className={styles.officePerObrt}>
-                  već od {poObrtu} KM po obrtu mjesečno
+                  {p.maxObrta === 1
+                    ? "za jedan obrt, vodiš sam sebi"
+                    : `već od ${poObrtu} KM po obrtu mjesečno`}
                 </div>
                 <div className={styles.divider} />
                 <ul className={styles.features}>
                   <li>Sve PK Office funkcije</li>
-                  {p.id === "OFFICE_2" ? (
+                  {p.id === "OFFICE_1" ? (
+                    <>
+                      <li>Režim "vodim sam sebi": jednostavan meni i lista obaveza</li>
+                      <li>Business funkcije za taj 1 obrt</li>
+                      <li>Uključen PK Freelancer</li>
+                    </>
+                  ) : p.id === "OFFICE_2" ? (
                     <li>Business funkcije za ta 2 obrta</li>
                   ) : (
                     <li>Kompletan Business: neograničeni klijenti</li>
@@ -1083,11 +1143,13 @@ export default function Pretplate() {
 
         <div className={styles.fieldsGrid}>
           <div className={`${styles.field} ${styles.colSpan2}`}>
-            <label className={styles.fieldLabel}>Naziv firme *</label>
+            <label className={styles.fieldLabel}>
+              {jeFizicko ? "Ime i prezime *" : "Naziv firme *"}
+            </label>
             <input
               className={styles.input}
               type="text"
-              placeholder="Naziv firme"
+              placeholder={jeFizicko ? "Ime i prezime" : "Naziv firme"}
               value={buyer.name}
               onChange={handleField("name")}
               required
@@ -1127,6 +1189,9 @@ export default function Pretplate() {
             />
           </div>
 
+          {/* fizičko lice (PK Freelancer) nema ID ni PDV broj */}
+          {!jeFizicko && (
+          <>
           <div className={styles.field}>
             <label className={styles.fieldLabel}>ID broj kupca</label>
             <input
@@ -1173,6 +1238,8 @@ export default function Pretplate() {
             </div>
           ) : (
             <div className={styles.field} aria-hidden="true" />
+          )}
+          </>
           )}
 
           <div className={styles.field}>
@@ -1242,15 +1309,15 @@ export default function Pretplate() {
           </div>
           <div className={styles.summaryRow}>
             <span>Iznos bez PDV-a</span>
-            <strong>{fmt(priceFor(selected))} KM</strong>
+            <strong>{fmt(iznosiZaPlan(selected, cycle).net)} KM</strong>
           </div>
           <div className={styles.summaryRow}>
             <span>PDV (17%)</span>
-            <strong>{fmt(calcVat(priceFor(selected)))} KM</strong>
+            <strong>{fmt(iznosiZaPlan(selected, cycle).vat)} KM</strong>
           </div>
           <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
             <span>Za naplatu</span>
-            <strong>{fmt(calcGross(priceFor(selected)))} KM</strong>
+            <strong>{fmt(iznosiZaPlan(selected, cycle).gross)} KM</strong>
           </div>
         </div>
 

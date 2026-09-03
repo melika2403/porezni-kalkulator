@@ -18,3 +18,6 @@ pnpm-debug.log*
 
 # OS
 .DS_Store
+
+# PK Freelancer privatni prilozi (licni dokumenti korisnika, nikad u git)
+backend/uploads-private/

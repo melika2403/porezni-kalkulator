@@ -94,6 +94,46 @@ const workerDocUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
+// ── Privatni fajlovi ─────────────────────────────────────────────────────────
+// NISU pod javnim /uploads static mountom: PK Freelancer prilozi (ovjereni AMS
+// obrasci sa šaltera, dokazi uplata iz banke) su lični dokumenti i služe se
+// isključivo kroz kontroler sa provjerom vlasništva.
+const PRIVATE_ROOT = path.join(__dirname, "..", "..", "uploads-private");
+
+function makePrivateStorage(subdir, dozvoljeneExt) {
+  const dir = path.join(PRIVATE_ROOT, subdir);
+  ensureDir(dir);
+  return multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, dir),
+    filename: (_req, file, cb) => {
+      const ext = (path.extname(file.originalname) || "").toLowerCase();
+      const safeExt = dozvoljeneExt.includes(ext) ? ext : ".bin";
+      const stamp = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      cb(null, `${stamp}${safeExt}`);
+    },
+  });
+}
+
+const freelancerPrilogFilter = (_req, file, cb) => {
+  const ok = ["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(
+    file.mimetype,
+  );
+  if (!ok) return cb(new Error("INVALID_DOC_TYPE"));
+  cb(null, true);
+};
+
+const freelancerPrilogUpload = multer({
+  storage: makePrivateStorage("freelancer-prilozi", [
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+  ]),
+  fileFilter: freelancerPrilogFilter,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
+
 function publicUrlFor(subdir, filename) {
   return `/uploads/${subdir}/${filename}`;
 }
@@ -115,6 +155,8 @@ function safeUnlink(absPath) {
 
 module.exports = {
   UPLOADS_ROOT,
+  PRIVATE_ROOT,
+  freelancerPrilogUpload,
   logoUpload,
   memorandumUpload,
   vijestiUpload,

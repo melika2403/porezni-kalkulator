@@ -324,6 +324,52 @@
   white-space: nowrap;
 }
 
+/* ── valuta uz iznos: EUR fiksno, ostale po kursu CBBiH na klik ── */
+.valutaWrap {
+  width: 96px;
+  flex-shrink: 0;
+}
+/* dvostruka klasa nadjačava .trigger iz StyledSelect-a bez obzira na
+   redoslijed stilova; visina prati .eurInput */
+.valutaWrap .valutaSelect {
+  padding: 0.35rem 0.6rem;
+  background: var(--paper);
+  border-radius: var(--radius);
+}
+.kursBtn {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--sage-pale);
+  color: var(--sage);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.kursBtn:hover:not(:disabled) {
+  background: var(--sage);
+  color: var(--white);
+}
+.kursBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.kursGreska {
+  font-size: 12.5px;
+  color: var(--err-text);
+  line-height: 1.5;
+  margin-top: 0.35rem;
+}
+.kursNapomena {
+  font-size: 12.5px;
+  color: var(--warn-text);
+  line-height: 1.5;
+  margin-top: 0.35rem;
+}
+
 /* ── Izjava ── */
 .izjavaText {
   font-size: 0.88rem;
@@ -534,5 +580,136 @@
 
   .section {
     padding: 1.25rem;
+  }
+}
+
+/* ── PK Freelancer kartica pored obrasca ──
+   Obrazac MORA ostati na tačnoj sredini ekrana (kao i prije kartice). Zato je
+   raspored tri kolone: lijevi prostor | obrazac | desni prostor, gdje su bočni
+   prostori jednaki (1fr / 1fr) a kartica živi u desnom, naslonjena na obrazac.
+   Na laptopima se obrazac blago suzi (do 760px) da kartica stane, ali ostaje
+   centriran. Ispod 1340px kartice nema mjesta pored: jedna kolona, obrazac
+   960px na sredini kao i prije, kartica ispod sadržaja. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  align-items: flex-start;
+}
+.glavno {
+  min-width: 0;
+}
+/* Ispod 1340px kartica ide NA VRH, odmah ispod naslova i podnaslova (na
+   telefonu je dno stranice predaleko, niko je ne vidi). Iznad 1340px stoji
+   pored obrasca. */
+.bocno {
+  order: -1;
+}
+@media (min-width: 1340px) {
+  .page {
+    --kartica: 240px;
+    --kartica-razmak: 1.5rem;
+    /* širina obrasca: 960px kad ima mjesta, inače koliko ostane poslije
+       kartice i razmaka sa OBJE strane (simetrija = centriranost) */
+    --obrazac: clamp(
+      760px,
+      calc(100vw - 3rem - 2 * (var(--kartica) + var(--kartica-razmak) + 1rem)),
+      960px
+    );
+    max-width: none;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+  .header {
+    max-width: var(--obrazac);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .layout {
+    grid-template-columns: minmax(0, 1fr) var(--obrazac) minmax(0, 1fr);
+    column-gap: 0;
+  }
+  .glavno {
+    grid-column: 2;
+  }
+  .bocno {
+    grid-column: 3;
+    order: 0;
+    justify-self: start;
+    width: var(--kartica);
+    margin-left: var(--kartica-razmak);
+    position: sticky;
+    top: calc(64px + 1.5rem);
+  }
+}
+@media (min-width: 1650px) {
+  .page {
+    --kartica: 280px;
+    --kartica-razmak: 2rem;
+  }
+}
+
+/* ── PK Freelancer: poruka o upisu u evidenciju (poslije preuzimanja) ── */
+.evidBox,
+.evidBoxWarn {
+  font-size: 13.5px;
+  line-height: 1.55;
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1.1rem;
+  margin: 0 0 1.5rem;
+}
+.evidBox {
+  background: var(--sage-pale);
+  border: 1px solid color-mix(in srgb, var(--sage) 25%, transparent);
+  color: var(--ink);
+}
+.evidBox a {
+  color: var(--sage);
+  font-weight: 600;
+}
+.evidBoxWarn {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-text);
+}
+.evidHint {
+  font-size: 13px;
+  color: var(--mid);
+  text-align: center;
+  margin: -0.75rem 0 1.5rem;
+}
+.evidHint a {
+  color: var(--sage);
+  font-weight: 600;
+}
+
+/* Prečica u PK Freelancer evidenciju uz dugme za preuzimanje, samo za
+   pretplatnike i probu. Boja paketa (šljiva), isti gabarit kao exportBtn. */
+.freelancerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--plum-mid) 40%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--plum-pale);
+  color: var(--plum-text);
+  text-decoration: none;
+  transition: background 0.2s, transform 0.15s;
+}
+.freelancerBtn:hover {
+  background: var(--plum-light);
+  transform: translateY(-1px);
+}
+.freelancerBtn svg {
+  width: 18px;
+  height: 18px;
+}
+@media (max-width: 640px) {
+  .actions {
+    flex-wrap: wrap;
   }
 }

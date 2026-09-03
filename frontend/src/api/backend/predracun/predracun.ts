@@ -11,10 +11,12 @@ const BACKEND_URL = getBackendUrl();
 export type Plan =
   | "PRO"
   | "BUSINESS"
+  | "OFFICE_1"
   | "OFFICE_2"
   | "OFFICE_10"
   | "OFFICE_25"
-  | "OFFICE_50";
+  | "OFFICE_50"
+  | "FREELANCER";
 export type BillingCycle = "monthly" | "yearly";
 
 export interface BuyerInput {
@@ -26,6 +28,8 @@ export interface BuyerInput {
   email: string;
   idNumber?: string;
   vatNumber?: string;
+  /** PK Freelancer: kupac je fizičko lice (bez ID/PDV broja na predračunu). */
+  fizickoLice?: boolean;
 }
 
 export interface PredracunResult {

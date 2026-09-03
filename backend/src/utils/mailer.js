@@ -164,55 +164,88 @@ function createInvoiceTransporter() {
   });
 }
 
-async function sendInvoiceEmail({ to, replyTo, isProforma, fullNumber, sellerName, buyerName, gross, currency = "BAM", dueDate, pdfBuffer, customMessage }) {
+// jezik: "bs" (default) ili engleski za inostrane kupce ("en" i "bs-en" idu
+// na engleskom, PDF u prilogu nosi svoj jezik)
+async function sendInvoiceEmail({ to, replyTo, isProforma, fullNumber, sellerName, buyerName, gross, currency = "BAM", dueDate, pdfBuffer, customMessage, jezik = "bs" }) {
   const transporter = createInvoiceTransporter();
   const fromAddr = process.env.SMTP_INVOICE_MAIL || "noreply@poreznikalkulator.ba";
   const displayName = sellerName || "Porezni Kalkulator";
   const from = `"${displayName}" <${fromAddr}>`;
-  const docTitle = isProforma ? "Predračun" : "Faktura";
+  const en = jezik === "en" || jezik === "bs-en";
+  const docTitle = en
+    ? (isProforma ? "Proforma invoice" : "Invoice")
+    : (isProforma ? "Predračun" : "Faktura");
   const filenameBase = isProforma ? "Predracun" : "Faktura";
-  const cur = currency === "EUR" ? "EUR" : "KM";
-  const grossStr = Number(gross || 0).toFixed(2).replace(".", ",");
+  const cur = currency === "EUR" ? "EUR" : (en ? "BAM" : "KM");
+  const grossStr = en
+    ? Number(gross || 0).toFixed(2)
+    : Number(gross || 0).toFixed(2).replace(".", ",");
   const due = dueDate ? new Date(dueDate) : null;
   const dueStr = due && !Number.isNaN(due.getTime())
-    ? `${String(due.getDate()).padStart(2, "0")}.${String(due.getMonth() + 1).padStart(2, "0")}.${due.getFullYear()}.`
+    ? `${String(due.getDate()).padStart(2, "0")}.${String(due.getMonth() + 1).padStart(2, "0")}.${due.getFullYear()}${en ? "" : "."}`
     : null;
 
   const intro = customMessage && String(customMessage).trim()
     ? String(customMessage).trim()
-    : `U prilogu se nalazi ${docTitle.toLowerCase()} br. ${fullNumber}${sellerName ? ` od ${sellerName}` : ""}.`;
+    : en
+      ? `Please find attached ${docTitle.toLowerCase()} no. ${fullNumber}${sellerName ? ` from ${sellerName}` : ""}.`
+      : `U prilogu se nalazi ${docTitle.toLowerCase()} br. ${fullNumber}${sellerName ? ` od ${sellerName}` : ""}.`;
+  const T = en
+    ? {
+        pozdrav: `Dear${buyerName ? ` ${buyerName}` : " customer"},`,
+        pozdravHtml: `Dear${buyerName ? ` <strong>${buyerName}</strong>` : " customer"},`,
+        br: "no.",
+        iznos: "Amount due",
+        dospijece: "Due date",
+        pitanja: replyTo ? `For any questions simply reply to this email, it goes directly to ${replyTo}.` : "",
+        pitanjaHtml: replyTo ? `For any questions simply reply to this email, it goes directly to <strong>${replyTo}</strong>.` : "",
+        potpis: "Kind regards,",
+        preko: "Sent via poreznikalkulator.ba",
+      }
+    : {
+        pozdrav: `Poštovani${buyerName ? ` ${buyerName}` : ""},`,
+        pozdravHtml: `Poštovani${buyerName ? ` <strong>${buyerName}</strong>` : ""},`,
+        br: "br.",
+        iznos: "Iznos za naplatu",
+        dospijece: "Dospijeće",
+        pitanja: replyTo ? `Za sva pitanja odgovorite na ovaj email, odlazi direktno na ${replyTo}.` : "",
+        pitanjaHtml: replyTo ? `Za sva pitanja odgovorite na ovaj email, odlazi direktno na <strong>${replyTo}</strong>.` : "",
+        potpis: "Srdačan pozdrav,",
+        preko: "Poslano preko poreznikalkulator.ba",
+      };
 
   await transporter.sendMail({
     from,
     to,
     replyTo: replyTo || undefined,
-    subject: `${docTitle} br. ${fullNumber}${sellerName ? `, ${sellerName}` : ""}`,
+    subject: `${docTitle} ${T.br} ${fullNumber}${sellerName ? `, ${sellerName}` : ""}`,
     text:
-`Poštovani${buyerName ? ` ${buyerName}` : ""},
+`${T.pozdrav}
 
 ${intro}
 
-Iznos za naplatu: ${grossStr} ${cur}${dueStr ? `\nDatum dospijeća: ${dueStr}` : ""}
+${T.iznos}: ${grossStr} ${cur}${dueStr ? `\n${T.dospijece}: ${dueStr}` : ""}
 
-${replyTo ? `Za sva pitanja odgovorite na ovaj email, odlazi direktno na ${replyTo}.` : ""}
+${T.pitanja}
 
-, ${displayName}`,
+${T.potpis}
+${displayName}`,
     html: `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
-        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${docTitle} br. ${fullNumber}</h2>
+        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">${docTitle} ${T.br} ${fullNumber}</h2>
         <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
-          Poštovani${buyerName ? ` <strong>${buyerName}</strong>` : ""},<br/>
+          ${T.pozdravHtml}<br/>
           ${intro.replace(/\n/g, "<br/>")}
         </p>
         <div style="background:#f5f2eb; border:1px solid #d4cfc4; border-radius:8px; padding:16px 20px; margin: 20px 0;">
-          <div style="font-size:12px; color:#7a8a7d; text-transform:uppercase; letter-spacing:.06em;">Iznos za naplatu</div>
+          <div style="font-size:12px; color:#7a8a7d; text-transform:uppercase; letter-spacing:.06em;">${T.iznos}</div>
           <div style="font-size:28px; font-weight:600; color:#3a5c42; margin-top:4px;">${grossStr} ${cur}</div>
-          ${dueStr ? `<div style="font-size:12px; color:#7a8a7d; margin-top:6px;">Dospijeće: <strong>${dueStr}</strong></div>` : ""}
+          ${dueStr ? `<div style="font-size:12px; color:#7a8a7d; margin-top:6px;">${T.dospijece}: <strong>${dueStr}</strong></div>` : ""}
         </div>
-        ${replyTo ? `<p style="color:#666; font-size:14px; line-height:1.6;">Za sva pitanja odgovorite na ovaj email, odlazi direktno na <strong>${replyTo}</strong>.</p>` : ""}
+        ${T.pitanjaHtml ? `<p style="color:#666; font-size:14px; line-height:1.6;">${T.pitanjaHtml}</p>` : ""}
         <p style="color:#999; font-size:12px; margin-top:32px; border-top:1px solid #e5e7eb; padding-top:16px;">
-          , ${displayName}<br/>
-          <span style="color:#bbb;">Poslano preko poreznikalkulator.ba</span>
+          ${T.potpis} ${displayName}<br/>
+          <span style="color:#bbb;">${T.preko}</span>
         </p>
       </div>
     `,

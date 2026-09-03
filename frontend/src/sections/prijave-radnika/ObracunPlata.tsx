@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
-import { useLastOrg } from "src/hooks/useLastOrg";
+import { IZVOZ_BANKE, IZVOZ_GRESKE, datotekaPadez } from "src/lib/bankExport";
+import { usePamcenaOrg } from "src/hooks/useLastOrg";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import {
@@ -36,7 +37,6 @@ import {
   setCombineKantonal,
   setPayrollPaymentDate,
   type BankExportPreskocen,
-  type BankExportProfil,
   type BankExportRezultat,
   type MonthlyUplatnicaSummary,
   type Payroll,
@@ -150,35 +150,9 @@ const STATUS_LABEL: Record<Payroll["status"], string> = {
   ISPLACENO: "Isplaćeno",
 };
 
-// Izvoz naloga za e-bankarstvo: banke koje korisnik prepoznaje po imenu,
-// interno mapirane na format datoteke (profil). BBI, ASA i Sparkasse dijele
-// ELBA platformu; Halcom (Hal E-Bank / Personal) koriste klijenti više banaka.
-const IZVOZ_BANKE: {
-  value: string;
-  label: string;
-  profil: BankExportProfil;
-}[] = [
-  { value: "halcom", label: "Halcom (Hal E-Bank, više banaka)", profil: "halcom" },
-  { value: "raiffeisen", label: "Raiffeisen banka (RBBHnet)", profil: "raiffeisen" },
-  { value: "unicredit", label: "UniCredit banka (e-ba)", profil: "unicredit" },
-  { value: "bbi", label: "BBI banka (eBBI)", profil: "elba" },
-  { value: "asa", label: "ASA banka (ELBA)", profil: "elba" },
-  { value: "sparkasse", label: "Sparkasse banka (ELBA)", profil: "elba" },
-  { value: "intesa", label: "Intesa Sanpaolo banka (ELBA)", profil: "elba" },
-  { value: "procredit", label: "ProCredit Bank (ELBA)", profil: "elba" },
-  { value: "pbs", label: "Privredna banka Sarajevo (ELBA)", profil: "elba" },
-];
-
-const IZVOZ_GRESKE: Record<string, string> = {
-  NEMA_OBRACUNA: "Za ovaj mjesec nema obračuna plata.",
-  NEMA_NALOGA:
-    "Nijedan nalog nije mogao ući u datoteku (pogledajte preskočene stavke).",
-  FORBIDDEN: "Nemate pristup ovoj organizaciji.",
-  FORBIDDEN_PLAN: "Potrebna je aktivna Pro ili Office pretplata.",
-  INVALID_DATUM_VALUTE: "Datum valute nije ispravan kalendarski datum.",
-  SERVER_ERROR: "Greška na serveru, pokušajte ponovo.",
-  NETWORK_ERROR: "Greška u konekciji, pokušajte ponovo.",
-};
+// Izvoz naloga za e-bankarstvo: šifarnik banaka i poruke su dijeljeni sa
+// PK Office obračunom (src/lib/bankExport.ts), da se lista održava na jednom
+// mjestu.
 
 const UPLATNICA_LABEL: Record<PayrollDocumentType, string> = {
   PLATNA_LISTA: "Platna lista",
@@ -570,7 +544,6 @@ function ObracunPlataApp() {
   // plate prethodnog mjeseca), od 16. tekući. Vidi lib/obracunskiPeriod.
   const init = defaultObracunPeriod();
   const searchParams = useSearchParams();
-  const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
   // URL eksplicitno specificiran mjesec ima prednost (deep-link iz
   // /organizacije pregleda gdje knjigovođa već bira mjesec): klik na "Plate"
   // u /organizacije otvara mjesec koji je tamo bio aktivan.
@@ -588,22 +561,11 @@ function ObracunPlataApp() {
     const v = searchParams.get("org");
     return v ? Number(v) || null : null;
   })();
-  // orgId hidracija u 2 faze (vidi AktivniRadnici za detalje):
-  //   1) URL ?org=X → odmah.
-  //   2) Inače pričekamo `lastOrgLoaded` → usvojimo lastOrgId ili auto-select.
-  const [orgId, setOrgIdInternal] = useState<number | null>(urlOrgInit);
-  const [hydrated, setHydrated] = useState<boolean>(urlOrgInit != null);
+  // Org koja prati korisnika kroz stranice (URL → localStorage → izbor);
+  // dijeljeni obrazac, vidi usePamcenaOrg.
+  const { orgId, setOrgId, hydrated } = usePamcenaOrg(urlOrgInit);
   const [openWorkerId, setOpenWorkerId] = useState<number | null>(null);
 
-  // Perzistira odabranu organizaciju u localStorage — koristi se i u JS3100,
-  // Aktivnim radnicima i Ugovorima.
-  const setOrgId = useCallback(
-    (id: number | null) => {
-      setOrgIdInternal(id);
-      if (id != null) setLastOrgId(id);
-    },
-    [setLastOrgId],
-  );
 
   // PRO feature: dostupno ako vlastiti plan ili bilo koja moja org ima PRO+
   // vlasnika (members of BUSINESS owner's org dobijaju pun pristup).
@@ -634,14 +596,6 @@ function ObracunPlataApp() {
     return Array.from(map.values());
   }, [orgsQuery.data, clientOrgsQuery.data]);
 
-  // Faza 2 hidracije: usvoji lastOrgId čim localStorage hidrira (samo ako
-  // URL nije postavio orgId).
-  useEffect(() => {
-    if (hydrated) return;
-    if (!lastOrgLoaded) return;
-    if (lastOrgId != null) setOrgIdInternal(lastOrgId);
-    setHydrated(true);
-  }, [hydrated, lastOrgLoaded, lastOrgId]);
 
   // Auto-select prve dostupne org — tek nakon hidracije, da ne pregazimo
   // upamćenu (npr. klijentsku) org dok je localStorage još null.
@@ -1497,12 +1451,6 @@ function triggerBlobDownload(blob: Blob, filename: string) {
 }
 
 // "datoteke" uz 1-4, "datoteka" uz 5 i više (naših paketa ima najviše 5).
-function datotekaPadez(n: number): string {
-  return n % 10 >= 1 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)
-    ? "datoteke"
-    : "datoteka";
-}
-
 // Lista kartica koja je po defaultu sažeta: prikaže prve par, ostatak zamuti
 // (gradient) sa dugmetom "Prikaži sve". Otvoreno → "Sakrij sve" istim dugmetom.
 function FadePreviewList({ cards }: { cards: React.ReactNode[] }) {

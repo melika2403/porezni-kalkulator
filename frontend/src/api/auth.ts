@@ -22,6 +22,8 @@ export type AuthUser = {
   trialUsedAt: string | null;
   /** Kraj PK Office probe; postavljen = proba je iskorištena (jednokratna). */
   pkOfficeTrialEndsAt?: string | null;
+  /** Kraj PK Freelancer probe (zasebna od Office probe); postavljen = iskorištena. */
+  freelancerTrialEndsAt?: string | null;
   /** Naziv na platnom listiću: null/izostavljeno = "PLATNI LISTIĆ". */
   payslipNaziv?: "PLATNA_LISTA" | null;
   /** Stanje dvofaktorske prijave; detalji su na /api/2fa/status. */
@@ -88,6 +90,8 @@ export type RegisterPayload = {
   wantsTrial?: boolean;
   // Isto, ali za PK Office trial (pkOfficeTrialEndsAt).
   wantsOfficeTrial?: boolean;
+  /** Nivo tražene probe: "office_1" (Solo) ili null/izostavljeno (Tim). */
+  officeTrialPlan?: "office_1" | null;
 };
 
 export function register(payload: RegisterPayload) {

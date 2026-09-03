@@ -234,6 +234,10 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+/* pet paketa u dvije kolone: Solo (prvi) ide preko cijele širine */
+.officeTiers > :first-child {
+  grid-column: 1 / -1;
+}
 
 .officeTier {
   background: rgba(255, 255, 255, 0.06);

@@ -168,3 +168,29 @@ test("javne rute NE primaju officeMaxObrta (samo admin ruta pretplate)", () => {
     "usersController ne smije prihvatati officeMaxObrta",
   );
 });
+
+// PK Office Solo (OFFICE_1): labela je "(1 obrt)", ne "(do N obrta)", pa
+// zamjena uz poseban limit mora hvatati oba oblika.
+test("Solo: limit 1 obrt, 2 aktivna = preko limita, labela bez 'do'", async () => {
+  const vrati = mockuj({ officeMaxObrta: null, plan: "office_1", aktivnihObrta: 2 });
+  try {
+    const a = await getOfficeAccess(5);
+    assert.equal(a.maxObrta, 1);
+    assert.equal(a.prekoLimita, true);
+    assert.equal(a.planNaziv, "PK Office Solo (1 obrt)");
+  } finally {
+    vrati();
+  }
+});
+
+test("Solo sa override 3: labela dobija 'do 3 obrta'", async () => {
+  const vrati = mockuj({ officeMaxObrta: 3, plan: "office_1", aktivnihObrta: 2 });
+  try {
+    const a = await getOfficeAccess(5);
+    assert.equal(a.maxObrta, 3);
+    assert.equal(a.prekoLimita, false);
+    assert.match(a.planNaziv, /\(do 3 obrta\)/);
+  } finally {
+    vrati();
+  }
+});

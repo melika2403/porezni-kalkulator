@@ -3,6 +3,8 @@
 import Link from "next/link";
 import styles from "./Features.module.css";
 import { useMe } from "src/hooks/useMe";
+import { FREELANCER_CIJENA_KM } from "src/api/freelancer";
+import { useFreelancerPristup } from "src/components/FreelancerTrialCta/FreelancerTrialCta";
 
 type Badge = "free" | "reg" | "pro" | "business";
 
@@ -62,7 +64,7 @@ const FREE_TOOLS: Feature[] = [
   },
   {
     title: "ZO3 obrazac",
-    desc: "Prijavite člana porodice (supružnika, dijete ili roditelja) na zdravstveno osiguranje u FBiH. Popunite ZO3 obrazac online i preuzmite popunjeni PDF.",
+    desc: "Prijavite člana porodice na zdravstveno osiguranje u FBiH. Popunite ZO3 online i preuzmite popunjeni PDF.",
     badge: "free",
     iconColor: "sage",
     icon: (
@@ -98,7 +100,7 @@ const FREE_TOOLS: Feature[] = [
   },
   {
     title: "AMS-1035 generator",
-    desc: "Automatska izrada AMS-1035 obrasca i uplatnica za prijavu poreza na uplate iz inostranstva. Unesite podatke o uplati i preuzmite popunjeni obrazac. Preuzmite gotove uplatnice za banku.",
+    desc: "Automatska izrada AMS-1035 obrasca i uplatnica za prijavu poreza na uplate iz inostranstva. Preuzmite gotove uplatnice za banku.",
     badge: "free",
     iconColor: "sage",
     icon: (
@@ -321,6 +323,120 @@ const CheckIcon = () => (
   </svg>
 );
 
+// Koraci koje PK Freelancer pokriva, od uplate do godišnje prijave.
+const FREELANCER_KORACI = [
+  "Uplata iz inostranstva",
+  "AMS-1035 i uplatnica",
+  "Evidencija i rok od 5 dana",
+  "GPD-1051",
+];
+
+/**
+ * Široka kartica ispod besplatnih alata: PK Freelancer je nadogradnja AMS
+ * generatora, pa ne stoji u mreži alata (tamo je ostavljao prazna mjesta)
+ * nego ispod nje, sa cijenom i tokom koraka koje pokriva.
+ */
+/** DD.MM.GGGG.; vremenska oznaka se prevodi u lokalni dan (vidi fmtDatum). */
+const fmtDatumKratko = (iso: string) => {
+  if (iso.includes("T")) {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return "";
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${p(dt.getDate())}.${p(dt.getMonth() + 1)}.${dt.getFullYear()}.`;
+  }
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return y && m && d ? `${d}.${m}.${y}.` : "";
+};
+
+function FreelancerNadogradnja() {
+  // Ko već ima pristup (paket, proba, uključeno u viši paket) ne treba da
+  // gleda cijenu i "Saznajte više" kao da mora kupiti: njemu kartica kaže
+  // šta ima i vodi pravo u evidenciju.
+  const { pristup, hasAccess } = useFreelancerPristup();
+  const aktivno = !!pristup && hasAccess;
+  const oznaka = !aktivno
+    ? "Nadogradnja"
+    : pristup.izvor === "freelancer"
+      ? "Vaš paket"
+      : pristup.izvor === "proba"
+        ? "Proba u toku"
+        : pristup.izvor === "admin"
+          ? "Administrator"
+          : "Uključeno u vaš paket";
+  const status = !aktivno
+    ? null
+    : pristup.izvor === "freelancer" && pristup.endDate
+      ? `vrijedi do ${fmtDatumKratko(pristup.endDate)}`
+      : pristup.izvor === "proba" && pristup.proba.endsAt
+        ? `proba do ${fmtDatumKratko(pristup.proba.endsAt)}`
+        : "sve funkcije otključane";
+  return (
+    <div className={styles.upgrade}>
+      <div className={styles.upgradeTop}>
+        <div className={styles.upgradeBody}>
+          <div className={styles.upgradeHead}>
+            <div className={`${styles.icon} ${styles.icon_dark} ${styles.upgradeIcon}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <rect x="3" y="7" width="18" height="13" rx="2" />
+                <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" />
+                <path d="M12 12v3" />
+              </svg>
+            </div>
+            <span className={`${styles.upgradeTag} ${aktivno ? styles.upgradeTagAktivno : ""}`}>
+              {oznaka}
+            </span>
+          </div>
+          <h3 className={styles.upgradeTitle}>PK Freelancer</h3>
+          <p className={styles.upgradeDesc}>
+            {aktivno
+              ? "Vaša evidencija uplata iz inostranstva: svaka uplata sa rokom od 5 dana, AMS-1035 i uplatnice iz evidencije, pregled zarade i plaćenog poreza, a na kraju godine GPD-1051 jednim klikom."
+              : "Sve vaše uplate iz inostranstva na jednom mjestu: evidencija svake uplate, podsjetnik na rok od 5 dana, pregled ukupne zarade i plaćenog poreza, i GPD-1051 jednim klikom na kraju godine. Do 3 uplate godišnje besplatno."}
+          </p>
+        </div>
+        <div className={styles.upgradeAside}>
+          {aktivno ? (
+            <div className={styles.upgradeStatus}>{status}</div>
+          ) : (
+            <div className={styles.upgradePrice}>
+              {FREELANCER_CIJENA_KM} KM
+              <small>godišnje, sa PDV-om</small>
+            </div>
+          )}
+          <Link
+            href={aktivno ? "/freelancer?tab=pregled" : "/freelancer"}
+            className={`${styles.startLink} ${styles.cellStretch}`}
+          >
+            <button type="button" className={styles.startButton}>
+              {aktivno ? "Otvori PK Freelancer" : "Saznajte više"} <ArrowIcon />
+            </button>
+          </Link>
+        </div>
+      </div>
+      <div className={styles.upgradeFlow} aria-label="Koraci koje PK Freelancer pokriva">
+        {FREELANCER_KORACI.map((k, i) => (
+          <span key={k} className={styles.flowStep}>
+            <span
+              className={`${styles.flowChip} ${
+                i === FREELANCER_KORACI.length - 1 ? styles.flowChipKraj : ""
+              }`}
+            >
+              {k}
+            </span>
+            {i < FREELANCER_KORACI.length - 1 && (
+              <span className={styles.flowArrow} aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="2" y1="8" x2="12" y2="8" />
+                  <polyline points="8 4 12 8 8 12" />
+                </svg>
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FeatureGroup({
   title,
   sub,
@@ -423,6 +539,7 @@ export default function Features() {
         cta="Otvori alat"
         showBadges
       />
+      <FreelancerNadogradnja />
 
       <FeatureGroup
         title="Uz Pro pretplatu"
