@@ -241,7 +241,27 @@
       "Bash(curl -s -o nul -w \"%{http_code}\" http://localhost:3000/app/dashboard)",
       "Bash(findstr :3000)",
       "Bash(curl -s http://localhost:3000/_next/static/css/app/layout.css)",
-      "Bash(findstr -i \"css styles tailwind\")"
+      "Bash(findstr -i \"css styles tailwind\")",
+      "Bash(npm run *)",
+      "Bash(grep -o '\"proxy\",0,function\\(e\\){.\\\\{0,420\\\\}' \".next/server/chunks/[root-of-the-server]__10mu--2._.js\")",
+      "Bash(npm start *)",
+      "Bash(curl -s -o /dev/null http://localhost:3000/)",
+      "Bash(break)",
+      "Bash(curl -sI -H \"Host: app.localhost:3000\" http://localhost:3000/dashboard)",
+      "Bash(curl -sI -H \"Host: localhost:3000\" http://localhost:3000/dashboard)",
+      "Bash(curl -sI -H \"Host: www.poreznikalkulator.ba\" http://localhost:3000/app/dashboard)",
+      "Bash(curl -sI -H \"Host: www.poreznikalkulator.ba\" http://localhost:3000/apple-app-site-association)",
+      "Bash(curl -sI -H \"Host: poreznikalkulator.ba\" http://localhost:3000/app/fakture)",
+      "Bash(curl -sI -H \"Host: www.poreznikalkulator.ba\" http://localhost:3000/pdv-kalkulator)",
+      "Bash(curl -sI -H \"Host: app.localhost:3000\" http://localhost:3000/robots.txt)",
+      "Bash(curl -sI -H \"Host: app.localhost:3000\" http://localhost:3000/app/dashboard)",
+      "Bash(taskkill //F //PID 27644)",
+      "Bash(curl -sI -H \"Host: app.poreznikalkulator.ba\" http://localhost:3000/app/dashboard)",
+      "Bash(curl -sI -H \"Host: app.poreznikalkulator.ba\" http://localhost:3000/dashboard)",
+      "Bash(curl -sI -H \"Host: APP.poreznikalkulator.ba\" http://localhost:3000/dashboard)",
+      "Bash(awk '{print $5}')",
+      "Bash(xargs -r -I{} taskkill //F //PID {})",
+      "Bash(node -e \"const m=require\\('./.next/server/functions-config-manifest.json'\\); console.log\\(JSON.stringify\\(m,null,1\\).slice\\(0,1200\\)\\);\")"
     ],
     "additionalDirectories": [
       "\\tmp"
