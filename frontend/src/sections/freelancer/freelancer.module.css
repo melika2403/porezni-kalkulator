@@ -1,0 +1,859 @@
+/* PK Freelancer: marketing tema (tokeni iz globals.css), obrasci kao na
+   /ams (sekcije) i /aktivni-radnici (tabela koja se na mobilnom ruši u
+   kartice). Nikad treći stil. */
+
+.page {
+  padding: 3rem 2rem 5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header { margin-bottom: 1.5rem; }
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+}
+.h1 em { font-style: italic; color: var(--sage); }
+.subtitle { font-size: 1rem; color: var(--mid); font-weight: 300; margin: 0; max-width: 760px; }
+
+/* ── status pristupa ── */
+.statusTraka {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.7rem 1rem;
+  margin: 0 0 1rem;
+}
+.statusTraka strong { font-weight: 600; }
+.statusTraka a { color: var(--sage); font-weight: 600; text-decoration: none; }
+
+/* ── tabovi ── */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  background: var(--paper);
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 0.7rem 0.9rem;
+  font-size: 0.92rem;
+  color: var(--mid);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tabActive { font-weight: 600; color: var(--ink); border-bottom-color: var(--sage); }
+
+/* ── traka alata ── */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1.25rem;
+}
+.toolbarSpacer { flex: 1; }
+.godinaWrap { min-width: 130px; }
+
+/* ── dugmad (uvijek pilula ili okvir, nikad goli tekst) ── */
+.btnPrimary,
+.btnSecondary,
+.btnGhost,
+.btnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0.55rem 1.05rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.btnPrimary { background: var(--sage); color: #fff; border-color: var(--sage); }
+.btnPrimary:hover:not(:disabled) { background: var(--sage-light); }
+.btnSecondary {
+  background: var(--sage-pale);
+  color: var(--sage);
+  border-color: color-mix(in srgb, var(--sage) 20%, transparent);
+}
+.btnSecondary:hover:not(:disabled) { background: color-mix(in srgb, var(--sage) 18%, transparent); }
+.btnGhost { background: var(--white); color: var(--ink); border-color: var(--border); padding: 0.4rem 0.8rem; font-weight: 500; }
+.btnGhost:hover:not(:disabled) { background: var(--paper); border-color: var(--mid); }
+.btnDanger { background: var(--white); color: #991b1b; border-color: #fca5a5; padding: 0.4rem 0.8rem; font-weight: 500; }
+.btnDanger:hover:not(:disabled) { background: var(--err-bg); }
+.btnPrimary:disabled, .btnSecondary:disabled, .btnGhost:disabled, .btnDanger:disabled { opacity: 0.55; cursor: not-allowed; }
+.btnSmall { padding: 0.32rem 0.7rem; font-size: 12px; }
+
+/* ── KPI ── */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 0 0 1.25rem;
+}
+.kpi {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem;
+}
+.kpiLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+.kpiValue {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.6rem;
+  color: var(--ink);
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+.kpiValue small { font-family: "DM Sans", sans-serif; font-size: 0.85rem; color: var(--mid); margin-left: 0.25rem; }
+.kpiSub { font-size: 12px; color: var(--mid); margin-top: 0.2rem; }
+.kpiSage .kpiValue { color: var(--sage); }
+
+/* ── kartice/sekcije ── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.35rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.cardTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.15rem;
+  margin: 0 0 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.cardTitle em { font-style: italic; color: var(--sage); }
+.cardTitle span:last-child { font-family: "DM Sans", sans-serif; font-size: 12.5px; color: var(--mid); font-weight: 400; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+
+/* ── tabela ── */
+.tableWrap {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.table thead th {
+  text-align: left;
+  padding: 0.8rem 0.9rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.table tbody td { padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: var(--paper); }
+.table tfoot td { padding: 0.75rem 0.9rem; font-weight: 600; border-top: 2px solid var(--border); background: var(--paper); }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--mid); font-size: 12px; }
+.strong { font-weight: 600; }
+.empty { padding: 2.5rem 1.5rem; text-align: center; color: var(--mid); font-size: 14px; }
+.rowActions { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
+.prilogRow td { background: var(--paper); }
+
+/* ── badge ── */
+.badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badgeObracunato { background: #f1f5f9; color: #475569; }
+/* predano i plaćeno: plavkasto (zavrseno), predano: zeleno, obracunato: sivo */
+.badgePlaceno { background: #e3ecf7; color: #2c5c8a; }
+.badgePredano { background: #d1fae5; color: #065f46; }
+.rok { display: block; font-size: 11.5px; margin-top: 3px; }
+.rokOk { color: var(--mid); }
+.rokHitno { color: #b45309; font-weight: 600; }
+.rokKasni { color: #991b1b; font-weight: 600; }
+
+/* ── forma ── */
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem 1.25rem; }
+.formGrid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fieldFull { grid-column: 1 / -1; }
+.field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.fieldLabel { font-size: 12.5px; font-weight: 500; color: var(--mid); letter-spacing: 0.02em; }
+.input,
+.textarea {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.95rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input:focus, .textarea:focus { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-pale); }
+.input:read-only { color: var(--mid); }
+.textarea { min-height: 70px; resize: vertical; }
+.inputRow { display: flex; gap: 0.5rem; align-items: center; }
+.inputRow .input { flex: 1; }
+.hint { font-size: 12px; color: var(--mid); line-height: 1.5; }
+.hint a { color: var(--sage); font-weight: 600; }
+.formActions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 1.25rem; }
+
+.obracunBox {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem 1.5rem;
+  font-size: 13px;
+}
+.obracunRow { display: flex; justify-content: space-between; gap: 1rem; }
+.obracunRow span:first-child { color: var(--mid); }
+.obracunRow strong { font-variant-numeric: tabular-nums; }
+.obracunTotal { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: 0.35rem; margin-top: 0.2rem; font-weight: 600; }
+
+/* ── obavijesti ── */
+.alert { font-size: 13.5px; line-height: 1.55; border-radius: var(--radius-lg); padding: 0.8rem 1rem; margin: 0 0 1rem; }
+.alertOk { background: var(--sage-pale); border: 1px solid color-mix(in srgb, var(--sage) 25%, transparent); color: var(--ink); }
+.alertWarn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+.alertErr { background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); }
+.alert a { color: var(--sage); font-weight: 600; }
+
+/* ── prilozi ── */
+.prilogList { list-style: none; margin: 0 0 0.75rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.prilogItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 13px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.7rem;
+}
+.prilogItem a { color: var(--sage); font-weight: 600; text-decoration: none; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uploadRow { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.fileInput { font-size: 13px; }
+
+/* ── postavke ── */
+.switchRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.switchRow:last-child { border-bottom: none; }
+.switchRow input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--sage); }
+.switchText strong { display: block; font-size: 14px; font-weight: 600; }
+.switchText span { font-size: 13px; color: var(--mid); }
+
+/* ── landing ── */
+.hero { text-align: center; padding: 1rem 0 2.5rem; }
+.hero .h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 0 auto 1rem; max-width: 860px; }
+.hero .subtitle { margin: 0 auto 1.5rem; font-size: 1.1rem; }
+.heroCtas { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
+.heroNote { font-size: 13px; color: var(--mid); margin-top: 0.9rem; }
+.sectionTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.6rem;
+  text-align: center;
+  margin: 0 0 1.5rem;
+}
+.sectionTitle em { font-style: italic; color: var(--plum-text); }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 3rem; }
+.step { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; }
+.stepNo { width: 30px; height: 30px; border-radius: 50%; background: var(--plum-mid); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-bottom: 0.7rem; }
+.step h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.step p { margin: 0; font-size: 13.5px; color: var(--mid); line-height: 1.55; }
+.featuresGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin-bottom: 3rem; }
+.feature { display: flex; gap: 0.7rem; align-items: flex-start; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.1rem; }
+.feature svg { flex-shrink: 0; width: 18px; height: 18px; color: var(--plum-mid); margin-top: 2px; }
+.feature strong { display: block; font-size: 14px; margin-bottom: 2px; }
+.feature span { font-size: 13px; color: var(--mid); line-height: 1.5; }
+/* ista širina kao Solo blok ispod (.solo), da stoje kao par */
+/* ── cjenovni blok Freelancera: isti raspored kao Solo blok ispod ── */
+.priceCard {
+  max-width: 860px;
+  margin: 0 auto 1.25rem;
+  background: var(--plum);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 1.75rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.priceGlava { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; }
+.priceTag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--plum-light); margin-bottom: 0.5rem; }
+.priceNaslov { font-family: "DM Serif Display", serif; font-size: 1.5rem; letter-spacing: -0.01em; margin: 0 0 0.5rem; color: #fff; }
+.priceNaslov em { font-style: italic; color: var(--plum-light); }
+.priceNote { font-size: 13.5px; color: rgba(255, 255, 255, 0.82); margin: 0; line-height: 1.55; max-width: 520px; }
+.priceDesno { flex-shrink: 0; text-align: right; max-width: 220px; }
+.priceBig { font-family: "DM Serif Display", serif; font-size: 2.2rem; line-height: 1; margin: 0; }
+.priceBig small { display: block; font-family: "DM Sans", sans-serif; font-size: 12px; opacity: 0.8; margin: 0.3rem 0 0; }
+.priceFine { font-size: 11.5px; color: rgba(255, 255, 255, 0.65); margin-top: 0.5rem; line-height: 1.45; }
+.priceLista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 1.25rem;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+}
+.priceLista li { display: flex; gap: 0.5rem; align-items: flex-start; }
+.priceLista svg { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; color: var(--plum-light); }
+.priceDugmad { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; }
+.priceCta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: var(--plum-light);
+  color: var(--plum);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 0.7rem 1.4rem;
+  border-radius: 999px;
+  text-decoration: none;
+}
+.priceCta:hover { background: #e6d4f5; }
+.priceLink {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.priceLink:hover { border-color: #fff; }
+@media (max-width: 720px) {
+  .priceGlava { flex-direction: column; }
+  .priceDesno { text-align: left; max-width: none; }
+  .priceLista { grid-template-columns: 1fr; }
+}
+
+/* ── uputstvo (landing i tab Uputstvo) ── */
+.uputstvo { margin-bottom: 3rem; }
+.uputstvoLista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.uputstvoKorak {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.15rem;
+}
+.uputstvoNo {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--plum-mid);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.uputstvoKorak h3 { margin: 2px 0 0.3rem; font-size: 1rem; }
+.uputstvoKorak p { margin: 0; font-size: 13.5px; color: var(--mid); line-height: 1.6; }
+.uputstvoKorak a { color: var(--sage); font-weight: 600; }
+.uputstvoNapomena {
+  max-width: 820px;
+  margin: 1rem auto 0;
+  font-size: 12.5px;
+  color: var(--mid);
+  line-height: 1.6;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid2, .steps, .featuresGrid { grid-template-columns: 1fr; }
+  .formGrid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  /* na mobilnom sadržaj kreće od vrha ekrana, pa gornji razmak mora preskočiti
+     fiksni navbar (64px), inače natpis iznad naslova ode pod traku */
+  .page { padding: calc(64px + 1rem) 1rem 4rem; }
+  .formGrid, .formGrid3, .obracunBox { grid-template-columns: 1fr; }
+  .statusTraka { flex-direction: column; align-items: flex-start; }
+  /* tabela -> kartice */
+  .table, .table tbody, .table tr, .table td { display: block; }
+  .table thead, .table tfoot { display: none; }
+  .table tbody tr { border-bottom: 1px solid var(--border); padding: 0.6rem 0.9rem; }
+  .table tbody tr:last-child { border-bottom: none; }
+  .table tbody td {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: none;
+    text-align: left;
+  }
+  .table tbody td::before {
+    content: attr(data-label);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mid);
+  }
+  .table tbody td.num { text-align: left; }
+  .rowActions { justify-content: flex-start; }
+  .prilogRow td { grid-template-columns: 1fr; }
+  .prilogRow td::before { content: none; }
+}
+
+/* ── lični odbitak (postavke) ── */
+.cardFull { grid-column: 1 / -1; }
+.odbitakRed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.9rem;
+}
+.odbitakRed .field { flex: 0 1 170px; }
+/* vaši podaci (postavke): ime, prezime, JMBG u prvom redu, adresa šira u drugom */
+.podaciGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem 1.25rem; }
+.podaciSpan2 { grid-column: span 2; }
+@media (max-width: 900px) {
+  .podaciGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .podaciSpan2 { grid-column: auto; }
+}
+@media (max-width: 640px) {
+  .podaciGrid { grid-template-columns: 1fr; }
+}
+.odbitakIznos {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.5rem;
+  line-height: 1.6;
+  color: var(--sage);
+  white-space: nowrap;
+}
+.hintErr { color: var(--danger, #b3261e); }
+
+/* ── pretraga i sortiranje u tabeli uplata ── */
+.searchWrap { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.search {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: inherit;
+  width: 220px;
+  max-width: 100%;
+}
+.search:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-pale); }
+.searchBroj { font-size: 12px; color: var(--mid); white-space: nowrap; }
+.thSort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.thSort span { opacity: 0.4; font-size: 11px; }
+.thSort:hover span { opacity: 0.8; }
+.thSortAktivan { color: var(--sage); }
+.thSortAktivan span { opacity: 1; }
+.num .thSort { justify-content: flex-end; width: 100%; }
+
+/* ── paginacija (10 po stranici) ── */
+.paginacija {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--white);
+}
+.paginacijaInfo { font-size: 12.5px; color: var(--mid); }
+.paginacijaDugmad { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.paginacijaTacke { padding: 0 0.3rem; color: var(--mid); }
+
+/* ── datum uz status: oznaka je dugme, klik otvara ispravku datuma ── */
+.badgeDugme {
+  border: none;
+  cursor: pointer;
+  margin-top: 4px;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.badgeDugme:hover { filter: brightness(0.95); }
+.badgeOlovka { font-size: 11px; opacity: 0.7; }
+.datumUredi { margin-top: 6px; display: flex; flex-direction: column; gap: 0.3rem; }
+.datumUrediRed { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.inputDatum { width: 130px; padding: 0.35rem 0.55rem; font-size: 0.9rem; }
+
+/* ── panel priloga: zaglavlje sa Zatvori, lista lijevo, dodavanje desno ── */
+.prilogPanel { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.25rem 0; }
+.prilogPanelHead { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.prilogPanelNaslov { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+.prilogPanelTijelo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.prilogLista { min-width: 0; }
+.prilogLista .prilogList { margin-bottom: 0; }
+.prilogDodaj {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--white);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem;
+}
+.fileSkriven {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.fileDugme { cursor: pointer; text-align: center; }
+.fileDugmeZauzeto { opacity: 0.6; pointer-events: none; }
+.fileSkriven:focus-visible + .fileDugme { box-shadow: 0 0 0 3px var(--sage-pale); }
+@media (max-width: 760px) {
+  .prilogPanelTijelo { grid-template-columns: 1fr; }
+}
+
+/* landing za goste: šljiva u naglascima (nadnaslov, kurziv u naslovu, glavno dugme) */
+.hero .label { color: var(--plum-text); font-weight: 600; }
+.hero .h1 em { color: var(--plum-text); }
+.hero .btnPrimary { background: var(--plum-mid); border-color: var(--plum-mid); }
+.hero .btnPrimary:hover:not(:disabled) { background: var(--plum); }
+
+/* ── PK Office Solo reklama (ispod cjenovnika Freelancera), boje PK Office-a ── */
+.solo {
+  max-width: 860px;
+  margin: 0 auto 3rem;
+  background: #14241b;
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 1.75rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.soloGlava {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+.soloTag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e08a52;
+  margin-bottom: 0.5rem;
+}
+.soloNaslov {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
+  color: #fff;
+}
+.soloNaslov em { font-style: italic; color: #e08a52; }
+.soloTekst {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+  max-width: 520px;
+}
+.soloCijena { flex-shrink: 0; text-align: right; max-width: 220px; }
+.soloIznos {
+  font-family: "DM Serif Display", serif;
+  font-size: 2.2rem;
+  line-height: 1;
+}
+.soloIznos small {
+  display: block;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 0.3rem;
+}
+.soloCijenaNapomena { font-size: 11.5px; color: rgba(255, 255, 255, 0.65); margin-top: 0.5rem; line-height: 1.45; }
+.soloLista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 1.25rem;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+}
+.soloLista li { display: flex; gap: 0.5rem; align-items: flex-start; }
+.soloLista svg { flex-shrink: 0; width: 14px; height: 14px; margin-top: 3px; color: #7fb08a; }
+.soloUsteda {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.soloUstedaUnos { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; font-size: 13.5px; font-weight: 600; }
+.soloUstedaPolje { display: inline-flex; align-items: center; gap: 0.4rem; }
+.soloUstedaPolje input {
+  width: 92px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: right;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.soloUstedaPolje input:focus { outline: none; border-color: #e08a52; box-shadow: 0 0 0 3px rgba(224, 138, 82, 0.25); }
+.soloUstedaRezultat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.soloUstedaRezultat > div { display: flex; flex-direction: column; gap: 2px; }
+.soloUstedaRezultat span { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
+.soloUstedaRezultat strong { font-family: "DM Serif Display", serif; font-weight: 400; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.soloUstedaIznos strong { color: #e08a52; }
+.soloUstedaNapomena { font-size: 11.5px; color: rgba(255, 255, 255, 0.6); margin: 0; line-height: 1.45; }
+.soloDugmad { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; }
+.soloCta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e08a52;
+  color: #14241b;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.soloCta:hover { background: #e89a68; }
+.soloLink {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.soloLink:hover { border-color: #fff; }
+@media (max-width: 720px) {
+  .soloGlava { flex-direction: column; }
+  .soloCijena { text-align: left; max-width: none; }
+  .soloLista { grid-template-columns: 1fr; }
+  .soloUstedaRezultat { grid-template-columns: 1fr; }
+}
+
+/* Kratka bočna verzija reklame (evidencija): ista tamna kartica, bez
+   kalkulatora, sve u jednoj koloni. */
+.soloUsko {
+  background: #14241b;
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1.15rem 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.soloUsko .soloNaslov { font-size: 1.15rem; margin: 0; }
+.soloUsko .soloTekst { font-size: 12.5px; max-width: none; }
+.soloUsko .soloIznos { font-size: 1.6rem; margin-top: 0.15rem; }
+.soloUsko .soloIznos small { font-size: 11.5px; }
+.soloUsko .soloLista { grid-template-columns: 1fr; font-size: 12.5px; gap: 0.35rem; }
+.soloUsko .soloDugmad { flex-direction: column; align-items: stretch; gap: 0.5rem; margin-top: 0.3rem; }
+.soloUsko .soloCta,
+.soloUsko .soloLink { justify-content: center; text-align: center; font-size: 13px; padding: 0.6rem 1rem; }
+
+/* Bočna kartica stoji IZVAN okvira stranice (1200px), desno od sadržaja, i
+   prati skrol. Prikazuje se tek kad ima mjesta, inače se ne vidi. */
+.bocnoSolo { display: none; }
+/* 1720px = okvir 1200 + sa obje strane po (16 razmak + 230 kartica + 14 rub),
+   da kartica cijela stane u ekran, a okvir ostane centriran */
+@media (min-width: 1720px) {
+  .bocnoSolo {
+    display: block;
+    position: fixed;
+    top: 108px;
+    left: calc(50% + 600px + 16px);
+    width: 230px;
+    z-index: 5;
+  }
+}
+
+/* ── proba: do kada vrijedi + predračun (ispod pregleda) ── */
+.probaKartica {
+  margin-top: 1.5rem;
+  background: var(--plum-pale);
+  border: 1px solid var(--plum-light);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  flex-wrap: wrap;
+}
+.probaKartica > div { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; flex: 1 1 420px; }
+.probaKartica strong { color: var(--plum); font-size: 15px; }
+.probaKartica span { font-size: 13px; line-height: 1.5; color: var(--plum-text); }
+.probaDugme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--plum-mid);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 0.65rem 1.25rem;
+  border-radius: 999px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.probaDugme:hover { background: var(--plum); }
+
+/* ── kalendar rokova ── */
+.kalendar { display: flex; flex-direction: column; gap: 1rem; }
+.kalMjesecNaslov {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.05rem;
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+.kalLista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.kalStavka {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--sage);
+  border-radius: var(--radius);
+  background: var(--white);
+  font-size: 13px;
+}
+.kalDatum { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kalTekst { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.kalTekst strong { font-weight: 600; }
+.kalTekst span { color: var(--mid); font-size: 12.5px; }
+.kalAkcije { display: inline-flex; align-items: center; gap: 0.4rem; }
+.kalGotovo { border-left-color: var(--border); opacity: 0.7; }
+.kalDanas { border-left-color: #b45309; background: #fffbeb; }
+.kalKasni { border-left-color: #991b1b; }
+.badgeKasni { background: #fee2e2; color: #991b1b; }
+@media (max-width: 640px) {
+  .kalStavka { grid-template-columns: 1fr; gap: 0.35rem; }
+}
+
+/* dugme "Slikaj telefonom": samo dodirni ekrani bez miša */
+.fileKamera { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .fileKamera { display: inline-flex; }
+}

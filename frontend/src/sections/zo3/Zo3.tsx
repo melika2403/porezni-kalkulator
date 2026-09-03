@@ -135,7 +135,9 @@ const POSLOVNICE: Record<string, string[]> = {
 const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
   if (e.key !== "Enter") return;
   const target = e.target as HTMLElement;
-  if (target.tagName === "TEXTAREA" || target.tagName === "BUTTON") return;
+  // linkovi moraju ostati linkovi: bez "A" u ovoj listi preventDefault ispod
+  // guta Enter na fokusiranom linku (reklama, "Povezani alati"), pa se ne otvara
+  if (["TEXTAREA", "BUTTON", "A"].includes(target.tagName)) return;
   e.preventDefault();
   const focusable = Array.from(
     e.currentTarget.querySelectorAll<HTMLElement>(

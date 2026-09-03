@@ -24,10 +24,12 @@ const PLAN_LABEL: Record<string, string> = {
   free: "Besplatan",
   pro: "Pro",
   business: "Business",
+  office_1: "Office Solo (1 obrt)",
   office_2: "Office Start (do 2 obrta)",
   office_10: "Office Tim (do 10 obrta)",
   office_25: "Office Agencija (do 25 obrta)",
   office_50: "Office Agencija+ (do 50 obrta)",
+  freelancer: "PK Freelancer (50 KM godišnje)",
 };
 
 function fmtDate(iso: string | null | undefined) {

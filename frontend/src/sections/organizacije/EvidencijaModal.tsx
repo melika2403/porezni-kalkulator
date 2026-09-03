@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
+import { sortirajRadnike } from "src/lib/radniciSort";
 import {
   getWorkers,
   getEvidencija,
@@ -95,15 +96,9 @@ export default function EvidencijaModal({
         w.role === "RADNIK" ||
         (w.role === "VLASNIK" && orgType === "COMPANY" && ownerEmployed),
     );
-    return [...ws].sort((a, b) => {
-      const ao = a.employmentStatus === "ODJAVLJEN" ? 1 : 0;
-      const bo = b.employmentStatus === "ODJAVLJEN" ? 1 : 0;
-      if (ao !== bo) return ao - bo;
-      return `${a.firstName} ${a.lastName}`.localeCompare(
-        `${b.firstName} ${b.lastName}`,
-        "bs",
-      );
-    });
+    // Isto redanje kao sidebari i aktivni radnici: prijavljeni po datumu
+    // prijave, odjavljeni na dno po datumu odjave.
+    return sortirajRadnike(ws);
   }, [workersQ.data, orgType, ownerEmployed]);
 
   const saveMut = useMutation({

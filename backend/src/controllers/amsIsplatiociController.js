@@ -1,10 +1,12 @@
 // Adresar isplatilaca za AMS-1035. Vezan samo za korisnika (userId), bez veze
 // sa organizacijama i klijentima. Dostupan svakom prijavljenom korisniku, bez
 // pretplate: ovo je razlog da se neko registruje, ne funkcija paketa.
+// PK Freelancer (paket/proba/viši paket) skida limit od 5 isplatilaca.
 const { AmsIsplatilac } = require("../models/index");
+const { getFreelancerAccess } = require("../services/freelancerAccess");
 
-// Koliko isplatilaca korisnik smije imati. Server je taj koji drži pravilo,
-// frontend samo ranije javi da je popunjeno.
+// Koliko isplatilaca BESPLATNI korisnik smije imati. Server je taj koji drži
+// pravilo, frontend samo ranije javi da je popunjeno.
 const LIMIT_ISPLATILACA = 5;
 
 function parseId(raw) {
@@ -47,11 +49,14 @@ async function create(req, res) {
   }
   const broj = await AmsIsplatilac.count({ where: { userId: req.user.id } });
   if (broj >= LIMIT_ISPLATILACA) {
-    return res.status(409).json({
-      ok: false,
-      error: "LIMIT_REACHED",
-      data: { limit: LIMIT_ISPLATILACA },
-    });
+    const pristup = await getFreelancerAccess(req.user);
+    if (!pristup.hasAccess) {
+      return res.status(409).json({
+        ok: false,
+        error: "LIMIT_REACHED",
+        data: { limit: LIMIT_ISPLATILACA },
+      });
+    }
   }
   const created = await AmsIsplatilac.create({ ...data, userId: req.user.id });
   return res.status(201).json({ ok: true, data: created });

@@ -273,13 +273,27 @@ async function list(req, res) {
   // pregleda broji samo za izabranu godinu
   const openInvoices = await Invoice.findAll({
     where: { organizationId, type: "INVOICE", status: { [Op.in]: ["ISSUED", "PAID"] } },
-    attributes: ["buyerName", "buyerIdNumber", "grossTotal", "status", "issueDate"],
+    attributes: [
+      "id",
+      "buyerName",
+      "buyerIdNumber",
+      "grossTotal",
+      "status",
+      "issueDate",
+      "docType",
+    ],
     raw: true,
   });
+  // normalizacija kupca jednom po fakturi (uparivanje ide partner × faktura)
+  const invoiceIndex = openInvoices.map((inv) => ({
+    ...inv,
+    jibNorm: normalizeDigits(inv.buyerIdNumber),
+    nameNorm: normalizeName(inv.buyerName),
+  }));
 
-  // početna stanja (migracija): otvoreni dio ulazi u žive dugove. FIFO daje
-  // uplate najstarijem dokumentu prvom, a početno stanje je najstarije, pa je
-  // preostalo = stanje - nevezane uplate/isplate partnera (tačno po FIFO-u).
+  // Početna stanja (migracija): otvoreni dio ulazi u žive dugove. Obje strane
+  // donosa ulaze direktno u FIFO obračun ispod, kao najstariji dokument na
+  // kartici (kupčeva strana uz fakture, dobavljačka uz ulazne račune).
   const openingRows = await PartnerOpeningBalance.findAll({
     where: { organizationId },
     raw: true,
@@ -291,69 +305,200 @@ async function list(req, res) {
         kupac: Number(r.kupacIznos) || 0,
         dobavljac: Number(r.dobavljacIznos) || 0,
         godina: Number(String(r.datum).slice(0, 4)) || 0,
+        datum: String(r.datum).slice(0, 10),
       },
     ]),
   );
-  const unlinkedPools = new Map(); // partnerId -> {in, out}
-  if (openingRows.length > 0) {
-    const pools = await BankTransaction.findAll({
-      where: {
-        organizationId,
-        partnerId: { [Op.in]: openingRows.map((r) => r.partnerId) },
-        status: "CONFIRMED",
-        ...PARTNER_CATEGORY_WHERE,
-      },
-      attributes: [
-        "partnerId",
-        "direction",
-        "invoiceId",
-        "ulazniRacunId",
-        [fn("SUM", col("amount")), "total"],
-      ],
-      group: ["partnerId", "direction", "invoiceId", "ulazniRacunId"],
-      raw: true,
-    });
-    for (const row of pools) {
-      const entry = unlinkedPools.get(row.partnerId) || { in: 0, out: 0 };
-      // vezane uplate/isplate su već zatvorile svoj dokument, ne idu u pool
-      if (row.direction === "IN" && !row.invoiceId) {
-        entry.in += Number(row.total) || 0;
-      }
-      if (row.direction === "OUT" && !row.ulazniRacunId) {
-        entry.out += Number(row.total) || 0;
-      }
-      unlinkedPools.set(row.partnerId, entry);
-    }
-  }
 
-  // ulazni računi po partneru: otvoreni ("naš dug") + ukupan broj
-  // (i plaćeni računi čine partnera dobavljačem)
-  const payables = await UlazniRacun.findAll({
+  // Ulazni računi po partneru. "Naš dug" (otvoreno) se izvodi FIFO
+  // alokacijom potvrđenih plaćanja, ISTOM logikom kao kartica partnera
+  // (listUlazniRacuni): sirovi status računa nije dovoljan jer račun
+  // plaćen zbirnom/nevezanom isplatom ostaje OTVOREN u bazi, pa je lista
+  // (tab Svi aktivni) pokazivala dug tamo gdje kartica pokazuje 0.
+  const racuniRows = await UlazniRacun.findAll({
     where: { organizationId },
     attributes: [
+      "id",
       "partnerId",
+      "iznos",
+      "datumRacuna",
       "status",
-      [fn("SUM", col("iznos")), "total"],
-      [fn("COUNT", col("id")), "cnt"],
+      "vrstaDokumenta",
+      "samoEvidencija",
     ],
-    group: ["partnerId", "status"],
     raw: true,
   });
+  // pool plaćanja: potvrđene OUT isplate partnera koje nisu vezane za
+  // konkretan račun (vezane su svoj račun već označile PLACEN); ista
+  // definicija kao unlinkedOut na kartici partnera (uklj. filter kategorija
+  // koje nisu partnerske, npr. provizije banke)
+  const paidRows = await BankTransaction.findAll({
+    where: {
+      organizationId,
+      direction: "OUT",
+      status: "CONFIRMED",
+      partnerId: { [Op.ne]: null },
+      ulazniRacunId: null,
+      ...PARTNER_CATEGORY_WHERE,
+    },
+    attributes: ["partnerId", [fn("SUM", col("amount")), "paid"]],
+    group: ["partnerId"],
+    raw: true,
+  });
+  const paidByPartner = new Map(
+    paidRows.map((x) => [x.partnerId, Number(x.paid) || 0]),
+  );
+  // pool naplate: potvrđene IN uplate partnera koje nisu vezane za konkretnu
+  // fakturu (vezana uplata je svoju fakturu već zatvorila); ista definicija
+  // kao unlinkedIn na kartici partnera
+  const receivedRows = await BankTransaction.findAll({
+    where: {
+      organizationId,
+      direction: "IN",
+      status: "CONFIRMED",
+      partnerId: { [Op.ne]: null },
+      invoiceId: null,
+      ...PARTNER_CATEGORY_WHERE,
+    },
+    attributes: ["partnerId", [fn("SUM", col("amount")), "received"]],
+    group: ["partnerId"],
+    raw: true,
+  });
+  const receivedByPartner = new Map(
+    receivedRows.map((x) => [x.partnerId, Number(x.received) || 0]),
+  );
+
+  const isKreditRacun = (r) =>
+    r.vrstaDokumenta === "KNJIZNA_OBAVIJEST" ||
+    r.vrstaDokumenta === "STORNO_AVANSNE";
+  const racuniByPartner = new Map();
+  for (const r of racuniRows) {
+    if (r.partnerId == null) continue;
+    if (!racuniByPartner.has(r.partnerId)) racuniByPartner.set(r.partnerId, []);
+    racuniByPartner.get(r.partnerId).push(r);
+  }
+  // partneri sa računima ILI donosom na dobavljačkoj strani
+  const dobPartnerIds = new Set(racuniByPartner.keys());
+  for (const [pid, o] of openingByPartner) {
+    if (o.dobavljac !== 0) dobPartnerIds.add(pid);
+  }
+  // partnerId -> { total: otvoreno (FIFO), count, racuniCount, racuniTotal }
   const payablesByPartner = new Map();
-  for (const r of payables) {
-    const entry = payablesByPartner.get(r.partnerId) || {
-      total: 0,
-      count: 0,
-      racuniCount: 0,
-      racuniTotal: 0,
-    };
-    if (r.status === "OTVOREN") {
-      entry.total += Number(r.total) || 0;
-      entry.count += Number(r.cnt) || 0;
+  for (const pid of dobPartnerIds) {
+    const list = racuniByPartner.get(pid) || [];
+    const opening = openingByPartner.get(pid);
+    const donos = opening ? opening.dobavljac : 0;
+    const kreditSum = list
+      .filter(isKreditRacun)
+      .reduce((s, r) => s + (Number(r.iznos) || 0), 0);
+    // negativan donos = naš avans kod dobavljača: umanjuje dug kroz pool
+    const pool =
+      (paidByPartner.get(pid) || 0) + kreditSum + Math.max(0, -donos);
+    const docs = list.map((r) => ({
+      id: r.id,
+      iznos: Number(r.iznos) || 0,
+      datum: String(r.datumRacuna).slice(0, 10),
+      manualPlacen: r.status === "PLACEN",
+      // samoEvidencija (uvoz/JCI) nije obaveza prema dobavljaču, van FIFO-a
+      kredit: isKreditRacun(r) || Boolean(r.samoEvidencija),
+    }));
+    // donos je najstariji dokument na kartici: ulazi u FIFO prvi, pa ga
+    // nevezana plaćanja zatvaraju prije računa (isto kao na kartici)
+    if (donos > 0) {
+      docs.push({
+        id: -pid,
+        iznos: donos,
+        datum: (opening && opening.datum) || "0000-01-01",
+        manualPlacen: false,
+        kredit: false,
+      });
     }
-    entry.racuniCount += Number(r.cnt) || 0;
-    entry.racuniTotal += Number(r.total) || 0;
-    payablesByPartner.set(r.partnerId, entry);
+    const alloc = allocateFifo(docs, pool);
+    let otvoreno = 0;
+    let count = 0;
+    for (const d of docs) {
+      const v = alloc.get(d.id);
+      if (v && v.preostalo > 0.005) {
+        otvoreno += v.preostalo;
+        count += 1;
+      }
+    }
+    payablesByPartner.set(pid, {
+      total: r2(otvoreno),
+      count,
+      racuniCount: list.length,
+      racuniTotal: r2(
+        list.reduce((s, r) => s + (Number(r.iznos) || 0), 0),
+      ),
+    });
+  }
+
+  // Izlazne fakture po partneru. "Njihov dug" (otvoreno) se izvodi ISTOM FIFO
+  // alokacijom kao na kartici partnera (kartica): sirovi status fakture nije
+  // dovoljan jer faktura naplaćena zbirnom/nevezanom uplatom ostaje ISSUED u
+  // bazi, pa je lista pokazivala dug tamo gdje kartica pokazuje 0.
+  const isKreditFaktura = (i) =>
+    i.docType === "KNJIZNA_OBAVIJEST" || i.docType === "STORNO_AVANSNE";
+  // partnerId -> { total, count, invoicesTotal (godina) }
+  const receivablesByPartner = new Map();
+  for (const p of partners) {
+    const pJib = normalizeDigits(p.jib);
+    const pName = normalizeName(p.name);
+    const opening = openingByPartner.get(p.id);
+    const donos = opening ? opening.kupac : 0;
+    const mine = invoiceIndex.filter(
+      (inv) =>
+        (pJib && inv.jibNorm === pJib) || inv.nameNorm === pName,
+    );
+    let invoicesTotal = 0;
+    for (const inv of mine) {
+      if (!year || String(inv.issueDate).slice(0, 4) === String(year)) {
+        invoicesTotal += Number(inv.grossTotal) || 0;
+      }
+    }
+    if (mine.length === 0 && donos === 0) {
+      receivablesByPartner.set(p.id, { total: 0, count: 0, invoicesTotal: 0 });
+      continue;
+    }
+    // knjižne obavijesti / storna avansnih umanjuju dug, idu u pool
+    const kreditSum = mine
+      .filter(isKreditFaktura)
+      .reduce((s, i) => s + (Number(i.grossTotal) || 0), 0);
+    // negativan donos = kupčev avans kod nas: umanjuje dug kroz pool
+    const pool =
+      (receivedByPartner.get(p.id) || 0) + kreditSum + Math.max(0, -donos);
+    const docs = mine.map((i) => ({
+      id: i.id,
+      iznos: Number(i.grossTotal) || 0,
+      datum: String(i.issueDate).slice(0, 10),
+      manualPlacen: i.status === "PAID",
+      kredit: isKreditFaktura(i),
+    }));
+    // donos je najstariji dokument na kartici: ulazi u FIFO prvi
+    if (donos > 0) {
+      docs.push({
+        id: -p.id,
+        iznos: donos,
+        datum: (opening && opening.datum) || "0000-01-01",
+        manualPlacen: false,
+        kredit: false,
+      });
+    }
+    const alloc = allocateFifo(docs, pool);
+    let otvoreno = 0;
+    let count = 0;
+    for (const d of docs) {
+      const v = alloc.get(d.id);
+      if (v && v.preostalo > 0.005) {
+        otvoreno += v.preostalo;
+        count += 1;
+      }
+    }
+    receivablesByPartner.set(p.id, {
+      total: r2(otvoreno),
+      count,
+      invoicesTotal: r2(invoicesTotal),
+    });
   }
 
   const data = partners.map((p) => {
@@ -363,40 +508,20 @@ async function list(req, res) {
       txCount: 0,
       lastDate: null,
     };
-    const pJib = normalizeDigits(p.jib);
-    const pName = normalizeName(p.name);
-    let openTotal = 0;
-    let openCount = 0;
-    let invoicesTotal = 0;
-    for (const inv of openInvoices) {
-      const matches =
-        (pJib && normalizeDigits(inv.buyerIdNumber) === pJib) ||
-        normalizeName(inv.buyerName) === pName;
-      if (matches) {
-        if (!year || String(inv.issueDate).slice(0, 4) === String(year)) {
-          invoicesTotal += Number(inv.grossTotal) || 0;
-        }
-        if (inv.status === "ISSUED") {
-          openTotal += Number(inv.grossTotal) || 0;
-          openCount += 1;
-        }
-      }
-    }
+    const rec = receivablesByPartner.get(p.id) || {
+      total: 0,
+      count: 0,
+      invoicesTotal: 0,
+    };
     const pay = payablesByPartner.get(p.id) || {
       total: 0,
       count: 0,
       racuniCount: 0,
       racuniTotal: 0,
     };
-    // otvoreni dio početnog stanja (dug iz starog programa)
+    // obje strane donosa (početno stanje) su već u FIFO obračunu
+    // (receivablesByPartner / payablesByPartner)
     const opening = openingByPartner.get(p.id);
-    let openingKupac = 0;
-    let openingDob = 0;
-    if (opening) {
-      const pool = unlinkedPools.get(p.id) || { in: 0, out: 0 };
-      openingKupac = Math.max(0, r2(opening.kupac - pool.in));
-      openingDob = Math.max(0, r2(opening.dobavljac - pool.out));
-    }
     // Početno stanje je donos na kartici, pa ulazi i u dugovnu/potražnu
     // stranu liste: inače lista i kartica pokazuju različit saldo. Predznak se
     // čuva (negativno stanje je avans, umanjuje stranu na kojoj stoji). U
@@ -410,11 +535,11 @@ async function list(req, res) {
       accounts: Array.isArray(p.accounts) ? p.accounts : [],
       stats: {
         ...stats,
-        openInvoicesTotal: r2(openTotal + openingKupac),
-        openInvoicesCount: openCount + (openingKupac > 0 ? 1 : 0),
-        invoicesTotal: r2(invoicesTotal + openingKupacUkupno),
-        openPayablesTotal: r2(pay.total + openingDob),
-        openPayablesCount: pay.count + (openingDob > 0 ? 1 : 0),
+        openInvoicesTotal: r2(rec.total),
+        openInvoicesCount: rec.count,
+        invoicesTotal: r2(rec.invoicesTotal + openingKupacUkupno),
+        openPayablesTotal: r2(pay.total),
+        openPayablesCount: pay.count,
         racuniCount: pay.racuniCount,
         racuniTotal: r2(pay.racuniTotal + openingDobUkupno),
       },

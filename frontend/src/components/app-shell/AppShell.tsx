@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { IconFileInvoice } from "@tabler/icons-react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { PrviObrtModal } from "./PrviObrtModal";
+import { SoloUpitnik } from "./SoloUpitnik";
 import { UpustvoDrawer } from "./UpustvoDrawer";
 import { TrialBanner } from "./TrialBanner";
-import { usePkOfficePristup } from "src/hooks/usePkOfficeMe";
+import { usePkOfficeMe, usePkOfficePristup } from "src/hooks/usePkOfficeMe";
 import { PkOfficeUpsell } from "src/sections/dashboard/PkOfficeUpsell";
 import { PkOfficePrekoLimita } from "src/sections/dashboard/PkOfficePrekoLimita";
 
@@ -38,6 +41,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const prekoLimita = Boolean(
     pristup?.enforced && pristup.hasOffice && pristup.prekoLimita,
   );
+  // Solo obrt: faktura je glavna radnja, pa na mobilnom pluta dugme "Nova
+  // faktura" (na desktopu je u gornjoj traci)
+  const { data: me } = usePkOfficeMe();
+  const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
+  const solo = Boolean(activeOrg?.soloMode) && !zakljucano && !prekoLimita;
 
   return (
     <div className="min-h-screen flex flex-col bg-cream-50 text-text-primary">
@@ -63,6 +71,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* korisnik sa pristupom a bez ijednog obrta: dobrodošlica sa pozivom
           da doda prvi obrt (sam se ne prikazuje čim obrt postoji) */}
       <PrviObrtModal />
+      {/* Solo upitnik (useSearchParams traži Suspense granicu) */}
+      <Suspense fallback={null}>
+        <SoloUpitnik />
+      </Suspense>
+      {solo && (
+        <Link
+          href="/app/fakture/nova"
+          className="min-[900px]:hidden fixed bottom-5 right-5 z-30 inline-flex items-center gap-1.5 px-4 py-3 rounded-full bg-brand-600 text-white text-[13px] font-medium shadow-lg hover:opacity-90 transition-opacity"
+        >
+          <IconFileInvoice size={16} />
+          Nova faktura
+        </Link>
+      )}
       {/* Kontekstualno upustvo (klizni panel zdesna), otvara ga HelpButton */}
       <UpustvoDrawer />
     </div>

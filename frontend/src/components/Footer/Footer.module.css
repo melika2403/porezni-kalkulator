@@ -1,6 +1,12 @@
 .footer {
   border-top: 1px solid var(--border);
   padding: 3.5rem 2.5rem 2rem;
+  /* Bočne reklame (SPR/GPD, evidencija Freelancera) stoje fiksno sa z-index 5
+     i inače bi na dnu stranice prekrile linkove footera. Ovako footer klizne
+     preko njih; pozadina je ista kao pozadina stranice. */
+  position: relative;
+  z-index: 6;
+  background: var(--paper);
 }
 
 /* ── Top: brand + kolone linkova ── */

@@ -386,8 +386,15 @@ function IzmjenaModal({
           </div>
 
           <div>
-            <span className={styles.fieldLabel}>Važi od (neobavezno)</span>
+            <span className={styles.fieldLabel}>
+              Važi od (neobavezno, ne može u budućnost)
+            </span>
             <DateInput className={styles.input} value={vaziOd} onValueChange={setVaziOd} />
+            <span className={styles.fieldHint}>
+              Izmjena važi odmah na svim uplatnicama, izvozima i nalozima. Datum je
+              samo zabilješka od kada se račun primjenjuje, zato ga upišite na dan
+              kad primjena počinje.
+            </span>
           </div>
 
           <div>

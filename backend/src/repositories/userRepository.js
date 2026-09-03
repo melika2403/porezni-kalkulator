@@ -2,6 +2,7 @@ const { Op } = require("sequelize");
 const {
   sequelize, User, Subscription, Organization, OrganizationMember, Client, Form,
   InvoiceCounter, InvoiceItemTemplate, KarticaMember, AmsIsplatilac, UserTwoFactor,
+  FreelancerUplata, FreelancerPrilog,
 } = require("../models/index");
 const { decryptJmbg } = require("../utils/encryptJmbg");
 const cascade = require("../services/adminCascade");
@@ -27,7 +28,10 @@ const userInclude = [
 const userAttributes = [
   "id", "email", "jmbg", "idCardNumber", "firstName", "lastName",
   "phone", "address", "city", "role", "createdAt", "updatedAt", "isEmailVerified",
-  "trialUsedAt", "pkOfficeTrialEndsAt", "payslipNaziv",
+  "trialUsedAt", "pkOfficeTrialEndsAt", "pkOfficeTrialPlan",
+  // proba PK Freelancera je zasebna od Office probe; admin lista je prikazuje
+  // kao svoju oznaku, pa mora doći uz korisnika
+  "freelancerTrialEndsAt", "payslipNaziv",
 ];
 
 function toPublicUser(user) {
@@ -58,7 +62,7 @@ async function listUsers({
   let include = userInclude;
   let subQuery;
   const officeFilter =
-    typeof role === "string" && /^office(_(2|10|25|50))?$/i.test(role)
+    typeof role === "string" && /^office(_(1|2|10|25|50))?$/i.test(role)
       ? role.toLowerCase()
       : null;
   if (officeFilter === "office") {
@@ -79,6 +83,17 @@ async function listUsers({
         where: { isActive: true, plan: officeFilter },
       },
     ];
+  } else if (typeof role === "string" && role.toLowerCase() === "freelancer") {
+    // PK Freelancer isto nije rola: aktivna pretplata 'freelancer' ILI aktivna
+    // Freelancer proba (users.freelancerTrialEndsAt)
+    where[Op.or] = [
+      {
+        "$subscription.isActive$": true,
+        "$subscription.plan$": "freelancer",
+      },
+      { freelancerTrialEndsAt: { [Op.gte]: new Date() } },
+    ];
+    subQuery = false;
   } else if (role && ["USER", "PRO", "BUSINESS", "ADMIN"].includes(role)) {
     where.role = role;
   }
@@ -174,6 +189,10 @@ async function deleteUserById(id) {
     await InvoiceCounter.destroy({ where: { userId: id }, transaction: t });
     await InvoiceItemTemplate.destroy({ where: { userId: id }, transaction: t });
     await AmsIsplatilac.destroy({ where: { userId: id }, transaction: t });
+    // PK Freelancer evidencija (prilozi prije uplata zbog FK); fajlovi priloga
+    // ostaju na disku kao siročići, brisanje korisnika je rijetka admin akcija
+    await FreelancerPrilog.destroy({ where: { userId: id }, transaction: t });
+    await FreelancerUplata.destroy({ where: { userId: id }, transaction: t });
     await KarticaMember.destroy({ where: { createdById: id }, transaction: t });
 
     await OrganizationMember.destroy({ where: { userId: id }, transaction: t });

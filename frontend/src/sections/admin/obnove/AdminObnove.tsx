@@ -24,10 +24,12 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const OFFICE_LABELS: Record<string, string> = {
+  office_1: "Office Solo",
   office_2: "Office Start",
   office_10: "Office Tim",
   office_25: "Office Agencija",
   office_50: "Office Agencija+",
+  freelancer: "PK Freelancer",
 };
 
 // Boje paketa kao u ostatku panela: Pro = tamno zelena, Business = plava.

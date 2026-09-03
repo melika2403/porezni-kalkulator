@@ -116,6 +116,7 @@ async function register(req, res) {
     utmCampaign,
     wantsTrial,
     wantsOfficeTrial,
+    officeTrialPlan,
   } = req.body ?? {};
 
   if (!isNonEmptyString(email))
@@ -169,6 +170,13 @@ async function register(req, res) {
       wantsTrial: wantsTrial === true || wantsTrial === "true",
       wantsOfficeTrial:
         wantsOfficeTrial === true || wantsOfficeTrial === "true",
+      // Nivo tražene probe (blok PK Office Solo na /freelancer landingu šalje
+      // "office_1"): pamti se već pri registraciji, jer se proba aktivira tek
+      // kad korisnik potvrdi email. Bez ovoga bi svaka proba bila Tim.
+      pkOfficeTrialPlan:
+        String(officeTrialPlan || "").toLowerCase() === "office_1"
+          ? "office_1"
+          : null,
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -423,6 +431,10 @@ async function me(req, res) {
       logoUrl: m.organization.logoUrl,
       isClientOrg: !!m.organization.isClientOrg,
       role: m.role,
+      // PK Office Solo: sidebar i naslovnica čitaju režim i module odavde
+      soloMode: !!m.organization.soloMode,
+      soloModuli: m.organization.soloModuli ?? null,
+      isPdvObveznik: !!m.organization.isPdvObveznik,
     }));
 
   const preferences = await UserPreference.findOne({ where: { userId } });

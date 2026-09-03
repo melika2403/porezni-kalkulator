@@ -10,7 +10,9 @@
 //  - Deaktivacija oslobađa slot tek od narednog mjeseca (obrt deaktiviran u
 //    tekućem mjesecu i dalje zauzima slot), da se slotovi ne rotiraju.
 //  - Podaci deaktiviranog obrta se NE brišu; ponovna aktivacija ih vraća.
-//  - Trial: 30 dana, nivo Office Tim (10 obrta), jednom po korisniku.
+//  - Trial: 30 dana, jednom po korisniku. Nivo je Office Tim (10 obrta), osim
+//    kad je izričito zatražena Solo proba (1 obrt, users.pkOfficeTrialPlan):
+//    sa /freelancer landinga ili iz upitnika "vodim knjige sam sebi".
 const { Op } = require("sequelize");
 const {
   sequelize,
@@ -24,6 +26,43 @@ const { officeUserIds } = require("../services/tierService");
 
 const TRIAL_DANA = 30;
 const TRIAL_PLAN_KEY = "OFFICE_10";
+// Solo proba (jedan obrt): korisnik je zatražio probu sa /freelancer landinga
+// (blok PK Office Solo) ili je u upitniku rekao da jedan obrt vodi sam.
+const SOLO_TRIAL_PLAN = "office_1";
+
+/** Ključ cjenovnika za probu korisnika: Solo ako ju je tako zatražio, inače Tim. */
+function trialPlanKey(user) {
+  return user?.pkOfficeTrialPlan === SOLO_TRIAL_PLAN ? "OFFICE_1" : TRIAL_PLAN_KEY;
+}
+
+/**
+ * Paket koji sistem preporučuje korisniku: po broju obrta kojima upravlja i
+ * po načinu rada. Jedan obrt koji vodi sam (Solo režim ili Solo proba) je
+ * Office Solo; inače najmanji paket u koji stane broj obrta. Koristi se u
+ * traci probe, na zidu poslije isteka i u mailovima, sa direktnim linkom na
+ * predračun, da korisnik ne mora sam birati paket.
+ */
+async function preporuceniPlanZa(userId) {
+  const user = await User.findByPk(userId, {
+    attributes: ["id", "pkOfficeTrialPlan"],
+  });
+  const orgs = await upravljiveOrge(userId);
+  const n = orgs.length;
+  const vlastiteSolo = orgs.filter((o) => o.soloMode);
+  const solo =
+    user?.pkOfficeTrialPlan === SOLO_TRIAL_PLAN || (n <= 1 && vlastiteSolo.length >= 1);
+  const kljuc =
+    solo || n <= 1
+      ? "OFFICE_1"
+      : n <= 2
+        ? "OFFICE_2"
+        : n <= 10
+          ? "OFFICE_10"
+          : n <= 25
+            ? "OFFICE_25"
+            : "OFFICE_50";
+  return { kljuc, naziv: officePlanInfo(kljuc)?.label ?? kljuc, brojObrta: n };
+}
 
 const naplataUkljucena = () => process.env.PK_OFFICE_NAPLATA === "true";
 
@@ -39,16 +78,24 @@ function pocetakMjeseca() {
 
 /**
  * Slot je zauzet: aktivan obrt, ili deaktiviran u TEKUĆEM mjesecu
- * (anti-rotacija). U PROBNOM periodu anti-rotacije nema: slot se oslobađa
- * odmah, da korisnik može isprobati sve svoje klijente prije izbora paketa.
+ * (anti-rotacija). Na probi paketa sa VIŠE slotova anti-rotacije nema: slot se
+ * oslobađa odmah, da knjigovođa isproba sve svoje klijente prije izbora paketa.
+ * Solo proba (jedan slot) taj izuzetak NEMA, isto kao plaćeni Solo: paket je
+ * vezan za jedan obrt, pa bi se inače jedan slot 30 dana vrtio kroz njih koliko
+ * god ima. Vraćanje ISTOG obrta ostaje slobodno.
  */
-function zauzimaSlot(org, trial = false) {
+function zauzimaSlot(org, bezAntiRotacije = false) {
   if (org.pkOfficeEnabled) return true;
-  if (trial) return false;
+  if (bezAntiRotacije) return false;
   return Boolean(
     org.pkOfficeDisabledAt &&
       new Date(org.pkOfficeDisabledAt) >= pocetakMjeseca(),
   );
+}
+
+/** Smije li se slot osloboditi odmah: samo proba paketa sa više od jednog obrta. */
+function slotSeOslobadjaOdmah(access) {
+  return Boolean(access?.trial && access.trialPlan !== SOLO_TRIAL_PLAN);
 }
 
 /**
@@ -158,11 +205,11 @@ async function getOfficeAccess(userId) {
     if (info && vrijedi) {
       const aktivnih = await brojAktivnihObrta(userId);
       const maxObrta = posebniLimit ?? info.maxObrta;
-      // Labela paketa nosi "(do N obrta)": uz poseban limit se ispiše stvarni
-      // broj, da UI ne tvrdi 50 dok gate pušta 100.
+      // Labela paketa nosi "(do N obrta)" ili "(1 obrt)" kod Sola: uz poseban
+      // limit se ispiše stvarni broj, da UI ne tvrdi 50 dok gate pušta 100.
       const planNaziv =
         posebniLimit != null
-          ? info.label.replace(/do \d+ obrta/, `do ${maxObrta} obrta`)
+          ? info.label.replace(/\((?:do )?\d+ obrta?\)/, `(do ${maxObrta} obrta)`)
           : info.label;
       return {
         ...nista,
@@ -181,7 +228,9 @@ async function getOfficeAccess(userId) {
     user.pkOfficeTrialEndsAt &&
     new Date(user.pkOfficeTrialEndsAt) >= new Date()
   ) {
-    const info = officePlanInfo(TRIAL_PLAN_KEY);
+    // nivo probe: Solo (1 obrt) ako je tako zatražena, inače Office Tim
+    const probaKljuc = trialPlanKey(user);
+    const info = officePlanInfo(probaKljuc);
     // Poseban limit važi i tokom probe: klijent sa dogovorenih 100 obrta ne
     // smije na trialu biti spušten na 10.
     const maxObrta = posebniLimit ?? info?.maxObrta ?? 10;
@@ -190,10 +239,11 @@ async function getOfficeAccess(userId) {
       ...nista,
       hasOffice: true,
       scope: "vlastiti",
-      plan: TRIAL_PLAN_KEY.toLowerCase(),
-      planNaziv: "Probni period",
+      plan: probaKljuc.toLowerCase(),
+      planNaziv: probaKljuc === "OFFICE_1" ? "Probni period (Solo)" : "Probni period",
       maxObrta,
       trial: true,
+      trialPlan: user.pkOfficeTrialPlan === SOLO_TRIAL_PLAN ? SOLO_TRIAL_PLAN : null,
       trialEndsAt: user.pkOfficeTrialEndsAt,
       aktivnihObrta: aktivnih,
       // moguće samo ako je veći paket istekao a trial još traje
@@ -246,14 +296,14 @@ async function upravljiveOrge(userId) {
     .filter((o) => o && o.type === "BUSINESS");
 }
 
-function orgJson(o, trial = false) {
+function orgJson(o, bezAntiRotacije = false) {
   return {
     id: o.id,
     name: o.name,
     isClientOrg: Boolean(o.isClientOrg),
     pkOfficeEnabled: Boolean(o.pkOfficeEnabled),
-    // deaktiviran ovaj mjesec: slot zauzet do kraja mjeseca (nikad u trialu)
-    zauzetDoKrajaMjeseca: !o.pkOfficeEnabled && zauzimaSlot(o, trial),
+    // deaktiviran ovaj mjesec: slot zauzet do kraja mjeseca (osim na probi Tim paketa)
+    zauzetDoKrajaMjeseca: !o.pkOfficeEnabled && zauzimaSlot(o, bezAntiRotacije),
   };
 }
 
@@ -263,9 +313,18 @@ async function pristup(req, res) {
     const userId = req.user.id;
     const access = await getOfficeAccess(userId);
     if (!access.enforced || !access.hasOffice) {
+      // poslije isteka probe zid nudi konkretan paket, ne opšti cjenovnik
+      const preporuka =
+        access.enforced && access.trialIskoristen ? await preporuceniPlanZa(userId) : null;
       return res.json({
         ok: true,
-        data: { ...access, slotovi: null, organizations: [] },
+        data: {
+          ...access,
+          preporuceniPlan: preporuka?.kljuc ?? null,
+          preporuceniPlanNaziv: preporuka?.naziv ?? null,
+          slotovi: null,
+          organizations: [],
+        },
       });
     }
     // naslijeđen pristup: bez slotova i upravljanja; organizations su obrti
@@ -284,14 +343,18 @@ async function pristup(req, res) {
       });
     }
     const orgs = await upravljiveOrge(userId);
-    const zauzeto = orgs.filter((o) => zauzimaSlot(o, access.trial)).length;
+    const zauzeto = orgs.filter((o) => zauzimaSlot(o, slotSeOslobadjaOdmah(access))).length;
+    // preporuka paketa ide uz probu: traka i zid vode pravo na taj predračun
+    const preporuka = access.trial ? await preporuceniPlanZa(userId) : null;
     // max: null = bez limita (admin); UI i tada prikazuje panel i prekidače
     return res.json({
       ok: true,
       data: {
         ...access,
+        preporuceniPlan: preporuka?.kljuc ?? null,
+        preporuceniPlanNaziv: preporuka?.naziv ?? null,
         slotovi: { zauzeto, max: access.maxObrta },
-        organizations: orgs.map((o) => orgJson(o, access.trial)),
+        organizations: orgs.map((o) => orgJson(o, slotSeOslobadjaOdmah(access))),
       },
     });
   } catch (err) {
@@ -357,9 +420,9 @@ async function aktiviraj(req, res) {
       if (org.pkOfficeEnabled) return { org };
 
       // obrt deaktiviran ovaj mjesec već zauzima slot: reaktivacija je slobodna
-      if (access.maxObrta != null && !zauzimaSlot(org, access.trial)) {
+      if (access.maxObrta != null && !zauzimaSlot(org, slotSeOslobadjaOdmah(access))) {
         const zauzeto = zakljucane.filter((o) =>
-          zauzimaSlot(o, access.trial),
+          zauzimaSlot(o, slotSeOslobadjaOdmah(access)),
         ).length;
         if (zauzeto >= access.maxObrta) {
           return { status: 409, error: "LIMIT_PAKETA" };
@@ -381,7 +444,7 @@ async function aktiviraj(req, res) {
         .status(rezultat.status)
         .json({ ok: false, error: rezultat.error });
     }
-    return res.json({ ok: true, data: orgJson(rezultat.org, access.trial) });
+    return res.json({ ok: true, data: orgJson(rezultat.org, slotSeOslobadjaOdmah(access)) });
   } catch (err) {
     console.error("pk-office aktiviraj error:", err);
     return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
@@ -406,18 +469,22 @@ async function deaktiviraj(req, res) {
       return res.status(403).json({ ok: false, error: "SAMO_NOSILAC_PRETPLATE" });
     }
     if (!org.pkOfficeEnabled) {
-      return res.json({ ok: true, data: orgJson(org, access.trial) });
+      return res.json({ ok: true, data: orgJson(org, slotSeOslobadjaOdmah(access)) });
     }
     // U prekoračenju (paket manji od broja aktivnih obrta) deaktivacija
     // oslobađa slot ODMAH (pkOfficeDisabledAt se ne postavlja): bez toga
     // korisnik ne bi mogao sići na limit do narednog mjeseca i ostao bi
     // blokiran. Anti-rotacija ostaje za normalno stanje: smanjivanje broja
-    // aktivnih obrta nije rotiranje slotova.
+    // aktivnih obrta nije rotiranje slotova. Solo (1 slot) NEMA izuzetak: paket
+    // je vezan za jedan obrt, a trenutno oslobađanje slota je značilo da se
+    // jedan slot svaki dan vrti kroz tuđe obrte u kojima je korisnik ADMIN član
+    // (10 klijenata za cijenu jednog). Vraćanje ISTOG obrta ostaje slobodno,
+    // jer aktivacija priznaje da obrt deaktiviran ovaj mjesec i dalje drži slot.
     await org.update({
       pkOfficeEnabled: false,
       pkOfficeDisabledAt: access.prekoLimita ? null : new Date(),
     });
-    return res.json({ ok: true, data: orgJson(org, access.trial) });
+    return res.json({ ok: true, data: orgJson(org, slotSeOslobadjaOdmah(access)) });
   } catch (err) {
     console.error("pk-office deaktiviraj error:", err);
     return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
@@ -436,7 +503,10 @@ async function dodijeliOfficeTrial(user) {
   const ends = new Date();
   ends.setDate(ends.getDate() + TRIAL_DANA);
   await user.update({ pkOfficeTrialEndsAt: ends });
-  await autoAktivirajObrteZaTrial(user.id);
+  // Nivo probe je mogao biti zatražen još pri registraciji (dugme u bloku
+  // PK Office Solo nosi trialPlan=solo, a proba se pali tek pri verifikaciji
+  // maila), pa se poštuje ono što je upisano na korisniku.
+  await autoAktivirajObrteZaTrial(user.id, trialPlanKey(user));
   return ends;
 }
 
@@ -447,9 +517,9 @@ async function dodijeliOfficeTrial(user) {
  * ne biramo umjesto korisnika, neka sam izabere kojih 10. Ne baca grešku:
  * trial je dodijeljen i ako aktivacija padne.
  */
-async function autoAktivirajObrteZaTrial(userId) {
+async function autoAktivirajObrteZaTrial(userId, planKey = TRIAL_PLAN_KEY) {
   try {
-    const max = officePlanInfo(TRIAL_PLAN_KEY)?.maxObrta ?? 10;
+    const max = officePlanInfo(planKey)?.maxObrta ?? 10;
     const orgs = await upravljiveOrge(userId);
     if (orgs.length === 0 || orgs.length > max) return;
     const sad = new Date();
@@ -497,18 +567,58 @@ async function startOfficeTrial(req, res) {
     }
     const ends = new Date();
     ends.setDate(ends.getDate() + TRIAL_DANA);
-    await user.update({ pkOfficeTrialEndsAt: ends });
+    // Solo proba samo na izričit zahtjev (blok Solo na /freelancer, upitnik);
+    // opšta proba ostaje Office Tim da knjigovođa može isprobati sve klijente.
+    const soloProba =
+      String(req.body?.plan || "").toLowerCase() === SOLO_TRIAL_PLAN ||
+      String(req.body?.plan || "").toLowerCase() === "solo";
+    // Ako Solo nije tražen u ovom pozivu, vrijedi ono što je korisnik tražio
+    // pri registraciji (dugme iz Solo bloka upiše pkOfficeTrialPlan), inače Tim.
+    const trialPlan =
+      soloProba || user.pkOfficeTrialPlan === SOLO_TRIAL_PLAN ? SOLO_TRIAL_PLAN : null;
+    await user.update({ pkOfficeTrialEndsAt: ends, pkOfficeTrialPlan: trialPlan });
     // proba odmah pokazuje podatke: svi obrti (do limita) ulaze u PK Office
-    await autoAktivirajObrteZaTrial(user.id);
-    return res.json({ ok: true, data: { trialEndsAt: ends } });
+    await autoAktivirajObrteZaTrial(user.id, trialPlanKey({ pkOfficeTrialPlan: trialPlan }));
+    return res.json({ ok: true, data: { trialEndsAt: ends, trialPlan } });
   } catch (err) {
     console.error("pk-office trial error:", err);
     return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
   }
 }
 
+// POST /api/pk-office/trial/plan  { plan: "office_1" | null }
+// Mijenja nivo AKTIVNE probe. Na Solo se prelazi kad korisnik u upitniku kaže
+// da jedan obrt vodi sam; nazad na Tim kad kaže da knjige vodi knjigovođa.
+// Solo nije moguć ako je već aktivirano više od jednog obrta.
+async function setTrialPlan(req, res) {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+    const trajanje =
+      user.pkOfficeTrialEndsAt && new Date(user.pkOfficeTrialEndsAt) >= new Date();
+    if (!trajanje) return res.status(400).json({ ok: false, error: "NEMA_AKTIVNE_PROBE" });
+    const zeli = String(req.body?.plan || "").toLowerCase();
+    const trialPlan = zeli === SOLO_TRIAL_PLAN || zeli === "solo" ? SOLO_TRIAL_PLAN : null;
+    if (trialPlan === SOLO_TRIAL_PLAN) {
+      const aktivnih = await brojAktivnihObrta(user.id);
+      if (aktivnih > 1) {
+        return res.status(409).json({ ok: false, error: "VISE_OBRTA", data: { aktivnih } });
+      }
+    }
+    if (user.pkOfficeTrialPlan !== trialPlan) await user.update({ pkOfficeTrialPlan: trialPlan });
+    return res.json({ ok: true, data: { trialPlan } });
+  } catch (err) {
+    console.error("pk-office trial plan error:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 module.exports = {
   pristup,
+  setTrialPlan,
+  trialPlanKey,
+  preporuceniPlanZa,
+  SOLO_TRIAL_PLAN,
   aktiviraj,
   deaktiviraj,
   startOfficeTrial,

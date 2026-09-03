@@ -232,12 +232,41 @@ function validateOrgData(body, requireName = true) {
         : Number(body.directorWorkerId);
   }
 
+  // ── PK Office Solo ("vodim sam sebi") ──────────────────────────────────
+  // soloMode sužava meni i naslovnicu; soloModuli su odgovori iz upitnika
+  // (samo poznati ključevi, samo boolean). Obračuni se ne mijenjaju.
+  if (body.soloMode !== undefined) {
+    data.soloMode = Boolean(body.soloMode);
+  }
+  if (body.soloModuli !== undefined) {
+    if (body.soloModuli === null) {
+      data.soloModuli = null;
+    } else if (typeof body.soloModuli !== "object" || Array.isArray(body.soloModuli)) {
+      return { ok: false, message: "Neispravni Solo moduli" };
+    } else {
+      const moduli = {};
+      for (const k of SOLO_MODULI_KLJUCEVI) {
+        moduli[k] = Boolean(body.soloModuli[k]);
+      }
+      data.soloModuli = moduli;
+    }
+  }
+
   if (Object.keys(data).length === 0) {
     return { ok: false, message: "Nema polja za ažuriranje" };
   }
 
   return { ok: true, value: data };
 }
+
+// Moduli koje Solo upitnik pali; PDV se ne vodi ovdje nego kroz isPdvObveznik.
+const SOLO_MODULI_KLJUCEVI = [
+  "radnici",
+  "roba",
+  "blagajna",
+  "putniNalozi",
+  "stalnaSredstva",
+];
 
 // Validira identitet vlasnika. Oblik zavisi od ownerType:
 //   fizicko_domace / fizicko_strano → ime + prezime (JMBG/strani ID)
@@ -581,16 +610,30 @@ async function create(req, res) {
     office.enforced && office.hasOffice && office.scope === "vlastiti",
   );
 
-  // Office Start (do 2 obrta): jedini office paket sa ukupnim limitom
-  // kreiranja. To je ograda dogovorenog pravila "Business funkcije za ta 2
-  // obrta" (Tim i veći su neograničeni jer su skuplji od Business-a).
-  if (officeOk && office.plan === "office_2") {
+  // Office Solo (1 obrt) i Office Start (do 2 obrta): jedini office paketi sa
+  // ukupnim limitom kreiranja. To je ograda dogovorenog pravila "Business
+  // funkcije za te obrte" (Tim i veći su neograničeni jer su skuplji od
+  // Business-a). Limit = broj obrta paketa.
+  const OFFICE_UKUPNI_LIMIT = { office_1: 1, office_2: 2 };
+  // Limit prati stvarni broj obrta iz pristupa, koji već uračunava individualni
+  // dogovor (users.officeMaxObrta). Tvrdo upisana jedinica je značila da
+  // korisnik kome je admin odobrio više obrta na Solo paketu dobije slotove,
+  // ali ne može kreirati ni drugi obrt.
+  const ukupniLimit =
+    officeOk && OFFICE_UKUPNI_LIMIT[office.plan]
+      ? office.maxObrta ?? OFFICE_UKUPNI_LIMIT[office.plan]
+      : null;
+  if (ukupniLimit) {
     const [ownCount, clientCount] = await Promise.all([
       organizationRepository.countOwnedOrganizations(req.user.id),
       organizationRepository.countClientOrganizations(req.user.id),
     ]);
-    if (ownCount + clientCount >= 2) {
-      return res.status(409).json({ ok: false, error: "OFFICE_START_LIMIT" });
+    if (ownCount + clientCount >= ukupniLimit) {
+      return res.status(409).json({
+        ok: false,
+        error: office.plan === "office_1" ? "OFFICE_SOLO_LIMIT" : "OFFICE_START_LIMIT",
+        data: { limit: ukupniLimit, plan: office.plan },
+      });
     }
   }
 

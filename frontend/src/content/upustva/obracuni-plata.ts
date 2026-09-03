@@ -44,6 +44,24 @@ export const obracuniPlata: Upustvo = {
       ],
     },
     {
+      naslov: "Izvoz naloga u e-bankarstvo",
+      blokovi: [
+        {
+          t: "p",
+          text: "Umjesto kucanja naloga u banci, preuzmite datoteku sa svim nalozima mjeseca (doprinosi, porez, isplate radnicima, isti nalozi kao na zbirnim uplatnicama) i uvezite je u svoje e-bankarstvo. Podržani su Halcom, Raiffeisen (RBBHnet), UniCredit (e-ba), banke na ELBA platformi (BBI, ASA, Sparkasse, Intesa, ProCredit, PBS) i MF banka.",
+        },
+        {
+          t: "koraci",
+          stavke: [
+            "Kad je mjesec obračunat, kliknite Izvoz u e-bankarstvo.",
+            "Izaberite banku (program pamti zadnji izbor po obrtu) i datum valute, pa preuzmite datoteku.",
+            "U e-bankarstvu izaberite uvoz naloga iz datoteke i učitajte preuzeti fajl; nalozi se pojave pripremljeni, ostaje samo potpis.",
+            "Stavke koje nisu mogle u datoteku (npr. radnik bez žiro računa) program ispiše posebno: platite ih ručno ili dopunite podatke pa ponovite izvoz.",
+          ],
+        },
+      ],
+    },
+    {
       naslov: "Slanje platnih listića emailom",
       blokovi: [
         {

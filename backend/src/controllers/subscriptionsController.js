@@ -11,11 +11,28 @@ const {
   User,
 } = require("../models/index");
 const { PLANS, getPlan, planFromRole } = require("../config/plans");
-const { OFFICE_PLANS } = require("../config/pricing");
+const {
+  OFFICE_PLANS,
+  PLAN_BRUTO_FIKSNO,
+  SAMO_GODISNJE,
+} = require("../config/pricing");
+
+/**
+ * Kraj dana za DATEONLY vrijednost. endDate je datum bez vremena, pa bi
+ * new Date("2026-09-02") dalo ponoć po UTC-u i pretplata bi ispala istekla
+ * već u 02:00 na sam dan isteka, a plan bi se tada trajno prepisao na free.
+ */
+function krajDanaMs(dateOnly) {
+  const d = new Date(dateOnly);
+  if (isNaN(d.getTime())) return 0;
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
 // nivo i trajanje probe: jedan izvor istine (pkOfficeGateController)
 const {
   TRIAL_PLAN_KEY,
   TRIAL_DANA,
+  trialPlanKey,
 } = require("./pkOfficeGateController");
 
 function setAuthCookieWithRole(res, userId, role) {
@@ -86,23 +103,32 @@ async function upsert(req, res) {
   }
   if (isActive !== undefined) data.isActive = Boolean(isActive);
 
+  // Postojeća pretplata treba i prije upisa: kod produženja bez poslanog plana
+  // iz nje se čita da li paket smije biti mjesečni.
+  const postojeca = await subscriptionRepository.getByUserId(userId);
+
   // Plan + ciklus naplate (opciono). PRO/BUSINESS određuju i rolu korisnika;
   // office_* paketi NE diraju rolu (effectiveRole u tierService ih diže na
   // BUSINESS za marketing funkcije, a PK Office limite čita iz plana).
   let normalizedPlan = null;
   let isOfficePlan = false;
+  // PK Freelancer isto ne dira rolu: pristup ide kroz freelancerAccess po planu.
+  let isFreelancerPlan = false;
   if (plan !== undefined && plan !== null && plan !== "") {
     const raw = String(plan);
-    if (/^office_(2|10|25|50)$/i.test(raw)) {
+    if (/^office_(1|2|10|25|50)$/i.test(raw)) {
       // office paketi su lowercase u subscriptions.plan enumu
       normalizedPlan = raw.toLowerCase();
       isOfficePlan = true;
+    } else if (/^freelancer$/i.test(raw)) {
+      normalizedPlan = "freelancer";
+      isFreelancerPlan = true;
     } else {
       normalizedPlan = raw.toUpperCase();
       if (normalizedPlan !== "PRO" && normalizedPlan !== "BUSINESS") {
         return res.status(400).json({
           ok: false,
-          error: "Plan mora biti PRO, BUSINESS ili office_2/10/25/50",
+          error: "Plan mora biti PRO, BUSINESS, freelancer ili office_1/2/10/25/50",
         });
       }
     }
@@ -119,6 +145,16 @@ async function upsert(req, res) {
   let normalizedCycle = null;
   if (billingCycle !== undefined && billingCycle !== null && billingCycle !== "") {
     normalizedCycle = String(billingCycle).toLowerCase() === "monthly" ? "monthly" : "yearly";
+    // Paketi koji se prodaju SAMO godišnje (PK Freelancer) ne smiju dobiti
+    // mjesečni period ni preko admin forme ni preko dugmeta "Produži": inače bi
+    // korisnik dobio mjesec dana za paket koji se plaća godišnje, a obnova bi mu
+    // ponudila godišnji predračun. Isti izvor istine kao u predracunController.
+    // Plan može doći iz zahtjeva ili, kod dugmeta "Produži" koje šalje samo
+    // period, iz već upisane pretplate.
+    const planZaCiklus = normalizedPlan || postojeca?.plan || "";
+    if (SAMO_GODISNJE.has(String(planZaCiklus).toUpperCase())) {
+      normalizedCycle = "yearly";
+    }
     data.billingCycle = normalizedCycle;
   }
 
@@ -140,7 +176,7 @@ async function upsert(req, res) {
   }
 
   // upsert requires startDate + endDate on create
-  const existing = await subscriptionRepository.getByUserId(userId);
+  const existing = postojeca;
   if (
     !existing &&
     Object.keys(data).length > 0 &&
@@ -177,7 +213,7 @@ async function upsert(req, res) {
     }
     // Office paketi NE mijenjaju rolu: pristup ide preko effectiveRole
     // (tierService) i getOfficeAccess, rola u bazi ostaje kakva jeste.
-    if (data.isActive === true && !isOfficePlan) {
+    if (data.isActive === true && !isOfficePlan && !isFreelancerPlan) {
       const user = await userRepository.getUserById(userId);
       // Rola prati plan (PRO/BUSINESS). Ako plan nije poslan, zadrži staro
       // ponašanje (USER → PRO). Ne diramo ADMIN rolu.
@@ -301,9 +337,14 @@ async function ensureSubscription(userId, role) {
   // otvaranje stranice Pretplata obrisalo office paket. Kad office istekne
   // (neaktivan ili prošao endDate), pusti da se plan vrati na role-derived,
   // da panel ne pokazuje zauvijek "PK Office ..." i poslije prestanka.
-  if (String(sub.plan || "").toLowerCase().startsWith("office")) {
-    const end = sub.endDate ? new Date(sub.endDate) : null;
-    const stillValid = sub.isActive && (!end || end.getTime() >= Date.now());
+  // Isto važi i za PK Freelancer paket (rola ostaje USER).
+  const planLower = String(sub.plan || "").toLowerCase();
+  if (planLower.startsWith("office") || planLower === "freelancer") {
+    // Paket vrijedi do KRAJA posljednjeg dana. Ranije se poredilo sa ponoći po
+    // UTC-u, pa je paket ispadao istekao već ujutro na sam dan isteka i tada se
+    // plan trajno prepisivao na free (vraćanje je tražilo admina).
+    const stillValid =
+      sub.isActive && (!sub.endDate || krajDanaMs(sub.endDate) >= Date.now());
     if (stillValid) return sub;
     // istekao: nastavi na sinhronizaciju plana iz role (free/pro/business)
   }
@@ -326,7 +367,9 @@ function officeDisplayPlan(planKey) {
   const meta = OFFICE_PLANS[key.toUpperCase()];
   if (!meta) return null;
   const business = getPlan("business");
-  const isStart = key.toLowerCase() === "office_2";
+  // Solo (1) i Start (2) imaju ukupan limit organizacija = broj obrta paketa;
+  // Tim i veći su neograničeni (skuplji su od Business-a)
+  const mali = meta.maxObrta <= 2;
   return {
     key: key.toLowerCase(),
     name: meta.label,
@@ -335,12 +378,31 @@ function officeDisplayPlan(planKey) {
     limits: {
       ...business.limits,
       organizations: meta.maxObrta,
-      ownOrganizations: isStart ? 2 : -1,
-      clientOrganizations: isStart ? 2 : -1,
+      ownOrganizations: mali ? meta.maxObrta : -1,
+      clientOrganizations: mali ? meta.maxObrta : -1,
     },
     features: [
       "Sve Business funkcije",
       `PK Office za do ${meta.maxObrta} obrta`,
+    ],
+  };
+}
+
+// Prikazni plan za PK Freelancer (nije u config/plans.js): free limiti
+// marketing dijela (paket ne diže rolu) + cijena bruto iz pricing konfiguracije.
+function freelancerDisplayPlan(planKey) {
+  if (String(planKey || "").toLowerCase() !== "freelancer") return null;
+  const free = getPlan("free");
+  return {
+    key: "freelancer",
+    name: "PK Freelancer",
+    priceMonthly: 0,
+    priceYearly: PLAN_BRUTO_FIKSNO.FREELANCER?.yearly ?? 50,
+    limits: { ...free.limits },
+    features: [
+      "Evidencija uplata iz inostranstva bez ograničenja",
+      "AMS-1035 i uplatnice iz evidencije",
+      "Podsjetnici na rokove, GPD iz evidencije, potvrda o prihodima",
     ],
   };
 }
@@ -407,10 +469,12 @@ async function getCurrent(req, res) {
     (!krajPretplate || krajPretplate.getTime() >= Date.now());
 
   if (trialTraje && !subJePlacena) {
-    const trialPlan = officeDisplayPlan(TRIAL_PLAN_KEY);
+    // Solo proba se i u panelu prikazuje kao Solo, ne kao Tim
+    const probaKljuc = trialPlanKey(user);
+    const trialPlan = officeDisplayPlan(probaKljuc);
     const virtualSub = {
       id: sub.id,
-      plan: TRIAL_PLAN_KEY.toLowerCase(),
+      plan: probaKljuc.toLowerCase(),
       status: "trialing",
       isTrial: true,
       billingCycle: null,
@@ -429,7 +493,10 @@ async function getCurrent(req, res) {
     });
   }
 
-  const plan = officeDisplayPlan(sub.plan) ?? getPlan(sub.plan);
+  const plan =
+    officeDisplayPlan(sub.plan) ??
+    freelancerDisplayPlan(sub.plan) ??
+    getPlan(sub.plan);
 
   return res.json({ ok: true, data: buildSubscriptionResponse(sub, plan, usage) });
 }
@@ -493,9 +560,86 @@ async function adminList(_req, res) {
       }
     }
 
+    // Probe se ne vode u tabeli pretplata (žive na users.pkOfficeTrialEndsAt i
+    // users.freelancerTrialEndsAt), pa ih admin ovdje inače ne bi vidio. Dodaju
+    // se kao redovi SAMO ZA PRIKAZ (proba != null), bez akcija nad paketom.
+    const danas = new Date();
+    danas.setHours(0, 0, 0, 0);
+    const probaKorisnici = await User.findAll({
+      where: {
+        [Op.or]: [
+          { pkOfficeTrialEndsAt: { [Op.gte]: danas } },
+          { freelancerTrialEndsAt: { [Op.gte]: danas } },
+        ],
+      },
+      attributes: [
+        "id",
+        "firstName",
+        "lastName",
+        "email",
+        "role",
+        "pkOfficeTrialEndsAt",
+        "pkOfficeTrialPlan",
+        "freelancerTrialEndsAt",
+      ],
+      raw: true,
+    });
+    const aktivanPlan = new Map();
+    for (const s of subs) {
+      if (!s.isActive) continue;
+      if (s.endDate && krajDanaMs(s.endDate) < Date.now()) continue;
+      aktivanPlan.set(s.userId, String(s.plan || "").toLowerCase());
+    }
+    const probaRed = (u, vrsta, kraj) => {
+      const pocetak = new Date(kraj);
+      pocetak.setDate(pocetak.getDate() - 30);
+      return {
+        userId: u.id,
+        user: {
+          id: u.id,
+          name: `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim(),
+          email: u.email,
+          role: u.role,
+          pkOfficeTrialEndsAt: u.pkOfficeTrialEndsAt,
+        },
+        plan: null,
+        proba: vrsta,
+        billingCycle: null,
+        startDate: pocetak,
+        endDate: kraj,
+        isActive: true,
+        isTrial: true,
+        officeSlotovi: null,
+      };
+    };
+    const probe = [];
+    for (const u of probaKorisnici) {
+      const plan = aktivanPlan.get(u.id) || "";
+      if (u.pkOfficeTrialEndsAt && !plan.startsWith("office")) {
+        probe.push(
+          probaRed(
+            u,
+            u.pkOfficeTrialPlan === "office_1" ? "office_solo" : "office",
+            u.pkOfficeTrialEndsAt,
+          ),
+        );
+      }
+      if (u.freelancerTrialEndsAt && plan !== "freelancer") {
+        probe.push(probaRed(u, "freelancer", u.freelancerTrialEndsAt));
+      }
+    }
+
+    // probe i pretplate u istom poretku kao i do sada (po isteku, prve one koje
+    // ističu najprije), da lista ostane predvidljiva
+    const sviRedovi = [...probe, ...subs].sort((a, b) => {
+      const x = a.endDate ? new Date(a.endDate).getTime() : Infinity;
+      const y = b.endDate ? new Date(b.endDate).getTime() : Infinity;
+      return x - y;
+    });
     return res.json({
       ok: true,
-      data: subs.map((s) => {
+      data: sviRedovi.map((s) => {
+        if (s.proba) return s;
         const u = userById.get(s.userId) || null;
         const plan = String(s.plan || "");
         const office = plan.startsWith("office")

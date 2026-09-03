@@ -48,7 +48,7 @@ export type PreparedInvoice = {
   frequency: Frequency;
   active: boolean;
   applyVat: boolean;
-  vrstaIsporuke: string;
+  vrstaIsporuke: VrstaIsporuke;
   currency: "BAM" | "EUR";
   buyerName: string;
   buyerAddress: string | null;
@@ -60,10 +60,23 @@ export type PreparedInvoice = {
   buyerVatNumber: string | null;
   notes: string | null;
   lastInvoicedAt: string | null;
+  /** dan u mjesecu (1-28) kad se faktura sama pravi; null = samo ručno */
+  autoDan: number | null;
+  /** automatski je pošalji kupcu na email */
+  autoEmail: boolean;
+  jezik: "bs" | "en" | "bs-en";
   netTotal: number;
   vatTotal: number;
   grossTotal: number;
   items: PreparedItem[];
+};
+
+export type VrstaIsporuke = "OPOREZIVA" | "IZVOZ" | "OSLOBODJENA";
+
+export const VRSTA_ISPORUKE_LABEL: Record<VrstaIsporuke, string> = {
+  OPOREZIVA: "Oporeziva isporuka",
+  IZVOZ: "Izvoz (bez PDV-a)",
+  OSLOBODJENA: "Oslobođena isporuka",
 };
 
 export type PreparedPayload = {
@@ -72,7 +85,7 @@ export type PreparedPayload = {
   frequency: Frequency;
   active?: boolean;
   applyVat?: boolean;
-  vrstaIsporuke?: string;
+  vrstaIsporuke?: VrstaIsporuke;
   currency?: "BAM" | "EUR";
   buyer: {
     name: string;
@@ -86,6 +99,9 @@ export type PreparedPayload = {
   };
   items: PreparedItem[];
   notes?: string | null;
+  autoDan?: number | null;
+  autoEmail?: boolean;
+  jezik?: "bs" | "en" | "bs-en";
 };
 
 export function listPreparedInvoices(organizationId: number) {
@@ -128,6 +144,8 @@ export function invoicePrepared(body: {
   return request<{
     count: number;
     created: { id: number; fullNumber: string; buyerName: string }[];
+    /** šabloni koji su u tekućem periodu već fakturisani, pa su preskočeni */
+    skipped?: { id: number; buyerName: string; lastInvoicedAt?: string | null }[];
   }>("/api/prepared-invoices/invoice", {
     method: "POST",
     body: JSON.stringify(body),

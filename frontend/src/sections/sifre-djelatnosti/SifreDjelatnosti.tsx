@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import PkOfficePromo from "src/components/PkOfficePromo/PkOfficePromo";
 import { KD_BIH_DETAILED, type KdBihArea } from "src/data/kd-bih-detailed";
 import styles from "./sifre-djelatnosti.module.css";
 
@@ -21,6 +22,7 @@ function normalize(s: string): string {
 }
 
 const RELATED_TOOLS = [
+  { href: "/sifre-zanimanja", label: "Šifre zanimanja", desc: "Klasifikacija zanimanja FBiH za JS3100" },
   { href: "/sihterica", label: "Šihterica", desc: "Mjesečna evidencija radnog vremena" },
   { href: "/preracun-neto-bruto", label: "Neto ↔ Bruto plata", desc: "Brzi obračun plata i doprinosa" },
   { href: "/pdv-kalkulator", label: "PDV kalkulator", desc: "Preračun cijene sa i bez PDV-a" },
@@ -452,6 +454,7 @@ export default function SifreDjelatnosti() {
 
       <div className={styles.layout}>
         <aside className={styles.sidebar} aria-label="Alati na našoj stranici">
+          <PkOfficePromo />
           <div className={styles.sidebarTitle}>Naši alati i obrasci</div>
           <p className={styles.sidebarLead}>
             Pronašli ste šifru? Evo šta vam može pomoći u otvaranju obrta i svakodnevnom poslovanju.

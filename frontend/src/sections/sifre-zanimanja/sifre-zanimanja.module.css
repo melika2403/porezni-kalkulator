@@ -1,0 +1,402 @@
+/* Šifre zanimanja FBiH: vizuelni jezik i raspored prate /sifre-djelatnosti
+   (sidebar sa alatima + collapsible sekcije). */
+
+.page {
+  padding: 3rem 2rem 5rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ── */
+.header {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+.h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: clamp(2.1rem, 4.6vw, 3rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0 0 1rem;
+}
+.h1 em {
+  font-style: italic;
+  color: var(--sage);
+}
+.subtitle {
+  font-size: 16.5px;
+  color: var(--mid);
+  line-height: 1.65;
+  max-width: 780px;
+  margin: 0 auto 2rem;
+}
+.subtitle strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ── Pretraga ── */
+.searchRow {
+  position: relative;
+  max-width: 680px;
+  margin: 0 auto 1rem;
+}
+.searchIcon {
+  position: absolute;
+  left: 1.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  color: var(--mid);
+  pointer-events: none;
+}
+.search {
+  width: 100%;
+  font-family: inherit;
+  font-size: 17px;
+  padding: 1.05rem 3rem;
+  background: var(--white);
+  color: var(--ink);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  outline: none;
+  text-align: center;
+  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.12);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search:hover { border-color: var(--sage-light, #c4d3c7); }
+.search:focus {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 4px rgba(112, 138, 116, 0.15), 0 6px 20px -10px rgba(0, 0, 0, 0.12);
+  text-align: left;
+}
+.clearBtn {
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--mid);
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+.countLine {
+  text-align: center;
+  font-size: 13px;
+  color: var(--mid);
+  margin: 0;
+}
+
+/* ── Raspored: sidebar (naši alati) + sadržaj ── */
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  align-items: flex-start;
+  margin-top: 1.5rem;
+}
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { position: static; max-height: none; order: 2; }
+}
+
+.sidebar {
+  position: sticky;
+  top: calc(64px + 1.5rem);
+  max-height: calc(100vh - 64px - 3rem);
+  overflow-y: auto;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+}
+.sidebarTitle {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin-bottom: 0.5rem;
+}
+.sidebarLead {
+  font-size: 13.5px;
+  color: var(--mid);
+  line-height: 1.55;
+  margin: 0 0 1rem;
+}
+.sidebarList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.sidebarLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.sidebarLink:hover {
+  background: var(--paper);
+}
+.sidebarLinkLabel {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sidebarLinkDesc {
+  font-size: 12.5px;
+  color: var(--mid);
+  line-height: 1.45;
+}
+
+.content {
+  min-width: 0;
+}
+
+/* ── Abecedna navigacija (veliki chipovi) ── */
+.letterNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+.letterChip {
+  min-width: 46px;
+  padding: 0.55rem 0.6rem;
+  text-align: center;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.letterChip:hover {
+  border-color: var(--sage);
+  background: var(--sage-pale, #f0f4f0);
+  transform: translateY(-1px);
+}
+
+/* ── Toolbar (Otvori sve) ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.toolbarBtn {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.toolbarBtn:hover {
+  border-color: var(--sage);
+  background: var(--sage-pale, #f0f4f0);
+}
+
+/* ── Collapsible sekcije po slovu ── */
+.letterSection {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  margin-bottom: 0.6rem;
+  scroll-margin-top: 90px;
+  overflow: hidden;
+}
+.letterSummary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding: 0.8rem 1.1rem;
+  cursor: pointer;
+  list-style: none;
+  transition: background 0.15s;
+}
+.letterSummary::-webkit-details-marker { display: none; }
+.letterSummary::after {
+  content: "▾";
+  margin-left: auto;
+  color: var(--mid);
+  font-size: 14px;
+  transition: transform 0.15s;
+}
+.letterSection[open] > .letterSummary::after {
+  transform: rotate(180deg);
+}
+.letterSummary:hover {
+  background: var(--sage-pale, #f5f8f5);
+}
+.letterTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.5rem;
+  color: var(--sage);
+  line-height: 1;
+}
+.letterCount {
+  font-size: 13px;
+  color: var(--mid);
+}
+
+/* ── Lista (poravnate kolone: šifra fiksne širine, naziv u liniji) ── */
+.list {
+  display: block;
+}
+.letterSection .list {
+  padding: 0 1.1rem 0.6rem;
+}
+.row {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row:hover {
+  background: var(--sage-pale, #f5f8f5);
+}
+.sifra {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+.naziv {
+  font-size: 14.5px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+.mark {
+  background: rgba(112, 138, 116, 0.25);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.copyBtn {
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--mid);
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.copyBtn:hover {
+  color: var(--sage);
+  border-color: var(--sage);
+}
+.copyBtn svg {
+  width: 13px;
+  height: 13px;
+}
+.copyBtnCopied {
+  color: #1c7c3f;
+  border-color: #1c7c3f;
+}
+.empty {
+  text-align: center;
+  color: var(--mid);
+  padding: 2.5rem 0;
+}
+.moreNote {
+  text-align: center;
+  font-size: 13px;
+  color: var(--mid);
+  padding: 1rem 0;
+}
+
+/* ── FAQ i izvor ── */
+.faqSection {
+  margin-top: 3rem;
+}
+.faqTitle {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.7rem;
+  margin: 0 0 1.25rem;
+}
+.faqItem {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  padding: 0.9rem 1.2rem;
+  margin-bottom: 0.7rem;
+}
+.faqItem summary {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.faqItem p {
+  font-size: 14.5px;
+  color: var(--mid);
+  line-height: 1.65;
+  margin: 0.7rem 0 0;
+}
+.footnote {
+  margin-top: 2.5rem;
+  font-size: 12.5px;
+  color: var(--mid);
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 2rem 1rem 3.5rem;
+  }
+  .row {
+    grid-template-columns: 118px 1fr;
+    gap: 0.6rem;
+  }
+  .letterChip {
+    min-width: 42px;
+    font-size: 16px;
+  }
+}

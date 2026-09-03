@@ -20,6 +20,7 @@ import {
   MAX_ISPLATILACA,
   type AmsIsplatilac,
 } from "src/api/amsIsplatioci";
+import { useFreelancerPristup } from "src/components/FreelancerTrialCta/FreelancerTrialCta";
 import styles from "./AmsIsplatioci.module.css";
 
 export type IsplatilacFill = {
@@ -27,6 +28,8 @@ export type IsplatilacFill = {
   adresa: string;
   grad: string;
   drzava: string;
+  /** id snimljenog isplatioca (za vezu u PK Freelancer evidenciji). */
+  id?: number;
 };
 
 type Props = {
@@ -87,7 +90,9 @@ export default function AmsIsplatioci({ current, onFill }: Props) {
   const postojeci = isplatioci.find(
     (i) => i.naziv.trim().toLowerCase() === naziv.toLowerCase(),
   );
-  const popunjeno = isplatioci.length >= MAX_ISPLATILACA;
+  // PK Freelancer (paket, proba ili viši paket) skida limit od 5 isplatilaca
+  const { hasAccess: bezLimita } = useFreelancerPristup();
+  const popunjeno = !bezLimita && isplatioci.length >= MAX_ISPLATILACA;
 
   const snimi = useMutation({
     mutationFn: async () => {
@@ -177,7 +182,9 @@ export default function AmsIsplatioci({ current, onFill }: Props) {
       <div className={styles.head}>
         <span className={styles.title}>Moji isplatioci</span>
         <span className={styles.count}>
-          {isplatioci.length}/{MAX_ISPLATILACA}
+          {bezLimita
+            ? `${isplatioci.length}, bez ograničenja`
+            : `${isplatioci.length}/${MAX_ISPLATILACA}`}
         </span>
       </div>
 
@@ -200,6 +207,7 @@ export default function AmsIsplatioci({ current, onFill }: Props) {
                   setAktivniId(i.id);
                   setGreska(null);
                   onFill({
+                    id: i.id,
                     naziv: i.naziv,
                     adresa: i.adresa ?? "",
                     grad: i.grad ?? "",

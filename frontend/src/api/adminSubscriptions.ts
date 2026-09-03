@@ -20,6 +20,8 @@ export type AdminSubscription = {
   endDate: string | null;
   isActive: boolean;
   isTrial: boolean;
+  /** Red je PROBA, ne pretplata: "office" (Tim), "office_solo" ili "freelancer". */
+  proba?: "office" | "office_solo" | "freelancer" | null;
   /** samo za office pakete: aktivirani obrti / limit; poseban = individualni
       dogovor (users.officeMaxObrta) umjesto limita paketa */
   officeSlotovi: { zauzeto: number; max: number; poseban?: boolean } | null;

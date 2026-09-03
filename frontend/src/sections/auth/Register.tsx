@@ -24,6 +24,10 @@ export default function Register() {
   // Business funkcije); stari ?trial=auto linkovi vode na istu.
   const wantsOfficeTrial =
     nextUrl.includes("officeTrial=auto") || nextUrl.includes("trial=auto");
+  // Nivo probe se traži već ovdje: dugme u bloku PK Office Solo (landing
+  // /freelancer) nosi trialPlan=solo, a proba se aktivira tek pri verifikaciji
+  // maila. Bez ovoga bi korisnik koji je tražio Solo dobio probu paketa Tim.
+  const officeTrialPlan = /trialPlan=(solo|office_1)/i.test(nextUrl) ? "office_1" : null;
 
   // Ako je korisnik već ulogovan (npr. nakon verifikacije maila pa povratak
   // na /registracija), preusmjeri ga na ?next= ili početnu.
@@ -90,6 +94,7 @@ export default function Register() {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       wantsOfficeTrial,
+      officeTrialPlan,
       ...getUtmForRegister(),
     });
   };

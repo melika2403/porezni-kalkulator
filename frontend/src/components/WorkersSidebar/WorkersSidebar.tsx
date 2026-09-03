@@ -11,6 +11,7 @@ import {
   type Organization,
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
+import { sortirajRadnike } from "src/lib/radniciSort";
 import { useRole } from "src/hooks/useRole";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
 import LoadState from "src/components/LoadState/LoadState";
@@ -102,7 +103,9 @@ export default function WorkersSidebar({
     enabled: isLoggedIn && !!selectedOrgId,
   });
 
-  const workers = (workersQuery.data ?? []).filter((w) =>
+  // Redanje kao na aktivnim radnicima: prijavljeni po datumu prijave, pa
+  // odjavljeni po datumu odjave (dijeljeni helper, isti na svim sidebarima).
+  const workers = sortirajRadnike(workersQuery.data ?? []).filter((w) =>
     filter ? filter(w) : true,
   );
 

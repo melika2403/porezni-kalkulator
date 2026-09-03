@@ -12,6 +12,7 @@ export const zaposlenici: Upustvo = {
           t: "koraci",
           stavke: [
             "Dodajte radnika i unesite lične podatke, JMBG i podatke o zaposlenju.",
+            "Zanimanje birajte sa liste (Klasifikacija zanimanja FBiH): izbor popuni i naziv i sedmocifrenu šifru koja ide u JS3100 obrazac.",
             "Sačuvajte; radnik je odmah dostupan u obračunu plata.",
             "Uređivanjem mijenjate podatke koji ulaze u obračune i obrasce.",
           ],

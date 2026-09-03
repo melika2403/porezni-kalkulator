@@ -79,10 +79,13 @@ const PAKET_CLASS: Record<FinanceClient["role"], string> = {
 
 // office paketi ne diraju rolu (korisnik ostaje USER): badge iz plana
 const OFFICE_LABELS: Record<string, string> = {
+  office_1: "Office Solo",
   office_2: "Office Start",
   office_10: "Office Tim",
   office_25: "Office Agencija",
   office_50: "Office Agencija+",
+  // PK Freelancer isto ne dira rolu, pa se i on vidi samo kroz plan
+  freelancer: "PK Freelancer",
 };
 
 function paketBadge(u: FinanceClient): { label: string; cls: string } {

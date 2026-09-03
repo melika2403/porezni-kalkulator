@@ -19,9 +19,15 @@ import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
+import PkFreelancerPromo from "src/components/PkFreelancerPromo/PkFreelancerPromo";
+import OfficeSidebarPromo from "src/components/OfficeSidebarPromo/OfficeSidebarPromo";
 import { trackEvent } from "src/api/activity";
+import { useQuery } from "@tanstack/react-query";
+import { me, unwrap } from "src/api/auth";
 import { getOrganization, getForms } from "src/api/profile";
 import { getDocument } from "src/api/documents";
+import { getGpdPodaci } from "src/api/freelancer";
+import { mnozina } from "src/lib/format";
 import { searchBankTransactions } from "src/api/bankStatements";
 import type { SprData } from "src/sections/spr/fillSpr";
 
@@ -131,7 +137,9 @@ const isoToDdMm = (iso: string): string | undefined => {
 const onEnterNext = (e: React.KeyboardEvent<HTMLFormElement>) => {
   if (e.key !== "Enter") return;
   const target = e.target as HTMLElement;
-  if (target.tagName === "TEXTAREA" || target.tagName === "BUTTON") return;
+  // linkovi moraju ostati linkovi: bez "A" u ovoj listi preventDefault ispod
+  // guta Enter na fokusiranom linku (reklama, "Povezani alati"), pa se ne otvara
+  if (["TEXTAREA", "BUTTON", "A"].includes(target.tagName)) return;
   e.preventDefault();
   const focusable = Array.from(
     e.currentTarget.querySelectorAll<HTMLElement>(
@@ -193,6 +201,12 @@ export default function GpdForm() {
   // Živi uplatni računi: povuci trenutno stanje šifarnika (admin izmjene)
   useUplatniRacuni();
   const { findByName: findCity } = useCityLookup();
+  // null = gost, undefined = još se učitava (za napomenu o čuvanju podataka)
+  const { data: prijavljeni } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()).catch(() => null),
+    staleTime: 5 * 60 * 1000,
+  });
   const formRef = useRef<HTMLFormElement | null>(null);
   const refundRequiredRef = useRef<HTMLInputElement | null>(null);
 
@@ -276,15 +290,21 @@ export default function GpdForm() {
       totalIncomeYear - totalLossYear - totalDeductionsCalc,
       0,
     );
-    const taxAmount = taxBase * 0.1;
+    // Iznosi na obrascu su u KM sa dvije decimale, pa se i obaveza zaokružuje
+    // ovdje, a ne tek pri prikazu. Inače je 1.502,07 x 0,1 = 150,207 minus
+    // plaćenih 150,21 davalo -0,003 i red 31 je pokazivao "-0,00 KM".
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const taxAmount = r2(taxBase * 0.1);
 
     // Row 31
     const difference =
-      taxAmount -
-      num(taxCalc.reduction) -
-      num(taxCalc.withholdingTax) -
-      num(taxCalc.advancePayments) -
-      num(taxCalc.foreignTax);
+      r2(
+        taxAmount -
+          num(taxCalc.reduction) -
+          num(taxCalc.withholdingTax) -
+          num(taxCalc.advancePayments) -
+          num(taxCalc.foreignTax),
+      ) || 0;
 
     return {
       sumLoss,
@@ -354,7 +374,93 @@ export default function GpdForm() {
     year: number;
     notes: string[];
     error?: string;
+    /** odakle su podaci: PK Office (obrt) ili PK Freelancer evidencija */
+    izvor?: "office" | "freelancer";
   } | null>(null);
+
+  /* ── PK Freelancer prefill (/gpd?frl=GODINA) ── */
+  // Red 13 (dohodak od drugih samostalnih djelatnosti) = zbir OSNOVICA sa AMS
+  // obrazaca, red 18 (lični odbitak) = koeficijent porezne kartice iz postavki,
+  // red 28 (porez po odbitku) = zbir poreza sa uplata označenih kao predano i
+  // plaćeno. Doprinos za zdravstveno NE ulazi u GPD. Sve ostaje editabilno.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const godina = Number(sp.get("frl"));
+    if (!Number.isInteger(godina) || godina < 2015 || godina > 2100) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getGpdPodaci(godina);
+      if (cancelled) return;
+      if (!res.ok) {
+        setPkFill({
+          orgName: "",
+          year: godina,
+          izvor: "freelancer",
+          notes: [],
+          error:
+            "Podaci iz PK Freelancer evidencije se ne mogu povući. Provjerite da ste prijavljeni, pa otvorite obrazac ponovo iz evidencije (Godišnji pregled).",
+        });
+        return;
+      }
+      const d = res.data;
+      const notes: string[] = [];
+      if (d.primalac?.ime) {
+        // adresa u evidenciji je "Ulica, 71000 Grad": grad izdvajamo iza ptt broja
+        const adr = d.primalac.adresa ?? "";
+        const m = adr.match(/^(.*?),\s*(\d{5})\s+(.+)$/);
+        setPersonal((p) => ({
+          ...p,
+          jmb: d.primalac?.jmbg ?? "",
+          fullName: d.primalac?.ime ?? "",
+          address: m ? m[1] : adr,
+          city: m ? m[3] : "",
+          taxYear: String(godina).slice(-2),
+        }));
+      } else {
+        setPersonal((p) => ({ ...p, taxYear: String(godina).slice(-2) }));
+      }
+      // Red 13 = osnovica sa AMS obrazaca (dohodak poslije rashoda I poslije
+      // doprinosa za zdravstveno), jer je porez po odbitku obračunat na nju.
+      // Sa dohotkom prije doprinosa GPD bi tražio doplatu od 10% doprinosa.
+      const red13 = d.osnovica ?? Math.round((d.dohodak - d.zdravstveno) * 100) / 100;
+      if (red13 > 0) {
+        setRows((prev) => ({ ...prev, 13: { ...prev[13], profit: fmt(red13) } }));
+      }
+      // Doprinos za zdravstveno sa AMS obrazaca (4%) NE ulazi u GPD: red 19 je
+      // za druge osnove osiguranja, a ovaj doprinos se plaća uz honorar i ne
+      // umanjuje dohodak. Evidencija ga vodi samo kao pregled plaćenog.
+      if (d.porezPlacen > 0) {
+        setTaxCalc((t) => ({ ...t, withholdingTax: fmt(d.porezPlacen) }));
+      }
+      notes.push(
+        `${d.brojUplata} ${mnozina(d.brojUplata, "uplata", "uplate", "uplata")} iz ${godina}. godine, bruto ${fmt(d.bruto)} KM. Red 13 je osnovica sa AMS obrazaca ${fmt(red13)} KM (dohodak ${fmt(d.dohodak)} KM minus doprinos za zdravstveno ${fmt(d.zdravstveno)} KM), ista na koju je porez po odbitku i obračunat.`,
+      );
+      if (d.brojNeplacenih > 0) {
+        notes.push(
+          `${d.brojNeplacenih} ${d.brojNeplacenih === 1 ? "uplata nije označena" : "uplate nisu označene"} kao "predano i plaćeno", pa porez po odbitku (red 28) sadrži samo plaćene AMS obrasce: ${fmt(d.porezPlacen)} od ${fmt(d.porezObracunat)} KM. Označite uplate u evidenciji ili ispravite iznos ručno.`,
+        );
+      }
+      // Lični odbitak (red 18) iz koeficijenta porezne kartice upisanog u
+      // postavkama PK Freelancera: koeficijent x 300 KM x broj mjeseci važenja.
+      const odbitak = d.licniOdbitak ?? 0;
+      if (odbitak > 0) {
+        setDeductions((x) => ({ ...x, personal: fmt(odbitak) }));
+        const mjeseci = d.odbitakMjeseci ?? 12;
+        const koef = Number(d.koeficijent ?? 0).toFixed(2).replace(".", ",");
+        notes.push(
+          `Lični odbitak (red 18) je izračunat iz koeficijenta ${koef} sa vaše porezne kartice: ${fmt(odbitak)} KM za ${mjeseci} ${mjeseci === 1 ? "mjesec" : "mjeseci"}. Mijenja se u postavkama PK Freelancera.`,
+        );
+      } else {
+        notes.push(
+          "Lični odbitak (red 18) nije popunjen: upišite koeficijent sa porezne kartice u postavkama PK Freelancera i ovdje će se povući sam. Bez kartice odbitka nema.",
+        );
+      }
+      setPkFill({ orgName: "PK Freelancer evidencija", year: godina, notes, izvor: "freelancer" });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -662,13 +768,29 @@ export default function GpdForm() {
             <strong>{pkFill.error}</strong>
           ) : (
             <>
-              <strong>
-                Podaci povučeni iz PK Office: {pkFill.orgName}, {pkFill.year}.
-                godina.
-              </strong>{" "}
-              Dohodak od samostalne djelatnosti (red 9) dolazi iz snimljenog
-              SPR-1053. Ostale izvore dohotka (plata kod poslodavca, najam...)
-              unesite ručno. Sva polja ostaju editabilna.
+              {pkFill.izvor === "freelancer" ? (
+                <>
+                  <strong>
+                    Podaci povučeni iz PK Freelancer evidencije za {pkFill.year}.
+                    godinu.
+                  </strong>{" "}
+                  Dohodak od drugih samostalnih djelatnosti (red 13) i uplaćeni
+                  porez po odbitku (red 28) dolaze iz vaših AMS-1035 uplata, a
+                  lični odbitak (red 18) iz koeficijenta u postavkama. Doprinos
+                  za zdravstveno ne ulazi u GPD. Ostale izvore dohotka unesite
+                  ručno. Sva polja ostaju editabilna.
+                </>
+              ) : (
+                <>
+                  <strong>
+                    Podaci povučeni iz PK Office: {pkFill.orgName}, {pkFill.year}.
+                    godina.
+                  </strong>{" "}
+                  Dohodak od samostalne djelatnosti (red 9) dolazi iz snimljenog
+                  SPR-1053. Ostale izvore dohotka (plata kod poslodavca, najam...)
+                  unesite ručno. Sva polja ostaju editabilna.
+                </>
+              )}
               {pkFill.notes.length > 0 && (
                 <ul style={{ margin: "8px 0 0 18px", color: "#8a4f10" }}>
                   {pkFill.notes.map((n) => (
@@ -1247,7 +1369,7 @@ export default function GpdForm() {
                       : styles.resultNegative
                   }`}
                 >
-                  {computed.difference >= 0 ? "+" : "−"}
+                  {computed.difference > 0 ? "+" : computed.difference < 0 ? "−" : ""}
                   {fmt(Math.abs(computed.difference))} KM
                 </span>
               </td>
@@ -1507,10 +1629,26 @@ export default function GpdForm() {
         )}
       </section>
 
-      <p className={styles.dataNapomena}>
-        Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
-        Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
-      </p>
+      {/* Gostu obrazac ne ostavlja trag; prijavljenom se uplate iz kojih se
+          obrazac predpopunjava čuvaju u njegovoj PK Freelancer evidenciji. */}
+      {prijavljeni ? (
+        <p className={styles.dataNapomena}>
+          Podaci sa ovog obrasca se ne čuvaju. Uplate iz kojih se popunjavaju
+          redovi 13, 19 i 28 čuvaju se u vašoj PK Freelancer evidenciji, gdje ih
+          možete pregledati i obrisati:{" "}
+          <Link href="/freelancer?tab=uplate">evidencija uplata</Link>. Nakon
+          spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        </p>
+      ) : (
+        <p className={styles.dataNapomena}>
+          Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
+          Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
+        </p>
+      )}
+
+      {/* PK Office reklama (Solo + knjigovođe): bočno na širokim ekranima,
+          traka ovdje ispod preuzimanja na užim i mobitelu */}
+      <OfficeSidebarPromo stranica="gpd" />
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>
@@ -1603,6 +1741,9 @@ export default function GpdForm() {
           izvršiti povrat u zakonskom roku.
         </p>
       </section>
+
+      {/* PK Freelancer (faza 0): freelanceri sa AMS-ima dolaze ovdje u martu */}
+      <PkFreelancerPromo kompaktno izvor="gpd" />
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>

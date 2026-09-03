@@ -24,8 +24,9 @@ import {
 } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { useRole } from "src/hooks/useRole";
+import { sortirajRadnike } from "src/lib/radniciSort";
 import { useMaxAccessibleTier } from "src/hooks/useAccessibleTier";
-import { useLastOrg } from "src/hooks/useLastOrg";
+import { usePamcenaOrg } from "src/hooks/useLastOrg";
 import PreviewRegisterGate from "src/components/PreviewRegisterGate/PreviewRegisterGate";
 import RadniciTabBar from "src/components/RadniciTabBar/RadniciTabBar";
 import OrgSelect from "src/components/OrgSelect/OrgSelect";
@@ -115,7 +116,6 @@ export default function AktivniRadnici() {
   const canSeeClients = hasAccessToTier("PRO");
 
   const searchParams = useSearchParams();
-  const { lastOrgId, loaded: lastOrgLoaded, setLastOrgId } = useLastOrg();
 
   const urlOrg = (() => {
     const v = searchParams.get("org");
@@ -123,14 +123,9 @@ export default function AktivniRadnici() {
     return Number.isFinite(n) && n > 0 ? n : null;
   })();
 
-  // orgId se hidrira u dvije faze:
-  //   1) Ako URL ima ?org=X → inicijaliziramo odmah.
-  //   2) Inače pričekamo da `useLastOrg` pročita localStorage (loaded=true),
-  //      pa usvojimo lastOrgId ili pokrenemo auto-select fallback.
-  // Bez ovog gatinga, auto-select bi pregazio upamćenu klijentsku org
-  // prvom vlastitom org-om (jer lastOrgId je null na prvom renderu).
-  const [orgId, setOrgId] = useState<number | null>(urlOrg);
-  const [hydrated, setHydrated] = useState<boolean>(urlOrg != null);
+  // Org koja prati korisnika kroz stranice (URL → localStorage → izbor);
+  // dijeljeni obrazac, vidi usePamcenaOrg.
+  const { orgId, setOrgId, hydrated } = usePamcenaOrg(urlOrg);
   const [filter, setFilter] = useState<Filter>("svi");
   // PK Office modal forme: null = zatvoreno; { worker: null } = novi radnik.
   const [workerModal, setWorkerModal] = useState<{
@@ -153,13 +148,6 @@ export default function AktivniRadnici() {
     enabled: isLoggedIn && canSeeClients,
   });
 
-  // Faza 2: usvoji lastOrgId čim localStorage hidrira (samo ako URL nije postavio).
-  useEffect(() => {
-    if (hydrated) return;
-    if (!lastOrgLoaded) return;
-    if (lastOrgId != null) setOrgId(lastOrgId);
-    setHydrated(true);
-  }, [hydrated, lastOrgLoaded, lastOrgId]);
 
   // Auto-select first available org (own first, then client) — tek POSLIJE
   // hidracije, da ne pregazimo upamćenu org dok je localStorage još null.
@@ -172,11 +160,6 @@ export default function AktivniRadnici() {
     else if (clients.length > 0 && clients[0]) setOrgId(clients[0].id);
   }, [hydrated, orgId, orgsQuery.data, clientOrgsQuery.data]);
 
-  // Perzistira odabranu organizaciju u localStorage tako da JS3100, Obračun
-  // plata i Ugovor o radu otvore istu organizaciju.
-  useEffect(() => {
-    if (orgId != null) setLastOrgId(orgId);
-  }, [orgId, setLastOrgId]);
 
   const workersQuery = useQuery({
     queryKey: ["workers", orgId],
@@ -203,19 +186,9 @@ export default function AktivniRadnici() {
       )
     : allWorkers;
   // Uključi i RADNIK i VLASNIK (vlasnici se prepoznaju po roli i imaju badge).
-  // Sort:
-  //   1) Odjavljeni uvijek na dno (bez obzira kad su prijavljeni)
-  //   2) Po datumu prijave ASC (najstariji prijavljen radnik gore)
-  //   3) Po datumu kreiranja ASC (tiebreak)
-  const radnici = [...visibleWorkers].sort((a, b) => {
-    const aOff = a.employmentStatus === "ODJAVLJEN" ? 1 : 0;
-    const bOff = b.employmentStatus === "ODJAVLJEN" ? 1 : 0;
-    if (aOff !== bOff) return aOff - bOff;
-    const aDate = a.prijavaDate || "9999-12-31";
-    const bDate = b.prijavaDate || "9999-12-31";
-    if (aDate !== bDate) return aDate.localeCompare(bDate);
-    return (a.createdAt || "").localeCompare(b.createdAt || "");
-  });
+  // Redanje: dijeljeni helper (isti na svim sidebarima), prijavljeni po datumu
+  // prijave ASC, odjavljeni na dno po datumu odjave ASC.
+  const radnici = sortirajRadnike(visibleWorkers);
 
   const filtered = radnici.filter((w) => {
     if (filter === "svi") return true;

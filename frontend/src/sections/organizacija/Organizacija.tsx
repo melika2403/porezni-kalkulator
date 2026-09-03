@@ -27,6 +27,7 @@ import { unwrap } from "src/api/auth";
 import RoleGuard from "src/components/RoleGuard/RoleGuard";
 import { useRole } from "src/hooks/useRole";
 import { getOsnovica, REZIM_LABELS } from "src/utils/obrtniciFbih";
+import { sortirajRadnike } from "src/lib/radniciSort";
 import { WorkerModal } from "src/sections/zaposlenici/WorkerModal";
 import { WorkersTable } from "src/sections/zaposlenici/WorkersTable";
 import { DeleteWorkerModal } from "src/sections/zaposlenici/DeleteWorkerModal";
@@ -153,17 +154,9 @@ export default function Organizacija({ orgId }: { orgId: number }) {
     return "plata nije unesena";
   }
 
-  // Sortiranje: prijavljeni/draft prvi po prijavaDate ASC (najstariji gore),
-  // odjavljeni uvijek na dno (isto sortirani po prijavaDate među sobom).
-  const sortedWorkers = [...workers].sort((a, b) => {
-    const aOff = a.employmentStatus === "ODJAVLJEN" ? 1 : 0;
-    const bOff = b.employmentStatus === "ODJAVLJEN" ? 1 : 0;
-    if (aOff !== bOff) return aOff - bOff;
-    const aDate = a.prijavaDate || "9999-12-31";
-    const bDate = b.prijavaDate || "9999-12-31";
-    if (aDate !== bDate) return aDate.localeCompare(bDate);
-    return (a.createdAt || "").localeCompare(b.createdAt || "");
-  });
+  // Redanje: dijeljeni helper (isti na svim sidebarima i aktivnim radnicima),
+  // prijavljeni po datumu prijave ASC, odjavljeni na dno po datumu odjave ASC.
+  const sortedWorkers = sortirajRadnike(workers);
   const activeWorkers = sortedWorkers.filter(
     (w) => w.employmentStatus !== "ODJAVLJEN",
   );

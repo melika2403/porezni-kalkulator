@@ -22,6 +22,11 @@ import { objaviTrialAktiviran } from "src/components/TrialToast/TrialToast";
 import styles from "./OfficeTrialCta.module.css";
 
 export const OFFICE_TRIAL_ACTIVATE_URL = "/pretplate?officeTrial=auto";
+// Solo proba (jedan obrt): zatražena sa /freelancer landinga
+export const OFFICE_SOLO_TRIAL_ACTIVATE_URL = "/pretplate?officeTrial=auto&trialPlan=solo";
+export const OFFICE_SOLO_TRIAL_REGISTER_URL = `/registracija?next=${encodeURIComponent(
+  OFFICE_SOLO_TRIAL_ACTIVATE_URL,
+)}`;
 export const OFFICE_TRIAL_REGISTER_URL = `/registracija?next=${encodeURIComponent(
   OFFICE_TRIAL_ACTIVATE_URL,
 )}`;
@@ -38,10 +43,18 @@ export function useOfficeTrial() {
   // proba je jednokratna: čim je pkOfficeTrialEndsAt postavljen (traje ili je
   // istekao), više se ne nudi
   const used = !!user?.pkOfficeTrialEndsAt;
+  // proba trenutno traje (reklame za PK Office se tada ne prikazuju)
+  const trialActive =
+    !!user?.pkOfficeTrialEndsAt &&
+    new Date(user.pkOfficeTrialEndsAt).getTime() > Date.now();
   // Office pretplatnika prepoznajemo po planu pretplate (office_*)
   const hasOfficePlan = String(user?.subscription?.plan ?? "")
     .toLowerCase()
     .startsWith("office");
+  // Paket vrijedi samo dok pretplata traje: /me vraća red pretplate i poslije
+  // isteka (isActive: false, plan ostaje office_*), pa bi bez ove provjere
+  // bivši klijent zauvijek prolazio kao aktivan pretplatnik.
+  const officeAktivan = hasOfficePlan && !!user?.subscription?.isActive;
   // Rola u bazi (ne efektivna): PRO/BUSINESS znači plaćen paket. Office
   // pretplatniku rola ostaje USER, njega hvata hasOfficePlan.
   const paidPlan =
@@ -53,6 +66,12 @@ export function useOfficeTrial() {
   return {
     isLoading,
     anonymous,
+    /** Proba je iskorištena (traje ili je istekla). */
+    used,
+    /** Office proba trenutno traje. */
+    trialActive,
+    /** Ima PK Office paket koji JOŠ VRIJEDI (istekao paket se ne računa). */
+    officeAktivan,
     /** Smije li se ponuditi proba (nije je koristio i nema Office paket). */
     available: !isLoading && !used && !hasOfficePlan,
     /**
@@ -97,6 +116,8 @@ type Props = {
   /** "banner" (tamnozelena traka, default) ili "card" (uspravno, za prazna stanja). */
   variant?: "banner" | "card";
   className?: string;
+  /** "office_1" = Solo proba (jedan obrt), inače opšta proba na nivou Tim. */
+  plan?: "office_1" | null;
 };
 
 export default function OfficeTrialCta({
@@ -104,8 +125,15 @@ export default function OfficeTrialCta({
   cta = "Aktiviraj 30 dana besplatno",
   variant = "banner",
   className,
+  plan = null,
 }: Props) {
-  const { anonymous, href } = useOfficeTrial();
+  const { anonymous, href: opstiHref } = useOfficeTrial();
+  const href =
+    plan === "office_1"
+      ? anonymous
+        ? OFFICE_SOLO_TRIAL_REGISTER_URL
+        : OFFICE_SOLO_TRIAL_ACTIVATE_URL
+      : opstiHref;
   const queryClient = useQueryClient();
   const [greska, setGreska] = useState<string | null>(null);
 
@@ -114,7 +142,7 @@ export default function OfficeTrialCta({
   // pokaže globalni TrialToast, a osvježen ["me"] otključa dugmad okolo.
   const aktiviraj = useMutation({
     mutationFn: async () => {
-      const res = await startPkOfficeTrial();
+      const res = await startPkOfficeTrial(plan);
       if (!res.ok) throw new Error(res.error || "GRESKA");
       return res.data;
     },

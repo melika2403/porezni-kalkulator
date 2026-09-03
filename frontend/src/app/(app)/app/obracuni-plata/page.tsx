@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IconCoins,
+  IconBuildingBank,
   IconDownload,
   IconExternalLink,
   IconFileTypeXml,
@@ -48,6 +49,7 @@ import { RadnikKartonModal } from "src/sections/zaposlenici/RadnikKartonModal";
 import { UvozPlataPkModal } from "src/sections/prijave-radnika/UvozPlataPkModal";
 import { datumHr, downloadTablePdf } from "src/sections/lager/robaPdf";
 import { MARKETING_URL } from "src/lib/pkOfficeUrl";
+import { IzvozBankaModal } from "src/components/app-shell/IzvozBankaModal";
 
 const MJESECI = [
   "Januar", "Februar", "Mart", "April", "Maj", "Juni",
@@ -158,6 +160,8 @@ export default function ObracuniPlataPage() {
   const [uvozOpen, setUvozOpen] = useState(false);
   // potvrda MIP-a kad mjesec sadrži uvezene plate (vjerovatno već predat)
   const [mipUvozConfirm, setMipUvozConfirm] = useState(false);
+  // izvoz naloga mjeseca u datoteku za e-bankarstvo (isti kao na Poreznom)
+  const [izvozOpen, setIzvozOpen] = useState(false);
 
   const { data: me } = usePkOfficeMe();
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
@@ -781,6 +785,18 @@ export default function ObracuniPlataPage() {
         </div>
       )}
 
+      {izvozOpen && orgId != null && (
+        <IzvozBankaModal
+          key={`${orgId}-${year}-${month}`}
+          open={izvozOpen}
+          onClose={() => setIzvozOpen(false)}
+          organizationId={orgId}
+          year={year}
+          month={month}
+          zapamcenaBanka={fullOrg?.bankExportBank ?? null}
+        />
+      )}
+
       {/* Akcije za mjesec */}
       {hasPayrolls && (
         <div className="rounded-xl bg-cream-100 border border-cream-300 px-4 py-3 mb-4 flex flex-wrap items-center gap-2">
@@ -839,6 +855,16 @@ export default function ObracuniPlataPage() {
               <IconDownload size={15} />
             )}
             Rekapitulacija (PDF)
+          </button>
+          <button
+            type="button"
+            disabled={busy != null || !anyObracunato}
+            onClick={() => setIzvozOpen(true)}
+            title="Datoteka sa svim nalozima mjeseca za uvoz u e-bankarstvo (Halcom, Raiffeisen, UniCredit, ELBA banke, MF)"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-brand-600 text-brand-600 text-[12.5px] font-medium hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            <IconBuildingBank size={15} />
+            Izvoz u e-bankarstvo
           </button>
           <button
             type="button"

@@ -164,6 +164,12 @@ async function nextSequence({ organizationId, userId }, year, type, t) {
   return next;
 }
 
+// jezik ispisa: bs (default), en, bs-en (dvojezično za inostrane kupce)
+function normalizujJezik(v) {
+  const j = String(v || "bs").toLowerCase();
+  return ["bs", "en", "bs-en"].includes(j) ? j : "bs";
+}
+
 function validateCreate(body) {
   const errors = [];
   const type = String(body?.type || "INVOICE").toUpperCase();
@@ -210,6 +216,7 @@ async function createInvoiceRecord(
     applyVat = true,
     vrstaIsporuke = "OPOREZIVA",
     currency = "BAM",
+    jezik = "bs",
     clientId = null,
     seller = {},
     buyer = {},
@@ -241,6 +248,7 @@ async function createInvoiceRecord(
       applyVat,
       vrstaIsporuke,
       currency,
+      jezik: normalizujJezik(jezik),
       status: docType === "AVANSNA" ? "PAID" : "ISSUED",
       paidAt: docType === "AVANSNA" ? issueDate : null,
       sellerName: trimOrNull(seller.name),
@@ -658,6 +666,7 @@ async function create(req, res) {
         applyVat,
         vrstaIsporuke,
         currency,
+        jezik: normalizujJezik(body.jezik),
         // avansna = primljena uplata, odmah je naplaćena (nema potraživanja)
         status: docType === "AVANSNA" ? "PAID" : "ISSUED",
         paidAt: docType === "AVANSNA" ? issueDate : null,
@@ -888,6 +897,7 @@ async function updateContent(req, res) {
           applyVat,
           vrstaIsporuke,
           currency,
+          jezik: normalizujJezik(body.jezik ?? inv.jezik),
           issueDate,
           dueDate,
           buyerName: trimOrNull(buyer.name),
@@ -1058,6 +1068,7 @@ async function emailToBuyer(req, res) {
       dueDate: inv.dueDate,
       pdfBuffer: buf,
       customMessage,
+      jezik: inv.jezik || "bs",
     });
     await Invoice.update(
       { emailSentAt: new Date(), emailSentTo: to },

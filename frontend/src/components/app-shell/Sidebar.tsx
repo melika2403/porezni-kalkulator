@@ -27,6 +27,7 @@ import {
 } from "@tabler/icons-react";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { usePkOfficeMe } from "src/hooks/usePkOfficeMe";
+import { SOLO_MODULI_PRAZNO, type OrganizationSummary } from "src/api/pkOffice";
 import { useBankSummary } from "src/hooks/useBankStatements";
 import { useSupportUnread } from "src/api/support";
 import { useNotificationsUnreadQuery } from "src/api/announcements";
@@ -45,6 +46,8 @@ export type NavItem = {
     className?: string;
   }>;
   badge?: string;
+  /** vanjski link (marketing dio), renderuje se kao <a> */
+  external?: boolean;
 };
 
 export type NavGroup = { label?: string; items: NavItem[] };
@@ -128,6 +131,87 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+// PK Office Solo ("vodim sam sebi"): isti ekrani, samo suženi meni. Osnovu
+// čini ono što obrtnik radi svaki mjesec (fakture, izvod, doprinosi), knjige
+// i obrasci; radnici, roba, blagajna, putni nalozi i stalna sredstva se pale
+// odgovorima iz upitnika (org.soloModuli), PDV kroz isPdvObveznik. Agencijske
+// stvari (grupni uvoz, klijenti) se ne vide. Sve se vraća u Postavkama.
+export function soloNavGroups(org: OrganizationSummary): NavGroup[] {
+  const m = org.soloModuli ?? SOLO_MODULI_PRAZNO;
+  const mjesec: NavItem[] = [
+    { href: "/app/fakture", label: "Fakture", icon: IconFileInvoice },
+    {
+      href: "/app/bankovni-izvodi",
+      label: "Bankovni izvodi",
+      icon: IconBuildingBank,
+      badge: "dynamic-unmatched",
+    },
+    {
+      href: "/app/obracuni-plata",
+      // bez radnika tu su samo doprinosi vlasnika (obračun + 2002 + uplatnice)
+      label: m.radnici ? "Obračuni plata" : "Doprinosi i uplatnice",
+      icon: IconCoins,
+    },
+  ];
+  if (org.isPdvObveznik) {
+    mjesec.push({ href: "/app/pdv", label: "PDV evidencije", icon: IconReceiptTax });
+  }
+  if (m.blagajna) {
+    mjesec.push({ href: "/app/blagajna", label: "Blagajna", icon: IconCash });
+  }
+  const knjige: NavItem[] = [
+    { href: "/app/kpr", label: "KPR-1041", icon: IconBook2 },
+    { href: "/app/obrasci", label: "Obrasci i kraj godine", icon: IconFileText },
+    { href: "/app/partneri", label: "Kupci i dobavljači", icon: IconAddressBook },
+    { href: "/app/transakcije", label: "Transakcije", icon: IconArrowsExchange },
+  ];
+  if (m.stalnaSredstva) {
+    knjige.push({
+      href: "/app/stalna-sredstva",
+      label: "Stalna sredstva",
+      icon: IconBuildingWarehouse,
+    });
+  }
+  const dodatno: NavItem[] = [];
+  if (m.radnici) {
+    dodatno.push({ href: "/app/zaposlenici", label: "Zaposlenici", icon: IconUsers });
+  }
+  if (m.putniNalozi) {
+    dodatno.push({ href: "/app/putni-nalozi", label: "Putni nalozi", icon: IconRoute });
+  }
+  if (m.roba) {
+    dodatno.push(
+      { href: "/app/kalkulacije", label: "Kalkulacije", icon: IconCalculator },
+      { href: "/app/lager", label: "Lager lista", icon: IconStack2 },
+    );
+  }
+  return [
+    { items: [{ href: "/app/dashboard", label: "Početna", icon: IconLayoutDashboard }] },
+    { label: "Svaki mjesec", items: mjesec },
+    { label: "Knjige i obrasci", items: knjige },
+    ...(dodatno.length ? [{ label: "Dodatni moduli", items: dodatno }] : []),
+    {
+      label: "Ostalo",
+      items: [
+        { href: "/app/inbox", label: "Inbox", icon: IconInbox, badge: "dynamic-inbox" },
+        {
+          href: `${MARKETING_URL}/freelancer`,
+          label: "PK Freelancer",
+          icon: IconBriefcase,
+          external: true,
+        },
+      ],
+    },
+    {
+      label: "Račun",
+      items: [
+        { href: "/app/pretplata", label: "Pretplata", icon: IconCreditCard },
+        { href: "/app/postavke", label: "Postavke obrta", icon: IconSettings },
+      ],
+    },
+  ];
+}
+
 export function Sidebar({
   open,
   onClose,
@@ -151,6 +235,8 @@ export function Sidebar({
   const activeOrg = me?.activeOrganization ?? me?.organizations?.[0] ?? null;
   const { data: bankSummary } = useBankSummary(activeOrg?.id ?? null);
   const unmatchedCount = bankSummary?.unmatched ?? 0;
+  // Solo obrt: suženi meni po modulima iz upitnika
+  const groups = activeOrg?.soloMode ? soloNavGroups(activeOrg) : NAV_GROUPS;
 
   // badge za Inbox: nepročitane poruke podrške (live preko socketa) +
   // admin obavijesti (react-query, PorukeTab invalidira po čitanju)
@@ -188,7 +274,7 @@ export function Sidebar({
 
         {/* Nav */}
         <nav className={styles.nav}>
-          {NAV_GROUPS.map((group, gi) => (
+          {groups.map((group, gi) => (
             <div key={gi}>
               {group.label && (
                 <div className={styles.groupLabel}>{group.label}</div>
@@ -198,8 +284,24 @@ export function Sidebar({
                   const Icon = item.icon;
                   const active =
                     hydrated &&
+                    !item.external &&
                     (pathname === item.href ||
                       pathname.startsWith(item.href + "/"));
+                  if (item.external) {
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        onClick={onClose}
+                        className={styles.navLink}
+                      >
+                        <span className={styles.navIcon}>
+                          <Icon size={19} stroke={1.8} />
+                        </span>
+                        <span className={styles.navLabel}>{item.label}</span>
+                      </a>
+                    );
+                  }
                   return (
                     <Link
                       key={item.href}

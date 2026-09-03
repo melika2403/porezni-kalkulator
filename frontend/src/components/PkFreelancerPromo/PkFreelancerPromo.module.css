@@ -1,0 +1,69 @@
+/* PK Freelancer promo. Kartica koristi PkOfficePromo module CSS (isti stil,
+   uvezen u komponenti); ovdje je samo kompaktna traka ispod dugmeta za
+   preuzimanje (/ams poslije generisanja, /gpd). */
+
+.traka {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  background: var(--plum);
+  border-radius: var(--radius-lg);
+  padding: 0.95rem 1.2rem;
+  margin: 0 0 1.5rem;
+  color: #fff;
+}
+.trakaTekst {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+}
+.trakaTekst strong {
+  color: #fff;
+  font-weight: 600;
+}
+/* .cta iz PkOfficePromo je širine 100% (kartica); u traci je uz tekst */
+.ctaUsko {
+  width: auto;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.ctaUsko:hover {
+  background: var(--plum-light);
+  color: var(--plum);
+}
+
+@media (max-width: 720px) {
+  .traka {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ctaUsko {
+    width: 100%;
+  }
+}
+
+/* Šljiva: kartica dijeli raspored sa PkOfficePromo, ali boje su Freelancerove,
+   da se dva proizvoda ne čitaju kao jedan (PK Office je tamnozelena + terakota). */
+.kartaSljiva {
+  background: var(--plum);
+}
+.kartaSljiva:hover {
+  background: #4a3868;
+}
+.tagSljiva {
+  color: var(--plum-light);
+}
+.checkSljiva {
+  color: #c9a9ee;
+}
+.ctaSljiva {
+  background: var(--plum-light);
+  color: var(--plum);
+}
+.ctaSljiva:hover {
+  background: #e6d4f5;
+}

@@ -177,6 +177,25 @@
   background: #dce9df;
   color: #2d4633;
 }
+/* PK Freelancer nosi šljivu, boju tog proizvoda */
+.planFreelancer {
+  background: var(--plum-mid);
+  color: #fff;
+}
+
+/* Probe: svaka svojom bojom, da se u listi razlikuju na prvi pogled */
+.planTrialSoft {
+  background: #f2dec0;
+  color: #8a4f10;
+}
+.planTrialSolo {
+  background: #f6ddd0;
+  color: #a04a19;
+}
+.planFreelancerTrial {
+  background: var(--plum-pale);
+  color: var(--plum-text);
+}
 .planAdmin {
   background: #efe7da;
   color: #7a5a1a;

@@ -35,6 +35,7 @@ import type { Partner } from "src/api/partners";
 import { useArtikli } from "src/hooks/useKalkulacije";
 import {
   FREQ_LABEL,
+  VRSTA_ISPORUKE_LABEL,
   createPreparedInvoice,
   deletePreparedInvoice,
   invoicePrepared,
@@ -44,9 +45,13 @@ import {
   type Frequency,
   type PreparedInvoice,
   type PreparedPayload,
+  type VrstaIsporuke,
 } from "src/api/preparedInvoices";
 
 const FREQS: Frequency[] = ["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"];
+const VRSTE: VrstaIsporuke[] = ["OPOREZIVA", "IZVOZ", "OSLOBODJENA"];
+// najveći dan je 28 da svaki mjesec (i februar) ima taj datum
+const MAX_AUTO_DAN = 28;
 
 type ItemForm = { name: string; quantity: string; unitPrice: string; vatPct: string };
 type FormState = {
@@ -63,6 +68,12 @@ type FormState = {
   buyerEmail: string;
   buyerPhone: string;
   notes: string;
+  currency: "BAM" | "EUR";
+  vrstaIsporuke: VrstaIsporuke;
+  /** dan u mjesecu (1-28) za automatsko fakturisanje; "" = samo ručno */
+  autoDan: string;
+  autoEmail: boolean;
+  jezik: "bs" | "en" | "bs-en";
   items: ItemForm[];
 };
 
@@ -81,6 +92,11 @@ const emptyForm = (frequency: Frequency, applyVat: boolean): FormState => ({
   buyerEmail: "",
   buyerPhone: "",
   notes: "",
+  currency: "BAM",
+  vrstaIsporuke: "OPOREZIVA",
+  autoDan: "",
+  autoEmail: false,
+  jezik: "bs",
   items: [emptyItem()],
 });
 
@@ -99,6 +115,11 @@ function formFromPrepared(p: PreparedInvoice): FormState {
     buyerEmail: p.buyerEmail ?? "",
     buyerPhone: p.buyerPhone ?? "",
     notes: p.notes ?? "",
+    currency: p.currency === "EUR" ? "EUR" : "BAM",
+    vrstaIsporuke: VRSTE.includes(p.vrstaIsporuke) ? p.vrstaIsporuke : "OPOREZIVA",
+    autoDan: p.autoDan != null ? String(p.autoDan) : "",
+    autoEmail: !!p.autoEmail,
+    jezik: p.jezik ?? "bs",
     items:
       p.items.length > 0
         ? p.items.map((it) => ({
@@ -116,6 +137,16 @@ function formFromPrepared(p: PreparedInvoice): FormState {
 function parseQty(v: string): number {
   const n = Number(String(v).trim().replace(/\s/g, "").replace(",", "."));
   return Number.isFinite(n) ? n : 0;
+}
+
+// Dan automatskog fakturisanja: samo cifre i najviše 28 (server odbija ostalo,
+// pa se ovdje i ne da upisati 30).
+function ogranicenAutoDan(v: string): string {
+  const cifre = v.replace(/\D/g, "").slice(0, 2);
+  if (!cifre) return "";
+  const n = Number(cifre);
+  if (n === 0) return "";
+  return String(Math.min(n, MAX_AUTO_DAN));
 }
 
 function itemGross(it: ItemForm, applyVat: boolean): number {
@@ -202,7 +233,20 @@ export function PripremljeniRacuniModal({
     onSuccess: (res) => {
       invalidate();
       onInvoiced?.();
-      setBatchInfo(`Kreirano ${res.count} faktura.`);
+      // šabloni koje je automatika (ili ranije fakturisanje) već obradila u
+      // ovom periodu se preskaču, da kupac ne dobije dvije fakture za isti mjesec
+      const preskoceni = res.skipped ?? [];
+      const imena = preskoceni.map((s) => s.buyerName).filter(Boolean).join(", ");
+      setBatchInfo(
+        [
+          `Kreirano ${res.count} faktura.`,
+          preskoceni.length > 0
+            ? `Preskočeno ${preskoceni.length} već fakturisanih u ovom periodu${imena ? ` (${imena})` : ""}.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       setBatchOpen(false);
     },
     onError: (e: Error) => setBatchInfo(e?.message || String(e)),
@@ -264,23 +308,33 @@ export function PripremljeniRacuniModal({
       setFormErr("Dodajte barem jednu stavku sa nazivom i količinom.");
       return;
     }
+    const buyerEmail = form.buyerEmail.trim() || null;
+    if (form.autoEmail && !buyerEmail) {
+      setFormErr("Za automatsko slanje fakture unesite email adresu kupca.");
+      return;
+    }
     const body: PreparedPayload = {
       organizationId: orgId,
       partnerId: form.partnerId,
       frequency: form.frequency,
       active: form.active,
       applyVat: form.applyVat,
+      currency: form.currency,
+      vrstaIsporuke: form.vrstaIsporuke,
       buyer: {
         name: form.buyerName.trim(),
         idNumber: form.buyerIdNumber.trim() || null,
         vatNumber: form.buyerVatNumber.trim() || null,
         address: form.buyerAddress.trim() || null,
         city: form.buyerCity.trim() || null,
-        email: form.buyerEmail.trim() || null,
+        email: buyerEmail,
         phone: form.buyerPhone.trim() || null,
       },
       items,
       notes: form.notes.trim() || null,
+      autoDan: form.autoDan ? Number(form.autoDan) : null,
+      autoEmail: form.autoEmail && !!buyerEmail,
+      jezik: form.jezik,
     };
     saveMut.mutate({ id: form.id, body });
   }
@@ -341,6 +395,106 @@ export function PripremljeniRacuniModal({
                   wrapStyle={{ width: "100%" }}
                 />
               </div>
+              {/* automatsko fakturisanje: dnevni job pravi fakturu tog dana u
+                  mjesecu (kvartalno/godišnje u prvom mjesecu perioda) */}
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                  Automatski, dan u mjesecu (1-28)
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    className={`${fieldCls} w-[110px]`}
+                    inputMode="numeric"
+                    placeholder="ručno"
+                    value={form.autoDan}
+                    onChange={(e) => setForm({ ...form, autoDan: ogranicenAutoDan(e.target.value) })}
+                    disabled={form.frequency === "WEEKLY"}
+                    title={
+                      form.frequency === "WEEKLY"
+                        ? "Sedmični šabloni se fakturišu ručno"
+                        : `Najveći dan je ${MAX_AUTO_DAN}, da svaki mjesec ima taj datum`
+                    }
+                  />
+                  <label
+                    className="flex items-center gap-2 text-[12.5px] text-text-secondary"
+                    title={
+                      !form.buyerEmail.trim()
+                        ? "Prvo unesite email kupca"
+                        : !form.autoDan
+                          ? "Prvo unesite dan u mjesecu"
+                          : undefined
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-brand-600"
+                      checked={form.autoEmail}
+                      disabled={!form.autoDan || !form.buyerEmail.trim()}
+                      onChange={(e) => setForm({ ...form, autoEmail: e.target.checked })}
+                    />
+                    odmah pošalji kupcu emailom
+                  </label>
+                </div>
+                <p className="mt-1 text-[11px] text-text-tertiary">
+                  Najveći dan je {MAX_AUTO_DAN}, da ga ima svaki mjesec. Prazno
+                  polje znači da se fakturiše samo ručno.
+                  {!form.buyerEmail.trim()
+                    ? " Za automatsko slanje unesite email kupca."
+                    : ""}
+                </p>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                  Valuta
+                </div>
+                <PkSelect
+                  ariaLabel="Valuta"
+                  value={form.currency}
+                  onChange={(v) =>
+                    setForm({ ...form, currency: v === "EUR" ? "EUR" : "BAM" })
+                  }
+                  options={[
+                    { value: "BAM", label: "BAM (KM)" },
+                    { value: "EUR", label: "EUR" },
+                  ]}
+                  wrapStyle={{ width: "100%" }}
+                />
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                  Vrsta isporuke
+                </div>
+                <PkSelect
+                  ariaLabel="Vrsta isporuke"
+                  value={form.vrstaIsporuke}
+                  onChange={(v) =>
+                    setForm({
+                      ...form,
+                      vrstaIsporuke: (VRSTE as string[]).includes(String(v))
+                        ? (v as VrstaIsporuke)
+                        : "OPOREZIVA",
+                    })
+                  }
+                  options={VRSTE.map((v) => ({ value: v, label: VRSTA_ISPORUKE_LABEL[v] }))}
+                  wrapStyle={{ width: "100%" }}
+                />
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                  Jezik fakture
+                </div>
+                <PkSelect
+                  ariaLabel="Jezik fakture"
+                  value={form.jezik}
+                  onChange={(v) => setForm({ ...form, jezik: (v as FormState["jezik"]) || "bs" })}
+                  options={[
+                    { value: "bs", label: "Bosanski" },
+                    { value: "en", label: "Engleski" },
+                    { value: "bs-en", label: "Dvojezično (BS / EN)" },
+                  ]}
+                  wrapStyle={{ width: "100%" }}
+                />
+              </div>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
                   Kupac iz šifarnika
@@ -374,16 +528,38 @@ export function PripremljeniRacuniModal({
               </div>
             </div>
 
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
-                Naziv kupca
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                  Naziv kupca
+                </div>
+                <input
+                  value={form.buyerName}
+                  onChange={(e) => setForm({ ...form, buyerName: e.target.value })}
+                  placeholder="Naziv kupca (ili izaberi iz šifarnika)"
+                  className={`${fieldCls} w-full`}
+                />
               </div>
-              <input
-                value={form.buyerName}
-                onChange={(e) => setForm({ ...form, buyerName: e.target.value })}
-                placeholder="Naziv kupca (ili izaberi iz šifarnika)"
-                className={`${fieldCls} w-full`}
-              />
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
+                  Email kupca (za automatsko slanje)
+                </div>
+                <input
+                  value={form.buyerEmail}
+                  onChange={(e) => {
+                    const buyerEmail = e.target.value;
+                    setForm({
+                      ...form,
+                      buyerEmail,
+                      // bez adrese nema ni automatskog slanja
+                      autoEmail: buyerEmail.trim() ? form.autoEmail : false,
+                    });
+                  }}
+                  placeholder="kupac@primjer.ba"
+                  inputMode="email"
+                  className={`${fieldCls} w-full`}
+                />
+              </div>
             </div>
 
             {/* Stavke */}
@@ -714,7 +890,8 @@ export function PripremljeniRacuniModal({
             Kreira fakture za{" "}
             <strong className="text-text-primary">{aktivnih}</strong> aktivnih{" "}
             {FREQ_LABEL[tab].toLowerCase()} pripremljenih računa. Datum i dospijeće
-            vrijede za sve.
+            vrijede za sve. Šabloni koji su u ovom periodu već fakturisani (ručno
+            ili automatski) se preskaču.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
