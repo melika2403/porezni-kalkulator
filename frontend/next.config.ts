@@ -22,6 +22,32 @@ const nextConfig: NextConfig = {
     return [
       { source: "/blog", destination: "/vijesti", permanent: true },
       { source: "/blog/:slug", destination: "/vodici/:slug", permanent: true },
+
+      // /app/* na marketing domeni vodi na app subdomenu. Ovo je prije radio
+      // proxy.ts, ali on se sada izvrsava samo na app subdomeni pa bi ta
+      // grana bila mrtav kod i /app/* bi se servirao i sa marketing domene.
+      // Ovdje je i jeftinije: CDN pravilo, bez CPU-a.
+      //
+      // ":path*" trazi granicu segmenta i time popravlja bug iz proxy.ts,
+      // gdje je startsWith("/app") hvatao i /apple-app-site-association, pa
+      // ga replace(/^\/app/, "") sjekao u "le-app-site-association".
+      //
+      // `has` host ne poklapa localhost, pa dev ostaje nedirnut. Time se
+      // prirodno replicira stari NODE_ENV === "production" uslov.
+      // 307 (permanent: false), kao i stari NextResponse.redirect: raspored
+      // subdomena nije trajna odluka, a 308 bi se kesirao u browserima.
+      {
+        source: "/app",
+        has: [{ type: "host", value: "(www\\.)?poreznikalkulator\\.ba" }],
+        destination: "https://app.poreznikalkulator.ba/",
+        permanent: false,
+      },
+      {
+        source: "/app/:path*",
+        has: [{ type: "host", value: "(www\\.)?poreznikalkulator\\.ba" }],
+        destination: "https://app.poreznikalkulator.ba/:path*",
+        permanent: false,
+      },
     ];
   },
 };
