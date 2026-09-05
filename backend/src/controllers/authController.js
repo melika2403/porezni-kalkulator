@@ -653,7 +653,18 @@ async function verifyEmail(req, res) {
       }
     }
 
-    return res.status(200).json({ ok: true });
+    // Frontend (VerifyEmail) po ovome javi Meta pixelu start probe: ovo je
+    // jedini trenutak kad se proba iz registracije stvarno napravi, kasniji
+    // dolazak na /pretplate?officeTrial=auto je samo potvrda.
+    return res.status(200).json({
+      ok: true,
+      data: {
+        officeTrial: {
+          activated: officeTrialActivated,
+          plan: user.pkOfficeTrialPlan ?? null,
+        },
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return res.status(500).json({ ok: false, error: message });

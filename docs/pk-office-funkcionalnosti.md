@@ -2052,6 +2052,20 @@ Limit kreiranja organizacija je vezan za plan (Solo 1, Start 2; greška
 (bez anti-rotacije do 1. u mjesecu). Labela paketa je "PK Office Solo (1 obrt)",
 zamjena uz `officeMaxObrta` hvata i taj oblik.
 
+**Landing /solo (od 4.9.2026.).** Marketing stranica za obrtnika koji vodi sam
+(`sections/solo-landing`, isti CSS modul kao /pk-office, boje PK Office-a):
+hero, primjer Solo naslovnice sa listom obaveza, "Mjesec u četiri koraka",
+šta je u paketu, za koga je (i kad ipak treba knjigovođa), cijena sa
+kalkulatorom uštede (`SoloUsteda`, dijeljen sa reklamom na /freelancer), FAQ
+(`faq.ts`, isti tekst u FAQPage JSON-LD) i završni poziv. Dugme `SoloCta`
+bira odredište po stanju korisnika: gost ide na registraciju sa Solo probom,
+prijavljen bez probe odmah na Solo probu, korisnik sa probom ili paketom u
+app, potrošena proba na predračun. Klikovi se bilježe kao
+`OFFICE_SOLO_PROMO_KLIK` sa izvorom `solo-hero`, `solo-cijena`, `solo-dno`.
+Linkovi na /solo: navbar (Porezni obrasci), footer, sitemap, uvod PK Office
+sekcije na /pretplate, planLead na /pk-office i reklama SoloReklama. Meta
+reklame za Solo vode ovdje, ne na /pk-office.
+
 ## Tehnička bilješka (za razvoj, ne za tutorijal)
 
 - Parseri: `backend/src/services/bankStatements/` (engine + bank moduli

@@ -10,6 +10,7 @@ import {
   type FreelancerPristup,
 } from "src/api/freelancer";
 import { trackEvent } from "src/api/activity";
+import { fbqStartTrial } from "src/lib/metaPixel";
 import styles from "./FreelancerTrialCta.module.css";
 
 // PK Freelancer proba (30 dana), ZASEBNA od PK Office probe: svoj datum na
@@ -86,6 +87,7 @@ export default function FreelancerTrialCta({
     },
     onSuccess: () => {
       trackEvent("FREELANCER_PROBA_START", "cta");
+      fbqStartTrial("freelancer");
       qc.invalidateQueries({ queryKey: FREELANCER_QUERY_KEY });
       qc.invalidateQueries({ queryKey: ["me"] });
     },

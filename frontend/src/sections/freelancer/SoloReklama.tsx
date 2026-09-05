@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import type { ElementType } from "react";
 import { PLAN_PRICING, calcGross, formatKm } from "src/data/pricing";
 import { trackEvent } from "src/api/activity";
-import {
-  OFFICE_SOLO_TRIAL_ACTIVATE_URL,
-  OFFICE_SOLO_TRIAL_REGISTER_URL,
-  useOfficeTrial,
-} from "src/components/OfficeTrialCta/OfficeTrialCta";
+import { useProbaOdrediste } from "src/components/OfficeTrialCta/OfficeTrialCta";
+import SoloUsteda from "./SoloUsteda";
 import styles from "./freelancer.module.css";
 
 // Šta Solo pokriva umjesto knjigovođe. Tekst prati stvarne funkcije PK Office
@@ -22,13 +19,12 @@ const SOLO_FUNKCIJE = [
   "PK Freelancer uključen u paket",
 ];
 
-const PODRAZUMIJEVANO_MJESECNO = 100;
-
 /**
  * Reklama za PK Office Solo ispod cjenovnika PK Freelancera: za korisnika koji
  * ima obrt, pa mu honorar ide kroz obrt. Boje su PK Office-ove (tamnozelena i
  * terakota), namjerno drugačije od šljive, da se vidi da je to drugi proizvod.
- * Kalkulator uštede poredi godišnji trošak knjigovođe sa cijenom Sola sa PDV-om.
+ * Kalkulator uštede (SoloUsteda) poredi godišnji trošak knjigovođe sa cijenom
+ * Sola sa PDV-om; puna priča o Solu je na /solo.
  */
 export default function SoloReklama({
   kompaktno = false,
@@ -39,15 +35,21 @@ export default function SoloReklama({
   /** Odakle je reklama otvorena, za praćenje klikova u admin Aktivnosti. */
   izvor?: string;
 } = {}) {
-  const [mjesecno, setMjesecno] = useState(String(PODRAZUMIJEVANO_MJESECNO));
-  // gost ide na registraciju pa na Solo probu, prijavljen odmah na Solo probu
-  const { anonymous } = useOfficeTrial();
-  const probaHref = anonymous ? OFFICE_SOLO_TRIAL_REGISTER_URL : OFFICE_SOLO_TRIAL_ACTIVATE_URL;
-  const mjesecnoBroj = Number(mjesecno.replace(",", ".")) || 0;
-  const godisnjeKnjigovodja = mjesecnoBroj * 12;
+  // odredište dugmeta po stanju korisnika (gost na registraciju pa Solo probu,
+  // prijavljen odmah na probu, potrošena proba na predračun), isti hook kao /solo
+  const { vrsta, href: probaHref } = useProbaOdrediste("office_1");
+  const probaTekst =
+    vrsta === "app"
+      ? "Otvori PK Office"
+      : vrsta === "predracun"
+        ? "Zatraži predračun za Solo"
+        : vrsta === "cjenovnik"
+          ? "Pogledaj Solo u cjenovniku"
+          : null;
+  // app je na drugoj subdomeni u produkciji, pa pun <a>
+  const ProbaTag: ElementType = vrsta === "app" ? "a" : Link;
   const soloNeto = PLAN_PRICING.OFFICE_1.yearly;
   const soloBruto = calcGross(soloNeto);
-  const usteda = godisnjeKnjigovodja - soloBruto;
 
   // Bočna verzija (evidencija PK Freelancera): kratko, bez kalkulatora, stane
   // u usku kolonu desno od sadržaja. Puna verzija ostaje na landingu.
@@ -76,15 +78,15 @@ export default function SoloReklama({
           ))}
         </ul>
         <div className={styles.soloDugmad}>
-          <Link
+          <ProbaTag
             href={probaHref}
             className={styles.soloCta}
             onClick={() => trackEvent("OFFICE_SOLO_PROMO_KLIK", izvor)}
           >
-            Isprobaj 30 dana besplatno
-          </Link>
-          <Link href="/pretplate#pk-office" className={styles.soloLink}>
-            Svi PK Office paketi
+            {probaTekst ?? "Isprobaj 30 dana besplatno"}
+          </ProbaTag>
+          <Link href="/solo" className={styles.soloLink}>
+            Više o PK Office Solu
           </Link>
         </div>
       </section>
@@ -128,51 +130,19 @@ export default function SoloReklama({
         ))}
       </ul>
 
-      <div className={styles.soloUsteda}>
-        <label className={styles.soloUstedaUnos}>
-          <span>Koliko mjesečno plaćate knjigovođu?</span>
-          <span className={styles.soloUstedaPolje}>
-            <input
-              inputMode="numeric"
-              value={mjesecno}
-              onChange={(e) => setMjesecno(e.target.value.replace(/[^\d,.]/g, "").slice(0, 6))}
-              aria-label="Mjesečni trošak knjigovođe u KM"
-            />
-            <span>KM</span>
-          </span>
-        </label>
-        <div className={styles.soloUstedaRezultat}>
-          <div>
-            <span>Knjigovođa godišnje</span>
-            <strong>{formatKm(godisnjeKnjigovodja)} KM</strong>
-          </div>
-          <div>
-            <span>PK Office Solo godišnje</span>
-            <strong>{formatKm(soloBruto)} KM</strong>
-          </div>
-          <div className={styles.soloUstedaIznos}>
-            <span>{usteda >= 0 ? "Ušteda godišnje" : "Razlika godišnje"}</span>
-            <strong>{formatKm(Math.abs(usteda))} KM</strong>
-          </div>
-        </div>
-        <p className={styles.soloUstedaNapomena}>
-          Za obrt sa jednim vlasnikom, bez radnika i bez PDV-a, Solo pokriva sve što
-          knjigovođa radi mjesečno. Ako imate radnike ili robu, u Solu ih uključite kao
-          dodatne module, obračun je isti kao u punom PK Office-u.
-        </p>
-      </div>
+      <SoloUsteda />
 
       <div className={styles.soloDugmad}>
         {/* proba zatražena odavde je SOLO proba (jedan obrt), ne Office Tim */}
-        <Link
+        <ProbaTag
           href={probaHref}
           className={styles.soloCta}
           onClick={() => trackEvent("OFFICE_SOLO_PROMO_KLIK", izvor)}
         >
-          Isprobaj PK Office Solo 30 dana besplatno
-        </Link>
-        <Link href="/pretplate#pk-office" className={styles.soloLink}>
-          Svi PK Office paketi i cijene
+          {probaTekst ?? "Isprobaj PK Office Solo 30 dana besplatno"}
+        </ProbaTag>
+        <Link href="/solo" className={styles.soloLink}>
+          Više o PK Office Solu
         </Link>
       </div>
     </section>

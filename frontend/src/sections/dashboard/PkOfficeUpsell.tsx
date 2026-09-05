@@ -25,6 +25,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePkOfficeMe, usePkOfficePristup } from "src/hooks/usePkOfficeMe";
 import { startPkOfficeTrial } from "src/api/pkOffice";
+import { fbqStartTrial } from "src/lib/metaPixel";
 import { getInvoices, subscriptionInvoicePdfUrl } from "src/api/subscription";
 import { unwrap } from "src/api/auth";
 import { OFFICE_PLANS, PLAN_PRICING, formatKm } from "src/data/pricing";
@@ -133,7 +134,8 @@ export function PkOfficeUpsell() {
     setTrialBusy(true);
     setTrialError(null);
     try {
-      await unwrap(startPkOfficeTrial());
+      const proba = await unwrap(startPkOfficeTrial());
+      fbqStartTrial(proba?.trialPlan);
       // pristup se mijenja → app se otvara
       await qc.invalidateQueries({ queryKey: ["pk-office", "pristup"] });
     } catch (e) {

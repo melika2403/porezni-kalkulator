@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IconInbox,
@@ -21,6 +22,7 @@ import {
   OFFICE_TRIAL_REGISTER_URL,
 } from "src/components/OfficeTrialCta/OfficeTrialCta";
 import { objaviTrialAktiviran } from "src/components/TrialToast/TrialToast";
+import { fbqStartTrial, fbqTrack } from "src/lib/metaPixel";
 import styles from "./pretplate.module.css";
 import {
   createPredracun,
@@ -214,6 +216,7 @@ export default function Pretplate() {
     setTrialStatus("done");
     // potvrda i kad je korisnik doskrolao do PK Office sekcije
     objaviTrialAktiviran(res.data?.trialEndsAt ?? null);
+    fbqStartTrial(res.data?.trialPlan);
     await queryClient.invalidateQueries({ queryKey: ["me"] });
   };
 
@@ -254,11 +257,14 @@ export default function Pretplate() {
     officeTrialRef.current = true;
     void (async () => {
       // ?trialPlan=solo (blok Solo na /freelancer): proba na nivou Sola
-      const res = await startPkOfficeTrial(
-        params.get("trialPlan") === "solo" ? "office_1" : null,
-      );
+      const solo = params.get("trialPlan") === "solo";
+      const res = await startPkOfficeTrial(solo ? "office_1" : null);
       if (res.ok) {
         setOfficeTrialStatus("done");
+        // proba je stvarno napravljena ovdje (npr. Google registracija); probu
+        // aktiviranu pri verifikaciji maila pixelu javlja VerifyEmail, a
+        // TRIAL_ALREADY_USED ispod je samo potvrda postojeće probe, ne konverzija
+        fbqStartTrial(res.data?.trialPlan);
         return;
       }
       if (res.error === "ALREADY_SUBSCRIBED") {
@@ -419,6 +425,13 @@ export default function Pretplate() {
     setLastUrl(res.pdfUrl);
     setResultNumber(res.fullNumber);
     setStatus("done");
+    // Meta konverzija: zatražen predračun je korak prije uplate
+    fbqTrack("InitiateCheckout", {
+      content_name: selected,
+      content_category: cycle,
+      value: iznosiZaPlan(selected, cycle).gross,
+      currency: "BAM",
+    });
     // otvori PDF u novom tabu odmah
     window.open(res.pdfUrl, "_blank", "noopener");
   };
@@ -675,8 +688,11 @@ export default function Pretplate() {
             Kompletno knjigovodstvo obrta. Cijena po broju obrta.
           </h2>
           <p className={styles.officeLead}>
-            <strong>Office Solo</strong> je za obrtnika koji vodi knjige sam
-            sebi (jedan obrt, jednostavan meni i mjesečna lista obaveza),{" "}
+            <Link href="/solo" className={styles.officeLeadLink}>
+              <strong>Office Solo</strong>
+            </Link>{" "}
+            je za obrtnika koji vodi knjige sam sebi (jedan obrt, jednostavan
+            meni i mjesečna lista obaveza),{" "}
             <strong>Office Start</strong> daje sve funkcije za do 2 obrta, a
             paketi <strong>Tim i veći</strong> uz PK Office knjigovodstvo
             uključuju i <strong>kompletan Business bez ograničenja</strong>{" "}
