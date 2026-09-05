@@ -10,6 +10,7 @@ import FreelancerTrialCta, {
   useFreelancerPristup,
 } from "src/components/FreelancerTrialCta/FreelancerTrialCta";
 import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
+import { fbqTrack } from "src/lib/metaPixel";
 import styles from "./ams.module.css";
 import { fillAmsTemplate, type AmsData } from "./fillAms";
 import {
@@ -337,6 +338,10 @@ export default function AmsForm() {
         `AMS-1035_${periodMjesec || "XX"}_${parsedYear ?? "XXXX"}.pdf`,
       );
       trackEvent("AMS_GENERATE", "AMS-1035");
+      // Meta: generisan AMS = kvalifikovan posjetilac za Freelancer kampanje
+      // (retargeting ko je preuzeo obrazac, a nema paket); pretplatnik i
+      // korisnik na probi već imaju paket pa se ne broje
+      if (!frlPristup) fbqTrack("Lead", { content_name: "AMS-1035" });
       // PK Freelancer: preuzet obrazac = upisana uplata (poslije preuzimanja,
       // da greška upisa nikad ne zaustavi PDF)
       upisiAkoTreba();

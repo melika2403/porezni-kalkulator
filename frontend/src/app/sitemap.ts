@@ -26,6 +26,7 @@ const ROUTES: { path: string; priority: number; changeFrequency: MetadataRoute.S
   { path: "/cesije-i-kompenzacije", priority: 0.8, changeFrequency: "monthly" },
   { path: "/clanske-kartice", priority: 0.7, changeFrequency: "monthly" },
   { path: "/pk-office", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/solo", priority: 0.8, changeFrequency: "monthly" },
   { path: "/pretplate", priority: 0.6, changeFrequency: "monthly" },
   { path: "/fakture", priority: 0.8, changeFrequency: "monthly" },
   { path: "/fakture/nova", priority: 0.8, changeFrequency: "monthly" },

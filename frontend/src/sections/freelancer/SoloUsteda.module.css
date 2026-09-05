@@ -1,0 +1,80 @@
+/* Kalkulator uštede PK Office Sola: tamna podloga (kartica #14241b), bijeli
+   tekst, terakota za iznos uštede. Zaseban modul da /solo ne učitava cijeli
+   freelancer.module.css radi ovih pravila. */
+.usteda {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: #fff;
+}
+.unos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.polje {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.polje input {
+  width: 92px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: right;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.polje input:focus {
+  outline: none;
+  border-color: #e08a52;
+  box-shadow: 0 0 0 3px rgba(224, 138, 82, 0.25);
+}
+.rezultat {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.rezultat > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rezultat span {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+.rezultat strong {
+  font-family: "DM Serif Display", serif;
+  font-weight: 400;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+.iznos strong {
+  color: #e08a52;
+}
+.napomena {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  line-height: 1.45;
+}
+@media (max-width: 720px) {
+  .rezultat {
+    grid-template-columns: 1fr;
+  }
+}

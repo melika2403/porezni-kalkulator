@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { trackEvent } from "src/api/activity";
-import { OFFICE_PLANS, PLAN_PRICING, calcGross, formatKm } from "src/data/pricing";
+import { OFFICE_PLANS, PLAN_PRICING, calcGross, formatKmOkruglo as km } from "src/data/pricing";
 import {
-  OFFICE_SOLO_TRIAL_ACTIVATE_URL,
-  OFFICE_SOLO_TRIAL_REGISTER_URL,
-  OFFICE_TRIAL_ACTIVATE_URL,
-  OFFICE_TRIAL_REGISTER_URL,
   useOfficeTrial,
+  useProbaOdrediste,
+  type ProbaOdrediste,
 } from "src/components/OfficeTrialCta/OfficeTrialCta";
 import styles from "./OfficeSidebarPromo.module.css";
 
@@ -24,9 +22,6 @@ import styles from "./OfficeSidebarPromo.module.css";
 // terakota), iste kao PkOfficePromo i SoloReklama, da ne nastane treći stil.
 // Cijene se vuku iz cjenovnika (src/data/pricing), pa prate svaku promjenu.
 
-const SVI_PAKETI_URL = "/pretplate#pk-office";
-const SOLO_PAKET_URL = "/pretplate?plan=OFFICE_1";
-
 type Blok = "solo" | "tim";
 type Stranica = "spr" | "gpd";
 
@@ -34,9 +29,6 @@ const DOGADJAJ: Record<Blok, string> = {
   solo: "OFFICE_SOLO_PROMO_KLIK",
   tim: "OFFICE_PROMO_KLIK",
 };
-
-// "100" umjesto "100,00": cijene su okrugle, decimale bi samo smetale
-const km = (n: number) => formatKm(n).replace(/,00$/, "");
 
 const tim = OFFICE_PLANS.find((p) => p.id === "OFFICE_10")!;
 const soloNeto = PLAN_PRICING.OFFICE_1.yearly;
@@ -141,33 +133,28 @@ function Strelica() {
 }
 
 export default function OfficeSidebarPromo({ stranica }: { stranica: Stranica }) {
-  const { isLoading, anonymous, available, paidPlan, used, officeAktivan, trialActive } =
-    useOfficeTrial();
+  const { isLoading, officeAktivan, trialActive } = useOfficeTrial();
+  // kud vodi dugme po stanju korisnika: isti hook kao /solo i SoloReklama
+  // (gost i prijavljen bez paketa na probu, potrošena proba na predračun,
+  // Pro/Business na cjenovnik); Solo blok na Solo probu, knjigovođe na Tim
+  const odrediste: Record<Blok, ProbaOdrediste> = {
+    solo: useProbaOdrediste("office_1"),
+    tim: useProbaOdrediste(null),
+  };
 
   // pretplatnik PK Office-a i korisnik na Office probi ne trebaju reklamu za
   // ono što već imaju; bivši pretplatnik (istekao paket) je opet vidi
   if (isLoading || officeAktivan || trialActive) return null;
 
-  // šta dugme nudi: gost i prijavljen bez paketa idu na probu (Solo blok na
-  // Solo probu, knjigovođe na Tim); ko je probu potrošio traži predračun;
-  // Pro/Business pretplatniku se proba ne gura (vidi useOfficeTrial), on
-  // gleda pakete
   const cta = (blok: Blok) => {
-    const paket = blok === "solo" ? SOLO_PAKET_URL : SVI_PAKETI_URL;
-    if (anonymous) {
-      return {
-        tekst: "Isprobaj 30 dana besplatno",
-        href: blok === "solo" ? OFFICE_SOLO_TRIAL_REGISTER_URL : OFFICE_TRIAL_REGISTER_URL,
-      };
-    }
-    if (used) return { tekst: "Zatraži predračun", href: paket };
-    if (available && !paidPlan) {
-      return {
-        tekst: "Isprobaj 30 dana besplatno",
-        href: blok === "solo" ? OFFICE_SOLO_TRIAL_ACTIVATE_URL : OFFICE_TRIAL_ACTIVATE_URL,
-      };
-    }
-    return { tekst: "Pogledaj pakete i cijene", href: paket };
+    const o = odrediste[blok];
+    const tekst =
+      o.vrsta === "predracun"
+        ? "Zatraži predračun"
+        : o.vrsta === "cjenovnik"
+          ? "Pogledaj pakete i cijene"
+          : "Isprobaj 30 dana besplatno";
+    return { tekst, href: o.href };
   };
 
   const klik = (blok: Blok, mjesto: "sidebar" | "traka") => () =>

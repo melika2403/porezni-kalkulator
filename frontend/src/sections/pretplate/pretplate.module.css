@@ -1269,3 +1269,15 @@ button.officeTrialBtn:disabled {
 .featuredFreelancer .popularTag {
   background: var(--plum-mid);
 }
+
+/* veza "Office Solo" u uvodu PK Office sekcije vodi na /solo */
+.officeLeadLink {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--border, #d4cfc4);
+}
+.officeLeadLink:hover {
+  color: var(--ink, #0f1a12);
+  text-decoration-color: currentColor;
+}

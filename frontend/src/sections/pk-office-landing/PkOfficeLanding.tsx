@@ -20,16 +20,11 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { LandingCta } from "./LandingCta";
+import { FeatGrid, type FeatItem } from "./FeatGrid";
 import { OfficeTrialLink } from "src/components/OfficeTrialLink/OfficeTrialLink";
 import styles from "./pkOffice.module.css";
 
-const FEATURES: {
-  icon: typeof IconInbox;
-  name: string;
-  desc: string;
-  /** Kartica preko cijelog reda (popunjava zadnji red 3-kolonskog grida). */
-  wide?: boolean;
-}[] = [
+const FEATURES: FeatItem[] = [
   {
     icon: IconInbox,
     name: "Grupni uvoz izvoda",
@@ -435,25 +430,7 @@ export default function PkOfficeLanding() {
         <p className={styles.featuresSub}>
           Sve što obrtu treba za knjige i obaveze, povezano i automatizovano.
         </p>
-        <div className={styles.featGrid}>
-          {FEATURES.map((f) => {
-            const Icon = f.icon;
-            return (
-              <div
-                key={f.name}
-                className={
-                  f.wide ? `${styles.feat} ${styles.featWide}` : styles.feat
-                }
-              >
-                <span className={styles.featIcon}>
-                  <Icon size={20} />
-                </span>
-                <p className={styles.featName}>{f.name}</p>
-                <p className={styles.featDesc}>{f.desc}</p>
-              </div>
-            );
-          })}
-        </div>
+        <FeatGrid items={FEATURES} />
         {/* Sitna napomena o fiskalizaciji, da očekivanja budu jasna */}
         <p className={styles.featNapomena}>
           Napomena: PK Office nema integraciju sa fiskalnim kasama i ne
@@ -467,19 +444,15 @@ export default function PkOfficeLanding() {
       <section className={styles.plan}>
         <div className={styles.planCard}>
           <span className={styles.planBadge}>
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "#fff",
-              }}
-            />
+            <span className={styles.planBadgeDot} />
             Paketi
           </span>
           <h2>Sve funkcije. Cijena po broju obrta.</h2>
           <p className={styles.planLead}>
-            Office Solo je za obrtnika koji vodi knjige sam sebi, Office Start
+            <Link href="/solo" className={styles.planLeadLink}>
+              Office Solo
+            </Link>{" "}
+            je za obrtnika koji vodi knjige sam sebi, Office Start
             pokriva sve za do 2 obrta, a paketi Tim i veći uz PK Office
             uključuju i kompletan Business bez ograničenja. Biraš samo koliko
             obrta vodiš.

@@ -22,7 +22,8 @@ Zadatak: dodaj funkciju **"Uvezi iz fajla"** na stranicu "Novi tekst".
   "slug": "string (opciono)",
   "sazetak": "string, 80-300 znakova",
   "tekst_html": "string, HTML sa dozvoljenim tagovima: p, h2, h3, ul, ol, li, strong, em, a, blockquote",
-  "rubrika": "jedna od: Propisi i izmjene | Porezi i doprinosi | Plate i radnici | PDV | Obrti i knjige",
+  "vrsta": "vijest | vodic (opciono, default vijest; vidi dopunu na dnu)",
+  "rubrika": "jedna od: Propisi i izmjene | Porezi i doprinosi | Plate i radnici | PDV | Obrti i knjige | Vodiči",
   "tagovi": "string, tagovi odvojeni zarezom",
   "prikazi_u_rijeci_vijesti": true,
   "pozicija_na_naslovnoj": "string, tekst opcije u selectu",
@@ -53,3 +54,14 @@ Zadatak: dodaj funkciju **"Uvezi iz fajla"** na stranicu "Novi tekst".
 ## Testiranje
 
 U projektu je `clanak-primjer.json` sa pravim podacima i pravom base64 slikom. Testiraj: uvezi ga, provjeri da su sva polja popunjena, da je slika postavljena sa alt opisom, da checklist "Provjera prije objave" pokazuje ispravno stanje, i da Sačuvaj pravi normalan nacrt. Testiraj i greške: fajl koji nije JSON, JSON bez `format` polja, JSON bez slike.
+
+---
+
+## Dopuna 4.9.2026: vodiči kroz isti uvoz
+
+Isti fajl "pk-vijest" v1 sada može donijeti i vodič:
+
+- `"vrsta": "vodic"` postavlja Vrstu na **Vodič** (stalna stranica na `/vodici/<slug>`, semafor traži najmanje 1200 riječi) i rubriku na **Vodiči** ako `rubrika` nije navedena. Bilo šta drugo osim `"vijest"` i `"vodic"` daje upozorenje i ostaje Vijest.
+- `"rubrika"` prima i `Vodiči` (uz postojećih pet).
+- `"sljedeca_provjera": "GGGG-MM-DD"` (samo vodič) puni polje **Sljedeća provjera**, datum kad treba provjeriti stope i iznose u tekstu.
+- Prvi vodič u ovom formatu (honorar iz inostranstva, AMS-1035) napravljen je 4.9.2026. i čuva se van repozitorija, u folderu `pk-reklame/vodic-ams` na Desktopu vlasnika; naslovna slika je JPG 1200x675 u base64, kao i kod vijesti.

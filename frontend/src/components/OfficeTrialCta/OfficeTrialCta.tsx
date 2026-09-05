@@ -19,6 +19,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 import { startPkOfficeTrial } from "src/api/pkOffice";
 import { objaviTrialAktiviran } from "src/components/TrialToast/TrialToast";
+import { fbqStartTrial } from "src/lib/metaPixel";
+import { PK_OFFICE_DASHBOARD_URL } from "src/lib/pkOfficeUrl";
 import styles from "./OfficeTrialCta.module.css";
 
 export const OFFICE_TRIAL_ACTIVATE_URL = "/pretplate?officeTrial=auto";
@@ -30,6 +32,10 @@ export const OFFICE_SOLO_TRIAL_REGISTER_URL = `/registracija?next=${encodeURICom
 export const OFFICE_TRIAL_REGISTER_URL = `/registracija?next=${encodeURIComponent(
   OFFICE_TRIAL_ACTIVATE_URL,
 )}`;
+// Cjenovnik sa predselektovanim Solo paketom (predračun jedan klik); #pk-office
+// je bitan, bez njega /pretplate ne skroluje na PK Office sekciju.
+export const OFFICE_SOLO_CJENOVNIK_URL = "/pretplate?plan=OFFICE_1#pk-office";
+export const OFFICE_CJENOVNIK_URL = "/pretplate#pk-office";
 
 /** Stanje probe za trenutnog korisnika (bez dodatnog zahtjeva, dijeli ["me"]). */
 export function useOfficeTrial() {
@@ -84,6 +90,38 @@ export function useOfficeTrial() {
     paidPlan,
     href: anonymous ? OFFICE_TRIAL_REGISTER_URL : OFFICE_TRIAL_ACTIVATE_URL,
   };
+}
+
+export type ProbaOdrediste = {
+  /** Šta dugme radi za ovog korisnika; tekst dugmeta bira komponenta. */
+  vrsta: "registracija" | "proba" | "app" | "predracun" | "cjenovnik";
+  href: string;
+  isLoading: boolean;
+};
+
+/**
+ * Jedno mjesto za pitanje "kud vodi dugme za probu": gost (i SSR) na
+ * registraciju sa probom, prijavljen bez probe odmah na probu, korisnik sa
+ * probom ili paketom u app, potrošena proba na predračun, Pro/Business
+ * pretplatnik na cjenovnik (proba mu se ne gura, vidi useOfficeTrial).
+ * plan "office_1" = Solo proba i Solo cjenovnik, inače opšta proba (Tim).
+ * Koriste ga /solo (SoloCta), reklama uz SPR/GPD i SoloReklama.
+ */
+export function useProbaOdrediste(plan: "office_1" | null = null): ProbaOdrediste {
+  const s = useOfficeTrial();
+  const solo = plan === "office_1";
+  const registracija = solo ? OFFICE_SOLO_TRIAL_REGISTER_URL : OFFICE_TRIAL_REGISTER_URL;
+  const proba = solo ? OFFICE_SOLO_TRIAL_ACTIVATE_URL : OFFICE_TRIAL_ACTIVATE_URL;
+  const cjenovnik = solo ? OFFICE_SOLO_CJENOVNIK_URL : OFFICE_CJENOVNIK_URL;
+  if (s.isLoading || s.anonymous) {
+    return { vrsta: "registracija", href: registracija, isLoading: s.isLoading };
+  }
+  if (s.officeAktivan || s.trialActive) {
+    return { vrsta: "app", href: PK_OFFICE_DASHBOARD_URL, isLoading: false };
+  }
+  if (s.used) return { vrsta: "predracun", href: cjenovnik, isLoading: false };
+  if (s.paidPlan || !s.available) return { vrsta: "cjenovnik", href: cjenovnik, isLoading: false };
+  return { vrsta: "proba", href: proba, isLoading: false };
 }
 
 function BriefcaseIcon({ size = 22 }: { size?: number }) {
@@ -149,6 +187,9 @@ export default function OfficeTrialCta({
     onSuccess: async (data) => {
       setGreska(null);
       objaviTrialAktiviran(data?.trialEndsAt ?? null);
+      // Meta konverzija: nivo probe iz odgovora servera (Solo zatražen pri
+      // registraciji važi i kad je ovo dugme opšte)
+      fbqStartTrial(data?.trialPlan ?? plan);
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (e: Error) => {

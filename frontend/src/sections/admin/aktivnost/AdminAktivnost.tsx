@@ -94,6 +94,9 @@ const IZVOR_LABELS: Record<string, string> = {
   "gpd-traka": "traka ispod GPD obrasca",
   freelancer: "stranica PK Freelancer",
   landing: "landing stranica",
+  "solo-hero": "stranica /solo, vrh",
+  "solo-cijena": "stranica /solo, cijena",
+  "solo-dno": "stranica /solo, dno",
 };
 
 function actionLabel(action: string) {

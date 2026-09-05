@@ -101,8 +101,13 @@ export function register(payload: RegisterPayload) {
   });
 }
 
+/** Odgovor verifikacije nosi je li proba iz registracije upravo aktivirana (Meta StartTrial). */
+export type VerifyEmailData = {
+  officeTrial?: { activated: boolean; plan: "office_1" | null };
+} | null;
+
 export function verifyEmail(token: string) {
-  return request<null>(
+  return request<VerifyEmailData>(
     `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
     {
       method: "GET",

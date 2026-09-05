@@ -441,6 +441,17 @@
   margin: 0 auto;
   max-width: 50ch;
 }
+/* veza unutar uvoda na tamnoj kartici (Office Solo -> /solo) */
+.planLeadLink {
+  color: #fff;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.45);
+  text-underline-offset: 2px;
+}
+.planLeadLink:hover {
+  text-decoration-color: #fff;
+}
 .planFeatures {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -614,4 +625,39 @@
   .windowUrl {
     display: none;
   }
+}
+
+/* ── Dijeljeno sa /solo (isti modul, bez inline layout stilova) ── */
+.planBadgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+/* KPI red kad stoji ispod liste (Solo naslovnica), ne iznad nje */
+.kpiGridPoslijeListe {
+  margin-top: 1.25rem;
+  margin-bottom: 0;
+}
+/* čip statusa poravnat u redu liste, ne ispod naslova */
+.catChipURedu {
+  margin-top: 0;
+}
+.statusOk {
+  background: #d6e8d9;
+  color: #2d6e54;
+}
+.statusCeka {
+  background: #f7e9df;
+  color: #c8622a;
+}
+/* kalkulator uštede unutar tamne cjenovne kartice */
+.ustedaOkvir {
+  max-width: 660px;
+  margin: 1.75rem auto 0;
+  text-align: left;
+}
+/* sekcija bez gornjeg razmaka (FAQ odmah ispod cjenovne kartice) */
+.featuresBezVrha {
+  padding-top: 0;
 }
