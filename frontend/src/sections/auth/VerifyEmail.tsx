@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import styles from './auth.module.css';
 import { verifyEmail } from 'src/api/auth';
+import { fbqStartTrial } from 'src/lib/metaPixel';
 
 type State = 'loading' | 'success' | 'error' | 'no-token';
 
@@ -32,6 +33,11 @@ export default function VerifyEmail() {
     verifyEmail(token).then((res) => {
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ['me'] });
+        // Proba iz registracije (wantsOfficeTrial) nastaje upravo ovdje, pa se
+        // Meta konverzija javlja jednom, sa nivoom koji je backend upisao.
+        if (res.data?.officeTrial?.activated) {
+          fbqStartTrial(res.data.officeTrial.plan);
+        }
         // Pročitaj sačuvani next iz Register flow-a (anonimni je krenuo iz
         // paywall-a sa ?next=/pretplate?trial=1 i sl.). Inače padni na /profil.
         let next = '/profil';

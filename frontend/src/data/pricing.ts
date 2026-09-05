@@ -107,3 +107,8 @@ export function formatKm(n: number): string {
     .replace(".", ",")
     .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
+
+/** "100" umjesto "100,00" za okrugle cijene u reklamama i cjenovniku. */
+export function formatKmOkruglo(n: number): string {
+  return formatKm(n).replace(/,00$/, "");
+}

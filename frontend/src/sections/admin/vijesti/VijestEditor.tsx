@@ -110,6 +110,8 @@ type UvozJson = {
   izvorna_objava?: unknown;
   prioritet?: unknown;
   zakazi_objavu?: unknown;
+  /** samo vodič: datum sljedeće provjere stopa i iznosa (GGGG-MM-DD) */
+  sljedeca_provjera?: unknown;
 };
 
 const UVOZ_TAGOVI = new Set([
@@ -190,6 +192,21 @@ function mapirajPoziciju(v: unknown): VijestPozicija | null {
       t.startsWith(x.naziv.toLowerCase()),
   );
   return p ? p.id : null;
+}
+
+/** Vrsta iz fajla: "vijest" ili "vodic" (i "vodič"); null = nepoznata vrijednost. */
+const VRSTE: Record<string, VijestTip> = { vijest: "VIJEST", vodic: "VODIC", "vodič": "VODIC" };
+function mapirajTip(v: unknown): VijestTip | null {
+  return VRSTE[String(v ?? "").trim().toLowerCase()] ?? null;
+}
+
+/** Datum GGGG-MM-DD koji zaista postoji (2026-13-45 prolazi regex, ali ne i ovo). */
+function valjanIsoDatum(s: string): boolean {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const [g, mj, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(g, mj - 1, d);
+  return dt.getFullYear() === g && dt.getMonth() === mj - 1 && dt.getDate() === d;
 }
 
 function tekstIzHtml(html: string): string {
@@ -515,8 +532,17 @@ export default function VijestEditor({ id }: { id: string }) {
   async function primijeniUvoz(j: UvozJson) {
     const upozorenja: string[] = [];
 
-    if (j.vrsta != null && String(j.vrsta).toLowerCase() !== "vijest") {
+    // vrsta "vijest" (default) ili "vodic": vodič je stalna stranica na /vodici,
+    // traži najmanje 1200 riječi i ide u rubriku Vodiči ako fajl ne kaže drugo.
+    // Objavljenom tekstu se vrsta ne mijenja (kao ni slug): promjena bi ga
+    // preselila između /vijesti i /vodici i slomila indeksiranu adresu.
+    const tipIzFajla = j.vrsta == null ? "VIJEST" : mapirajTip(j.vrsta);
+    if (j.vrsta != null && !tipIzFajla) {
       upozorenja.push(`vrsta "${String(j.vrsta)}" nije podržana, postavljena je Vijest`);
+    }
+    const tip: VijestTip = status === "OBJAVLJEN" ? s.tip : (tipIzFajla ?? "VIJEST");
+    if (status === "OBJAVLJEN" && tipIzFajla && tipIzFajla !== s.tip) {
+      upozorenja.push("vrsta se objavljenom tekstu ne mijenja, ostala je kakva je bila");
     }
     const rubrika = mapirajRubriku(j.rubrika);
     if (j.rubrika != null && !rubrika) {
@@ -529,14 +555,31 @@ export default function VijestEditor({ id }: { id: string }) {
 
     const sadrzaj = sanitizujHtmlUvoza(String(j.tekst_html ?? ""));
 
+    // samo vodič nosi datum sljedeće provjere (GGGG-MM-DD); neispravan datum ili
+    // datum uz vijest daje upozorenje kao i ostala polja, ne gubi se tiho
+    let sljedecaProvjera: string | null = null;
+    const provjeraIzFajla = String(j.sljedeca_provjera ?? "").trim();
+    if (provjeraIzFajla) {
+      if (tip !== "VODIC") {
+        upozorenja.push("sljedeca_provjera vrijedi samo za vodič, zanemarena je");
+      } else if (!valjanIsoDatum(provjeraIzFajla)) {
+        upozorenja.push(
+          `sljedeca_provjera "${provjeraIzFajla}" nije datum u obliku GGGG-MM-DD, upiši ga ručno`,
+        );
+      } else {
+        sljedecaProvjera = provjeraIzFajla;
+      }
+    }
+
     setS((prev) => ({
       ...prev,
-      tip: "VIJEST",
+      tip,
       naslov: String(j.naslov ?? ""),
       nadnaslov: String(j.nadnaslov ?? ""),
       sazetak: String(j.sazetak ?? ""),
       sadrzaj,
-      rubrika: rubrika ?? prev.rubrika,
+      rubrika: rubrika ?? (tip === "VODIC" ? "vodici" : prev.rubrika),
+      datumProvjere: sljedecaProvjera ?? prev.datumProvjere,
       tagovi: String(j.tagovi ?? ""),
       autorPotpis: String(j.potpis_autora ?? ""),
       izvorPropisa: String(j.izvor_propisa ?? ""),

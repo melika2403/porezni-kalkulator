@@ -30,6 +30,7 @@ const FUNCTION_GROUPS: MenuGroup[] = [
       { label: 'ZO3', href: '/zo3', desc: 'Zdravstveno osiguranje' },
       { label: 'AMS-1035', href: '/ams', desc: 'Akontacija poreza po odbitku' },
       { label: 'PK Freelancer', href: '/freelancer', desc: 'Evidencija honorara iz inostranstva, AMS i GPD' },
+      { label: 'PK Office Solo', href: '/solo', desc: 'Vodi obrt sam, bez knjigovođe' },
     ],
   },
   {
