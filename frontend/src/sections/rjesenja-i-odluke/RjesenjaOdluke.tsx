@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LuFileText, LuFileDown } from "react-icons/lu";
@@ -32,6 +33,7 @@ import { formatMoneyLive, formatMoneyBlur } from "src/lib/format";
 import type { RjesenjeComposed } from "./shared/composed";
 import { fillRjesenjePdf } from "./shared/fillRjesenjePdf";
 import { fillRjesenjeDocx } from "./shared/fillRjesenjeDocx";
+import { ucitajMemorandum } from "./shared/memorandum";
 import { composeGo } from "./godisnji-odmor/compose";
 import { composeRegres } from "./regres/compose";
 import { composePrigodnaNagrada } from "./prigodna-nagrada/compose";
@@ -978,11 +980,15 @@ export default function RjesenjaOdluke() {
         : imeRadnikaDativ.split(" ").pop() || "radnik";
       const last = sufiksIzvor.replace(/[^\p{L}\p{N}_-]/gu, "");
       const filename = `${cfg.file}_${last}.${kind}`;
+      // Memorandum odabrane organizacije (Postavke organizacije) ide u
+      // zaglavlje umjesto naziva, adrese i grada, isto kao na platnoj listi.
+      // Bez odabrane organizacije ili bez memoranduma ostaje tekstualno zaglavlje.
+      const memorandum = await ucitajMemorandum(orgQuery.data?.memorandumUrl);
       let blob: Blob;
       if (kind === "docx") {
-        blob = await fillRjesenjeDocx(composed);
+        blob = await fillRjesenjeDocx(composed, { memorandum });
       } else {
-        const bytes = await fillRjesenjePdf(composed);
+        const bytes = await fillRjesenjePdf(composed, { memorandum });
         blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       }
       downloadBlob(blob, filename);
@@ -1136,6 +1142,13 @@ export default function RjesenjaOdluke() {
                 />
               </div>
             </div>
+            {orgQuery.data?.memorandumUrl && (
+              <p className={styles.hint}>
+                Organizacija ima memorandum (Postavke organizacije): on ide u
+                zaglavlje dokumenta umjesto naziva, adrese i grada, isto kao na
+                platnoj listi.
+              </p>
+            )}
           </section>
 
           {/* Radnik (akti firme, npr. blagajnički maksimum, nemaju radnika) */}
@@ -2335,27 +2348,27 @@ export default function RjesenjaOdluke() {
             </h2>
             <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
               <li>
-                <a href="/ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <Link href="/ugovor-o-radu" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   Ugovor o radu i otkaz
-                </a>
+                </Link>
                 , zasnivanje i prestanak radnog odnosa sa auto-numeracijom.
               </li>
               <li>
-                <a href="/prijave-radnika" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <Link href="/prijave-radnika" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   JS3100, prijava/odjava radnika
-                </a>
+                </Link>
                 , prijava u PIO/MIO i Zavod zdravstvenog osiguranja.
               </li>
               <li>
-                <a href="/prijave-radnika?tab=obracun" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <Link href="/prijave-radnika?tab=obracun" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   Obračun plata
-                </a>
+                </Link>
                 , mjesečni obračun plata, doprinosa i poreza.
               </li>
               <li>
-                <a href="/aktivni-radnici" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <Link href="/aktivni-radnici" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   Aktivni radnici
-                </a>
+                </Link>
                 , centralni pregled radnika i dosije dokumenata.
               </li>
             </ul>
@@ -2364,15 +2377,15 @@ export default function RjesenjaOdluke() {
             </h2>
             <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.9 }}>
               <li>
-                <a href="/vodici/topli-obrok-regres-fbih-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <Link href="/vodici/topli-obrok-regres-fbih-2026" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   Topli obrok i regres u FBiH
-                </a>
+                </Link>
                 , neoporezivi iznosi i kako se isplaćuju.
               </li>
               <li>
-                <a href="/vodici/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
+                <Link href="/vodici/otkaz-radnika-fbih" style={{ color: "var(--sage)", fontWeight: 600 }}>
                   Otkaz radnika u FBiH
-                </a>
+                </Link>
                 , razlozi, otkazni rokovi i postupak.
               </li>
             </ul>

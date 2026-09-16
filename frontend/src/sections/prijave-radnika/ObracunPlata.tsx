@@ -90,11 +90,7 @@ import {
   type Gip1022XmlObrazac,
   type Gip1022XmlRow,
 } from "./gip1022Xml";
-import {
-  generateMip1023Xml,
-  type Mip1023XmlData,
-  type Mip1023XmlWorker,
-} from "./mip1023Xml";
+import { buildMip1023Xml } from "./mipXmlBuilder";
 import { fillListaNaloga, type ListaNalogaData } from "./fillListaNaloga";
 import {
   fillSpecifikacije,
@@ -2779,138 +2775,29 @@ function MonthlyPanel({
   });
 
   // MIP-1023 XML — paketni uvoz u nPIS. Jedan XML po mjesecu, svi radnici
-  // unutar Dio2, zbirno u Dio3. Dijeli isti payment date i sort logic kao PDF.
+  // unutar Dio2, zbirno u Dio3. Isti builder kao PK Office obračuni i pregled
+  // /organizacije (mipXmlBuilder), da sva tri mjesta daju identičan XML; ko
+  // ulazi u MIP odlučuje ulaziUMip (radnici + direktor d.o.o. sa prijavom).
   const mip1023XmlMutation = useMutation({
     mutationFn: async () => {
       if (!summaryQuery.data || !organization) {
         throw new Error("Nedostaju podaci o organizaciji ili obračunu");
       }
-      const mm = String(month).padStart(2, "0");
-      const yyyy = String(year);
-
-      const radniciPayrolls = radnici
-        .map((w) => ({ w, p: payrollByWorker.get(w.id) }))
-        .filter(
-          (x): x is { w: Worker; p: Payroll } => !!x.p && x.p.gross > 0,
-        )
-        .sort((a, b) => {
-          const aDate = a.w.prijavaDate || a.w.startDate || "9999-12-31";
-          const bDate = b.w.prijavaDate || b.w.startDate || "9999-12-31";
-          return aDate.localeCompare(bDate);
-        });
-
-      if (radniciPayrolls.length === 0) {
-        throw new Error("Nema obračunatih plata za mjesec");
-      }
-
-      const workers: Mip1023XmlWorker[] = radniciPayrolls.map(({ w, p }) => {
-        // p.gross = plata + korist u naravi. Bruto = plata u novcu, koristi =
-        // bruto korist, ukupanPrihod = gross.
-        const koristi = Number(p.koristBruto) || 0;
-        const bruto = +((Number(p.gross) || 0) - koristi).toFixed(2);
-        const ukupanPrihod = +(bruto + koristi).toFixed(2);
-        const empPio = Number(p.empPio) || 0;
-        const empZdr = Number(p.empZdravstvo) || 0;
-        const empNezap = Number(p.empNezaposlenost) || 0;
-        const empUkupno = empPio + empZdr + empNezap;
-        const prihodUmanjen = ukupanPrihod - empUkupno;
-        const faktor = Number(p.taxCoefficient ?? 1);
-        const iznosOdbitka = Number(p.deduction) || faktor * 300;
-        const osnovicaPoreza = Math.max(0, prihodUmanjen - iznosOdbitka);
-        const iznosPoreza = Number(p.incomeTax) || osnovicaPoreza * 0.1;
-        const radniSati = p.workedMinutes
-          ? Math.round((p.workedMinutes / 60) * 100) / 100
-          : 168;
-        const bolovanjeSati = (p.sickDays || 0) * 8;
-        // RS radnik: šifra općine ide sjedište poslodavca (nema FBiH prebivalište).
-        const opcinaKod =
-          w.prebivalisteEntitet === "RS"
-            ? kantonForOpcina(organization?.city || "")?.opcinaKod || ""
-            : kantonForOpcina(w.city || "")?.opcinaKod || "";
-        return {
-          vrstaIsplate: "1",
-          jmb: w.jmbg || "",
-          imePrezime: `${w.lastName} ${w.firstName}`.trim().toUpperCase(),
-          datumIsplate: paymentDate, // YYYY-MM-DD već iz DateInput-a
-          radniSati,
-          radniSatiBolovanje: bolovanjeSati,
-          bruto,
-          koristi,
-          ukupanPrihod,
-          pio: empPio,
-          zo: empZdr,
-          nezap: empNezap,
-          doprinosi: empUkupno,
-          prihodUmanjen,
-          faktor,
-          iznosOdbitka,
-          osnovicaPoreza,
-          iznosPoreza,
-          radniSatiUT: 0,
-          stepenUvecanja: 0,
-          sifraRadnogMjestaUT: "000000",
-          doprinosiPioMioZaUT: 0,
-          beneficiraniStaz: false,
-          opcinaPrebivalista: opcinaKod,
-        };
+      // radnici = aktivni u mjesecu (+ direktor d.o.o. sa prijavom), isti
+      // spisak koji vidi tabela obračuna; builder dodatno traži gross > 0
+      const result = buildMip1023Xml({
+        workers: radnici,
+        payrolls: [...payrollByWorker.values()],
+        organization,
+        year,
+        month,
+        paymentDate, // YYYY-MM-DD već iz DateInput-a
       });
-
-      const t = {
-        gross: radniciPayrolls.reduce((a, x) => a + (x.p.gross || 0), 0),
-        empContrib: radniciPayrolls.reduce(
-          (a, x) => a + (x.p.empTotal || 0),
-          0,
-        ),
-        licniOdbitak: radniciPayrolls.reduce(
-          (a, x) => a + (x.p.deduction || 0),
-          0,
-        ),
-        tax: radniciPayrolls.reduce((a, x) => a + (x.p.incomeTax || 0), 0),
-        erpPio: radniciPayrolls.reduce((a, x) => a + (x.p.erpPio || 0), 0),
-        erpZdr: radniciPayrolls.reduce(
-          (a, x) => a + (x.p.erpZdravstvo || 0),
-          0,
-        ),
-        erpNezap: radniciPayrolls.reduce(
-          (a, x) => a + (x.p.erpNezaposlenost || 0),
-          0,
-        ),
-      };
-
-      // Period: prvi do zadnji dan obračunskog mjeseca.
-      const lastDay = new Date(year, month, 0).getDate();
-      const periodOd = `${yyyy}-${mm}-01`;
-      const periodDo = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
-      const today = new Date();
-      const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-      const xmlData: Mip1023XmlData = {
-        jibPoslodavca: (organization.taxNumber || "").replace(/\D/g, ""),
-        nazivPoslodavca: organization.name || "",
-        brojZahtjeva: 1,
-        datumPodnosenja: todayIso,
-        sifraDjelatnosti: organization.activityCode || "",
-        periodOd,
-        periodDo,
-        workers,
-        zbirno: {
-          pio: t.erpPio,
-          zo: t.erpZdr,
-          nezap: t.erpNezap,
-          dodatniDoprinosiZo: 0,
-          prihod: t.gross,
-          doprinosi: t.empContrib,
-          licniOdbici: t.licniOdbitak,
-          porez: t.tax,
-        },
-      };
-
-      const xml = generateMip1023Xml(xmlData);
-      // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-      trackEvent("MIP_GENERATE", "MIP-1023 XML", orgId);
-      const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
-      const jib = xmlData.jibPoslodavca || "MIP";
-      return { blob, filename: `${jib}_${mm}${yyyy}.xml` };
+      if (!result.ok) throw new Error(result.error);
+      const blob = new Blob([result.xml], {
+        type: "application/xml;charset=utf-8",
+      });
+      return { blob, filename: result.filename };
     },
     onSuccess: ({ blob, filename }) => {
       triggerBlobDownload(blob, filename);

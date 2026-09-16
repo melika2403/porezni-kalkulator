@@ -745,7 +745,13 @@ Stranica: Zaposlenici → Zaposlenici.
   ekstenziji). Kad postoji, štampa se na vrhu platne liste UMJESTO
   standardnog zaglavlja (naziv, adresa, ID broj); visina je ograničena na
   100 pt jer listić nema više rezerve, viša slika se srazmjerno smanji.
-  Bez memoranduma sve ostaje kao prije. Vrijedi samo za platne liste.
+  Bez memoranduma sve ostaje kao prije. Od 16.9.2026. isti memorandum ide
+  i u zaglavlje svih dokumenata na /rjesenja-i-odluke (rješenja, odluke,
+  potvrde, aneks), u PDF i DOCX: kad je organizacija odabrana u bočnoj
+  traci i ima memorandum, slika se povuče sa backenda i ugradi na klijentu
+  umjesto linija naziv/adresa/grad (PDF preko cijele širine, do 120 pt;
+  DOCX preko širine sadržaja, do 160 px), a forma to javi napomenom pod
+  Poslodavac. Bez odabrane organizacije ostaje tekstualno zaglavlje.
 - **Naziv dokumenta plate je postavka profila** (Profil → Postavke
   dokumenata): "Platni listić" (standardno) ili "Platna lista". Mijenja
   naslov na PDF-u, naziv fajla i tekst emaila radniku, za sve organizacije
@@ -768,6 +774,10 @@ Stranica: Zaposlenici → Zaposlenici.
   UTF-8 i windows-1250, domaći datumi i iznosi. Ista dva dugmeta
   (izvoz + uvoz, dijeljene komponente) postoje i na marketing strani
   na /aktivni-radnici.
+- **Evidencija uvoza u Aktivnosti**: svaki uspješan uvoz (radnici,
+  partneri, artikli, početno stanje lagera, prethodne plate) ostavlja
+  jedan zapis po fajlu u admin Aktivnosti i na profilu korisnika
+  (npr. "12 od 15 radnika"), kao i štampa naloga na matrični pisač.
 - **Karton radnika** (kebab meni, i za vlasnika kao "Karton
   obračuna"): modal sa obračunima po mjesecima izabrane godine (bruto,
   doprinosi iz osnovice, porez, neto, status obračuna, oznaka za

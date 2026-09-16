@@ -3,6 +3,7 @@ import {
   Packer,
   Paragraph,
   TextRun,
+  ImageRun,
   AlignmentType,
   Table,
   TableRow,
@@ -11,6 +12,12 @@ import {
   BorderStyle,
 } from "docx";
 import type { RjesenjeComposed } from "./composed";
+import { uklopiMemorandum, type RjesenjeRenderOpcije } from "./memorandum";
+
+// Širina sadržaja A4 strane sa marginama od 1 inča: 11906 - 2 x 1440 twipa =
+// 9026 twipa = 6,27 inča = 602 px pri 96 dpi (docx ImageRun radi u px).
+const CONTENT_W_PX = 602;
+const MEMORANDUM_MAX_H_PX = 160;
 
 const FONT = "Calibri";
 const SIZE = 22; // 11pt (docx koristi half-points)
@@ -42,13 +49,34 @@ function para(
 
 export async function fillRjesenjeDocx(
   data: RjesenjeComposed,
+  opcije: RjesenjeRenderOpcije = {},
 ): Promise<Blob> {
   const children: (Paragraph | Table)[] = [];
 
-  for (const line of data.zaglavlje) {
-    children.push(para([run(line, true, SIZE_HEADER)], { after: 0 }));
+  // Memorandum klijenta umjesto tekstualnog zaglavlja firme (kao na platnoj
+  // listi): slika preko širine sadržaja, srazmjerno skalirana.
+  if (opcije.memorandum) {
+    const m = opcije.memorandum;
+    const { width, height } = uklopiMemorandum(m, CONTENT_W_PX, MEMORANDUM_MAX_H_PX);
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 160 },
+        children: [
+          new ImageRun({
+            type: m.tip,
+            data: m.bytes,
+            transformation: { width: Math.round(width), height: Math.round(height) },
+          }),
+        ],
+      }),
+    );
+  } else {
+    for (const line of data.zaglavlje) {
+      children.push(para([run(line, true, SIZE_HEADER)], { after: 0 }));
+    }
+    children.push(para([run("")], { after: 80 }));
   }
-  children.push(para([run("")], { after: 80 }));
 
   children.push(para([run(data.pravniOsnov)], { after: 120 }));
 

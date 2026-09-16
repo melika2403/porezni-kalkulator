@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Shared builder za MIP-1023 XML — koristi se iz ObracunPlata (postoji
-//  tamo paralelno) i iz /organizacije dropdown-a (direktan download bez
-//  navigacije na obracun page).
+//  JEDINI builder za MIP-1023 XML: koriste ga obračun plata (ObracunPlata),
+//  PK Office obračuni i pregled /organizacije. Ranije je ObracunPlata imao
+//  svoju kopiju koja je za d.o.o. uključivala direktora, a ova nije, pa je MIP
+//  sa pregleda organizacija izlazio bez direktora (ispravljeno 16.9.2026).
 //
 //  Logika je čista funkcija nad (workers, payrolls, organization, year, month).
 //  Sve API-pozive radi caller; builder samo prima podatke i vraća XML+filename.
@@ -17,17 +18,30 @@ import {
   type Mip1023XmlWorker,
 } from "./mip1023Xml";
 
+export type MipOrganization = Pick<
+  Organization,
+  "id" | "name" | "taxNumber" | "activityCode" | "city" | "type"
+>;
+
 export type MipBuildInput = {
-  workers: Worker[]; // svi radnici org-e (filter na role=RADNIK radi se interno)
+  workers: Worker[]; // svi radnici org-e (ko ulazi u MIP bira ulaziUMip)
   payrolls: Payroll[]; // svi payroll-i za year/month
-  organization: Pick<
-    Organization,
-    "id" | "name" | "taxNumber" | "activityCode" | "city"
-  >;
+  organization: MipOrganization;
   year: number;
   month: number;
   paymentDate?: string; // YYYY-MM-DD; default zadnji dan mjeseca
 };
+
+/**
+ * Ko ulazi u MIP, isto pravilo kao lista "radnici" na obračunu plata:
+ * radnici (RADNIK) uvijek; vlasnik OBRTA nikad (on ide na Obrazac 2002);
+ * vlasnik-direktor d.o.o. ulazi ako ima datum prijave (prijava = zaposlen u
+ * toj firmi; bez prijave nije zaposlenik i backend mu briše prijavaDate).
+ */
+export function ulaziUMip(org: Pick<Organization, "type">, w: Worker): boolean {
+  if (w.role === "RADNIK") return true;
+  return org.type === "COMPANY" && w.role === "VLASNIK" && !!w.prijavaDate;
+}
 
 export type MipBuildResult = {
   ok: true;
@@ -44,9 +58,6 @@ export type MipBuildError = {
 // Sklopi MIP-1023 XML iz raw payroll snapshot-a. Vraća ok+xml+filename ili
 // strukturisan error sa razlogom (no-payrolls, org-incomplete itd.).
 export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuildError {
-  // statistika generisanja (admin Aktivnost); best-effort, ne blokira
-  trackEvent("MIP_GENERATE", "MIP-1023 XML", input.organization.id);
-
   const { workers, payrolls, organization, year, month } = input;
 
   const mm = String(month).padStart(2, "0");
@@ -55,15 +66,15 @@ export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuild
   const paymentDate =
     input.paymentDate || `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
 
-  // RADNIK only (vlasnici obrta idu u 2002 obrazac, ne u MIP). Spoji sa payroll
-  // snapshot-om i filtriraj samo one sa stvarnim obračunom (gross > 0).
+  // Spoji payroll snapshot sa radnikom, zadrži samo one koji ulaze u MIP
+  // (ulaziUMip) i imaju stvaran obračun (gross > 0).
   const workerById = new Map<number, Worker>();
   for (const w of workers) workerById.set(w.id, w);
   const radniciPayrolls = payrolls
     .map((p) => ({ p, w: workerById.get(p.workerId) }))
     .filter(
       (x): x is { p: Payroll; w: Worker } =>
-        !!x.w && x.w.role === "RADNIK" && (Number(x.p.gross) || 0) > 0,
+        !!x.w && ulaziUMip(organization, x.w) && (Number(x.p.gross) || 0) > 0,
     )
     .sort((a, b) => {
       const aDate = a.w.prijavaDate || a.w.startDate || "9999-12-31";
@@ -185,6 +196,10 @@ export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuild
   const xml = generateMip1023Xml(xmlData);
   const jib = xmlData.jibPoslodavca || "MIP";
   const filename = `${jib}_${mm}${yyyy}.xml`;
+  // Statistika generisanja (admin Aktivnost) TEK kad je XML stvarno sklopljen:
+  // neuspio pokušaj se ne smije brojati, jer podsjetnik "MIP još nije preuzet"
+  // na profilu gleda broj ovih događaja u mjesecu. Best-effort, ne blokira.
+  trackEvent("MIP_GENERATE", "MIP-1023 XML", organization.id);
   return { ok: true, xml, filename, data: xmlData };
 }
 

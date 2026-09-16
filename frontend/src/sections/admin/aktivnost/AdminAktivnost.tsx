@@ -11,74 +11,10 @@ import {
   type ActivityListResponse,
   type ActivityStats,
 } from "src/api/activity";
+import { nazivAkcije } from "src/lib/activityLabels";
 import styles from "./aktivnost.module.css";
 
-// Mašinski kod akcije → čitljiv naziv (za filter i prikaz).
-const ACTION_LABELS: Record<string, string> = {
-  AMS_GENERATE: "AMS-1035",
-  SPR_GENERATE: "SPR-1053",
-  GPD_GENERATE: "GPD-1051",
-  ZO3_GENERATE: "ZO3 obrazac",
-  PLDI_GENERATE: "PLDI-1043 (amortizacija)",
-  SIH_GENERATE: "Šihterica",
-  JS3100_GENERATE: "JS3100 prijava/odjava",
-  PLATA_GENERATE: "Obračun plata",
-  UGOVOR_RADU_GENERATE: "Ugovor o radu",
-  OTKAZ_GENERATE: "Otkaz ugovora",
-  UGOVOR_DJELU_GENERATE: "Ugovor o djelu",
-  UGOVOR_POZAJMICA_GENERATE: "Ugovor o pozajmici",
-  FAKTURA_GENERATE: "Faktura",
-  PREDRACUN_GENERATE: "Predračun",
-  KARTICA_GENERATE: "Članska kartica",
-  RJESENJE_GENERATE: "Rješenja i odluke",
-  RJESENJE_GO_GENERATE: "Rješenje (god. odmor)",
-  CESIJA_GENERATE: "Ugovor o cesiji",
-  KOMPENZACIJA_GENERATE: "Kompenzacija",
-  // dokumenti obračuna plata i evidencije (dijeljeni generatori, pokrivaju
-  // marketing, PK Office i bulk preuzimanja)
-  OBRAZAC_2001_GENERATE: "Obrazac 2001 / 2001-A",
-  OBRAZAC_2002_GENERATE: "Obrazac 2002",
-  MIP_GENERATE: "MIP-1023",
-  GIP_GENERATE: "GIP-1022",
-  UPLATNICE_GENERATE: "Zbirne uplatnice",
-  PLATNI_LISTIC_GENERATE: "Platni listić",
-  NALOG_KNJIZENJE_GENERATE: "Nalog za knjiženje",
-  LISTA_NALOGA_GENERATE: "Lista naloga za plaćanje",
-  IZVOZ_BANKA_GENERATE: "Izvoz naloga za e-bankarstvo",
-  SPECIFIKACIJE_GENERATE: "Specifikacije plata",
-  REKAPITULACIJA_GENERATE: "Rekapitulacija isplata",
-  ISPLATE_PO_BANKAMA_GENERATE: "Isplate po bankama",
-  SPISAK_BANKE_GENERATE: "Spisak za banku (XLSX)",
-  PK1001_GENERATE: "Porezna kartica (PK-1001)",
-  EVIDENCIJA_GENERATE: "Matična evidencija",
-  // prijave korisnika (backend logEvent; ne ulaze u javni brojač dokumenata)
-  PRIJAVA: "Prijava korisnika",
-  // PK Office radne akcije (backend logEvent)
-  OFFICE_IZVOD_UCITAN: "PK Office: izvod učitan",
-  OFFICE_IZVOD_RUCNI: "PK Office: ručni izvod",
-  OFFICE_ULAZNI_RACUN: "PK Office: ulazni račun",
-  OFFICE_KALKULACIJA: "PK Office: kalkulacija",
-  OFFICE_BLAGAJNA_NALOG: "PK Office: blagajnički nalog",
-  OFFICE_PUTNI_NALOG: "PK Office: putni nalog",
-  OFFICE_POPIS: "PK Office: popis (inventura)",
-  OFFICE_PREBIJANJE: "PK Office: kompenzacija/cesija",
-  OFFICE_BACKFILL: "PK Office: tehnički zapis (backfill)",
-  OFFICE_BACKFILL_V2: "PK Office: tehnički zapis (backfill v2)",
-  // PK Freelancer (marketing i evidencija)
-  FREELANCER_PROMO_KLIK: "PK Freelancer: klik na reklamu",
-  FREELANCER_PROBA_START: "PK Freelancer: pokrenuta proba",
-  FREELANCER_UPLATA_SACUVANA: "PK Freelancer: uplata sačuvana",
-  FREELANCER_INTERES: "PK Freelancer: iskazan interes (staro)",
-  FREELANCER_INTERES_KLIK: "PK Freelancer: klik na ponudu (staro)",
-  OFFICE_SOLO_PROMO_KLIK: "PK Office Solo: klik na reklamu",
-  OFFICE_PROMO_KLIK: "PK Office za knjigovođe: klik na reklamu",
-  // Sigurnost naloga (dvofaktorska prijava)
-  "2FA_UKLJUCEN": "Dvofaktorska prijava uključena",
-  "2FA_ISKLJUCEN": "Dvofaktorska prijava isključena",
-  "2FA_NEUSPJEH": "Dvofaktorska prijava: pogrešan kod",
-  "2FA_NOVI_KODOVI": "Dvofaktorska prijava: novi rezervni kodovi",
-  ADMIN_2FA_ISKLJUCEN: "Administrator isključio dvofaktorsku prijavu",
-};
+
 
 // Izvor akcije (kolona label) je kratki kod iz koda, npr. "ams" ili "cta".
 const IZVOR_LABELS: Record<string, string> = {
@@ -99,9 +35,7 @@ const IZVOR_LABELS: Record<string, string> = {
   "solo-dno": "stranica /solo, dno",
 };
 
-function actionLabel(action: string) {
-  return ACTION_LABELS[action] ?? action;
-}
+const actionLabel = nazivAkcije;
 
 /** Čitljiv izvor uz akciju; nepoznat kod ostaje kakav jeste. */
 function izvorLabel(label: string | null | undefined) {

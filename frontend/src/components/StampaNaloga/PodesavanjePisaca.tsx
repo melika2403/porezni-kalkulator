@@ -6,6 +6,7 @@
 // Spec: docs/faza2-stampa-naloga-na-obracunu.md (DIO B i DIO C).
 
 import { useState } from "react";
+import { trackEvent } from "src/api/activity";
 import { buildPrn, testNalogValues } from "src/lib/nalozi/escpNalog";
 import {
   MAX_POMAK_KOLONA,
@@ -356,6 +357,9 @@ export default function PodesavanjePisaca({
       pomakLinija: postavke.pomakLinija,
     });
     preuzmiPrn(bytes, "test-nalog.prn");
+    // Probna štampa je podešavanje pisača, a ne generisan dokument, pa ide
+    // ZASEBNA akcija: javne brojke i ticker na naslovnoj broje samo dokumente.
+    trackEvent("NALOG_STAMPA_TEST", "probni nalog");
     setPoruka(`Test nalog preuzet. ${PORUKA_STAMPA}`);
   };
 
