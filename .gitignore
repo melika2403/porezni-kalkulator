@@ -21,3 +21,11 @@ pnpm-debug.log*
 
 # PK Freelancer privatni prilozi (licni dokumenti korisnika, nikad u git)
 backend/uploads-private/
+
+# Fajlovi koje uploaduju korisnici (dokumenti radnika, logo, memorandum,
+# avatari): to su podaci klijenata i zive samo na serveru, nikad u repozitoriju.
+# Slike za vijesti/vodice su sadrzaj stranice pa OSTAJU u gitu.
+backend/uploads/worker-documents/
+backend/uploads/logos/
+backend/uploads/memorandumi/
+backend/uploads/avatari/

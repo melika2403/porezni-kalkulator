@@ -998,6 +998,15 @@ async function uvozPartnera(req, res) {
       }
     }
 
+    // admin Aktivnost: uvoz iz drugog programa je signal prelaska kod nas
+    if (created.length > 0) {
+      void logEvent({
+        userId: req.user?.id ?? null,
+        action: "UVOZ_PARTNERA",
+        label: `${created.length} od ${stavke.length} partnera`,
+        organizationId,
+      });
+    }
     return res.json({
       ok: true,
       data: {

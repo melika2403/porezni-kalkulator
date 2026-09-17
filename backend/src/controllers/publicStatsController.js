@@ -25,6 +25,20 @@ let cache = { at: 0, value: null };
 
 const floorTo = (n, step) => Math.floor(n / step) * step;
 
+// Akcije koje NISU generisan dokument, pa ne ulaze ni u javni brojač ni u
+// grafikon: prijave na sistem, probna štampa pri podešavanju pisača i uvozi
+// podataka iz drugog programa (to je prenos, ne dokument koji smo napravili).
+const NEDOKUMENTI = [
+  "PRIJAVA",
+  "NALOG_STAMPA_TEST",
+  "UVOZ_RADNIKA",
+  "UVOZ_PARTNERA",
+  "UVOZ_ARTIKALA",
+  "UVOZ_PLATA",
+  "UVOZ_POCETNO_STANJE",
+];
+const NEDOKUMENTI_SQL = NEDOKUMENTI.map((a) => `'${a}'`).join(", ");
+
 // akcije koje smiju u javni ticker, sa čitljivim nazivom (anonimizovano)
 const TICKER_LABELS = {
   PLATA_GENERATE: "obračun plate",
@@ -37,6 +51,7 @@ const TICKER_LABELS = {
   UPLATNICE_GENERATE: "uplatnice",
   PLATNI_LISTIC_GENERATE: "platna lista",
   NALOG_KNJIZENJE_GENERATE: "nalog za knjiženje",
+  NALOG_STAMPA_GENERATE: "nalog za matrični pisač",
   SIH_GENERATE: "šihterica",
   ZO3_GENERATE: "ZO3 obrazac",
   AMS_GENERATE: "AMS-1035",
@@ -65,14 +80,14 @@ async function stats(req, res) {
       prije30.setDate(prije30.getDate() - 29);
       const [events, last30, users, organizations, forms, invoices, payrollDocs, workerDocs, dailyRows, recent] =
         await Promise.all([
-          // PRIJAVA (login eventi) nije dokument pa ne ulazi u javne brojke
+          // prijave, probna štampa i uvozi nisu dokumenti (vidi NEDOKUMENTI)
           ActivityLog.count({
-            where: { hiddenAt: null, action: { [Op.ne]: "PRIJAVA" } },
+            where: { hiddenAt: null, action: { [Op.notIn]: NEDOKUMENTI } },
           }),
           ActivityLog.count({
             where: {
               hiddenAt: null,
-              action: { [Op.ne]: "PRIJAVA" },
+              action: { [Op.notIn]: NEDOKUMENTI },
               createdAt: { [Op.gte]: prije30 },
             },
           }),
@@ -85,7 +100,8 @@ async function stats(req, res) {
           sequelize.query(
             `SELECT DATE(createdAt) AS d, COUNT(*) AS c
              FROM activity_logs
-             WHERE hiddenAt IS NULL AND action <> 'PRIJAVA' AND createdAt >= ?
+             WHERE hiddenAt IS NULL AND action NOT IN (${NEDOKUMENTI_SQL})
+               AND createdAt >= ?
              GROUP BY DATE(createdAt)`,
             { replacements: [prije30], type: sequelize.QueryTypes.SELECT },
           ),

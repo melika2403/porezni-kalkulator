@@ -26,6 +26,7 @@ const {
   PO_NOSIOCU_DEBIT_ORDER,
 } = require("../utils/postingOrder");
 const { generatePostingOrderPdf } = require("../utils/postingOrderPdf");
+const { logEvent } = require("./activityController");
 const {
   deductionFromCoefficient,
   TAX_RATE,
@@ -1815,6 +1816,15 @@ async function importPayrolls(req, res) {
       }
     }
 
+    // admin Aktivnost: uvoz prethodnih plata = prelazak iz drugog programa
+    if (result.created > 0 || result.updated > 0) {
+      void logEvent({
+        userId: req.user?.id ?? null,
+        action: "UVOZ_PLATA",
+        label: `${result.created + result.updated} obračuna za ${year}.`,
+        organizationId,
+      });
+    }
     return res.json({ ok: true, data: result });
   } catch (e) {
     console.error("importPayrolls failed:", e);

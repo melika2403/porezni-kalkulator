@@ -896,7 +896,7 @@ export default function Organizacije() {
           <OrgStatTile
             label="Ukupno radnika"
             value={String(stats.totalWorkers)}
-            hint="aktivnih u svim org."
+            hint={`aktivnih u ${MONTHS[month - 1].toLowerCase()}, sve org.`}
           />
           <OrgStatTile
             label="Plate obračunate"

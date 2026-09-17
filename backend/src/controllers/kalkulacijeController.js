@@ -1099,6 +1099,15 @@ async function uvozArtikala(req, res) {
       }
     });
 
+    // admin Aktivnost: uvoz iz drugog programa je signal prelaska kod nas
+    if (zaUnos.length > 0) {
+      void logEvent({
+        userId: req.user?.id ?? null,
+        action: "UVOZ_ARTIKALA",
+        label: `${zaUnos.length} od ${stavke.length} artikala`,
+        organizationId,
+      });
+    }
     return res.json({
       ok: true,
       data: {

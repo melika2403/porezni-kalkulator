@@ -1,7 +1,8 @@
 "use client";
 
-// Memorandum klijenta (slika zaglavlja) za platne liste: kad je postavljen,
-// štampa se preko cijele širine vrha platne liste UMJESTO standardnog
+// Memorandum klijenta (slika zaglavlja) za platne liste i za rješenja i
+// odluke (sections/rjesenja-i-odluke/shared/memorandum.ts): kad je postavljen,
+// štampa se preko cijele širine vrha dokumenta UMJESTO standardnog
 // zaglavlja (naziv, adresa, ID broj). Postavka po organizaciji; isti mehanizam
 // kao logo za fakture (OrganizationLogoUpload), zaseban fajl i kolona.
 import { useRef, useState } from "react";
@@ -150,8 +151,9 @@ export default function OrganizationMemorandumUpload({
       {err && <div style={{ fontSize: 12, color: "#c44" }}>{err}</div>}
       <div style={{ flexBasis: "100%", fontSize: 11, color: "var(--mid)" }}>
         Slika zaglavlja memoranduma (PNG/JPG, maks. 3 MB, preporuka bar 1500 px
-        širine). Štampa se na vrhu platne liste umjesto standardnog zaglavlja;
-        bez memoranduma platna lista izgleda kao do sada.
+        širine). Štampa se na vrhu platne liste i svih rješenja, odluka i
+        potvrda umjesto standardnog zaglavlja; bez memoranduma dokumenti
+        izgledaju kao do sada.
       </div>
     </div>
   );

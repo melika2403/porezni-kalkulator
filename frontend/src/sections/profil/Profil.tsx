@@ -4792,6 +4792,8 @@ const ACT_NAMES: Record<string, string> = {
   PLATNI_LISTIC_GENERATE: "Platni listić", NALOG_KNJIZENJE_GENERATE: "Nalog za knjiženje",
   LISTA_NALOGA_GENERATE: "Lista naloga", SPECIFIKACIJE_GENERATE: "Specifikacije",
   IZVOZ_BANKA_GENERATE: "Izvoz za e-bankarstvo",
+  NALOG_STAMPA_GENERATE: "Štampa naloga (matrični pisač)",
+  NALOG_STAMPA_TEST: "Probna štampa naloga",
   REKAPITULACIJA_GENERATE: "Rekapitulacija isplata",
   ISPLATE_PO_BANKAMA_GENERATE: "Isplate po bankama",
   SPISAK_BANKE_GENERATE: "Spisak za banku",
@@ -4800,6 +4802,9 @@ const ACT_NAMES: Record<string, string> = {
   OFFICE_ULAZNI_RACUN: "Ulazni račun", OFFICE_KALKULACIJA: "Kalkulacija",
   OFFICE_BLAGAJNA_NALOG: "Blagajnički nalog", OFFICE_PUTNI_NALOG: "Putni nalog",
   OFFICE_POPIS: "Popis", OFFICE_PREBIJANJE: "Prebijanje",
+  UVOZ_RADNIKA: "Uvoz radnika", UVOZ_PARTNERA: "Uvoz partnera",
+  UVOZ_ARTIKALA: "Uvoz artikala", UVOZ_PLATA: "Uvoz prethodnih plata",
+  UVOZ_POCETNO_STANJE: "Uvoz početnog stanja lagera",
 };
 
 function PregledTab({

@@ -1,6 +1,11 @@
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { RjesenjeComposed } from "./composed";
+import { uklopiMemorandum, type RjesenjeRenderOpcije } from "./memorandum";
+
+// Memorandum ide preko cijele širine strane (tako su dizajnirani), visina
+// ograničena da naslov i tekst ostanu na prvoj strani.
+const MEMORANDUM_MAX_H = 120;
 
 const BLACK = rgb(0, 0, 0);
 const PAGE_W = 595;
@@ -29,6 +34,7 @@ function loadFonts(): Promise<[ArrayBuffer, ArrayBuffer]> {
 
 export async function fillRjesenjePdf(
   data: RjesenjeComposed,
+  opcije: RjesenjeRenderOpcije = {},
 ): Promise<Uint8Array> {
   const [regularBytes, boldBytes] = await loadFonts();
 
@@ -39,6 +45,23 @@ export async function fillRjesenjePdf(
 
   let page = doc.addPage([PAGE_W, PAGE_H]);
   let y = PAGE_H - MARGIN;
+
+  // Memorandum klijenta umjesto tekstualnog zaglavlja (samo prva strana,
+  // nastavak dokumenta nema zaglavlje ni inače). Greška pri ugradnji vraća
+  // obično zaglavlje, dokument se uvijek generiše.
+  let memorandumNacrtan = false;
+  if (opcije.memorandum) {
+    try {
+      const m = opcije.memorandum;
+      const img = m.tip === "png" ? await doc.embedPng(m.bytes) : await doc.embedJpg(m.bytes);
+      const { width, height } = uklopiMemorandum(m, PAGE_W, MEMORANDUM_MAX_H);
+      page.drawImage(img, { x: (PAGE_W - width) / 2, y: PAGE_H - height, width, height });
+      y = PAGE_H - height - 18;
+      memorandumNacrtan = true;
+    } catch {
+      memorandumNacrtan = false;
+    }
+  }
 
   const ensureSpace = (need: number) => {
     if (y - need < MARGIN) {
@@ -106,11 +129,13 @@ export async function fillRjesenjePdf(
     y -= opts.gapAfter ?? 0;
   };
 
-  // Zaglavlje firme
-  for (const line of data.zaglavlje) {
-    writeBlock(line, { font: fontBold, size: FS_HEADER });
+  // Zaglavlje firme (tekst), osim kad ga je zamijenio memorandum
+  if (!memorandumNacrtan) {
+    for (const line of data.zaglavlje) {
+      writeBlock(line, { font: fontBold, size: FS_HEADER });
+    }
+    y -= 10;
   }
-  y -= 10;
 
   // Pravni osnov
   writeBlock(data.pravniOsnov, { gapAfter: 8 });

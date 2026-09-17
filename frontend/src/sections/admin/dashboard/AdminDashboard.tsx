@@ -11,29 +11,9 @@ import {
   type AdminDashboard,
   type AdminEngagement,
 } from "src/api/adminDashboard";
+import { nazivAkcije } from "src/lib/activityLabels";
 import styles from "./dashboard.module.css";
 
-const ACTION_LABELS: Record<string, string> = {
-  AMS_GENERATE: "AMS-1035",
-  SPR_GENERATE: "SPR-1053",
-  GPD_GENERATE: "GPD-1051",
-  ZO3_GENERATE: "ZO3",
-  PLDI_GENERATE: "Amortizacija",
-  SIH_GENERATE: "Šihterica",
-  JS3100_GENERATE: "JS3100",
-  PLATA_GENERATE: "Obračun plata",
-  UGOVOR_RADU_GENERATE: "Ugovor o radu",
-  OTKAZ_GENERATE: "Otkaz",
-  UGOVOR_DJELU_GENERATE: "Ugovor o djelu",
-  UGOVOR_POZAJMICA_GENERATE: "Ugovor o pozajmici",
-  FAKTURA_GENERATE: "Faktura",
-  PREDRACUN_GENERATE: "Predračun",
-  KARTICA_GENERATE: "Članska kartica",
-  RJESENJE_GENERATE: "Rješenja i odluke",
-  RJESENJE_GO_GENERATE: "Rješenje (god. odmor)",
-  CESIJA_GENERATE: "Ugovor o cesiji",
-  KOMPENZACIJA_GENERATE: "Kompenzacija",
-};
 
 function km(n: number) {
   return `${n.toLocaleString("de-DE", {
@@ -193,7 +173,7 @@ export default function AdminDashboard() {
               {(d?.activity.topActions ?? []).map((a) => (
                 <Metric
                   key={a.action}
-                  label={ACTION_LABELS[a.action] ?? a.action}
+                  label={nazivAkcije(a.action)}
                   value={a.count}
                 />
               ))}
