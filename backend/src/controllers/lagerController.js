@@ -32,6 +32,14 @@ function parseIsoDate(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 }
 
+// ISO datum u domaći zapis (DD.MM.GGGG.) za tekst koji čita korisnik.
+function datumHr(iso) {
+  const s = String(iso || "");
+  return /^\d{4}-\d{2}-\d{2}/.test(s)
+    ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}.`
+    : s;
+}
+
 const r3 = (n) => Math.round((n + Number.EPSILON) * 1000) / 1000;
 const r5 = (n) => Math.round((n + Number.EPSILON) * 1e5) / 1e5;
 
@@ -800,6 +808,13 @@ async function uvozPocetnogStanja(req, res) {
       }
     }
 
+    // admin Aktivnost: početno stanje lagera = prelazak iz drugog programa
+    void logEvent({
+      userId: req.user?.id ?? null,
+      action: "UVOZ_POCETNO_STANJE",
+      label: `${stavke.length} artikala, ${datumHr(datum)}`,
+      organizationId,
+    });
     return res.status(201).json({
       ok: true,
       data: {

@@ -10,6 +10,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import DateInput from "src/components/DateInput/DateInput";
 import { naloziZaStampu } from "src/api/payroll";
+import { trackEvent } from "src/api/activity";
 import { buildPrn } from "src/lib/nalozi/escpNalog";
 import { nalogUVrijednosti } from "src/lib/nalozi/nalogVrijednosti";
 import {
@@ -200,6 +201,12 @@ export default function StampaNalogaModal({
     preuzmiPrn(
       bytes,
       `nalozi-${slugFirme(organizationName)}-${String(month).padStart(2, "0")}-${year}.prn`,
+    );
+    // admin Aktivnost: ko štampa naloge na matrični pisač i koliko (best-effort)
+    trackEvent(
+      "NALOG_STAMPA_GENERATE",
+      `${vrijednosti.length} ${vrijednosti.length === 1 ? "nalog" : "naloga"}, ${String(month).padStart(2, "0")}/${year}`,
+      organizationId,
     );
     setPoruka(PORUKA_STAMPA);
   };

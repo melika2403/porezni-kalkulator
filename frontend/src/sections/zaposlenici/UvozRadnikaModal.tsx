@@ -14,6 +14,7 @@ import { mnozina } from "src/lib/format";
 // PK stilovi i za marketing stranice (modal se portaluje sa .pk-scope klasom)
 import "src/styles/pk-embed.css";
 import { unwrap } from "src/api/auth";
+import { trackEvent } from "src/api/activity";
 import {
   createWorker,
   type Worker,
@@ -202,6 +203,12 @@ export function UvozRadnikaModal({
       setRedovi([...novi]);
       setUvozim(false);
       setGotovo(true);
+      // admin Aktivnost: radnici se upisuju jedan po jedan kroz običan API,
+      // pa se uvoz bilježi ovdje, jednom po fajlu, sa brojem upisanih
+      const uvezeno = novi.filter((r) => r.status === "uvezen").length;
+      if (uvezeno > 0) {
+        trackEvent("UVOZ_RADNIKA", `${uvezeno} od ${novi.length} radnika`, orgId);
+      }
       qc.invalidateQueries({ queryKey: ["pk-workers", orgId] });
       qc.invalidateQueries({ queryKey: ["workers", orgId] });
       onImported?.();

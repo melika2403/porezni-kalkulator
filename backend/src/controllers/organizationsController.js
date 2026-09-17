@@ -449,17 +449,66 @@ async function listWithPayrollStatus(req, res) {
     [...own, ...clients].map((o) => [o.id, o.type]),
   );
 
-  // Agregat: broj radnika po org (svi koji nisu odjavljeni — RADNIK + VLASNIK).
+  // Agregat: broj radnika koji se u ODABRANOM MJESECU obračunavaju po org,
+  // istim pravilom kao lista radnika na obračunu plata (isActiveForMonth):
+  // po datumima prijave/odjave, ne po spremljenoj koloni employmentStatus.
+  // Ranije se brojalo "svi koji nisu ODJAVLJEN" bez obzira na mjesec, pa je
+  // radnik prijavljen i odjavljen u istom mjesecu (ima obračun, a ne broji
+  // se) ili radnik prijavljen unaprijed za sljedeći mjesec (broji se, a nema
+  // obračun) gurao org u "partial", a bulk 2001/2002 je takvu org preskakao.
+  const mm = String(month).padStart(2, "0");
+  const lastDay = new Date(year, month, 0).getDate();
+  const startISO = `${year}-${mm}-01`;
+  const endISO = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  const isoDan = (d) => {
+    if (!d) return null;
+    if (d instanceof Date) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    return String(d).slice(0, 10);
+  };
+  const aktivanUMjesecu = (w) => {
+    const prijava = isoDan(w.prijavaDate);
+    const odjava = isoDan(w.odjavaDate);
+    if (odjava && odjava < startISO) return false;
+    if (prijava && prijava > endISO) return false;
+    // vlasnik d.o.o. je zaposlenik samo sa datumom prijave (bez nje se ne
+    // obračunava, isto kao na obračunu plata); vlasnik obrta uvijek (2002)
+    if (
+      w.role === "VLASNIK" &&
+      orgTypeById.get(w.organizationId) === "COMPANY" &&
+      !prijava
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  // Ko ulazi u MIP, isto pravilo kao frontend graditelj (mipXmlBuilder.ulaziUMip):
+  // RADNIK uvijek; vlasnik OBRTA nikad (njemu ide Obrazac 2002); vlasnik-direktor
+  // d.o.o. samo sa datumom prijave. Bez ovoga je organizacija sa obračunom
+  // neprijavljenog vlasnika d.o.o. zauvijek visila u filteru "MIP nije preuzet",
+  // a graditelj bi za nju vratio "nema obračunatih plata radnika".
+  const ulaziUMip = (w) => {
+    if (w.role === "RADNIK") return true;
+    return (
+      orgTypeById.get(w.organizationId) === "COMPANY" &&
+      w.role === "VLASNIK" &&
+      !!isoDan(w.prijavaDate)
+    );
+  };
+
   const workersByOrg = new Map();
-  // rola po workeru: MIP pokriva samo radnike (vlasnik obrta ne ulazi u MIP)
-  const roleByWorkerId = new Map();
+  // ulazi li radnik u MIP; nepoznat workerId (obračun bez reda radnika) se kao i
+  // do sada broji, da organizacija ne ostane bez oznake MIP obaveze
+  const mipOkByWorkerId = new Map();
   const workers = await Worker.findAll({
     where: { organizationId: orgIds },
-    attributes: ["id", "organizationId", "employmentStatus", "role"],
+    attributes: ["id", "organizationId", "role", "prijavaDate", "odjavaDate"],
   });
   for (const w of workers) {
-    roleByWorkerId.set(w.id, w.role);
-    if (w.employmentStatus === "ODJAVLJEN") continue;
+    mipOkByWorkerId.set(w.id, ulaziUMip(w));
+    if (!aktivanUMjesecu(w)) continue;
     workersByOrg.set(
       w.organizationId,
       (workersByOrg.get(w.organizationId) || 0) + 1,
@@ -496,11 +545,9 @@ async function listWithPayrollStatus(req, res) {
       cur.totalCost += Number(p.totalCost) || 0;
       // Obračunati koji ulaze u MIP: vlasnik OBRTA (2002) se NE prijavljuje
       // u MIP, pa obrt sa samo vlasnikom nema MIP obavezu za mjesec.
-      // Kod d.o.o. je vlasnik-direktor zaposlenik i ULAZI u MIP.
-      const vlasnikObrta =
-        orgTypeById.get(p.organizationId) === "BUSINESS" &&
-        roleByWorkerId.get(p.workerId) === "VLASNIK";
-      if (!vlasnikObrta) {
+      // Kod d.o.o. je vlasnik-direktor zaposlenik i ULAZI u MIP, ali samo sa
+      // datumom prijave (isto pravilo kao graditelj MIP XML-a).
+      if (mipOkByWorkerId.get(p.workerId) !== false) {
         cur.mipRadnika += 1;
       }
     }
