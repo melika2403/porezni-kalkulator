@@ -9,7 +9,10 @@ const { validateStatement } = require("./engine");
 const { dopuniProtivstranu } = require("./counterparty");
 
 // Redoslijed je bitan: specifičnije banke prije generičkog Asseco formata.
+// Intesa je prva jer njen izvod u koloni Banka nosi nazive drugih banaka
+// (npr. "UNICREDIT BANK DD"), a Intesa detekcija gleda samo zaglavlje.
 const BANKS = [
+  require("./banks/intesa"),
   require("./banks/unicredit"),
   require("./banks/raiffeisen"),
   require("./banks/kib"),

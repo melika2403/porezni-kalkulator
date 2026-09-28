@@ -262,6 +262,7 @@ export function PartnerFormModal({
               <label className={labelCls}>Email</label>
               <input
                 className={inputCls}
+                inputMode="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />

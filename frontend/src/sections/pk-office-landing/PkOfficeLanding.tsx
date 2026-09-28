@@ -268,7 +268,7 @@ export default function PkOfficeLanding() {
               <p className={styles.uploadTitle}>Učitaj bankovni izvod</p>
               <p className={styles.uploadSub}>Prevuci PDF ili klikni za odabir</p>
               <p className={styles.uploadBanks}>
-                UniCredit · Raiffeisen · Sparkasse · KIB · BBI · MF · Ziraat
+                UniCredit · Raiffeisen · Intesa · Sparkasse · KIB · BBI · MF · Ziraat
               </p>
             </div>
 

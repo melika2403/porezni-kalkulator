@@ -130,7 +130,10 @@ function validateStatement(result) {
   if (result.openingBalance != null && result.closingBalance != null) {
     const expected = toCents(result.openingBalance) + inCents - outCents;
     const actual = toCents(result.closingBalance);
-    if (expected !== actual) {
+    // devizni izvodi (Intesa): KM iznosi preračunati po stavci, parser je
+    // već validirao saldo u valuti pa dozvoljava zaokruživanje od 1 feninga po stavci
+    const tolerance = result.balanceToleranceCents || 0;
+    if (Math.abs(expected - actual) > tolerance) {
       errors.push(
         `Saldo se ne slaže: ${fromCents(toCents(result.openingBalance))} + ` +
           `${fromCents(inCents)} − ${fromCents(outCents)} = ${fromCents(expected)}, ` +

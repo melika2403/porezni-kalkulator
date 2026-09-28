@@ -2210,6 +2210,7 @@ function EmailFaktureModal({
             Email kupca *
           </div>
           <input
+            inputMode="email"
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder="kupac@email.ba"
