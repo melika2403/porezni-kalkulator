@@ -278,6 +278,7 @@ export default function Korisnici() {
                 <label className={styles.fieldLabel}>E-mail</label>
                 <input
                   className={styles.input}
+                  inputMode="email"
                   value={draftEmail}
                   onChange={(e) => setDraftEmail(e.target.value)}
                   placeholder="npr. ana@gmail.com"

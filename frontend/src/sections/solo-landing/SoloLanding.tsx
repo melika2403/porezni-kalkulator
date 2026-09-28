@@ -60,7 +60,7 @@ const FUNKCIJE: FeatItem[] = [
   {
     icon: IconBuildingBank,
     name: "Bankovni izvodi",
-    desc: "PDF izvodi UniCredit, Raiffeisen, Sparkasse, KIB, BBI, MF i Ziraat banke se učitaju i proknjiže sami. Prepoznavanje uči iz tvojih potvrda.",
+    desc: "PDF izvodi UniCredit, Raiffeisen, Intesa, Sparkasse, KIB, BBI, MF i Ziraat banke se učitaju i proknjiže sami. Prepoznavanje uči iz tvojih potvrda.",
   },
   {
     icon: IconFileText,

@@ -1,0 +1,116 @@
+/* Sitna napomena ispod email polja. Globalna je (marketing i PK Office),
+   pa boje nisu Tailwind tokeni nego iste vrijednosti (warning amber, sage). */
+.hint {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 6px 6px 10px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #7a4a0c;
+  background: #fdf6e9;
+  border: 1px solid #f0dcb4;
+  border-radius: 10px;
+  animation: hintIn 0.16s ease both;
+}
+
+@keyframes hintIn {
+  from {
+    transform: translateY(-3px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.icon {
+  flex-shrink: 0;
+  align-self: center;
+  width: 15px;
+  height: 15px;
+  margin-right: 4px;
+  color: #c08a2e;
+}
+
+/* u uskom polju prijedlog cijeli pređe u drugi red (ne lomi se po slovima),
+   a dugmad ispod teksta */
+.text {
+  flex: 1 1 190px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 4px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.suggestionWrap {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.suggestion {
+  padding: 0;
+  font: inherit;
+  color: #5c3808;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.suggestion b {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: #d9a54c;
+  text-underline-offset: 3px;
+}
+
+.apply {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  background: #3a5c42;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.apply:hover {
+  background: #2d4633;
+}
+
+.close {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: #a07a3c;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: #7a4a0c;
+  background: rgba(192, 138, 46, 0.12);
+}
