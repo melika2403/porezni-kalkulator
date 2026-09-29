@@ -18,6 +18,7 @@ const {
   computeTotals,
 } = require("../utils/invoicePdf");
 const { sendInvoiceEmail } = require("../utils/mailer");
+const { raspustiZaStavke } = require("../services/zatvaranjaService");
 const {
   getOrgOwnerRole,
   getEffectiveRole,
@@ -812,6 +813,16 @@ async function patch(req, res) {
     return res.status(400).json({ ok: false, error: "Nema polja za ažuriranje" });
   }
 
+  // faktura zatvorena ručnom vezom (Z) na kartici kupca: ručna promjena
+  // statusa otvara vezu (vraća prethodne statuse), tek kad je zahtjev
+  // prošao sve provjere, pa se primijeni izmjena
+  if (
+    inv.zatvaranjeId &&
+    updates.status !== undefined &&
+    updates.status !== inv.status
+  ) {
+    await raspustiZaStavke(inv.organizationId, { invoiceIds: [inv.id] });
+  }
   await Invoice.update(updates, { where: { id } });
   const fresh = await Invoice.findOne({
     where: { id },
@@ -964,6 +975,10 @@ async function remove(req, res) {
     return res.status(404).json({ ok: false, error: "Faktura nije pronađena" });
   }
 
+  // ručna veza (Z) sa ovom fakturom se otvara prije brisanja
+  if (inv.zatvaranjeId) {
+    await raspustiZaStavke(inv.organizationId, { invoiceIds: [inv.id] });
+  }
   await sequelize.transaction(async (t) => {
     await InvoiceItem.destroy({ where: { invoiceId: id }, transaction: t });
     await Invoice.destroy({ where: { id }, transaction: t });

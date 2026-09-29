@@ -261,7 +261,11 @@
       "Bash(curl -sI -H \"Host: APP.poreznikalkulator.ba\" http://localhost:3000/dashboard)",
       "Bash(awk '{print $5}')",
       "Bash(xargs -r -I{} taskkill //F //PID {})",
-      "Bash(node -e \"const m=require\\('./.next/server/functions-config-manifest.json'\\); console.log\\(JSON.stringify\\(m,null,1\\).slice\\(0,1200\\)\\);\")"
+      "Bash(node -e \"const m=require\\('./.next/server/functions-config-manifest.json'\\); console.log\\(JSON.stringify\\(m,null,1\\).slice\\(0,1200\\)\\);\")",
+      "Bash(sort -k2 -t'[' -n)",
+      "Bash(grep -rhoE \"z-index: ?[0-9]{4,}|z-\\\\[[0-9]{3,}\\\\]\" .)",
+      "Bash(python -)",
+      "Bash(npx tsc *)"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -7,6 +7,7 @@ import ConsentBanner from "src/components/ConsentBanner/ConsentBanner";
 import TrialToast from "src/components/TrialToast/TrialToast";
 import ConditionalChrome from "src/components/ConditionalChrome/ConditionalChrome";
 import MetaPixelPageView from "src/components/MetaPixel/MetaPixelPageView";
+import EmailTypoHint from "src/components/EmailTypoHint/EmailTypoHint";
 import "./fonts.css";
 import "./globals.css";
 
@@ -220,6 +221,8 @@ export default function RootLayout({
           <ConsentBanner />
           {/* potvrda aktivacije probe; mora biti van paywall-a koji nestane */}
           <TrialToast />
+          {/* "Da li ste mislili ...@gmail.com?" ispod svakog email polja */}
+          <EmailTypoHint />
           {META_PIXEL_ID && <MetaPixelPageView />}
         </Providers>
       </body>

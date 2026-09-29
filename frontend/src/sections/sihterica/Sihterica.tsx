@@ -8,8 +8,10 @@ import {
   getOrganizations,
   getWorkers,
   type Organization,
+  type Worker,
   updateWorker,
 } from "src/api/profile";
+import { napraviIduciMjesec } from "./kopiranjeSihterice";
 import {
   getSihterica,
   getSihtericaMonths,
@@ -61,6 +63,28 @@ const EMPTY_ENTRY: DayEntry = {
 
 function emptyMonth(): DayEntry[] {
   return Array.from({ length: 31 }, () => ({ ...EMPTY_ENTRY }));
+}
+
+// Sedmični slobodni dani radnika (worker.defaultDaysOff): "0,6" = ned i sub,
+// "-" = namjerno bez slobodnih dana, null = nikad postavljeno (tek tada
+// default subota i nedjelja). Backend prazan string pretvara u null, pa
+// "bez slobodnih dana" mora imati svoju oznaku.
+const BEZ_SLOBODNIH = "-";
+const DEFAULT_SLOBODNI = [0, 6];
+
+function parseSlobodniDani(v: string | null | undefined): Set<number> | null {
+  if (v == null || v.trim() === "") return null;
+  if (v.trim() === BEZ_SLOBODNIH) return new Set();
+  return new Set(
+    v
+      .split(",")
+      .map((n) => parseInt(n.trim()))
+      .filter((n) => !isNaN(n) && n >= 0 && n <= 6),
+  );
+}
+
+function serializeSlobodniDani(s: Set<number>): string {
+  return s.size === 0 ? BEZ_SLOBODNIH : [...s].sort().join(",");
 }
 
 function getDaysInMonth(year: number, month: number): number {
@@ -351,9 +375,17 @@ function NapomenaSection() {
           </li>
           <li>
             <strong>Kopiraj u idući mjesec</strong>: dugme u panelu Auto-popuna
-            popuni idući mjesec istim rasporedom, radna vremena na radne dane, a
-            9.1 na slobodne dane idućeg mjeseca (dani u sedmici se pomjeraju iz
-            mjeseca u mjesec, pa se ne kopiraju datumi doslovno). Ako je radnik
+            popuni idući mjesec rasporedom iz popunjene šihterice: idući mjesec
+            nastavlja zadnje dvije sedmice tekućeg, dan po dan u sedmici. Tako
+            se nastavljaju i smjene koje se mijenjaju svake sedmice (npr. jedna
+            sedmica 08:00-16:30, druga 14:30-23:00) i rad vikendom. Dani
+            godišnjeg, praznika i bolovanja se preskaču i uzima se raspored iz
+            sedmice ranije. Jednokratne izmjene iz zadnje dvije sedmice (npr.
+            zamjena smjene) se takođe prenose, pa idući mjesec pregledajte.
+            Ako se radno vrijeme mijenja od idućeg mjeseca, umjesto kopiranja
+            otvorite idući mjesec i koristite &ldquo;Popuni mjesec&rdquo;.
+            Dugme &ldquo;Svima&rdquo; (odmah pored) radi isto za sve radnike odjednom,
+            uz pregled prije kopiranja. Ako je radnik
             na kraju mjeseca na bolovanju (9.3) ili porodiljskom (9.4), to
             odsustvo se automatski nastavlja kroz cijeli idući mjesec. Praznici
             i završena odsustva se ne prenose.
@@ -630,11 +662,16 @@ function SihtericaApp() {
 
   // when data arrives (or worker/year/month changes), populate entries
   const lastLoadedKey = useRef<string>("");
+  // Učitavanje mjeseca nije izmjena: bez ovoga je samo otvaranje mjeseca
+  // okidalo autosave i prepisivalo snimljene slobodne dane (meta) tog mjeseca
+  // trenutnim, a obračun plate sate čita baš iz te mete.
+  const ucitanoBezIzmjene = useRef(false);
   useEffect(() => {
     const key = `${workerId}-${year}-${month}`;
     if (lastLoadedKey.current === key && dataQuery.data === undefined) return;
     if (dataQuery.isLoading) return;
     lastLoadedKey.current = key;
+    ucitanoBezIzmjene.current = true;
     if (dataQuery.data?.days) {
       const loaded = emptyMonth();
       dataQuery.data.days.forEach((d, i) => {
@@ -698,15 +735,12 @@ function SihtericaApp() {
     setAutoStart(selectedWorker.defaultStartTime ?? "08:00");
     setAutoEnd(selectedWorker.defaultEndTime ?? "16:00");
     setAutoPause(selectedWorker.defaultPause ?? "");
-    if (selectedWorker.defaultDaysOff) {
-      const nums = selectedWorker.defaultDaysOff
-        .split(",")
-        .map((n) => parseInt(n.trim()))
-        .filter((n) => !isNaN(n));
-      setAutoDaysOff(new Set(nums));
-    } else {
-      setAutoDaysOff(new Set([0, 6]));
-    }
+    // Slobodni dani su po radniku: default subota i nedjelja SAMO dok se kod
+    // tog radnika nikad nisu mijenjali.
+    setAutoDaysOff(
+      parseSlobodniDani(selectedWorker.defaultDaysOff) ??
+        new Set(DEFAULT_SLOBODNI),
+    );
     setAutoHolidays("");
     setAutoVacationFrom("");
     setAutoVacationTo("");
@@ -727,13 +761,43 @@ function SihtericaApp() {
     setAutoMaternityTo("");
   }, [year, month]);
 
+  // Klik na dan odmah pamti izbor na radniku (ne tek na "Popuni mjesec"), pa
+  // prelazak na drugog radnika i nazad vraća baš njegove slobodne dane. Na
+  // server ide samo zadnji izbor (kratka odgoda po radniku), da brzi klikovi
+  // ne stignu obrnutim redom i ostave stare dane u bazi.
+  const slobodniSnimanje = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const toggleDayOff = (d: number) => {
-    setAutoDaysOff((prev) => {
-      const next = new Set(prev);
-      if (next.has(d)) next.delete(d);
-      else next.add(d);
-      return next;
-    });
+    const next = new Set(autoDaysOff);
+    if (next.has(d)) next.delete(d);
+    else next.add(d);
+    setAutoDaysOff(next);
+    // slobodni dani mijenjaju ukupne sate (9.1 na slobodan dan = 0h), pa se
+    // otvoreni mjesec ponovo snima sa novim slobodnim danima
+    isDirty.current = true;
+    const orgIdRadnika = selectedWorker?.organizationId;
+    if (!workerId || !orgIdRadnika) return;
+    const vrijednost = serializeSlobodniDani(next);
+    // keš odmah, da povratak na radnika ne učita stare dane prije refetcha
+    queryClient.setQueryData<Worker[]>(["workers", orgIdRadnika], (old) =>
+      old?.map((w) =>
+        w.id === workerId ? { ...w, defaultDaysOff: vrijednost } : w,
+      ),
+    );
+    const idRadnika = workerId;
+    const timeri = slobodniSnimanje.current;
+    const stari = timeri.get(idRadnika);
+    if (stari) clearTimeout(stari);
+    timeri.set(
+      idRadnika,
+      setTimeout(() => {
+        timeri.delete(idRadnika);
+        void updateWorker(orgIdRadnika, idRadnika, {
+          defaultDaysOff: vrijednost,
+        }).then((r) => {
+          if (!r.ok) notify("Slobodni dani nisu sačuvani na radniku.", "error");
+        });
+      }, 600),
+    );
   };
 
   const [autoFillWarn, setAutoFillWarn] = useState<{
@@ -819,7 +883,7 @@ function SihtericaApp() {
         defaultStartTime: autoStart || null,
         defaultEndTime: autoEnd || null,
         defaultPause: autoPause || null,
-        defaultDaysOff: [...autoDaysOff].sort().join(","),
+        defaultDaysOff: serializeSlobodniDani(autoDaysOff),
       }).then(() => {
         queryClient.invalidateQueries({
           queryKey: ["workers", selectedWorker.organizationId],
@@ -865,9 +929,10 @@ function SihtericaApp() {
   }, [workerId, selectedWorker, year, month, daysInMonth, applyAutoFill]);
 
   // ─── Kopiraj u idući mjesec ────────────────────────────────────────────────
-  // Prenosi OBRAZAC, ne datume: radna vremena idu na radne dane IDUĆEG mjeseca,
-  // 9.1 na njegove stvarne slobodne dane (dani u sedmici se pomjeraju iz
-  // mjeseca u mjesec). Bolovanje/porodiljsko (9.3/9.4) koje traje na kraju
+  // Prenosi OBRAZAC iz popunjene šihterice, ne datume: idući mjesec nastavlja
+  // zadnje dvije sedmice tekućeg (isti dan u sedmici, ista sedmica ciklusa),
+  // pa se nastavljaju i smjene koje se mijenjaju svake sedmice. Detalji u
+  // kopiranjeSihterice.ts. Bolovanje/porodiljsko (9.3/9.4) koje traje na kraju
   // tekućeg mjeseca nastavlja se kroz cijeli idući. Praznici i završena
   // odsustva se ne prenose.
   const nextPeriod = useMemo(
@@ -893,34 +958,18 @@ function SihtericaApp() {
       );
       return;
     }
-    // Odsustvo u toku: skeniraj unazad od kraja mjeseca, preskoči prazne dane
-    // i 9.1/9.2 (sedmični odmor/praznik na kraju mjeseca). Ako je zadnji
-    // "radni" dan 9.3 ili 9.4 bez upisanih vremena → odsustvo se nastavlja.
-    let continueCode: string | null = null;
-    for (let i = daysInMonth - 1; i >= 0; i--) {
-      const e = entries[i];
-      if (!e || isEntryEmpty(e)) continue;
-      if (e.startTime && e.endTime) break;
-      const code = e.absence.trim();
-      if (code === "9.3" || code === "9.4") {
-        continueCode = code;
-        break;
-      }
-      if (code === "9.1" || code === "9.2") continue;
-      break;
-    }
-    const days: (DayEntry | null)[] = Array.from({ length: nDim }, (_, i) => {
-      const dayNum = i + 1;
-      if (dayNum < range.start || dayNum > range.end) return null;
-      const dow = getDayOfWeek(ny, nm, dayNum);
-      if (autoDaysOff.has(dow)) return { ...EMPTY_ENTRY, absence: "9.1" };
-      if (continueCode) return { ...EMPTY_ENTRY, absence: continueCode };
-      return {
-        ...EMPTY_ENTRY,
-        startTime: autoStart,
-        endTime: autoEnd,
-        zastoj: autoPause || "",
-      };
+    const days = napraviIduciMjesec({
+      year,
+      month,
+      entries,
+      nextYear: ny,
+      nextMonth: nm,
+      aktivanOd: range.start,
+      aktivanDo: range.end,
+      slobodniDani: autoDaysOff,
+      autoStart,
+      autoEnd,
+      autoPauza: autoPause,
     });
     const org = orgsQuery.data?.find((o) => o.id === orgId) ?? null;
     const meta = {
@@ -954,7 +1003,10 @@ function SihtericaApp() {
       });
       setYear(ny);
       setMonth(nm);
-      notify(`Šihterica kopirana u ${MONTHS[nm - 1]} ${ny}.`, "success");
+      notify(
+        `Šihterica kopirana u ${MONTHS[nm - 1]} ${ny}. Provjerite mjesec: jednokratne izmjene iz zadnje dvije sedmice se prenose.`,
+        "success",
+      );
     } finally {
       setCopyingNext(false);
     }
@@ -962,7 +1014,8 @@ function SihtericaApp() {
     workerId,
     selectedWorker,
     nextPeriod,
-    daysInMonth,
+    year,
+    month,
     entries,
     autoDaysOff,
     autoStart,
@@ -980,6 +1033,172 @@ function SihtericaApp() {
     if (nextMonthSaved) setConfirmCopyNext(true);
     else void doCopyToNextMonth();
   }, [nextMonthSaved, doCopyToNextMonth]);
+
+  // ─── Kopiraj SVE radnike u idući mjesec ────────────────────────────────────
+  // Isto kopiranje kao za jednog radnika (napraviIduciMjesec), za svakog sa
+  // njegovim slobodnim danima i auto-popunom. Prije kopiranja potvrda sa
+  // spiskom: ko se kopira, kome idući mjesec već postoji (pregazi se samo ako
+  // se označi) i ko se preskače (nema tekući mjesec ili nije prijavljen).
+  type KopijaStavka = {
+    worker: Worker;
+    ime: string;
+    status: "novi" | "postoji" | "prazan" | "nije_prijavljen" | "greska";
+    odabran: boolean;
+    entries: DayEntry[];
+  };
+  const [kopijaSvi, setKopijaSvi] = useState<KopijaStavka[] | null>(null);
+  const [kopijaSviPriprema, setKopijaSviPriprema] = useState(false);
+  const [kopijaSviRadi, setKopijaSviRadi] = useState(false);
+
+  const otvoriKopijuSvih = useCallback(async () => {
+    const radnici = workersQuery.data ?? [];
+    if (radnici.length === 0) return;
+    const { y: ny, m: nm } = nextPeriod;
+    const nDim = getDaysInMonth(ny, nm);
+    setKopijaSviPriprema(true);
+    try {
+      const stavke = await Promise.all(
+        radnici.map(async (w): Promise<KopijaStavka> => {
+          const ime = `${w.firstName} ${w.lastName}`.trim();
+          // Tekući mjesec (otvoreni radnik: podaci sa ekrana, i ono što
+          // autosave još nije snimio) i postoji li idući mjesec, svježe sa
+          // servera (ne iz keša), da se postojeći idući mjesec nikad ne
+          // pregazi kao "novi".
+          const [resTekuci, resIduci] = await Promise.all([
+            w.id === workerId ? null : getSihterica(w.id, year, month),
+            getSihterica(w.id, ny, nm),
+          ]);
+          let tekuci: DayEntry[] = emptyMonth();
+          if (w.id === workerId) {
+            tekuci = entries;
+          } else if (resTekuci?.ok) {
+            resTekuci.data?.days?.forEach((d, i) => {
+              if (d) tekuci[i] = { ...EMPTY_ENTRY, ...d };
+            });
+          }
+          const greska = (resTekuci != null && !resTekuci.ok) || !resIduci.ok;
+          const postoji = resIduci.ok && resIduci.data != null;
+          const range = activeRangeForMonth(w, ny, nm, nDim);
+          const status: KopijaStavka["status"] = greska
+            ? "greska"
+            : range.notRegistered
+              ? "nije_prijavljen"
+              : tekuci.slice(0, daysInMonth).every(isEntryEmpty)
+                ? "prazan"
+                : postoji
+                  ? "postoji"
+                  : "novi";
+          return { worker: w, ime, status, odabran: status === "novi", entries: tekuci };
+        }),
+      );
+      setKopijaSvi(stavke);
+    } finally {
+      setKopijaSviPriprema(false);
+    }
+  }, [
+    workersQuery.data,
+    nextPeriod,
+    workerId,
+    entries,
+    year,
+    month,
+    daysInMonth,
+  ]);
+
+  const kopirajSve = useCallback(async () => {
+    if (!kopijaSvi) return;
+    const { y: ny, m: nm } = nextPeriod;
+    const nDim = getDaysInMonth(ny, nm);
+    const org = orgsQuery.data?.find((o) => o.id === orgId) ?? null;
+    const odabrani = kopijaSvi.filter(
+      (s) => s.odabran && (s.status === "novi" || s.status === "postoji"),
+    );
+    setKopijaSviRadi(true);
+    let ok = 0;
+    const neuspjeli: string[] = [];
+    try {
+      for (const s of odabrani) {
+        const w = s.worker;
+        const otvoren = w.id === workerId;
+        // slobodni dani i auto-popuna radnika (otvoreni radnik: sa ekrana)
+        const slobodni = otvoren
+          ? autoDaysOff
+          : parseSlobodniDani(w.defaultDaysOff) ?? new Set(DEFAULT_SLOBODNI);
+        const range = activeRangeForMonth(w, ny, nm, nDim);
+        const days = napraviIduciMjesec({
+          year,
+          month,
+          entries: s.entries,
+          nextYear: ny,
+          nextMonth: nm,
+          aktivanOd: range.start,
+          aktivanDo: range.end,
+          slobodniDani: slobodni,
+          autoStart: otvoren ? autoStart : w.defaultStartTime ?? "08:00",
+          autoEnd: otvoren ? autoEnd : w.defaultEndTime ?? "16:00",
+          autoPauza: otvoren ? autoPause : w.defaultPause ?? "",
+        });
+        const res = await saveSihterica({
+          workerId: w.id,
+          year: ny,
+          month: nm,
+          days,
+          meta: {
+            workerName: s.ime,
+            orgName: org?.name ?? "",
+            orgAddress: org?.address ?? "",
+            orgCity: org?.city ?? "",
+            orgTaxNumber: org?.taxNumber ?? "",
+            weeklyDaysOff: [...slobodni],
+            countAbsenceCodes: [...countCodes],
+          },
+        });
+        if (res.ok) ok++;
+        else neuspjeli.push(s.ime);
+        queryClient.invalidateQueries({ queryKey: ["sihtericaMonths", w.id] });
+        queryClient.invalidateQueries({
+          queryKey: ["sihtericaData", w.id, ny, nm],
+        });
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["sihtericaWorkerMonths", orgId],
+      });
+      setKopijaSvi(null);
+      if (ok > 0) {
+        setYear(ny);
+        setMonth(nm);
+      }
+      const mj = `${MONTHS[nm - 1]} ${ny}`;
+      if (neuspjeli.length > 0) {
+        notify(
+          `Kopirano ${ok}, nije uspjelo: ${neuspjeli.join(", ")}.`,
+          "error",
+        );
+      } else {
+        notify(
+          `Kopirano ${ok} radnik(a) u ${mj}. Provjerite idući mjesec: jednokratne izmjene iz zadnje dvije sedmice se prenose.`,
+          "success",
+        );
+      }
+    } finally {
+      setKopijaSviRadi(false);
+    }
+  }, [
+    kopijaSvi,
+    nextPeriod,
+    orgsQuery.data,
+    orgId,
+    workerId,
+    autoDaysOff,
+    autoStart,
+    autoEnd,
+    autoPause,
+    year,
+    month,
+    countCodes,
+    queryClient,
+    notify,
+  ]);
 
   const updateEntry = useCallback(
     (dayIdx: number, field: ColKey, value: string) => {
@@ -1000,6 +1219,10 @@ function SihtericaApp() {
   }, [workerId, year, month]);
 
   useEffect(() => {
+    if (ucitanoBezIzmjene.current) {
+      ucitanoBezIzmjene.current = false;
+      return;
+    }
     isDirty.current = true;
   }, [entries]);
 
@@ -1121,12 +1344,14 @@ function SihtericaApp() {
       const hasAny = days.some((d) => d !== null);
       if (!hasAny) continue;
 
-      const workerDaysOff = w.defaultDaysOff
-        ? w.defaultDaysOff
-            .split(",")
-            .map((s) => parseInt(s.trim()))
-            .filter((n) => !isNaN(n))
-        : [0, 6];
+      // slobodni dani snimljeni uz mjesec (isti koje čita obračun plate),
+      // pa oni sa radnika, pa default
+      const workerDaysOff = Array.isArray(data?.meta?.weeklyDaysOff)
+        ? data.meta.weeklyDaysOff
+        : [
+            ...(parseSlobodniDani(w.defaultDaysOff) ??
+              new Set(DEFAULT_SLOBODNI)),
+          ];
       const pdfBytes = await fillSihterica({
         workerName: `${w.firstName} ${w.lastName}`.trim(),
         month,
@@ -1857,29 +2082,65 @@ function SihtericaApp() {
                     </div>
                   </div>
 
+                  {/* Kopiranje: jedan par dugmadi (ovaj radnik | svi radnici)
+                      bez razmaka, da panel ostane u jednom redu; objašnjenje
+                      je u opisu dugmadi i u uputstvu ispod šihterice. */}
                   {workerId != null && (
-                    <button
-                      type="button"
-                      onClick={handleCopyToNextMonth}
-                      disabled={copyingNext}
-                      title={`Popuni ${nextMonthLabel} istim rasporedom (radna vremena i slobodni dani); bolovanje/porodiljsko u toku se nastavlja`}
-                      style={{
-                        padding: "0.55rem 1rem",
-                        border: "1px solid #d4cfc4",
-                        borderRadius: "var(--radius)",
-                        background: "#fff",
-                        color: "#0f1a12",
-                        fontFamily: "inherit",
-                        fontSize: 13,
-                        fontWeight: 500,
-                        cursor: copyingNext ? "default" : "pointer",
-                        opacity: copyingNext ? 0.6 : 1,
-                      }}
-                    >
-                      {copyingNext
-                        ? "Kopiram…"
-                        : `Kopiraj u ${nextMonthLabel.split(" ")[0]} →`}
-                    </button>
+                    <div style={{ display: "inline-flex", alignItems: "stretch" }}>
+                      <button
+                        type="button"
+                        onClick={handleCopyToNextMonth}
+                        disabled={copyingNext}
+                        title={`Popuni ${nextMonthLabel} ovom radniku: nastavlja raspored zadnje dvije sedmice, pa i smjene koje se mijenjaju svake sedmice. Ako se radno vrijeme mijenja, otvorite idući mjesec i koristite "Popuni mjesec".`}
+                        style={{
+                          padding: "0.55rem 0.9rem",
+                          border: "1px solid #d4cfc4",
+                          borderRadius: "var(--radius)",
+                          ...((workersQuery.data?.length ?? 0) > 1
+                            ? {
+                                borderTopRightRadius: 0,
+                                borderBottomRightRadius: 0,
+                              }
+                            : {}),
+                          background: "#fff",
+                          color: "#0f1a12",
+                          fontFamily: "inherit",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: copyingNext ? "default" : "pointer",
+                          opacity: copyingNext ? 0.6 : 1,
+                        }}
+                      >
+                        {copyingNext
+                          ? "Kopiram…"
+                          : `Kopiraj u ${nextMonthLabel.split(" ")[0]} →`}
+                      </button>
+                      {(workersQuery.data?.length ?? 0) > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => void otvoriKopijuSvih()}
+                          disabled={kopijaSviPriprema || kopijaSviRadi}
+                          title={`Isto kopiranje za sve radnike u ${nextMonthLabel}, uz pregled prije kopiranja`}
+                          style={{
+                            padding: "0.55rem 0.8rem",
+                            border: "1px solid #d4cfc4",
+                            borderLeft: "none",
+                            borderRadius: "var(--radius)",
+                            borderTopLeftRadius: 0,
+                            borderBottomLeftRadius: 0,
+                            background: "#fff",
+                            color: "#0f1a12",
+                            fontFamily: "inherit",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: kopijaSviPriprema ? "default" : "pointer",
+                            opacity: kopijaSviPriprema ? 0.6 : 1,
+                          }}
+                        >
+                          {kopijaSviPriprema ? "…" : "Svima"}
+                        </button>
+                      )}
+                    </div>
                   )}
                   <button
                     type="button"
@@ -2327,6 +2588,155 @@ function SihtericaApp() {
                 }}
               >
                 Da, kopiraj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kopiranje svih radnika: pregled prije kopiranja */}
+      {kopijaSvi && (
+        <div
+          onClick={() => !kopijaSviRadi && setKopijaSvi(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1001,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              maxWidth: 520,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: "1.5rem",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.1rem", color: "#0f1a12" }}>
+              Kopiraj sve radnike u {nextMonthLabel}
+            </h3>
+            <p style={{ margin: "0 0 1rem", fontSize: 13.5, lineHeight: 1.6, color: "#3a3a3a" }}>
+              Svakom označenom radniku idući mjesec nastavlja raspored zadnje
+              dvije sedmice tekućeg mjeseca ({MONTHS[month - 1]} {year}), sa
+              njegovim slobodnim danima. Radnici kojima {nextMonthLabel} već postoji
+              nisu označeni; ako ih označite, postojeći upisi se pregaze.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginBottom: "1.2rem" }}>
+              {kopijaSvi.map((s) => {
+                const moze = s.status === "novi" || s.status === "postoji";
+                const opis =
+                  s.status === "novi"
+                    ? "kopira se"
+                    : s.status === "postoji"
+                      ? "već popunjen, pregazi se ako se označi"
+                      : s.status === "prazan"
+                        ? `preskače se, nema popunjen ${MONTHS[month - 1]} ${year}`
+                        : s.status === "greska"
+                          ? "greška pri učitavanju, pokušajte ponovo"
+                          : `preskače se, nije prijavljen u ${nextMonthLabel}`;
+                return (
+                  <label
+                    key={s.worker.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.6rem",
+                      padding: "0.5rem 0.7rem",
+                      border: "1px solid #ede8db",
+                      borderRadius: 8,
+                      fontSize: 13.5,
+                      color: moze ? "#0f1a12" : "#7a8a7d",
+                      cursor: moze ? "pointer" : "default",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={s.odabran}
+                      disabled={!moze || kopijaSviRadi}
+                      onChange={(e) =>
+                        setKopijaSvi((prev) =>
+                          prev?.map((x) =>
+                            x.worker.id === s.worker.id
+                              ? { ...x, odabran: e.target.checked }
+                              : x,
+                          ) ?? null,
+                        )
+                      }
+                    />
+                    <span style={{ fontWeight: 500 }}>{s.ime}</span>
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        fontSize: 12.5,
+                        color:
+                          s.status === "postoji"
+                            ? "#92400e"
+                            : s.status === "greska"
+                              ? "#c0524a"
+                              : "#7a8a7d",
+                        textAlign: "right",
+                      }}
+                    >
+                      {opis}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.6rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setKopijaSvi(null)}
+                disabled={kopijaSviRadi}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "1px solid #d4cfc4",
+                  background: "#fff",
+                  color: "#0f1a12",
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Otkaži
+              </button>
+              <button
+                type="button"
+                onClick={() => void kopirajSve()}
+                disabled={kopijaSviRadi || !kopijaSvi.some((s) => s.odabran)}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#3a5c42",
+                  color: "#fff",
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  opacity: kopijaSviRadi || !kopijaSvi.some((s) => s.odabran) ? 0.6 : 1,
+                }}
+              >
+                {kopijaSviRadi
+                  ? "Kopiram…"
+                  : `Kopiraj (${kopijaSvi.filter((s) => s.odabran).length})`}
               </button>
             </div>
           </div>

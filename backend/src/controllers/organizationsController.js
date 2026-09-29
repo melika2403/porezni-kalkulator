@@ -448,6 +448,15 @@ async function listWithPayrollStatus(req, res) {
   const orgTypeById = new Map(
     [...own, ...clients].map((o) => [o.id, o.type]),
   );
+  // vlasnik d.o.o. je zaposlenik samo kao direktor na ugovoru o radu
+  // (opcija 1); u opcijama 2/3/4 ne ulazi u obračun ni u MIP
+  const ownerEmployedById = new Map(
+    [...own, ...clients].map((o) => [
+      o.id,
+      (o.ownerIsDirector ?? true) &&
+        (o.directorEngagement ?? "ugovor_o_radu") === "ugovor_o_radu",
+    ]),
+  );
 
   // Agregat: broj radnika koji se u ODABRANOM MJESECU obračunavaju po org,
   // istim pravilom kao lista radnika na obračunu plata (isActiveForMonth):
@@ -477,23 +486,25 @@ async function listWithPayrollStatus(req, res) {
     if (
       w.role === "VLASNIK" &&
       orgTypeById.get(w.organizationId) === "COMPANY" &&
-      !prijava
+      (!prijava || !ownerEmployedById.get(w.organizationId))
     ) {
       return false;
     }
     return true;
   };
 
-  // Ko ulazi u MIP, isto pravilo kao frontend graditelj (mipXmlBuilder.ulaziUMip):
-  // RADNIK uvijek; vlasnik OBRTA nikad (njemu ide Obrazac 2002); vlasnik-direktor
-  // d.o.o. samo sa datumom prijave. Bez ovoga je organizacija sa obračunom
-  // neprijavljenog vlasnika d.o.o. zauvijek visila u filteru "MIP nije preuzet",
-  // a graditelj bi za nju vratio "nema obračunatih plata radnika".
+  // Ko ulazi u MIP, isto pravilo kao frontend (splitWorkersForObrasce, koji
+  // koriste tabela obračuna, obrazac 2001 i MIP graditelj): RADNIK uvijek;
+  // vlasnik OBRTA nikad (njemu ide Obrazac 2002); vlasnik-direktor d.o.o. samo
+  // na ugovoru o radu i sa datumom prijave. Bez ovoga je organizacija sa
+  // obračunom neprijavljenog vlasnika d.o.o. zauvijek visila u filteru "MIP nije
+  // preuzet", a graditelj bi za nju vratio "nema obračunatih plata radnika".
   const ulaziUMip = (w) => {
     if (w.role === "RADNIK") return true;
     return (
       orgTypeById.get(w.organizationId) === "COMPANY" &&
       w.role === "VLASNIK" &&
+      !!ownerEmployedById.get(w.organizationId) &&
       !!isoDan(w.prijavaDate)
     );
   };

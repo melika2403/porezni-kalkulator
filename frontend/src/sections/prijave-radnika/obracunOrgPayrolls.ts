@@ -11,7 +11,7 @@
 
 import { calculatePayroll, listPayrolls } from "src/api/payroll";
 import { getSihterica } from "src/api/sihterica";
-import { getWorkers, type Organization, type Worker } from "src/api/profile";
+import { getWorkers, type Organization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
 import { getOsnovica } from "src/utils/obrtniciFbih";
 import {
@@ -23,6 +23,7 @@ import {
   standardWorkDaysForMonth,
   sumSihtericaMinutes,
 } from "./ObracunPlata";
+import { splitWorkersForObrasce } from "./obrasciSpecifikacije";
 
 export type ObracunOrgResult = {
   organizationId: number;
@@ -33,20 +34,6 @@ export type ObracunOrgResult = {
   warnings: string[];
   error?: string;
 };
-
-// Filter za radnika koji je aktivan u datom obračun-mjesecu. Identično kao
-// `isActiveForMonth` u ObracunPlata: prijavljen prije kraja mjeseca + nije
-// odjavljen prije početka.
-function isActiveForMonth(w: Worker, year: number, month: number): boolean {
-  const mm = String(month).padStart(2, "0");
-  const yyyy = String(year);
-  const lastDay = new Date(year, month, 0).getDate();
-  const startISO = `${yyyy}-${mm}-01`;
-  const endISO = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
-  if (w.odjavaDate && w.odjavaDate.slice(0, 10) < startISO) return false;
-  if (w.prijavaDate && w.prijavaDate.slice(0, 10) > endISO) return false;
-  return true;
-}
 
 // Glavni helper: obračuna sve aktivne radnike + (za obrt) vlasnika za jednu
 // org-u i jedan mjesec. Vraća rezultat (nikad ne baca — caller dobije strukturu
@@ -98,28 +85,16 @@ export async function obracunOrgPayrolls(input: {
   const prevPayrolls = prevPayrollsResp.ok ? prevPayrollsResp.data : [];
   const prevPayrollByWorker = new Map(prevPayrolls.map((p) => [p.workerId, p]));
 
-  // 2) Split: radnici (uključujući d.o.o. vlasnika ako je prijavljen) vs.
-  // vlasnici obrta. BUSINESS = obrt → vlasnik ide u 2002 (poseban režim).
-  // COMPANY = d.o.o. → vlasnik se tretira kao radnik SAMO ako je prijavljen
-  // direktor (opcija 1). U opcijama 2/3/4 vlasnik nije uposlenik pa ne ulazi
-  // u obračun (Worker VLASNIK, ako postoji, se preskače).
+  // 2) Split: radnici (uključujući prijavljenog vlasnika-direktora d.o.o.) vs.
+  // vlasnici obrta (2002). Isto pravilo kao stranica obračuna i obrasci
+  // (splitWorkersForObrasce), jedan izvor istine.
   const isObrt = org.type === "BUSINESS";
-  const ownerEmployed =
-    (org.ownerIsDirector ?? true) &&
-    (org.directorEngagement ?? "ugovor_o_radu") === "ugovor_o_radu";
-  const activeWorkers = allWorkers.filter((w) => isActiveForMonth(w, year, month));
-  const radnici =
-    isObrt || !ownerEmployed
-      ? activeWorkers.filter((w) => w.role === "RADNIK")
-      : // d.o.o. opcija 1: vlasnik je u radnicima SAMO ako ima unesen datum
-        // prijave u ovoj org (isti princip kao forma vlasnika). Bez datuma
-        // prijave (prebacio prijavu u drugu svoju org) se preskače.
-        activeWorkers.filter(
-          (w) => w.role === "RADNIK" || !!w.prijavaDate,
-        );
-  const vlasniciObrt = isObrt
-    ? activeWorkers.filter((w) => w.role === "VLASNIK")
-    : [];
+  const { radnici, vlasnici2002: vlasniciObrt } = splitWorkersForObrasce(
+    org,
+    allWorkers,
+    year,
+    month,
+  );
 
   // 3) Prefetch šihterice paralelno za SVE radnike. Treba i za topli obrok (dani
   // prisustva) kod POSTOJEĆIH obračuna, ne samo za workedMinutes kod novih.

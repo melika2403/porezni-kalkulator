@@ -18,6 +18,7 @@ import {
   IconMail,
   IconLoader2,
   IconPencil,
+  IconLink,
 } from "@tabler/icons-react";
 import { formatBAM, formatDate } from "src/lib/format";
 import { bankNameFromAccount, formatBankAccount } from "src/lib/bankCodes";
@@ -35,8 +36,13 @@ import {
   emailKartica,
   emailOpomena,
   setOpeningBalance,
+  zatvoriStavke,
+  otvoriZatvaranje,
+  otvoriAutomatskuVezu,
   type KarticaType,
+  type KarticaVeza,
   type UlazniRacun,
+  type ZatvaranjeTip,
 } from "src/api/partners";
 import { getOrganization } from "src/api/profile";
 import { unwrap } from "src/api/auth";
@@ -54,6 +60,56 @@ import {
   type PartnerFormState,
 } from "src/sections/partneri/PartnerFormModal";
 import { ConfirmModal } from "src/components/app-shell/ConfirmModal";
+
+// red kartice prometa (ekran); stavka = identitet za ručno zatvaranje
+// (null = ne može se zatvarati), veza = oznaka Z3 (ručna) / ZA1 (automatska)
+type LedgerRow = {
+  date: string;
+  dospijece: string | null;
+  istekao: boolean;
+  label: string;
+  duguje: number;
+  potrazuje: number;
+  href: string | null;
+  veza: KarticaVeza | null;
+  stavka: { tip: ZatvaranjeTip; id: number } | null;
+};
+
+const kljucStavke = (s: { tip: ZatvaranjeTip; id: number }) => `${s.tip}:${s.id}`;
+
+// Poredak po vezama: stavke iste veze jedna ispod druge, veza na mjestu svoje
+// najranije stavke; nezatvorene ostaju hronološki (isto kao PDF).
+function poredajPoVezama(rows: LedgerRow[]): LedgerRow[] {
+  const prvi = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.veza) continue;
+    const d = prvi.get(r.veza.kljuc);
+    if (!d || r.date < d) prvi.set(r.veza.kljuc, r.date);
+  }
+  const kljucReda = (r: LedgerRow) =>
+    r.veza ? (prvi.get(r.veza.kljuc) ?? r.date) : r.date;
+  return rows
+    .map((r, i) => ({ r, i }))
+    .sort(
+      (a, b) =>
+        kljucReda(a.r).localeCompare(kljucReda(b.r)) ||
+        (a.r.veza?.kljuc ?? "").localeCompare(b.r.veza?.kljuc ?? "") ||
+        a.r.date.localeCompare(b.r.date) ||
+        a.i - b.i,
+    )
+    .map((x) => x.r);
+}
+
+const ZATVARANJE_GRESKE: Record<string, string> = {
+  ZBIR_NIJE_NULA:
+    "Zbir označenih plaćanja i dokumenata nije isti, razlika mora biti 0,00.",
+  STAVKA_VEC_ZATVORENA:
+    "Neka od označenih stavki je u međuvremenu zatvorena. Osvježite karticu i označite ponovo.",
+  STAVKA_NIJE_NA_KARTICI:
+    "Neka od označenih stavki više nije na ovoj kartici. Osvježite karticu.",
+  PREMALO_STAVKI: "Označite bar jedno plaćanje i jedan dokument.",
+  FORBIDDEN: "Nemate pravo zatvaranja stavki u ovom obrtu.",
+};
 
 // izvedeni FIFO status ima prednost nad zapamćenim
 function racunEff(r: UlazniRacun): string {
@@ -293,28 +349,39 @@ export default function PartnerKarticaPage({
     ledgerType ?? (jeDobavljac || !jeKupac ? "dobavljac" : "kupac");
 
   // redovi kartice prometa, isti raspored kao na PDF-u; href = izvor
-  // knjiženja (izvod ili faktura), klik na red ga otvara
+  // knjiženja (izvod ili faktura), klik na red ga otvara. stavka = identitet
+  // za ručno zatvaranje (null = ne može se zatvarati), veza = oznaka Z/ZA.
+  // Odobrenja (knjižna obavijest, storno) su na strani dokumenta u minusu,
+  // kao na PDF-u, pa zbirovi zatvaranja štimaju.
   const ledgerRows = useMemo(() => {
     if (!kartica) return [];
     const danas = new Date().toISOString().slice(0, 10);
-    const rows: {
-      date: string;
-      dospijece: string | null;
-      istekao: boolean;
-      label: string;
-      duguje: number;
-      potrazuje: number;
-      href: string | null;
-    }[] = [];
+    const rows: LedgerRow[] = [];
     if (activeLedger === "dobavljac") {
       for (const r of kartica.ulazniRacuni) {
+        // samo PDV evidencija (uvoz/JCI) nije obaveza prema dobavljaču
+        if (r.samoEvidencija) continue;
+        const vd = r.vrstaDokumenta;
+        const odobrenje = vd === "KNJIZNA_OBAVIJEST" || vd === "STORNO_AVANSNE";
+        const iznos = Number(r.iznos) || 0;
+        const veza = r.zatvaranje ?? null;
         rows.push({
           date: r.datumRacuna,
-          label: r.kalkulacijaOznaka
-            ? `KLC ${r.kalkulacijaOznaka} · Račun ${r.brojRacuna}`
-            : `Račun ${r.brojRacuna}`,
+          label:
+            vd === "KNJIZNA_OBAVIJEST"
+              ? `Knjižna obavijest ${r.brojRacuna}`
+              : vd === "STORNO_AVANSNE"
+                ? `Storno avansa ${r.brojRacuna}`
+                : r.kalkulacijaOznaka
+                  ? `KLC ${r.kalkulacijaOznaka} · Račun ${r.brojRacuna}`
+                  : `Račun ${r.brojRacuna}`,
           duguje: 0,
-          potrazuje: Number(r.iznos) || 0,
+          potrazuje: odobrenje ? -iznos : iznos,
+          veza,
+          stavka:
+            !veza && r.status === "OTVOREN"
+              ? { tip: "ULAZNI_RACUN", id: r.id }
+              : null,
           dospijece: r.rokPlacanja,
           istekao:
             (r.preostalo != null ? r.preostalo > 0.005 : racunEff(r) !== "PLACEN") &&
@@ -326,11 +393,14 @@ export default function PartnerKarticaPage({
       }
       for (const t of kartica.transactions) {
         if (t.status !== "CONFIRMED" || t.direction !== "OUT" || !t.date) continue;
+        const veza = t.zatvaranje ?? null;
         rows.push({
           date: t.date,
           label: `Plaćanje${t.statement?.statementNumber ? `, izvod br. ${t.statement.statementNumber}` : ""}`,
           duguje: Number(t.amount) || 0,
           potrazuje: 0,
+          veza,
+          stavka: veza ? null : { tip: "UPLATA", id: t.id },
           dospijece: null,
           istekao: false,
           href: t.statement?.id ? `/app/bankovni-izvodi/${t.statement.id}` : null,
@@ -339,11 +409,27 @@ export default function PartnerKarticaPage({
     } else {
       for (const inv of kartica.invoices) {
         if (inv.status !== "ISSUED" && inv.status !== "PAID") continue;
+        const doc = inv.docType || "STANDARD";
+        const odobrenje = doc === "STORNO_AVANSNE" || doc === "KNJIZNA_OBAVIJEST";
+        const gross = Number(inv.grossTotal) || 0;
+        const veza = inv.zatvaranje ?? null;
         rows.push({
           date: inv.issueDate,
-          label: `Faktura ${inv.fullNumber}`,
-          duguje: Number(inv.grossTotal) || 0,
+          label:
+            doc === "AVANSNA"
+              ? `Avansna faktura ${inv.fullNumber}`
+              : doc === "STORNO_AVANSNE"
+                ? `Storno avans ${inv.fullNumber}`
+                : doc === "KNJIZNA_OBAVIJEST"
+                  ? `Knjižna obavijest ${inv.fullNumber}`
+                  : `Faktura ${inv.fullNumber}`,
+          duguje: odobrenje ? -gross : gross,
           potrazuje: 0,
+          veza,
+          stavka:
+            !veza && inv.status === "ISSUED"
+              ? { tip: "FAKTURA", id: inv.id }
+              : null,
           dospijece: inv.dueDate,
           istekao:
             (inv.preostalo != null
@@ -356,11 +442,14 @@ export default function PartnerKarticaPage({
       }
       for (const t of kartica.transactions) {
         if (t.status !== "CONFIRMED" || t.direction !== "IN" || !t.date) continue;
+        const veza = t.zatvaranje ?? null;
         rows.push({
           date: t.date,
           label: `Uplata${t.statement?.statementNumber ? `, izvod br. ${t.statement.statementNumber}` : ""}`,
           duguje: 0,
           potrazuje: Number(t.amount) || 0,
+          veza,
+          stavka: veza ? null : { tip: "UPLATA", id: t.id },
           dospijece: null,
           istekao: false,
           href: t.statement?.id ? `/app/bankovni-izvodi/${t.statement.id}` : null,
@@ -381,6 +470,8 @@ export default function PartnerKarticaPage({
         dospijece: null,
         istekao: false,
         label: "Donos iz ranijeg perioda",
+        veza: null,
+        stavka: null,
         duguje:
           activeLedger === "kupac"
             ? Math.max(donosSaldo, 0)
@@ -401,11 +492,17 @@ export default function PartnerKarticaPage({
         (!kartica.period?.from || op.datum >= kartica.period.from) &&
         (!kartica.period?.to || op.datum <= kartica.period.to);
       if (uPrikazu && Math.abs(iznos) > 0.005) {
+        const veza =
+          (activeLedger === "kupac" ? op.zatvaranjeKupac : op.zatvaranjeDob) ??
+          null;
         rows.push({
           date: op.datum,
           dospijece: null,
           istekao: false,
           label: `Početno stanje na ${formatDate(op.datum)}`,
+          veza,
+          stavka:
+            !veza && op.id ? { tip: "POCETNO_STANJE", id: op.id } : null,
           duguje:
             activeLedger === "kupac"
               ? Math.max(iznos, 0)
@@ -421,6 +518,116 @@ export default function PartnerKarticaPage({
     }
     return rows;
   }, [kartica, activeLedger]);
+
+  // ── Ručno zatvaranje stavki (veze Z1, Z2...) ──
+  const [zatvaranjeMod, setZatvaranjeMod] = useState(false);
+  const [oznaceni, setOznaceni] = useState<Set<string>>(() => new Set());
+  const [poVezama, setPoVezama] = useState(false);
+  const [vezaZaOtvaranje, setVezaZaOtvaranje] = useState<KarticaVeza | null>(
+    null,
+  );
+  const [zatvBusy, setZatvBusy] = useState(false);
+  const [zatvInfo, setZatvInfo] = useState<{
+    tekst: string;
+    greska: boolean;
+  } | null>(null);
+
+  const prikazRedova = useMemo(
+    () => (poVezama ? poredajPoVezama(ledgerRows) : ledgerRows),
+    [ledgerRows, poVezama],
+  );
+  // zbir označenih (samo vidljive stavke aktivne strane kartice)
+  const oznaceniZbir = useMemo(() => {
+    let duguje = 0;
+    let potrazuje = 0;
+    let broj = 0;
+    for (const r of ledgerRows) {
+      if (!r.stavka || !oznaceni.has(kljucStavke(r.stavka))) continue;
+      duguje += r.duguje;
+      potrazuje += r.potrazuje;
+      broj += 1;
+    }
+    const razlika = Math.round((duguje - potrazuje) * 100) / 100;
+    return {
+      duguje,
+      potrazuje,
+      broj,
+      razlika,
+      mozeZatvoriti:
+        broj >= 2 &&
+        duguje > 0.005 &&
+        potrazuje > 0.005 &&
+        Math.abs(razlika) < 0.005,
+    };
+  }, [ledgerRows, oznaceni]);
+
+  function prebaciOznaku(s: { tip: ZatvaranjeTip; id: number }) {
+    const k = kljucStavke(s);
+    setOznaceni((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+    setZatvInfo(null);
+  }
+
+  async function zatvoriOznacene() {
+    if (!orgId || !partnerId || !oznaceniZbir.mozeZatvoriti || zatvBusy) return;
+    const stavke = ledgerRows
+      .filter((r) => r.stavka && oznaceni.has(kljucStavke(r.stavka)))
+      .map((r) => r.stavka as { tip: ZatvaranjeTip; id: number });
+    setZatvBusy(true);
+    setZatvInfo(null);
+    const r = await zatvoriStavke(
+      orgId,
+      partnerId,
+      activeLedger === "kupac" ? "KUPAC" : "DOBAVLJAC",
+      stavke,
+    );
+    setZatvBusy(false);
+    if (r.ok) {
+      setOznaceni(new Set());
+      setZatvInfo({
+        tekst: `Stavke su zatvorene kao veza ${r.data.oznaka}.`,
+        greska: false,
+      });
+      queryClient.invalidateQueries({ queryKey: ["partners", orgId] });
+    } else {
+      setZatvInfo({
+        tekst:
+          ZATVARANJE_GRESKE[r.error] ?? "Zatvaranje nije uspjelo, pokušajte ponovo.",
+        greska: true,
+      });
+    }
+  }
+
+  async function otvoriVezu() {
+    const v = vezaZaOtvaranje;
+    if (!v || !orgId || !partnerId || zatvBusy) return;
+    setZatvBusy(true);
+    const r = v.rucno
+      ? await otvoriZatvaranje(orgId, partnerId, v.zatvaranjeId as number)
+      : await otvoriAutomatskuVezu(
+          orgId,
+          partnerId,
+          v.tipDok as "ULAZNI_RACUN" | "FAKTURA",
+          v.dokId as number,
+        );
+    setZatvBusy(false);
+    setVezaZaOtvaranje(null);
+    setZatvInfo(
+      r.ok
+        ? { tekst: `Veza ${v.oznaka} je otvorena.`, greska: false }
+        : {
+            tekst:
+              ZATVARANJE_GRESKE[r.error] ??
+              "Otvaranje veze nije uspjelo, pokušajte ponovo.",
+            greska: true,
+          },
+    );
+    if (r.ok) queryClient.invalidateQueries({ queryKey: ["partners", orgId] });
+  }
 
   const ledgerTotals = useMemo(() => {
     let duguje = 0;
@@ -463,7 +670,10 @@ export default function PartnerKarticaPage({
     if (!period) return;
     setBusy(`pdf-${type}`);
     try {
-      const r = await downloadKarticaPdf(orgId, partnerId, type, period);
+      const r = await downloadKarticaPdf(orgId, partnerId, type, {
+        ...period,
+        poVezama,
+      });
       if (r.ok) triggerBlobDownload(r.blob, r.filename);
     } finally {
       setBusy(null);
@@ -1161,25 +1371,61 @@ export default function PartnerKarticaPage({
                 : "Kartica dobavljača"}
             </h2>
           </div>
-          {jeKupac && jeDobavljac && (
-            <div className="flex gap-1 rounded-lg border border-cream-300 p-0.5 bg-cream-100">
-              {(["dobavljac", "kupac"] as KarticaType[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setLedgerType(t)}
-                  className={[
-                    "px-3 py-1 rounded-md text-[12px] font-medium transition-colors",
-                    activeLedger === t
-                      ? "bg-brand-600 text-white"
-                      : "text-text-tertiary hover:text-text-primary",
-                  ].join(" ")}
-                >
-                  {t === "dobavljac" ? "Dobavljač" : "Kupac"}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setZatvaranjeMod((v) => !v);
+                setOznaceni(new Set());
+                setZatvInfo(null);
+              }}
+              className={[
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-medium transition-colors",
+                zatvaranjeMod
+                  ? "border-brand-600 bg-brand-600 text-white"
+                  : "border-cream-300 text-text-secondary hover:bg-cream-200",
+              ].join(" ")}
+              title="Označite plaćanja i dokumente istog zbira i zatvorite ih u vezu (Z)"
+            >
+              <IconLink size={14} />
+              {zatvaranjeMod ? "Završi zatvaranje" : "Zatvaranje stavki"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPoVezama((v) => !v)}
+              className={[
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-medium transition-colors",
+                poVezama
+                  ? "border-brand-600 bg-brand-100 text-brand-700"
+                  : "border-cream-300 text-text-secondary hover:bg-cream-200",
+              ].join(" ")}
+              title="Stavke iste veze jedna ispod druge (važi i za PDF kartice)"
+            >
+              {poVezama ? "Poredano po vezama" : "Poredaj po vezama"}
+            </button>
+            {jeKupac && jeDobavljac && (
+              <div className="flex gap-1 rounded-lg border border-cream-300 p-0.5 bg-cream-100">
+                {(["dobavljac", "kupac"] as KarticaType[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setLedgerType(t);
+                      setOznaceni(new Set());
+                    }}
+                    className={[
+                      "px-3 py-1 rounded-md text-[12px] font-medium transition-colors",
+                      activeLedger === t
+                        ? "bg-brand-600 text-white"
+                        : "text-text-tertiary hover:text-text-primary",
+                    ].join(" ")}
+                  >
+                    {t === "dobavljac" ? "Dobavljač" : "Kupac"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div className="rounded-xl bg-cream-100 border border-cream-300 overflow-x-auto">
           {ledgerRows.length === 0 ? (
@@ -1190,10 +1436,12 @@ export default function PartnerKarticaPage({
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="bg-cream-200/60 text-[10.5px] uppercase tracking-[0.06em] text-text-tertiary">
+                  {zatvaranjeMod && <th className="w-[36px]" aria-label="Označi" />}
                   <th className="text-right font-medium px-3 py-2 w-[44px]">Rb</th>
                   <th className="text-left font-medium px-3 py-2 w-[100px]">Datum</th>
                   <th className="text-left font-medium px-3 py-2 w-[100px]">Dospijeće</th>
                   <th className="text-left font-medium px-3 py-2">Opis knjiženja</th>
+                  <th className="text-center font-medium px-2 py-2 w-[64px]">Veza</th>
                   <th className="text-right font-medium px-3 py-2 w-[110px]">Duguje</th>
                   <th className="text-right font-medium px-3 py-2 w-[110px]">Potražuje</th>
                   <th className="text-right font-medium px-3 py-2 w-[120px]">Saldo</th>
@@ -1202,31 +1450,67 @@ export default function PartnerKarticaPage({
               <tbody>
                 {(() => {
                   let saldo = 0;
-                  return ledgerRows.map((r, i) => {
+                  return prikazRedova.map((r, i) => {
                     saldo += r.duguje - r.potrazuje;
+                    const oznacen =
+                      !!r.stavka && oznaceni.has(kljucStavke(r.stavka));
+                    // u načinu zatvaranja klik na red ga označava, inače
+                    // otvara izvor knjiženja
+                    const onRow =
+                      zatvaranjeMod && r.stavka
+                        ? () => prebaciOznaku(r.stavka as { tip: ZatvaranjeTip; id: number })
+                        : !zatvaranjeMod && r.href
+                          ? () => router.push(r.href as string)
+                          : undefined;
                     return (
                       <tr
                         key={`${r.date}-${i}`}
-                        onClick={
-                          r.href ? () => router.push(r.href as string) : undefined
-                        }
+                        onClick={onRow}
                         title={
-                          r.istekao
-                            ? `Rok plaćanja je prošao${r.href ? " · klik otvara izvor" : ""}`
-                            : r.href
-                              ? "Otvori izvor knjiženja"
-                              : undefined
+                          zatvaranjeMod
+                            ? r.stavka
+                              ? "Klik označava stavku za zatvaranje"
+                              : r.veza
+                                ? `Stavka je već u vezi ${r.veza.oznaka}`
+                                : undefined
+                            : r.istekao
+                              ? `Rok plaćanja je prošao${r.href ? " · klik otvara izvor" : ""}`
+                              : r.href
+                                ? "Otvori izvor knjiženja"
+                                : undefined
                         }
                         className={[
                           "border-t border-cream-300/60",
-                          r.istekao ? "bg-danger/5" : "",
-                          r.href
-                            ? r.istekao
+                          oznacen
+                            ? "bg-info-bg"
+                            : r.veza
+                              ? "bg-brand-100/40"
+                              : r.istekao
+                                ? "bg-danger/5"
+                                : "",
+                          onRow
+                            ? r.istekao && !r.veza && !oznacen
                               ? "cursor-pointer hover:bg-danger/10 transition-colors"
                               : "cursor-pointer hover:bg-cream-50/70 transition-colors"
                             : "",
                         ].join(" ")}
                       >
+                        {zatvaranjeMod && (
+                          <td className="px-2 py-2 text-center">
+                            {r.stavka && (
+                              <input
+                                type="checkbox"
+                                checked={oznacen}
+                                onChange={() =>
+                                  prebaciOznaku(r.stavka as { tip: ZatvaranjeTip; id: number })
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                className="accent-brand-600 w-4 h-4 cursor-pointer"
+                                aria-label="Označi za zatvaranje"
+                              />
+                            )}
+                          </td>
+                        )}
                         <td className="text-right px-3 py-2 text-text-tertiary tabular-nums">
                           {i + 1}.
                         </td>
@@ -1237,6 +1521,25 @@ export default function PartnerKarticaPage({
                           {r.dospijece ? formatDate(r.dospijece) : "–"}
                         </td>
                         <td className="px-3 py-2">{r.label}</td>
+                        <td className="px-2 py-2 text-center">
+                          {r.veza && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setVezaZaOtvaranje(r.veza);
+                              }}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-brand-600/40 bg-brand-100 text-brand-700 hover:bg-brand-600 hover:text-white transition-colors"
+                              title={
+                                r.veza.rucno
+                                  ? `Ručno zatvorena veza ${r.veza.oznaka} · klik za otvaranje`
+                                  : `Uplata automatski vezana za dokument (${r.veza.oznaka}) · klik za otvaranje`
+                              }
+                            >
+                              {r.veza.oznaka}
+                            </button>
+                          )}
+                        </td>
                         <td className="text-right px-3 py-2 tabular-nums">
                           {r.duguje ? formatBAM(r.duguje) : ""}
                         </td>
@@ -1249,7 +1552,7 @@ export default function PartnerKarticaPage({
                             saldo < 0 ? "text-accent-500" : "text-text-primary",
                           ].join(" ")}
                         >
-                          {formatBAM(saldo)}
+                          {poVezama ? "" : formatBAM(saldo)}
                         </td>
                       </tr>
                     );
@@ -1258,7 +1561,7 @@ export default function PartnerKarticaPage({
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-cream-300 font-semibold">
-                  <td className="px-3 py-2" colSpan={4}>
+                  <td className="px-3 py-2" colSpan={zatvaranjeMod ? 6 : 5}>
                     <span className="text-[11px] uppercase tracking-[0.06em] text-text-tertiary">
                       Ukupno
                     </span>
@@ -1284,10 +1587,90 @@ export default function PartnerKarticaPage({
             </table>
           )}
         </div>
+        {zatvaranjeMod && (
+          <div className="sticky bottom-3 z-10 mt-3 rounded-xl border border-cream-300 bg-cream-100 shadow-sm px-4 py-3 flex items-center gap-x-5 gap-y-2 flex-wrap">
+            <div className="text-[12.5px] text-text-secondary tabular-nums">
+              Označeno: <strong className="text-text-primary">{oznaceniZbir.broj}</strong>
+            </div>
+            <div className="text-[12.5px] text-text-secondary tabular-nums">
+              Duguje:{" "}
+              <strong className="text-text-primary">
+                {formatBAM(oznaceniZbir.duguje)}
+              </strong>
+            </div>
+            <div className="text-[12.5px] text-text-secondary tabular-nums">
+              Potražuje:{" "}
+              <strong className="text-text-primary">
+                {formatBAM(oznaceniZbir.potrazuje)}
+              </strong>
+            </div>
+            <div className="text-[12.5px] text-text-secondary tabular-nums">
+              Razlika:{" "}
+              <strong
+                className={
+                  oznaceniZbir.broj > 0 && Math.abs(oznaceniZbir.razlika) < 0.005
+                    ? "text-success"
+                    : "text-accent-500"
+                }
+              >
+                {formatBAM(oznaceniZbir.razlika)}
+              </strong>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setOznaceni(new Set());
+                  setZatvInfo(null);
+                }}
+                disabled={oznaceniZbir.broj === 0 || zatvBusy}
+                className="px-3 py-1.5 rounded-lg border border-cream-300 text-[12.5px] font-medium text-text-secondary hover:bg-cream-200 transition-colors disabled:opacity-50"
+              >
+                Poništi označeno
+              </button>
+              <button
+                type="button"
+                onClick={zatvoriOznacene}
+                disabled={!oznaceniZbir.mozeZatvoriti || zatvBusy}
+                title={
+                  oznaceniZbir.mozeZatvoriti
+                    ? "Zatvori označene stavke u novu vezu"
+                    : "Označite plaćanja i dokumente čija je razlika 0,00"
+                }
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-brand-600 text-white text-[12.5px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {zatvBusy ? (
+                  <IconLoader2 size={14} className="animate-spin" />
+                ) : (
+                  <IconLink size={14} />
+                )}
+                Zatvori (Z)
+              </button>
+            </div>
+            <p className="basis-full text-[11.5px] text-text-tertiary">
+              Označite plaćanja i dokumente iste vrijednosti; zatvaranje je
+              moguće kad je razlika 0,00. Stavke iz druge godine vidite kad u
+              izboru godine uzmete &ldquo;sve&rdquo;.
+            </p>
+          </div>
+        )}
+        {zatvInfo && (
+          <p
+            className={
+              zatvInfo.greska
+                ? "text-[12px] mt-2 text-accent-500"
+                : "text-[12px] mt-2 text-success"
+            }
+          >
+            {zatvInfo.tekst}
+          </p>
+        )}
         <p className="text-[11.5px] text-text-tertiary mt-2">
           {activeLedger === "dobavljac"
             ? "Računi dobavljača potražuju, naša plaćanja duguju; negativan saldo = naš dug."
             : "Naše fakture duguju, uplate kupca potražuju; pozitivan saldo = njihov dug."}
+          {" "}Veza: Z = ručno zatvorene stavke, ZA = uplata automatski vezana za
+          dokument; klik na oznaku otvara vezu.
         </p>
       </section>
 
@@ -1319,6 +1702,21 @@ export default function PartnerKarticaPage({
       />
 
       {/* potvrda brisanja ulaznog računa (PK modal umjesto window.confirm) */}
+      <ConfirmModal
+        open={vezaZaOtvaranje != null}
+        onClose={() => setVezaZaOtvaranje(null)}
+        title={`Otvori vezu ${vezaZaOtvaranje?.oznaka ?? ""}`}
+        message={
+          vezaZaOtvaranje?.rucno
+            ? "Stavke ove veze se vraćaju u otvorene, a dokumenti dobijaju status koji su imali prije zatvaranja. Vezu možete ponovo napraviti kad god želite."
+            : "Uplata se odvezuje od dokumenta. Dokument se vraća u otvoren ako ga ne pokriva nijedna druga uplata; stavka izvoda ostaje potvrđena."
+        }
+        confirmLabel="Da, otvori vezu"
+        danger={false}
+        busy={zatvBusy}
+        onConfirm={otvoriVezu}
+      />
+
       <ConfirmModal
         open={racunZaBrisanje != null}
         onClose={() => setRacunZaBrisanje(null)}

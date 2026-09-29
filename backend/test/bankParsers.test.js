@@ -124,6 +124,42 @@ test("Ziraat (Asseco): 6 transakcija, 2 priliva i 4 odliva", async () => {
   assert.equal(sfPharm.date, "2026-06-08");
 });
 
+test("Intesa (KM račun): 1 priliv, protivstrana iz više redova", async () => {
+  const r = await parseFixture("INTESA banka 2.pdf");
+  assertValid(r);
+  assert.equal(r.bankId, "intesa");
+  assert.equal(r.account, "1543002021153173");
+  assert.equal(r.statementNumber, "42");
+  assert.equal(r.statementDate, "2026-08-24");
+  assert.equal(r.openingBalance, 12915.44);
+  assert.equal(r.closingBalance, 12983.44);
+  assert.equal(r.transactions.length, 1);
+  const t = r.transactions[0];
+  assert.equal(t.direction, "in");
+  assert.equal(t.amount, 68.0);
+  assert.equal(t.counterpartyAccount, "3383502200648888");
+  assert.equal(t.counterpartyName, "UPRAVA ZA INDIREKTNO OPOREZIVANJE U BIH");
+  assert.match(t.description, /PDV POVRAT/);
+});
+
+test("Intesa (devizni EUR): KM iznosi, validacija u EUR, zaokruživanje 0.01", async () => {
+  const r = await parseFixture("INTESA banka.pdf");
+  assertValid(r);
+  assert.equal(r.bankId, "intesa");
+  assert.equal(r.currency, "BAM");
+  assert.equal(r.account, "50621210");
+  assert.equal(r.statementNumber, "25");
+  assert.equal(r.statementDate, "2026-08-13");
+  assert.equal(r.openingBalance, 600.24);
+  assert.equal(r.closingBalance, 12305.89);
+  assert.equal(r.transactions.length, 2);
+  assert.equal(r.validation.computed.totalIn, 11734.98);
+  assert.equal(r.validation.computed.totalOut, 29.34);
+  assert.match(r.transactions[0].description, /6000\.00 EUR/);
+  assert.match(r.transactions[1].description, /PROVIZIJA/);
+  assert.ok(r.warnings.some((w) => /zaokruživanja/.test(w)));
+});
+
 test("Nepoznat PDF vraća UNSUPPORTED_BANK", async () => {
   // KPR obrazac nije izvod — mora biti odbijen kao nepoznata banka
   const buffer = fs.readFileSync(

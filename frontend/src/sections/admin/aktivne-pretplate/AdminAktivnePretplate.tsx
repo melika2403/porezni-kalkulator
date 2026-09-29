@@ -200,6 +200,7 @@ export default function AdminAktivnePretplate() {
             <label className={styles.fieldLabel}>Email korisnika</label>
             <input
               className={styles.input}
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="korisnik@email.ba"

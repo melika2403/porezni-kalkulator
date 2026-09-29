@@ -23,7 +23,10 @@ async function request<T>(
 }
 
 export type SihtericaMonth = { year: number; month: number };
-export type SihtericaData = { days: (DayEntry | null)[] };
+export type SihtericaData = {
+  days: (DayEntry | null)[];
+  meta?: Partial<SihtericaMeta>;
+};
 
 export function getSihtericaMonths(workerId: number) {
   return request<SihtericaMonth[]>(`/api/sihterica/months?workerId=${workerId}`);

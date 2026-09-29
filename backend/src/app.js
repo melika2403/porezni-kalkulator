@@ -839,6 +839,37 @@ async function ensureColumns() {
       column: "ulazniRacunId",
       ddl: "ALTER TABLE bank_transactions ADD COLUMN ulazniRacunId INT UNSIGNED NULL",
     },
+    // Ručno zatvaranje stavki na kartici partnera (veze Z1, Z2...).
+    {
+      table: "bank_transactions",
+      column: "zatvaranjeId",
+      ddl: "ALTER TABLE bank_transactions ADD COLUMN zatvaranjeId INT UNSIGNED NULL",
+    },
+    {
+      table: "ulazni_racuni",
+      column: "zatvaranjeId",
+      ddl: "ALTER TABLE ulazni_racuni ADD COLUMN zatvaranjeId INT UNSIGNED NULL",
+    },
+    {
+      table: "invoices",
+      column: "zatvaranjeId",
+      ddl: "ALTER TABLE invoices ADD COLUMN zatvaranjeId INT UNSIGNED NULL",
+    },
+    {
+      table: "partner_opening_balances",
+      column: "zatvaranjeKupacId",
+      ddl: "ALTER TABLE partner_opening_balances ADD COLUMN zatvaranjeKupacId INT UNSIGNED NULL",
+    },
+    {
+      table: "partner_opening_balances",
+      column: "zatvaranjeDobId",
+      ddl: "ALTER TABLE partner_opening_balances ADD COLUMN zatvaranjeDobId INT UNSIGNED NULL",
+    },
+    {
+      table: "partner_zatvaranja",
+      column: "datum",
+      ddl: "ALTER TABLE partner_zatvaranja ADD COLUMN datum DATE NULL",
+    },
     // Šifra partnera (redni broj unutar organizacije).
     {
       table: "partners",

@@ -5,6 +5,7 @@ const {
   requirePlanTier,
 } = require("../middlewares/authMiddleware");
 const ctrl = require("../controllers/partnersController");
+const zatvaranja = require("../controllers/zatvaranjaController");
 
 const router = express.Router();
 
@@ -105,6 +106,28 @@ router.delete(
   requireOrgRole("OWNER", "ADMIN"),
   planGate,
   ctrl.removeUlazniRacun,
+);
+// zatvaranje stavki na kartici (veze Z1, Z2...) i otvaranje veza
+router.post(
+  "/:orgId/:partnerId/zatvaranja",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  planGate,
+  zatvaranja.zatvori,
+);
+router.post(
+  "/:orgId/:partnerId/zatvaranja/otvori-automatsku",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  planGate,
+  zatvaranja.otvoriAutomatsku,
+);
+router.delete(
+  "/:orgId/:partnerId/zatvaranja/:zatvaranjeId",
+  requireAuth,
+  requireOrgRole("OWNER", "ADMIN"),
+  planGate,
+  zatvaranja.otvori,
 );
 router.get(
   "/:orgId/:partnerId/kartica",

@@ -83,8 +83,8 @@ export type Kalkulacija = {
   /** fakturna vrijednost + ulazni PDV = ukupan račun dobavljača */
   iznosRacuna: number;
   stavkeCount: number;
-  /** status ulaznog računa kalkulacije (badge plaćanja na listi) */
-  racunStatus: "OTVOREN" | "PLACEN" | null;
+  /** izveden status plaćanja ulaznog računa (kao na kartici dobavljača) */
+  racunStatus: "OTVOREN" | "DJELIMICNO" | "PLACEN" | "KREDIT" | null;
   racunRok: string | null;
 };
 

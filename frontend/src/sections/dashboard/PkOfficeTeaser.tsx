@@ -495,7 +495,7 @@ function BankScreen() {
             Prevuci PDF ili klikni za odabir
           </div>
           <div className="text-[11px] text-text-tertiary mt-2.5">
-            UniCredit · Raiffeisen · Sparkasse · KIB · BBI · MF · Ziraat
+            UniCredit · Raiffeisen · Intesa · Sparkasse · KIB · BBI · MF · Ziraat
           </div>
         </div>
 

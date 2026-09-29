@@ -15,7 +15,10 @@ const {
   Kalkulacija,
   KalkulacijaStavka,
 } = require("../models/index");
-const { tryMatchExistingPayment } = require("./partnersController");
+const {
+  tryMatchExistingPayment,
+  izvedeniStatusUlaznihRacuna,
+} = require("./partnersController");
 const { logEvent } = require("./activityController");
 
 const PDV_STOPA = 17;
@@ -361,24 +364,36 @@ async function list(req, res) {
     counts.map((c) => [c.kalkulacijaId, Number(c.cnt)]),
   );
 
-  // status plaćanja ulaznog računa kalkulacije (za badge na listi)
+  // status plaćanja ulaznog računa kalkulacije (za badge na listi): IZVEDEN
+  // kao na kartici partnera i listi ulaznih računa (FIFO nevezanih isplata),
+  // ne sirovi status iz baze. Račun plaćen zbirnom isplatom (više računa
+  // jednom uplatom) ili isplatom koja se nije mogla automatski vezati ostaje
+  // OTVOREN u bazi, pa je kalkulacija pokazivala "nije plaćeno" iako je
+  // kartica dobavljača imala saldo 0.
   const racunIds = rows.map((r) => r.ulazniRacunId).filter(Boolean);
   const racuni = racunIds.length
     ? await UlazniRacun.findAll({
         where: { id: { [Op.in]: racunIds } },
-        attributes: ["id", "status", "rokPlacanja"],
+        attributes: ["id", "partnerId", "status", "rokPlacanja"],
         raw: true,
       })
     : [];
   const racunById = new Map(racuni.map((r) => [r.id, r]));
+  const izvedeno = await izvedeniStatusUlaznihRacuna(
+    organizationId,
+    racuni.map((r) => r.partnerId),
+  );
 
   return res.json({
     ok: true,
     data: rows.map((k) => {
       const r = k.ulazniRacunId ? racunById.get(k.ulazniRacunId) : null;
+      // KREDIT (samo PDV evidencija, odobrenje) nije status plaćanja: tada
+      // važi sirovi status računa (evidencija je zatvorena, PLACEN)
+      const izv = r ? izvedeno.get(r.id)?.status : null;
       return {
         ...kalkulacijaJson(k, countById.get(k.id) ?? 0),
-        racunStatus: r ? r.status : null,
+        racunStatus: r ? (izv && izv !== "KREDIT" ? izv : r.status) : null,
         racunRok: r ? r.rokPlacanja : null,
       };
     }),

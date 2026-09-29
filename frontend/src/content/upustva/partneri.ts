@@ -61,6 +61,27 @@ export const partneri: Upustvo = {
       ],
     },
     {
+      naslov: "Zatvaranje stavki (veze Z)",
+      blokovi: [
+        {
+          t: "p",
+          text: "Plaćanja se na dokumente raspoređuju sama, redom od najstarijeg. Kad želite tačno reći koje plaćanje zatvara koje račune (npr. jedna uplata za dva računa), uključite \"Zatvaranje stavki\" iznad kartice prometa i označite stavke: traka ispod tabele sabira duguje i potražuje i pokazuje razliku.",
+        },
+        {
+          t: "p",
+          text: "\"Zatvori (Z)\" je aktivno samo kad je razlika 0,00. Označene stavke postaju veza Z1, Z2..., redovi dobiju zelenu podlogu i oznaku veze, a računi i fakture u vezi su plaćeni svuda (kalkulacije, ulazni računi, IOS, opomene). U vezu može ući i početno stanje partnera.",
+        },
+        {
+          t: "p",
+          text: "Oznaka ZA znači da je uplata automatski vezana za dokument pri potvrdi izvoda. Klik na oznaku (Z ili ZA) otvara vezu: stavke se vraćaju u otvorene, a dokumenti dobijaju status koji su imali prije zatvaranja.",
+        },
+        {
+          t: "savjet",
+          text: "\"Poredaj po vezama\" stavlja stavke iste veze jednu ispod druge, na ekranu i u PDF-u kartice. Veza se sama otvara ako se neka njena stavka izmijeni ili obriše (izvod, račun, faktura, početno stanje), jer zbir tada više ne štima.",
+        },
+      ],
+    },
+    {
       naslov: "Uvoz partnera od drugog obrta",
       blokovi: [
         {
@@ -133,6 +154,10 @@ export const partneri: Upustvo = {
     {
       p: "Kada mogu poslati opomenu kupcu?",
       o: "Tek kad kupac ima dospjeli dug preko roka plaćanja; do tada je dugme Opomena onemogućeno. Opomena je PDF sa dospjelim računima, rokom i računom za uplatu, pošaljete je mailom ili preuzmete.",
+    },
+    {
+      p: "Kako zatvoriti jednu uplatu za više računa?",
+      o: "Na kartici partnera uključite \"Zatvaranje stavki\", označite uplatu i račune koje ona plaća. Kad je razlika 0,00, kliknite \"Zatvori (Z)\". Veza se može otvoriti klikom na njenu oznaku.",
     },
     {
       p: "Šta znače crveni redovi u kartici?",

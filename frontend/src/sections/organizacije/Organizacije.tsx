@@ -507,14 +507,15 @@ export default function Organizacije() {
           const workers = wRes.data;
           const payrolls = pRes.data;
           const payrollByWorker = new Map(payrolls.map((p) => [p.workerId, p]));
-          const { radniciFbih, radniciRs, vlasnici2002 } =
+          // Ista podjela kao stranica obračuna plata: samo radnici aktivni u
+          // mjesecu, pa odjavljeni radnik nikad ne daje 2001.
+          const { radnici, radniciFbih, radniciRs, vlasnici2002 } =
             spec.splitWorkersForObrasce(o, workers, year, month);
           // Broj zaposlenih za 2002 = aktivni radnici + vlasnik u mjesecu
           // (isto kao pojedinačna stranica: radnici.length + vlasnici.length).
           // NE workers.length (cijeli roster sa odjavljenima), da bulk i
           // pojedinačni 2002 daju identično polje "broj zaposlenih".
-          const brojZaposlenih2002 =
-            radniciFbih.length + radniciRs.length + vlasnici2002.length;
+          const brojZaposlenih2002 = radnici.length + vlasnici2002.length;
           // Datum isplate: snapshot iz payroll-a mjeseca, inače zadnji dan
           // (isti default kao stranica obračuna).
           const paymentDate =
