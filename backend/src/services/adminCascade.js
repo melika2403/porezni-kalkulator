@@ -19,6 +19,8 @@ const {
   Payroll,
   PayrollDocument,
   WorkerDocument,
+  PartnerZatvaranje,
+  PartnerZatvaranjeStavka,
 } = require("../models/index");
 
 async function deleteFormsByIds(formIds, t) {
@@ -99,6 +101,14 @@ async function deleteOrganizationInner(orgId, t) {
   await deleteFormsByIds(orgFormIds, t);
 
   await deleteInvoicesWhere({ organizationId: orgId }, t);
+  // ručne veze (Z) sa kartica partnera ove organizacije
+  const vezeIds = (
+    await PartnerZatvaranje.findAll({ where: { organizationId: orgId }, attributes: ["id"], transaction: t })
+  ).map((z) => z.id);
+  if (vezeIds.length) {
+    await PartnerZatvaranjeStavka.destroy({ where: { zatvaranjeId: { [Op.in]: vezeIds } }, transaction: t });
+    await PartnerZatvaranje.destroy({ where: { id: { [Op.in]: vezeIds } }, transaction: t });
+  }
   await InvoiceCounter.destroy({ where: { organizationId: orgId }, transaction: t });
   await ContractCounter.destroy({ where: { organizationId: orgId }, transaction: t });
   await KarticaMember.destroy({ where: { organizationId: orgId }, transaction: t });

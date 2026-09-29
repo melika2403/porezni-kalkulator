@@ -287,8 +287,9 @@ export default function ObracuniPlataPage() {
     },
   });
 
-  // Obrazac 2002 (specifikacija uz uplatu doprinosa poduzetnika): isti tok
-  // kao na Poreznom (ObracunPlata), samo iz PK Office podataka
+  // Obrazac 2002 (specifikacija uz uplatu doprinosa poduzetnika): isti
+  // builder i ista podjela radnika kao Porezni (ObracunPlata) i bulk
+  // preuzimanje na /organizacije, da sva tri mjesta daju identičan obrazac.
   async function download2002() {
     if (!vlasnik || !fullOrg || !vlasnikPayroll) return;
     setBusy("2002");
@@ -297,102 +298,32 @@ export default function ObracuniPlataPage() {
         setObavijest("Postavi režim oporezivanja na postavkama obrta.");
         return;
       }
-      const { fillObrazac2002Template } = await import(
-        "src/sections/prijave-radnika/fillObrazac2002"
+      const [{ fillObrazac2002Template }, spec] = await Promise.all([
+        import("src/sections/prijave-radnika/fillObrazac2002"),
+        import("src/sections/prijave-radnika/obrasciSpecifikacije"),
+      ]);
+      // Broj zaposlenih = radnici aktivni u mjesecu + vlasnik (PU FBiH broji
+      // vlasnika u zaposlene), NE cijeli spisak sa odjavljenima.
+      const { radnici, vlasnici2002 } = spec.splitWorkersForObrasce(
+        fullOrg,
+        workers ?? [],
+        year,
+        month,
       );
-      const p = vlasnikPayroll;
-      const fmt2 = (n: number) =>
-        n.toLocaleString("de-DE", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+      const bytes = await fillObrazac2002Template(
+        spec.build2002Data({
+          organization: fullOrg,
+          vlasnik,
+          payroll: vlasnikPayroll,
+          allWorkersCount: radnici.length + vlasnici2002.length,
+          year,
+          month,
+        }),
+      );
       const mm = String(month).padStart(2, "0");
-      const yyyy = String(year);
-      const lastDay = new Date(year, month, 0).getDate();
-      const startISO = `${yyyy}-${mm}-01`;
-      const endISO = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
-      const vlPrijava = vlasnik.prijavaDate?.slice(0, 10) ?? null;
-      const vlOdjava = vlasnik.odjavaDate?.slice(0, 10) ?? null;
-      const periodOdISO = vlPrijava && vlPrijava > startISO ? vlPrijava : startISO;
-      const periodDoISO = vlOdjava && vlOdjava < endISO ? vlOdjava : endISO;
-      const [, odMm, odDan] = periodOdISO.split("-");
-      const [, doMm, doDan] = periodDoISO.split("-");
-      const countWorkDays = (fromIso: string, toIso: string) => {
-        let count = 0;
-        for (
-          let d = new Date(fromIso);
-          d <= new Date(toIso);
-          d.setDate(d.getDate() + 1)
-        ) {
-          const wd = d.getDay();
-          if (wd !== 0 && wd !== 6) count++;
-        }
-        return count;
-      };
-      const vrstaSamostalne = (() => {
-        switch (fullOrg.taxCategory) {
-          case "SLOBODNA_ZANIMANJA":
-            return "SLOBODNO_ZANIMANJE" as const;
-          case "OBRT_SRODNE":
-            return "DJELATNOST_OBRTA" as const;
-          case "ESNAFSKI_ZANATI":
-            return "NISKO_AKUMULACIJSKA" as const;
-          case "POLJOPRIVREDA_SUMARSTVO":
-            return "POLJOPRIVREDA_SUMARSTVO" as const;
-          case "TRGOVAC_POJEDINAC":
-            return "TRGOVAC_POJEDINAC" as const;
-          case "TAXI":
-            return "NISKO_AKUMULACIJSKA" as const;
-          default:
-            return "DJELATNOST_OBRTA" as const;
-        }
-      })();
-      const bytes = await fillObrazac2002Template({
-        organizationId: orgId,
-        naziv: fullOrg.name || "",
-        jib: (fullOrg.taxNumber || "").replace(/\D/g, ""),
-        operacija: "PRIJAVA",
-        periodOdDan: odDan,
-        periodOdMjesec: odMm,
-        periodOdGodina: yyyy,
-        periodDoDan: doDan,
-        periodDoMjesec: doMm,
-        periodDoGodina: yyyy,
-        adresa: fullOrg.address || "",
-        opcina: fullOrg.city || "",
-        // vlasnik se po PU FBiH broji u zaposlene (ukupno svi u org-u)
-        brojZaposlenih: String((workers ?? []).length),
-        vrstaDjelatnosti: [fullOrg.activityCode, fullOrg.activityName]
-          .filter(Boolean)
-          .join(" "),
-        vrstaSamostalne,
-        dohodakNa:
-          fullOrg.taxRegime === "STVARNI_DOHODAK"
-            ? "POSLOVNIH_KNJIGA"
-            : "PAUSALNO",
-        osnovica: fmt2(Number(p.gross ?? p.grossBase) || 0),
-        brojRadnihSati: String(countWorkDays(periodOdISO, periodDoISO) * 8),
-        brojRadnihSatiBolovanje: "0",
-        datumUplateDan: String(lastDay).padStart(2, "0"),
-        datumUplateMjesec: mm,
-        datumUplateGodina: yyyy,
-        prezimeIme: `${vlasnik.firstName} ${vlasnik.lastName}`.trim(),
-        jmb: (vlasnik.jmbg || "").replace(/\D/g, ""),
-        adresaPoduzetnika: vlasnik.address || "",
-        opcinaPoduzetnika: vlasnik.city || "",
-        pioStopa: "19,50",
-        pioIznos: fmt2(Number(p.empPio) || 0),
-        zdrStopa: "14,50",
-        zdrIznos: fmt2(Number(p.empZdravstvo) || 0),
-        nezapStopa: "2,00",
-        nezapIznos: fmt2(Number(p.empNezaposlenost) || 0),
-        ukupnoIznos: fmt2(Number(p.empTotal) || 0),
-        potpis: "",
-        datum: `${String(lastDay).padStart(2, "0")}.${mm}.${yyyy}.`,
-      });
       triggerBlobDownload(
         new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
-        `Obrazac-2002-${`${vlasnik.firstName}_${vlasnik.lastName}`.replace(/[^A-Za-z0-9_]/g, "_")}-${yyyy}-${mm}.pdf`,
+        `Obrazac-2002-${`${vlasnik.firstName}_${vlasnik.lastName}`.replace(/[^A-Za-z0-9_]/g, "_")}-${year}-${mm}.pdf`,
       );
     } catch (e) {
       setObavijest(

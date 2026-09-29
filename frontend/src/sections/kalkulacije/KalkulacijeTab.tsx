@@ -48,7 +48,17 @@ function RacunStatusBadge({ k }: { k: Kalkulacija }) {
     );
   }
   const danas = todayIso();
-  if (k.racunRok && String(k.racunRok).slice(0, 10) < danas) {
+  const kasni = !!k.racunRok && String(k.racunRok).slice(0, 10) < danas;
+  if (k.racunStatus === "DJELIMICNO") {
+    return (
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${kasni ? "bg-accent-bg text-accent-500" : "bg-info-bg text-info"}`}
+      >
+        {kasni ? "djelimično, kasni" : "djelimično"}
+      </span>
+    );
+  }
+  if (kasni) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent-bg text-accent-500">
         kasni
@@ -176,7 +186,7 @@ export function KalkulacijeTab({ orgId }: { orgId: number | null }) {
     } catch (e) {
       setBrisiError(
         e instanceof Error && e.message === "RACUN_PLACEN"
-          ? "Ulazni račun ove kalkulacije je već plaćen (vezan za izvod). Prvo razvežite uplatu na stranici Partneri, pa pokušajte ponovo."
+          ? "Ulazni račun ove kalkulacije je već plaćen (vezan za izvod ili zatvoren vezom na kartici dobavljača). Prvo otvorite vezu na kartici dobavljača (Partneri), pa pokušajte ponovo."
           : "Greška pri brisanju, pokušajte ponovo.",
       );
     }

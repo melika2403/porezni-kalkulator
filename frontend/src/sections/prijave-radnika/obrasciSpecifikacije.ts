@@ -63,27 +63,39 @@ export function isActiveForMonth(
   return true;
 }
 
-// Podjela radnika za obrasce, isti princip kao obracunOrgPayrolls:
+// JEDINO pravilo ko ulazi u obračun mjeseca. Koriste ga stranica obračuna
+// plata, "Obračunaj sve" (obracunOrgPayrolls), bulk obračun i bulk 2001/2002
+// na /organizacije i PK Office, da svi uvijek vide iste radnike:
+//   • samo radnici aktivni u mjesecu (po datumima prijave/odjave)
 //   • obrt (BUSINESS): radnici = RADNIK, vlasnik ide na 2002
-//   • d.o.o.: vlasnik-direktor sa prijavom se tretira kao radnik (2001),
-//     2002 se ne generiše
+//   • d.o.o.: vlasnik-direktor na ugovoru o radu sa datumom prijave je radnik
+//     (2001); u opcijama 2/3/4 vlasnik nije uposlenik; 2002 se ne generiše
 // Radnici se dalje dijele po entitetu prebivališta: FBiH → 2001, RS → 2001-A.
 export function splitWorkersForObrasce(
   org: Pick<Organization, "type" | "ownerIsDirector" | "directorEngagement">,
   workers: Worker[],
   year: number,
   month: number,
-): { radniciFbih: Worker[]; radniciRs: Worker[]; vlasnici2002: Worker[] } {
+): {
+  radnici: Worker[];
+  radniciFbih: Worker[];
+  radniciRs: Worker[];
+  vlasnici2002: Worker[];
+} {
   const isObrt = org.type === "BUSINESS";
   const ownerEmployed =
     (org.ownerIsDirector ?? true) &&
     (org.directorEngagement ?? "ugovor_o_radu") === "ugovor_o_radu";
   const active = workers.filter((w) => isActiveForMonth(w, year, month));
-  const radnici =
-    isObrt || !ownerEmployed
-      ? active.filter((w) => w.role === "RADNIK")
-      : active.filter((w) => w.role === "RADNIK" || !!w.prijavaDate);
+  // vlasnik-direktor d.o.o. ide iza radnika (redoslijed kao u tabeli obračuna)
+  const radnici = [
+    ...active.filter((w) => w.role === "RADNIK"),
+    ...(!isObrt && ownerEmployed
+      ? active.filter((w) => w.role === "VLASNIK" && !!w.prijavaDate)
+      : []),
+  ];
   return {
+    radnici,
     radniciFbih: radnici.filter((w) => w.prebivalisteEntitet !== "RS"),
     radniciRs: radnici.filter((w) => w.prebivalisteEntitet === "RS"),
     vlasnici2002: isObrt ? active.filter((w) => w.role === "VLASNIK") : [],

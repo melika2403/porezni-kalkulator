@@ -38,11 +38,14 @@ function fmtDate(d) {
  * @param {object} input.partner  partner {name, code, jib, address, city}
  * @param {"kupac"|"dobavljac"} input.type
  * @param {{from: string, to: string}} input.period  ISO datumi
- * @param {Array<{date: string, dospijece: string|null, label: string, duguje: number, potrazuje: number}>} input.rows
- *   hronološki redovi; saldo se računa kumulativno (duguje - potražuje)
+ * @param {Array<{date: string, dospijece: string|null, label: string, duguje: number, potrazuje: number, z?: string}>} input.rows
+ *   hronološki redovi; saldo se računa kumulativno (duguje - potražuje);
+ *   z = oznaka veze zatvaranja (Z3 ručna, ZA1 automatska)
+ * @param {boolean} [input.poVezama] redovi poredani po vezama: tekući saldo
+ *   po redu tada nema smisla, pa se prikazuje samo ukupni
  * @returns {Promise<Buffer>}
  */
-async function buildKarticaPdf({ org, partner, type, period, rows }) {
+async function buildKarticaPdf({ org, partner, type, period, rows, poVezama = false }) {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   const reg = await doc.embedFont(fs.readFileSync(FONT_REG), { subset: true });
@@ -54,12 +57,16 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
   const M = 42;
   const tableW = PAGE.w - 2 * M;
 
-  // kolone: rb 24, datum 58, dospijeće 58, opis flex, duguje 74, potražuje 74, saldo 80
+  // kolone: rb 24, datum 58, dospijeće 58, opis flex, [veza 32], duguje 74,
+  // potražuje 74, saldo 80; kolona veze samo kad kartica ima zatvaranja
+  const imaVeze = rows.some((r) => r.z);
+  const vezaW = imaVeze ? 32 : 0;
   const cols = [
     { key: "rb", w: 24, align: "right", title: "Rb" },
     { key: "date", w: 58, align: "left", title: "Datum" },
     { key: "dospijece", w: 58, align: "left", title: "Dospijeće" },
-    { key: "label", w: tableW - 24 - 58 - 58 - 74 - 74 - 80, align: "left", title: "Opis knjiženja" },
+    { key: "label", w: tableW - 24 - 58 - 58 - vezaW - 74 - 74 - 80, align: "left", title: "Opis knjiženja" },
+    ...(imaVeze ? [{ key: "z", w: vezaW, align: "center", title: "Veza" }] : []),
     { key: "duguje", w: 74, align: "right", title: "Duguje" },
     { key: "potrazuje", w: 74, align: "right", title: "Potražuje" },
     { key: "saldo", w: 80, align: "right", title: "Saldo" },
@@ -189,15 +196,26 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
     sumDuguje += r.duguje || 0;
     sumPotrazuje += r.potrazuje || 0;
 
+    // zatvorena stavka: blaga zelena podloga reda
+    if (r.z) {
+      page.drawRectangle({
+        x: M,
+        y: y - rowH,
+        width: tableW,
+        height: rowH,
+        color: rgb(0.93, 0.96, 0.93),
+      });
+    }
     let cx = M;
     const vals = {
       rb: `${idx + 1}.`,
       date: fmtDate(r.date),
       dospijece: fmtDate(r.dospijece),
       label: truncate(r.label, reg, 8.5, cols[3].w - 8),
+      z: r.z || "",
       duguje: r.duguje ? fmt2(r.duguje) : "",
       potrazuje: r.potrazuje ? fmt2(r.potrazuje) : "",
-      saldo: fmt2(saldo),
+      saldo: poVezama ? "" : fmt2(saldo),
     };
     for (const c of cols) {
       drawText(vals[c.key], cx + 3, y - rowH + 4.5, {
@@ -223,6 +241,7 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
     rb: "",
     date: "",
     dospijece: "",
+    z: "",
     label: "UKUPNO:",
     duguje: fmt2(sumDuguje),
     potrazuje: fmt2(sumPotrazuje),
@@ -243,6 +262,14 @@ async function buildKarticaPdf({ org, partner, type, period, rows }) {
     thickness: 0.9,
     color: INK,
   });
+  if (imaVeze) {
+    drawText(
+      "Veza: Z = ručno zatvorene stavke (zbir plaćanja jednak zbiru dokumenata), ZA = uplata automatski vezana za dokument.",
+      M,
+      y - 32,
+      { size: 7.5, color: MUTED },
+    );
+  }
 
   // footeri sa brojem stranice (naknadno, kad znamo ukupan broj)
   const pages = doc.getPages();

@@ -652,6 +652,29 @@ Klik na partnera otvara karticu (olovka u redu uređuje podatke):
   Radi u oba smjera: ako je izvod stigao prije knjiženja, račun se
   zatvara odmah pri knjiženju. Vraćanje stavke iz potvrde ponovo otvara
   račun. Ručno "Plaćen" / "Vrati" postoji za gotovinska plaćanja.
+  Isplata veže samo račun izdat najkasnije na njen dan; kod više istih
+  iznosa zatvara se najstariji, a pri knjiženju računa gledaju se samo
+  isplate od datuma računa (29.09.2026).
+- **Zatvaranje stavki (veze Z)**: dugme "Zatvaranje stavki" iznad kartice
+  prometa uključuje označavanje; traka ispod tabele sabira duguje i
+  potražuje označenih stavki i pokazuje razliku. "Zatvori (Z)" radi samo
+  kad je razlika 0,00 (npr. jedna uplata za dva računa). Veza dobija
+  oznaku Z1, Z2... (po partneru i strani), redovi zelenu podlogu, a
+  dokumenti u vezi status plaćen (pa ih kalkulacije, ulazni računi, IOS i
+  opomene vide zatvorenim); zatvorena plaćanja ne ulaze u FIFO raspodjelu.
+  U vezu ulaze plaćanja, računi/fakture, knjižne obavijesti (u minusu) i
+  početno stanje. Automatske 1:1 veze (isplata vezana za račun, uplata za
+  fakturu) prikazuju se kao ZA1, ZA2... Klik na oznaku otvara vezu: ručna
+  vraća prethodne statuse dokumenata, automatska odvezuje uplatu.
+  "Poredaj po vezama" stavlja stavke iste veze jednu ispod druge, na
+  ekranu i u PDF-u kartice (kolona "Veza" + legenda). Veza se sama otvara
+  kad se njena stavka izmijeni ili obriše (stavka izvoda vraćena iz
+  potvrde, drugi partner, brisanje izvoda/prebijanja, izmjena iznosa ili
+  brisanje računa, promjena statusa ili brisanje fakture, izmjena
+  početnog stanja). Kalkulacija čiji je račun u vezi se ne može mijenjati
+  dok se veza ne otvori. Spajanje partnera prenosi veze na ciljnog
+  partnera. Tabele: partner_zatvaranja, partner_zatvaranje_stavke; kolona
+  zatvaranjeId na bank_transactions, ulazni_racuni i invoices.
 - Sekcije: ulazni računi, naše fakture partneru (sa statusom naplate),
   sve transakcije sa izvoda (oznaka "zatvorio račun" na isplati koja je
   zatvorila ulazni račun).
