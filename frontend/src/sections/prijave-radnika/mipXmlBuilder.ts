@@ -17,31 +17,28 @@ import {
   type Mip1023XmlData,
   type Mip1023XmlWorker,
 } from "./mip1023Xml";
+import { splitWorkersForObrasce } from "./obrasciSpecifikacije";
 
 export type MipOrganization = Pick<
   Organization,
-  "id" | "name" | "taxNumber" | "activityCode" | "city" | "type"
+  | "id"
+  | "name"
+  | "taxNumber"
+  | "activityCode"
+  | "city"
+  | "type"
+  | "ownerIsDirector"
+  | "directorEngagement"
 >;
 
 export type MipBuildInput = {
-  workers: Worker[]; // svi radnici org-e (ko ulazi u MIP bira ulaziUMip)
+  workers: Worker[]; // svi radnici org-e (ko ulazi bira splitWorkersForObrasce)
   payrolls: Payroll[]; // svi payroll-i za year/month
   organization: MipOrganization;
   year: number;
   month: number;
   paymentDate?: string; // YYYY-MM-DD; default zadnji dan mjeseca
 };
-
-/**
- * Ko ulazi u MIP, isto pravilo kao lista "radnici" na obračunu plata:
- * radnici (RADNIK) uvijek; vlasnik OBRTA nikad (on ide na Obrazac 2002);
- * vlasnik-direktor d.o.o. ulazi ako ima datum prijave (prijava = zaposlen u
- * toj firmi; bez prijave nije zaposlenik i backend mu briše prijavaDate).
- */
-export function ulaziUMip(org: Pick<Organization, "type">, w: Worker): boolean {
-  if (w.role === "RADNIK") return true;
-  return org.type === "COMPANY" && w.role === "VLASNIK" && !!w.prijavaDate;
-}
 
 export type MipBuildResult = {
   ok: true;
@@ -63,18 +60,21 @@ export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuild
   const mm = String(month).padStart(2, "0");
   const yyyy = String(year);
   const lastDay = new Date(year, month, 0).getDate();
-  const paymentDate =
-    input.paymentDate || `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
-
-  // Spoji payroll snapshot sa radnikom, zadrži samo one koji ulaze u MIP
-  // (ulaziUMip) i imaju stvaran obračun (gross > 0).
+  // Ko ulazi u MIP: ISTI spisak radnika kao tabela obračuna i obrazac 2001
+  // (splitWorkersForObrasce): samo aktivni u mjesecu, vlasnik obrta nikad (on
+  // ide na 2002), vlasnik-direktor d.o.o. samo na ugovoru o radu i sa datumom
+  // prijave. Tako zaostali obračun odjavljenog radnika ne ulazi ni kad caller
+  // pošalje cijeli spisak. Uz to se traži stvaran obračun (gross > 0).
   const workerById = new Map<number, Worker>();
-  for (const w of workers) workerById.set(w.id, w);
+  for (const w of splitWorkersForObrasce(organization, workers, year, month)
+    .radnici) {
+    workerById.set(w.id, w);
+  }
   const radniciPayrolls = payrolls
     .map((p) => ({ p, w: workerById.get(p.workerId) }))
     .filter(
       (x): x is { p: Payroll; w: Worker } =>
-        !!x.w && ulaziUMip(organization, x.w) && (Number(x.p.gross) || 0) > 0,
+        !!x.w && (Number(x.p.gross) || 0) > 0,
     )
     .sort((a, b) => {
       const aDate = a.w.prijavaDate || a.w.startDate || "9999-12-31";
@@ -85,6 +85,17 @@ export function buildMip1023Xml(input: MipBuildInput): MipBuildResult | MipBuild
   if (radniciPayrolls.length === 0) {
     return { ok: false, error: "Nema obračunatih plata radnika za taj mjesec" };
   }
+
+  // Datum isplate: eksplicitni (stranica obračuna) > snimljeni na obračunima
+  // koji ulaze u MIP > zadnji dan mjeseca. Bez srednjeg koraka je MIP sa
+  // /organizacije i PK Office-a nosio zadnji dan i kad je na obračunu upisan
+  // drugi datum; iz odbačenih (zaostalih) obračuna se datum ne uzima.
+  const paymentDate =
+    input.paymentDate ||
+    radniciPayrolls
+      .find(({ p }) => p.paymentDate)
+      ?.p.paymentDate?.slice(0, 10) ||
+    `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
 
   const xmlWorkers: Mip1023XmlWorker[] = radniciPayrolls.map(({ w, p }) => {
     // p.gross je UKUPNA osnovica (plata + korist u naravi). Za MIP se bruto

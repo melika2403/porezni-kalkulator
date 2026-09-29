@@ -73,6 +73,7 @@ import {
   build2001Data,
   build2001AData,
   build2002Data,
+  splitWorkersForObrasce,
 } from "./obrasciSpecifikacije";
 import {
   fillMip1023Template,
@@ -613,49 +614,11 @@ function ObracunPlataApp() {
     enabled: isLoggedIn && !!orgId,
   });
 
-  // Aktivnost za odabrani obračunski mjesec:
+  // Aktivnost za odabrani obračunski mjesec (splitWorkersForObrasce ispod):
   //   • Odjavljen PRIJE ovog mjeseca → ne pripada obračunu (sakri).
   //   • Prijavljen POSLIJE ovog mjeseca → još nije aktivan (sakri).
   //   • Mid-month prijava ili odjava → ostaje u obračunu, banner upozorenja
   //     se prikazuje, bruto se ručno proporcionalno upiše.
-  const monthBounds = useMemo(() => {
-    const yyyy = String(year);
-    const mm = String(month).padStart(2, "0");
-    const lastDay = new Date(year, month, 0).getDate();
-    return {
-      startISO: `${yyyy}-${mm}-01`,
-      endISO: `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`,
-    };
-  }, [year, month]);
-
-  const isActiveForMonth = useCallback(
-    (w: Worker): boolean => {
-      if (w.odjavaDate && w.odjavaDate.slice(0, 10) < monthBounds.startISO) {
-        return false;
-      }
-      if (w.prijavaDate && w.prijavaDate.slice(0, 10) > monthBounds.endISO) {
-        return false;
-      }
-      return true;
-    },
-    [monthBounds],
-  );
-
-  const radniciRaw = useMemo(
-    () =>
-      (workersQuery.data ?? []).filter(
-        (w) => w.role === "RADNIK" && isActiveForMonth(w),
-      ),
-    [workersQuery.data, isActiveForMonth],
-  );
-  const vlasniciRaw = useMemo(
-    () =>
-      (workersQuery.data ?? []).filter(
-        (w) => w.role === "VLASNIK" && isActiveForMonth(w),
-      ),
-    [workersQuery.data, isActiveForMonth],
-  );
-
   const currentOrg = useMemo<Organization | null>(() => {
     const own = (orgsQuery.data ?? []).find((o) => o.id === orgId);
     if (own) return own;
@@ -663,25 +626,22 @@ function ObracunPlataApp() {
   }, [orgsQuery.data, clientOrgsQuery.data, orgId]);
 
   // U obrtu (BUSINESS) vlasnik ide poseban tretman (Obrazac 2002, fiksna
-  // osnovica), pa stoji u zasebnoj sekciji. U d.o.o. (COMPANY) vlasnik se
-  // obračunava kao standardni radnik (Obrazac 2001, bruto/neto/doprinosi).
+  // osnovica), pa stoji u zasebnoj sekciji. U d.o.o. (COMPANY) prijavljeni
+  // vlasnik-direktor se obračunava kao standardni radnik (Obrazac 2001).
+  // Ko je u mjesecu aktivan i gdje ide određuje splitWorkersForObrasce, ista
+  // funkcija koju koriste "Obračunaj sve", bulk obračun i bulk 2001/2002 na
+  // /organizacije, da nikad ne vide različite radnike.
   const isObrt = currentOrg?.type === "BUSINESS";
-  // d.o.o.: vlasnik ulazi u obračun samo ako ima unesen DATUM PRIJAVE u ovoj
-  // org (isti princip kao forma vlasnika: "ako se unese datum prijave, vlasnik
-  // se računa kao prijavljen"). Bez datuma prijave (npr. vlasnik koji je prijavu
-  // prebacio u drugu svoju org) se ne obračunava. Obični radnici (RADNIK)
-  // zadržavaju logiku po datumima prijave/odjave.
-  const radnici = useMemo(
-    () =>
-      isObrt
-        ? radniciRaw
-        : [...radniciRaw, ...vlasniciRaw.filter((w) => !!w.prijavaDate)],
-    [isObrt, radniciRaw, vlasniciRaw],
-  );
-  const vlasnici = useMemo(
-    () => (isObrt ? vlasniciRaw : []),
-    [isObrt, vlasniciRaw],
-  );
+  const { radnici, vlasnici } = useMemo(() => {
+    if (!currentOrg) return { radnici: [] as Worker[], vlasnici: [] as Worker[] };
+    const split = splitWorkersForObrasce(
+      currentOrg,
+      workersQuery.data ?? [],
+      year,
+      month,
+    );
+    return { radnici: split.radnici, vlasnici: split.vlasnici2002 };
+  }, [currentOrg, workersQuery.data, year, month]);
 
   const payrollByWorker = useMemo(() => {
     const map = new Map<number, Payroll>();
@@ -703,15 +663,27 @@ function ObracunPlataApp() {
     let tax = 0;
     let invalidi = 0;
     let count = 0;
+    let radnikaCount = 0;
+    let vlasnikObracunat = false;
     // Filtriraj payrolle samo na one čiji workerId i dalje postoji u
     // radnici/vlasnici listi. Ako je radnik obrisan, njegov payroll ostaje
     // u DB (nema CASCADE), ali ne smijemo ga uračunati u footer totale.
-    const validWorkerIds = new Set([
-      ...radnici.map((w) => w.id),
-      ...vlasnici.map((w) => w.id),
-    ]);
+    const radnikIds = new Set(radnici.map((w) => w.id));
+    // vlasnici su popunjeni samo za obrt (vlasnik d.o.o. je u radnicima)
+    const vlasnikIds = new Set(vlasnici.map((w) => w.id));
     for (const p of payrollsQuery.data ?? []) {
-      if (!validWorkerIds.has(p.workerId)) continue;
+      const jeVlasnikObrta = vlasnikIds.has(p.workerId);
+      if (!radnikIds.has(p.workerId) && !jeVlasnikObrta) continue;
+      count++;
+      // Vlasnik obrta nema platu: nema neto, porez ni bruto plate, nego samo
+      // doprinose (Obrazac 2002). Ulazi SAMO u doprinose i ukupan trošak,
+      // isto kao Pregled mjeseca na serveru.
+      if (jeVlasnikObrta) {
+        vlasnikObracunat = true;
+        empContrib += Number(p.empTotal) || 0;
+        cost += Number(p.totalCost) || 0;
+        continue;
+      }
       const gross = Number(p.gross) || 0;
       const fondInv = fondInvalidiApplies ? gross * 0.005 : 0;
       net += Number(p.net) || 0;
@@ -720,9 +692,19 @@ function ObracunPlataApp() {
       erpContrib += Number(p.erpTotal) || 0;
       tax += Number(p.incomeTax) || 0;
       invalidi += fondInv;
-      count++;
+      radnikaCount++;
     }
-    return { net, cost, empContrib, erpContrib, tax, invalidi, count };
+    return {
+      net,
+      cost,
+      empContrib,
+      erpContrib,
+      tax,
+      invalidi,
+      count,
+      radnikaCount,
+      vlasnikObracunat,
+    };
   }, [payrollsQuery.data, fondInvalidiApplies, radnici, vlasnici]);
 
   // Helper: invalidira SVE keševe vezane za payroll obračun ovog mjeseca
@@ -1270,7 +1252,13 @@ function ObracunPlataApp() {
         <div className={styles.summary}>
           <div className={styles.summaryItem}>
             <span className={styles.summaryLabel}>Radnika obračunato</span>
-            <span className={styles.summaryValue}>{totals.count}</span>
+            <span className={styles.summaryValue}>
+              {!totals.vlasnikObracunat
+                ? totals.radnikaCount
+                : totals.radnikaCount === 0
+                  ? "Samo vlasnik"
+                  : `${totals.radnikaCount} + vlasnik`}
+            </span>
           </div>
           <div className={styles.summaryItem}>
             <span className={styles.summaryLabel}>Ukupno neto</span>
@@ -2777,7 +2765,7 @@ function MonthlyPanel({
   // MIP-1023 XML — paketni uvoz u nPIS. Jedan XML po mjesecu, svi radnici
   // unutar Dio2, zbirno u Dio3. Isti builder kao PK Office obračuni i pregled
   // /organizacije (mipXmlBuilder), da sva tri mjesta daju identičan XML; ko
-  // ulazi u MIP odlučuje ulaziUMip (radnici + direktor d.o.o. sa prijavom).
+  // ulazi u MIP odlučuje splitWorkersForObrasce (isti spisak kao tabela).
   const mip1023XmlMutation = useMutation({
     mutationFn: async () => {
       if (!summaryQuery.data || !organization) {

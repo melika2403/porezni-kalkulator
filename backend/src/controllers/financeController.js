@@ -5,7 +5,9 @@ const {
   ClientPayment,
   CompanyExpense,
   OtherIncome,
+  sequelize,
 } = require("../models/index");
+const { OFFICE_PLANS } = require("../config/pricing");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,19 +51,50 @@ async function listPayments(req, res) {
   const limit = Math.min(parsePositiveInt(req.query.limit, 20), 100);
   const offset = (page - 1) * limit;
 
-  // Klijenti = plaćeni paketi (Pro / Business). Obični USER i ADMIN se ne prikazuju.
-  // Istekli Pro/Business ostaju (rola se ne vraća na USER kad pretplata istekne),
-  // pa se vidi i historija uplata.
-  const where = { role: { [Op.in]: ["PRO", "BUSINESS"] } };
-  if (search) {
-    where[Op.or] = [
-      { firstName: { [Op.like]: `%${search}%` } },
-      { lastName: { [Op.like]: `%${search}%` } },
-      { email: { [Op.like]: `%${search}%` } },
-    ];
-  }
+  // Klijenti = plaćeni paketi. Obični USER i ADMIN se ne prikazuju.
+  //  • Pro / Business po roli. Istekli ostaju (rola se ne vraća na USER kad
+  //    pretplata istekne), pa se vidi i historija uplata.
+  //  • PK Office paketi i PK Freelancer ne diraju rolu (korisnik ostaje USER),
+  //    pa se prepoznaju po AKTIVNOM planu pretplate. Po isteku se plan vraća
+  //    na "free" (ensureSubscription), pa istekli ostaju vidljivi preko
+  //    historije uplata: ko je ikad uplatio, ostaje u listi.
+  // Probe (Office/Freelancer trial) se ne vode kroz pretplatu, pa ne ulaze.
+  const placeniPlanoviBezRole = [
+    ...Object.keys(OFFICE_PLANS).map((k) => k.toLowerCase()),
+    "freelancer",
+  ];
 
   try {
+    const uslovi = [
+      { role: { [Op.ne]: "ADMIN" } },
+      {
+        [Op.or]: [
+          { role: { [Op.in]: ["PRO", "BUSINESS"] } },
+          {
+            "$subscription.plan$": { [Op.in]: placeniPlanoviBezRole },
+            "$subscription.isActive$": true,
+          },
+          {
+            id: {
+              [Op.in]: sequelize.literal(
+                "(SELECT DISTINCT userId FROM client_payments)",
+              ),
+            },
+          },
+        ],
+      },
+    ];
+    if (search) {
+      uslovi.push({
+        [Op.or]: [
+          { firstName: { [Op.like]: `%${search}%` } },
+          { lastName: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+        ],
+      });
+    }
+    const where = { [Op.and]: uslovi };
+
     const { count: total, rows: users } = await User.findAndCountAll({
       where,
       attributes: ["id", "firstName", "lastName", "email", "role"],
@@ -78,6 +111,9 @@ async function listPayments(req, res) {
       limit,
       offset,
       distinct: true,
+      // uslov na $subscription.plan$ traži JOIN u glavnom upitu (uz limit bi
+      // Sequelize inače napravio podupit bez pretplate); hasOne ne množi redove
+      subQuery: false,
     });
 
     const userIds = users.map((u) => u.id);

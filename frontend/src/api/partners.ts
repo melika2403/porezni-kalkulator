@@ -302,6 +302,9 @@ export type UlazniRacun = {
   paymentStatus?: "OTVOREN" | "DJELIMICNO" | "PLACEN" | "KREDIT";
   preostalo?: number;
   placeno?: number;
+  /** ručna veza zatvaranja ili automatska veza sa isplatom (kartica) */
+  zatvaranjeId?: number | null;
+  zatvaranje?: KarticaVeza | null;
   partner?: {
     id: number;
     name: string;
@@ -376,6 +379,17 @@ export function deleteUlazniRacun(orgId: number, racunId: number) {
 
 // ── Kartica partnera ────────────────────────────────────────────────────────
 
+/** Oznaka veze stavke na kartici: ručna (Z3, zatvaranjeId) ili automatska
+ *  1:1 veza uplate i dokumenta (ZA1, tipDok + dokId za otvaranje). */
+export type KarticaVeza = {
+  kljuc: string;
+  oznaka: string;
+  rucno: boolean;
+  zatvaranjeId?: number;
+  tipDok?: "ULAZNI_RACUN" | "FAKTURA";
+  dokId?: number;
+};
+
 export type KarticaTransaction = {
   id: number;
   date: string | null;
@@ -385,6 +399,8 @@ export type KarticaTransaction = {
   status: "UNMATCHED" | "CONFIRMED" | "IGNORED";
   category: string | null;
   ulazniRacunId: number | null;
+  invoiceId?: number | null;
+  zatvaranje?: KarticaVeza | null;
   statement?: {
     id: number;
     statementNumber: string | null;
@@ -407,6 +423,7 @@ export type KarticaInvoice = {
   paymentStatus?: "OTVOREN" | "DJELIMICNO" | "PLACEN" | "KREDIT";
   preostalo?: number;
   placeno?: number;
+  zatvaranje?: KarticaVeza | null;
 };
 
 export type PartnerOpening = {
@@ -418,6 +435,10 @@ export type PartnerOpening = {
   /** otvoreni (nenaplaćeni) dio početnog stanja po FIFO raspodjeli */
   kupacPreostalo: number;
   dobavljacPreostalo: number;
+  id?: number;
+  /** veza zatvaranja strane početnog stanja (kupac / dobavljač) */
+  zatvaranjeKupac?: KarticaVeza | null;
+  zatvaranjeDob?: KarticaVeza | null;
 };
 
 export type KarticaData = {
@@ -456,6 +477,52 @@ export function getPartnerKartica(
   return jsonRequest<KarticaData>(
     `/api/partners/${orgId}/${partnerId}/kartica${qs ? `?${qs}` : ""}`,
     { method: "GET" },
+  );
+}
+
+// ── Zatvaranje stavki na kartici (veze Z1, Z2...) ───────────────────────────
+
+export type ZatvaranjeTip =
+  | "UPLATA"
+  | "ULAZNI_RACUN"
+  | "FAKTURA"
+  | "POCETNO_STANJE";
+
+/** Zatvori označene stavke jedne strane kartice (zbir duguje = potražuje). */
+export function zatvoriStavke(
+  orgId: number,
+  partnerId: number,
+  strana: "DOBAVLJAC" | "KUPAC",
+  stavke: { tip: ZatvaranjeTip; id: number }[],
+) {
+  return jsonRequest<{ id: number; broj: number; oznaka: string; iznos: number }>(
+    `/api/partners/${orgId}/${partnerId}/zatvaranja`,
+    { method: "POST", body: JSON.stringify({ strana, stavke }) },
+  );
+}
+
+/** Otvori ručnu vezu (vraća prethodne statuse dokumenata). */
+export function otvoriZatvaranje(
+  orgId: number,
+  partnerId: number,
+  zatvaranjeId: number,
+) {
+  return jsonRequest<null>(
+    `/api/partners/${orgId}/${partnerId}/zatvaranja/${zatvaranjeId}`,
+    { method: "DELETE" },
+  );
+}
+
+/** Otvori automatsku vezu: odvezuje uplate od dokumenta. */
+export function otvoriAutomatskuVezu(
+  orgId: number,
+  partnerId: number,
+  tip: "ULAZNI_RACUN" | "FAKTURA",
+  dokId: number,
+) {
+  return jsonRequest<{ odvezano: number }>(
+    `/api/partners/${orgId}/${partnerId}/zatvaranja/otvori-automatsku`,
+    { method: "POST", body: JSON.stringify({ tip, dokId }) },
   );
 }
 
@@ -511,7 +578,12 @@ export function bulkSetOpeningBalances(
 
 export type KarticaType = "kupac" | "dobavljac";
 
-export type KarticaPeriod = { from?: string | null; to?: string | null };
+export type KarticaPeriod = {
+  from?: string | null;
+  to?: string | null;
+  /** stavke iste veze zatvaranja jedna ispod druge */
+  poVezama?: boolean;
+};
 
 /** Preuzmi PDF kartice prometa (kupca ili dobavljača).
  *  Bez perioda se štampa cijeli period prometa. */
@@ -525,6 +597,7 @@ export async function downloadKarticaPdf(
     const sp = new URLSearchParams({ type });
     if (period.from) sp.set("from", period.from);
     if (period.to) sp.set("to", period.to);
+    if (period.poVezama) sp.set("poVezama", "1");
     const res = await fetch(
       `${BACKEND_URL}/api/partners/${orgId}/${partnerId}/kartica.pdf?${sp.toString()}`,
       { method: "GET", credentials: "include" },

@@ -37,6 +37,7 @@ const {
   loadPartnerMatcher,
   isNonPartnerCategory,
 } = require("./partnersController");
+const { raspustiZaStavke } = require("../services/zatvaranjaService");
 
 function parseId(v) {
   const n = Number(v);
@@ -89,7 +90,8 @@ async function maybeRevertInvoice(organizationId, invoiceId) {
   });
   if (stillConfirmed > 0) return;
   const inv = await Invoice.findOne({
-    where: { id: invoiceId, organizationId, status: "PAID" },
+    // faktura u ručnoj vezi (Z) ostaje naplaćena dok se veza ne otvori
+    where: { id: invoiceId, organizationId, status: "PAID", zatvaranjeId: null },
   });
   if (inv) {
     inv.status = "ISSUED";
@@ -533,10 +535,18 @@ async function getStatement(req, res) {
 // POST /api/bank-statements/:orgId/statement/:statementId/confirm-all
 // Sve nepotvrđene stavke izvoda → CONFIRMED.
 // Potvrđena isplata partneru pokušava zatvoriti njegov otvoren ulazni
-// račun: po tačnom iznosu (ako je jedinstven) ili po broju računa u
-// opisu/referenci. Konzervativno: bez jedinstvenog pogotka ne radi ništa.
+// račun: po tačnom iznosu ili po broju računa u opisu/referenci. Isplata
+// plaća samo račun izdat najkasnije na njen dan; kad više takvih ima isti
+// iznos (npr. mjesečni račun istog dobavljača), zatvara se najstariji, isto
+// kao FIFO na kartici partnera. Bez pogotka ne radi ništa.
 async function maybeCloseUlazniRacun(tx) {
-  if (!tx || tx.direction !== "OUT" || !tx.partnerId || tx.ulazniRacunId) {
+  if (
+    !tx ||
+    tx.direction !== "OUT" ||
+    !tx.partnerId ||
+    tx.ulazniRacunId ||
+    tx.zatvaranjeId
+  ) {
     return;
   }
   const open = await UlazniRacun.findAll({
@@ -544,20 +554,34 @@ async function maybeCloseUlazniRacun(tx) {
       organizationId: tx.organizationId,
       partnerId: tx.partnerId,
       status: "OTVOREN",
+      samoEvidencija: false,
+      // odobrenja (KO, storno) umanjuju dug, isplata ih ne "plaća"
+      vrstaDokumenta: { [Op.notIn]: ["KNJIZNA_OBAVIJEST", "STORNO_AVANSNE"] },
+      ...(tx.date ? { datumRacuna: { [Op.lte]: tx.date } } : {}),
     },
+    order: [
+      ["datumRacuna", "ASC"],
+      ["id", "ASC"],
+    ],
   });
   if (open.length === 0) return;
   const amt = toCents(tx.amount);
+  const text = `${tx.description || ""} ${tx.reference || ""}`.toLowerCase();
+  const poBroju = (list) =>
+    list.filter(
+      (r) =>
+        r.brojRacuna && text.includes(String(r.brojRacuna).toLowerCase()),
+    );
   let match = null;
   const byAmount = open.filter((r) => toCents(r.iznos) === amt);
   if (byAmount.length === 1) {
     match = byAmount[0];
+  } else if (byAmount.length > 1) {
+    // više istih iznosa: prvo broj računa u opisu uplate, pa najstariji
+    const b = poBroju(byAmount);
+    match = b.length === 1 ? b[0] : byAmount[0];
   } else {
-    const text = `${tx.description || ""} ${tx.reference || ""}`.toLowerCase();
-    const byNumber = open.filter(
-      (r) =>
-        r.brojRacuna && text.includes(String(r.brojRacuna).toLowerCase()),
-    );
+    const byNumber = poBroju(open);
     if (byNumber.length === 1) match = byNumber[0];
   }
   if (!match) return;
@@ -579,9 +603,10 @@ async function maybeReopenUlazniRacun(organizationId, ulazniRacunId) {
     where: { organizationId, ulazniRacunId, status: "CONFIRMED" },
   });
   if (stillPaid > 0) return;
+  // račun u ručnoj vezi (Z) ostaje plaćen dok se veza ne otvori
   await UlazniRacun.update(
     { status: "OTVOREN", paidAt: null },
-    { where: { id: ulazniRacunId, organizationId } },
+    { where: { id: ulazniRacunId, organizationId, zatvaranjeId: null } },
   );
 }
 
@@ -1207,6 +1232,7 @@ async function obligations(req, res) {
 async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
   const prevStatus = tx.status;
   const prevInvoiceId = tx.invoiceId;
+  const prevPartnerId = tx.partnerId;
 
   const { status, category, invoiceId, partnerId } = body || {};
   if (status != null) {
@@ -1233,10 +1259,15 @@ async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
     } else {
       const inv = await Invoice.findOne({
         where: { id: Number(invoiceId), organizationId, type: "INVOICE" },
-        attributes: ["id"],
+        attributes: ["id", "zatvaranjeId"],
       });
       if (!inv) {
         return { error: "INVALID_INVOICE" };
+      }
+      // faktura zatvorena ručnom vezom (Z) na kartici kupca: prvo otvoriti
+      // vezu, inače bi je držale dvije uplate i otvaranje bi pokvarilo stanje
+      if (inv.zatvaranjeId && inv.id !== prevInvoiceId) {
+        return { error: "FAKTURA_ZATVORENA" };
       }
       tx.invoiceId = inv.id;
     }
@@ -1298,6 +1329,19 @@ async function applyTransactionPatch(organizationId, tx, body, opts = {}) {
       });
       if (postoji) tx.partnerId = postoji.id;
     }
+  }
+  // stavka u ručnoj vezi (Z) koja više nije potvrđena, prelazi drugom
+  // partneru, dobija nepartnersku kategoriju ili se ručno veže za fakturu:
+  // zbir veze više ne štima, pa se veza otvara
+  if (
+    tx.zatvaranjeId &&
+    (tx.status !== "CONFIRMED" ||
+      tx.partnerId !== prevPartnerId ||
+      isNonPartnerCategory(tx.category) ||
+      (tx.invoiceId && tx.invoiceId !== prevInvoiceId))
+  ) {
+    await raspustiZaStavke(organizationId, { txIds: [tx.id] });
+    tx.zatvaranjeId = null;
   }
   await tx.save();
 
@@ -1429,6 +1473,18 @@ async function removeStatement(req, res) {
   const racunIds = [
     ...new Set(linked.map((x) => x.ulazniRacunId).filter(Boolean)),
   ];
+
+  // ručne veze (Z) u kojima su stavke ovog izvoda se otvaraju
+  const uVezama = await BankTransaction.findAll({
+    where: { statementId, organizationId, zatvaranjeId: { [Op.ne]: null } },
+    attributes: ["id"],
+    raw: true,
+  });
+  if (uVezama.length) {
+    await raspustiZaStavke(organizationId, {
+      txIds: uVezama.map((x) => x.id),
+    });
+  }
 
   await sequelize.transaction(async (t) => {
     await BankTransaction.destroy({

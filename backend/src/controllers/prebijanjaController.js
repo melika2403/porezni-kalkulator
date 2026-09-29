@@ -17,6 +17,7 @@ const {
   Prebijanje,
 } = require("../models/index");
 const { logEvent } = require("./activityController");
+const { raspustiZaStavke } = require("../services/zatvaranjaService");
 const {
   maybeRevertInvoice,
   maybeReopenUlazniRacun,
@@ -519,6 +520,22 @@ async function remove(req, res) {
   const racunIds = [
     ...new Set(linked.map((x) => x.ulazniRacunId).filter(Boolean)),
   ];
+
+  // ručne veze (Z) sa stavkama ovog prebijanja se otvaraju prije brisanja
+  const uVezama = await BankTransaction.findAll({
+    where: {
+      statementId: prebijanje.statementId,
+      organizationId,
+      zatvaranjeId: { [Op.ne]: null },
+    },
+    attributes: ["id"],
+    raw: true,
+  });
+  if (uVezama.length) {
+    await raspustiZaStavke(organizationId, {
+      txIds: uVezama.map((x) => x.id),
+    });
+  }
 
   await sequelize.transaction(async (t) => {
     await BankTransaction.destroy({

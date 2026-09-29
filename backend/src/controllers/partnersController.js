@@ -9,6 +9,8 @@ const {
   sequelize,
   Partner,
   PartnerOpeningBalance,
+  PartnerZatvaranje,
+  PartnerZatvaranjeStavka,
   BankTransaction,
   BankStatement,
   Invoice,
@@ -25,6 +27,11 @@ const {
   buildOpomenaPdf,
 } = require("../utils/karticaPdf");
 const { allocateFifo, r2 } = require("../utils/paymentAllocation");
+const {
+  oznakeZatvaranja,
+  raspustiZaStavke,
+  otvoriZatvaranje,
+} = require("../services/zatvaranjaService");
 
 // sintetički id reda početnog stanja u FIFO raspodjeli (Map ključ)
 const OPENING_ID = "pocetno-stanje";
@@ -154,7 +161,7 @@ async function settleOpenRacuni(partner) {
     },
   });
   for (const racun of open) {
-    await tryMatchExistingPayment(racun);
+    await tryMatchExistingPayment(racun, { strogo: true });
   }
 }
 
@@ -281,6 +288,7 @@ async function list(req, res) {
       "status",
       "issueDate",
       "docType",
+      "zatvaranjeId",
     ],
     raw: true,
   });
@@ -302,8 +310,9 @@ async function list(req, res) {
     openingRows.map((r) => [
       r.partnerId,
       {
-        kupac: Number(r.kupacIznos) || 0,
-        dobavljac: Number(r.dobavljacIznos) || 0,
+        // strana zatvorena ručnom vezom (Z) je izmirena: ne ulazi u FIFO
+        kupac: r.zatvaranjeKupacId ? 0 : Number(r.kupacIznos) || 0,
+        dobavljac: r.zatvaranjeDobId ? 0 : Number(r.dobavljacIznos) || 0,
         godina: Number(String(r.datum).slice(0, 4)) || 0,
         datum: String(r.datum).slice(0, 10),
       },
@@ -325,6 +334,7 @@ async function list(req, res) {
       "status",
       "vrstaDokumenta",
       "samoEvidencija",
+      "zatvaranjeId",
     ],
     raw: true,
   });
@@ -339,6 +349,7 @@ async function list(req, res) {
       status: "CONFIRMED",
       partnerId: { [Op.ne]: null },
       ulazniRacunId: null,
+      zatvaranjeId: null,
       ...PARTNER_CATEGORY_WHERE,
     },
     attributes: ["partnerId", [fn("SUM", col("amount")), "paid"]],
@@ -358,6 +369,7 @@ async function list(req, res) {
       status: "CONFIRMED",
       partnerId: { [Op.ne]: null },
       invoiceId: null,
+      zatvaranjeId: null,
       ...PARTNER_CATEGORY_WHERE,
     },
     attributes: ["partnerId", [fn("SUM", col("amount")), "received"]],
@@ -388,8 +400,9 @@ async function list(req, res) {
     const list = racuniByPartner.get(pid) || [];
     const opening = openingByPartner.get(pid);
     const donos = opening ? opening.dobavljac : 0;
+    // zatvorena odobrenja (u vezi Z) su već iskorištena
     const kreditSum = list
-      .filter(isKreditRacun)
+      .filter((r) => isKreditRacun(r) && !r.zatvaranjeId)
       .reduce((s, r) => s + (Number(r.iznos) || 0), 0);
     // negativan donos = naš avans kod dobavljača: umanjuje dug kroz pool
     const pool =
@@ -462,7 +475,7 @@ async function list(req, res) {
     }
     // knjižne obavijesti / storna avansnih umanjuju dug, idu u pool
     const kreditSum = mine
-      .filter(isKreditFaktura)
+      .filter((i) => isKreditFaktura(i) && !i.zatvaranjeId)
       .reduce((s, i) => s + (Number(i.grossTotal) || 0), 0);
     // negativan donos = kupčev avans kod nas: umanjuje dug kroz pool
     const pool =
@@ -854,6 +867,13 @@ async function remove(req, res) {
   if (!partner) {
     return res.status(404).json({ ok: false, error: "PARTNER_NOT_FOUND" });
   }
+  // ručne veze (Z) partnera se otvaraju: stavke bez partnera ne bi imale
+  // karticu na kojoj se veza vidi ni može otvoriti
+  const veze = await PartnerZatvaranje.findAll({
+    where: { organizationId, partnerId },
+    attributes: ["id"],
+  });
+  for (const z of veze) await otvoriZatvaranje(organizationId, z.id);
   await BankTransaction.update(
     { partnerId: null },
     { where: { organizationId, partnerId } },
@@ -1197,9 +1217,119 @@ function todayLocalIso() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** Izvedeni status plaćanja ulaznih računa (FIFO), ISTA logika kao kartica
+ *  partnera i lista partnera: nevezane potvrđene isplate partnera (bez
+ *  nepartnerskih kategorija) + krediti (KO/storno) + naš avans iz donosa
+ *  zatvaraju redom najprije početno stanje, pa račune od najstarijeg. Račun
+ *  plaćen zbirnom ili nevezanom isplatom ostaje OTVOREN u bazi, pa sirovi
+ *  status nije dovoljan za prikaz.
+ *  @returns {Promise<Map<number, {placeno:number, preostalo:number, status:string}>>} */
+async function izvedeniStatusUlaznihRacuna(organizationId, partnerIds) {
+  const ids = [...new Set(partnerIds.filter((x) => x != null))];
+  if (ids.length === 0) return new Map();
+  const [racuni, openingRows, paidRows] = await Promise.all([
+    UlazniRacun.findAll({
+      where: { organizationId, partnerId: { [Op.in]: ids } },
+      attributes: [
+        "id",
+        "partnerId",
+        "iznos",
+        "datumRacuna",
+        "status",
+        "vrstaDokumenta",
+        "samoEvidencija",
+        "zatvaranjeId",
+      ],
+      raw: true,
+    }),
+    PartnerOpeningBalance.findAll({
+      where: { organizationId, partnerId: { [Op.in]: ids } },
+      raw: true,
+    }),
+    BankTransaction.findAll({
+      where: {
+        organizationId,
+        direction: "OUT",
+        status: "CONFIRMED",
+        partnerId: { [Op.in]: ids },
+        ulazniRacunId: null,
+        zatvaranjeId: null,
+        ...PARTNER_CATEGORY_WHERE,
+      },
+      attributes: ["partnerId", [fn("SUM", col("amount")), "paid"]],
+      group: ["partnerId"],
+      raw: true,
+    }),
+  ]);
+  const paidByPartner = new Map(
+    paidRows.map((x) => [x.partnerId, Number(x.paid) || 0]),
+  );
+  const openingByPartner = new Map(openingRows.map((o) => [o.partnerId, o]));
+  const isKredit = (r) =>
+    r.vrstaDokumenta === "KNJIZNA_OBAVIJEST" ||
+    r.vrstaDokumenta === "STORNO_AVANSNE";
+  const byPartner = new Map();
+  for (const r of racuni) {
+    if (!byPartner.has(r.partnerId)) byPartner.set(r.partnerId, []);
+    byPartner.get(r.partnerId).push(r);
+  }
+  const out = new Map();
+  for (const [pid, list] of byPartner) {
+    const opening = openingByPartner.get(pid);
+    // početno stanje zatvoreno ručnom vezom (Z) je izmireno
+    const donos =
+      opening && !opening.zatvaranjeDobId
+        ? Number(opening.dobavljacIznos) || 0
+        : 0;
+    // zatvorena odobrenja (u vezi Z) su već iskorištena
+    const kreditSum = list
+      .filter((r) => isKredit(r) && !r.zatvaranjeId)
+      .reduce((s, r) => s + (Number(r.iznos) || 0), 0);
+    const docs = list.map((r) => ({
+      id: r.id,
+      iznos: Number(r.iznos) || 0,
+      datum: String(r.datumRacuna).slice(0, 10),
+      manualPlacen: r.status === "PLACEN",
+      // samoEvidencija (uvoz/JCI) nije obaveza prema dobavljaču, van FIFO-a
+      kredit: isKredit(r) || Boolean(r.samoEvidencija),
+    }));
+    // donos je najstariji dokument: nevezana plaćanja ga zatvaraju prvog
+    if (donos > 0) {
+      docs.push({
+        id: -pid,
+        iznos: donos,
+        datum: opening.datum ? String(opening.datum).slice(0, 10) : "1900-01-01",
+      });
+    }
+    const alloc = allocateFifo(
+      docs,
+      (paidByPartner.get(pid) || 0) + kreditSum + Math.max(0, -donos),
+    );
+    for (const r of list) {
+      const v = alloc.get(r.id);
+      if (v) out.set(r.id, v);
+    }
+  }
+  return out;
+}
+
 /** Novi/ponovo otvoren račun pokušava naći već potvrđenu isplatu partnera
- *  (retroaktivno: izvod je stigao prije nego što je račun proknjižen). */
-async function tryMatchExistingPayment(racun) {
+ *  (retroaktivno: izvod je stigao prije nego što je račun proknjižen).
+ *  Račun plaća samo isplata od njegovog datuma nadalje (starije isplate istog
+ *  iznosa su za ranije račune, npr. mjesečni račun istog dobavljača); od više
+ *  takvih prednost ima ona sa brojem računa u opisu, pa najranija.
+ *  strogo = samo jedinstven pogodak (staro pravilo): koristi ga grupno
+ *  usklađivanje pri snimanju partnera, da ne veže masovno postojeće
+ *  nevezane isplate i ne poništi ručno otvorenu vezu (ZA). */
+async function tryMatchExistingPayment(racun, { strogo = false } = {}) {
+  if (racun.samoEvidencija) return false;
+  // odobrenja (KO, storno) umanjuju dug, isplata ih ne "plaća"
+  if (
+    racun.vrstaDokumenta === "KNJIZNA_OBAVIJEST" ||
+    racun.vrstaDokumenta === "STORNO_AVANSNE"
+  ) {
+    return false;
+  }
   const candidates = await BankTransaction.findAll({
     where: {
       organizationId: racun.organizationId,
@@ -1207,19 +1337,33 @@ async function tryMatchExistingPayment(racun) {
       direction: "OUT",
       status: "CONFIRMED",
       ulazniRacunId: null,
+      zatvaranjeId: null,
+      ...(racun.datumRacuna ? { date: { [Op.gte]: racun.datumRacuna } } : {}),
     },
+    order: [
+      ["date", "ASC"],
+      ["id", "ASC"],
+    ],
   });
   const amt = toCents(racun.iznos);
-  let match = candidates.filter((t) => toCents(t.amount) === amt);
-  if (match.length !== 1) {
-    const broj = String(racun.brojRacuna || "").toLowerCase();
-    match = broj
-      ? candidates.filter((t) =>
+  const broj = String(racun.brojRacuna || "").toLowerCase();
+  const poBroju = (list) =>
+    broj
+      ? list.filter((t) =>
           `${t.description || ""} ${t.reference || ""}`
             .toLowerCase()
             .includes(broj),
         )
       : [];
+  const byAmount = candidates.filter((t) => toCents(t.amount) === amt);
+  let match = [];
+  if (byAmount.length === 1) {
+    match = byAmount;
+  } else if (byAmount.length > 1) {
+    const b = poBroju(byAmount);
+    match = b.length === 1 ? b : strogo ? [] : byAmount.slice(0, 1);
+  } else {
+    match = poBroju(candidates);
   }
   if (match.length !== 1) return false;
   const tx = match[0];
@@ -1308,54 +1452,12 @@ async function listUlazniRacuni(req, res) {
     order: [["datumRacuna", "DESC"], ["id", "DESC"]],
   });
 
-  // ── Izvedeni status naplate (FIFO) po partneru ──
-  const isKredit = (r) =>
-    r.vrstaDokumenta === "KNJIZNA_OBAVIJEST" ||
-    r.vrstaDokumenta === "STORNO_AVANSNE";
-  const byPartner = new Map();
-  for (const r of racuni) {
-    if (r.partnerId == null) continue;
-    if (!byPartner.has(r.partnerId)) byPartner.set(r.partnerId, []);
-    byPartner.get(r.partnerId).push(r);
-  }
-  const partnerIds = [...byPartner.keys()];
-  const paidRows = partnerIds.length
-    ? await BankTransaction.findAll({
-        where: {
-          organizationId,
-          direction: "OUT",
-          status: "CONFIRMED",
-          partnerId: { [Op.in]: partnerIds },
-          // uplata koja je već zatvorila konkretan račun (ulazniRacunId) ga je
-          // označila PLACEN; ne ide ponovo u FIFO pool (izbjegava duplu naplatu)
-          ulazniRacunId: null,
-        },
-        attributes: ["partnerId", [fn("SUM", col("amount")), "paid"]],
-        group: ["partnerId"],
-        raw: true,
-      })
-    : [];
-  const paidByPartner = new Map(
-    paidRows.map((x) => [x.partnerId, Number(x.paid) || 0]),
+  // Izvedeni status naplate (FIFO) po partneru, ista funkcija kao lista
+  // kalkulacija; uključuje početno stanje, pa lista i kartica pokazuju isto
+  const alloc = await izvedeniStatusUlaznihRacuna(
+    organizationId,
+    racuni.map((r) => r.partnerId),
   );
-  const alloc = new Map();
-  for (const [pid, list] of byPartner) {
-    const kreditSum = list
-      .filter(isKredit)
-      .reduce((s, r) => s + (Number(r.iznos) || 0), 0);
-    const a = allocateFifo(
-      list.map((r) => ({
-        id: r.id,
-        iznos: Number(r.iznos) || 0,
-        datum: String(r.datumRacuna).slice(0, 10),
-        manualPlacen: r.status === "PLACEN",
-        // samoEvidencija (uvoz/JCI) nije obaveza prema dobavljaču, van FIFO-a
-        kredit: isKredit(r) || Boolean(r.samoEvidencija),
-      })),
-      (paidByPartner.get(pid) || 0) + kreditSum,
-    );
-    for (const [id, v] of a) alloc.set(id, v);
-  }
   const data = racuni.map((r) => ({
     ...r.toJSON(),
     placeno: alloc.get(r.id)?.placeno ?? 0,
@@ -1536,6 +1638,29 @@ async function updateUlazniRacun(req, res) {
   if (body.kpIznos !== undefined) {
     updates.kpIznos = parseAmount(body.kpIznos);
   }
+  // validacija statusa PRIJE otvaranja veze: neispravan zahtjev ne smije
+  // otvoriti vezu i vratiti statuse ostalih dokumenata u njoj
+  if (
+    body.status !== undefined &&
+    !["OTVOREN", "PLACEN"].includes(body.status)
+  ) {
+    return res.status(400).json({ ok: false, error: "INVALID_STATUS" });
+  }
+  // račun u ručnoj vezi (Z): promjena iznosa, vrste, evidencije ili ručnog
+  // statusa kvari zbir veze, pa se veza otvara (vraća prethodni status)
+  if (
+    racun.zatvaranjeId &&
+    ((updates.iznos !== undefined &&
+      toCents(updates.iznos) !== toCents(racun.iznos)) ||
+      (updates.vrstaDokumenta !== undefined &&
+        updates.vrstaDokumenta !== racun.vrstaDokumenta) ||
+      (body.samoEvidencija !== undefined &&
+        Boolean(body.samoEvidencija) !== Boolean(racun.samoEvidencija)) ||
+      body.status !== undefined)
+  ) {
+    await raspustiZaStavke(organizationId, { racunIds: [racun.id] });
+    await racun.reload();
+  }
   if (body.samoEvidencija !== undefined) {
     updates.samoEvidencija = Boolean(body.samoEvidencija);
     // uključeno: zatvori (nema obaveze); isključeno: vrati u otvoreno
@@ -1577,6 +1702,7 @@ async function removeUlazniRacun(req, res) {
     where: { id: racunId, organizationId },
   });
   if (!racun) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+  await raspustiZaStavke(organizationId, { racunIds: [racun.id] });
   await BankTransaction.update(
     { ulazniRacunId: null },
     { where: { organizationId, ulazniRacunId: racun.id } },
@@ -1846,6 +1972,9 @@ async function kartica(req, res) {
   const openKupac = opening ? Number(opening.kupacIznos) || 0 : 0;
   const openDob = opening ? Number(opening.dobavljacIznos) || 0 : 0;
   const openingDatum = opening ? String(opening.datum).slice(0, 10) : null;
+  // strana početnog stanja zatvorena ručnom vezom (Z) ne ulazi u FIFO
+  const fifoKupac = opening && opening.zatvaranjeKupacId ? 0 : openKupac;
+  const fifoDob = opening && opening.zatvaranjeDobId ? 0 : openDob;
 
   // izlazne fakture vezane po JIB-u ili nazivu kupca
   const pJib = normalizeDigits(partner.jib);
@@ -1863,6 +1992,7 @@ async function kartica(req, res) {
       "grossTotal",
       "status",
       "docType",
+      "zatvaranjeId",
     ],
     order: [["issueDate", "DESC"]],
     raw: true,
@@ -1901,15 +2031,16 @@ async function kartica(req, res) {
   const invKredit = (i) =>
     i.docType === "KNJIZNA_OBAVIJEST" || i.docType === "STORNO_AVANSNE";
   // krediti (KO/storno) umanjuju dug pa idu u pool kao plaćanje
+  // zatvorena odobrenja (u vezi Z) su već iskorištena
   const racunKreditSum = ulazniRacuni
-    .filter(racunKredit)
+    .filter((r) => racunKredit(r) && !r.zatvaranjeId)
     .reduce((s, r) => s + (Number(r.iznos) || 0), 0);
   // kupci: samo izdane/plaćene fakture su potraživanje (CANCELLED/DRAFT ne)
   const chargeableInvoices = invoices.filter(
     (i) => i.status === "ISSUED" || i.status === "PAID",
   );
   const invKreditSum = chargeableInvoices
-    .filter(invKredit)
+    .filter((i) => invKredit(i) && !i.zatvaranjeId)
     .reduce((s, i) => s + (Number(i.grossTotal) || 0), 0);
   // FIFO pool je LIFETIME (svih vremena), ne period: računa se preko SQL
   // suma, inače bi limit 300 / period-filter na `transactions` iskrivili
@@ -1924,6 +2055,7 @@ async function kartica(req, res) {
           status: "CONFIRMED",
           direction: "IN",
           invoiceId: null,
+          zatvaranjeId: null,
           ...PARTNER_CATEGORY_WHERE,
         },
       }),
@@ -1937,6 +2069,7 @@ async function kartica(req, res) {
           status: "CONFIRMED",
           direction: "OUT",
           ulazniRacunId: null,
+          zatvaranjeId: null,
           ...PARTNER_CATEGORY_WHERE,
         },
       }),
@@ -1946,8 +2079,8 @@ async function kartica(req, res) {
   // pretplata) ide u pool kao već primljeno plaćanje
   const racunAlloc = allocateFifo(
     [
-      ...(openDob > 0
-        ? [{ id: OPENING_ID, iznos: openDob, datum: openingDatum || "1900-01-01" }]
+      ...(fifoDob > 0
+        ? [{ id: OPENING_ID, iznos: fifoDob, datum: openingDatum || "1900-01-01" }]
         : []),
       ...ulazniRacuni.map((r) => ({
         id: r.id,
@@ -1958,12 +2091,12 @@ async function kartica(req, res) {
         kredit: racunKredit(r) || Boolean(r.samoEvidencija),
       })),
     ],
-    unlinkedOut + racunKreditSum + (openDob < 0 ? -openDob : 0),
+    unlinkedOut + racunKreditSum + (fifoDob < 0 ? -fifoDob : 0),
   );
   const invAlloc = allocateFifo(
     [
-      ...(openKupac > 0
-        ? [{ id: OPENING_ID, iznos: openKupac, datum: openingDatum || "1900-01-01" }]
+      ...(fifoKupac > 0
+        ? [{ id: OPENING_ID, iznos: fifoKupac, datum: openingDatum || "1900-01-01" }]
         : []),
       ...chargeableInvoices.map((i) => ({
         id: i.id,
@@ -1973,12 +2106,12 @@ async function kartica(req, res) {
         kredit: invKredit(i),
       })),
     ],
-    unlinkedIn + invKreditSum + (openKupac < 0 ? -openKupac : 0),
+    unlinkedIn + invKreditSum + (fifoKupac < 0 ? -fifoKupac : 0),
   );
   const openingKupacPreostalo =
-    openKupac > 0 ? (invAlloc.get(OPENING_ID)?.preostalo ?? openKupac) : 0;
+    fifoKupac > 0 ? (invAlloc.get(OPENING_ID)?.preostalo ?? fifoKupac) : 0;
   const openingDobPreostalo =
-    openDob > 0 ? (racunAlloc.get(OPENING_ID)?.preostalo ?? openDob) : 0;
+    fifoDob > 0 ? (racunAlloc.get(OPENING_ID)?.preostalo ?? fifoDob) : 0;
 
   const danas = todayLocalIso();
   // dugovi su ŽIVI (cijela istorija + početno stanje), period ih ne mijenja;
@@ -2074,6 +2207,12 @@ async function kartica(req, res) {
   }
   const minYear = minDatum ? Number(minDatum.slice(0, 4)) : null;
 
+  // oznake veza (ručne Z1.., automatske ZA1..) po strani kartice
+  const [ozDob, ozKup] = await Promise.all([
+    oznakeZatvaranja(organizationId, partnerId, "DOBAVLJAC"),
+    oznakeZatvaranja(organizationId, partnerId, "KUPAC"),
+  ]);
+
   // sa periodom se prikazuju samo stavke perioda (FIFO statusi su ipak
   // izračunati preko svega, pa su tačni i u godišnjem pregledu)
   const filtered = from || to;
@@ -2084,9 +2223,14 @@ async function kartica(req, res) {
         ...partner.toJSON(),
         accounts: Array.isArray(partner.accounts) ? partner.accounts : [],
       },
-      transactions: filtered
+      transactions: (filtered
         ? transactions.filter((t) => inPeriod(t.date))
-        : transactions,
+        : transactions
+      ).map((t) => ({
+        ...t.toJSON(),
+        zatvaranje:
+          (t.direction === "OUT" ? ozDob : ozKup).get(`UPLATA:${t.id}`) ?? null,
+      })),
       invoices: invoices
         .filter((i) => !filtered || inPeriod(i.issueDate))
         .map((i) => ({
@@ -2095,6 +2239,7 @@ async function kartica(req, res) {
           preostalo:
             invAlloc.get(i.id)?.preostalo ?? (Number(i.grossTotal) || 0),
           paymentStatus: invAlloc.get(i.id)?.status ?? "OTVOREN",
+          zatvaranje: ozKup.get(`FAKTURA:${i.id}`) ?? null,
         })),
       ulazniRacuni: ulazniRacuni
         .filter((r) => !filtered || inPeriod(r.datumRacuna))
@@ -2104,6 +2249,7 @@ async function kartica(req, res) {
           placeno: racunAlloc.get(r.id)?.placeno ?? 0,
           preostalo: racunAlloc.get(r.id)?.preostalo ?? (Number(r.iznos) || 0),
           paymentStatus: racunAlloc.get(r.id)?.status ?? "OTVOREN",
+          zatvaranje: ozDob.get(`ULAZNI_RACUN:${r.id}`) ?? null,
         })),
       period: { from: from || null, to: to || null },
       minYear,
@@ -2115,6 +2261,9 @@ async function kartica(req, res) {
             napomena: opening.napomena,
             kupacPreostalo: openingKupacPreostalo,
             dobavljacPreostalo: openingDobPreostalo,
+            id: opening.id,
+            zatvaranjeKupac: ozKup.get(`POCETNO_STANJE:${opening.id}`) ?? null,
+            zatvaranjeDob: ozDob.get(`POCETNO_STANJE:${opening.id}`) ?? null,
           }
         : null,
       donos,
@@ -2164,6 +2313,25 @@ async function upsertOpeningBalance(organizationId, partnerId, body) {
   const existing = await PartnerOpeningBalance.findOne({
     where: { organizationId, partnerId },
   });
+  // strana početnog stanja u ručnoj vezi (Z) čiji se iznos mijenja (ili se
+  // stanje briše): veza se otvara, zbir bi inače prestao da štima
+  if (existing) {
+    const zaOtvoriti = [];
+    if (
+      existing.zatvaranjeKupacId &&
+      toCents(existing.kupacIznos) !== toCents(kupacIznos)
+    ) {
+      zaOtvoriti.push(existing.zatvaranjeKupacId);
+    }
+    if (
+      existing.zatvaranjeDobId &&
+      toCents(existing.dobavljacIznos) !== toCents(dobavljacIznos)
+    ) {
+      zaOtvoriti.push(existing.zatvaranjeDobId);
+    }
+    for (const id of zaOtvoriti) await otvoriZatvaranje(organizationId, id);
+    if (zaOtvoriti.length) await existing.reload();
+  }
   if (kupacIznos === 0 && dobavljacIznos === 0) {
     if (existing) await existing.destroy();
     return { data: null };
@@ -2273,8 +2441,29 @@ async function klcMapa(organizationId, racunIds) {
 
 /** Hronološki redovi kartice: kupac (fakture duguju, uplate potražuju) ili
  *  dobavljač (njegovi računi potražuju, naša plaćanja duguju, MEGGLE stil). */
-async function buildKarticaRows(organizationId, partner, type, from, to) {
+/** oznake = mapa oznaka veza (oznakeZatvaranja) koju pozivalac već ima;
+ *  bez nje se učitava, a new Map() je preskače (npr. zbir za donos). */
+async function buildKarticaRows(
+  organizationId,
+  partner,
+  type,
+  from,
+  to,
+  oznake = null,
+) {
   const rows = [];
+  // oznake veza (Z ručne, ZA automatske), iste kao na ekranu
+  if (!oznake) {
+    oznake = await oznakeZatvaranja(
+      organizationId,
+      partner.id,
+      type === "kupac" ? "KUPAC" : "DOBAVLJAC",
+    );
+  }
+  const veza = (kljuc) => {
+    const oz = oznake.get(kljuc);
+    return oz ? { z: oz.oznaka, zKljuc: oz.kljuc } : {};
+  };
   if (type === "kupac") {
     const pJib = normalizeDigits(partner.jib);
     const pName = normalizeName(partner.name);
@@ -2285,7 +2474,7 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
         status: { [Op.in]: ["ISSUED", "PAID"] },
         issueDate: { [Op.gte]: from, [Op.lte]: to },
       },
-      attributes: ["fullNumber", "buyerName", "buyerIdNumber", "issueDate", "dueDate", "grossTotal", "docType"],
+      attributes: ["id", "fullNumber", "buyerName", "buyerIdNumber", "issueDate", "dueDate", "grossTotal", "docType"],
       raw: true,
     });
     for (const inv of invoices) {
@@ -2312,6 +2501,7 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
         label,
         duguje: odobrenje ? -gross : gross,
         potrazuje: 0,
+        ...veza(`FAKTURA:${inv.id}`),
       });
     }
   } else {
@@ -2350,6 +2540,7 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
         dospijece: r.rokPlacanja ? String(r.rokPlacanja).slice(0, 10) : null,
         duguje: 0,
         potrazuje: odobrenje ? -iznos : iznos,
+        ...veza(`ULAZNI_RACUN:${r.id}`),
       });
     }
   }
@@ -2361,6 +2552,8 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
       status: "CONFIRMED",
       direction: type === "kupac" ? "IN" : "OUT",
       date: { [Op.gte]: from, [Op.lte]: to },
+      // provizije banke i sl. nisu promet sa partnerom (isto kao ekran)
+      ...PARTNER_CATEGORY_WHERE,
     },
     include: [
       {
@@ -2380,10 +2573,32 @@ async function buildKarticaRows(organizationId, partner, type, from, to) {
       label: type === "kupac" ? `Uplata${izvod}` : `Plaćanje${izvod}`,
       duguje: type === "kupac" ? 0 : Number(t.amount) || 0,
       potrazuje: type === "kupac" ? Number(t.amount) || 0 : 0,
+      ...veza(`UPLATA:${t.id}`),
     });
   }
 
   rows.sort((a, b) => a.date.localeCompare(b.date));
+  return rows;
+}
+
+/** Poredak kartice po vezama: stavke iste veze jedna ispod druge, veza na
+ *  mjestu svoje najranije stavke; nezatvorene stavke ostaju hronološki. */
+function poredajPoVezama(rows) {
+  const prvi = new Map();
+  for (const r of rows) {
+    if (!r.zKljuc) continue;
+    const d = prvi.get(r.zKljuc);
+    if (!d || r.date < d) prvi.set(r.zKljuc, r.date);
+  }
+  const kljucReda = (r) => (r.zKljuc ? prvi.get(r.zKljuc) : r.date);
+  const indeks = new Map(rows.map((r, i) => [r, i]));
+  rows.sort(
+    (a, b) =>
+      kljucReda(a).localeCompare(kljucReda(b)) ||
+      String(a.zKljuc || "").localeCompare(String(b.zKljuc || "")) ||
+      a.date.localeCompare(b.date) ||
+      indeks.get(a) - indeks.get(b),
+  );
   return rows;
 }
 
@@ -2407,12 +2622,14 @@ async function donosZaStranu(organizationId, partner, type, beforeIso) {
         type === "kupac" ? opening.kupacIznos : opening.dobavljacIznos,
       ) || 0;
   }
+  // samo zbir: oznake veza ne trebaju
   const prije = await buildKarticaRows(
     organizationId,
     partner,
     type,
     "1900-01-01",
     prevDayIso(beforeIso),
+    new Map(),
   );
   for (const r of prije) {
     saldo += type === "kupac" ? r.duguje - r.potrazuje : r.potrazuje - r.duguje;
@@ -2446,9 +2663,17 @@ async function loadKarticaContext(req) {
 
   const q = req.method === "POST" ? req.body || {} : req.query;
   const type = q.type === "kupac" ? "kupac" : "dobavljac";
+  // poredak po vezama zatvaranja (stavke iste veze jedna ispod druge)
+  const poVezama = q.poVezama === "1" || q.poVezama === true;
   const fromInput = parseIsoDate(q.from);
   const to = parseIsoDate(q.to) || new Date().toISOString().slice(0, 10);
 
+  // oznake veza jednom: za redove kartice i red početnog stanja
+  const oznake = await oznakeZatvaranja(
+    organizationId,
+    partner.id,
+    type === "kupac" ? "KUPAC" : "DOBAVLJAC",
+  );
   // bez izabranog perioda: cijeli period prometa (od prve stavke)
   const rows = await buildKarticaRows(
     organizationId,
@@ -2456,6 +2681,7 @@ async function loadKarticaContext(req) {
     type,
     fromInput || "1900-01-01",
     to,
+    oznake,
   );
 
   // donos / početno stanje na kartici
@@ -2478,12 +2704,15 @@ async function loadKarticaContext(req) {
       ) || 0;
     const uPrikazu = (!fromInput || oDatum >= fromInput) && oDatum <= to;
     if (uPrikazu && Math.abs(oIznos) > 0.005) {
-      rows.push(
-        donosRow(oDatum, `Početno stanje na ${fmtDateHr(oDatum)}`, oIznos, type),
-      );
+      const ozPs = oznake.get(`POCETNO_STANJE:${openingRec.id}`);
+      rows.push({
+        ...donosRow(oDatum, `Početno stanje na ${fmtDateHr(oDatum)}`, oIznos, type),
+        ...(ozPs ? { z: ozPs.oznaka, zKljuc: ozPs.kljuc } : {}),
+      });
       rows.sort((a, b) => a.date.localeCompare(b.date));
     }
   }
+  if (poVezama) poredajPoVezama(rows);
   const from =
     fromInput || rows[0]?.date || `${new Date().getFullYear()}-01-01`;
   const pdf = await buildKarticaPdf({
@@ -2497,6 +2726,7 @@ async function loadKarticaContext(req) {
     type,
     period: { from, to },
     rows,
+    poVezama,
   });
   const filename = `Kartica_${type === "kupac" ? "kupca" : "dobavljaca"}_${String(
     partner.code || partner.id,
@@ -2660,6 +2890,15 @@ async function openingPreostaloNaDan(organizationId, partner, type, naDan) {
     Number(type === "kupac" ? opening.kupacIznos : opening.dobavljacIznos) || 0;
   const datum = String(opening.datum).slice(0, 10);
   if (iznos === 0 || datum > naDan) return null;
+  // strana zatvorena ručnom vezom (Z) je izmirena od dana veze; na raniji
+  // dan se računa kao i nezatvorena
+  const zId =
+    type === "kupac" ? opening.zatvaranjeKupacId : opening.zatvaranjeDobId;
+  if (zId) {
+    const z = await PartnerZatvaranje.findByPk(zId, { attributes: ["datum"] });
+    const zDatum = z?.datum ? String(z.datum).slice(0, 10) : null;
+    if (!zDatum || zDatum <= naDan) return null;
+  }
   // negativno = avans/pretplata: kredit koji umanjuje dug; prikazuje se kao
   // negativna stavka (kao i u kartici gdje ide u pool plaćanja), pool se ne
   // primjenjuje na kredit
@@ -2673,6 +2912,7 @@ async function openingPreostaloNaDan(organizationId, partner, type, naDan) {
       status: "CONFIRMED",
       direction: type === "kupac" ? "IN" : "OUT",
       [type === "kupac" ? "invoiceId" : "ulazniRacunId"]: null,
+      zatvaranjeId: null,
       date: { [Op.lte]: naDan },
       ...PARTNER_CATEGORY_WHERE,
     },
@@ -2891,6 +3131,32 @@ async function merge(req, res) {
       );
       await Kalkulacija.update({ partnerId: targetId }, w);
       await Razduzenje.update({ partnerId: targetId }, w);
+      // ručne veze (Z) prelaze na ciljnog partnera, brojevi se nastavljaju
+      // iza njegovih; veza sa početnim stanjem izvora se otvara (stanje
+      // izvora ne prelazi na cilj)
+      const vezeIzvora = await PartnerZatvaranje.findAll({
+        where: { organizationId, partnerId: sourceId },
+        order: [["broj", "ASC"]],
+        transaction: t,
+      });
+      for (const z of vezeIzvora) {
+        const saStanjem = await PartnerZatvaranjeStavka.count({
+          where: { zatvaranjeId: z.id, tip: "POCETNO_STANJE" },
+          transaction: t,
+        });
+        if (saStanjem) {
+          await otvoriZatvaranje(organizationId, z.id, t);
+          continue;
+        }
+        const max = await PartnerZatvaranje.max("broj", {
+          where: { organizationId, partnerId: targetId, strana: z.strana },
+          transaction: t,
+        });
+        await z.update(
+          { partnerId: targetId, broj: (Number(max) || 0) + 1 },
+          { transaction: t },
+        );
+      }
 
       const fill = {};
       for (const k of ["jib", "pdvBroj", "address", "city", "email", "phone", "note"]) {
@@ -2974,5 +3240,7 @@ module.exports = {
   loadPartnerMatcher,
   isNonPartnerCategory,
   normalizeDigits,
+  normalizeName,
   tryMatchExistingPayment,
+  izvedeniStatusUlaznihRacuna,
 };

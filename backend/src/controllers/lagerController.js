@@ -21,6 +21,7 @@ const {
   Organization,
 } = require("../models/index");
 const { logEvent } = require("./activityController");
+const { raspustiZaStavke } = require("../services/zatvaranjaService");
 
 function parseId(v) {
   const n = Number(v);
@@ -1558,6 +1559,10 @@ async function removeRazduzenje(req, res) {
   }
   const rz = await Razduzenje.findOne({ where: { id, organizationId } });
   if (!rz) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+  // knjižna obavijest u ručnoj vezi (Z) na kartici dobavljača: veza se otvara
+  if (rz.ulazniRacunId) {
+    await raspustiZaStavke(organizationId, { racunIds: [rz.ulazniRacunId] });
+  }
   await sequelize.transaction(async (t) => {
     if (rz.ulazniRacunId) {
       await UlazniRacun.destroy({

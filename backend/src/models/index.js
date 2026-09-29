@@ -1150,6 +1150,8 @@ const Invoice = sequelize.define(
     notes: { type: DataTypes.TEXT, allowNull: true },
 
     convertedFromProformaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // ručno zatvaranje stavki na kartici partnera (PartnerZatvaranje)
+    zatvaranjeId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   },
   {
     tableName: "invoices",
@@ -2067,6 +2069,8 @@ const BankTransaction = sequelize.define(
     partnerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     // ulazni račun koji je ova isplata zatvorila (auto-knjiženje)
     ulazniRacunId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    // ručno zatvaranje stavki na kartici partnera (PartnerZatvaranje)
+    zatvaranjeId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   },
   {
     tableName: "bank_transactions",
@@ -2192,6 +2196,9 @@ const PartnerOpeningBalance = sequelize.define(
       defaultValue: 0,
     },
     napomena: { type: DataTypes.STRING(255), allowNull: true },
+    // ručno zatvaranje stavki na kartici (PartnerZatvaranje), po strani
+    zatvaranjeKupacId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    zatvaranjeDobId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   },
   {
     tableName: "partner_opening_balances",
@@ -2201,6 +2208,66 @@ const PartnerOpeningBalance = sequelize.define(
       // jedno početno stanje po partneru
       { unique: true, fields: ["organizationId", "partnerId"] },
     ],
+  },
+);
+
+// Ručno zatvaranje stavki na kartici partnera ("veza" Z1, Z2...): označena
+// plaćanja i dokumenti čiji su zbirovi jednaki. Zatvoreni dokumenti dobiju
+// status plaćen, zatvorena plaćanja ne ulaze u FIFO raspodjelu. Veza se može
+// otvoriti; stavka pamti prethodni status dokumenta da se vrati.
+const PartnerZatvaranje = sequelize.define(
+  "PartnerZatvaranje",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    organizationId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    partnerId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // DOBAVLJAC | KUPAC (strana kartice)
+    strana: { type: DataTypes.STRING(10), allowNull: false },
+    // redni broj veze po partneru i strani (prikaz "Z3")
+    broj: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    iznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // dan izmirenja: najkasnija uplata u vezi (bez uplate: najkasnija
+    // stavka); datum plaćanja dokumenata i granica za IOS na raniji dan
+    datum: { type: DataTypes.DATEONLY, allowNull: true },
+    createdById: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  },
+  {
+    tableName: "partner_zatvaranja",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["organizationId", "partnerId", "strana"] }],
+  },
+);
+
+const PartnerZatvaranjeStavka = sequelize.define(
+  "PartnerZatvaranjeStavka",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    zatvaranjeId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // UPLATA (bank_transactions) | ULAZNI_RACUN | FAKTURA | POCETNO_STANJE
+    tip: { type: DataTypes.STRING(20), allowNull: false },
+    refId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // iznos sa predznakom na svojoj strani kartice (odobrenje u minusu)
+    iznos: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
+    // D = duguje, P = potražuje (kolona kartice)
+    kolona: { type: DataTypes.STRING(1), allowNull: false },
+    // status dokumenta prije zatvaranja (vraća se pri otvaranju veze)
+    prethodniStatus: { type: DataTypes.STRING(20), allowNull: true },
+    prethodniPaidAt: { type: DataTypes.DATEONLY, allowNull: true },
+  },
+  {
+    tableName: "partner_zatvaranje_stavke",
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["zatvaranjeId"] }],
   },
 );
 
@@ -2289,6 +2356,8 @@ const UlazniRacun = sequelize.define(
     },
     paidAt: { type: DataTypes.DATEONLY, allowNull: true },
     note: { type: DataTypes.TEXT, allowNull: true },
+    // ručno zatvaranje stavki na kartici partnera (PartnerZatvaranje)
+    zatvaranjeId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   },
   {
     tableName: "ulazni_racuni",
@@ -3594,6 +3663,8 @@ module.exports = {
   BankMatchRule,
   Partner,
   PartnerOpeningBalance,
+  PartnerZatvaranje,
+  PartnerZatvaranjeStavka,
   UlazniRacun,
   PdvDodatak,
   PdvKnjizenje,

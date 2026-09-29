@@ -830,7 +830,7 @@ export function KalkulacijaForm({
       const kod = e instanceof Error ? e.message : "";
       setSaveError(
         kod === "RACUN_PLACEN"
-          ? "Ulazni račun ove kalkulacije je već plaćen (vezan za izvod), pa se kalkulacija ne može mijenjati. Prvo razvežite uplatu na stranici Partneri."
+          ? "Ulazni račun ove kalkulacije je već plaćen (vezan za izvod ili zatvoren vezom na kartici dobavljača), pa se kalkulacija ne može mijenjati. Prvo otvorite vezu na kartici dobavljača (Partneri)."
           : kod === "BROJ_ZAUZET"
             ? `Broj ${brojS.trim()} već koristi druga kalkulacija u ${datumIso.slice(0, 4)}. godini. Upišite drugi broj, ili prvo promijenite broj (odnosno obrišite) tu kalkulaciju.`
             : kod === "BROJ_INVALID"
