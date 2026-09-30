@@ -5,11 +5,12 @@
 const BANK_CODES: Record<number, string> = {
   132: "NLB Banka",
   134: "ASA Banka",
-  140: "ProCredit Bank",
+  140: "ASA Banka", // bivša Sberbank BH, od 1.12.2022. računi prešli na 134
   141: "BBI Banka",
   154: "Intesa Sanpaolo Banka",
   161: "Raiffeisen Bank",
   186: "Ziraat Bank",
+  194: "ProCredit Bank",
   198: "KIB Banka",
   199: "Sparkasse Bank",
   306: "Addiko Bank",

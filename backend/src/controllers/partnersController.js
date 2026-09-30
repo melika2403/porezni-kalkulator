@@ -310,9 +310,12 @@ async function list(req, res) {
     openingRows.map((r) => [
       r.partnerId,
       {
-        // strana zatvorena ručnom vezom (Z) je izmirena: ne ulazi u FIFO
-        kupac: r.zatvaranjeKupacId ? 0 : Number(r.kupacIznos) || 0,
-        dobavljac: r.zatvaranjeDobId ? 0 : Number(r.dobavljacIznos) || 0,
+        // iznosi idu u zbirove liste (promet, saldo) uvijek; strana
+        // zatvorena ručnom vezom (Z) je izmirena pa samo ne ulazi u FIFO
+        kupac: Number(r.kupacIznos) || 0,
+        dobavljac: Number(r.dobavljacIznos) || 0,
+        kupacZatvoren: !!r.zatvaranjeKupacId,
+        dobZatvoren: !!r.zatvaranjeDobId,
         godina: Number(String(r.datum).slice(0, 4)) || 0,
         datum: String(r.datum).slice(0, 10),
       },
@@ -399,7 +402,7 @@ async function list(req, res) {
   for (const pid of dobPartnerIds) {
     const list = racuniByPartner.get(pid) || [];
     const opening = openingByPartner.get(pid);
-    const donos = opening ? opening.dobavljac : 0;
+    const donos = opening && !opening.dobZatvoren ? opening.dobavljac : 0;
     // zatvorena odobrenja (u vezi Z) su već iskorištena
     const kreditSum = list
       .filter((r) => isKreditRacun(r) && !r.zatvaranjeId)
@@ -458,7 +461,7 @@ async function list(req, res) {
     const pJib = normalizeDigits(p.jib);
     const pName = normalizeName(p.name);
     const opening = openingByPartner.get(p.id);
-    const donos = opening ? opening.kupac : 0;
+    const donos = opening && !opening.kupacZatvoren ? opening.kupac : 0;
     const mine = invoiceIndex.filter(
       (inv) =>
         (pJib && inv.jibNorm === pJib) || inv.nameNorm === pName,

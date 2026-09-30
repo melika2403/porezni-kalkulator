@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 import styles from './Navbar.module.css';
@@ -82,6 +82,7 @@ export default function Navbar() {
   // Profil meni (chip sa avatarom → dropdown), isti obrazac kao PK Office
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const megaRef = useRef<HTMLDivElement>(null);
   const pkInfoRef = useRef<HTMLSpanElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +93,27 @@ export default function Navbar() {
     setPkInfoOpen(false);
     setUserMenuOpen(false);
   }, [pathname]);
+
+  // Mega meni ostaje pune veličine, ali se na užim ekranima pomjeri
+  // vodoravno da ne izađe van ekrana (16px od ivice); i na resize prozora
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    const el = megaRef.current;
+    if (!el) return;
+    const uklopi = () => {
+      el.style.setProperty('--mega-shift', '0px');
+      const r = el.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      const rub = 16;
+      let pomak = 0;
+      if (r.left < rub) pomak = rub - r.left;
+      else if (r.right > vw - rub) pomak = vw - rub - r.right;
+      el.style.setProperty('--mega-shift', `${Math.round(pomak)}px`);
+    };
+    uklopi();
+    window.addEventListener('resize', uklopi);
+    return () => window.removeEventListener('resize', uklopi);
+  }, [menuOpen]);
 
   // Zaključaj scroll body-ja dok je mobile drawer otvoren
   useEffect(() => {
@@ -265,7 +287,7 @@ export default function Navbar() {
           </button>
 
           {menuOpen && (
-            <div className={styles.megaMenu} role="menu">
+            <div ref={megaRef} className={styles.megaMenu} role="menu">
               {FUNCTION_GROUPS.map((group) => (
                 <div key={group.title} className={styles.megaCol}>
                   <div className={styles.megaColTitle}>{group.title}</div>
