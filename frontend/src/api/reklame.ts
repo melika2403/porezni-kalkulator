@@ -72,6 +72,13 @@ export type PromoterReklama = ReklamaPayload & {
   stanje: ReklamaStanje;
   prikazi: number;
   klikovi: number;
+  /** samo u admin pregledu: vlasnik reklame */
+  promoter?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };

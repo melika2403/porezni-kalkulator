@@ -77,7 +77,9 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
             </svg>
           </div>
           <div className={styles.brandText}>
-            <span className={styles.brandLabel}>Oglašivač</span>
+            <span className={styles.brandLabel}>
+              {role === "ADMIN" ? "Admin · sve reklame" : "Oglašivač"}
+            </span>
             <span className={styles.brandTitle}>Reklame</span>
           </div>
         </div>
@@ -106,6 +108,14 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
         </nav>
 
         <div className={styles.sidebarFoot}>
+          {role === "ADMIN" && (
+            <Link href="/admin" className={styles.backLink}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11L4 7l5-4" />
+              </svg>
+              Nazad na admin panel
+            </Link>
+          )}
           <Link href="/" className={styles.backLink}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 11L4 7l5-4" />

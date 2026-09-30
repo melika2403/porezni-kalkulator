@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { sequelize, Reklama, ReklamaStatistika } = require("../models/index");
+const { sequelize, Reklama, ReklamaStatistika, User } = require("../models/index");
 const { POZICIJE, STRANICE } = require("../config/reklame");
 const { publicUrlFor } = require("../utils/uploads");
 
@@ -212,6 +212,18 @@ async function lista(req, res) {
     const reklame = await Reklama.findAll({
       where: vlasnikWhere(req),
       order: [["pocetak", "DESC"], ["id", "DESC"]],
+      // admin vidi reklame svih promotera, pa mu treba i čija je koja
+      ...(jeAdmin(req)
+        ? {
+            include: [
+              {
+                model: User,
+                as: "promoter",
+                attributes: ["id", "firstName", "lastName", "email"],
+              },
+            ],
+          }
+        : {}),
     });
     const zbir = await zbiroviStatistike(reklame.map((r) => r.id));
     return res.json({ ok: true, data: reklame.map((r) => zaPromotera(r, zbir.get(r.id))) });

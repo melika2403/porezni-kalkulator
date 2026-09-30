@@ -114,6 +114,12 @@ export default function PromoterPregled() {
                       <span className={s.redSub}>
                         {r.brend} · {r.format === "SLIKA" ? "baner" : "šablon"}
                       </span>
+                      {r.promoter && (
+                        <span className={s.redSub}>
+                          Promoter: {`${r.promoter.firstName} ${r.promoter.lastName}`.trim()}
+                          {r.promoter.email ? ` (${r.promoter.email})` : ""}
+                        </span>
+                      )}
                     </td>
                     <td data-label="Stanje">
                       <span className={`${s.badge} ${s[st.cls]}`}>{st.label}</span>
