@@ -390,6 +390,11 @@
   color: var(--ink);
 }
 
+/* sponzorisana kartica banke partnera, iznad dugmadi za preuzimanje */
+.reklamaInline {
+  margin-top: 2rem;
+}
+
 /* ── Export button ── */
 .actions {
   display: flex;

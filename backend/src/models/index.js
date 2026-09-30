@@ -30,8 +30,11 @@ const User = sequelize.define(
     phone: { type: DataTypes.STRING(30), allowNull: true },
     address: { type: DataTypes.STRING(255), allowNull: true },
     city: { type: DataTypes.STRING(100), allowNull: true },
+    // PROMOTER = oglašivač (banka partner): pristup SAMO /promoter dashboardu
+    // za svoje reklame. Nije plan tier i nije staff, admin ga dodjeljuje ručno
+    // poslije obične registracije.
     role: {
-      type: DataTypes.ENUM("USER", "PRO", "BUSINESS", "ADMIN"),
+      type: DataTypes.ENUM("USER", "PRO", "BUSINESS", "ADMIN", "PROMOTER"),
       defaultValue: "USER",
     },
     jmbg: { type: DataTypes.STRING(255), unique: true, allowNull: true },
@@ -3600,6 +3603,98 @@ const UplatniRacunLog = sequelize.define(
   },
 );
 
+// ─── REKLAME (oglasi promotera, npr. banke partnera) ─────────────────────────
+// Reklama ide live odmah (bez odobravanja) i vrti se u svom terminu
+// (pocetak..kraj) na izabranim stranicama i pozicijama. Kad je više aktivnih
+// na istoj poziciji, javni endpoint bira nasumično po težini (rotacija).
+// pozicije/stranice su JSON nizovi ključeva iz config/reklame.js; stranica
+// "*" = sve stranice sa slotovima.
+const Reklama = sequelize.define(
+  "Reklama",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    promoterId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // interni naziv kampanje (vidi samo promoter i admin)
+    naziv: { type: DataTypes.STRING(120), allowNull: false },
+    // SABLON = mi iscrtavamo iz polja ispod; SLIKA = gotov baner (klik vodi na ctaUrl)
+    format: {
+      type: DataTypes.ENUM("SABLON", "SLIKA"),
+      allowNull: false,
+      defaultValue: "SABLON",
+    },
+    brend: { type: DataTypes.STRING(60), allowNull: false },
+    naslov: { type: DataTypes.STRING(120), allowNull: true },
+    tekst: { type: DataTypes.STRING(400), allowNull: true },
+    ctaTekst: { type: DataTypes.STRING(40), allowNull: true },
+    ctaUrl: { type: DataTypes.STRING(500), allowNull: false },
+    sekundarniTekst: { type: DataTypes.STRING(60), allowNull: true },
+    sekundarniUrl: { type: DataTypes.STRING(500), allowNull: true },
+    // ilustracija u šablonu, ili cijeli baner kod formata SLIKA
+    slikaUrl: { type: DataTypes.STRING(255), allowNull: true },
+    // uska varijanta banera za inline/mobilne pozicije (format SLIKA)
+    slikaUskaUrl: { type: DataTypes.STRING(255), allowNull: true },
+    logoUrl: { type: DataTypes.STRING(255), allowNull: true },
+    // akcentna boja brenda (#rrggbb) za šablon
+    boja: { type: DataTypes.STRING(7), allowNull: false, defaultValue: "#d9232d" },
+    pozicije: { type: DataTypes.JSON, allowNull: false },
+    stranice: { type: DataTypes.JSON, allowNull: false },
+    pocetak: { type: DataTypes.DATE, allowNull: false },
+    kraj: { type: DataTypes.DATE, allowNull: false },
+    status: {
+      type: DataTypes.ENUM("AKTIVNA", "PAUZIRANA"),
+      allowNull: false,
+      defaultValue: "AKTIVNA",
+    },
+    // 1..10, veća = češće u rotaciji
+    tezina: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 1 },
+  },
+  {
+    tableName: "reklame",
+    timestamps: true,
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
+    indexes: [{ fields: ["promoterId"] }, { fields: ["status", "pocetak", "kraj"] }],
+  },
+);
+
+// Dnevni agregat prikaza i klikova po stranici i poziciji (jedan red po
+// kombinaciji, brojači se uvećavaju upsertom, bez reda po događaju).
+const ReklamaStatistika = sequelize.define(
+  "ReklamaStatistika",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    reklamaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    stranica: { type: DataTypes.STRING(40), allowNull: false },
+    pozicija: { type: DataTypes.STRING(30), allowNull: false },
+    prikazi: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+    klikovi: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+  },
+  {
+    tableName: "reklame_statistika",
+    timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        name: "reklame_stat_jedinstveno",
+        fields: ["reklamaId", "datum", "stranica", "pozicija"],
+      },
+    ],
+  },
+);
+
+Reklama.belongsTo(User, { foreignKey: "promoterId", as: "promoter" });
+Reklama.hasMany(ReklamaStatistika, { foreignKey: "reklamaId", as: "statistika" });
+ReklamaStatistika.belongsTo(Reklama, { foreignKey: "reklamaId" });
+
 // 2FA associations
 User.hasOne(UserTwoFactor, {
   foreignKey: "userId",
@@ -3690,4 +3785,6 @@ module.exports = {
   NotificationLog,
   UplatniRacun,
   UplatniRacunLog,
+  Reklama,
+  ReklamaStatistika,
 };

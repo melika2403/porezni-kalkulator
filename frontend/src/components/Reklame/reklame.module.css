@@ -1,0 +1,390 @@
+/* Reklame promotera. Sve nijanse se izvode iz jedne boje brenda (--rk-boja),
+   pa banka bira samo akcentnu boju. Kartice su namjerno svijetle i u tamnoj
+   temi: to je vizuelni identitet oglašivača, ne naš. */
+
+.stub,
+.stubSlika,
+.inline,
+.inlineSlika,
+.dugme,
+.modalPoruka {
+  --rk-tamna: color-mix(in srgb, var(--rk-boja) 72%, #000);
+  --rk-svijetla: color-mix(in srgb, var(--rk-boja) 9%, #fff);
+  --rk-srednja: color-mix(in srgb, var(--rk-boja) 40%, #fff);
+  font-family: "DM Sans", sans-serif;
+}
+
+/* ── Pločica brenda ── */
+.brend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: var(--rk-boja);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  min-height: 2.6rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+.brendMali {
+  font-size: 11px;
+  padding: 0.45rem 0.55rem;
+  min-height: 0;
+  border-radius: 6px;
+}
+.brendLogo {
+  max-height: 28px;
+  max-width: 100%;
+  object-fit: contain;
+}
+.brendMali .brendLogo {
+  max-height: 18px;
+}
+
+.oznaka {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: var(--rk-boja);
+  margin-top: 0.4rem;
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--rk-boja);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.cta:hover {
+  background: var(--rk-tamna);
+  color: #fff;
+}
+
+/* ── Bočni stub ── */
+.stub,
+.stubSlika {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 2px solid var(--rk-boja);
+  border-radius: 14px;
+  background: var(--rk-svijetla);
+  padding: 1rem 1rem 0.6rem;
+  height: min(600px, calc(100vh - 64px - 3rem));
+  min-height: 420px;
+  text-align: center;
+}
+.stubNaslov {
+  margin: 1.1rem 0 0.35rem;
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--rk-tamna);
+}
+.stubTekst {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--rk-boja);
+}
+.stubIlustracija {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+.stubIlustracija img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.stubSlika {
+  padding: 0.5rem 0.5rem 0.4rem;
+}
+.stubSlika a {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stubSlika img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* Fiksni stubovi (SPR, GPD): izvan okvira od 860px, isto kao PK Office
+   kolona (OfficeSidebarPromo), da se ne preklapaju sa obrascem. */
+.fiksno {
+  display: none;
+}
+@media (min-width: 1440px) {
+  .fiksno {
+    display: block;
+    position: fixed;
+    top: 96px;
+    width: 250px;
+    z-index: 5;
+  }
+  .fiksnoLijevo {
+    right: calc(50% + 430px + 24px);
+  }
+  .fiksnoDesno {
+    left: calc(50% + 430px + 24px);
+  }
+  .fiksno .stub,
+  .fiksno .stubSlika {
+    height: min(600px, calc(100vh - 120px));
+  }
+}
+
+/* ── Inline kartica ── */
+.inline,
+.inlineSlika {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1.5px solid var(--rk-boja);
+  border-radius: 10px;
+  background: var(--rk-svijetla);
+  padding: 0.85rem 0.9rem 0.7rem;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s ease;
+}
+.inline:hover,
+.inlineSlika:hover {
+  box-shadow: 0 6px 18px -10px var(--rk-boja);
+}
+.inlineOznaka {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 9.5px;
+  color: var(--rk-boja);
+}
+.inlineTijelo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.inlineNaslov {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--rk-tamna);
+  line-height: 1.25;
+}
+.inlineTekst {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--rk-boja);
+}
+.inlineSlika {
+  padding: 0;
+  overflow: hidden;
+}
+.inlineSlika img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ── Sponzorisano dugme za preuzimanje ── */
+.dugme {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+  border: none;
+  border-radius: var(--radius-lg, 10px);
+  background: var(--rk-tamna);
+  color: #fff;
+  padding: 0.55rem 1.25rem 0.55rem 0.55rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+.dugme:hover {
+  background: color-mix(in srgb, var(--rk-boja) 85%, #000);
+}
+.dugme:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.dugme svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.dugmeCrta {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(255, 255, 255, 0.3);
+}
+.dugmeTekst {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.dugmeLabel {
+  font-weight: 700;
+  font-size: 15px;
+}
+.dugmeSub {
+  font-size: 11px;
+  opacity: 0.8;
+}
+@media (max-width: 480px) {
+  .dugme {
+    width: 100%;
+  }
+}
+
+/* ── Prozor poslije preuzimanja ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 26, 18, 0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: rkFade 0.15s ease;
+}
+@keyframes rkFade {
+  from {
+    opacity: 0;
+  }
+}
+.modal {
+  background: #fff;
+  color: #0f1a12;
+  border-radius: 20px;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 2rem 2rem 1rem;
+  text-align: center;
+  font-family: "DM Sans", sans-serif;
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.5);
+}
+.modalKvacica {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #e3efe6;
+  color: #2d4633;
+}
+.modalKvacica svg {
+  width: 26px;
+  height: 26px;
+}
+.modalNaslov {
+  margin: 0.9rem 0 0.25rem;
+  font-size: 24px;
+  font-weight: 700;
+}
+.modalPodnaslov {
+  margin: 0 0 1.25rem;
+  font-size: 14px;
+  color: #5a6a5d;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid #e6e1d6;
+}
+.modalZatvori {
+  margin-top: 1rem;
+  background: none;
+  border: none;
+  color: #5a6a5d;
+  font-size: 15px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.modalZatvori:hover {
+  color: #0f1a12;
+}
+
+.modalPoruka {
+  position: relative;
+  text-align: left;
+  border: 1.5px solid var(--rk-boja);
+  border-radius: 12px;
+  background: var(--rk-svijetla);
+  padding: 1.25rem 1rem 1rem;
+}
+.modalOznaka {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 10.5px;
+  color: var(--rk-boja);
+}
+.modalGlava {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.modalGlava .brend {
+  min-width: 110px;
+}
+.modalNaslovPoruke {
+  margin: 0.2rem 0 0.25rem;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--rk-tamna);
+}
+.modalTekstPoruke {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--rk-boja);
+}
+.modalAkcije {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 1.1rem;
+  flex-wrap: wrap;
+}
+.modalAkcije .cta {
+  flex: 0 1 220px;
+}
+.sekundarni {
+  font-size: 14px;
+  color: var(--rk-tamna);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (max-width: 520px) {
+  .modal {
+    padding: 1.5rem 1rem 0.75rem;
+  }
+  .modalGlava {
+    flex-direction: column;
+  }
+  .modalAkcije .cta {
+    flex: 1 1 100%;
+  }
+}

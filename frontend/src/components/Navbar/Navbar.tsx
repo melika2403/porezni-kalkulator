@@ -408,6 +408,15 @@ export default function Navbar() {
                 Dodaj djelatnost
               </Link>
             )}
+            {user.role === 'PROMOTER' && (
+              <Link
+                href="/promoter"
+                className={`${styles.orgsLink} ${styles.hideOnMobile}`}
+                title="Upravljanje reklamama"
+              >
+                Moje reklame
+              </Link>
+            )}
             {hasAnyOrg && (
               <Link
                 href="/organizacije"
@@ -939,6 +948,17 @@ export default function Navbar() {
                         onClick={() => setMobileOpen(false)}
                       >
                         Dodaj djelatnost
+                      </Link>
+                    </li>
+                  )}
+                  {user.role === 'PROMOTER' && (
+                    <li>
+                      <Link
+                        href="/promoter"
+                        className={styles.mobileItem}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        Moje reklame
                       </Link>
                     </li>
                   )}

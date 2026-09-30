@@ -37,6 +37,7 @@ const ROLE_LABELS: Record<string, string> = {
   PRO: "Pro",
   ADMIN: "Admin",
   BUSINESS: "Business",
+  PROMOTER: "Promoter",
 };
 
 const ROLE_BADGE_CLASS: Record<Users["role"], string> = {
@@ -44,6 +45,7 @@ const ROLE_BADGE_CLASS: Record<Users["role"], string> = {
   PRO: "rolePro",
   ADMIN: "roleAdmin",
   BUSINESS: "roleBusiness",
+  PROMOTER: "rolePromoter",
 };
 
 // "free = vječno" pretplata ima endDate ~ +100 godina (ensureSubscription na
@@ -304,6 +306,7 @@ export default function Korisnici() {
                         { value: "PRO", label: "Pro" },
                         { value: "BUSINESS", label: "Business" },
                         { value: "ADMIN", label: "Admin" },
+                        { value: "PROMOTER", label: "Promoter (oglašivač)" },
                       ],
                     },
                     {
@@ -953,6 +956,10 @@ function UserRow({ user }: { user: Users }) {
                       { value: "PRO", label: "Pro" },
                       { value: "BUSINESS", label: "Business" },
                       { value: "ADMIN", label: "Admin" },
+                      {
+                        value: "PROMOTER",
+                        label: "Promoter (oglašivač, samo reklame)",
+                      },
                     ],
                   },
                   {

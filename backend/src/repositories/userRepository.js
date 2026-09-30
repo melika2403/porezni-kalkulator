@@ -94,7 +94,7 @@ async function listUsers({
       { freelancerTrialEndsAt: { [Op.gte]: new Date() } },
     ];
     subQuery = false;
-  } else if (role && ["USER", "PRO", "BUSINESS", "ADMIN"].includes(role)) {
+  } else if (role && ["USER", "PRO", "BUSINESS", "ADMIN", "PROMOTER"].includes(role)) {
     where.role = role;
   }
 

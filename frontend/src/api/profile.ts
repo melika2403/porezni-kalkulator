@@ -59,7 +59,7 @@ export type Users = {
   firstName: string;
   lastName: string;
   email: string | null;
-  role: "USER" | "PRO" | "ADMIN" | "BUSINESS";
+  role: "USER" | "PRO" | "ADMIN" | "BUSINESS" | "PROMOTER";
   phone: string | null;
   address: string | null;
   city: string | null;
@@ -83,7 +83,7 @@ export type UserUpdatePayload = {
   phone?: string;
   address?: string;
   city?: string;
-  role?: "USER" | "PRO" | "ADMIN" | "BUSINESS";
+  role?: "USER" | "PRO" | "ADMIN" | "BUSINESS" | "PROMOTER";
 };
 
 export type SubscriptionPayload = {

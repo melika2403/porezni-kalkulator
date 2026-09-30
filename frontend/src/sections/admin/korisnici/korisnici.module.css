@@ -406,6 +406,11 @@
   color: var(--accent);
 }
 
+.rolePromoter {
+  background: #fbe3e4;
+  color: #9b1c23;
+}
+
 /* Paket (aktivna pretplata / office trial) */
 .planOffice {
   background: #dce9df;

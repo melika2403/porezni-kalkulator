@@ -3,7 +3,7 @@ const { encryptJmbg } = require("../utils/encryptJmbg");
 const ownerIdentitySync = require("../services/ownerIdentitySync");
 
 // Dozvoljene role (mora pratiti ENUM users.role u modelu).
-const ROLE_VRIJEDNOSTI = ["USER", "PRO", "BUSINESS", "ADMIN"];
+const ROLE_VRIJEDNOSTI = ["USER", "PRO", "BUSINESS", "ADMIN", "PROMOTER"];
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -77,7 +77,7 @@ function validateUserUpdatePayload(body) {
       return {
         ok: false,
         message:
-          "role mora biti USER, PRO, BUSINESS ili ADMIN. Paketi se dodjeljuju kroz pretplatu, ne kroz rolu.",
+          "role mora biti USER, PRO, BUSINESS, ADMIN ili PROMOTER. Paketi se dodjeljuju kroz pretplatu, ne kroz rolu.",
       };
     }
     data.role = trimovana;

@@ -78,7 +78,9 @@ async function freshRole(userLike) {
  */
 async function getEffectiveRole(userLike) {
   let role = userLike?.role ?? null;
-  if (role === "ADMIN") return role;
+  // PROMOTER (oglašivač) nije plan tier: office paket ga ne smije dići na
+  // BUSINESS, njegov nalog služi samo za /promoter dashboard.
+  if (role === "ADMIN" || role === "PROMOTER") return role;
   role = await freshRole(userLike);
   if (role === "BUSINESS") return role;
   const id = userLike?.id;

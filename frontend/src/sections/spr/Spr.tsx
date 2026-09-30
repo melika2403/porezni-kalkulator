@@ -22,6 +22,13 @@ import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfil
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 import { trackEvent } from "src/api/activity";
 import OfficeSidebarPromo from "src/components/OfficeSidebarPromo/OfficeSidebarPromo";
+import {
+  DugmePreuzimanja,
+  ReklamaInline,
+  ReklamaStub,
+  usePorukaPoslijePreuzimanja,
+} from "src/components/Reklame/ReklamaSlot";
+import { useReklama } from "src/components/Reklame/useReklame";
 
 /* ── Helpers ── */
 
@@ -399,6 +406,12 @@ export default function SprForm() {
     };
   }, [personal, business, income, expenses, adjustments, dateSigned, computed]);
 
+  // reklame banke partnera: prozor poslije preuzimanja i desni stub (tada
+  // PK Office kolona ustupa desno mjesto i ostaje samo njena traka)
+  const { otvori: otvoriPoruku, modal: porukaModal } =
+    usePorukaPoslijePreuzimanja("spr");
+  const desnaReklama = useReklama("spr", "SIDEBAR_DESNO");
+
   const exportPdf = useCallback(async () => {
     const data = buildSprData();
     const pdfBytes = await fillSprTemplate(data);
@@ -419,7 +432,8 @@ export default function SprForm() {
     a.click();
     URL.revokeObjectURL(url);
     trackEvent("SPR_GENERATE", "SPR-1053");
-  }, [buildSprData, business.periodFrom]);
+    otvoriPoruku("SPR-1053 je preuzet. Predaje se uz GPD-1051.");
+  }, [buildSprData, business.periodFrom, otvoriPoruku]);
 
   const sprYear = business.periodFrom
     ? parseInt(business.periodFrom.slice(0, 4)) || null
@@ -1133,6 +1147,8 @@ export default function SprForm() {
         </div>
       </section>
 
+      <ReklamaInline stranica="spr" className={styles.reklamaInline} />
+
       {/* ── Export ── */}
       <div className={styles.actions}>
         <SaveToProfileButton
@@ -1144,7 +1160,17 @@ export default function SprForm() {
           defaultOrganizationId={sourceOrgId}
           defaultClientId={sourceClientId}
         />
-        <button type="submit" className={styles.exportBtn}>
+        <DugmePreuzimanja
+          stranica="spr"
+          type="submit"
+          className={styles.exportBtn}
+          label="Preuzmi SPR-1053 PDF"
+          ikona={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />
+            </svg>
+          }
+        >
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -1155,7 +1181,7 @@ export default function SprForm() {
             <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
           </svg>
           Preuzmi PDF
-        </button>
+        </DugmePreuzimanja>
       </div>
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
@@ -1164,7 +1190,10 @@ export default function SprForm() {
 
       {/* PK Office reklama (Solo + knjigovođe): bočno na širokim ekranima,
           traka ovdje ispod preuzimanja na užim i mobitelu */}
-      <OfficeSidebarPromo stranica="spr" />
+      <OfficeSidebarPromo stranica="spr" bezBocnog={!!desnaReklama} />
+      <ReklamaStub stranica="spr" strana="lijevo" raspored="fiksno" />
+      <ReklamaStub stranica="spr" strana="desno" raspored="fiksno" />
+      {porukaModal}
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>

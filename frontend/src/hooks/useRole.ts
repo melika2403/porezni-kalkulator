@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
 
-export type AppRole = "USER" | "PRO" | "BUSINESS" | "ADMIN";
+// PROMOTER = oglašivač (banka partner): vidi samo /promoter dashboard
+export type AppRole = "USER" | "PRO" | "BUSINESS" | "ADMIN" | "PROMOTER";
 
 export function useRole() {
   const { data: user, isLoading } = useQuery({

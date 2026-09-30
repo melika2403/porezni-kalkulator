@@ -10,6 +10,7 @@ import {
 } from "src/sections/vijesti/ClanakKartica";
 import PkOfficeCta from "src/sections/vijesti/PkOfficeCta";
 import NovaTemaDugme from "src/sections/vijesti/NovaTemaDugme";
+import { ReklamaInline, ReklamaStub } from "src/components/Reklame/ReklamaSlot";
 import {
   getNaslovnaServer,
   getTemeServer,
@@ -89,6 +90,9 @@ export default async function VijestiPage() {
         <div className={styles.side}>
           <PanelDesno najnovije={najnovije} najcitanije={najcitanije} />
 
+          {/* oglas banke partnera (klijentski slot, bez oglasa ne crta ništa) */}
+          <ReklamaStub stranica="vijesti" strana="desno" />
+
           {/* zadnje aktivne rasprave: prostor korisnika vidljiv sa naslovne */}
           <div className={styles.sideBlok}>
             <h2 className={styles.sideNaslov}>Iz rasprava</h2>
@@ -142,6 +146,8 @@ export default async function VijestiPage() {
           </div>
         </div>
       </div>
+
+      <ReklamaInline stranica="vijesti" className={styles.reklamaInline} />
 
       {blokovi.map((b) => (
         <section key={b.rubrika.id} style={{ marginBottom: "2.5rem" }}>

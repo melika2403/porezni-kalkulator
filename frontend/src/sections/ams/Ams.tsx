@@ -33,6 +33,13 @@ import AmsIsplatioci, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import PkFreelancerPromo from "src/components/PkFreelancerPromo/PkFreelancerPromo";
 import { trackEvent } from "src/api/activity";
+import {
+  DugmePreuzimanja,
+  ReklamaInline,
+  ReklamaStub,
+  usePorukaPoslijePreuzimanja,
+} from "src/components/Reklame/ReklamaSlot";
+import { useReklama } from "src/components/Reklame/useReklame";
 
 /* ── Helpers ── */
 
@@ -345,10 +352,19 @@ export default function AmsForm() {
       // PK Freelancer: preuzet obrazac = upisana uplata (poslije preuzimanja,
       // da greška upisa nikad ne zaustavi PDF)
       upisiAkoTreba();
+      porukaPreuzimanja.otvori(
+        `AMS-1035 za ${periodMjesec || "?"}/${parsedYear ?? "?"} je preuzet. Uplatnice preuzimate u Dijelu 5.`,
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  /* ── Reklame promotera (banka partner) ── */
+  const porukaPreuzimanja = usePorukaPoslijePreuzimanja("ams");
+  // desni stub banke na širokom ekranu zauzima mjesto PK Freelancer kartice;
+  // na užim ekranima kartica ostaje (stubova tamo nema)
+  const desnaReklama = useReklama("ams", "SIDEBAR_DESNO");
 
   /* ── Parsed period for save ── */
   const parsedYear = (() => {
@@ -877,7 +893,7 @@ export default function AmsForm() {
               onChange={(e) => setPorezniKredit(fmtInput(e.target.value))}
             />
           </div>
-          {hasAmount && (
+          {hasAmount ? (
             <div className={styles.razlikaBox}>
               <span className={styles.razlikaLabel}>
                 14) Razlika poreza za uplatu
@@ -888,8 +904,15 @@ export default function AmsForm() {
                 {fmt(computed.razlika)} KM
               </span>
             </div>
+          ) : (
+            // sponzorisana kartica stoji u praznoj desnoj ćeliji dok nema
+            // iznosa; kad se pojavi razlika poreza, seli se ispod reda
+            <ReklamaInline stranica="ams" className={styles.reklamaInline} />
           )}
         </div>
+        {hasAmount && (
+          <ReklamaInline stranica="ams" className={styles.reklamaInlineIspod} />
+        )}
 
         {hasAmount && (
           <div className={styles.netSummary}>
@@ -969,10 +992,17 @@ export default function AmsForm() {
           defaultOrganizationId={sourceOrgId}
           defaultClientId={sourceClientId}
         />
-        <button
+        <DugmePreuzimanja
+          stranica="ams"
           className={styles.exportBtn}
           onClick={handleExport}
           disabled={loading}
+          label={loading ? "Generisanje..." : "Preuzmi AMS-1035 PDF"}
+          ikona={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />
+            </svg>
+          }
         >
           <svg
             viewBox="0 0 24 24"
@@ -984,7 +1014,7 @@ export default function AmsForm() {
             <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
           </svg>
           {loading ? "Generisanje..." : "Preuzmi AMS-1035 PDF"}
-        </button>
+        </DugmePreuzimanja>
         {frlPristup && (
           <Link href="/freelancer?tab=uplate" className={styles.freelancerBtn}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -1403,10 +1433,22 @@ export default function AmsForm() {
         </div>
       </section>
       </div>
-      <aside className={styles.bocno} aria-label="PK Freelancer">
-        <PkFreelancerPromo izvor="ams-sidebar" />
+      {/* lijevi stub banke: samo široki ekrani, prazna lijeva kolona mreže */}
+      <aside className={styles.bocnoLijevo} aria-label="Oglas">
+        <ReklamaStub stranica="ams" strana="lijevo" />
+      </aside>
+      <aside className={styles.bocno} aria-label={desnaReklama ? "Oglas" : "PK Freelancer"}>
+        {desnaReklama && (
+          <div className={styles.samoSiroko}>
+            <ReklamaStub stranica="ams" strana="desno" />
+          </div>
+        )}
+        <div className={desnaReklama ? styles.samoUsko : undefined}>
+          <PkFreelancerPromo izvor="ams-sidebar" />
+        </div>
       </aside>
       </div>
+      {porukaPreuzimanja.modal}
     </main>
   );
 }

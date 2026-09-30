@@ -60,6 +60,7 @@ const lagerRoutes = require("./routes/lagerRoutes");
 const blagajnaRoutes = require("./routes/blagajnaRoutes");
 const putniNaloziRoutes = require("./routes/putniNaloziRoutes");
 const pkOfficeRoutes = require("./routes/pkOfficeRoutes");
+const reklameRoutes = require("./routes/reklameRoutes");
 
 const app = express();
 
@@ -136,6 +137,7 @@ app.use("/api/lager", lagerRoutes);
 app.use("/api/blagajna", blagajnaRoutes);
 app.use("/api/putni-nalozi", putniNaloziRoutes);
 app.use("/api/pk-office", pkOfficeRoutes);
+app.use("/api/reklame", reklameRoutes);
 
 // Zadnji u nizu: greške koje nisu prošle kroz kontroler. Bez ovoga multer
 // greške (prevelika datoteka, pogrešan tip slike) izlaze kao Express 500 sa
@@ -1303,6 +1305,20 @@ async function ensureMemberRoleEnum() {
   );
 }
 
+// PROMOTER rola (oglašivač, banka partner). Aditivno širenje users.role
+// ENUM-a: sync ne mijenja postojeću definiciju kolone.
+async function ensureUserRoleEnum() {
+  const [colRows] = await sequelize.query(
+    `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'`,
+  );
+  const colType = String(colRows?.[0]?.COLUMN_TYPE || "");
+  if (!colType || colType.includes("'PROMOTER'")) return;
+  console.log("Proširujem users.role ENUM (PROMOTER)...");
+  await sequelize.query(
+    "ALTER TABLE users MODIFY COLUMN role ENUM('USER','PRO','BUSINESS','ADMIN','PROMOTER') DEFAULT 'USER'",
+  );
+}
+
 // PK Office paketi: proširi plan ENUM na subscriptions i predracuni
 // (sync ne mijenja postojeće ENUM definicije). PAŽNJA: subscriptions.plan
 // je legacy LOWERCASE ('free','pro','business'), predracuni.plan UPPERCASE.
@@ -1935,6 +1951,7 @@ sequelize
   .then(() => ensureVijestiFulltext())
   .then(() => ensureSubPlanFromRole())
   .then(() => ensureMemberRoleEnum())
+  .then(() => ensureUserRoleEnum())
   .then(() => ensurePayrollDocTypeEnum())
   .then(() => ensureWorkerDocTypeEnum())
   .then(() => ensureFormTypeEnum())

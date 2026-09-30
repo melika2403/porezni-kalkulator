@@ -21,6 +21,13 @@ import PersonFillSelect, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import PkFreelancerPromo from "src/components/PkFreelancerPromo/PkFreelancerPromo";
 import OfficeSidebarPromo from "src/components/OfficeSidebarPromo/OfficeSidebarPromo";
+import {
+  DugmePreuzimanja,
+  ReklamaInline,
+  ReklamaStub,
+  usePorukaPoslijePreuzimanja,
+} from "src/components/Reklame/ReklamaSlot";
+import { useReklama } from "src/components/Reklame/useReklame";
 import { trackEvent } from "src/api/activity";
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
@@ -643,6 +650,12 @@ export default function GpdForm() {
     };
   }, [personal, rows, deductions, taxCalc, refundOption, dateSigned, computed, periodOd, periodDo]);
 
+  // reklame banke partnera: prozor poslije preuzimanja i desni stub (tada
+  // PK Office kolona ustupa desno mjesto i ostaje samo njena traka)
+  const { otvori: otvoriPoruku, modal: porukaModal } =
+    usePorukaPoslijePreuzimanja("gpd");
+  const desnaReklama = useReklama("gpd", "SIDEBAR_DESNO");
+
   const exportPdf = useCallback(async () => {
     const data = buildGpdData();
     const pdfBytes = await fillGpdTemplate(data);
@@ -664,7 +677,8 @@ export default function GpdForm() {
     a.click();
     URL.revokeObjectURL(url);
     trackEvent("GPD_GENERATE", "GPD-1051");
-  }, [buildGpdData, personal.taxYear]);
+    otvoriPoruku("GPD-1051 je preuzet i spreman za predaju.");
+  }, [buildGpdData, personal.taxYear, otvoriPoruku]);
 
   const gpdYear = /^\d{2}$/.test(personal.taxYear)
     ? 2000 + parseInt(personal.taxYear)
@@ -1480,6 +1494,8 @@ export default function GpdForm() {
         </div>
       </section>
 
+      <ReklamaInline stranica="gpd" className={styles.reklamaInline} />
+
       {/* ── Export ── */}
       <div className={styles.actions}>
         <SaveToProfileButton
@@ -1491,7 +1507,17 @@ export default function GpdForm() {
           defaultOrganizationId={sourceOrgId}
           defaultClientId={sourceClientId}
         />
-        <button type="submit" className={styles.exportBtn}>
+        <DugmePreuzimanja
+          stranica="gpd"
+          type="submit"
+          className={styles.exportBtn}
+          label="Preuzmi GPD-1051 PDF"
+          ikona={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />
+            </svg>
+          }
+        >
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -1502,7 +1528,7 @@ export default function GpdForm() {
             <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
           </svg>
           Preuzmi PDF
-        </button>
+        </DugmePreuzimanja>
       </div>
       <p
         className={styles.izjavaText}
@@ -1648,7 +1674,10 @@ export default function GpdForm() {
 
       {/* PK Office reklama (Solo + knjigovođe): bočno na širokim ekranima,
           traka ovdje ispod preuzimanja na užim i mobitelu */}
-      <OfficeSidebarPromo stranica="gpd" />
+      <OfficeSidebarPromo stranica="gpd" bezBocnog={!!desnaReklama} />
+      <ReklamaStub stranica="gpd" strana="lijevo" raspored="fiksno" />
+      <ReklamaStub stranica="gpd" strana="desno" raspored="fiksno" />
+      {porukaModal}
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>

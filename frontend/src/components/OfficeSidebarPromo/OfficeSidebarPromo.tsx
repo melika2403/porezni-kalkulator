@@ -132,7 +132,14 @@ function Strelica() {
   );
 }
 
-export default function OfficeSidebarPromo({ stranica }: { stranica: Stranica }) {
+export default function OfficeSidebarPromo({
+  stranica,
+  bezBocnog = false,
+}: {
+  stranica: Stranica;
+  /** desnu kolonu zauzima stub banke partnera: ostaje samo traka */
+  bezBocnog?: boolean;
+}) {
   const { isLoading, officeAktivan, trialActive } = useOfficeTrial();
   // kud vodi dugme po stanju korisnika: isti hook kao /solo i SoloReklama
   // (gost i prijavljen bez paketa na probu, potrošena proba na predračun,
@@ -165,6 +172,7 @@ export default function OfficeSidebarPromo({ stranica }: { stranica: Stranica })
   return (
     <>
       {/* bočna kolona: desno od obrasca, prati skrol (samo široki ekrani) */}
+      {!bezBocnog && (
       <aside className={styles.bocno} aria-label="PK Office">
         {blokovi.map((blok) => {
           const s = SADRZAJ[blok];
@@ -197,6 +205,7 @@ export default function OfficeSidebarPromo({ stranica }: { stranica: Stranica })
           );
         })}
       </aside>
+      )}
 
       {/* traka ispod obrasca: uži ekrani i mobitel */}
       <div className={styles.traka} role="complementary" aria-label="PK Office">

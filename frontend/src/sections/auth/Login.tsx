@@ -38,6 +38,7 @@ function safeNext(raw: string | null): string {
 export default function Login() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const imaNext = !!searchParams.get("next");
   const nextUrl = safeNext(searchParams.get("next"));
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
@@ -59,14 +60,27 @@ export default function Login() {
     retry: false,
   });
 
+  // Promoter (oglašivač) bez eksplicitnog ?next= ide pravo na svoj dashboard
+  const odrediste = (role?: string | null) =>
+    role === "PROMOTER" && !imaNext ? "/promoter" : nextUrl;
+
   useEffect(() => {
     if (!meQuery.isLoading && meQuery.data) {
-      router.replace(nextUrl);
+      router.replace(odrediste(meQuery.data.role));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meQuery.isLoading, meQuery.data, nextUrl, router]);
 
-  const zavrsiPrijavu = () => {
+  const zavrsiPrijavu = async () => {
     queryClient.invalidateQueries({ queryKey: ["me"] });
+    if (!imaNext) {
+      const res = await me().catch(() => null);
+      if (res?.ok && res.data.role === "PROMOTER") {
+        router.push("/promoter");
+        router.refresh();
+        return;
+      }
+    }
     // Cross-host (npr. app.localhost) zahtijeva full reload, router.push
     // ne ide kroz Next runtime na drugu subdomenu.
     if (/^https?:\/\//.test(nextUrl)) {

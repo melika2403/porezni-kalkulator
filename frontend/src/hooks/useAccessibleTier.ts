@@ -9,6 +9,8 @@ import {
 import { useRole, type AppRole } from "src/hooks/useRole";
 
 const TIER_RANK: Record<AppRole, number> = {
+  // oglašivač nema plan: ispod USER-a, ne otvara nijednu plaćenu funkciju
+  PROMOTER: -1,
   USER: 0,
   PRO: 1,
   BUSINESS: 2,

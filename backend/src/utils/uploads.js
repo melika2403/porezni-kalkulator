@@ -63,6 +63,14 @@ const avatarUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
 });
 
+// Slike reklama promotera (baneri, ilustracije, logo). Javne kao i ostale
+// slike, jer se prikazuju na javnim stranicama.
+const reklameUpload = multer({
+  storage: makeStorage("reklame"),
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+});
+
 // Document uploads (DOCX/PDF) za worker documents
 function makeDocStorage(subdir) {
   const dir = path.join(UPLOADS_ROOT, subdir);
@@ -161,6 +169,7 @@ module.exports = {
   memorandumUpload,
   vijestiUpload,
   avatarUpload,
+  reklameUpload,
   workerDocUpload,
   publicUrlFor,
   absPathFor,
