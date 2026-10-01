@@ -62,7 +62,7 @@ export default function Login() {
 
   // Promoter (oglašivač) bez eksplicitnog ?next= ide pravo na svoj dashboard
   const odrediste = (role?: string | null) =>
-    role === "PROMOTER" && !imaNext ? "/promoter" : nextUrl;
+    role === "PROMOTER" && !imaNext ? "/partner" : nextUrl;
 
   useEffect(() => {
     if (!meQuery.isLoading && meQuery.data) {
@@ -76,7 +76,7 @@ export default function Login() {
     if (!imaNext) {
       const res = await me().catch(() => null);
       if (res?.ok && res.data.role === "PROMOTER") {
-        router.push("/promoter");
+        router.push("/partner");
         router.refresh();
         return;
       }

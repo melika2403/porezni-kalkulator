@@ -262,7 +262,7 @@ const NAV_ITEMS: {
   },
   {
     // promoter dashboard (reklame banke partnera): admin vidi sve reklame
-    href: "/promoter",
+    href: "/partner",
     label: "Reklame",
     icon: (
       <svg

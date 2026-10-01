@@ -21,6 +21,8 @@ export default function robots(): MetadataRoute.Robots {
           "/zaboravljena-lozinka",
           "/reset-lozinke",
           "/verifikacija",
+          "/partner", // partner portal oglašivača (privatno)
+          "/r/", // klik redirect kreativa partnera: bot ne smije kvariti statistiku
         ],
       },
     ],

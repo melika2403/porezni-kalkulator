@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { logout, me, unwrap } from "src/api/auth";
-import { getMojeReklame } from "src/api/reklame";
+import { getMojeReklame } from "src/api/partner";
 import { useRole } from "src/hooks/useRole";
 import { REKLAME_KEY } from "src/sections/promoter/kljucevi";
 import p from "src/sections/promoter/portal.module.css";
@@ -15,11 +15,11 @@ import p from "src/sections/promoter/portal.module.css";
 // (svijetle) po dizajnu portala, nezavisno od teme sajta.
 
 const NAV: { href: string; label: string }[] = [
-  { href: "/promoter", label: "Pregled" },
-  { href: "/promoter/kreative", label: "Kreative" },
-  { href: "/promoter/pozicije", label: "Pozicije" },
-  { href: "/promoter/izvjestaji", label: "Izvještaji" },
-  { href: "/promoter/postavke", label: "Postavke" },
+  { href: "/partner", label: "Pregled" },
+  { href: "/partner/kreative", label: "Kreative" },
+  { href: "/partner/pozicije", label: "Pozicije" },
+  { href: "/partner/izvjestaji", label: "Izvještaji" },
+  { href: "/partner/postavke", label: "Postavke" },
 ];
 
 function inicijali(tekst: string): string {
@@ -45,7 +45,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
               ? "Ovaj dio je samo za oglašivače. Ako ste partner i trebate pristup, javite nam se putem kontakt stranice."
               : "Prijavite se nalogom na koji je dodijeljena uloga oglašivača."}
           </p>
-          <Link href={role ? "/kontakt" : "/prijava?next=/promoter"} className={p.dugmeZeleno}>
+          <Link href={role ? "/kontakt" : "/prijava?next=/partner"} className={p.dugmeZeleno}>
             {role ? "Kontakt" : "Prijava"}
           </Link>
         </div>
@@ -54,14 +54,14 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
   }
 
   const aktivan = (href: string) =>
-    href === "/promoter"
-      ? pathname === "/promoter"
+    href === "/partner"
+      ? pathname === "/partner"
       : pathname === href || !!pathname?.startsWith(href + "/");
 
   return (
     <div className={p.portal}>
       <header className={p.topbar}>
-        <Link href="/promoter" className={p.logo}>
+        <Link href="/partner" className={p.logo}>
           <span className={p.logoZnak}>PK</span>
           <span className={p.logoNaziv}>Porezni Kalkulator</span>
           <span className={p.logoPortal}>· Partner portal</span>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
-import { getPregledKampanje } from "src/api/reklame";
+import { getPregledKampanje } from "src/api/partner";
 import { fmtBroj, fmtCtr, porukaGreske } from "./format";
 import { PREGLED_KEY } from "./kljucevi";
 import { GRUPE, grupisiDan } from "./KlikoviGrafikon";

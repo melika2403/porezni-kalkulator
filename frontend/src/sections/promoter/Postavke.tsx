@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
-import { getMojeReklame, reklamaSlikaUrl } from "src/api/reklame";
+import { getMojeReklame, reklamaSlikaUrl } from "src/api/partner";
 import { REKLAME_KEY } from "./kljucevi";
 import p from "./portal.module.css";
 

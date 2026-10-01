@@ -5,9 +5,17 @@ export type ReklamaPozicija =
   | "SIDEBAR_DESNO"
   | "INLINE"
   | "DUGME"
-  | "MODAL";
+  | "MODAL"
+  | "BANER";
 
-export type ReklamaStranica = "ams" | "spr" | "gpd" | "vijesti";
+export type ReklamaStranica =
+  | "ams"
+  | "spr"
+  | "gpd"
+  | "zo3"
+  | "pozajmica"
+  | "vijesti"
+  | "pocetna";
 
 export const POZICIJE: {
   id: ReklamaPozicija;
@@ -39,13 +47,21 @@ export const POZICIJE: {
     naziv: "Poruka poslije preuzimanja",
     opis: "Sponzorisana poruka u prozoru \"Vaš obrazac je spreman\".",
   },
+  {
+    id: "BANER",
+    naziv: "Široki baner na početnoj",
+    opis: "Velika kartica na početnoj, ispod Pretplata. Na prelaz mišem se blago uveća. Bez nje na početnoj nema ništa.",
+  },
 ];
 
 export const STRANICE: { id: ReklamaStranica; naziv: string; kratko: string }[] = [
   { id: "ams", naziv: "AMS-1035 (prihod iz inostranstva)", kratko: "AMS-1035" },
   { id: "spr", naziv: "SPR-1053", kratko: "SPR-1053" },
   { id: "gpd", naziv: "GPD-1051", kratko: "GPD-1051" },
+  { id: "zo3", naziv: "ZO3 obrazac", kratko: "ZO3" },
+  { id: "pozajmica", naziv: "Ugovor o pozajmici", kratko: "Ugovor o pozajmici" },
   { id: "vijesti", naziv: "Vijesti (naslovna)", kratko: "Vijesti" },
+  { id: "pocetna", naziv: "Početna stranica", kratko: "Početna" },
 ];
 
 export function kratkoStranice(id: string): string {

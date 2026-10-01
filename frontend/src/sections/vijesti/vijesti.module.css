@@ -136,7 +136,7 @@
 /* Lijevo velike kartice (vodeća i izdvojene), desno panel sa karticama
    Najnovije i Najčitanije, poravnat sa vrhom, kao na portalima. */
 /* sponzorisana kartica banke partnera ispod vrha naslovne */
-.reklamaInline {
+.partnerInline {
   max-width: 720px;
   margin: -1rem auto 2.5rem;
 }

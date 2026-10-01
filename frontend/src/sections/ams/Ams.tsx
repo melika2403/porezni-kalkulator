@@ -31,15 +31,13 @@ import AmsIsplatioci, {
   type IsplatilacFill,
 } from "src/components/AmsIsplatioci/AmsIsplatioci";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
-import PkFreelancerPromo from "src/components/PkFreelancerPromo/PkFreelancerPromo";
 import { trackEvent } from "src/api/activity";
 import {
   DugmePreuzimanja,
   ReklamaInline,
   ReklamaStub,
   usePorukaPoslijePreuzimanja,
-} from "src/components/Reklame/ReklamaSlot";
-import { useReklama } from "src/components/Reklame/useReklame";
+} from "src/components/PartnerSlot/Slot";
 
 /* ── Helpers ── */
 
@@ -362,9 +360,6 @@ export default function AmsForm() {
 
   /* ── Reklame promotera (banka partner) ── */
   const porukaPreuzimanja = usePorukaPoslijePreuzimanja("ams");
-  // desni stub banke na širokom ekranu zauzima mjesto PK Freelancer kartice;
-  // na užim ekranima kartica ostaje (stubova tamo nema)
-  const desnaReklama = useReklama("ams", "SIDEBAR_DESNO");
 
   /* ── Parsed period for save ── */
   const parsedYear = (() => {
@@ -569,7 +564,7 @@ export default function AmsForm() {
         </p>
       </div>
 
-      {/* Dvije kolone od 1200px: obrazac + bočna PK Freelancer kartica */}
+      {/* Tri kolone od 1340px: stub banke | obrazac | stub banke */}
       <div className={styles.layout}>
       <div className={styles.glavno}>
       {/* Dio 1 */}
@@ -907,11 +902,11 @@ export default function AmsForm() {
           ) : (
             // sponzorisana kartica stoji u praznoj desnoj ćeliji dok nema
             // iznosa; kad se pojavi razlika poreza, seli se ispod reda
-            <ReklamaInline stranica="ams" className={styles.reklamaInline} />
+            <ReklamaInline stranica="ams" className={styles.partnerInline} />
           )}
         </div>
         {hasAmount && (
-          <ReklamaInline stranica="ams" className={styles.reklamaInlineIspod} />
+          <ReklamaInline stranica="ams" className={styles.partnerInlineIspod} />
         )}
 
         {hasAmount && (
@@ -1434,17 +1429,13 @@ export default function AmsForm() {
       </section>
       </div>
       {/* lijevi stub banke: samo široki ekrani, prazna lijeva kolona mreže */}
-      <aside className={styles.bocnoLijevo} aria-label="Oglas">
+      <aside className={styles.bocnoLijevo} aria-label="Partner">
         <ReklamaStub stranica="ams" strana="lijevo" />
       </aside>
-      <aside className={styles.bocno} aria-label={desnaReklama ? "Oglas" : "PK Freelancer"}>
-        {desnaReklama && (
-          <div className={styles.samoSiroko}>
-            <ReklamaStub stranica="ams" strana="desno" />
-          </div>
-        )}
-        <div className={desnaReklama ? styles.samoUsko : undefined}>
-          <PkFreelancerPromo izvor="ams-sidebar" />
+      {/* desni stub banke: samo široki ekrani (PK Freelancer kartica je uklonjena) */}
+      <aside className={styles.bocno} aria-label="Partner">
+        <div className={styles.samoSiroko}>
+          <ReklamaStub stranica="ams" strana="desno" />
         </div>
       </aside>
       </div>

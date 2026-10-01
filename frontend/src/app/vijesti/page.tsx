@@ -10,7 +10,7 @@ import {
 } from "src/sections/vijesti/ClanakKartica";
 import PkOfficeCta from "src/sections/vijesti/PkOfficeCta";
 import NovaTemaDugme from "src/sections/vijesti/NovaTemaDugme";
-import { ReklamaInline, ReklamaStub } from "src/components/Reklame/ReklamaSlot";
+import { ReklamaInline, ReklamaStub } from "src/components/PartnerSlot/Slot";
 import {
   getNaslovnaServer,
   getTemeServer,
@@ -147,7 +147,7 @@ export default async function VijestiPage() {
         </div>
       </div>
 
-      <ReklamaInline stranica="vijesti" className={styles.reklamaInline} />
+      <ReklamaInline stranica="vijesti" className={styles.partnerInline} />
 
       {blokovi.map((b) => (
         <section key={b.rubrika.id} style={{ marginBottom: "2.5rem" }}>

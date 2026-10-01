@@ -410,7 +410,7 @@ export default function Navbar() {
             )}
             {user.role === 'PROMOTER' && (
               <Link
-                href="/promoter"
+                href="/partner"
                 className={`${styles.orgsLink} ${styles.hideOnMobile}`}
                 title="Upravljanje reklamama"
               >
@@ -954,7 +954,7 @@ export default function Navbar() {
                   {user.role === 'PROMOTER' && (
                     <li>
                       <Link
-                        href="/promoter"
+                        href="/partner"
                         className={styles.mobileItem}
                         onClick={() => setMobileOpen(false)}
                       >

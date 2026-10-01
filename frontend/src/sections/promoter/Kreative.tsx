@@ -9,8 +9,8 @@ import {
   obrisiReklamu,
   promijeniStatusReklame,
   type PromoterReklama,
-} from "src/api/reklame";
-import { kratkoStranice, nazivPozicije } from "src/data/reklame";
+} from "src/api/partner";
+import { kratkoStranice, nazivPozicije } from "src/data/partner";
 import { fmtBroj, fmtCtr, fmtTermin, porukaGreske } from "./format";
 import { REKLAME_KEY } from "./kljucevi";
 import { KreativaSlicica, StatusKreative, opisKreative } from "./KreativaRed";
@@ -53,7 +53,7 @@ export default function Kreative() {
             istoj poziciji se prikazuje naizmjenično.
           </p>
         </div>
-        <Link href="/promoter/kreative/nova" className={p.dugmeZeleno}>
+        <Link href="/partner/kreative/nova" className={p.dugmeZeleno}>
           + Nova kreativa
         </Link>
       </div>
@@ -65,7 +65,7 @@ export default function Kreative() {
           <p className={p.prazno}>Učitavanje...</p>
         ) : lista.length === 0 ? (
           <p className={p.prazno}>
-            Još nema kreativa. <Link href="/promoter/kreative/nova">Napravite prvu.</Link>
+            Još nema kreativa. <Link href="/partner/kreative/nova">Napravite prvu.</Link>
           </p>
         ) : (
           <div className={p.tabelaOkvir} style={{ marginTop: -20 }}>
@@ -87,7 +87,7 @@ export default function Kreative() {
                   <tr
                     key={r.id}
                     style={{ cursor: "pointer" }}
-                    onClick={() => router.push(`/promoter/kreative/${r.id}`)}
+                    onClick={() => router.push(`/partner/kreative/${r.id}`)}
                   >
                     <td>
                       <span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220 }}>

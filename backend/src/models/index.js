@@ -3627,6 +3627,9 @@ const Reklama = sequelize.define(
       defaultValue: "SABLON",
     },
     brend: { type: DataTypes.STRING(60), allowNull: false },
+    // mala oznaka iznad naslova (npr. "Ponuda za nove obrtnike"), široki baner
+    oznaka: { type: DataTypes.STRING(60), allowNull: true },
+    // u naslovu *ovako* = istaknuto (podvučeno), u tekstu *ovako* = podebljano
     naslov: { type: DataTypes.STRING(120), allowNull: true },
     tekst: { type: DataTypes.STRING(400), allowNull: true },
     ctaTekst: { type: DataTypes.STRING(40), allowNull: true },
@@ -3638,6 +3641,8 @@ const Reklama = sequelize.define(
     // uska varijanta banera za inline/mobilne pozicije (format SLIKA)
     slikaUskaUrl: { type: DataTypes.STRING(255), allowNull: true },
     logoUrl: { type: DataTypes.STRING(255), allowNull: true },
+    // logo partnera u zajedničkoj ponudi (npr. banka + MojObrt), široki baner
+    logo2Url: { type: DataTypes.STRING(255), allowNull: true },
     // akcentna boja brenda (#rrggbb) za šablon
     boja: { type: DataTypes.STRING(7), allowNull: false, defaultValue: "#d9232d" },
     pozicije: { type: DataTypes.JSON, allowNull: false },

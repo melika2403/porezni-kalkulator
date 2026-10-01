@@ -18,7 +18,7 @@ import {
   type PromoterReklama,
   type ReklamaFormat,
   type ReklamaPayload,
-} from "src/api/reklame";
+} from "src/api/partner";
 import {
   POZICIJE,
   STRANICE,
@@ -26,17 +26,18 @@ import {
   nazivStranice,
   type ReklamaPozicija,
   type ReklamaStranica,
-} from "src/data/reklame";
+} from "src/data/partner";
 import {
+  ReklamaBanerKartica,
   ReklamaInlineKartica,
   ReklamaStubKartica,
   bojeBrenda,
-} from "src/components/Reklame/ReklamaKartica";
+} from "src/components/PartnerSlot/Kartica";
 import {
   DUGME_KLASA,
   DugmeSaBrendom,
   ModalPoruka,
-} from "src/components/Reklame/ReklamaSlot";
+} from "src/components/PartnerSlot/Slot";
 import {
   STANJE,
   datumVrijemeUIso,
@@ -47,12 +48,13 @@ import {
   porukaGreske,
 } from "./format";
 import { REKLAME_KEY } from "./kljucevi";
-import s from "./promoter.module.css";
+import s from "./editor.module.css";
 
 type Forma = {
   naziv: string;
   format: ReklamaFormat;
   brend: string;
+  oznaka: string;
   naslov: string;
   tekst: string;
   ctaTekst: string;
@@ -62,6 +64,7 @@ type Forma = {
   slikaUrl: string | null;
   slikaUskaUrl: string | null;
   logoUrl: string | null;
+  logo2Url: string | null;
   boja: string;
   pozicije: ReklamaPozicija[];
   sveStranice: boolean;
@@ -83,6 +86,7 @@ function praznaForma(prethodna?: PromoterReklama): Forma {
     format: "SABLON",
     // brend, logo i boja se preuzimaju iz zadnje reklame (ista banka)
     brend: prethodna?.brend ?? "",
+    oznaka: "",
     naslov: "",
     tekst: "",
     ctaTekst: "Saznaj više",
@@ -92,6 +96,7 @@ function praznaForma(prethodna?: PromoterReklama): Forma {
     slikaUrl: null,
     slikaUskaUrl: null,
     logoUrl: prethodna?.logoUrl ?? null,
+    logo2Url: null,
     boja: prethodna?.boja ?? "#d9232d",
     pozicije: ["SIDEBAR_LIJEVO", "SIDEBAR_DESNO"],
     sveStranice: true,
@@ -112,6 +117,7 @@ function izReklame(r: PromoterReklama): Forma {
     naziv: r.naziv,
     format: r.format,
     brend: r.brend,
+    oznaka: r.oznaka ?? "",
     naslov: r.naslov ?? "",
     tekst: r.tekst ?? "",
     ctaTekst: r.ctaTekst ?? "",
@@ -121,6 +127,7 @@ function izReklame(r: PromoterReklama): Forma {
     slikaUrl: r.slikaUrl,
     slikaUskaUrl: r.slikaUskaUrl,
     logoUrl: r.logoUrl,
+    logo2Url: r.logo2Url,
     boja: r.boja,
     pozicije: r.pozicije,
     sveStranice: sve,
@@ -133,7 +140,29 @@ function izReklame(r: PromoterReklama): Forma {
   };
 }
 
+// "procredit.ba" -> "https://procredit.ba"; prazno ostaje prazno, a
+// nevaljan link vraća null (poruka umjesto tihog odbijanja forme)
+function normalizujLink(v: string): string | null {
+  const t = v.trim();
+  if (!t) return "";
+  const saShemom = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    const u = new URL(saShemom);
+    return u.hostname.includes(".") ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function uPayload(f: Forma): ReklamaPayload | string {
+  if (!f.naziv.trim()) return "Upišite naziv kampanje.";
+  if (!f.brend.trim()) return "Upišite naziv brenda.";
+  if (f.format === "SABLON" && !f.naslov.trim()) return "Upišite naslov reklame.";
+  if (f.format === "SLIKA" && !f.slikaUrl) return "Učitajte sliku banera.";
+  const ctaUrl = normalizujLink(f.ctaUrl);
+  if (!ctaUrl) return "Upišite ispravan link, npr. procredit.ba ili https://www.procredit.ba/racun.";
+  const sekundarniUrl = normalizujLink(f.sekundarniUrl);
+  if (sekundarniUrl === null) return "Drugi link nije ispravan.";
   const pocetak = datumVrijemeUIso(f.odDatum, f.odVrijeme);
   const kraj = datumVrijemeUIso(f.doDatum, f.doVrijeme || "23:59");
   if (!pocetak || !kraj) return "Unesite datum početka i kraja prikazivanja.";
@@ -145,15 +174,17 @@ function uPayload(f: Forma): ReklamaPayload | string {
     naziv: f.naziv.trim(),
     format: f.format,
     brend: f.brend.trim(),
+    oznaka: t(f.oznaka),
     naslov: t(f.naslov),
     tekst: t(f.tekst),
     ctaTekst: t(f.ctaTekst),
-    ctaUrl: f.ctaUrl.trim(),
+    ctaUrl,
     sekundarniTekst: t(f.sekundarniTekst),
-    sekundarniUrl: t(f.sekundarniUrl),
+    sekundarniUrl: sekundarniUrl || null,
     slikaUrl: f.slikaUrl,
     slikaUskaUrl: f.slikaUskaUrl,
     logoUrl: f.logoUrl,
+    logo2Url: f.logo2Url,
     boja: f.boja,
     pozicije: f.pozicije,
     stranice: f.sveStranice ? ["*"] : f.stranice,
@@ -182,7 +213,7 @@ export default function ReklamaEditor({ id }: { id?: string }) {
     return (
       <div className={s.stranica}>
         <p className={s.greska}>{porukaGreske(postojeca.error)}</p>
-        <Link href="/promoter/kreative">Nazad na kreative</Link>
+        <Link href="/partner/kreative">Nazad na kreative</Link>
       </div>
     );
   }
@@ -251,7 +282,7 @@ function EditorForma({
       // javni slotovi u istoj sesiji odmah vide izmjenu
       qc.invalidateQueries({ queryKey: ["reklame-aktivne"] });
       qc.invalidateQueries({ queryKey: ["promoter-pregled"] });
-      if (nova) router.replace(`/promoter/kreative/${r.id}`);
+      if (nova) router.replace(`/partner/kreative/${r.id}`);
     },
     onError: (e) => setGreska(porukaGreske(e)),
   });
@@ -273,6 +304,7 @@ function EditorForma({
       id: 0,
       format: forma.format,
       brend: forma.brend || "Naziv banke",
+      oznaka: forma.oznaka || null,
       naslov: forma.naslov || (forma.format === "SABLON" ? "Naslov reklame" : null),
       tekst: forma.tekst || null,
       ctaTekst: forma.ctaTekst || null,
@@ -280,6 +312,7 @@ function EditorForma({
       slikaUrl: forma.slikaUrl,
       slikaUskaUrl: forma.slikaUskaUrl,
       logoUrl: forma.logoUrl,
+      logo2Url: forma.logo2Url,
       boja: forma.boja,
     };
   }, [forma]);
@@ -290,7 +323,7 @@ function EditorForma({
     <div className={s.stranica}>
       <div className={s.zaglavlje}>
         <div>
-          <Link href="/promoter/kreative" className={s.nazad}>
+          <Link href="/partner/kreative" className={s.nazad}>
             ← Kreative
           </Link>
           <h1 className={s.naslov}>{nova ? "Nova kreativa" : forma.naziv || "Reklama"}</h1>
@@ -313,8 +346,11 @@ function EditorForma({
         )}
       </div>
 
+      {/* noValidate: native validacija je tiho odbijala formu i skrolovala na
+          vrh (npr. link bez https://); provjere radi uPayload, sa porukom */}
       <form
         className={s.editor}
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           snimi.mutate();
@@ -363,6 +399,12 @@ function EditorForma({
               url={forma.logoUrl}
               onChange={(u) => postavi("logoUrl", u)}
             />
+            <UploadSlike
+              label="Logo partnera u ponudi (opcionalno)"
+              napomena="Za zajedničku ponudu, npr. banka + MojObrt. Prikazuje se pored vašeg loga na širokom baneru."
+              url={forma.logo2Url}
+              onChange={(u) => postavi("logo2Url", u)}
+            />
           </section>
 
           {/* ── Sadržaj ── */}
@@ -391,7 +433,21 @@ function EditorForma({
 
             {forma.format === "SABLON" ? (
               <>
-                <Polje label="Naslov">
+                <Polje
+                  label="Oznaka iznad naslova (opcionalno)"
+                  napomena="Široki baner na početnoj, npr. Ponuda za nove obrtnike."
+                >
+                  <input
+                    className={s.input}
+                    value={forma.oznaka}
+                    onChange={(e) => postavi("oznaka", e.target.value)}
+                    maxLength={60}
+                  />
+                </Polje>
+                <Polje
+                  label="Naslov"
+                  napomena="Dio između zvjezdica se ističe, npr. Pokrenite obrt *bez početnih troškova*."
+                >
                   <input
                     className={s.input}
                     value={forma.naslov}
@@ -401,7 +457,10 @@ function EditorForma({
                     required
                   />
                 </Polje>
-                <Polje label="Tekst" napomena={`${forma.tekst.length}/400`}>
+                <Polje
+                  label="Tekst"
+                  napomena={`*Ovako* je podebljano. ${forma.tekst.length}/400`}
+                >
                   <textarea
                     className={s.textarea}
                     value={forma.tekst}
@@ -465,10 +524,10 @@ function EditorForma({
               <Polje label="Link">
                 <input
                   className={s.input}
-                  type="url"
+                  inputMode="url"
                   value={forma.ctaUrl}
                   onChange={(e) => postavi("ctaUrl", e.target.value)}
-                  placeholder="https://"
+                  placeholder="npr. procredit.ba"
                   required
                 />
               </Polje>
@@ -486,10 +545,10 @@ function EditorForma({
               <Polje label="Drugi link, adresa">
                 <input
                   className={s.input}
-                  type="url"
+                  inputMode="url"
                   value={forma.sekundarniUrl}
                   onChange={(e) => postavi("sekundarniUrl", e.target.value)}
-                  placeholder="https://"
+                  placeholder="npr. procredit.ba"
                 />
               </Polje>
             </div>
@@ -621,7 +680,7 @@ function EditorForma({
             </p>
           )}
           <div className={s.dnoForme}>
-            <Link href="/promoter/kreative" className={s.sekundarno}>
+            <Link href="/partner/kreative" className={s.sekundarno}>
               Odustani
             </Link>
             <button type="submit" className={s.primarno} disabled={snimi.isPending}>
@@ -671,6 +730,16 @@ function Pregled({ r, pozicija }: { r: JavnaReklama; pozicija: ReklamaPozicija }
     );
   }
   if (pozicija === "INLINE") return <ReklamaInlineKartica r={r} ctx={ctx} />;
+  if (pozicija === "BANER") {
+    // široka kartica je pravljena za punu širinu: u uskoj koloni se smanji
+    return (
+      <div className={s.pregledSiroki}>
+        <div className={s.pregledSirokiUnutra}>
+          <ReklamaBanerKartica r={r} ctx={ctx} />
+        </div>
+      </div>
+    );
+  }
   if (pozicija === "DUGME") {
     return (
       <div className={s.pregledCentar}>
@@ -687,7 +756,7 @@ function PregledDugme({ r }: { r: JavnaReklama }) {
     <button type="button" className={DUGME_KLASA} style={bojeBrenda(r.boja)}>
       <DugmeSaBrendom
         r={r}
-        label="Preuzmi AMS-1035 PDF"
+        label="Preuzmi PDF"
         ikona={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />

@@ -328,6 +328,11 @@
 .editorForma {
   min-width: 0;
 }
+/* poruka poslije zadnje kartice ne smije se lijepiti za nju */
+.editorForma > .greska,
+.editorForma > .uspjeh {
+  margin-top: 1rem;
+}
 .polje {
   display: flex;
   flex-direction: column;
@@ -551,6 +556,17 @@
   width: 260px;
   max-width: 100%;
   margin: 0 auto;
+}
+/* široki baner u pregledu: crta se u punoj širini pa smanji na kolonu */
+.pregledSiroki {
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--paper);
+  padding: 8px;
+}
+.pregledSirokiUnutra {
+  width: 1240px;
+  zoom: 0.25;
 }
 .pregledCentar {
   display: flex;

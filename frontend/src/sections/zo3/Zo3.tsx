@@ -16,6 +16,7 @@ import OrgFillSelect, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 import { trackEvent } from "src/api/activity";
+import { DugmePreuzimanja, ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 /* ── Constants ── */
 
@@ -911,7 +912,17 @@ export default function Zo3Form() {
           defaultOrganizationId={sourceOrgId}
           defaultClientId={sourceClientId}
         />
-        <button type="submit" className={styles.exportBtn}>
+        <DugmePreuzimanja
+          stranica="zo3"
+          type="submit"
+          className={styles.exportBtn}
+          label="Preuzmi ZO3 PDF"
+          ikona={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />
+            </svg>
+          }
+        >
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -922,7 +933,7 @@ export default function Zo3Form() {
             <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
           </svg>
           Preuzmi PDF
-        </button>
+        </DugmePreuzimanja>
       </div>
       <p
         className={styles.izjavaText}
@@ -1080,6 +1091,9 @@ export default function Zo3Form() {
           },
         ]}
       />
+      {/* bočni stubovi banke partnera, izvan okvira obrasca (od 1440px) */}
+      <ReklamaStub stranica="zo3" strana="lijevo" raspored="fiksno" />
+      <ReklamaStub stranica="zo3" strana="desno" raspored="fiksno" />
     </form>
   );
 }

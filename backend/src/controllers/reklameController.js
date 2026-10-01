@@ -1,12 +1,13 @@
 const { Op } = require("sequelize");
 const { sequelize, Reklama, ReklamaStatistika, User } = require("../models/index");
 const { POZICIJE, STRANICE } = require("../config/reklame");
-const { publicUrlFor } = require("../utils/uploads");
+const { publicUrlFor, PARTNER_SUBDIR } = require("../utils/uploads");
 
 // ── Pomoćne ──────────────────────────────────────────────────────────────────
 
 const HEX_BOJA = /^#[0-9a-f]{6}$/i;
-const PREFIKS_SLIKE = "/uploads/reklame/";
+// novi uploadi idu u /uploads/p/; /uploads/reklame/ ostaje za ranije učitane
+const PREFIKSI_SLIKE = ["/uploads/p/", "/uploads/reklame/"];
 
 function jeAdmin(req) {
   return req.user?.role === "ADMIN";
@@ -47,7 +48,7 @@ function validanUrl(v) {
 function validnaSlika(v) {
   if (v == null || v === "") return null;
   if (typeof v !== "string") return undefined;
-  if (!v.startsWith(PREFIKS_SLIKE) || v.includes("..")) return undefined;
+  if (!PREFIKSI_SLIKE.some((pr) => v.startsWith(pr)) || v.includes("..")) return undefined;
   return v.slice(0, 255);
 }
 
@@ -83,7 +84,13 @@ function validirajPayload(body) {
   const slikaUrl = validnaSlika(b.slikaUrl);
   const slikaUskaUrl = validnaSlika(b.slikaUskaUrl);
   const logoUrl = validnaSlika(b.logoUrl);
-  if (slikaUrl === undefined || slikaUskaUrl === undefined || logoUrl === undefined) {
+  const logo2Url = validnaSlika(b.logo2Url);
+  if (
+    slikaUrl === undefined ||
+    slikaUskaUrl === undefined ||
+    logoUrl === undefined ||
+    logo2Url === undefined
+  ) {
     return greska("Slike se moraju učitati kroz dashboard.");
   }
 
@@ -114,6 +121,7 @@ function validirajPayload(body) {
       naziv,
       format,
       brend,
+      oznaka: tekstIliNull(b.oznaka, 60),
       naslov,
       tekst: tekstIliNull(b.tekst, 400),
       ctaTekst: tekstIliNull(b.ctaTekst, 40),
@@ -123,6 +131,7 @@ function validirajPayload(body) {
       slikaUrl,
       slikaUskaUrl,
       logoUrl,
+      logo2Url,
       boja,
       pozicije,
       stranice,
@@ -172,6 +181,7 @@ function zaJavnost(r) {
     id: r.id,
     format: r.format,
     brend: r.brend,
+    oznaka: r.oznaka,
     naslov: r.naslov,
     tekst: r.tekst,
     ctaTekst: r.ctaTekst,
@@ -179,6 +189,7 @@ function zaJavnost(r) {
     slikaUrl: r.slikaUrl,
     slikaUskaUrl: r.slikaUskaUrl,
     logoUrl: r.logoUrl,
+    logo2Url: r.logo2Url,
     boja: r.boja,
   };
 }
@@ -206,7 +217,7 @@ async function nadjiSvoju(req) {
 
 // ── Promoter dashboard ───────────────────────────────────────────────────────
 
-// GET /api/reklame/promoter
+// GET /api/partner
 async function lista(req, res) {
   try {
     const reklame = await Reklama.findAll({
@@ -233,7 +244,7 @@ async function lista(req, res) {
   }
 }
 
-// GET /api/reklame/promoter/:id
+// GET /api/partner/:id
 async function detalj(req, res) {
   try {
     const r = await nadjiSvoju(req);
@@ -246,7 +257,7 @@ async function detalj(req, res) {
   }
 }
 
-// POST /api/reklame/promoter
+// POST /api/partner
 async function kreiraj(req, res) {
   const v = validirajPayload(req.body);
   if (!v.ok) return res.status(400).json({ ok: false, error: v.poruka });
@@ -259,7 +270,7 @@ async function kreiraj(req, res) {
   }
 }
 
-// PUT /api/reklame/promoter/:id
+// PUT /api/partner/:id
 async function izmijeni(req, res) {
   const v = validirajPayload(req.body);
   if (!v.ok) return res.status(400).json({ ok: false, error: v.poruka });
@@ -275,7 +286,7 @@ async function izmijeni(req, res) {
   }
 }
 
-// POST /api/reklame/promoter/:id/status  { status: "AKTIVNA" | "PAUZIRANA" }
+// POST /api/partner/:id/status  { status: "AKTIVNA" | "PAUZIRANA" }
 async function promijeniStatus(req, res) {
   const status = req.body?.status;
   if (status !== "AKTIVNA" && status !== "PAUZIRANA") {
@@ -293,7 +304,7 @@ async function promijeniStatus(req, res) {
   }
 }
 
-// DELETE /api/reklame/promoter/:id
+// DELETE /api/partner/:id
 async function obrisi(req, res) {
   try {
     const r = await nadjiSvoju(req);
@@ -309,13 +320,13 @@ async function obrisi(req, res) {
   }
 }
 
-// POST /api/reklame/promoter/slika  (multipart, polje "slika")
+// POST /api/partner/slika  (multipart, polje "slika")
 async function uploadSlike(req, res) {
   if (!req.file) return res.status(400).json({ ok: false, error: "Nema datoteke." });
-  return res.json({ ok: true, data: { url: publicUrlFor("reklame", req.file.filename) } });
+  return res.json({ ok: true, data: { url: publicUrlFor(PARTNER_SUBDIR, req.file.filename) } });
 }
 
-// GET /api/reklame/promoter/:id/statistika?dana=30
+// GET /api/partner/:id/statistika?dana=30
 async function statistika(req, res) {
   try {
     const r = await nadjiSvoju(req);
@@ -381,7 +392,7 @@ function periodIzZahtjeva(req) {
   return { dana, od, do: doDana, prethodnoOd: pomjeriDatum(od, -dana), prethodnoDo: pomjeriDatum(od, -1) };
 }
 
-// GET /api/reklame/promoter/pregled?dana=30
+// GET /api/partner/pregled?dana=30
 // Sve što treba stranici "Pregled kampanje" u jednom pozivu: zbirovi za
 // period i prethodni period iste dužine, dnevni niz po poziciji (svi dani,
 // i oni bez prikaza) i rezultati po poziciji i kreativi.
@@ -465,7 +476,7 @@ function csvPolje(v) {
   return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-// GET /api/reklame/promoter/izvoz?dana=30  (CSV, ; separator za Excel u BiH)
+// GET /api/partner/izvoz?dana=30  (CSV, ; separator za Excel u BiH)
 async function izvoz(req, res) {
   try {
     const p = periodIzZahtjeva(req);
@@ -526,12 +537,12 @@ function izaberiPoTezini(kandidati) {
   return kandidati[kandidati.length - 1];
 }
 
-// GET /api/reklame/aktivne?stranica=ams
+// GET /api/p/s?st=ams
 // Vraća po jednu reklamu za svaku poziciju (ili null). Rotacija je po
 // učitavanju stranice; lijevi i desni stub dobijaju različite reklame kad
 // ih ima više.
 async function aktivne(req, res) {
-  const stranica = String(req.query.stranica || "");
+  const stranica = String(req.query.st || req.query.stranica || "");
   if (!STRANICE.includes(stranica)) {
     return res.status(400).json({ ok: false, error: "NEPOZNATA_STRANICA" });
   }
@@ -588,7 +599,7 @@ function slotIzZahtjeva(src) {
   return { stranica, pozicija };
 }
 
-// POST /api/reklame/:id/prikaz  { stranica, pozicija }
+// POST /api/p/e/:id  { s, p }
 async function zabiljeziPrikaz(req, res) {
   const id = Number(req.params.id);
   const slot = slotIzZahtjeva(req.body);
@@ -606,7 +617,7 @@ async function zabiljeziPrikaz(req, res) {
   }
 }
 
-// GET /api/reklame/:id/klik?s=ams&p=SIDEBAR_LIJEVO[&cilj=sekundarni]
+// GET /r/:id?s=ams&p=SIDEBAR_LIJEVO[&c=2]  (c=2 = drugi link)
 // Broji klik i preusmjerava na link reklame. Link se čita iz baze, nikad iz
 // query-ja, pa ovo nije open redirect.
 async function klik(req, res) {
@@ -625,7 +636,8 @@ async function klik(req, res) {
         console.warn("reklame klik brojac:", e?.message || e);
       }
     }
-    const cilj = req.query.cilj === "sekundarni" && r.sekundarniUrl ? r.sekundarniUrl : r.ctaUrl;
+    const drugi = req.query.c === "2" || req.query.cilj === "sekundarni";
+    const cilj = drugi && r.sekundarniUrl ? r.sekundarniUrl : r.ctaUrl;
     return res.redirect(302, cilj);
   } catch (err) {
     console.error("reklame klik:", err);

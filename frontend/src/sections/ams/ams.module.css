@@ -183,14 +183,14 @@
 
 /* sponzorisana kartica (banka partner): desna ćelija reda poreznog kredita,
    ili ispod reda kad je tu razlika poreza */
-.reklamaInline {
+.partnerInline {
   min-width: 0;
 }
-.reklamaInlineIspod {
+.partnerInlineIspod {
   margin-top: 1rem;
 }
 @media (max-width: 640px) {
-  .kreditRow .reklamaInline {
+  .kreditRow .partnerInline {
     grid-column: 1 / -1;
   }
 }
@@ -613,14 +613,10 @@
 .glavno {
   min-width: 0;
 }
-/* Ispod 1340px kartica ide NA VRH, odmah ispod naslova i podnaslova (na
-   telefonu je dno stranice predaleko, niko je ne vidi). Iznad 1340px stoji
-   pored obrasca. */
-.bocno {
-  order: -1;
-}
-/* Lijevi stub banke partnera postoji samo pored obrasca (od 1340px), a desni
-   stub banke tada mijenja PK Freelancer karticu; ispod 1340px ostaje kartica. */
+/* Bočne kolone nose samo stubove banke partnera i postoje samo pored
+   obrasca (od 1340px). Ispod toga ih nema, da prazna kolona ne pravi
+   razmak iznad obrasca. */
+.bocno,
 .bocnoLijevo,
 .samoSiroko {
   display: none;
@@ -639,11 +635,9 @@
   .bocnoLijevo:empty {
     display: none;
   }
+  .bocno,
   .samoSiroko {
     display: block;
-  }
-  .samoUsko {
-    display: none;
   }
 }
 @media (min-width: 1340px) {

@@ -21,14 +21,12 @@ import OrgFillSelect, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 import { trackEvent } from "src/api/activity";
-import OfficeSidebarPromo from "src/components/OfficeSidebarPromo/OfficeSidebarPromo";
 import {
   DugmePreuzimanja,
   ReklamaInline,
   ReklamaStub,
   usePorukaPoslijePreuzimanja,
-} from "src/components/Reklame/ReklamaSlot";
-import { useReklama } from "src/components/Reklame/useReklame";
+} from "src/components/PartnerSlot/Slot";
 
 /* ── Helpers ── */
 
@@ -406,11 +404,9 @@ export default function SprForm() {
     };
   }, [personal, business, income, expenses, adjustments, dateSigned, computed]);
 
-  // reklame banke partnera: prozor poslije preuzimanja i desni stub (tada
-  // PK Office kolona ustupa desno mjesto i ostaje samo njena traka)
+  // reklame banke partnera: prozor poslije preuzimanja
   const { otvori: otvoriPoruku, modal: porukaModal } =
     usePorukaPoslijePreuzimanja("spr");
-  const desnaReklama = useReklama("spr", "SIDEBAR_DESNO");
 
   const exportPdf = useCallback(async () => {
     const data = buildSprData();
@@ -1147,7 +1143,7 @@ export default function SprForm() {
         </div>
       </section>
 
-      <ReklamaInline stranica="spr" className={styles.reklamaInline} />
+      <ReklamaInline stranica="spr" className={styles.partnerInline} />
 
       {/* ── Export ── */}
       <div className={styles.actions}>
@@ -1188,9 +1184,7 @@ export default function SprForm() {
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
 
-      {/* PK Office reklama (Solo + knjigovođe): bočno na širokim ekranima,
-          traka ovdje ispod preuzimanja na užim i mobitelu */}
-      <OfficeSidebarPromo stranica="spr" bezBocnog={!!desnaReklama} />
+      {/* bočni stubovi banke partnera (naše PK Office promocije su uklonjene) */}
       <ReklamaStub stranica="spr" strana="lijevo" raspored="fiksno" />
       <ReklamaStub stranica="spr" strana="desno" raspored="fiksno" />
       {porukaModal}

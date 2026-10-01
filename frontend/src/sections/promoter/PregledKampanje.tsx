@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
-import { getPregledKampanje, preuzmiIzvoz } from "src/api/reklame";
-import { kratkoStranice, nazivPozicije } from "src/data/reklame";
+import { getPregledKampanje, preuzmiIzvoz } from "src/api/partner";
+import { kratkoStranice, nazivPozicije } from "src/data/partner";
 import { fmtBroj, fmtCtr, fmtTermin, porukaGreske } from "./format";
 import { PREGLED_KEY } from "./kljucevi";
 import KlikoviGrafikon, { Legenda } from "./KlikoviGrafikon";
@@ -136,7 +136,7 @@ export default function PregledKampanje() {
         <section className={p.kartica}>
           <div className={p.karticaGlava}>
             <h2 className={p.karticaNaslov}>Kreative</h2>
-            <Link href="/promoter/kreative/nova" className={p.dugmeCrveno}>
+            <Link href="/partner/kreative/nova" className={p.dugmeCrveno}>
               + Nova kreativa
             </Link>
           </div>
@@ -153,7 +153,7 @@ export default function PregledKampanje() {
           )}
           {reklame.length > 5 && (
             <p className={p.napomena}>
-              <Link href="/promoter/kreative">Sve kreative ({reklame.length})</Link>
+              <Link href="/partner/kreative">Sve kreative ({reklame.length})</Link>
             </p>
           )}
           <p className={p.napomena}>Promjene su vidljive na portalu odmah, bez odobrenja.</p>
@@ -190,7 +190,7 @@ export default function PregledKampanje() {
                     <td className={p.broj}>{fmtBroj(r.klikovi)}</td>
                     <td className={p.ctr}>{fmtCtr(r.prikazi, r.klikovi)}</td>
                     <td>
-                      <Link href={`/promoter/kreative/${r.reklamaId}`} className={p.dugmeMalo}>
+                      <Link href={`/partner/kreative/${r.reklamaId}`} className={p.dugmeMalo}>
                         Promijeni
                       </Link>
                     </td>

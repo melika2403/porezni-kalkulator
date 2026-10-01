@@ -19,15 +19,12 @@ import PersonFillSelect, {
   type FillData,
 } from "src/components/PersonFillSelect/PersonFillSelect";
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
-import PkFreelancerPromo from "src/components/PkFreelancerPromo/PkFreelancerPromo";
-import OfficeSidebarPromo from "src/components/OfficeSidebarPromo/OfficeSidebarPromo";
 import {
   DugmePreuzimanja,
   ReklamaInline,
   ReklamaStub,
   usePorukaPoslijePreuzimanja,
-} from "src/components/Reklame/ReklamaSlot";
-import { useReklama } from "src/components/Reklame/useReklame";
+} from "src/components/PartnerSlot/Slot";
 import { trackEvent } from "src/api/activity";
 import { useQuery } from "@tanstack/react-query";
 import { me, unwrap } from "src/api/auth";
@@ -650,11 +647,9 @@ export default function GpdForm() {
     };
   }, [personal, rows, deductions, taxCalc, refundOption, dateSigned, computed, periodOd, periodDo]);
 
-  // reklame banke partnera: prozor poslije preuzimanja i desni stub (tada
-  // PK Office kolona ustupa desno mjesto i ostaje samo njena traka)
+  // reklame banke partnera: prozor poslije preuzimanja
   const { otvori: otvoriPoruku, modal: porukaModal } =
     usePorukaPoslijePreuzimanja("gpd");
-  const desnaReklama = useReklama("gpd", "SIDEBAR_DESNO");
 
   const exportPdf = useCallback(async () => {
     const data = buildGpdData();
@@ -1494,7 +1489,7 @@ export default function GpdForm() {
         </div>
       </section>
 
-      <ReklamaInline stranica="gpd" className={styles.reklamaInline} />
+      <ReklamaInline stranica="gpd" className={styles.partnerInline} />
 
       {/* ── Export ── */}
       <div className={styles.actions}>
@@ -1672,9 +1667,7 @@ export default function GpdForm() {
         </p>
       )}
 
-      {/* PK Office reklama (Solo + knjigovođe): bočno na širokim ekranima,
-          traka ovdje ispod preuzimanja na užim i mobitelu */}
-      <OfficeSidebarPromo stranica="gpd" bezBocnog={!!desnaReklama} />
+      {/* bočni stubovi banke partnera (naše PK Office promocije su uklonjene) */}
       <ReklamaStub stranica="gpd" strana="lijevo" raspored="fiksno" />
       <ReklamaStub stranica="gpd" strana="desno" raspored="fiksno" />
       {porukaModal}
@@ -1770,9 +1763,6 @@ export default function GpdForm() {
           izvršiti povrat u zakonskom roku.
         </p>
       </section>
-
-      {/* PK Freelancer (faza 0): freelanceri sa AMS-ima dolaze ovdje u martu */}
-      <PkFreelancerPromo kompaktno izvor="gpd" />
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>

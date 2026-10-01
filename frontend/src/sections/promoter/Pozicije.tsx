@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
-import { getPregledKampanje } from "src/api/reklame";
-import { POZICIJE, kratkoStranice } from "src/data/reklame";
+import { getPregledKampanje } from "src/api/partner";
+import { POZICIJE, kratkoStranice } from "src/data/partner";
 import { fmtBroj, fmtCtr, porukaGreske } from "./format";
 import { PREGLED_KEY } from "./kljucevi";
 import p from "./portal.module.css";
@@ -63,7 +63,7 @@ export default function Pozicije() {
                     {naPoziciji.map((r, i) => (
                       <span key={r.id}>
                         {i > 0 && ", "}
-                        <Link href={`/promoter/kreative/${r.id}`}>{r.naziv}</Link>
+                        <Link href={`/partner/kreative/${r.id}`}>{r.naziv}</Link>
                         {r.stanje === "ZAKAZANA" ? " (zakazana)" : ""} ·{" "}
                         {r.stranice.map(kratkoStranice).join(", ")}
                       </span>

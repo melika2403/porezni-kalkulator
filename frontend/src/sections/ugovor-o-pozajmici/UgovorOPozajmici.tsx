@@ -10,6 +10,7 @@ import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import { iznosUSlova } from "../ugovor-o-djelu/iznosSlovima";
 import { trackEvent } from "src/api/activity";
+import { DugmePreuzimanja, ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 const isoToDisplay = (iso: string) => {
   if (!iso || !iso.includes("-")) return iso;
@@ -543,10 +544,17 @@ export default function UgovorOPozajmici() {
           </svg>
           {loadingDocx ? "Generisanje..." : "Sačuvaj kao DOCX"}
         </button>
-        <button
+        <DugmePreuzimanja
+          stranica="pozajmica"
           className={styles.btnPdf}
           onClick={handlePdf}
           disabled={loadingPdf}
+          label={loadingPdf ? "Generisanje..." : "Sačuvaj kao PDF"}
+          ikona={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 3v12M7 10l5 5 5-5M5 20h14" />
+            </svg>
+          }
         >
           <svg
             viewBox="0 0 24 24"
@@ -560,7 +568,7 @@ export default function UgovorOPozajmici() {
             <polyline points="9 15 12 18 15 15" />
           </svg>
           {loadingPdf ? "Generisanje..." : "Sačuvaj kao PDF"}
-        </button>
+        </DugmePreuzimanja>
       </div>
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja dokumenta uvijek provjerite tačnost podataka.
@@ -710,6 +718,9 @@ export default function UgovorOPozajmici() {
         { q: "Može li ugovor o pozajmici biti između firme i vlasnika?", a: "Da, ugovor može biti zaključen između privrednog društva i njegovog vlasnika ili direktora. U tom slučaju potrebno je voditi računa o transfernim cijenama i tržišnoj kamatnoj stopi kako bi se izbjegla porezna reklasifikacija kao prikrivena raspodjela dobiti." },
         { q: "Šta ako zajmoprimac ne vrati novac na vrijeme?", a: "Ugovorom se mogu predvidjeti zatezne kamate na neplaćeni iznos. U slučaju spora, zajmodavac može pokrenuti sudski postupak. Uz notarski ovjeren ugovor moguće je direktno pokrenuti izvršni postupak bez prethodne presude, što značajno ubrzava naplatu." },
       ]} />
+      {/* bočni stubovi banke partnera, izvan okvira stranice (od 1440px) */}
+      <ReklamaStub stranica="pozajmica" strana="lijevo" raspored="fiksno" />
+      <ReklamaStub stranica="pozajmica" strana="desno" raspored="fiksno" />
     </main>
   );
 }

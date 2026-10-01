@@ -10,7 +10,7 @@ import Footer from "src/components/Footer/Footer";
 export default function ConditionalFooter() {
   const pathname = usePathname();
   if (pathname?.startsWith("/admin")) return null;
-  if (pathname?.startsWith("/promoter")) return null;
+  if (pathname?.startsWith("/partner")) return null;
   if (pathname === "/profil" || pathname?.startsWith("/profil/")) return null;
   if (pathname?.startsWith("/organizacije")) return null;
   if (pathname === "/app" || pathname?.startsWith("/app/")) return null;

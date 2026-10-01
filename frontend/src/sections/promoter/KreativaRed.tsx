@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { reklamaSlikaUrl, type PromoterReklama } from "src/api/reklame";
-import { nazivPozicije } from "src/data/reklame";
+import { reklamaSlikaUrl, type PromoterReklama } from "src/api/partner";
+import { nazivPozicije } from "src/data/partner";
 import { fmtTermin } from "./format";
 import p from "./portal.module.css";
 
@@ -62,7 +62,7 @@ export function KreativaSlicica({ r }: { r: PromoterReklama }) {
 
 export default function KreativaRed({ r }: { r: PromoterReklama }) {
   return (
-    <Link href={`/promoter/kreative/${r.id}`} className={p.kreativa}>
+    <Link href={`/partner/kreative/${r.id}`} className={p.kreativa}>
       <KreativaSlicica r={r} />
       <span style={{ minWidth: 0 }}>
         <span className={p.kreativaNaziv}>{r.naslov || r.naziv}</span>

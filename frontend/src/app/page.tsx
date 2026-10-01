@@ -10,6 +10,7 @@ import PoreznKalendar from "src/components/PoreznKalendar/PoreznKalendar";
 import Faq from "src/components/Faq/Faq";
 import SocialProof from "src/components/SocialProof/SocialProof";
 import FinalCta from "src/components/FinalCta/FinalCta";
+import { ReklamaBaner } from "src/components/PartnerSlot/Slot";
 
 export default function HomePage() {
   return (
@@ -18,6 +19,8 @@ export default function HomePage() {
         <Hero />
         <Features />
         <Pricing />
+        {/* široki baner banke partnera; bez aktivne kreative nema ničega */}
+        <ReklamaBaner stranica="pocetna" />
         <HowItWorks />
         <SocialProof />
         <PkOfficeTeaser />

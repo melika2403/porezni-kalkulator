@@ -1,6 +1,6 @@
 import { type ApiResponse } from "src/api/auth";
 import { getBackendUrl } from "src/utils/backendUrl";
-import type { ReklamaPozicija, ReklamaStranica } from "src/data/reklame";
+import type { ReklamaPozicija, ReklamaStranica } from "src/data/partner";
 
 const BACKEND_URL = getBackendUrl();
 
@@ -31,6 +31,7 @@ export type JavnaReklama = {
   id: number;
   format: ReklamaFormat;
   brend: string;
+  oznaka: string | null;
   naslov: string | null;
   tekst: string | null;
   ctaTekst: string | null;
@@ -38,6 +39,7 @@ export type JavnaReklama = {
   slikaUrl: string | null;
   slikaUskaUrl: string | null;
   logoUrl: string | null;
+  logo2Url: string | null;
   boja: string;
 };
 
@@ -47,6 +49,7 @@ export type ReklamaPayload = {
   naziv: string;
   format: ReklamaFormat;
   brend: string;
+  oznaka: string | null;
   naslov: string | null;
   tekst: string | null;
   ctaTekst: string | null;
@@ -56,6 +59,7 @@ export type ReklamaPayload = {
   slikaUrl: string | null;
   slikaUskaUrl: string | null;
   logoUrl: string | null;
+  logo2Url: string | null;
   boja: string;
   pozicije: ReklamaPozicija[];
   /** ["*"] = sve stranice */
@@ -116,11 +120,11 @@ export type PregledKampanje = {
 };
 
 // ── Javno ────────────────────────────────────────────────────────────────────
+// Putanje su namjerno neutralne (/api/p/s, /api/p/e, /r/:id): ad-blokeri po
+// javnim listama blokiraju URL-ove sa ad, ads, banner, promo, track...
 
 export function getAktivneReklame(stranica: ReklamaStranica) {
-  return request<AktivneReklame>(
-    `/api/reklame/aktivne?stranica=${encodeURIComponent(stranica)}`,
-  );
+  return request<AktivneReklame>(`/api/p/s?st=${encodeURIComponent(stranica)}`);
 }
 
 export function zabiljeziPrikaz(
@@ -129,14 +133,14 @@ export function zabiljeziPrikaz(
   pozicija: ReklamaPozicija,
 ) {
   // keepalive: prikaz se ne gubi ako korisnik odmah ode sa stranice
-  return request<null>(`/api/reklame/${id}/prikaz`, {
+  return request<null>(`/api/p/e/${id}`, {
     method: "POST",
-    body: JSON.stringify({ stranica, pozicija }),
+    body: JSON.stringify({ s: stranica, p: pozicija }),
     keepalive: true,
   });
 }
 
-/** Link reklame: backend broji klik i preusmjerava na stranicu banke. */
+/** Link kreative: backend broji klik i preusmjerava na stranicu banke. */
 export function klikUrl(
   id: number,
   stranica: ReklamaStranica,
@@ -144,8 +148,8 @@ export function klikUrl(
   sekundarni = false,
 ): string {
   const q = new URLSearchParams({ s: stranica, p: pozicija });
-  if (sekundarni) q.set("cilj", "sekundarni");
-  return `${BACKEND_URL}/api/reklame/${id}/klik?${q.toString()}`;
+  if (sekundarni) q.set("c", "2");
+  return `${BACKEND_URL}/r/${id}?${q.toString()}`;
 }
 
 export function reklamaSlikaUrl(putanja: string | null): string | null {
@@ -157,51 +161,51 @@ export function reklamaSlikaUrl(putanja: string | null): string | null {
 // ── Promoter dashboard ───────────────────────────────────────────────────────
 
 export function getMojeReklame() {
-  return request<PromoterReklama[]>("/api/reklame/promoter");
+  return request<PromoterReklama[]>("/api/partner");
 }
 
 export function getReklama(id: number) {
-  return request<PromoterReklama>(`/api/reklame/promoter/${id}`);
+  return request<PromoterReklama>(`/api/partner/${id}`);
 }
 
 export function kreirajReklamu(payload: ReklamaPayload) {
-  return request<PromoterReklama>("/api/reklame/promoter", {
+  return request<PromoterReklama>("/api/partner", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export function izmijeniReklamu(id: number, payload: ReklamaPayload) {
-  return request<PromoterReklama>(`/api/reklame/promoter/${id}`, {
+  return request<PromoterReklama>(`/api/partner/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
 export function promijeniStatusReklame(id: number, status: ReklamaStatus) {
-  return request<PromoterReklama>(`/api/reklame/promoter/${id}/status`, {
+  return request<PromoterReklama>(`/api/partner/${id}/status`, {
     method: "POST",
     body: JSON.stringify({ status }),
   });
 }
 
 export function obrisiReklamu(id: number) {
-  return request<null>(`/api/reklame/promoter/${id}`, { method: "DELETE" });
+  return request<null>(`/api/partner/${id}`, { method: "DELETE" });
 }
 
 export function getStatistikaReklame(id: number, dana = 30) {
   return request<ReklamaStatistika>(
-    `/api/reklame/promoter/${id}/statistika?dana=${dana}`,
+    `/api/partner/${id}/statistika?dana=${dana}`,
   );
 }
 
 export function getPregledKampanje(dana: number) {
-  return request<PregledKampanje>(`/api/reklame/promoter/pregled?dana=${dana}`);
+  return request<PregledKampanje>(`/api/partner/pregled?dana=${dana}`);
 }
 
 /** Preuzme CSV sa servera (cookie prijave ide uz zahtjev) i snimi ga. */
 export async function preuzmiIzvoz(dana: number): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/api/reklame/promoter/izvoz?dana=${dana}`, {
+  const res = await fetch(`${BACKEND_URL}/api/partner/izvoz?dana=${dana}`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -223,7 +227,7 @@ export async function uploadSlikeReklame(
   try {
     const fd = new FormData();
     fd.append("slika", file);
-    const res = await fetch(`${BACKEND_URL}/api/reklame/promoter/slika`, {
+    const res = await fetch(`${BACKEND_URL}/api/partner/slika`, {
       method: "POST",
       credentials: "include",
       body: fd,

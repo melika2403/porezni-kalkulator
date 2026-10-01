@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { PregledKampanje } from "src/api/reklame";
-import type { ReklamaPozicija } from "src/data/reklame";
+import type { PregledKampanje } from "src/api/partner";
+import type { ReklamaPozicija } from "src/data/partner";
 import { fmtBroj } from "./format";
 import p from "./portal.module.css";
 
@@ -16,7 +16,13 @@ export const GRUPE: {
   pozicije: ReklamaPozicija[];
   boja: string;
 }[] = [
-  { id: "bocni", naziv: "bočni banneri", pozicije: ["SIDEBAR_LIJEVO", "SIDEBAR_DESNO"], boja: "#d9232d" },
+  // bočni stubovi i široki baner na početnoj: ista vrsta (vizuelni baner)
+  {
+    id: "bocni",
+    naziv: "banneri",
+    pozicije: ["SIDEBAR_LIJEVO", "SIDEBAR_DESNO", "BANER"],
+    boja: "#d9232d",
+  },
   { id: "nativna", naziv: "nativna poruka", pozicije: ["INLINE", "MODAL"], boja: "#ef8f95" },
   { id: "dugme", naziv: "dugme za preuzimanje", pozicije: ["DUGME"], boja: "#a61b24" },
 ];

@@ -2,18 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { JavnaReklama } from "src/api/reklame";
-import type { ReklamaStranica } from "src/data/reklame";
+import type { JavnaReklama } from "src/api/partner";
+import type { ReklamaStranica } from "src/data/partner";
 import {
   BrendZnak,
+  Oznaceno,
+  ReklamaBanerKartica,
   ReklamaInlineKartica,
   ReklamaStubKartica,
   bojeBrenda,
   linkProps,
   type ReklamaCtx,
-} from "./ReklamaKartica";
-import { usePrikaz, useReklama } from "./useReklame";
-import styles from "./reklame.module.css";
+} from "./Kartica";
+import { usePrikaz, useReklama, useReklame } from "./useSlot";
+import styles from "./partnerSlot.module.css";
 
 // Slotovi za reklame promotera na javnim stranicama. Svaki slot sam povuče
 // svoju reklamu (jedan zajednički zahtjev po stranici) i ne crta ništa kad
@@ -44,7 +46,7 @@ export function ReklamaStub({
   return (
     <aside
       className={`${styles.fiksno} ${strana === "lijevo" ? styles.fiksnoLijevo : styles.fiksnoDesno}`}
-      aria-label={`Oglas: ${r.brend}`}
+      aria-label={`Partner: ${r.brend}`}
     >
       {kartica}
     </aside>
@@ -58,12 +60,36 @@ export function ReklamaInline({
   stranica: ReklamaStranica;
   className?: string;
 }) {
-  const r = useReklama(stranica, "INLINE");
+  const { data, isLoading } = useReklame(stranica);
+  const r = data?.INLINE ?? null;
+  // dok se slot učitava, prostor kartice je rezervisan: obrazac ispod se ne
+  // pomjera kad kartica stigne (CLS). Bez kreative se rezerva skloni.
+  if (isLoading) {
+    return (
+      <div className={className}>
+        <div className={styles.inlineRezerva} aria-hidden="true" />
+      </div>
+    );
+  }
   if (!r) return null;
   return (
     <div className={className}>
       <ReklamaInlineKartica r={r} ctx={{ stranica, pozicija: "INLINE" }} />
     </div>
+  );
+}
+
+/**
+ * Široki baner (početna, ispod Pretplata). Bez aktivne kreative na ovoj
+ * poziciji ne crta ništa, ni praznu sekciju.
+ */
+export function ReklamaBaner({ stranica }: { stranica: ReklamaStranica }) {
+  const r = useReklama(stranica, "BANER");
+  if (!r) return null;
+  return (
+    <section className={styles.sirokaSekcija} aria-label={`Partner: ${r.brend}`}>
+      <ReklamaBanerKartica r={r} ctx={{ stranica, pozicija: "BANER" }} />
+    </section>
   );
 }
 
@@ -142,8 +168,8 @@ export function ModalPoruka({ r, ctx }: { r: JavnaReklama; ctx: ReklamaCtx }) {
       <div className={styles.modalGlava}>
         <BrendZnak r={r} />
         <div>
-          {r.naslov && <p className={styles.modalNaslovPoruke}>{r.naslov}</p>}
-          {r.tekst && <p className={styles.modalTekstPoruke}>{r.tekst}</p>}
+          {r.naslov && <p className={styles.modalNaslovPoruke}><Oznaceno t={r.naslov} /></p>}
+          {r.tekst && <p className={styles.modalTekstPoruke}><Oznaceno t={r.tekst} /></p>}
         </div>
       </div>
       <div className={styles.modalAkcije}>

@@ -137,7 +137,17 @@ app.use("/api/lager", lagerRoutes);
 app.use("/api/blagajna", blagajnaRoutes);
 app.use("/api/putni-nalozi", putniNaloziRoutes);
 app.use("/api/pk-office", pkOfficeRoutes);
-app.use("/api/reklame", reklameRoutes);
+// kreative partnera: portal, javni slotovi i klik redirect (neutralne
+// putanje zbog ad-blokera, vidi routes/reklameRoutes.js)
+app.use("/api/partner", reklameRoutes.portal);
+app.use("/api/p", reklameRoutes.javno);
+app.use("/r", reklameRoutes.klik);
+
+// Backend domena nema sadržaj za indeksiranje: Googlebot ne smije pratiti
+// klik redirecte (/r/) ni brojače (/api/), da ne kvari statistiku partnera.
+app.get("/robots.txt", (_req, res) => {
+  res.type("text/plain").send("User-agent: *\nDisallow: /api/\nDisallow: /r/\n");
+});
 
 // Zadnji u nizu: greške koje nisu prošle kroz kontroler. Bez ovoga multer
 // greške (prevelika datoteka, pogrešan tip slike) izlaze kao Express 500 sa
@@ -159,6 +169,17 @@ app.use((err, req, res, _next) => {
 // Idempotent column additions (za polja koja su dodana naknadno; sync({alter:false}) ih ne dodaje).
 async function ensureColumns() {
   const checks = [
+    // kreative partnera: široki baner na početnoj (oznaka + drugi logo)
+    {
+      table: "reklame",
+      column: "oznaka",
+      ddl: "ALTER TABLE reklame ADD COLUMN oznaka VARCHAR(60) NULL",
+    },
+    {
+      table: "reklame",
+      column: "logo2Url",
+      ddl: "ALTER TABLE reklame ADD COLUMN logo2Url VARCHAR(255) NULL",
+    },
     {
       table: "organizations",
       column: "logoUrl",

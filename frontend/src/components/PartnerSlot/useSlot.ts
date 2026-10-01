@@ -7,8 +7,8 @@ import {
   getAktivneReklame,
   zabiljeziPrikaz,
   type JavnaReklama,
-} from "src/api/reklame";
-import type { ReklamaPozicija, ReklamaStranica } from "src/data/reklame";
+} from "src/api/partner";
+import type { ReklamaPozicija, ReklamaStranica } from "src/data/partner";
 
 // Jedan zahtjev po stranici za sve pozicije; rotaciju radi backend pri
 // svakom novom učitavanju (keš važi dok je korisnik na sajtu, pa se reklama

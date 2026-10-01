@@ -1,4 +1,4 @@
-import type { ReklamaStanje } from "src/api/reklame";
+import type { ReklamaStanje } from "src/api/partner";
 
 const dvije = (n: number) => String(n).padStart(2, "0");
 
