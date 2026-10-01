@@ -564,7 +564,7 @@ function EditorForma({
           {/* ── Kada ── */}
           <section className={s.kartica}>
             <h2 className={s.sekcijaNaslov}>Termin prikazivanja</h2>
-            <div className={s.dvaStupca}>
+            <div className={s.terminRed}>
               <Polje label="Od">
                 <div className={s.datumRed}>
                   <DateInput

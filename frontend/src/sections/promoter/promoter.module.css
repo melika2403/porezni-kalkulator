@@ -374,9 +374,15 @@
   grid-template-columns: 1fr 1fr;
   gap: 0 1rem;
 }
+/* Od i Do u jednom redu, polja široka koliko treba datumu i vremenu */
+.terminRed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2rem;
+}
 .datumRed {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px;
+  grid-template-columns: 150px 72px;
   gap: 0.5rem;
 }
 .bojaRed {

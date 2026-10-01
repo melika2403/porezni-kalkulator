@@ -10,6 +10,7 @@ import Link from "next/link";
 import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import DateInput from "src/components/DateInput/DateInput";
 import Modal from "src/components/Modal/Modal";
+import VrijemeInput from "src/components/VrijemeInput/VrijemeInput";
 import RichEditor from "./RichEditor";
 import {
   adminGetClanak,
@@ -925,7 +926,7 @@ export default function VijestEditor({ id }: { id: string }) {
             <p className={styles.zakazanoNote} style={{ marginTop: 0 }}>
               Status: <strong>{STATUS_LABELE[status]}</strong>
               {status === "ZAKAZAN" && datumObjave
-                ? ` za ${formatDate(datumObjave)} u ${zakazVrijeme}`
+                ? ` za ${formatDate(datumObjave)} u ${zakazVrijeme || "08:00"}`
                 : ""}
               {status === "OBJAVLJEN" && datumObjave
                 ? ` ${formatDate(datumObjave)}`
@@ -941,11 +942,10 @@ export default function VijestEditor({ id }: { id: string }) {
                       value={zakazDatum}
                       onValueChange={setZakazDatum}
                     />
-                    <input
+                    <VrijemeInput
                       className={styles.zakazivanjeVrijeme}
-                      type="time"
                       value={zakazVrijeme}
-                      onChange={(e) => setZakazVrijeme(e.target.value)}
+                      onValueChange={setZakazVrijeme}
                       aria-label="Vrijeme objave"
                     />
                   </div>
