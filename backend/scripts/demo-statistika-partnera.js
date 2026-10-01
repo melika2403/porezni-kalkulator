@@ -41,22 +41,23 @@ const POZ_PO_STRANICI = {
   rasprave: ["BANER_ISPOD"],
 };
 
-// prosječna dnevna posjećenost stranice (radni dan)
+// prosječna dnevna posjećenost stranice (radni dan), usklađena sa stvarnim
+// prometom (septembar 2026: oko 45 pregleda vijesti i 8 AMS obrazaca dnevno)
 const POSJETE = {
-  pocetna: 1300,
-  ams: 950,
-  spr: 260,
-  gpd: 220,
-  zo3: 160,
-  pozajmica: 90,
-  pdv: 420,
-  neto_bruto: 640,
-  sifre_djelatnosti: 820,
-  sifre_zanimanja: 310,
-  javni_prihodi: 520,
-  vijesti: 700,
-  vodici: 280,
-  rasprave: 160,
+  pocetna: 220,
+  ams: 70,
+  spr: 15,
+  gpd: 12,
+  zo3: 20,
+  pozajmica: 6,
+  pdv: 35,
+  neto_bruto: 60,
+  sifre_djelatnosti: 120,
+  sifre_zanimanja: 40,
+  javni_prihodi: 50,
+  vijesti: 45,
+  vodici: 25,
+  rasprave: 10,
 };
 
 // koliki dio posjeta stvarno vidi poziciju (vidljivost 1 s), CTR i
@@ -96,10 +97,13 @@ function sum(...k) {
   return h.readUInt32BE(0) / 0xffffffff;
 }
 function binom(n, p, ...k) {
-  // brza aproksimacija: očekivanje + šum ±(2 * sqrt(var))
+  // brza aproksimacija: očekivanje + šum ±(2 * sqrt(var)); mali očekivani
+  // brojevi (npr. 0,1 klik dnevno) se zaokružuju slučajno, ne uvijek na 0
   const ocek = n * p;
   const s = Math.sqrt(Math.max(ocek * (1 - p), 0.0001));
-  return Math.max(0, Math.round(ocek + (sum("b", ...k) * 2 - 1) * 2 * s));
+  const v = Math.max(0, ocek + (sum("b", ...k) * 2 - 1) * 2 * s);
+  if (ocek < 1) return sum("z", ...k) < ocek ? 1 : 0;
+  return Math.round(v);
 }
 
 async function obrisi() {
