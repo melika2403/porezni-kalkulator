@@ -1,8 +1,8 @@
-/* Promoter (oglašivač) dashboard. Shell dijeli sa admin panelom
-   (adminLayout.module.css); ovdje je samo sadržaj stranica. */
+/* Editor kreative u partner portalu. Shell i paleta dolaze iz
+   portal.module.css (koji predefiniše --ink, --paper, --sage... na svijetle
+   vrijednosti portala); ovdje su samo forma i pregled. */
 
 .stranica {
-  padding: 2rem 2rem 4rem;
   max-width: 1280px;
   font-family: "DM Sans", sans-serif;
   color: var(--ink);
@@ -26,7 +26,7 @@
 }
 .naslov {
   font-family: "DM Serif Display", serif;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 400;
   margin: 0;
   letter-spacing: -0.01em;
@@ -525,7 +525,7 @@
 /* ── Pregled ── */
 .pregled {
   position: sticky;
-  top: calc(64px + 1.5rem);
+  top: calc(76px + 1.5rem);
   background: var(--white);
   border: 0.5px solid var(--border);
   border-radius: var(--radius-lg);
@@ -576,12 +576,6 @@
   }
 }
 @media (max-width: 880px) {
-  .stranica {
-    padding: 1.25rem 16px 3rem;
-  }
-  .kpiRed {
-    grid-template-columns: 1fr 1fr;
-  }
   .statMreza {
     grid-template-columns: minmax(0, 1fr);
   }

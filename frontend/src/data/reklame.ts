@@ -41,12 +41,17 @@ export const POZICIJE: {
   },
 ];
 
-export const STRANICE: { id: ReklamaStranica; naziv: string }[] = [
-  { id: "ams", naziv: "AMS-1035 (prihod iz inostranstva)" },
-  { id: "spr", naziv: "SPR-1053" },
-  { id: "gpd", naziv: "GPD-1051" },
-  { id: "vijesti", naziv: "Vijesti (naslovna)" },
+export const STRANICE: { id: ReklamaStranica; naziv: string; kratko: string }[] = [
+  { id: "ams", naziv: "AMS-1035 (prihod iz inostranstva)", kratko: "AMS-1035" },
+  { id: "spr", naziv: "SPR-1053", kratko: "SPR-1053" },
+  { id: "gpd", naziv: "GPD-1051", kratko: "GPD-1051" },
+  { id: "vijesti", naziv: "Vijesti (naslovna)", kratko: "Vijesti" },
 ];
+
+export function kratkoStranice(id: string): string {
+  if (id === "*") return "sve stranice";
+  return STRANICE.find((s) => s.id === id)?.kratko ?? id;
+}
 
 export function nazivPozicije(id: string): string {
   return POZICIJE.find((p) => p.id === id)?.naziv ?? id;

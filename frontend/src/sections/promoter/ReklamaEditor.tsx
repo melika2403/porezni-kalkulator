@@ -46,7 +46,7 @@ import {
   isoUDatumVrijeme,
   porukaGreske,
 } from "./format";
-import { REKLAME_KEY } from "./PromoterPregled";
+import { REKLAME_KEY } from "./kljucevi";
 import s from "./promoter.module.css";
 
 type Forma = {
@@ -182,7 +182,7 @@ export default function ReklamaEditor({ id }: { id?: string }) {
     return (
       <div className={s.stranica}>
         <p className={s.greska}>{porukaGreske(postojeca.error)}</p>
-        <Link href="/promoter">Nazad na reklame</Link>
+        <Link href="/promoter/kreative">Nazad na kreative</Link>
       </div>
     );
   }
@@ -250,7 +250,8 @@ function EditorForma({
       qc.setQueryData(["promoter-reklama", r.id], r);
       // javni slotovi u istoj sesiji odmah vide izmjenu
       qc.invalidateQueries({ queryKey: ["reklame-aktivne"] });
-      if (nova) router.replace(`/promoter/reklame/${r.id}`);
+      qc.invalidateQueries({ queryKey: ["promoter-pregled"] });
+      if (nova) router.replace(`/promoter/kreative/${r.id}`);
     },
     onError: (e) => setGreska(porukaGreske(e)),
   });
@@ -262,6 +263,7 @@ function EditorForma({
       qc.setQueryData(["promoter-reklama", r.id], r);
       qc.invalidateQueries({ queryKey: REKLAME_KEY });
       qc.invalidateQueries({ queryKey: ["reklame-aktivne"] });
+      qc.invalidateQueries({ queryKey: ["promoter-pregled"] });
     },
     onError: (e) => setGreska(porukaGreske(e)),
   });
@@ -288,10 +290,10 @@ function EditorForma({
     <div className={s.stranica}>
       <div className={s.zaglavlje}>
         <div>
-          <Link href="/promoter" className={s.nazad}>
-            ← Moje reklame
+          <Link href="/promoter/kreative" className={s.nazad}>
+            ← Kreative
           </Link>
-          <h1 className={s.naslov}>{nova ? "Nova reklama" : forma.naziv || "Reklama"}</h1>
+          <h1 className={s.naslov}>{nova ? "Nova kreativa" : forma.naziv || "Reklama"}</h1>
           {r && st && (
             <p className={s.podnaslov}>
               <span className={`${s.badge} ${s[st.cls]}`}>{st.label}</span>{" "}
@@ -619,11 +621,11 @@ function EditorForma({
             </p>
           )}
           <div className={s.dnoForme}>
-            <Link href="/promoter" className={s.sekundarno}>
+            <Link href="/promoter/kreative" className={s.sekundarno}>
               Odustani
             </Link>
             <button type="submit" className={s.primarno} disabled={snimi.isPending}>
-              {snimi.isPending ? "Čuvanje..." : nova ? "Objavi reklamu" : "Sačuvaj izmjene"}
+              {snimi.isPending ? "Čuvanje..." : nova ? "Objavi kreativu" : "Sačuvaj izmjene"}
             </button>
           </div>
         </div>

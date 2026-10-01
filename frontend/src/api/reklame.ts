@@ -95,6 +95,26 @@ export type ReklamaStatistika = {
   }[];
 };
 
+export type Zbir = { prikazi: number; klikovi: number };
+
+export type PregledKampanje = {
+  dana: number;
+  od: string;
+  do: string;
+  ukupno: Zbir;
+  prethodno: Zbir;
+  poDanu: { datum: string; pozicije: Partial<Record<ReklamaPozicija, Zbir>> }[];
+  poPoziciji: {
+    pozicija: ReklamaPozicija;
+    reklamaId: number;
+    naziv: string;
+    stranice: string[];
+    prikazi: number;
+    klikovi: number;
+  }[];
+  reklame: PromoterReklama[];
+};
+
 // ── Javno ────────────────────────────────────────────────────────────────────
 
 export function getAktivneReklame(stranica: ReklamaStranica) {
@@ -173,6 +193,28 @@ export function getStatistikaReklame(id: number, dana = 30) {
   return request<ReklamaStatistika>(
     `/api/reklame/promoter/${id}/statistika?dana=${dana}`,
   );
+}
+
+export function getPregledKampanje(dana: number) {
+  return request<PregledKampanje>(`/api/reklame/promoter/pregled?dana=${dana}`);
+}
+
+/** Preuzme CSV sa servera (cookie prijave ide uz zahtjev) i snimi ga. */
+export async function preuzmiIzvoz(dana: number): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/api/reklame/promoter/izvoz?dana=${dana}`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  // Content-Disposition nije vidljiv cross-origin fetch-u bez expose headera,
+  // pa se ime pravi ovdje
+  const ime = `reklame_zadnjih_${dana}_dana.csv`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = ime;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function uploadSlikeReklame(

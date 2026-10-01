@@ -365,6 +365,142 @@ async function statistika(req, res) {
   }
 }
 
+// ── Pregled kampanje (dashboard) ─────────────────────────────────────────────
+
+// "YYYY-MM-DD" pomjeren za n dana (kalendarski, bez vremenskih zona)
+function pomjeriDatum(iso, n) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function periodIzZahtjeva(req) {
+  const dana = Math.min(365, Math.max(1, Number.parseInt(req.query.dana, 10) || 30));
+  const doDana = danasBih();
+  const od = pomjeriDatum(doDana, -(dana - 1));
+  return { dana, od, do: doDana, prethodnoOd: pomjeriDatum(od, -dana), prethodnoDo: pomjeriDatum(od, -1) };
+}
+
+// GET /api/reklame/promoter/pregled?dana=30
+// Sve što treba stranici "Pregled kampanje" u jednom pozivu: zbirovi za
+// period i prethodni period iste dužine, dnevni niz po poziciji (svi dani,
+// i oni bez prikaza) i rezultati po poziciji i kreativi.
+async function pregled(req, res) {
+  try {
+    const p = periodIzZahtjeva(req);
+    const reklame = await Reklama.findAll({
+      where: vlasnikWhere(req),
+      order: [["pocetak", "DESC"], ["id", "DESC"]],
+    });
+    const ids = reklame.map((r) => r.id);
+    const zbirSve = await zbiroviStatistike(ids);
+
+    const rows = ids.length
+      ? await ReklamaStatistika.findAll({
+          where: { reklamaId: { [Op.in]: ids }, datum: { [Op.between]: [p.prethodnoOd, p.do] } },
+          raw: true,
+        })
+      : [];
+
+    const ukupno = { prikazi: 0, klikovi: 0 };
+    const prethodno = { prikazi: 0, klikovi: 0 };
+    const dani = new Map();
+    for (let d = p.od; d <= p.do; d = pomjeriDatum(d, 1)) dani.set(d, {});
+    const poPoziciji = new Map();
+    const naziv = new Map(reklame.map((r) => [r.id, r.naziv]));
+
+    for (const row of rows) {
+      if (row.datum < p.od) {
+        prethodno.prikazi += row.prikazi;
+        prethodno.klikovi += row.klikovi;
+        continue;
+      }
+      ukupno.prikazi += row.prikazi;
+      ukupno.klikovi += row.klikovi;
+
+      const dan = dani.get(row.datum);
+      if (dan) {
+        const z = dan[row.pozicija] ?? { prikazi: 0, klikovi: 0 };
+        z.prikazi += row.prikazi;
+        z.klikovi += row.klikovi;
+        dan[row.pozicija] = z;
+      }
+
+      const kljuc = `${row.pozicija}|${row.reklamaId}`;
+      const pp = poPoziciji.get(kljuc) ?? {
+        pozicija: row.pozicija,
+        reklamaId: row.reklamaId,
+        naziv: naziv.get(row.reklamaId) ?? "",
+        stranice: [],
+        prikazi: 0,
+        klikovi: 0,
+      };
+      if (!pp.stranice.includes(row.stranica)) pp.stranice.push(row.stranica);
+      pp.prikazi += row.prikazi;
+      pp.klikovi += row.klikovi;
+      poPoziciji.set(kljuc, pp);
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        ...p,
+        ukupno,
+        prethodno,
+        poDanu: [...dani.entries()].map(([datum, pozicije]) => ({ datum, pozicije })),
+        poPoziciji: [...poPoziciji.values()].sort(
+          (a, b) => POZICIJE.indexOf(a.pozicija) - POZICIJE.indexOf(b.pozicija) || b.prikazi - a.prikazi,
+        ),
+        reklame: reklame.map((r) => zaPromotera(r, zbirSve.get(r.id))),
+      },
+    });
+  } catch (err) {
+    console.error("reklame pregled:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
+function csvPolje(v) {
+  const s = String(v ?? "");
+  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// GET /api/reklame/promoter/izvoz?dana=30  (CSV, ; separator za Excel u BiH)
+async function izvoz(req, res) {
+  try {
+    const p = periodIzZahtjeva(req);
+    const reklame = await Reklama.findAll({ where: vlasnikWhere(req), attributes: ["id", "naziv"], raw: true });
+    const naziv = new Map(reklame.map((r) => [r.id, r.naziv]));
+    const rows = reklame.length
+      ? await ReklamaStatistika.findAll({
+          where: {
+            reklamaId: { [Op.in]: reklame.map((r) => r.id) },
+            datum: { [Op.between]: [p.od, p.do] },
+          },
+          order: [["datum", "ASC"], ["reklamaId", "ASC"]],
+          raw: true,
+        })
+      : [];
+
+    const linije = [["Datum", "Kreativa", "Stranica", "Pozicija", "Prikazi", "Klikovi", "CTR %"].join(";")];
+    for (const r of rows) {
+      const ctr = r.prikazi ? ((r.klikovi / r.prikazi) * 100).toFixed(2).replace(".", ",") : "";
+      linije.push(
+        [r.datum, naziv.get(r.reklamaId), r.stranica, r.pozicija, r.prikazi, r.klikovi, ctr]
+          .map(csvPolje)
+          .join(";"),
+      );
+    }
+    res.set("Content-Type", "text/csv; charset=utf-8");
+    res.set("Content-Disposition", `attachment; filename="reklame_${p.od}_${p.do}.csv"`);
+    // BOM da Excel prepozna UTF-8 (č, ć, š, ž, đ)
+    return res.send(`﻿${linije.join("\r\n")}\r\n`);
+  } catch (err) {
+    console.error("reklame izvoz:", err);
+    return res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+}
+
 // ── Javno ────────────────────────────────────────────────────────────────────
 
 function aktivneWhere(sada = new Date()) {
@@ -506,6 +642,8 @@ module.exports = {
   obrisi,
   uploadSlike,
   statistika,
+  pregled,
+  izvoz,
   aktivne,
   zabiljeziPrikaz,
   klik,

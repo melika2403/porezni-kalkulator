@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import PromoterPregled from "src/sections/promoter/PromoterPregled";
+import PregledKampanje from "src/sections/promoter/PregledKampanje";
 
 export const metadata: Metadata = {
-  title: "Moje reklame, Porezni Kalkulator",
+  title: "Pregled kampanje, Partner portal",
   robots: { index: false, follow: false },
 };
 
 export default function PromoterPage() {
-  return <PromoterPregled />;
+  return <PregledKampanje />;
 }

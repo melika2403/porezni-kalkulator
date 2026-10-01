@@ -13,5 +13,7 @@ import Navbar from "src/components/Navbar/Navbar";
 export default function ConditionalNavbar() {
   const pathname = usePathname();
   if (pathname === "/app" || pathname?.startsWith("/app/")) return null;
+  // partner portal oglašivača ima vlastiti header (src/app/promoter/layout.tsx)
+  if (pathname === "/promoter" || pathname?.startsWith("/promoter/")) return null;
   return <Navbar />;
 }

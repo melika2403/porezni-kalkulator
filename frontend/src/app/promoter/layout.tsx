@@ -1,131 +1,180 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { logout, me, unwrap } from "src/api/auth";
+import { getMojeReklame } from "src/api/reklame";
 import { useRole } from "src/hooks/useRole";
-// isti shell kao admin panel (sidebar + sadržaj), bez ijednog admin linka
-import styles from "../admin/adminLayout.module.css";
-import s from "src/sections/promoter/promoter.module.css";
+import { REKLAME_KEY } from "src/sections/promoter/kljucevi";
+import p from "src/sections/promoter/portal.module.css";
 
-const NAV_ITEMS: { href: string; label: string; icon: React.ReactNode }[] = [
-  {
-    href: "/promoter",
-    label: "Moje reklame",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="18" rx="1" />
-        <rect x="14" y="3" width="7" height="8" rx="1" />
-        <rect x="14" y="15" width="7" height="6" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    href: "/promoter/reklame/nova",
-    label: "Nova reklama",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 8v8M8 12h8" />
-      </svg>
-    ),
-  },
+// Partner portal oglašivača (banka partner). Vlastiti header i sidebar, bez
+// marketing navbara i bez ijednog admin linka za promotera. Boje su fiksne
+// (svijetle) po dizajnu portala, nezavisno od teme sajta.
+
+const NAV: { href: string; label: string }[] = [
+  { href: "/promoter", label: "Pregled" },
+  { href: "/promoter/kreative", label: "Kreative" },
+  { href: "/promoter/pozicije", label: "Pozicije" },
+  { href: "/promoter/izvjestaji", label: "Izvještaji" },
+  { href: "/promoter/postavke", label: "Postavke" },
 ];
 
-// Pristup: PROMOTER (oglašivač) i ADMIN (podrška). Backend isto provjerava
-// na svakoj ruti, ovo je samo da UI ne prikaže prazan dashboard.
+function inicijali(tekst: string): string {
+  const rijeci = tekst.trim().split(/\s+/).filter(Boolean);
+  return (rijeci[0]?.[0] ?? "") + (rijeci[1]?.[0] ?? "");
+}
+
 export default function PromoterLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { role, isLoading } = useRole();
+  const dozvoljen = role === "PROMOTER" || role === "ADMIN";
 
   if (isLoading) return null;
 
-  if (!role) {
+  if (!dozvoljen) {
     return (
-      <div className={s.nemaPristupa}>
-        <h1>Prijava za oglašivače</h1>
-        <p>Prijavite se nalogom na koji je dodijeljena uloga oglašivača.</p>
-        <Link href="/prijava?next=/promoter" className={s.primarno}>
-          Prijava
-        </Link>
-      </div>
-    );
-  }
-
-  if (role !== "PROMOTER" && role !== "ADMIN") {
-    return (
-      <div className={s.nemaPristupa}>
-        <h1>Nemate pristup</h1>
-        <p>
-          Ovaj dio je samo za oglašivače. Ako ste partner i trebate pristup,
-          javite nam se putem kontakt stranice.
-        </p>
-        <Link href="/kontakt" className={s.primarno}>
-          Kontakt
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <div className={styles.brandIcon} aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
-              <path d="M16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14" />
-            </svg>
-          </div>
-          <div className={styles.brandText}>
-            <span className={styles.brandLabel}>
-              {role === "ADMIN" ? "Admin · sve reklame" : "Oglašivač"}
-            </span>
-            <span className={styles.brandTitle}>Reklame</span>
-          </div>
-        </div>
-
-        <div className={styles.navHeader}>Navigacija</div>
-        <nav className={styles.nav}>
-          {NAV_ITEMS.map((item) => {
-            const active =
-              item.href === "/promoter"
-                ? pathname === "/promoter" ||
-                  (pathname?.startsWith("/promoter/reklame/") &&
-                    pathname !== "/promoter/reklame/nova")
-                : pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
-                aria-current={active ? "page" : undefined}
-              >
-                <span className={styles.navIcon}>{item.icon}</span>
-                <span className={styles.navLabel}>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className={styles.sidebarFoot}>
-          {role === "ADMIN" && (
-            <Link href="/admin" className={styles.backLink}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 11L4 7l5-4" />
-              </svg>
-              Nazad na admin panel
-            </Link>
-          )}
-          <Link href="/" className={styles.backLink}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 11L4 7l5-4" />
-            </svg>
-            Nazad na sajt
+      <div className={p.portal}>
+        <div className={p.nemaPristupa}>
+          <span className={p.logoZnak}>PK</span>
+          <h1>{role ? "Nemate pristup" : "Partner portal"}</h1>
+          <p>
+            {role
+              ? "Ovaj dio je samo za oglašivače. Ako ste partner i trebate pristup, javite nam se putem kontakt stranice."
+              : "Prijavite se nalogom na koji je dodijeljena uloga oglašivača."}
+          </p>
+          <Link href={role ? "/kontakt" : "/prijava?next=/promoter"} className={p.dugmeZeleno}>
+            {role ? "Kontakt" : "Prijava"}
           </Link>
         </div>
-      </aside>
+      </div>
+    );
+  }
 
-      <main className={styles.content}>{children}</main>
+  const aktivan = (href: string) =>
+    href === "/promoter"
+      ? pathname === "/promoter"
+      : pathname === href || !!pathname?.startsWith(href + "/");
+
+  return (
+    <div className={p.portal}>
+      <header className={p.topbar}>
+        <Link href="/promoter" className={p.logo}>
+          <span className={p.logoZnak}>PK</span>
+          <span className={p.logoNaziv}>Porezni Kalkulator</span>
+          <span className={p.logoPortal}>· Partner portal</span>
+        </Link>
+        <BrendMeni jeAdmin={role === "ADMIN"} />
+      </header>
+
+      <div className={p.tijelo}>
+        <aside className={p.sidebar}>
+          <nav className={p.nav} aria-label="Partner portal">
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                className={`${p.navLink} ${aktivan(n.href) ? p.navAktivan : ""}`}
+                aria-current={aktivan(n.href) ? "page" : undefined}
+              >
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+          <div className={p.sidebarDno}>
+            {role === "ADMIN" ? (
+              <>
+                Uloga: admin
+                <br />
+                Pristup svim oglašivačima
+              </>
+            ) : (
+              <>
+                Uloga: oglašivač
+                <br />
+                Pristup samo vlastitim podacima
+              </>
+            )}
+          </div>
+        </aside>
+
+        <main className={p.sadrzaj}>{children}</main>
+      </div>
+    </div>
+  );
+}
+
+function BrendMeni({ jeAdmin }: { jeAdmin: boolean }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [otvoren, setOtvoren] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const { data: korisnik } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => unwrap(me()),
+    retry: false,
+  });
+  // brend se čita iz zadnje kreative (jedna banka, isti brend na svima)
+  const { data: reklame } = useQuery({
+    queryKey: REKLAME_KEY,
+    queryFn: () => unwrap(getMojeReklame()),
+  });
+  const brend = jeAdmin
+    ? "Admin · svi oglašivači"
+    : reklame?.[0]?.brend || `${korisnik?.firstName ?? ""} ${korisnik?.lastName ?? ""}`.trim();
+
+  useEffect(() => {
+    if (!otvoren) return;
+    const klik = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOtvoren(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOtvoren(false);
+    document.addEventListener("mousedown", klik);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", klik);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [otvoren]);
+
+  const odjava = async () => {
+    await logout();
+    qc.clear();
+    router.push("/");
+    router.refresh();
+  };
+
+  return (
+    <div className={p.brendMeni} ref={ref}>
+      <button
+        type="button"
+        className={p.brendChip}
+        onClick={() => setOtvoren((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={otvoren}
+      >
+        <span className={p.brendInicijali}>{inicijali(brend).toUpperCase() || "?"}</span>
+        <span className={p.brendNaziv}>{brend}</span>
+      </button>
+      {otvoren && (
+        <div className={p.meni} role="menu">
+          {korisnik?.email && <div className={p.meniEmail}>{korisnik.email}</div>}
+          {jeAdmin && (
+            <Link href="/admin" className={p.meniStavka} role="menuitem">
+              Admin panel
+            </Link>
+          )}
+          <Link href="/" className={p.meniStavka} role="menuitem">
+            Nazad na sajt
+          </Link>
+          <button type="button" className={p.meniStavka} role="menuitem" onClick={odjava}>
+            Odjava
+          </button>
+        </div>
+      )}
     </div>
   );
 }

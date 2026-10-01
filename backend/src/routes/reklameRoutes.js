@@ -36,6 +36,8 @@ function klikBrojac(req, _res, next) {
 router.get("/promoter", ...promoter, ctrl.lista);
 router.post("/promoter", ...promoter, ctrl.kreiraj);
 router.post("/promoter/slika", ...promoter, reklameUpload.single("slika"), ctrl.uploadSlike);
+router.get("/promoter/pregled", ...promoter, ctrl.pregled);
+router.get("/promoter/izvoz", ...promoter, ctrl.izvoz);
 router.get("/promoter/:id", ...promoter, ctrl.detalj);
 router.put("/promoter/:id", ...promoter, ctrl.izmijeni);
 router.post("/promoter/:id/status", ...promoter, ctrl.promijeniStatus);
