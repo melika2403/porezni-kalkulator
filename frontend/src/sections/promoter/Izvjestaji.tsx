@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
 import { getPregledKampanje } from "src/api/reklame";
-import { fmtBroj, fmtCtr, porukaGreske } from "./format";
+import { fmtBroj, fmtCtr, fmtDan, porukaGreske } from "./format";
 import { PREGLED_KEY } from "./kljucevi";
 import { GRUPE, grupisiDan } from "./KlikoviGrafikon";
 import { IzvozDugme, PeriodIzbor } from "./PregledKampanje";
@@ -43,7 +43,7 @@ export default function Izvjestaji() {
         {isLoading && !data ? (
           <p className={p.prazno}>Učitavanje...</p>
         ) : (
-          <div className={p.tabelaOkvir} style={{ marginTop: -20 }}>
+          <div className={`${p.tabelaOkvir} ${p.tabelaBezNaslova}`}>
             <table className={p.tabela}>
               <thead>
                 <tr>
@@ -63,7 +63,7 @@ export default function Izvjestaji() {
                   const ukupno = kl.reduce((a, b) => a + b, 0);
                   return (
                     <tr key={d.datum}>
-                      <td>{d.datum.split("-").reverse().join(".")}.</td>
+                      <td>{fmtDan(d.datum)}</td>
                       <td className={p.broj}>{fmtBroj(prikazi)}</td>
                       {kl.map((v, i) => (
                         <td key={GRUPE[i].id}>{fmtBroj(v)}</td>

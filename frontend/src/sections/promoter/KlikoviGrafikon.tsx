@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { PregledKampanje } from "src/api/reklame";
 import type { ReklamaPozicija } from "src/data/reklame";
-import { fmtBroj } from "./format";
+import { fmtBroj, fmtDan } from "./format";
 import p from "./portal.module.css";
 
 // Složeni stupci klikova po danu, po grupi pozicija. Paleta je provjerena
@@ -49,11 +49,6 @@ function lijepMaks(v: number): { maks: number; korak: number } {
 function gornjiZaobljen(x: number, y: number, w: number, h: number, r: number) {
   const rr = Math.min(r, h, w / 2);
   return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
-}
-
-function fmtDan(iso: string) {
-  const [, m, d] = iso.split("-");
-  return `${Number(d)}.${Number(m)}.`;
 }
 
 export default function KlikoviGrafikon({ poDanu }: { poDanu: PregledKampanje["poDanu"] }) {
@@ -126,7 +121,7 @@ export default function KlikoviGrafikon({ poDanu }: { poDanu: PregledKampanje["p
               })}
               {i % korakOznake === 0 && (
                 <text className={p.osaTekst} x={cx} y={H - 6} textAnchor="middle">
-                  {fmtDan(d.datum)}
+                  {fmtDan(d.datum, true)}
                 </text>
               )}
             </g>

@@ -2,9 +2,11 @@
    krem pozadina, bijele kartice, tamnozelena marka sajta i crvena kao boja
    kampanje. Site varijable (--ink, --paper, --sage...) se ovdje predefinišu
    da i dijeljeni stilovi (editor, tabele) ostanu u istoj paleti i kad je
-   sajt u tamnoj temi. */
+   sajt u tamnoj temi. Ista paleta (.paleta) ide i na <body> dok je portal
+   otvoren, jer se padajući meniji i modali crtaju direktno u body. */
 
-.portal {
+.portal,
+.paleta {
   --pp-bg: #f6f3ec;
   --pp-kartica: #ffffff;
   --pp-linija: #e7e2d7;
@@ -31,11 +33,14 @@
   --err-border: #f3b4b4;
   --err-text: #991b1b;
 
+  color-scheme: light;
+}
+
+.portal {
   min-height: 100vh;
   background: var(--pp-bg);
   color: var(--pp-ink);
   font-family: "DM Sans", sans-serif;
-  color-scheme: light;
 }
 
 /* ── Header ── */
@@ -232,20 +237,11 @@
   gap: 16px;
   align-items: center;
 }
-.select {
-  font-family: inherit;
+/* okidač StyledSelect-a (button), veći kao dugmad u zaglavlju */
+button.select {
   font-size: 16px;
-  color: var(--pp-ink);
-  background: var(--pp-kartica);
-  border: 1px solid var(--pp-linija);
   border-radius: 10px;
-  padding: 11px 40px 11px 16px;
-  min-width: 200px;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231b261e' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-  cursor: pointer;
+  padding: 11px 16px;
 }
 .dugmeZeleno,
 .dugmeCrveno,
@@ -312,6 +308,20 @@
 .dugmeMalo:hover {
   border-color: var(--pp-zelena);
 }
+.dugmeMalo:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.dugmeMaloUsko {
+  padding: 5px 12px;
+}
+.dugmeMaloOpasno {
+  color: var(--err-text);
+}
+.dugmeMaloOpasno:hover {
+  border-color: var(--err-border);
+  background: var(--err-bg);
+}
 
 .kartica {
   background: var(--pp-kartica);
@@ -343,6 +353,24 @@
   font-size: 15px;
   padding: 24px 0;
   text-align: center;
+}
+.praznoTekst {
+  margin: 0 0 12px;
+}
+/* napomena sa dugmetom desno (umjesto podvučenog linka u rečenici) */
+.napomenaRed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.napomenaTekst {
+  font-size: 13px;
+  color: var(--pp-muted);
+  margin: 0;
+  flex: 1 1 260px;
 }
 .greska {
   background: var(--err-bg);
@@ -583,6 +611,79 @@
 .tabelaOkvir {
   margin: 0 -22px -20px;
   overflow-x: auto;
+}
+/* tabela je jedini sadržaj kartice: zaglavlje tabele ide do vrha kartice */
+.tabelaBezNaslova {
+  margin-top: -20px;
+}
+.redKlik {
+  cursor: pointer;
+}
+.bezPrelamanja {
+  white-space: nowrap;
+}
+.kreativaCelija {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 220px;
+}
+.kreativaTekst {
+  min-width: 0;
+}
+
+/* ── Postavke ── */
+.postavkeMreza {
+  display: grid;
+  gap: 16px;
+  max-width: 820px;
+}
+.postavkeKljuc {
+  color: var(--pp-muted);
+  width: 220px;
+}
+.karticaNaslovRazmak {
+  margin-bottom: 12px;
+}
+.bojaPrikaz {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bojaKvadrat {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+.brendLogo {
+  max-height: 32px;
+}
+
+/* ── Pozicije ── */
+.pozicijeMreza {
+  display: grid;
+  gap: 16px;
+}
+.karticaGlavaUska {
+  margin-bottom: 8px;
+}
+.ctrTamni {
+  color: var(--pp-crvena-tamna);
+  font-weight: 500;
+}
+.pozicijaOpis {
+  margin-top: 0;
+  font-size: 14px;
+}
+.pozicijaKreative {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pozicijaKreative .dugmeMalo {
+  padding: 5px 12px;
+  white-space: normal;
 }
 .tabela {
   width: 100%;

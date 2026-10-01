@@ -39,13 +39,20 @@
   line-height: 1.5;
 }
 .nazad {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
-  color: var(--mid);
+  color: var(--ink);
   text-decoration: none;
-  margin-bottom: 0.4rem;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 0.3rem 0.85rem;
+  margin-bottom: 0.6rem;
 }
 .nazad:hover {
+  border-color: var(--sage);
   color: var(--sage);
 }
 
@@ -114,15 +121,6 @@
 .opasnoMalo:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-.linkDugme {
-  background: none;
-  border: none;
-  color: var(--mid);
-  font-size: 12.5px;
-  cursor: pointer;
-  text-decoration: underline;
-  font-family: inherit;
 }
 
 /* ── KPI ── */
@@ -340,6 +338,12 @@
   font-weight: 500;
   color: var(--ink);
   margin: 0;
+}
+.labelaRazmak {
+  margin-top: 1.25rem;
+}
+.statistikaKartica {
+  margin-top: 1.5rem;
 }
 .napomena {
   font-size: 12px;
