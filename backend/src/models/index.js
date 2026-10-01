@@ -1472,6 +1472,9 @@ const VijestClanak = sequelize.define(
       allowNull: false,
       defaultValue: "OBICNO",
     },
+    // sponzorisan tekst: reklama banke partnera čiji brend, logo i link
+    // idu u oznaku "Uz podršku <brend>" (null = nije sponzorisan)
+    sponzorReklamaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     seoNaslov: { type: DataTypes.STRING(70), allowNull: true },
     seoOpis: { type: DataTypes.STRING(200), allowNull: true },
     fokusFraza: { type: DataTypes.STRING(120), allowNull: true },
@@ -3656,6 +3659,9 @@ const Reklama = sequelize.define(
     },
     // 1..10, veća = češće u rotaciji
     tezina: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 1 },
+    // porezni rokovi (ključevi ROKOVI iz config/reklame.js) u kojima kreativa
+    // dobija pojačanu težinu; JSON niz ili null (čita se kroz kaoNiz)
+    rokovi: { type: DataTypes.JSON, allowNull: true },
   },
   {
     tableName: "reklame",
@@ -3682,6 +3688,9 @@ const ReklamaStatistika = sequelize.define(
     pozicija: { type: DataTypes.STRING(30), allowNull: false },
     prikazi: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     klikovi: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+    // dio prikaza i klikova sa mobitela (desktop = ukupno - mobilni)
+    prikaziMob: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
+    klikoviMob: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
   },
   {
     tableName: "reklame_statistika",
@@ -3691,6 +3700,36 @@ const ReklamaStatistika = sequelize.define(
         unique: true,
         name: "reklame_stat_jedinstveno",
         fields: ["reklamaId", "datum", "stranica", "pozicija"],
+      },
+    ],
+  },
+);
+
+// Jedinstveni posjetioci po reklami i danu, bez kolačića: kljuc je skraćeni
+// SHA-256 od adrese, preglednika, datuma i tajne servera. Tajna i datum se
+// miješaju u ključ, pa se posjetilac ne može pratiti iz dana u dan niti
+// vratiti na IP adresu.
+const ReklamaPosjetilac = sequelize.define(
+  "ReklamaPosjetilac",
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    reklamaId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    datum: { type: DataTypes.DATEONLY, allowNull: false },
+    kljuc: { type: DataTypes.CHAR(16), allowNull: false },
+    mobilni: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  },
+  {
+    tableName: "reklame_posjetioci",
+    timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        name: "reklame_posjetilac_dan",
+        fields: ["reklamaId", "datum", "kljuc"],
       },
     ],
   },
@@ -3792,4 +3831,5 @@ module.exports = {
   UplatniRacunLog,
   Reklama,
   ReklamaStatistika,
+  ReklamaPosjetilac,
 };

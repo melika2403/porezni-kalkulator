@@ -897,3 +897,8 @@
   color: var(--sage);
   text-decoration: underline;
 }
+
+/* sponzor teksta (banka partner) */
+.sponzorPolje {
+  margin-top: 0.75rem;
+}

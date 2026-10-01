@@ -11,6 +11,7 @@ import {
 import PkOfficeCta from "src/sections/vijesti/PkOfficeCta";
 import NovaTemaDugme from "src/sections/vijesti/NovaTemaDugme";
 import { ReklamaInline, ReklamaStub } from "src/components/PartnerSlot/Slot";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 import {
   getNaslovnaServer,
   getTemeServer,
@@ -72,139 +73,145 @@ export default async function VijestiPage() {
     .filter((b) => b.clanci.length > 0);
 
   return (
-    <div className={styles.page}>
-      <VijestiHeader />
+    <SlotServer stranica="vijesti">
+      <div className={styles.page}>
+        <VijestiHeader />
 
-      <div className={styles.topGrid}>
-        <div>
-          {vodeca && <VodecaKartica c={vodeca} />}
-          {izdvojeni.length > 0 && (
-            <div className={styles.izdvojeniGrid}>
-              {izdvojeni.map((c) => (
+        <div className={styles.topGrid}>
+          <div>
+            {vodeca && <VodecaKartica c={vodeca} />}
+            {izdvojeni.length > 0 && (
+              <div className={styles.izdvojeniGrid}>
+                {izdvojeni.map((c) => (
+                  <KarticaSaSlikom key={c.id} c={c} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.side}>
+            <PanelDesno najnovije={najnovije} najcitanije={najcitanije} />
+
+            {/* oglas banke partnera (klijentski slot, bez oglasa ne crta ništa) */}
+            <ReklamaStub stranica="vijesti" strana="desno" />
+
+            {/* zadnje aktivne rasprave: prostor korisnika vidljiv sa naslovne */}
+            <div className={styles.sideBlok}>
+              <h2 className={styles.sideNaslov}>Iz rasprava</h2>
+              {teme.length === 0 ? (
+                <p className={styles.vodiciTekst} style={{ fontSize: 13 }}>
+                  Postavite prvo pitanje ili otvorite raspravu sa drugim
+                  knjigovođama i obrtnicima.
+                </p>
+              ) : (
+                <div className={styles.raspraveBlokLista}>
+                  {teme.map((t) => (
+                    <Link
+                      key={t.id}
+                      href={`/rasprave/${t.slug}`}
+                      className={styles.raspraveBlokItem}
+                    >
+                      <span
+                        className={`${styles.raspraveBlokBedz} ${
+                          t.vrsta === "PITANJE"
+                            ? styles.temaBedzPitanje
+                            : styles.temaBedzRasprava
+                        }`}
+                      >
+                        {t.vrsta === "PITANJE" ? "Pitanje" : "Rasprava"}
+                      </span>
+                      {t.rijesena && (
+                        <span
+                          className={`${styles.raspraveBlokBedz} ${styles.temaBedzRijeseno}`}
+                          style={{ marginLeft: 4 }}
+                        >
+                          ✓
+                        </span>
+                      )}
+                      <span className={styles.raspraveBlokNaslov}>
+                        {t.naslov}
+                      </span>
+                      <span className={styles.raspraveBlokMeta}>
+                        <span>
+                          {t.brojOdgovora}{" "}
+                          {t.brojOdgovora === 1 ? "odgovor" : "odgovora"}
+                        </span>
+                        <span>·</span>
+                        <span>
+                          aktivno {relativnoVrijeme(t.zadnjaAktivnost)}
+                        </span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <NovaTemaDugme className={styles.raspraveBlokDugme} />
+              <Link href="/rasprave" className={styles.raspraveBlokSve}>
+                Sve rasprave &rarr;
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <ReklamaInline stranica="vijesti" className={styles.partnerInline} />
+
+        {blokovi.map((b) => (
+          <section key={b.rubrika.id} style={{ marginBottom: "2.5rem" }}>
+            <div className={styles.blokHead}>
+              <h2 className={styles.blokHeadNaslov}>
+                <Link href={`/vijesti/rubrika/${b.rubrika.id}`}>
+                  {nazivRubrike(b.rubrika.id)}
+                </Link>
+              </h2>
+              <Link
+                href={`/vijesti/rubrika/${b.rubrika.id}`}
+                className={styles.blokSve}
+              >
+                Pogledaj sve &rarr;
+              </Link>
+            </div>
+            <div className={styles.blokGrid}>
+              {b.clanci.slice(0, 4).map((c) => (
                 <KarticaSaSlikom key={c.id} c={c} />
               ))}
+              {b.clanci.length > 4 && (
+                <div className={styles.blokBocni}>
+                  {b.clanci.slice(4, 6).map((c) => (
+                    <BocniZapis key={c.id} c={c} />
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </section>
+        ))}
 
-        <div className={styles.side}>
-          <PanelDesno najnovije={najnovije} najcitanije={najcitanije} />
-
-          {/* oglas banke partnera (klijentski slot, bez oglasa ne crta ništa) */}
-          <ReklamaStub stranica="vijesti" strana="desno" />
-
-          {/* zadnje aktivne rasprave: prostor korisnika vidljiv sa naslovne */}
-          <div className={styles.sideBlok}>
-            <h2 className={styles.sideNaslov}>Iz rasprava</h2>
-            {teme.length === 0 ? (
-              <p className={styles.vodiciTekst} style={{ fontSize: 13 }}>
-                Postavite prvo pitanje ili otvorite raspravu sa drugim
-                knjigovođama i obrtnicima.
-              </p>
-            ) : (
-              <div className={styles.raspraveBlokLista}>
-                {teme.map((t) => (
-                  <Link
-                    key={t.id}
-                    href={`/rasprave/${t.slug}`}
-                    className={styles.raspraveBlokItem}
-                  >
-                    <span
-                      className={`${styles.raspraveBlokBedz} ${
-                        t.vrsta === "PITANJE"
-                          ? styles.temaBedzPitanje
-                          : styles.temaBedzRasprava
-                      }`}
-                    >
-                      {t.vrsta === "PITANJE" ? "Pitanje" : "Rasprava"}
-                    </span>
-                    {t.rijesena && (
-                      <span
-                        className={`${styles.raspraveBlokBedz} ${styles.temaBedzRijeseno}`}
-                        style={{ marginLeft: 4 }}
-                      >
-                        ✓
-                      </span>
-                    )}
-                    <span className={styles.raspraveBlokNaslov}>{t.naslov}</span>
-                    <span className={styles.raspraveBlokMeta}>
-                      <span>
-                        {t.brojOdgovora}{" "}
-                        {t.brojOdgovora === 1 ? "odgovor" : "odgovora"}
-                      </span>
-                      <span>·</span>
-                      <span>aktivno {relativnoVrijeme(t.zadnjaAktivnost)}</span>
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-            <NovaTemaDugme className={styles.raspraveBlokDugme} />
-            <Link href="/rasprave" className={styles.raspraveBlokSve}>
-              Sve rasprave &rarr;
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      <ReklamaInline stranica="vijesti" className={styles.partnerInline} />
-
-      {blokovi.map((b) => (
-        <section key={b.rubrika.id} style={{ marginBottom: "2.5rem" }}>
-          <div className={styles.blokHead}>
-            <h2 className={styles.blokHeadNaslov}>
-              <Link href={`/vijesti/rubrika/${b.rubrika.id}`}>
-                {nazivRubrike(b.rubrika.id)}
+        {vodici.length > 0 && (
+          <section style={{ marginBottom: "2.5rem" }}>
+            <div className={styles.blokHead}>
+              <h2 className={styles.blokHeadNaslov}>
+                <Link href="/vodici">Vodiči</Link>
+              </h2>
+              <Link href="/vodici" className={styles.blokSve}>
+                Pogledaj sve &rarr;
               </Link>
-            </h2>
-            <Link
-              href={`/vijesti/rubrika/${b.rubrika.id}`}
-              className={styles.blokSve}
-            >
-              Pogledaj sve &rarr;
-            </Link>
-          </div>
-          <div className={styles.blokGrid}>
-            {b.clanci.slice(0, 4).map((c) => (
-              <KarticaSaSlikom key={c.id} c={c} />
-            ))}
-            {b.clanci.length > 4 && (
-              <div className={styles.blokBocni}>
-                {b.clanci.slice(4, 6).map((c) => (
-                  <BocniZapis key={c.id} c={c} />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      ))}
+            </div>
+            <div className={styles.blokGrid}>
+              {vodici.slice(0, 4).map((c) => (
+                <KarticaSaSlikom key={c.id} c={c} />
+              ))}
+              {vodici.length > 4 && (
+                <div className={styles.blokBocni}>
+                  {vodici.slice(4, 6).map((c) => (
+                    <BocniZapis key={c.id} c={c} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
-      {vodici.length > 0 && (
-        <section style={{ marginBottom: "2.5rem" }}>
-          <div className={styles.blokHead}>
-            <h2 className={styles.blokHeadNaslov}>
-              <Link href="/vodici">Vodiči</Link>
-            </h2>
-            <Link href="/vodici" className={styles.blokSve}>
-              Pogledaj sve &rarr;
-            </Link>
-          </div>
-          <div className={styles.blokGrid}>
-            {vodici.slice(0, 4).map((c) => (
-              <KarticaSaSlikom key={c.id} c={c} />
-            ))}
-            {vodici.length > 4 && (
-              <div className={styles.blokBocni}>
-                {vodici.slice(4, 6).map((c) => (
-                  <BocniZapis key={c.id} c={c} />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      <PkOfficeCta varijanta="siroka" />
-    </div>
+        <PkOfficeCta varijanta="siroka" />
+      </div>
+    </SlotServer>
   );
 }

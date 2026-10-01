@@ -8,6 +8,7 @@ const {
   VijestGlas,
   VijestPrijava,
   VijestObavjestenje,
+  Reklama,
   User,
   sequelize,
 } = require("../models/index");
@@ -384,6 +385,16 @@ async function naslovna(_req, res) {
 }
 
 // GET /api/vijesti/:slug
+// Sponzor teksta ("Uz podršku <brend>"): samo ono što se crta; link ide kroz
+// klik redirect partnera (/r/:id), kao i ostale kreative.
+async function sponzorTeksta(reklamaId) {
+  if (!reklamaId) return null;
+  const r = await Reklama.findByPk(reklamaId, {
+    attributes: ["id", "brend", "logoUrl", "boja", "ctaTekst"],
+  });
+  return r ? { id: r.id, brend: r.brend, logoUrl: r.logoUrl, boja: r.boja, ctaTekst: r.ctaTekst } : null;
+}
+
 async function detalj(req, res) {
   const slug = String(req.params.slug || "").slice(0, 180);
   const c = await VijestClanak.findOne({
@@ -391,6 +402,7 @@ async function detalj(req, res) {
     include: [{ model: User, as: "autor", attributes: ["id", "role"] }],
   });
   if (!c) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
+  const sponzor = await sponzorTeksta(c.sponzorReklamaId);
 
   // Pregled se NE broji ovdje: stranica se kešira, pa bi jedan poziv API-ja
   // pokrio više čitalaca. Broji ga preglednik (POST /:slug/pregled).
@@ -404,7 +416,7 @@ async function detalj(req, res) {
   return res.json({
     ok: true,
     data: {
-      clanak: javniOblik(c, { saSadrzajem: true }),
+      clanak: { ...javniOblik(c, { saSadrzajem: true }), sponzor },
       povezani: povezani.map((r) => javniOblik(r)),
     },
   });
@@ -518,6 +530,7 @@ async function adminDetalj(req, res) {
       datumProvjere: c.datumProvjere,
       fokusFraza: c.fokusFraza,
       pozicija: c.pozicija,
+      sponzorReklamaId: c.sponzorReklamaId,
       semafor: semafor(c),
     },
   });
@@ -553,7 +566,14 @@ function normalizuj(body) {
     uRijeci: body?.uRijeci !== false,
     istaknut: body?.istaknut === true,
     pozicija: POZICIJE.includes(body?.pozicija) ? body.pozicija : "OBICNO",
+    sponzorReklamaId: parseId(body?.sponzorReklamaId) || null,
   };
+}
+
+// izabrani sponzor mora biti postojeća kreativa partnera
+async function sponzorPostoji(data) {
+  if (!data.sponzorReklamaId) return true;
+  return !!(await Reklama.findByPk(data.sponzorReklamaId, { attributes: ["id"] }));
 }
 
 // POST /api/vijesti/admin
@@ -561,6 +581,9 @@ async function kreiraj(req, res) {
   const data = normalizuj(req.body);
   if (!data.naslov) {
     return res.status(400).json({ ok: false, error: "Naslov je obavezan." });
+  }
+  if (!(await sponzorPostoji(data))) {
+    return res.status(400).json({ ok: false, error: "Izabrani sponzor ne postoji." });
   }
   data.slug = await jedinstvenSlug(req.body?.slug || data.naslov);
   data.autorId = req.user.id;
@@ -579,6 +602,9 @@ async function izmijeni(req, res) {
   const data = normalizuj(req.body);
   if (!data.naslov) {
     return res.status(400).json({ ok: false, error: "Naslov je obavezan." });
+  }
+  if (!(await sponzorPostoji(data))) {
+    return res.status(400).json({ ok: false, error: "Izabrani sponzor ne postoji." });
   }
   // Adresa se poslije objave ne mijenja: stara adresa je već u Googleu i u
   // tuđim linkovima. Prije objave je slobodna.

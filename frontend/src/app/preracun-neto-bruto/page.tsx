@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { OG_IMAGE } from "src/lib/ogImage";
 import PreracunPlate from "src/sections/plata/Plata";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/preracun-neto-bruto";
 
@@ -106,7 +107,9 @@ export default function PreracunNetoBrutoPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <PreracunPlate />
+      <SlotServer stranica="neto_bruto">
+        <PreracunPlate />
+      </SlotServer>
     </>
   );
 }

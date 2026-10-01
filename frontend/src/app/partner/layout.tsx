@@ -9,6 +9,7 @@ import { getMojeReklame } from "src/api/partner";
 import { useRole } from "src/hooks/useRole";
 import { REKLAME_KEY } from "src/sections/promoter/kljucevi";
 import p from "src/sections/promoter/portal.module.css";
+import slot from "src/components/PartnerSlot/partnerSlot.module.css";
 
 // Partner portal oglašivača (banka partner). Vlastiti header i sidebar, bez
 // marketing navbara i bez ijednog admin linka za promotera. Boje su fiksne
@@ -19,6 +20,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/partner/kreative", label: "Kreative" },
   { href: "/partner/pozicije", label: "Pozicije" },
   { href: "/partner/izvjestaji", label: "Izvještaji" },
+  { href: "/partner/specifikacija", label: "Specifikacija" },
   { href: "/partner/postavke", label: "Postavke" },
 ];
 
@@ -35,8 +37,9 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
   // paleta portala i na <body>: padajući meniji i modali se crtaju u body,
   // van .portal, pa bi u tamnoj temi sajta ispali tamni na svijetlom portalu
   useEffect(() => {
-    document.body.classList.add(p.paleta);
-    return () => document.body.classList.remove(p.paleta);
+    // slot.svijetlo drži i pregled kreative u svijetloj varijanti
+    document.body.classList.add(p.paleta, slot.svijetlo);
+    return () => document.body.classList.remove(p.paleta, slot.svijetlo);
   }, []);
 
   if (isLoading) return null;

@@ -73,8 +73,18 @@ export default function PregledKampanje() {
   const najranija = reklame.length
     ? reklame.reduce((m, r) => (r.pocetak < m ? r.pocetak : m), reklame[0].pocetak)
     : null;
-  const u = data?.ukupno ?? { prikazi: 0, klikovi: 0 };
-  const pr = data?.prethodno ?? { prikazi: 0, klikovi: 0 };
+  const nula = {
+    prikazi: 0,
+    klikovi: 0,
+    prikaziSaLinkom: 0,
+    prikaziMob: 0,
+    klikoviMob: 0,
+    jedinstveni: 0,
+    jedinstveniMob: 0,
+  };
+  const u = data?.ukupno ?? nula;
+  const pr = data?.prethodno ?? nula;
+  const udioMob = u.prikazi ? Math.round((u.prikaziMob / u.prikazi) * 100) : null;
 
   return (
     <>
@@ -94,7 +104,7 @@ export default function PregledKampanje() {
 
       {error && <p className={p.greska}>{porukaGreske(error)}</p>}
 
-      <div className={p.kpiRed}>
+      <div className={`${p.kpiRed} ${p.kpiRedSest}`}>
         <div className={p.kpi}>
           <span className={p.kpiLabel}>Prikazi</span>
           <span className={p.kpiVrijednost}>{fmtBroj(u.prikazi)}</span>
@@ -107,8 +117,20 @@ export default function PregledKampanje() {
         </div>
         <div className={p.kpi}>
           <span className={p.kpiLabel}>CTR</span>
-          <span className={p.kpiVrijednost}>{fmtCtr(u.prikazi, u.klikovi)}</span>
-          <span className={p.kpiSub}>prosjek svih pozicija</span>
+          <span className={p.kpiVrijednost}>{fmtCtr(u.prikaziSaLinkom, u.klikovi)}</span>
+          <span className={p.kpiSub}>pozicije sa linkom (dugme za preuzimanje je brending)</span>
+        </div>
+        <div className={p.kpi}>
+          <span className={p.kpiLabel}>Jedinstveni posjetioci</span>
+          <span className={p.kpiVrijednost}>{fmtBroj(u.jedinstveni)}</span>
+          <span className={p.kpiSub}>{promjena(u.jedinstveni, pr.jedinstveni)}</span>
+        </div>
+        <div className={p.kpi}>
+          <span className={p.kpiLabel}>Mobitel</span>
+          <span className={p.kpiVrijednost}>{udioMob === null ? "–" : `${udioMob} %`}</span>
+          <span className={p.kpiSub}>
+            udio prikaza sa mobitela, desktop {udioMob === null ? "–" : `${100 - udioMob} %`}
+          </span>
         </div>
         <div className={p.kpi}>
           <span className={p.kpiLabel}>Aktivne kreative</span>

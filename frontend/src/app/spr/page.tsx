@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { OG_IMAGE } from "src/lib/ogImage";
 import SprForm from "src/sections/spr/Spr";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/spr";
 
@@ -133,7 +134,9 @@ export default function SprPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <SprForm />
+      <SlotServer stranica="spr">
+        <SprForm />
+      </SlotServer>
     </>
   );
 }

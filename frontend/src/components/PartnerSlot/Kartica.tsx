@@ -71,9 +71,12 @@ export function bezOznaka(t: string | null | undefined): string {
 export function ReklamaBanerKartica({
   r,
   ctx,
+  kompaktno = false,
 }: {
   r: JavnaReklama;
   ctx: ReklamaCtx;
+  /** manja varijanta za alate, vodiče i rasprave (ispod sadržaja) */
+  kompaktno?: boolean;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
   usePrikaz(ref, r, ctx.stranica, ctx.pozicija, !ctx.pregled);
@@ -103,7 +106,7 @@ export function ReklamaBanerKartica({
     <a
       ref={ref}
       {...linkProps(r, ctx)}
-      className={styles.siroka}
+      className={`${styles.siroka} ${kompaktno ? styles.sirokaKompaktna : ""}`}
       style={bojeBrenda(r.boja)}
       data-slot={`${ctx.stranica}-siroka`}
     >

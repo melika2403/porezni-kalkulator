@@ -8,6 +8,7 @@ import { fmtBroj, fmtCtr, fmtDan, porukaGreske } from "./format";
 import { PREGLED_KEY } from "./kljucevi";
 import { GRUPE, grupisiDan } from "./KlikoviGrafikon";
 import { IzvozDugme, PeriodIzbor } from "./PregledKampanje";
+import MjesecniIzvjestaj from "./MjesecniIzvjestaj";
 import p from "./portal.module.css";
 
 // Tabelarni prikaz po danima (i tekstualna alternativa grafikonu sa Pregleda).
@@ -38,6 +39,8 @@ export default function Izvjestaji() {
       </div>
 
       {error && <p className={p.greska}>{porukaGreske(error)}</p>}
+
+      <MjesecniIzvjestaj />
 
       <section className={p.kartica}>
         {isLoading && !data ? (

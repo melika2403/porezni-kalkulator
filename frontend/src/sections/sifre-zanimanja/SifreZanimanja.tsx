@@ -17,6 +17,7 @@ import {
   sifraSaTackom,
 } from "src/lib/zanimanjaSearch";
 import styles from "./sifre-zanimanja.module.css";
+import { ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 const PRIKAZ_LIMIT = 400;
 
@@ -180,6 +181,9 @@ export default function SifreZanimanja() {
       </header>
 
       <div className={styles.layout}>
+        {/* baner banke partnera skroz desno, uz lijevi sidebar po visini (od 1780px);
+            sadržaj stranice ostaje pune širine */}
+        <ReklamaStub stranica="sifre_zanimanja" strana="desno" raspored="uzOkvir" />
         <aside className={styles.sidebar} aria-label="Alati na našoj stranici">
           <PkOfficePromo />
           <div className={styles.sidebarTitle}>Naši alati i obrasci</div>

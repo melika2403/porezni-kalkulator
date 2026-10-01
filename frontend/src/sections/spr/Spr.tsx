@@ -23,6 +23,7 @@ import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 import { trackEvent } from "src/api/activity";
 import {
   DugmePreuzimanja,
+  ReklamaBanerIspod,
   ReklamaInline,
   ReklamaStub,
   usePorukaPoslijePreuzimanja,
@@ -1183,6 +1184,9 @@ export default function SprForm() {
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* baner banke partnera ispod alata; na mobitelu glavno mjesto */}
+      <ReklamaBanerIspod stranica="spr" />
 
       {/* bočni stubovi banke partnera (naše PK Office promocije su uklonjene) */}
       <ReklamaStub stranica="spr" strana="lijevo" raspored="fiksno" />

@@ -16,7 +16,7 @@ import OrgFillSelect, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import ShifraCombobox from "src/components/ShifraCombobox/ShifraCombobox";
 import { trackEvent } from "src/api/activity";
-import { DugmePreuzimanja, ReklamaStub } from "src/components/PartnerSlot/Slot";
+import { DugmePreuzimanja, ReklamaBanerIspod, ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 /* ── Constants ── */
 
@@ -945,6 +945,9 @@ export default function Zo3Form() {
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku.
         Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* baner banke partnera ispod alata; na mobitelu glavno mjesto */}
+      <ReklamaBanerIspod stranica="zo3" />
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>

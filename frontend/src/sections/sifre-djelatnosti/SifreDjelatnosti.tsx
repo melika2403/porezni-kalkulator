@@ -5,6 +5,7 @@ import Link from "next/link";
 import PkOfficePromo from "src/components/PkOfficePromo/PkOfficePromo";
 import { KD_BIH_DETAILED, type KdBihArea } from "src/data/kd-bih-detailed";
 import styles from "./sifre-djelatnosti.module.css";
+import { ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 type SearchHit = {
   area: KdBihArea;
@@ -453,6 +454,9 @@ export default function SifreDjelatnosti() {
       </header>
 
       <div className={styles.layout}>
+        {/* baner banke partnera skroz desno, uz lijevi sidebar po visini (od 1780px);
+            sadržaj stranice ostaje pune širine */}
+        <ReklamaStub stranica="sifre_djelatnosti" strana="desno" raspored="uzOkvir" />
         <aside className={styles.sidebar} aria-label="Alati na našoj stranici">
           <PkOfficePromo />
           <div className={styles.sidebarTitle}>Naši alati i obrasci</div>

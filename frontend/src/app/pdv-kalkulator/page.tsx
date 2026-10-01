@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { OG_IMAGE } from "src/lib/ogImage";
 import PdvKalkulator from "src/sections/pdv/Pdv";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/pdv-kalkulator";
 
@@ -98,7 +99,9 @@ export default function PdvKalkulatorPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <PdvKalkulator />
+      <SlotServer stranica="pdv">
+        <PdvKalkulator />
+      </SlotServer>
     </>
   );
 }

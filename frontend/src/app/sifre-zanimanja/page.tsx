@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SifreZanimanja from "src/sections/sifre-zanimanja/SifreZanimanja";
 import { ZANIMANJA_FBIH } from "src/data/zanimanja-fbih";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/sifre-zanimanja";
 const BROJ = ZANIMANJA_FBIH.length; // 4193
@@ -133,7 +134,9 @@ export default function SifreZanimanjaPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <SifreZanimanja />
+      <SlotServer stranica="sifre_zanimanja">
+        <SifreZanimanja />
+      </SlotServer>
     </>
   );
 }

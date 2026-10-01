@@ -400,3 +400,8 @@
     font-size: 16px;
   }
 }
+
+/* baner banke partnera stoji desno pored mreže (ReklamaStub raspored uzOkvir) */
+.layout {
+  position: relative;
+}

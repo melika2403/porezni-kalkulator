@@ -2,6 +2,7 @@ import UgovorOPozajmici from "src/sections/ugovor-o-pozajmici/UgovorOPozajmici";
 import { OG_IMAGE } from "src/lib/ogImage";
 
 import type { Metadata } from "next";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/ugovor-o-pozajmici";
 
@@ -147,7 +148,9 @@ export default function UgovorOPozajmiciPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <UgovorOPozajmici />
+      <SlotServer stranica="pozajmica">
+        <UgovorOPozajmici />
+      </SlotServer>
     </>
   );
 }

@@ -7,6 +7,8 @@ import NovaTemaDugme from "src/sections/vijesti/NovaTemaDugme";
 import { getTemeServer } from "src/lib/vijestiServer";
 import { RUBRIKE } from "src/data/vijesti";
 import styles from "src/sections/vijesti/vijesti.module.css";
+import { ReklamaBanerIspod } from "src/components/PartnerSlot/Slot";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/rasprave";
 
@@ -114,6 +116,10 @@ export default async function RaspravePage({
         rubrika={rubrika || undefined}
         filter={filter === "rijesene" ? "rijesene" : undefined}
       />
+      {/* baner banke partnera na dnu (kreativa stiže sa HTML-om) */}
+      <SlotServer stranica="rasprave">
+        <ReklamaBanerIspod stranica="rasprave" />
+      </SlotServer>
     </div>
   );
 }

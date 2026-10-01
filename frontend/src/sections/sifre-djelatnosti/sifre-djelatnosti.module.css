@@ -808,3 +808,8 @@
   }
   .page a { color: #000; text-decoration: none; }
 }
+
+/* baner banke partnera stoji desno pored mreže (ReklamaStub raspored uzOkvir) */
+.layout {
+  position: relative;
+}

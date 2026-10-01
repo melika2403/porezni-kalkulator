@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import styles from "./pdv.module.css";
+import { ReklamaBanerIspod, ReklamaInline, ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 const PDV_RATE   = 0.17;
 const BAM_TO_EUR = 1.95583; // fixed peg
@@ -183,6 +184,9 @@ export default function PdvKalkulator() {
         )}
       </div>
 
+      {/* kartica banke partnera odmah ispod rezultata (i na mobitelu) */}
+      <ReklamaInline stranica="pdv" className={styles.partnerInline} />
+
       <div className={styles.infoGrid}>
         <div className={styles.infoCard}>
           <div className={styles.infoTitle}>Formula: bez PDV-a → s PDV-om</div>
@@ -206,6 +210,11 @@ export default function PdvKalkulator() {
           </div>
         </div>
       </div>
+
+      {/* široki baner ispod alata; bočni stubovi izvan okvira od 760px (od 1440px) */}
+      <ReklamaBanerIspod stranica="pdv" />
+      <ReklamaStub stranica="pdv" strana="lijevo" raspored="fiksno" okvir={760} />
+      <ReklamaStub stranica="pdv" strana="desno" raspored="fiksno" okvir={760} />
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.eduSection}>

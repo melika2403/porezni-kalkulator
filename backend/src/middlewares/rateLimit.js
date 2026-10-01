@@ -50,4 +50,4 @@ function rateLimit({ prozorMs = 60 * 1000, maks = 30, imenik = "opsti" } = {}) {
   };
 }
 
-module.exports = { rateLimit };
+module.exports = { rateLimit, adresa };

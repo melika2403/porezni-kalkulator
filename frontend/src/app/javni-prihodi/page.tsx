@@ -5,6 +5,7 @@ import JavniPrihodi, {
 import { VRSTE_PRIHODA_GROUPS } from "src/data/javni-prihodi";
 import { KANTONI } from "src/data/uplatni-racuni";
 import { OPCINE_GROUPS } from "src/data/opcine";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/javni-prihodi";
 
@@ -64,7 +65,9 @@ export default function JavniPrihodiPage() {
   return (
     <>
       <JavniPrihodiJsonLd />
-      <JavniPrihodi />
+      <SlotServer stranica="javni_prihodi">
+        <JavniPrihodi />
+      </SlotServer>
     </>
   );
 }

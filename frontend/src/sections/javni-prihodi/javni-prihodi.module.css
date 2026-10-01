@@ -682,3 +682,8 @@
   .groupSummary { padding: 0.85rem 0.95rem; }
   .groupName { font-size: 14px; }
 }
+
+/* baner banke partnera stoji desno pored mreže (ReklamaStub raspored uzOkvir) */
+.layout {
+  position: relative;
+}

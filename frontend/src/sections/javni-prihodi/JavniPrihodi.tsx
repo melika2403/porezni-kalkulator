@@ -24,6 +24,7 @@ import {
 import { useUplatniRacuni } from "src/data/uplatniRacuniLive";
 import { reviewedFor } from "src/data/contentMeta";
 import styles from "./javni-prihodi.module.css";
+import { ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/javni-prihodi";
 
@@ -208,6 +209,9 @@ export default function JavniPrihodi() {
       </header>
 
       <div className={styles.layout}>
+        {/* baner banke partnera skroz desno, uz lijevi sidebar po visini (od 1780px);
+            sadržaj stranice ostaje pune širine */}
+        <ReklamaStub stranica="javni_prihodi" strana="desno" raspored="uzOkvir" />
         <aside className={styles.sidebar} aria-label="Naši alati i obrasci">
           <PkOfficePromo />
           <div className={styles.sidebarTitle}>Naši alati i obrasci</div>

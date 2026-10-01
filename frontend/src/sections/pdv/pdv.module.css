@@ -413,3 +413,9 @@
     padding: 1.5rem;
   }
 }
+
+/* kartica banke partnera ispod rezultata: razmak i iznad i ispod (kartica
+   kalkulatora na mobitelu nema donju marginu; margine se ne sabiraju) */
+.partnerInline {
+  margin: 1.5rem 0;
+}

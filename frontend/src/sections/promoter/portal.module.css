@@ -813,3 +813,57 @@ button.select {
     margin: 0 -16px -16px;
   }
 }
+
+/* Pregled: šest ključnih brojki u dva reda po tri */
+.kpiRedSest {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 960px) {
+  .kpiRedSest {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Izvještaji: kartica mjesečnog PDF izvještaja */
+.izvjestajKartica {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.izvjestajTekst {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.izvjestajTekst .napomenaTekst {
+  margin-top: 6px;
+}
+
+/* Specifikacija formata */
+.specPozicija {
+  min-width: 170px;
+}
+.specPozicija strong {
+  display: block;
+}
+.specMreza {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+.specLista {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+@media (max-width: 960px) {
+  .specMreza {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

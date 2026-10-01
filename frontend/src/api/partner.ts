@@ -43,7 +43,7 @@ export type JavnaReklama = {
   boja: string;
 };
 
-export type AktivneReklame = Record<ReklamaPozicija, JavnaReklama | null>;
+export type AktivneReklame = Partial<Record<ReklamaPozicija, JavnaReklama | null>>;
 
 export type ReklamaPayload = {
   naziv: string;
@@ -67,6 +67,8 @@ export type ReklamaPayload = {
   pocetak: string;
   kraj: string;
   tezina: number;
+  /** porezni rokovi u kojima kreativa ima pojačanu težinu (ROKOVI u data/partner) */
+  rokovi?: string[];
 };
 
 export type PromoterReklama = ReklamaPayload & {
@@ -97,17 +99,34 @@ export type ReklamaStatistika = {
     prikazi: number;
     klikovi: number;
   }[];
+  /** dio prikaza i klikova u periodu sa mobitela */
+  mobilni?: { prikazi: number; klikovi: number };
 };
 
 export type Zbir = { prikazi: number; klikovi: number };
+
+/** Zbir perioda sa mobitelom i jedinstvenim posjetiocima (zbir po danima). */
+export type ZbirPerioda = Zbir & {
+  /** prikazi pozicija sa linkom na partnera (bez dugmeta za preuzimanje), za CTR */
+  prikaziSaLinkom: number;
+  prikaziMob: number;
+  klikoviMob: number;
+  jedinstveni: number;
+  jedinstveniMob: number;
+};
 
 export type PregledKampanje = {
   dana: number;
   od: string;
   do: string;
-  ukupno: Zbir;
-  prethodno: Zbir;
-  poDanu: { datum: string; pozicije: Partial<Record<ReklamaPozicija, Zbir>> }[];
+  ukupno: ZbirPerioda;
+  prethodno: ZbirPerioda;
+  poDanu: {
+    datum: string;
+    pozicije: Partial<Record<ReklamaPozicija, Zbir>>;
+    /** jedinstveni posjetioci tog dana */
+    jedinstveni?: number;
+  }[];
   poPoziciji: {
     pozicija: ReklamaPozicija;
     reklamaId: number;
@@ -115,6 +134,12 @@ export type PregledKampanje = {
     stranice: string[];
     prikazi: number;
     klikovi: number;
+  }[];
+  poStranici?: {
+    stranica: string;
+    prikazi: number;
+    klikovi: number;
+    prikaziSaLinkom: number;
   }[];
   reklame: PromoterReklama[];
 };
@@ -217,6 +242,22 @@ export async function preuzmiIzvoz(dana: number): Promise<void> {
   const a = document.createElement("a");
   a.href = url;
   a.download = ime;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Mjesečni PDF izvještaj kampanje ("2026-09"), preuzima se i snima. */
+export async function preuzmiMjesecniIzvjestaj(mjesec: string): Promise<void> {
+  const res = await fetch(
+    `${BACKEND_URL}/api/partner/izvjestaj?mjesec=${encodeURIComponent(mjesec)}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `izvjestaj_kampanje_${mjesec}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }

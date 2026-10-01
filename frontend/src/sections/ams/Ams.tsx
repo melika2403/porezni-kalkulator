@@ -34,6 +34,7 @@ import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfil
 import { trackEvent } from "src/api/activity";
 import {
   DugmePreuzimanja,
+  ReklamaBanerIspod,
   ReklamaInline,
   ReklamaStub,
   usePorukaPoslijePreuzimanja,
@@ -1217,6 +1218,9 @@ export default function AmsForm() {
           Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
         </p>
       )}
+
+      {/* baner banke partnera ispod alata; na mobitelu glavno mjesto */}
+      <ReklamaBanerIspod stranica="ams" />
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>

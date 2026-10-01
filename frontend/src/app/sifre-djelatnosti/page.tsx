@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { reviewedFor } from "src/data/contentMeta";
 import SifreDjelatnosti from "src/sections/sifre-djelatnosti/SifreDjelatnosti";
 import { KD_BIH_DETAILED } from "src/data/kd-bih-detailed";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/sifre-djelatnosti";
 
@@ -209,7 +210,9 @@ export default function SifreDjelatnostiPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(definedTermSetSchema) }}
       />
-      <SifreDjelatnosti />
+      <SlotServer stranica="sifre_djelatnosti">
+        <SifreDjelatnosti />
+      </SlotServer>
     </>
   );
 }

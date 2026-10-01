@@ -4,6 +4,8 @@ import VijestiHeader from "src/sections/vijesti/VijestiHeader";
 import { VodicKartica } from "src/sections/vijesti/ClanakKartica";
 import { getClanciServer } from "src/lib/vijestiServer";
 import styles from "src/sections/vijesti/vijesti.module.css";
+import { ReklamaBanerIspod } from "src/components/PartnerSlot/Slot";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/vodici";
 
@@ -70,6 +72,10 @@ export default async function VodiciPage() {
           );
         })
       )}
+      {/* baner banke partnera na dnu (kreativa stiže sa HTML-om) */}
+      <SlotServer stranica="vodici">
+        <ReklamaBanerIspod stranica="vodici" />
+      </SlotServer>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { OG_IMAGE } from "src/lib/ogImage";
 import AmsForm from "src/sections/ams/Ams";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/ams";
 
@@ -156,7 +157,9 @@ export default function AmsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <AmsForm />
+      <SlotServer stranica="ams">
+        <AmsForm />
+      </SlotServer>
     </>
   );
 }

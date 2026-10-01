@@ -38,6 +38,8 @@ import {
 import { VIJESTI_UPUTSTVO, POMOC_POLJA } from "src/content/upustva/vijesti-objava";
 import { formatDate } from "src/lib/format";
 import { getBackendUrl } from "src/utils/backendUrl";
+import { getMojeReklame, type PromoterReklama } from "src/api/partner";
+import { unwrap } from "src/api/auth";
 import styles from "./adminVijesti.module.css";
 
 type Stanje = {
@@ -60,6 +62,8 @@ type Stanje = {
   uRijeci: boolean;
   istaknut: boolean;
   pozicija: VijestPozicija;
+  /** kreativa banke partnera za oznaku "Uz podršku" (null = nije sponzorisan) */
+  sponzorReklamaId: number | null;
 };
 
 const PRAZNO: Stanje = {
@@ -82,6 +86,7 @@ const PRAZNO: Stanje = {
   uRijeci: true,
   istaknut: false,
   pozicija: "OBICNO",
+  sponzorReklamaId: null,
 };
 
 /* ── Uvoz iz fajla (format "pk-vijest" v1) ──
@@ -304,6 +309,21 @@ export default function VijestEditor({ id }: { id: string }) {
     noviTekst ? null : Number(id),
   );
   const [s, setS] = useState<Stanje>(PRAZNO);
+  // kreative partnera za izbor sponzora teksta (admin vidi sve)
+  const [kreative, setKreative] = useState<PromoterReklama[]>([]);
+  useEffect(() => {
+    let aktivan = true;
+    unwrap(getMojeReklame())
+      .then((lista) => {
+        if (aktivan) setKreative(lista);
+      })
+      .catch(() => {
+        // bez liste kreativa polje sponzora ostaje samo sa "Bez sponzora"
+      });
+    return () => {
+      aktivan = false;
+    };
+  }, []);
   const [status, setStatus] = useState<VijestStatus>("NACRT");
   const [ucitavam, setUcitavam] = useState(!noviTekst);
   const [snimam, setSnimam] = useState(false);
@@ -367,6 +387,7 @@ export default function VijestEditor({ id }: { id: string }) {
         uRijeci: c.uRijeci,
         istaknut: c.istaknut,
         pozicija: c.pozicija ?? "OBICNO",
+        sponzorReklamaId: c.sponzorReklamaId ?? null,
       });
       setStatus(c.status);
       setDatumObjave(c.datumObjave);
@@ -431,6 +452,7 @@ export default function VijestEditor({ id }: { id: string }) {
       uRijeci: s.uRijeci,
       istaknut: s.istaknut,
       pozicija: s.pozicija,
+      sponzorReklamaId: s.sponzorReklamaId,
     };
   }
 
@@ -1058,6 +1080,30 @@ export default function VijestEditor({ id }: { id: string }) {
                 Kad ovaj tekst postane vodeći, dosadašnji vodeći se sam spušta
                 na izdvojeno, a najstariji izdvojeni u rijeku. Ako ništa ne
                 dirate, vrh zauzima najnoviji tekst.
+              </span>
+            </div>
+            <div className={`${styles.field} ${styles.sponzorPolje}`}>
+              <label className={styles.label}>Sponzor teksta (banka partner)</label>
+              <StyledSelect
+                ariaLabel="Sponzor teksta"
+                wrapStyle={{ width: "100%" }}
+                value={s.sponzorReklamaId ?? 0}
+                onChange={(v) => postavi("sponzorReklamaId", Number(v) || null)}
+                groups={[
+                  {
+                    options: [
+                      { value: 0, label: "Bez sponzora" },
+                      ...kreative.map((k) => ({
+                        value: k.id,
+                        label: `${k.brend} · ${k.naziv}`,
+                      })),
+                    ],
+                  },
+                ]}
+              />
+              <span className={styles.hint}>
+                Uz tekst ide oznaka &quot;Uz podršku&quot; sa logom i linkom izabrane kreative.
+                Prikazi i klikovi ulaze u izvještaj partnera kao &quot;Sponzorisan tekst&quot;.
               </span>
             </div>
             {s.tip === "VODIC" && (

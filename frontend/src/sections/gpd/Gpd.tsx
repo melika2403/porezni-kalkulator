@@ -21,6 +21,7 @@ import PersonFillSelect, {
 import SaveToProfileButton from "src/components/SaveToProfileButton/SaveToProfileButton";
 import {
   DugmePreuzimanja,
+  ReklamaBanerIspod,
   ReklamaInline,
   ReklamaStub,
   usePorukaPoslijePreuzimanja,
@@ -1666,6 +1667,9 @@ export default function GpdForm() {
           Nakon spremanja PDF dokumenta uvijek provjerite tačnost podataka.
         </p>
       )}
+
+      {/* baner banke partnera ispod alata; na mobitelu glavno mjesto */}
+      <ReklamaBanerIspod stranica="gpd" />
 
       {/* bočni stubovi banke partnera (naše PK Office promocije su uklonjene) */}
       <ReklamaStub stranica="gpd" strana="lijevo" raspored="fiksno" />

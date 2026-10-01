@@ -1,6 +1,6 @@
 /* Reklame promotera. Sve nijanse se izvode iz jedne boje brenda (--rk-boja),
-   pa banka bira samo akcentnu boju. Kartice su namjerno svijetle i u tamnoj
-   temi: to je vizuelni identitet oglašivača, ne naš. */
+   pa banka bira samo akcentnu boju. Tamna tema sajta ima svoj blok na kraju
+   fajla (tamna kartica sa akcentom brenda). */
 
 .stub,
 .stubSlika,
@@ -148,9 +148,37 @@
   .fiksnoDesno {
     left: calc(50% + 430px + 24px);
   }
+  /* stranice sa okvirom od 760px (PDV, neto/bruto) */
+  .fiksnoLijevo.fiksnoUzi {
+    right: calc(50% + 380px + 24px);
+  }
+  .fiksnoDesno.fiksnoUzi {
+    left: calc(50% + 380px + 24px);
+  }
   .fiksno .stub,
   .fiksno .stubSlika {
     height: min(600px, calc(100vh - 120px));
+  }
+}
+
+/* Stub uz okvir (šifarnici, sadržaj 1216px): desno pored roditelja, poravnat
+   sa lijevim sidebarom i ljepljiv kao on. Tek kad pored okvira ima mjesta,
+   da nikad ne prekrije niti suzi sadržaj stranice. */
+.uzOkvir {
+  display: none;
+}
+@media (min-width: 1780px) {
+  .uzOkvir {
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(100% + 24px);
+    width: 250px;
+  }
+  .uzOkvirLjepljiv {
+    position: sticky;
+    top: calc(64px + 1.5rem);
   }
 }
 
@@ -212,8 +240,10 @@
 }
 
 /* ── Široki baner na početnoj (ispod Pretplata) ── */
+/* razmak i iznad: Pretplate iznad imaju bijelu podlogu do ivice sekcije,
+   pa bi kartica bez njega počinjala tačno na toj ivici */
 .sirokaSekcija {
-  padding: 0 2rem 5rem;
+  padding: 3.5rem 2rem 5rem;
 }
 .siroka,
 .sirokaSlika {
@@ -385,7 +415,7 @@
 }
 @media (max-width: 860px) {
   .sirokaSekcija {
-    padding: 0 16px 3.5rem;
+    padding: 2.5rem 16px 3.5rem;
   }
   .siroka {
     flex-direction: column;
@@ -405,6 +435,47 @@
   }
   .sirokaLogotipi img {
     height: 30px;
+  }
+}
+
+/* Kompaktni široki baner: ispod alata (okvir 760 do 860px), vodiča i
+   rasprava. Ista kartica, manji razmaci i slova. */
+/* razmak i ispod: sekcije poslije banera (SEO, objašnjenja) nemaju gornju
+   marginu, pa bi se kartica zalijepila za njih */
+.sirokaSekcijaKompaktna {
+  margin: 2.5rem 0;
+}
+.sirokaKompaktna {
+  gap: 1.5rem;
+  padding: 1.6rem 1.75rem;
+  border-radius: 18px;
+}
+.sirokaKompaktna .sirokaKrug {
+  top: -100px;
+  right: -80px;
+  width: 240px;
+  height: 240px;
+}
+.sirokaKompaktna .sirokaTijelo {
+  gap: 0.6rem;
+}
+.sirokaKompaktna .sirokaLogotipi img {
+  height: 28px;
+}
+.sirokaKompaktna .sirokaNaslov {
+  font-size: clamp(20px, 2.2vw, 26px);
+}
+.sirokaKompaktna .sirokaTekst {
+  font-size: 15px;
+  line-height: 1.55;
+}
+.sirokaKompaktna .sirokaCta {
+  font-size: 15px;
+  padding: 0.75rem 1.2rem 0.75rem 1.5rem;
+}
+@media (max-width: 860px) {
+  .sirokaKompaktna {
+    padding: 1.4rem 1.2rem 1.6rem;
   }
 }
 
@@ -606,4 +677,140 @@
   .modalAkcije .cta {
     flex: 1 1 100%;
   }
+}
+
+/* ── Tamna tema sajta ──────────────────────────────────────────────────────
+   U tamnoj temi kartica je tamna sa akcentom brenda, ne bijeli blok koji
+   iskače iz stranice. Mijenjaju se samo površine i tekst; dugme (CTA) i
+   pločica sa logom ostaju u boji brenda. Partner portal je uvijek svijetao i
+   stavlja .svijetlo na body, pa pregled kreative u portalu ostaje svijetao. */
+.svijetlo {
+  color-scheme: light;
+}
+
+:global(.dark) body:not(.svijetlo) :is(.stub, .stubSlika, .inline, .inlineSlika, .modalPoruka, .siroka, .sirokaSlika) {
+  --rk-svijetla: color-mix(in srgb, var(--rk-boja) 11%, #181b18);
+  --rk-srednja: color-mix(in srgb, var(--rk-boja) 40%, #181b18);
+  --rk-naslov-tamna: color-mix(in srgb, var(--rk-boja) 22%, #fff);
+  --rk-tekst-tamna: color-mix(in srgb, var(--rk-boja) 12%, #d6d2c9);
+  --rk-oznaka-tamna: color-mix(in srgb, var(--rk-boja) 45%, #fff);
+}
+:global(.dark) body:not(.svijetlo) :is(.stub, .stubSlika, .inline, .inlineSlika, .modalPoruka) {
+  border-color: color-mix(in srgb, var(--rk-boja) 70%, #181b18);
+}
+:global(.dark) body:not(.svijetlo) :is(.stubNaslov, .inlineNaslov, .modalNaslovPoruke) {
+  color: var(--rk-naslov-tamna);
+}
+:global(.dark) body:not(.svijetlo) :is(.stubTekst, .inlineTekst, .modalTekstPoruke) {
+  color: var(--rk-tekst-tamna);
+}
+:global(.dark) body:not(.svijetlo) :is(.oznaka, .inlineOznaka, .modalOznaka) {
+  color: var(--rk-oznaka-tamna);
+}
+:global(.dark) body:not(.svijetlo) .sekundarni {
+  background: transparent;
+  color: var(--rk-naslov-tamna);
+}
+
+/* široki baner na početnoj */
+:global(.dark) body:not(.svijetlo) :is(.siroka, .sirokaSlika) {
+  background: #181b18;
+  color: #f5f2eb;
+  box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.6), 0 0 0 1px #2f342f;
+}
+:global(.dark) body:not(.svijetlo) .sirokaNaslov {
+  color: #f5f2eb;
+}
+:global(.dark) body:not(.svijetlo) .sirokaTekst {
+  color: var(--rk-tekst-tamna);
+}
+:global(.dark) body:not(.svijetlo) :is(.sirokaOznaka, .sirokaBrend) {
+  color: var(--rk-oznaka-tamna);
+}
+:global(.dark) body:not(.svijetlo) .sirokaCrta {
+  background: #2f342f;
+}
+
+/* prozor poslije preuzimanja */
+:global(.dark) body:not(.svijetlo) .modal {
+  background: #181b18;
+  color: #f5f2eb;
+}
+:global(.dark) body:not(.svijetlo) .modalKvacica {
+  background: #2d4633;
+  color: #a8c1a4;
+}
+:global(.dark) body:not(.svijetlo) .modalPodnaslov {
+  color: #a9a59c;
+  border-bottom-color: #2f342f;
+}
+:global(.dark) body:not(.svijetlo) .modalZatvori {
+  color: #a9a59c;
+}
+:global(.dark) body:not(.svijetlo) .modalZatvori:hover {
+  color: #f5f2eb;
+}
+
+/* Mekan ulazak: ako kreativa ipak stigne poslije stranice (server je nije
+   donio), ne iskoči naglo */
+:is(.stub, .stubSlika, .inline, .inlineSlika, .modalPoruka) {
+  animation: rkPojava 0.3s ease;
+}
+@keyframes rkPojava {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ── Sponzorisan tekst ("Uz podršku <brend>") ── */
+.sponzor {
+  --rk-svijetla: color-mix(in srgb, var(--rk-boja) 7%, #fff);
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin: 0 0 1.5rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--rk-boja) 35%, #fff);
+  border-radius: 10px;
+  background: var(--rk-svijetla);
+  font-family: "DM Sans", sans-serif;
+}
+.sponzorOznaka {
+  font-size: 12px;
+  color: #5a6a5d;
+}
+.sponzor .brend {
+  padding: 0.35rem 0.6rem;
+  min-height: 0;
+  font-size: 13px;
+}
+.sponzor .brendLogo {
+  max-height: 20px;
+}
+.sponzorLink {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rk-boja);
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--rk-boja) 45%, #fff);
+  border-radius: 100px;
+  padding: 0.3rem 0.85rem;
+  background: #fff;
+}
+.sponzorLink:hover {
+  border-color: var(--rk-boja);
+}
+:global(.dark) body:not(.svijetlo) .sponzor {
+  background: color-mix(in srgb, var(--rk-boja) 9%, #181b18);
+  border-color: color-mix(in srgb, var(--rk-boja) 45%, #181b18);
+}
+:global(.dark) body:not(.svijetlo) .sponzorOznaka {
+  color: #a9a59c;
+}
+:global(.dark) body:not(.svijetlo) .sponzorLink {
+  background: transparent;
+  color: color-mix(in srgb, var(--rk-boja) 30%, #fff);
+  border-color: color-mix(in srgb, var(--rk-boja) 55%, #181b18);
 }

@@ -52,6 +52,14 @@ export type Clanak = {
   seoNaslov: string | null;
   seoOpis: string | null;
   sadrzaj?: string;
+  /** sponzorisan tekst: banka partner (samo u detalju teksta) */
+  sponzor?: {
+    id: number;
+    brend: string;
+    logoUrl: string | null;
+    boja: string;
+    ctaTekst: string | null;
+  } | null;
 };
 
 export type AdminClanak = Clanak & {
@@ -59,6 +67,7 @@ export type AdminClanak = Clanak & {
   uRijeci: boolean;
   datumProvjere: string | null;
   fokusFraza: string | null;
+  sponzorReklamaId?: number | null;
   trebaProvjeru?: boolean;
   autor?: string | null;
   updatedAt?: string;
@@ -101,6 +110,7 @@ export type ClanakPayload = {
   uRijeci?: boolean;
   istaknut?: boolean;
   pozicija?: VijestPozicija;
+  sponzorReklamaId?: number | null;
 };
 
 // Javni dio (naslovna, liste, jedan tekst) se čita na serveru kroz

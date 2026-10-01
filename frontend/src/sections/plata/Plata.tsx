@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import styles from "./plata.module.css";
+import { ReklamaBanerIspod, ReklamaInline, ReklamaStub } from "src/components/PartnerSlot/Slot";
 import { fromGross, fromNet, deductionFromCoefficient } from "src/utils/payrollFbih";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -231,6 +232,13 @@ export default function PreracunPlate() {
           <p className={styles.placeholder}>Unesite iznos da vidite preračun.</p>
         )}
       </div>
+
+      {/* kartica banke partnera odmah ispod rezultata (i na mobitelu), pa
+          široki baner; bočni stubovi izvan okvira od 760px (od 1440px) */}
+      <ReklamaInline stranica="neto_bruto" className={styles.partnerInline} />
+      <ReklamaBanerIspod stranica="neto_bruto" />
+      <ReklamaStub stranica="neto_bruto" strana="lijevo" raspored="fiksno" okvir={760} />
+      <ReklamaStub stranica="neto_bruto" strana="desno" raspored="fiksno" okvir={760} />
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.eduSection}>

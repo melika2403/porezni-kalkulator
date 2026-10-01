@@ -11,6 +11,7 @@ import Faq from "src/components/Faq/Faq";
 import SocialProof from "src/components/SocialProof/SocialProof";
 import FinalCta from "src/components/FinalCta/FinalCta";
 import { ReklamaBaner } from "src/components/PartnerSlot/Slot";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 export default function HomePage() {
   return (
@@ -19,8 +20,11 @@ export default function HomePage() {
         <Hero />
         <Features />
         <Pricing />
-        {/* široki baner banke partnera; bez aktivne kreative nema ničega */}
-        <ReklamaBaner stranica="pocetna" />
+        {/* široki baner banke partnera; bez aktivne kreative nema ničega.
+            SlotServer donosi kreativu sa HTML-om, pa sekcije ispod ne skaču */}
+        <SlotServer stranica="pocetna">
+          <ReklamaBaner stranica="pocetna" />
+        </SlotServer>
         <HowItWorks />
         <SocialProof />
         <PkOfficeTeaser />

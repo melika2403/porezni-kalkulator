@@ -13,6 +13,7 @@ import Komentari from "./Komentari";
 import BrojKomentara from "./BrojKomentara";
 import BrojDijeljenja from "./BrojDijeljenja";
 import PkOfficeCta from "./PkOfficeCta";
+import SponzorTeksta from "src/components/PartnerSlot/Sponzor";
 import {
   getClanakServer,
   getClanciServer,
@@ -150,6 +151,10 @@ export default async function ClanakStranica({
           )}
 
           {clanak.sazetak && <p className={styles.lead}>{clanak.sazetak}</p>}
+
+          {clanak.sponzor && (
+            <SponzorTeksta sponzor={clanak.sponzor} stranica={jeVodic ? "vodici" : "vijesti"} />
+          )}
 
           {/* sadržaj je sanitiziran na serveru prije upisa u bazu */}
           <div

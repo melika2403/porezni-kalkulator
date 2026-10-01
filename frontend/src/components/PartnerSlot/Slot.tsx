@@ -28,24 +28,37 @@ type Strana = "lijevo" | "desno";
  *  - raspored "fiksno": sam se pozicionira izvan okvira stranice od 860px
  *    (SPR, GPD), od 1440px širine
  *  - raspored "mreza": roditelj ga smješta (AMS grid), samo kartica
+ *  - raspored "uzOkvir": desno pored roditelja (šifarnici, roditelj mora
+ *    imati position: relative), od vrha roditelja i prati skrol kao lijevi
+ *    sidebar; samo kad pored okvira ima mjesta (od 1780px)
  */
 export function ReklamaStub({
   stranica,
   strana,
   raspored = "mreza",
+  okvir = 860,
 }: {
   stranica: ReklamaStranica;
   strana: Strana;
-  raspored?: "fiksno" | "mreza";
+  raspored?: "fiksno" | "mreza" | "uzOkvir";
+  /** širina okvira stranice za "fiksno" (stub stoji odmah izvan njega) */
+  okvir?: 860 | 760;
 }) {
   const pozicija = strana === "lijevo" ? "SIDEBAR_LIJEVO" : "SIDEBAR_DESNO";
   const r = useReklama(stranica, pozicija);
   if (!r) return null;
   const kartica = <ReklamaStubKartica r={r} ctx={{ stranica, pozicija }} />;
   if (raspored === "mreza") return kartica;
+  if (raspored === "uzOkvir") {
+    return (
+      <aside className={styles.uzOkvir} aria-label={`Partner: ${r.brend}`}>
+        <div className={styles.uzOkvirLjepljiv}>{kartica}</div>
+      </aside>
+    );
+  }
   return (
     <aside
-      className={`${styles.fiksno} ${strana === "lijevo" ? styles.fiksnoLijevo : styles.fiksnoDesno}`}
+      className={`${styles.fiksno} ${strana === "lijevo" ? styles.fiksnoLijevo : styles.fiksnoDesno} ${okvir === 760 ? styles.fiksnoUzi : ""}`}
       aria-label={`Partner: ${r.brend}`}
     >
       {kartica}
@@ -80,8 +93,8 @@ export function ReklamaInline({
 }
 
 /**
- * Široki baner (početna, ispod Pretplata). Bez aktivne kreative na ovoj
- * poziciji ne crta ništa, ni praznu sekciju.
+ * Veliki baner, samo na početnoj ispod Pretplata. Bez aktivne kreative na
+ * ovoj poziciji ne crta ništa, ni praznu sekciju.
  */
 export function ReklamaBaner({ stranica }: { stranica: ReklamaStranica }) {
   const r = useReklama(stranica, "BANER");
@@ -89,6 +102,21 @@ export function ReklamaBaner({ stranica }: { stranica: ReklamaStranica }) {
   return (
     <section className={styles.sirokaSekcija} aria-label={`Partner: ${r.brend}`}>
       <ReklamaBanerKartica r={r} ctx={{ stranica, pozicija: "BANER" }} />
+    </section>
+  );
+}
+
+/**
+ * Baner ispod obrasca (alati, vodiči, rasprave): ista kartica kao veliki
+ * baner, manja. Na mobitelu je to glavno mjesto kreative jer bočnih stubova
+ * tamo nema. Zasebna pozicija od velikog banera na početnoj.
+ */
+export function ReklamaBanerIspod({ stranica }: { stranica: ReklamaStranica }) {
+  const r = useReklama(stranica, "BANER_ISPOD");
+  if (!r) return null;
+  return (
+    <section className={styles.sirokaSekcijaKompaktna} aria-label={`Partner: ${r.brend}`}>
+      <ReklamaBanerKartica r={r} ctx={{ stranica, pozicija: "BANER_ISPOD" }} kompaktno />
     </section>
   );
 }

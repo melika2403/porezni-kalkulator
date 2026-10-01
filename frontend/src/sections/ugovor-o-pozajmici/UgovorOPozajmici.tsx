@@ -10,7 +10,7 @@ import { useCityLookup } from "src/hooks/useCities";
 import { formatAddress } from "src/utils/formatAddress";
 import { iznosUSlova } from "../ugovor-o-djelu/iznosSlovima";
 import { trackEvent } from "src/api/activity";
-import { DugmePreuzimanja, ReklamaStub } from "src/components/PartnerSlot/Slot";
+import { DugmePreuzimanja, ReklamaBanerIspod, ReklamaStub } from "src/components/PartnerSlot/Slot";
 
 const isoToDisplay = (iso: string) => {
   if (!iso || !iso.includes("-")) return iso;
@@ -573,6 +573,9 @@ export default function UgovorOPozajmici() {
       <p className={styles.dataNapomena}>
         Porezni kalkulator ne zadržava popunjene podatke ni u kojem obliku. Nakon spremanja dokumenta uvijek provjerite tačnost podataka.
       </p>
+
+      {/* baner banke partnera ispod alata; na mobitelu glavno mjesto */}
+      <ReklamaBanerIspod stranica="pozajmica" />
 
       {/* ── Edukativni sadržaj (SEO) ─────────────────────────────────── */}
       <section className={styles.section}>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { OG_IMAGE } from "src/lib/ogImage";
 import GpdForm from "src/sections/gpd/Gpd";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/gpd";
 
@@ -146,7 +147,9 @@ export default function GpdPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <GpdForm />
+      <SlotServer stranica="gpd">
+        <GpdForm />
+      </SlotServer>
     </>
   );
 }

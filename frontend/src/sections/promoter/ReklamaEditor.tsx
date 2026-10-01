@@ -24,6 +24,9 @@ import {
 } from "src/api/partner";
 import {
   POZICIJE,
+  POZICIJE_PO_STRANICI,
+  PRIJEDLOZI_TEKSTA,
+  ROKOVI,
   STRANICE,
   nazivPozicije,
   nazivStranice,
@@ -77,6 +80,7 @@ type Forma = {
   doDatum: string;
   doVrijeme: string;
   tezina: number;
+  rokovi: string[];
 };
 
 function praznaForma(prethodna?: PromoterReklama): Forma {
@@ -109,6 +113,7 @@ function praznaForma(prethodna?: PromoterReklama): Forma {
     doDatum: doD.datum,
     doVrijeme: "23:59",
     tezina: 1,
+    rokovi: [],
   };
 }
 
@@ -140,6 +145,7 @@ function izReklame(r: PromoterReklama): Forma {
     doDatum: doD.datum,
     doVrijeme: doD.vrijeme,
     tezina: r.tezina,
+    rokovi: r.rokovi ?? [],
   };
 }
 
@@ -194,6 +200,7 @@ function uPayload(f: Forma): ReklamaPayload | string {
     pocetak,
     kraj,
     tezina: f.tezina,
+    rokovi: f.rokovi,
   };
 }
 
@@ -438,6 +445,14 @@ function EditorForma({
 
             {forma.format === "SABLON" ? (
               <>
+                <PrijedloziTeksta
+                  stranice={forma.sveStranice ? null : forma.stranice}
+                  onIzaberi={(pr) => {
+                    postavi("naslov", pr.naslov);
+                    postavi("tekst", pr.tekst);
+                    postavi("ctaTekst", pr.cta);
+                  }}
+                />
                 <Polje
                   label="Oznaka iznad naslova (opcionalno)"
                   napomena="Široki baner na početnoj, npr. Ponuda za nove obrtnike."
@@ -618,6 +633,7 @@ function EditorForma({
                 </label>
               ))}
             </div>
+            <PozicijeBezStranice forma={forma} />
           </section>
 
           {/* ── Kada ── */}
@@ -656,6 +672,33 @@ function EditorForma({
                   />
                 </div>
               </Polje>
+            </div>
+            <p className={`${s.labela} ${s.labelaRazmak}`}>Pojačano pred porezne rokove</p>
+            <p className={s.napomena}>
+              Dok rok traje, ova kreativa se prikazuje tri puta češće od vaših ostalih na istoj
+              poziciji. Dobro za poruke vezane za rok, npr. godišnju prijavu do 31.3.
+            </p>
+            <div className={`${s.pozicije} ${s.rokovi}`}>
+              {ROKOVI.map((rk) => (
+                <label key={rk.id} className={s.pozicija}>
+                  <input
+                    type="checkbox"
+                    checked={forma.rokovi.includes(rk.id)}
+                    onChange={(e) =>
+                      postavi(
+                        "rokovi",
+                        e.target.checked
+                          ? [...forma.rokovi, rk.id]
+                          : forma.rokovi.filter((x) => x !== rk.id),
+                      )
+                    }
+                  />
+                  <span>
+                    <strong>{rk.naziv}</strong>
+                    <small>{rk.opis}</small>
+                  </span>
+                </label>
+              ))}
             </div>
             <Polje
               label="Učestalost u rotaciji"
@@ -729,12 +772,12 @@ function Pregled({ r, pozicija }: { r: JavnaReklama; pozicija: ReklamaPozicija }
     );
   }
   if (pozicija === "INLINE") return <ReklamaInlineKartica r={r} ctx={ctx} />;
-  if (pozicija === "BANER") {
+  if (pozicija === "BANER" || pozicija === "BANER_ISPOD") {
     // široka kartica je pravljena za punu širinu: u uskoj koloni se smanji
     return (
       <div className={s.pregledSiroki}>
         <div className={s.pregledSirokiUnutra}>
-          <ReklamaBanerKartica r={r} ctx={ctx} />
+          <ReklamaBanerKartica r={r} ctx={ctx} kompaktno={pozicija === "BANER_ISPOD"} />
         </div>
       </div>
     );
@@ -763,6 +806,50 @@ function PregledDugme({ r }: { r: JavnaReklama }) {
         }
       />
     </button>
+  );
+}
+
+/** Prijedlozi teksta za izabrane stranice (sve stranice: svi prijedlozi). */
+function PrijedloziTeksta({
+  stranice,
+  onIzaberi,
+}: {
+  stranice: ReklamaStranica[] | null;
+  onIzaberi: (p: (typeof PRIJEDLOZI_TEKSTA)[number]) => void;
+}) {
+  const lista = stranice
+    ? PRIJEDLOZI_TEKSTA.filter((p) => p.stranice.some((st) => stranice.includes(st)))
+    : PRIJEDLOZI_TEKSTA;
+  if (lista.length === 0) return null;
+  return (
+    <div className={s.prijedlozi}>
+      <span className={s.labela}>Prijedlog teksta za izabrane stranice</span>
+      <div className={s.prijedloziLista}>
+        {lista.map((p) => (
+          <button key={p.naziv} type="button" className={s.prijedlog} onClick={() => onIzaberi(p)}>
+            {p.naziv}
+          </button>
+        ))}
+      </div>
+      <small className={s.napomena}>
+        Klik upisuje naslov, tekst i dugme; zatim ih prilagodite svojoj ponudi.
+      </small>
+    </div>
+  );
+}
+
+/** Upozorenje: izabrana pozicija ne postoji ni na jednoj izabranoj stranici. */
+function PozicijeBezStranice({ forma }: { forma: Forma }) {
+  if (forma.sveStranice || forma.stranice.length === 0) return null;
+  const nema = forma.pozicije.filter(
+    (poz) => !forma.stranice.some((st) => POZICIJE_PO_STRANICI[st]?.includes(poz)),
+  );
+  if (nema.length === 0) return null;
+  return (
+    <p className={s.napomenaPregled}>
+      Na izabranim stranicama nema pozicije: {nema.map(nazivPozicije).join(", ")}. Kreativa se
+      tamo neće prikazivati dok ne izaberete stranicu koja je ima (vidi Pozicije).
+    </p>
   );
 }
 

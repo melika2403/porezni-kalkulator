@@ -192,6 +192,28 @@ async function ensureColumns() {
       ddl: "ALTER TABLE organizations ADD COLUMN bankExportBank VARCHAR(20) NULL",
     },
     {
+      // reklame: dio prikaza/klikova sa mobitela i kampanje pred porezne rokove
+      table: "reklame_statistika",
+      column: "prikaziMob",
+      ddl: "ALTER TABLE reklame_statistika ADD COLUMN prikaziMob INT UNSIGNED NOT NULL DEFAULT 0",
+    },
+    {
+      table: "reklame_statistika",
+      column: "klikoviMob",
+      ddl: "ALTER TABLE reklame_statistika ADD COLUMN klikoviMob INT UNSIGNED NOT NULL DEFAULT 0",
+    },
+    {
+      table: "reklame",
+      column: "rokovi",
+      ddl: "ALTER TABLE reklame ADD COLUMN rokovi JSON NULL",
+    },
+    {
+      // sponzorisani tekst: "Uz podršku <brend>" iz izabrane reklame banke
+      table: "vijesti_clanci",
+      column: "sponzorReklamaId",
+      ddl: "ALTER TABLE vijesti_clanci ADD COLUMN sponzorReklamaId INT UNSIGNED NULL",
+    },
+    {
       // mjesto teksta na naslovnoj vijesti (kaskada vodeća → izdvojeno → obično)
       table: "vijesti_clanci",
       column: "pozicija",

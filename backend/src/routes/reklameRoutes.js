@@ -1,5 +1,5 @@
 const express = require("express");
-const { requireAuth, requireRole } = require("../middlewares/authMiddleware");
+const { requireAuth, optionalAuth, requireRole } = require("../middlewares/authMiddleware");
 const { partnerUpload } = require("../utils/uploads");
 const { rateLimit } = require("../middlewares/rateLimit");
 const ctrl = require("../controllers/reklameController");
@@ -20,6 +20,7 @@ portal.post("/", ...promoter, ctrl.kreiraj);
 portal.post("/slika", ...promoter, partnerUpload.single("slika"), ctrl.uploadSlike);
 portal.get("/pregled", ...promoter, ctrl.pregled);
 portal.get("/izvoz", ...promoter, ctrl.izvoz);
+portal.get("/izvjestaj", ...promoter, ctrl.mjesecniIzvjestaj);
 portal.get("/:id", ...promoter, ctrl.detalj);
 portal.put("/:id", ...promoter, ctrl.izmijeni);
 portal.post("/:id/status", ...promoter, ctrl.promijeniStatus);
@@ -33,7 +34,8 @@ const javno = express.Router();
 const prikazLimit = rateLimit({ prozorMs: 60 * 1000, maks: 60, imenik: "p-e" });
 
 javno.get("/s", ctrl.aktivne);
-javno.post("/e/:id", prikazLimit, ctrl.zabiljeziPrikaz);
+// optionalAuth: prijavljeni admin i partner se ne broje (interni promet)
+javno.post("/e/:id", prikazLimit, optionalAuth, ctrl.zabiljeziPrikaz);
 
 // ── Klik (/r/:id) ───────────────────────────────────────────────────────────
 // Klik je redirect: posjetilac preko limita i dalje mora stići do banke, samo
@@ -55,6 +57,6 @@ function klikBrojac(req, _res, next) {
 }
 
 const klik = express.Router();
-klik.get("/:id", klikBrojac, ctrl.klik);
+klik.get("/:id", klikBrojac, optionalAuth, ctrl.klik);
 
 module.exports = { portal, javno, klik };

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { OG_IMAGE } from "src/lib/ogImage";
 import Zo3Form from "src/sections/zo3/Zo3";
+import SlotServer from "src/components/PartnerSlot/SlotServer";
 
 const PAGE_URL = "https://www.poreznikalkulator.ba/zo3";
 
@@ -132,7 +133,9 @@ export default function Zo3Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <Zo3Form />
+      <SlotServer stranica="zo3">
+        <Zo3Form />
+      </SlotServer>
     </>
   );
 }

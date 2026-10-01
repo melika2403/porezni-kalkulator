@@ -20,10 +20,16 @@ export const GRUPE: {
   {
     id: "bocni",
     naziv: "banneri",
-    pozicije: ["SIDEBAR_LIJEVO", "SIDEBAR_DESNO", "BANER"],
+    pozicije: ["SIDEBAR_LIJEVO", "SIDEBAR_DESNO", "BANER", "BANER_ISPOD"],
     boja: "#d9232d",
   },
-  { id: "nativna", naziv: "nativna poruka", pozicije: ["INLINE", "MODAL"], boja: "#ef8f95" },
+  // sponzorisan tekst je nativni format (oznaka "Uz podršku" u vodiču/vijesti)
+  {
+    id: "nativna",
+    naziv: "nativna poruka",
+    pozicije: ["INLINE", "MODAL", "SPONZOR"],
+    boja: "#ef8f95",
+  },
   { id: "dugme", naziv: "dugme za preuzimanje", pozicije: ["DUGME"], boja: "#a61b24" },
 ];
 

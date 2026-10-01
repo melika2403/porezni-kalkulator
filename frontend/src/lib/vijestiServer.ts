@@ -5,7 +5,7 @@ import type { Clanak } from "src/api/vijesti";
 
 const REVALIDATE = 60;
 
-function backendUrl(): string {
+export function backendUrl(): string {
   return (
     process.env.BACKEND_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
