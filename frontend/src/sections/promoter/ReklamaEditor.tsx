@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
+import DateInput from "src/components/DateInput/DateInput";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
+import VrijemeInput from "src/components/VrijemeInput/VrijemeInput";
 import {
   getMojeReklame,
   getReklama,
@@ -213,7 +216,9 @@ export default function ReklamaEditor({ id }: { id?: string }) {
     return (
       <div className={s.stranica}>
         <p className={s.greska}>{porukaGreske(postojeca.error)}</p>
-        <Link href="/partner/kreative">Nazad na kreative</Link>
+        <Link href="/partner/kreative" className={s.sekundarno}>
+          Nazad na kreative
+        </Link>
       </div>
     );
   }
@@ -588,7 +593,7 @@ function EditorForma({
               </div>
             )}
 
-            <p className={s.labela} style={{ marginTop: "1.25rem" }}>
+            <p className={`${s.labela} ${s.labelaRazmak}`}>
               Pozicije
             </p>
             <div className={s.pozicije}>
@@ -618,38 +623,36 @@ function EditorForma({
           {/* ── Kada ── */}
           <section className={s.kartica}>
             <h2 className={s.sekcijaNaslov}>Termin prikazivanja</h2>
-            <div className={s.dvaStupca}>
+            <div className={s.terminRed}>
               <Polje label="Od">
                 <div className={s.datumRed}>
-                  <input
-                    type="date"
+                  <DateInput
                     className={s.input}
                     value={forma.odDatum}
-                    onChange={(e) => postavi("odDatum", e.target.value)}
+                    onValueChange={(v) => postavi("odDatum", v)}
                     required
                   />
-                  <input
-                    type="time"
+                  <VrijemeInput
                     className={s.input}
                     value={forma.odVrijeme}
-                    onChange={(e) => postavi("odVrijeme", e.target.value)}
+                    onValueChange={(v) => postavi("odVrijeme", v)}
+                    aria-label="Vrijeme početka"
                   />
                 </div>
               </Polje>
               <Polje label="Do">
                 <div className={s.datumRed}>
-                  <input
-                    type="date"
+                  <DateInput
                     className={s.input}
                     value={forma.doDatum}
-                    onChange={(e) => postavi("doDatum", e.target.value)}
+                    onValueChange={(v) => postavi("doDatum", v)}
                     required
                   />
-                  <input
-                    type="time"
+                  <VrijemeInput
                     className={s.input}
                     value={forma.doVrijeme}
-                    onChange={(e) => postavi("doVrijeme", e.target.value)}
+                    onValueChange={(v) => postavi("doVrijeme", v)}
+                    aria-label="Vrijeme kraja"
                   />
                 </div>
               </Polje>
@@ -658,18 +661,19 @@ function EditorForma({
               label="Učestalost u rotaciji"
               napomena="Kad je više vaših reklama na istoj poziciji, veći broj se prikazuje češće."
             >
-              <select
-                className={s.input}
+              <StyledSelect
                 value={forma.tezina}
-                onChange={(e) => postavi("tezina", Number(e.target.value))}
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                    {n === 1 ? " (uobičajeno)" : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => postavi("tezina", Number(v))}
+                ariaLabel="Učestalost u rotaciji"
+                groups={[
+                  {
+                    options: Array.from({ length: 10 }, (_, i) => i + 1).map((n) => ({
+                      value: n,
+                      label: n === 1 ? "1 (uobičajeno)" : String(n),
+                    })),
+                  },
+                ]}
+              />
             </Polje>
           </section>
 
@@ -693,18 +697,13 @@ function EditorForma({
         <aside className={s.pregled}>
           <div className={s.pregledZaglavlje}>
             <span className={s.labela}>Pregled</span>
-            <select
-              className={s.input}
+            <StyledSelect
               value={pregledPozicija}
-              onChange={(e) => setPregledPozicija(e.target.value as ReklamaPozicija)}
-              aria-label="Pozicija za pregled"
-            >
-              {POZICIJE.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.naziv}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setPregledPozicija(v as ReklamaPozicija)}
+              ariaLabel="Pozicija za pregled"
+              fitPanel
+              groups={[{ options: POZICIJE.map((p) => ({ value: p.id, label: p.naziv })) }]}
+            />
           </div>
           {!forma.pozicije.includes(pregledPozicija) && (
             <p className={s.napomenaPregled}>
@@ -828,7 +827,7 @@ function UploadSlike({
             {upload.isPending ? "Učitavanje..." : prikaz ? "Zamijeni" : "Učitaj sliku"}
           </button>
           {prikaz && (
-            <button type="button" className={s.linkDugme} onClick={() => onChange(null)}>
+            <button type="button" className={s.opasnoMalo} onClick={() => onChange(null)}>
               Ukloni
             </button>
           )}
@@ -866,7 +865,7 @@ function Statistika({
   });
 
   return (
-    <section className={s.kartica} style={{ marginTop: "1.5rem" }}>
+    <section className={`${s.kartica} ${s.statistikaKartica}`}>
       <h2 className={s.sekcijaNaslov}>Statistika</h2>
       <p className={s.podnaslov}>
         Ukupno {fmtBroj(ukupnoPrikazi)} prikaza i {fmtBroj(ukupnoKlikovi)} klikova (CTR{" "}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
+import StyledSelect from "src/components/StyledSelect/StyledSelect";
 import { getPregledKampanje, preuzmiIzvoz } from "src/api/partner";
 import { kratkoStranice, nazivPozicije } from "src/data/partner";
 import { fmtBroj, fmtCtr, fmtTermin, porukaGreske } from "./format";
@@ -32,18 +33,14 @@ export function PeriodIzbor({
   onChange: (d: number) => void;
 }) {
   return (
-    <select
+    <StyledSelect
       className={p.select}
+      wrapStyle={{ minWidth: 200 }}
       value={dana}
-      onChange={(e) => onChange(Number(e.target.value))}
-      aria-label="Period"
-    >
-      {PERIODI.map((x) => (
-        <option key={x.dana} value={x.dana}>
-          {x.naziv}
-        </option>
-      ))}
-    </select>
+      onChange={(v) => onChange(Number(v))}
+      ariaLabel="Period"
+      groups={[{ options: PERIODI.map((x) => ({ value: x.dana, label: x.naziv })) }]}
+    />
   );
 }
 
@@ -153,7 +150,9 @@ export default function PregledKampanje() {
           )}
           {reklame.length > 5 && (
             <p className={p.napomena}>
-              <Link href="/partner/kreative">Sve kreative ({reklame.length})</Link>
+              <Link href="/partner/kreative" className={p.dugmeMalo}>
+                Sve kreative ({reklame.length})
+              </Link>
             </p>
           )}
           <p className={p.napomena}>Promjene su vidljive na portalu odmah, bez odobrenja.</p>

@@ -581,10 +581,20 @@
   flex: 0 1 220px;
 }
 .sekundarni {
+  display: inline-flex;
+  align-items: center;
   font-size: 14px;
+  font-weight: 500;
   color: var(--rk-tamna);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid var(--rk-srednja);
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+}
+.sekundarni:hover {
+  border-color: var(--rk-boja);
+  background: var(--rk-svijetla);
 }
 @media (max-width: 520px) {
   .modal {

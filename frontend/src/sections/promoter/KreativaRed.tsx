@@ -64,7 +64,7 @@ export default function KreativaRed({ r }: { r: PromoterReklama }) {
   return (
     <Link href={`/partner/kreative/${r.id}`} className={p.kreativa}>
       <KreativaSlicica r={r} />
-      <span style={{ minWidth: 0 }}>
+      <span className={p.kreativaTekst}>
         <span className={p.kreativaNaziv}>{r.naslov || r.naziv}</span>
         <span className={p.kreativaMeta}>{opisKreative(r)}</span>
       </span>

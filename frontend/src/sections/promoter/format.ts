@@ -29,7 +29,14 @@ export const STANJE: Record<ReklamaStanje, { label: string; cls: string }> = {
   PAUZIRANA: { label: "Pauzirana", cls: "badgeUpozorenje" },
 };
 
-/** ISO -> vrijednosti za <input type="date"> i <input type="time"> (lokalno) */
+/** "2026-09-30" -> "30.09.2026."; kratko -> "30.09." (osa grafikona) */
+export function fmtDan(datum: string, kratko = false): string {
+  const [g, m, d] = datum.split("-");
+  if (!g || !m || !d) return "–";
+  return kratko ? `${d}.${m}.` : `${d}.${m}.${g}.`;
+}
+
+/** ISO -> vrijednosti za DateInput (GGGG-MM-DD) i VrijemeInput (SS:MM), lokalno */
 export function isoUDatumVrijeme(iso: string | null | undefined): {
   datum: string;
   vrijeme: string;

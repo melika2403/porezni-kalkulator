@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { unwrap } from "src/api/auth";
+import Modal from "src/components/Modal/Modal";
 import {
   getMojeReklame,
   obrisiReklamu,
@@ -19,6 +21,7 @@ import p from "./portal.module.css";
 export default function Kreative() {
   const router = useRouter();
   const qc = useQueryClient();
+  const [zaBrisanje, setZaBrisanje] = useState<PromoterReklama | null>(null);
   const { data, isLoading, error } = useQuery({
     queryKey: REKLAME_KEY,
     queryFn: () => unwrap(getMojeReklame()),
@@ -64,11 +67,14 @@ export default function Kreative() {
         {isLoading ? (
           <p className={p.prazno}>Učitavanje...</p>
         ) : lista.length === 0 ? (
-          <p className={p.prazno}>
-            Još nema kreativa. <Link href="/partner/kreative/nova">Napravite prvu.</Link>
-          </p>
+          <div className={p.prazno}>
+            <p className={p.praznoTekst}>Još nema kreativa.</p>
+            <Link href="/partner/kreative/nova" className={p.dugmeMalo}>
+              Napravite prvu
+            </Link>
+          </div>
         ) : (
-          <div className={p.tabelaOkvir} style={{ marginTop: -20 }}>
+          <div className={`${p.tabelaOkvir} ${p.tabelaBezNaslova}`}>
             <table className={p.tabela}>
               <thead>
                 <tr>
@@ -86,13 +92,13 @@ export default function Kreative() {
                 {lista.map((r) => (
                   <tr
                     key={r.id}
-                    style={{ cursor: "pointer" }}
+                    className={p.redKlik}
                     onClick={() => router.push(`/partner/kreative/${r.id}`)}
                   >
                     <td>
-                      <span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220 }}>
+                      <span className={p.kreativaCelija}>
                         <KreativaSlicica r={r} />
-                        <span style={{ minWidth: 0 }}>
+                        <span className={p.kreativaTekst}>
                           <span className={p.kreativaNaziv}>{r.naziv}</span>
                           <span className={p.kreativaMeta}>{opisKreative(r)}</span>
                           {r.promoter && (
@@ -106,7 +112,7 @@ export default function Kreative() {
                     <td>
                       <StatusKreative r={r} />
                     </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
+                    <td className={p.bezPrelamanja}>
                       {fmtTermin(r.pocetak, false)} – {fmtTermin(r.kraj, false)}
                     </td>
                     <td>
@@ -116,11 +122,10 @@ export default function Kreative() {
                     <td className={p.broj}>{fmtBroj(r.prikazi)}</td>
                     <td className={p.broj}>{fmtBroj(r.klikovi)}</td>
                     <td className={p.ctr}>{fmtCtr(r.prikazi, r.klikovi)}</td>
-                    <td style={{ whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                    <td className={p.bezPrelamanja} onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        className={p.dugmeMalo}
-                        style={{ padding: "5px 12px" }}
+                        className={`${p.dugmeMalo} ${p.dugmeMaloUsko}`}
                         disabled={status.isPending || r.stanje === "ISTEKLA"}
                         onClick={() => status.mutate(r)}
                       >
@@ -128,18 +133,9 @@ export default function Kreative() {
                       </button>{" "}
                       <button
                         type="button"
-                        className={p.dugmeMalo}
-                        style={{ padding: "5px 12px", color: "var(--err-text)" }}
+                        className={`${p.dugmeMalo} ${p.dugmeMaloUsko} ${p.dugmeMaloOpasno}`}
                         disabled={brisanje.isPending}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Obrisati kreativu "${r.naziv}"? Brišu se i njeni prikazi i klikovi.`,
-                            )
-                          ) {
-                            brisanje.mutate(r.id);
-                          }
-                        }}
+                        onClick={() => setZaBrisanje(r)}
                       >
                         Obriši
                       </button>
@@ -151,6 +147,25 @@ export default function Kreative() {
           </div>
         )}
       </section>
+
+      <Modal
+        kind="confirm"
+        open={zaBrisanje !== null}
+        title="Obrisati kreativu?"
+        message={
+          zaBrisanje
+            ? `Kreativa "${zaBrisanje.naziv}" se briše zajedno sa svojim prikazima i klikovima. Ovo se ne može vratiti.`
+            : ""
+        }
+        confirmLabel="Obriši"
+        cancelLabel="Odustani"
+        variant="danger"
+        onClose={() => setZaBrisanje(null)}
+        onConfirm={() => {
+          if (zaBrisanje) brisanje.mutate(zaBrisanje.id);
+          setZaBrisanje(null);
+        }}
+      />
     </>
   );
 }

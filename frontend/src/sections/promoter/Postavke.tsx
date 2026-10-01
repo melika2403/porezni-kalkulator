@@ -20,7 +20,7 @@ export default function Postavke() {
 
   const red = (k: string, v: React.ReactNode) => (
     <tr>
-      <td style={{ color: "var(--pp-muted)", width: 220 }}>{k}</td>
+      <td className={p.postavkeKljuc}>{k}</td>
       <td>{v}</td>
     </tr>
   );
@@ -34,11 +34,9 @@ export default function Postavke() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: 16, maxWidth: 820 }}>
+      <div className={p.postavkeMreza}>
         <section className={p.kartica}>
-          <h2 className={p.karticaNaslov} style={{ marginBottom: 12 }}>
-            Nalog
-          </h2>
+          <h2 className={`${p.karticaNaslov} ${p.karticaNaslovRazmak}`}>Nalog</h2>
           <table className={p.tabela}>
             <tbody>
               {red("Ime", `${korisnik?.firstName ?? ""} ${korisnik?.lastName ?? ""}`.trim() || "–")}
@@ -46,24 +44,26 @@ export default function Postavke() {
               {red("Uloga", korisnik?.role === "ADMIN" ? "Admin" : "Oglašivač")}
             </tbody>
           </table>
-          <p className={p.napomena}>
-            Lozinku i dvofaktorsku prijavu mijenjate na <Link href="/profil">profilu</Link>.
-          </p>
+          <div className={p.napomenaRed}>
+            <p className={p.napomenaTekst}>Lozinku i dvofaktorsku prijavu mijenjate na profilu.</p>
+            <Link href="/profil" className={p.dugmeMalo}>
+              Otvori profil
+            </Link>
+          </div>
         </section>
 
         <section className={p.kartica}>
-          <h2 className={p.karticaNaslov} style={{ marginBottom: 12 }}>
-            Brend
-          </h2>
+          <h2 className={`${p.karticaNaslov} ${p.karticaNaslovRazmak}`}>Brend</h2>
           {zadnja ? (
             <table className={p.tabela}>
               <tbody>
                 {red("Naziv", zadnja.brend)}
                 {red(
                   "Boja",
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <span className={p.bojaPrikaz}>
                     <span
-                      style={{ width: 18, height: 18, borderRadius: 4, background: zadnja.boja }}
+                      className={p.bojaKvadrat}
+                      style={{ background: zadnja.boja }}
                       aria-hidden="true"
                     />
                     <code>{zadnja.boja}</code>
@@ -73,7 +73,7 @@ export default function Postavke() {
                   "Logo",
                   logo ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={logo} alt={zadnja.brend} style={{ maxHeight: 32 }} />
+                    <img src={logo} alt={zadnja.brend} className={p.brendLogo} />
                   ) : (
                     "nije učitan (ispisuje se naziv)"
                   ),
@@ -83,10 +83,15 @@ export default function Postavke() {
           ) : (
             <p className={p.prazno}>Brend se postavlja pri izradi prve kreative.</p>
           )}
-          <p className={p.napomena}>
-            Nova kreativa preuzima naziv, boju i logo iz zadnje. Za promjenu ugovora ili pristupa
-            javite nam se putem <Link href="/kontakt">kontakt stranice</Link>.
-          </p>
+          <div className={p.napomenaRed}>
+            <p className={p.napomenaTekst}>
+              Nova kreativa preuzima naziv, boju i logo iz zadnje. Za promjenu ugovora ili pristupa
+              javite nam se.
+            </p>
+            <Link href="/kontakt" className={p.dugmeMalo}>
+              Kontakt
+            </Link>
+          </div>
         </section>
       </div>
     </>

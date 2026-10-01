@@ -32,6 +32,13 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
   const { role, isLoading } = useRole();
   const dozvoljen = role === "PROMOTER" || role === "ADMIN";
 
+  // paleta portala i na <body>: padajući meniji i modali se crtaju u body,
+  // van .portal, pa bi u tamnoj temi sajta ispali tamni na svijetlom portalu
+  useEffect(() => {
+    document.body.classList.add(p.paleta);
+    return () => document.body.classList.remove(p.paleta);
+  }, []);
+
   if (isLoading) return null;
 
   if (!dozvoljen) {

@@ -32,7 +32,7 @@ export default function Pozicije() {
       {error && <p className={p.greska}>{porukaGreske(error)}</p>}
       {isLoading && <p className={p.prazno}>Učitavanje...</p>}
 
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className={p.pozicijeMreza}>
         {POZICIJE.map((poz) => {
           const naPoziciji = reklame.filter(
             (r) => r.pozicije.includes(poz.id) && (r.stanje === "UTOKU" || r.stanje === "ZAKAZANA"),
@@ -42,35 +42,31 @@ export default function Pozicije() {
           const klikovi = redovi.reduce((z, r) => z + r.klikovi, 0);
           return (
             <section key={poz.id} className={p.kartica}>
-              <div className={p.karticaGlava} style={{ marginBottom: 8 }}>
+              <div className={`${p.karticaGlava} ${p.karticaGlavaUska}`}>
                 <h2 className={p.karticaNaslov}>{poz.naziv}</h2>
                 <span className={p.kpiSub}>
                   {fmtBroj(prikazi)} prikaza · {fmtBroj(klikovi)} klikova · CTR{" "}
-                  <span className={p.ctr} style={{ color: "var(--pp-crvena-tamna)" }}>
+                  <span className={`${p.ctr} ${p.ctrTamni}`}>
                     {fmtCtr(prikazi, klikovi)}
                   </span>
                 </span>
               </div>
-              <p className={p.podnaslov} style={{ marginTop: 0, fontSize: 14 }}>
+              <p className={`${p.podnaslov} ${p.pozicijaOpis}`}>
                 {poz.opis}
               </p>
-              <p className={p.napomena}>
-                {naPoziciji.length === 0 ? (
-                  "Trenutno nijedna kreativa nije na ovoj poziciji."
-                ) : (
-                  <>
-                    Kreative:{" "}
-                    {naPoziciji.map((r, i) => (
-                      <span key={r.id}>
-                        {i > 0 && ", "}
-                        <Link href={`/partner/kreative/${r.id}`}>{r.naziv}</Link>
-                        {r.stanje === "ZAKAZANA" ? " (zakazana)" : ""} ·{" "}
-                        {r.stranice.map(kratkoStranice).join(", ")}
-                      </span>
-                    ))}
-                  </>
-                )}
-              </p>
+              {naPoziciji.length === 0 ? (
+                <p className={p.napomena}>Trenutno nijedna kreativa nije na ovoj poziciji.</p>
+              ) : (
+                <div className={p.pozicijaKreative}>
+                  {naPoziciji.map((r) => (
+                    <Link key={r.id} href={`/partner/kreative/${r.id}`} className={p.dugmeMalo}>
+                      {r.naziv}
+                      {r.stanje === "ZAKAZANA" ? " (zakazana)" : ""} ·{" "}
+                      {r.stranice.map(kratkoStranice).join(", ")}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </section>
           );
         })}
